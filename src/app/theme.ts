@@ -73,3 +73,8 @@ export const EDGE_STYLE: Record<EdgeKind, { color: Color; width: number; dashed:
   return:  { color: GLOW.white,  width: 1.2, dashed: true,  hint: 'Returns a result' },
   data:    { color: GLOW.white,  width: 0.9, dashed: true,  hint: 'Reads / writes data' },
 };
+
+/** One glyph per runtime kind (legend, library). */
+export const RUNTIME_ICON: Record<string, string> = {
+  local: '⌂', server: '▤', cloud: '☁', container: '▣', serverless: 'λ', saas: '◎', edge: '◇', ci: '⟳', browser: '◫', device: '▯',
+};

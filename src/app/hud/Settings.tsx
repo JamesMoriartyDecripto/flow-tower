@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useLive } from '../live';
-import { resetPrefs, usePrefs, type DefaultView, type Flow, type Visibility } from '../settings';
+import { chooseView, resetPrefs, usePrefs, type DefaultView, type Flow, type Visibility } from '../settings';
 import type { FlowStyle } from '../scene/Particles';
 import { useStore, type Quality } from '../store';
 import { THEMES } from '../themes';
@@ -134,8 +134,11 @@ export function Settings() {
 
           <section>
             <h3>View</h3>
-            <Row label="Default view" hint="Auto: map for towers with more than 10 layers, tower otherwise. Switch any time with M.">
-              <Seg<DefaultView> value={prefs.defaultView} options={[['auto', 'Auto'], ['tower', 'Tower'], ['map', 'Map']]} onChange={(defaultView) => prefs.set({ defaultView })} />
+            <Row label="Default view" hint="Applies to every tower and sub-tower. Choosing Tower or Map anywhere (button, M) sets it. Auto: map above 10 layers.">
+              <Seg<DefaultView> value={prefs.defaultView} options={[['auto', 'Auto'], ['tower', 'Tower'], ['map', 'Map']]} onChange={(defaultView) => {
+                if (defaultView === 'auto') prefs.set({ defaultView });
+                else chooseView(defaultView);
+              }} />
             </Row>
             <Row label="Layer spacing" hint="Tower view only.">
               <input type="range" min={0.4} max={2.5} step={0.05} value={ui.explode} onChange={(e) => ui.set({ explode: Number(e.target.value) })} />
