@@ -114,16 +114,16 @@ layers:
     nodes:
       - id: panels
         type: process
-        label: Panels at 6 sizes
+        label: Panels at 7 sizes
         runtime: chrome
-        description: 1024 to 2560 px, interface size 1x to 1.6x, inspector and feed open; no overlap, nothing off screen.
+        description: 720 (half a laptop screen) to 2560 px, interface size 1x to 1.6x, inspector and feed open; no overlap, nothing off screen.
         files: [e2e/layout.spec.ts, src/app/scene/hudFrame.ts, src/app/styles.css]
-        fanout: 6
+        fanout: 7
       - id: axe
         type: tool
         label: axe-core (WCAG 2 A/AA)
         runtime: chrome
-        description: Library and HUD DOM; the WebGL canvas is excluded because axe cannot see inside it.
+        description: Library, HUD and the Settings dialog; the WebGL canvas is excluded because axe cannot see inside it.
         files: [e2e/layout.spec.ts]
     edges:
       - panels -> axe

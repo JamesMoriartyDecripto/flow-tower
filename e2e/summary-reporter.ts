@@ -9,7 +9,8 @@ export default class SummaryReporter implements Reporter {
   private lines: string[] = [];
 
   onTestEnd(test: TestCase, result: TestResult) {
-    const error = result.error?.message?.split('\n')[0] ?? '';
+    // Assertion messages carry terminal colors: keep the log plain text.
+    const error = (result.error?.message?.split('\n')[0] ?? '').replace(/\u001b\[[0-9;]*m/g, '');
     this.lines.push(`${result.status.padEnd(8)} ${(result.duration / 1000).toFixed(1).padStart(6)}s  ${test.title}${error ? `  — ${error}` : ''}`);
   }
 

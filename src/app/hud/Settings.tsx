@@ -1,17 +1,25 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useRef, type InputHTMLAttributes, type ReactNode } from 'react';
 import { useLive } from '../live';
 import { chooseView, effectiveScale, resetPrefs, usePrefs, type DefaultView, type Flow, type TextFont, type TitleFont, type Visibility } from '../settings';
 import type { FlowStyle } from '../scene/Particles';
 import { useStore, type Quality } from '../store';
 import { THEMES } from '../themes';
+import { useDialogFocus } from './dialog';
+
+/** The label of the row a control sits in: its accessible name (sliders and switches have no text). */
+const RowLabel = createContext('');
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <div className="set-row">
       <div><div className="set-label">{label}</div>{hint && <div className="set-hint">{hint}</div>}</div>
-      <div className="set-control">{children}</div>
+      <div className="set-control"><RowLabel.Provider value={label}>{children}</RowLabel.Provider></div>
     </div>
   );
+}
+
+function Slider(props: InputHTMLAttributes<HTMLInputElement>) {
+  return <input type="range" aria-label={useContext(RowLabel)} {...props} />;
 }
 
 function Seg<T extends string>({ value, options, onChange }: { value: T; options: [T, string][]; onChange(v: T): void }) {
@@ -23,7 +31,7 @@ function Seg<T extends string>({ value, options, onChange }: { value: T; options
 }
 
 function Toggle({ on, onChange }: { on: boolean; onChange(v: boolean): void }) {
-  return <button className={`toggle ${on ? 'on' : ''}`} role="switch" aria-checked={on} onClick={() => onChange(!on)} title={on ? 'On: click to turn off' : 'Off: click to turn on'}><i /></button>;
+  return <button className={`toggle ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-label={useContext(RowLabel)} onClick={() => onChange(!on)} title={on ? 'On: click to turn off' : 'Off: click to turn on'}><i /></button>;
 }
 
 /** Style, size, speed and density of one animated flow (between nodes or between layers). */
@@ -31,7 +39,7 @@ function FlowControls({ title, hint, flow, onChange }: { title: string; hint: st
   const patch = (p: Partial<Flow>) => onChange({ ...flow, ...p });
   const slider = (key: 'size' | 'speed' | 'density', min: number, max: number, step: number) => (
     <>
-      <input type="range" min={min} max={max} step={step} value={flow[key]} disabled={!flow.on} onChange={(e) => patch({ [key]: Number(e.target.value) })} />
+      <Slider min={min} max={max} step={step} value={flow[key]} disabled={!flow.on} onChange={(e) => patch({ [key]: Number(e.target.value) })} />
       <span className="mono dim">{flow[key].toFixed(1)}×</span>
     </>
   );
@@ -65,13 +73,13 @@ export function Settings() {
   const ui = useStore();
   const live = useLive();
   const panel = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (prefs.open) panel.current?.querySelector<HTMLElement>('.theme.on')?.focus(); }, [prefs.open]);
+  useDialogFocus(panel, prefs.open, '.theme.on');
   if (!prefs.open) return null;
   const close = () => prefs.set({ open: false });
 
   return (
     <div className="overlay" onClick={close}>
-      <div className="panel settings" ref={panel} role="dialog" aria-label="Settings" onClick={(e) => e.stopPropagation()}>
+      <div className="panel settings" ref={panel} role="dialog" aria-modal="true" aria-label="Settings" tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <header>
           <div className="title">Settings</div>
           <button className="close" onClick={close} title="Close (Esc)">✕</button>
@@ -104,7 +112,7 @@ export function Settings() {
               <Toggle on={ui.particles} onChange={(particles) => ui.set({ particles })} />
             </Row>
             <Row label="Glow" hint="Bloom strength on highlights and live activity (no effect in eco).">
-              <input type="range" min={0} max={2} step={0.1} value={prefs.bloom} onChange={(e) => prefs.set({ bloom: Number(e.target.value) })} />
+              <Slider min={0} max={2} step={0.1} value={prefs.bloom} onChange={(e) => prefs.set({ bloom: Number(e.target.value) })} />
               <span className="mono dim">{prefs.bloom.toFixed(1)}×</span>
             </Row>
           </section>
@@ -112,7 +120,7 @@ export function Settings() {
           <section>
             <h3>Text</h3>
             <Row label="Interface size" hint="Scales every panel and its text together. Larger for 4K or far screens, smaller for small laptops.">
-              <input type="range" min={0.8} max={1.6} step={0.05} value={prefs.uiScale} onChange={(e) => prefs.set({ uiScale: Number(e.target.value) })} />
+              <Slider min={0.8} max={1.6} step={0.05} value={prefs.uiScale} onChange={(e) => prefs.set({ uiScale: Number(e.target.value) })} />
               <span className="mono dim" title={effectiveScale(prefs.uiScale) < prefs.uiScale ? 'Capped so the panels fit this window' : undefined}>
                 {Math.round(prefs.uiScale * 100)}%{effectiveScale(prefs.uiScale) < prefs.uiScale - 0.01 && ` → ${Math.round(effectiveScale(prefs.uiScale) * 100)}% fits`}
               </span>
@@ -128,7 +136,7 @@ export function Settings() {
           <section>
             <h3>Appearance</h3>
             <Row label="Layer transparency" hint="Glass plates of the layers: lower = see the flows below, higher = calmer, more readable. The focused layer always stays nearly opaque.">
-              <input type="range" min={0.1} max={0.95} step={0.05} value={prefs.plateOpacity} onChange={(e) => prefs.set({ plateOpacity: Number(e.target.value) })} />
+              <Slider min={0.1} max={0.95} step={0.05} value={prefs.plateOpacity} onChange={(e) => prefs.set({ plateOpacity: Number(e.target.value) })} />
               <span className="mono dim">{Math.round((1 - prefs.plateOpacity) * 100)}%</span>
             </Row>
           </section>
@@ -159,7 +167,7 @@ export function Settings() {
               }} />
             </Row>
             <Row label="Layer spacing" hint="Tower view only.">
-              <input type="range" min={0.4} max={2.5} step={0.05} value={ui.explode} onChange={(e) => ui.set({ explode: Number(e.target.value) })} />
+              <Slider min={0.4} max={2.5} step={0.05} value={ui.explode} onChange={(e) => ui.set({ explode: Number(e.target.value) })} />
             </Row>
             <Row label="Auto-orbit" hint="Slowly rotates the tower (keeps rendering while on).">
               <Toggle on={ui.autoRotate} onChange={(autoRotate) => ui.set({ autoRotate })} />

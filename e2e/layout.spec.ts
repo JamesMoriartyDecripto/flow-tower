@@ -14,6 +14,7 @@ const SIZES = [
   { width: 1920, height: 1080, uiScale: 1.15 },
   { width: 2560, height: 1440, uiScale: 1.6 },
   { width: 1024, height: 640, uiScale: 1 },
+  { width: 720, height: 900, uiScale: 1 }, // half of a laptop screen
 ];
 
 async function rects(page: Page) {
@@ -36,7 +37,10 @@ for (const size of SIZES) {
     await page.keyboard.press('f');
     await expect(page.locator('.inspector')).toBeVisible();
     await expect(page.locator('.livefeed')).toBeVisible();
-    await page.waitForTimeout(400); // panel transitions
+    // Panels slide in (transform): measure once their animations are over, not mid-flight.
+    await page.evaluate(() => Promise.all(document.getAnimations()
+      .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity) // live pulses never finish
+      .map((a) => a.finished.catch(() => undefined))));
 
     const boxes = await rects(page);
     const problems: string[] = [];
@@ -63,7 +67,14 @@ test('accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)', async ({ pa
   await pressUntil(page, 'PageDown', (s) => s.focusedLayer === 0);
   await pressUntil(page, 'ArrowRight', (s) => !!s.selected);
   const hud = await new AxeBuilder({ page }).exclude('canvas').withTags(['wcag2a', 'wcag2aa']).analyze();
-  const summary = [...library.violations.map((v) => ({ ...v, where: 'library' })), ...hud.violations.map((v) => ({ ...v, where: 'tower' }))]
+  await page.keyboard.press(',');
+  await expect(page.locator('.settings')).toBeVisible();
+  const settings = await new AxeBuilder({ page }).include('.settings').withTags(['wcag2a', 'wcag2aa']).analyze();
+  const summary = [
+    ...library.violations.map((v) => ({ ...v, where: 'library' })),
+    ...hud.violations.map((v) => ({ ...v, where: 'tower' })),
+    ...settings.violations.map((v) => ({ ...v, where: 'settings' })),
+  ]
     .map((v) => `${v.where}: ${v.id} (${v.impact}) × ${v.nodes.length}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`);
   await test.info().attach('axe.json', { body: JSON.stringify(summary, null, 2), contentType: 'application/json' });
   await emit('layout.axe', 'tool.end', `${summary.length} axe rules violated`, summary.length ? 'error' : 'ok');

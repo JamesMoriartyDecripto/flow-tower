@@ -125,7 +125,9 @@ export function LayerNav() {
           onClick={() => focusLayer(l.index)}
           onMouseEnter={() => hoverLayer(l.index)}
           onMouseLeave={() => hoverLayer(undefined)}
-          title={`Focus this layer (${l.index < 9 ? l.index + 1 : 'click'})${l.description ? ` — ${l.description}` : ''}`}
+          onFocus={() => hoverLayer(l.index)}
+          onBlur={() => hoverLayer(undefined)}
+          title={`${l.title}: focus this layer (${l.index < 9 ? l.index + 1 : 'click'})${l.description ? ` — ${l.description}` : ''}`}
         >
           <span className="idx">L{String(l.index + 1).padStart(2, '0')}</span>
           <span className="name">{l.title}</span>
