@@ -11,7 +11,7 @@ git clone https://github.com/JamesMoriartyDecripto/flow-tower.git
 cd flow-tower
 git checkout feat/skill            # top of the PR stack: contains everything
 npm install                        # Node >= 22.12
-npm run check                      # typecheck + tests (expect 38 passing)
+npm run check                      # typecheck + tests (expect 39 passing)
 npm run dev                        # library of the examples at http://127.0.0.1:5317
 npm run simulate -- dev-squad      # in a 2nd terminal: fake live events, sanity check
 ```
