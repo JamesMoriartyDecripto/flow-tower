@@ -42,7 +42,9 @@ export function TextBatch({ items, font, outline }: { items: TextItem[]; font: s
     }
     items.forEach((it, i) => {
       const t = list[i];
-      Object.assign(t, {
+      // Assign only what changed: re-setting layout props (text, font…) makes troika re-typeset,
+      // which is expensive when opacity alone changes several times a second (live spotlight).
+      const props: Record<string, unknown> = {
         text: it.text,
         font,
         fontSize: it.fontSize,
@@ -57,7 +59,8 @@ export function TextBatch({ items, font, outline }: { items: TextItem[]; font: s
         outlineWidth: outline ? '12%' : 0,
         outlineColor: outline ?? 0,
         outlineOpacity: it.opacity * 0.9,
-      });
+      };
+      for (const k in props) if (t[k] !== props[k]) t[k] = props[k];
       t.position.set(...it.position);
       t.rotation.set(it.flat === false ? 0 : -Math.PI / 2, 0, 0);
     });

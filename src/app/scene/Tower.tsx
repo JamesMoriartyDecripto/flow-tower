@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { CameraControls } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { Vector3, type Group } from 'three';
@@ -11,6 +11,9 @@ import { Layer, type Visual } from './Layer';
 import { createLens, stepLens } from './lens';
 import { Links } from './Links';
 import { useShiftPan } from './shiftPan';
+import { useChipProjector } from './chips';
+import { useFollow, useSceneLive } from '../liveHooks';
+import { useLive } from '../live';
 
 /** Root of the 3D scene: stacks the layers, animates spacing, drives the camera. */
 export function TowerScene() {
@@ -21,7 +24,7 @@ export function TowerScene() {
 }
 
 function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTower>>; layout: TowerLayout }) {
-  const { explode, focusedLayer, hoveredLayer, selected, hovered, search, hiddenTypes, runtimeFocus, autoRotate, viewNonce } = useStore();
+  const { explode, focusedLayer, hoveredLayer, selected, hovered, search, hiddenTypes, runtimeFocus, autoRotate, viewNonce, quality } = useStore();
   const spacing = useRef(0.02); // starts collapsed: the tower "assembles" on mount
   const lens = useMemo(() => createLens(tower.layers.length), [tower]);
   const group = useRef<Group>(null);
@@ -63,6 +66,13 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
 
   useEffect(() => { document.body.style.cursor = hovered ? 'pointer' : ''; }, [hovered]);
   useShiftPan(controls);
+  useFollow();
+  const layerIds = useMemo(() => tower.layers.map((l) => l.id), [tower]);
+  useChipProjector(layout, layerIds);
+  const live = useSceneLive();
+  const feedOpen = useLive((s) => s.feedOpen);
+  // Static dim while the feed is open; the live overlay re-lights active nodes every frame.
+  const spotlight = useLive((s) => s.spotlight) && feedOpen;
 
   const layerIndex = useMemo(() => Object.fromEntries(tower.layers.map((l) => [l.id, l.index])), [tower]);
   const focusKey = selected ?? hovered;
@@ -82,10 +92,11 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
       if (runtimeFocus) return runtimeOf[key] === runtimeFocus ? 1 : 0.14;
       if (hits) return hits.has(key) ? 1 : 0.18;
       if (rel) return rel.nodes.has(key) ? 1 : 0.22;
+      if (spotlight) return 0.38;
       return 1;
     },
     edgeHighlight: (id) => rel?.edges.has(id),
-  }), [selected, hovered, hiddenTypes, types, runtimeFocus, runtimeOf, hits, rel]);
+  }), [selected, hovered, hiddenTypes, types, runtimeFocus, runtimeOf, hits, rel, spotlight]);
   const layerFade = useCallback((i: number) => {
     if (focusedLayer !== undefined) return i === focusedLayer ? 1 : i < focusedLayer ? 0.04 : 0.16;
     if (hoveredLayer === undefined) return 1;
@@ -94,7 +105,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
 
   return (
     <>
-      <Ambient size={[width * 1.4, height + 12, depth * 2]} />
+      <Ambient w={width * 1.4} h={height + 12} d={depth * 2} sparkles={quality !== 'low'} />
       <CameraControls ref={controls} makeDefault minDistance={4} maxDistance={400} dollySpeed={0.6} smoothTime={0.35} />
       <group ref={group}>
         {tower.layers.map((l, i) => (
@@ -109,6 +120,8 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
             fade={layerFade(i)}
             interactive={focusedLayer === undefined || i === focusedLayer}
             visual={visual}
+            liveTint={live.tints[l.id]}
+            subtrees={live.subtrees}
           />
         ))}
         <Links links={tower.links} layout={layout} layerIndex={layerIndex} visual={visual} layerFade={layerFade} lens={lens} />
@@ -123,17 +136,21 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
 }
 
 /** Thin vertical frame lines at the plate corners: reads as one structure, not loose sheets. */
-function Pillars({ width, depth, bottom }: { width: number; depth: number; bottom: number }) {
+const Pillars = memo(function Pillars({ width, depth, bottom }: { width: number; depth: number; bottom: number }) {
   const [x, z] = [width / 2, depth / 2];
+  const positions = useMemo(
+    () => new Float32Array([-x, 2, -z, -x, bottom - 2, -z, x, 2, -z, x, bottom - 2, -z, x, 2, z, x, bottom - 2, z, -x, 2, z, -x, bottom - 2, z]),
+    [x, z, bottom],
+  );
   return (
     <lineSegments>
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
-          args={[new Float32Array([-x, 2, -z, -x, bottom - 2, -z, x, 2, -z, x, bottom - 2, -z, x, 2, z, x, bottom - 2, z, -x, 2, z, -x, bottom - 2, z]), 3]}
+          args={[positions, 3]}
         />
       </bufferGeometry>
       <lineBasicMaterial color="#5d7aa8" transparent opacity={0.35} />
     </lineSegments>
   );
-}
+});

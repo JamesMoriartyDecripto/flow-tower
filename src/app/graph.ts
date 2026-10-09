@@ -1,4 +1,4 @@
-import type { ResolvedEdge, ResolvedNode, ResolvedTower } from '../core/types';
+import type { ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from '../core/types';
 
 export const allEdges = (t: ResolvedTower): ResolvedEdge[] => [...t.layers.flatMap((l) => l.edges), ...t.links];
 
@@ -51,4 +51,18 @@ export const matches = (node: ResolvedNode, query: string) => score(node, query)
 /** Best match first. */
 export function search(nodes: ResolvedNode[], query: string): ResolvedNode[] {
   return nodes.map((n) => [n, score(n, query)] as const).filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1]).map(([n]) => n);
+}
+
+/** Breadcrumb from a library project down to `towerId` (through nested `tower:` links), if reachable. */
+export function towerPath(ws: Workspace, towerId: string): string[] | undefined {
+  const queue: string[][] = ws.projects.map((p) => [p]);
+  const seen = new Set<string>();
+  while (queue.length) {
+    const path = queue.shift()!;
+    const id = path[path.length - 1];
+    if (id === towerId) return path;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    for (const l of ws.towers[id]?.layers ?? []) for (const n of l.nodes) if (n.tower) queue.push([...path, n.tower]);
+  }
 }

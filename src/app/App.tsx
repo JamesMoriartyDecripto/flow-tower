@@ -6,6 +6,7 @@ import { FileViewer } from './hud/FileViewer';
 import { Inspector } from './hud/Inspector';
 import { Library } from './hud/Library';
 import { LiveFeed } from './hud/LiveFeed';
+import { LiveChips } from './hud/LiveChips';
 import { useLiveSync } from './live';
 import { Effects } from './scene/Effects';
 import { TowerScene } from './scene/Tower';
@@ -37,6 +38,7 @@ export function App() {
         </Suspense>
       </Canvas>
       <div className="scanlines" />
+      <LiveChips />
       <div className="hud">
         <TopBar onIssues={() => setShowIssues((v) => !v)} />
         <LayerNav />

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { EDGE_KINDS, NODE_TYPES } from '../../core/schema';
 import { search as rank } from '../graph';
 import { useLive } from '../live';
+import { useCurrentTowerLive } from '../liveHooks';
 import { useStore, useTower } from '../store';
 import { EDGE_STYLE, NODE_STYLE } from '../theme';
 
@@ -81,18 +82,12 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
 function LiveButton({ flash }: { flash: boolean }) {
   const { events, feedOpen, toggleFeed } = useLive();
   const perMin = events.filter((e) => e.ts > Date.now() - 60_000).length;
-  const [ping, setPing] = useState(false);
   const last = events[events.length - 1]?.id;
-  useEffect(() => {
-    if (last === undefined) return;
-    setPing(true);
-    const t = setTimeout(() => setPing(false), 600);
-    return () => clearTimeout(t);
-  }, [last]);
+  // Re-keying the dot restarts its CSS ping animation on every event: no React state, no effect.
   return (
-    <button className={`live ${flash || ping ? 'flash' : ''} ${feedOpen ? 'on' : ''}`} onClick={() => toggleFeed()}
+    <button className={`live ${flash ? 'flash' : ''} ${feedOpen ? 'on' : ''}`} onClick={() => toggleFeed()}
       title="Live: file reloads + agent events. Click for the live feed.">
-      <i />LIVE{perMin ? ` ${perMin}/min` : ''}
+      <i key={last} className={last ? 'ping' : ''} />LIVE{perMin ? ` ${perMin}/min` : ''}
     </button>
   );
 }
@@ -100,7 +95,15 @@ function LiveButton({ flash }: { flash: boolean }) {
 export function LayerNav() {
   const tower = useTower();
   const { focusedLayer, hoveredLayer, focusLayer, hoverLayer, resetView } = useStore();
+  const { states } = useCurrentTowerLive();
   if (!tower) return null;
+  // Per layer: how many nodes are running, and whether any failed recently.
+  const liveOf = (layerId: string) => {
+    let run = 0;
+    let error = false;
+    for (const [key, st] of states) if (key.startsWith(`${layerId}.`)) { if (st === 'run') run++; if (st === 'error') error = true; }
+    return { run, error };
+  };
   return (
     <nav className="panel layernav">
       <div className="title">Layers</div>
@@ -118,11 +121,18 @@ export function LayerNav() {
         >
           <span className="idx">L{String(l.index + 1).padStart(2, '0')}</span>
           <span className="name">{l.title}</span>
-          <span className="count">{l.nodes.length}</span>
+          <LiveCount {...liveOf(l.id)} total={l.nodes.length} />
         </button>
       ))}
     </nav>
   );
+}
+
+
+/** Node count, or a pulsing live badge when agents on the layer are working (red if one failed). */
+function LiveCount({ run, error, total }: { run: number; error: boolean; total: number }) {
+  if (!run && !error) return <span className="count">{total}</span>;
+  return <span className={`count live-badge ${error ? 'error' : 'run'}`} title={`${run} running${error ? ', recent error' : ''}`}>● {run || '!'}</span>;
 }
 
 const RUNTIME_ICON: Record<string, string> = {
