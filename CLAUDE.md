@@ -5,7 +5,8 @@
 ## Conventions
 
 - English only, everywhere: code, docs, examples, commits.
-- Never work on `main`. Use one branch per feature (`feat/…`, `fix/…`), stacked PRs when needed. **The user merges.**
+- Never work on `main`. Use one branch per feature or issue (`feat/…`, `fix/…`), opened from an up-to-date `main`. **The user merges.**
+- With stacked PRs, retarget the next PR to `main` *before* deleting a merged base branch: GitHub closes PRs whose base branch disappears.
 - Commit and push after every completed piece of work, not at the end, so anything broken can be recovered.
 - Update `CHANGELOG.md` under `[Unreleased]` (keepachangelog: Added / Changed / Fixed / Security).
 - Before using an external library API, check current docs (Context7) — versions are recent: React 19, r3f 9, drei 10, three 0.186, Vite 8, zod 4, TypeScript 7.
