@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Starter examples (1–3 layers, short YAML): single agent, RAG bot, PR review bot, personal voice assistant.
 - Node panel: connections split into "Across layers" (with the target layer) and "In this layer"; click or Enter jumps there and moves the camera, hover highlights the target, "Back to …" (B) undoes a jump, C / Shift+C cycle connected nodes.
 - Keyboard inside panels: Enter / I enters the node panel, ↑ ↓ Home End walk sections and buttons, ← → switch tabs (or move along a row), Esc returns to the scene; the file viewer takes and gives back the focus.
 - Sub-towers by keyboard: S / Shift+S select the next / previous sub-tower node, Enter dives in, Backspace returns onto the node you entered from, Shift+Backspace to the project root.
@@ -55,6 +56,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Focused layer gets a near-opaque plate and the other layers dim further, so the focused flow reads cleanly.
 
 ### Fixed
+- Schema docs: labeled edge shorthand (`a -> b: label`) must be quoted in YAML.
 - Node titles and subtitles no longer spill out of the node: width-aware truncation (whole subtitle parts) plus a clip at the node border.
 - Crash when returning to a parent tower with a layer focused (stale scene used the new focus index).
 - Library arrows now work wherever the focus is (and wrap left/right); T / M open the focused card as tower / map.

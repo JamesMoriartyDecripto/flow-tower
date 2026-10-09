@@ -70,6 +70,15 @@ See the full **[schema reference](docs/schema.md)**. A generated JSON Schema (`s
 
 ## Examples
 
+Start small: the **starters** are one short YAML file each, the presets below show large systems.
+
+| Starter | Layers | What it shows |
+|---|---|---|
+| [`single-agent`](examples/starters/single-agent) | 1 | One agent in a tool loop (web search) |
+| [`rag-bot`](examples/starters/rag-bot) | 2 | Nightly ingestion feeding a cited Q&A flow, one cross-layer link |
+| [`pr-reviewer`](examples/starters/pr-reviewer) | 3 | GitHub Actions PR review: trigger, review, outcome |
+| [`voice-assistant`](examples/starters/voice-assistant) | 3 | Personal voice assistant: local wake word / STT / TTS, Claude in the middle |
+
 | Preset | What it shows |
 |---|---|
 | [`dev-squad`](examples/dev-squad) | Software delivery on the Claude Agent SDK: triage, orchestrator-workers, review loop, hooks, MCP, memory |
@@ -167,7 +176,7 @@ src/cli/        TypeScript CLI commands (validate)
 schema/         generated JSON Schema
 skills/         Agent Skill (SKILL.md) that generates towers from a codebase
 integrations/   live-event configs for Claude Code, Agent SDK, Codex, Pi, Hermes
-examples/       reference towers (coding, game dev, course creation)
+examples/       starters (1–3 layers) and reference towers (coding, game dev, course creation)
 scripts/        schema, stress-tower and event-simulator scripts
 docs/           schema reference, realtime guide, tower generation procedure
 ```
