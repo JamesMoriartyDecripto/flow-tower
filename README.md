@@ -94,6 +94,7 @@ Start small: the **starters** are one short YAML file each, the presets below sh
 | [`a2a-concierge`](examples/a2a-concierge) | E-commerce A2A: ADK concierge discovering CrewAI and LangGraph seller agents (sub-towers) over the A2A protocol |
 | [`legal-diligence`](examples/legal-diligence) | M&A due diligence: data room, per-document fan-out clause review, red flags, lawyer approvals, EU-resident confidential data |
 | [`web-studio`](examples/web-studio) | Website agency: brief to launch, design system via Figma MCP, separate frontend and backend sub-towers, Lighthouse / axe evals |
+| [`jev-agent`](examples/jev-agent) | Decision-model harness for Jev (TypeSafe): the LLM writes, Jev decides (routing, tool-risk gate, browser next action, compaction, stop checks), code acts |
 
 Every example ships real prompt, agent, code, config and log files, so the popups have something to show.
 

@@ -1,0 +1,71 @@
+# What deterministic code does with each Jev answer. Jev decides; this file acts.
+# Every number is tagged:
+#   reported     = published by the project named in `source` (author's own measurement, not ours)
+#   illustrative = a starting point for this example; replace with values from scripts/calibrate.ts
+model: jev-1.13.0            # thresholds are per model version; re-calibrate before bumping
+
+route:
+  confidence_floor: 0.6      # below -> ask_user. illustrative; 0.6 is the floor in TypeSafe's confidence-gated routing pattern
+  per_candidate_min_confidence:
+    haiku: 0.6
+    sonnet: 0.6
+    opus: 0.7                # most expensive worker needs a clearer signal. illustrative
+    browser: 0.75            # browser runs touch live sites. illustrative
+  sticky: true               # chosen once per task, kept for the run (as LangChain's ModelRouterMiddleware does)
+
+tool_risk:
+  ask_gate:                  # code decides offline when no Jev answer could change the outcome (pi-warden "ask gate")
+    read_only_tools: [Read, Grep, Glob]
+    read_only_bash: ["^git (status|diff|log|show)\\b", "^ls\\b", "^cat\\b", "^rg\\b", "^npm (test|run (check|lint|typecheck))\\b"]
+  offline_floor:             # regex hit -> hold with no request at all (pi-warden built-in patterns)
+    - "git push (-f|--force)"
+    - "git reset --hard"
+    - "rm -rf (?!\\.?/?tmp/)"
+    - "\\bDROP (TABLE|DATABASE)\\b"
+    - "terraform destroy"
+  irreversible:
+    hold: 0.9                # reported: pi-warden default since 0.75.0 (split-half calibration on 15,346 calls)
+    warn: 0.5                # reported: pi-warden warns on 0.5..0.9
+  leaks_secret:
+    block: 0.5               # illustrative; block means no human override
+  off_task:
+    mode: trace_only         # reported: pi-warden keeps it trace-only (failed its 0.80 precision gate)
+  outcomes:
+    allow: "irreversible < 0.5 and leaks_secret < 0.5"
+    warn:  "0.5 <= irreversible < 0.9 -> run, and steer the LLM with one sentence"
+    review: "irreversible >= 0.9 or offline_floor hit -> hold for a human (10m, then reject)"
+    block: "leaks_secret >= 0.5 -> refuse, return the reason as an error tool_result"
+  on_jev_error: review       # fail closed for mutating calls; fail open only for read-only (never asked)
+  timeout_ms: 2000
+
+next_action:
+  finish_min_confidence: 0.7 # illustrative; finish still has to pass the Stop hook
+  escalate_min_p: 0.5        # illustrative
+  force_new_hypothesis_after: 3   # same failing command 3x -> override. reported behaviour of pi-warden's stuck guard
+  max_iterations: 60
+
+compaction:
+  trigger_tokens: 150000     # illustrative
+  keep_threshold: 0.5        # reported: fast-jev-compaction default
+  preserve_recent_messages: 6     # reported: fast-jev-compaction default
+  max_state_tokens: 25000    # reported: fast-jev-compaction default
+  max_request_tokens: 30000  # reported: fast-jev-compaction default (under Jev's 32k request limit, per its README)
+  truncate_head_chars: 300   # reported: fast-jev-compaction default
+  min_reduction: 0.25        # below -> fall back to the LLM summary. from fast-jev-compaction's README example
+  on_jev_error: llm_summary
+
+completion:
+  block_stop_at: 0.7         # any premature-stop shape >= 0.7 -> block. illustrative (stingray's watch promises scored >= 0.68 on its fixture)
+  done_rule_met: 0.7         # rule counts as met at >= 0.7; <= 0.3 -> block; between -> ask the LLM to cite evidence. illustrative
+  max_blocks_per_turn: 2     # loop protection via stop_hook_active
+  on_jev_error: allow        # fail open: the hook can add work, never approve less (stingray's rule)
+
+preferences:
+  violation: 0.7             # reported analogue: pi-warden rules bench, precision 0.970 / recall 0.865 at 0.7
+  severity_from_agents_md: true   # "(blocking)" preferences block the stop; the rest are advisory
+  max_pairs_per_stop: 60     # illustrative cap on hunk x preference questions
+
+browser:
+  operation_min_confidence: 0.5   # below -> re-observe once, then BLOCKED. illustrative
+  max_steps: 40
+  text_wait_ms: 200          # reported: jev-ultrafast waits up to 200 ms for combobox suggestions

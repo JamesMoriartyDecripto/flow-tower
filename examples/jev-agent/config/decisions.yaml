@@ -1,0 +1,92 @@
+# Every branching point of the harness, as a Jev question.
+# Field names match the System One API: questions.<id>.{type, instructions, criteria}.
+#   noul   -> criteria (optional) { true, false }       answer: noul (0..1)
+#   choice -> criteria (required) { candidate: text }   answer: choice, probabilities, confidence
+#   score  -> criteria (required) [ level, ... ] 2..10  answer: score, legend, probabilities, confidence
+# What the code DOES with each answer lives in policy.yaml, not here.
+
+route:                       # intake: which worker handles the request (one choice)
+  state: [request, repo_map, agents_md_headings, git_log_10]
+  questions:
+    worker:
+      type: choice
+      instructions: Which worker should handle this request in this repository?
+      criteria:
+        haiku: "Direct lookup or a one-file mechanical edit: rename, explain a snippet, bump a version."
+        sonnet: "A change across a few files that needs tests: a bug with a repro, a small feature."
+        opus: "Architecture or a cross-cutting refactor, or a bug with no repro and several plausible causes."
+        browser: "The task needs a live website: a dashboard, a form, docs rendered by JavaScript."
+        ask_user: "The request is ambiguous or names no target (repo, file, environment, ticket)."
+
+tool_risk:                   # act loop: one request per mutating tool call (three nouls)
+  state: [request, plan, tool_call, cwd, git_status]
+  questions:
+    irreversible:
+      type: noul
+      instructions: Running this call cannot be undone with the tools the agent has.
+      criteria:
+        true: "Data, history or remote state is lost for good: force push, reset --hard, rm -rf of tracked files, DROP, deleting a cloud resource."
+        false: "It can be reverted with git, the trash, a re-run or a backup the agent can reach."
+    leaks_secret:
+      type: noul
+      instructions: This call sends a credential or private data to a host or file outside the workspace.
+    off_task:
+      type: noul
+      instructions: This call does not serve the user's request or a step the request needs.
+
+next_action:                 # act loop: after every tool result (one choice)
+  state: [request, plan, last_3_tool_results, attempts_on_current_step, failing_command_streak]
+  questions:
+    next:
+      type: choice
+      instructions: What should the agent do next?
+      criteria:
+        continue: "The plan has a next step and nothing failed."
+        run_check: "Code changed since the last passing test, build or lint."
+        new_hypothesis: "The same fix failed again; the current explanation of the bug is wrong."
+        finish: "Every step of the plan is done and a check passed after the last edit."
+        escalate: "The agent needs a decision, a credential or access it does not have."
+
+compaction:                  # context: two nouls per non-pinned tool call (fast-jev-compaction)
+  state: [whole_conversation_with_results_replaced_by_size_notes]
+  questions_per_call:
+    keep_call_<id>:
+      type: noul
+      instructions: Knowing that call <id> was made, with its input, still matters for the rest of the task.
+    keep_result_<id>:
+      type: noul
+      instructions: The verbatim result of call <id> is still needed, and re-running the tool would not do.
+
+completion:                  # Stop hook: one request, premature-stop shapes + done rules
+  state: [request, final_message, tool_calls_this_turn, last_check_result]
+  questions:
+    no_action:
+      type: noul
+      instructions: The turn stopped without doing anything, although it could have acted.
+    broken_promise:
+      type: noul
+      instructions: The final message announces an action that this turn's tool calls do not account for.
+    unverified_done:
+      type: noul
+      instructions: The final message says the task is done, but no test, build or lint ran after the last edit.
+    done_rule_<n>:           # one per "## Done means" bullet in AGENTS.md
+      type: noul
+      instructions: "The transcript shows evidence that this rule is satisfied: <rule text>"
+
+preferences:                 # Stop hook: one noul per (diff hunk, AGENTS.md preference) pair (jev-pref)
+  state: [hunk_with_3_lines_context, file_path]
+  questions_per_pair:
+    violates_<pref>_<hunk>:
+      type: noul
+      instructions: "This hunk introduces a violation of the preference: <preference text>"
+
+browser_step:                # browser sub-tower: operation + speculative targets in ONE request (jev-ultrafast)
+  state: [goal, indexed_element_table, visible_text, last_3_actions]
+  questions:
+    operation:
+      type: choice
+      instructions: Which operation moves the page closer to the goal?
+      criteria: { CLICK: null, TYPE_TEXT: null, SELECT: null, SCROLL_UP: null, SCROLL_DOWN: null, WAIT: null, DONE: "The goal is visibly met.", BLOCKED: "A login, captcha or missing data stops progress." }
+    click_target:     { type: choice, instructions: "Which element should be clicked?", criteria: "<clickable element indices>" }
+    type_text_target: { type: choice, instructions: "Which field should receive text?", criteria: "<editable element indices>" }
+    select_target:    { type: choice, instructions: "Which option should be selected?", criteria: "<observed element/option indices>" }

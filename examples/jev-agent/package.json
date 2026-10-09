@@ -1,0 +1,15 @@
+{
+  "name": "jev-agent-example",
+  "private": true,
+  "type": "module",
+  "description": "Coding agent harness where the LLM writes, Jev decides and code acts. Read-only example for flow-tower.",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "start": "node src/main.ts",
+    "calibrate": "node scripts/calibrate.ts logs/judgments.log"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
+    "yaml": "^2.9.1"
+  }
+}
