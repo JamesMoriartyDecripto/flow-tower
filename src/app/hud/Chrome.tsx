@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { EDGE_KINDS, NODE_TYPES } from '../../core/schema';
 import { search as rank } from '../graph';
 import { useLive } from '../live';
+import { usePrefs } from '../settings';
 import { useCurrentTowerLive } from '../liveHooks';
 import { useStore, useTower } from '../store';
 import { EDGE_STYLE, NODE_STYLE } from '../theme';
@@ -74,6 +75,7 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
         <span className={`chip ${warnings ? 'warn' : ''}`}>{warnings} WARN</span>
       </button>
       <LiveButton flash={flash} />
+      <button className="btn gear" onClick={() => usePrefs.getState().set({ open: true })} title="Settings (,)">⚙</button>
     </header>
   );
 }

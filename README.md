@@ -125,6 +125,8 @@ Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [
 | **Esc**, **Backspace** | Go back (file, then selection, then layer, then parent tower) |
 | **/** | Search nodes, models, tools |
 | **L** | Project library |
+| **M** | Switch Tower / Map view (map: layers side by side, seen from above) |
+| **,** | Settings: theme, performance, effects, views, live behaviour |
 | Hover a layer | Lens: magnify it and spread the stack around it |
 
 The bottom bar toggles orbit, flow particles and the rendering quality (`high` / `balanced` / `low`). You can also force a preset with `?quality=low`.
