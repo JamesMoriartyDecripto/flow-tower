@@ -3,6 +3,7 @@ import type { ResolvedEdge, ResolvedNode, ResolvedPrompt, ResolvedTower } from '
 import { neighbours } from '../graph';
 import { findNode, useStore, useTower } from '../store';
 import { NODE_STYLE } from '../theme';
+import { NodeLiveInfo } from './LiveFeed';
 
 type Tab = 'overview' | 'prompt' | 'tools' | 'files';
 
@@ -82,6 +83,7 @@ function Overview({ node, tower }: { node: ResolvedNode; tower: ResolvedTower })
   const agent = node.agent;
   return (
     <>
+      <NodeLiveInfo nodeKey={node.key} />
       {node.description && <Section title="Description"><p style={{ margin: 0 }}>{node.description}</p></Section>}
       <Section title="Identity">
         <Table data={{

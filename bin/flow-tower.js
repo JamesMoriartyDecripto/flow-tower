@@ -10,12 +10,16 @@ const HELP = `flow-tower — 3D tower visualizer for agentic systems
 Usage
   flow-tower <file.tower.yaml | dir> [more files or dirs...] [--port 5317] [--no-open]
   flow-tower init [file.tower.yaml]
+  flow-tower emit --source <claude-code|pi|hermes>      < payload.json   (from agent hooks)
+  flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [-m text]
 
   Directories are scanned recursively for *.tower.yaml. Several projects open as a library.
+  Live events: POST JSON to http://127.0.0.1:<port>/api/events (see docs/realtime.md).
 
 Options
   -p, --port     Port to listen on (default 5317)
       --no-open  Do not open the browser
+      --url      emit: server URL (default http://127.0.0.1:5317)
   -h, --help     Show this help`;
 
 const STARTER = `# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
@@ -52,12 +56,51 @@ const { values, positionals } = parseArgs({
     port: { type: 'string', short: 'p', default: '5317' },
     'no-open': { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
+    // emit
+    url: { type: 'string', default: 'http://127.0.0.1:5317' },
+    source: { type: 'string' },
+    kind: { type: 'string' },
+    agent: { type: 'string' },
+    tool: { type: 'string' },
+    node: { type: 'string' },
+    tower: { type: 'string' },
+    status: { type: 'string' },
+    message: { type: 'string', short: 'm' },
   },
 });
 
 if (values.help || positionals.length === 0) {
   console.log(HELP);
   process.exit(values.help ? 0 : 1);
+}
+
+if (positionals[0] === 'emit') {
+  await emit();
+  process.exit(0);
+}
+
+/**
+ * Sends one event to a running flow-tower: a raw payload from stdin (hooks), or one built from flags.
+ * Never fails and never blocks for long: observability must not break the agent it observes.
+ */
+async function emit() {
+  let body;
+  if (values.kind) {
+    const { kind, source = 'custom', agent, tool, node, tower, status, message } = values;
+    body = JSON.stringify({ kind, source, agent, tool, node, tower, status, message });
+  } else if (!process.stdin.isTTY) {
+    const chunks = [];
+    for await (const c of process.stdin) chunks.push(c);
+    body = Buffer.concat(chunks).toString('utf8').trim();
+  }
+  if (!body) return;
+  const query = values.source ? `?source=${encodeURIComponent(values.source)}` : '';
+  const headers = { 'content-type': 'application/json' };
+  if (env.FLOW_TOWER_TOKEN) headers['x-flow-tower-token'] = env.FLOW_TOWER_TOKEN;
+  // Line-delimited streams (pi --mode json) are sent as one array.
+  const payload = body.startsWith('{') && body.includes('\n{') ? `[${body.split('\n').filter(Boolean).join(',')}]` : body;
+  await fetch(`${values.url}/api/events${query}`, { method: 'POST', headers, body: payload, signal: AbortSignal.timeout(1500) })
+    .catch(() => {});
 }
 
 if (positionals[0] === 'init') {

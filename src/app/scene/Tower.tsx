@@ -98,6 +98,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
         {tower.layers.map((l, i) => (
           <Layer
             key={l.id}
+            tower={tower.id}
             layer={l}
             layout={layout.layers[i]}
             width={width}
