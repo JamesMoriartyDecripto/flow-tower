@@ -3,13 +3,15 @@ import { useFrame } from '@react-three/fiber';
 import { AdditiveBlending, Color, CylinderGeometry, SphereGeometry, type InstancedMesh } from 'three';
 import { targetKey } from '../../core/events';
 import { liveState, strongest, subtreeState, useLive, type LiveState } from '../live';
-import { GLOW, LAYER_GAP } from '../theme';
+import { GLOW, HOT, LAYER_GAP } from '../theme';
 import { setInstance, UNIT_BOX } from './batch';
+import { decorative, keepAlive } from './frameBudget';
+import { useStore } from '../store';
 import type { NodeView } from './LayerNodes';
 
 const BEAM = new CylinderGeometry(0.06, 0.06, 1, 8, 1, true).translate(0, 0.5, 0);
 const CAP = new SphereGeometry(0.2, 12, 8);
-const COLOR: Record<LiveState, Color> = { run: GLOW.run, done: GLOW.done, error: GLOW.error, flash: GLOW.white, idle: new Color(0, 0, 0) };
+const COLOR: Record<LiveState, Color> = { run: GLOW.run, done: GLOW.done, error: GLOW.error, flash: HOT.white, idle: new Color(0, 0, 0) };
 const tmp = new Color();
 
 /**
@@ -18,14 +20,17 @@ const tmp = new Color();
  * - a light beam with a glowing cap, tall enough to be seen from the tower overview.
  * Nodes owning a sub-tower light up when anything inside that sub-tower is active.
  */
-export function LiveOverlay({ tower, views, fade, subtrees }: {
+export function LiveOverlay({ tower, views, fade, subtrees, muted }: {
   tower: string; views: NodeView[]; fade: number; subtrees: Map<string, Set<string>>;
+  /** Another layer is focused: stay a faint hint so nothing shines through the focused plate. */
+  muted: boolean;
 }) {
   const rim = useRef<InstancedMesh>(null);
   const beam = useRef<InstancedMesh>(null);
   const cap = useRef<InstancedMesh>(null);
   const panel = useRef<InstancedMesh>(null);
   const keys = useMemo(() => views.map((v) => targetKey(tower, v.node.key)), [tower, views]);
+  const pulseOn = useStore((s) => decorative(s.quality, s.animations));
 
   useFrame(({ clock }) => {
     const meshes = [rim.current, beam.current, cap.current, panel.current];
@@ -39,8 +44,11 @@ export function LiveOverlay({ tower, views, fade, subtrees }: {
       return sub ? strongest([own, subtreeState(sub, nodes, now)]) : own;
     });
     const any = states.some((s) => s.state !== 'idle');
+    // Transient flashes always need frames; the running pulse only when decorative motion is on
+    // (eco shows a steady glow instead, so a long-running agent does not keep the GPU busy).
+    if (states.some((s) => s.state === 'done' || s.state === 'flash' || s.state === 'error') || (pulseOn && any)) keepAlive(300);
     if (!any && !r.visible) return; // idle layer already hidden: no buffer writes
-    const pulse = 0.7 + 0.3 * Math.sin(clock.getElapsedTime() * 6);
+    const pulse = pulseOn ? 0.7 + 0.3 * Math.sin(clock.getElapsedTime() * 6) : 0.9;
     views.forEach(({ box }, i) => {
       const { state, level } = states[i];
       if (state === 'idle') {
@@ -68,7 +76,7 @@ export function LiveOverlay({ tower, views, fade, subtrees }: {
   });
 
   if (!views.length) return null;
-  const opacity = Math.max(fade, 0.35);
+  const opacity = muted ? fade * 0.5 : Math.max(fade, 0.35);
   const material = <meshBasicMaterial transparent opacity={0.85 * opacity} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />;
   return (
     <group>

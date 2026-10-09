@@ -6,7 +6,8 @@ import type { LineSegments2 } from 'three-stdlib';
 import type { ResolvedEdge } from '../../core/types';
 import type { TowerLayout } from '../layout';
 import { useStore } from '../store';
-import { EDGE_STYLE, GLOW } from '../theme';
+import { decorative } from './frameBudget';
+import { EDGE_STYLE, GLOW, HOT } from '../theme';
 import { scaled, toSegments } from './batch';
 import type { LensState } from './lens';
 import { Particles, type ParticlePath } from './Particles';
@@ -62,6 +63,7 @@ function flatten(points: Vector3[]): Float32Array {
 /** Cross-layer edges, batched into solid / dashed / highlighted lines that follow the layer lens. */
 export function Links({ links, layout, layerIndex, visual, layerFade, lens }: Props) {
   const particles = useStore((s) => s.particles);
+  const deco = useStore((s) => decorative(s.quality, s.animations));
 
   const curves = useMemo(() => links.flatMap((l): Curve[] => {
     const [la, lb] = [layerIndex[l.from.split('.')[0]], layerIndex[l.to.split('.')[0]]];
@@ -81,7 +83,7 @@ export function Links({ links, layout, layerIndex, visual, layerFade, lens }: Pr
       .map((c) => ({ points: c.points, color: scaled(GLOW.white, 0.32 * fadeOf(c)) })));
     const hot = toSegments(curves
       .filter((c) => visual.edgeHighlight(c.link.id))
-      .map((c) => ({ points: c.points, color: scaled(GLOW.orange, fadeOf(c)) })));
+      .map((c) => ({ points: c.points, color: scaled(HOT.orange, fadeOf(c)) })));
     return { solid: group(false), dashed: group(true), hot };
   }, [curves, visual, layerFade]);
 
@@ -117,7 +119,7 @@ export function Links({ links, layout, layerIndex, visual, layerFade, lens }: Pr
       {batches.hot.points.length > 0 && (
         <Line ref={refs.hot} points={batches.hot.points} vertexColors={batches.hot.colors} segments lineWidth={2.2} toneMapped={false} />
       )}
-      {particles && <Particles paths={paths} size={0.06} />}
+      {particles && deco && <Particles paths={paths} size={0.06} />}
     </group>
   );
 }

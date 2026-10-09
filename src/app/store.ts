@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { NodeType } from '../core/schema';
 import type { ResolvedNode, ResolvedTower, Workspace } from '../core/types';
 
-export type Quality = 'high' | 'balanced' | 'low';
+export type Quality = 'eco' | 'balanced' | 'high';
 
 export interface OpenFile {
   tower: string;
@@ -26,6 +26,8 @@ interface State {
   autoRotate: boolean;
   particles: boolean;
   quality: Quality;
+  /** Decorative, always-moving effects (flow particles, scanner, sparkles, rotating base). */
+  animations: boolean;
   search: string;
   hiddenTypes: Set<NodeType>;
   /** Runtime id whose nodes are highlighted (everything else dims). */
@@ -50,9 +52,14 @@ interface State {
   openPath(stack: string[], select?: string): void;
   showLibrary(open: boolean): void;
   goTo(depth: number): void;
-  set(patch: Partial<Pick<State, 'explode' | 'autoRotate' | 'particles' | 'search' | 'quality' | 'runtimeFocus'>>): void;
+  set(patch: Partial<Pick<State, 'explode' | 'autoRotate' | 'particles' | 'search' | 'quality' | 'animations' | 'runtimeFocus'>>): void;
   toggleType(type: NodeType): void;
   openFile(file?: OpenFile): void;
+}
+
+function initialQuality(): Quality {
+  const q = new URLSearchParams(location.search).get('quality');
+  return q === 'low' ? 'eco' : q === 'eco' || q === 'high' || q === 'balanced' ? q : 'balanced';
 }
 
 let leaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -63,7 +70,8 @@ export const useStore = create<State>()((set, get) => ({
   explode: 1,
   autoRotate: false,
   particles: true,
-  quality: (new URLSearchParams(location.search).get('quality') as Quality | null) ?? 'balanced',
+  quality: initialQuality(),
+  animations: true,
   search: '',
   hiddenTypes: new Set(),
   revision: 0,

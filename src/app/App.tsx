@@ -10,6 +10,7 @@ import { LiveChips } from './hud/LiveChips';
 import { useLiveSync } from './live';
 import { Effects } from './scene/Effects';
 import { TowerScene } from './scene/Tower';
+import { FrameDriver } from './scene/frameBudget';
 import { findNode, useStore, useTower } from './store';
 
 export function App() {
@@ -28,12 +29,14 @@ export function App() {
       <Canvas
         dpr={quality === 'high' ? [1, 2] : 1}
         camera={{ fov: 42, near: 0.1, far: 2000, position: [40, 30, 60] }}
-        gl={{ antialias: quality === 'low', powerPreference: 'high-performance' }}
+        gl={{ antialias: quality === 'eco', powerPreference: 'high-performance' }}
+        frameloop="demand"
         onPointerMissed={() => useStore.getState().select(undefined)}
         onCreated={(state) => { if (import.meta.env.DEV) Object.assign(window, { __flowTower: state }); }}
       >
         <Suspense fallback={null}>
           <TowerScene />
+          <FrameDriver />
           <Effects />
         </Suspense>
       </Canvas>

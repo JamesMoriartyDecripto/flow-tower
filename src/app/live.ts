@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import type { FlowEvent } from '../core/events';
 import type { Workspace } from '../core/types';
+import { keepAlive } from './scene/frameBudget';
 
 /** Live activity of one node ("tower#layer.node"). Read every frame by the scene, so keep it flat. */
 export interface NodeLive {
@@ -58,6 +59,7 @@ export const useLive = create<LiveStore>()((set, get) => ({
     const restarted = batch.length > 0 && batch[batch.length - 1].id < get().lastId;
     const fresh = batch.filter((e) => e.id > (restarted ? 0 : get().lastId));
     if (!fresh.length) return;
+    keepAlive(1700); // let the flash/ripple animations play
     // Copy-on-write: selectors (useLive(s => s.nodes.get(k)?.last)) must never see a value change
     // without a store update, or useSyncExternalStore tears and re-renders in a loop.
     const nodes = new Map(get().nodes);

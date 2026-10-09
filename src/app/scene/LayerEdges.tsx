@@ -3,7 +3,7 @@ import { Line } from '@react-three/drei';
 import { Quaternion, Vector3, type InstancedMesh } from 'three';
 import { EDGE_KINDS } from '../../core/schema';
 import type { EdgePath } from '../layout';
-import { COLORS, EDGE_STYLE, FONTS, GLOW } from '../theme';
+import { COLORS, EDGE_STYLE, FONTS, HOT } from '../theme';
 import { commit, CONE, scaled, setInstance, toSegments } from './batch';
 import { TextBatch, type TextItem } from './TextBatch';
 
@@ -22,7 +22,7 @@ export function LayerEdges({ views, layerFade, detail }: { views: EdgeView[]; la
     return { kind, style, ...seg };
   }).filter((k) => k.points.length), [lines]);
 
-  const hot = useMemo(() => toSegments(lines.filter((l) => l.highlight).map((l) => ({ points: l.points, color: GLOW.amber }))), [lines]);
+  const hot = useMemo(() => toSegments(lines.filter((l) => l.highlight).map((l) => ({ points: l.points, color: HOT.amber }))), [lines]);
 
   const arrows = useRef<InstancedMesh>(null);
   useLayoutEffect(() => {
