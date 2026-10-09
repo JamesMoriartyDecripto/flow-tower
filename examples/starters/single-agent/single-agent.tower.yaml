@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+# The smallest useful tower: one agent in a tool loop (the "augmented LLM" pattern).
+name: Research Helper
+description: One agent with web search. It loops on tools until it can answer with sources.
+tags: [starter, single-agent]
+
+layers:
+  - id: loop
+    title: Agent loop
+    nodes:
+      - { id: question, type: entry, label: Question }
+      - id: agent
+        label: Researcher
+        type: agent
+        model: claude-sonnet-5-5
+        prompt: { file: prompts/system.md }
+        tools: [web_search]
+        files: [agent.py]
+      - { id: tools, type: tool, label: Web search, description: "Server-side tool: Anthropic runs the searches inside the API call." }
+      - { id: enough, type: decision, label: Enough sources? }
+      - { id: answer, type: output, label: Answer + sources }
+    edges:
+      - question -> agent
+      - agent -> tools [call]
+      - "tools -> agent [return]: results"
+      - agent -> enough
+      - "enough -> agent [return]: no"
+      - "enough -> answer: yes"

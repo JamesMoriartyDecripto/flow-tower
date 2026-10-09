@@ -3,7 +3,7 @@ import { Line } from '@react-three/drei';
 import { Quaternion, Vector3, type InstancedMesh } from 'three';
 import { EDGE_KINDS } from '../../core/schema';
 import type { EdgePath } from '../layout';
-import { COLORS, EDGE_STYLE, FONTS, GLOW } from '../theme';
+import { COLORS, EDGE_STYLE, FONTS, HOT } from '../theme';
 import { commit, CONE, scaled, setInstance, toSegments } from './batch';
 import { TextBatch, type TextItem } from './TextBatch';
 
@@ -13,7 +13,7 @@ const Y = 0.05;
 const UP = new Vector3(0, 1, 0);
 
 /** All edges of one layer: one line batch per edge kind, instanced arrowheads, batched labels. */
-export function LayerEdges({ views, layerFade, detail }: { views: EdgeView[]; layerFade: number; detail: boolean }) {
+export function LayerEdges({ views, layerFade, detail, labels: showLabels }: { views: EdgeView[]; layerFade: number; detail: boolean; labels: boolean }) {
   const lines = useMemo(() => views.map((v) => ({ ...v, points: v.edge.points.map(([x, z]) => new Vector3(x, Y, z)) })), [views]);
 
   const byKind = useMemo(() => EDGE_KINDS.map((kind) => {
@@ -22,7 +22,7 @@ export function LayerEdges({ views, layerFade, detail }: { views: EdgeView[]; la
     return { kind, style, ...seg };
   }).filter((k) => k.points.length), [lines]);
 
-  const hot = useMemo(() => toSegments(lines.filter((l) => l.highlight).map((l) => ({ points: l.points, color: GLOW.amber }))), [lines]);
+  const hot = useMemo(() => toSegments(lines.filter((l) => l.highlight).map((l) => ({ points: l.points, color: HOT.amber }))), [lines]);
 
   const arrows = useRef<InstancedMesh>(null);
   useLayoutEffect(() => {
@@ -74,7 +74,7 @@ export function LayerEdges({ views, layerFade, detail }: { views: EdgeView[]; la
           <meshBasicMaterial transparent opacity={layerFade} toneMapped={false} />
         </instancedMesh>
       )}
-      {detail && labels.length > 0 && <TextBatch items={labels} font={FONTS.mono} outline={COLORS.bg} />}
+      {detail && showLabels && labels.length > 0 && <TextBatch items={labels} font={FONTS.mono} outline={COLORS.bg} />}
     </group>
   );
 }

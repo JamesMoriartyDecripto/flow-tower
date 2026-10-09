@@ -5,9 +5,31 @@ import { Color, Quaternion, Vector3, type InstancedMesh } from 'three';
 import type { ResolvedNode } from '../../core/types';
 import type { NodeBox } from '../layout';
 import { useStore } from '../store';
-import { COLORS, FONTS, GLOW, NODE_STYLE, type Glyph } from '../theme';
+import { COLORS, FONTS, GLOW, HOT, NODE_STYLE, type Glyph } from '../theme';
 import { commit, fadeTo, GLYPHS, scaled, setInstance, toSegments, UNIT_BOX, WIRE_GLYPHS } from './batch';
 import { TextBatch, type TextItem } from './TextBatch';
+
+// Average glyph advance of the node fonts, in ems (measured on screen; the clipRect is the safety net).
+const LABEL_EM = 0.5;
+const TAG_EM = 0.66;
+
+/** Truncates to the characters that fit `width` (with an ellipsis). */
+function fit(text: string, width: number, charW: number) {
+  const max = Math.floor(width / charW);
+  return text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
+}
+
+/** Joins subtitle parts in priority order, keeping only whole parts that fit. */
+function fitParts(parts: (string | false | undefined)[], width: number, charW: number) {
+  let out = '';
+  for (const p of parts) {
+    if (!p) continue;
+    const next = out ? `${out}  ·  ${p}` : p;
+    if (next.length * charW > width) return out || fit(p, width, charW);
+    out = next;
+  }
+  return out;
+}
 
 export interface NodeView {
   node: ResolvedNode;
@@ -20,15 +42,14 @@ export interface NodeView {
 const TOP = 0.16;
 const PANEL = new Color('#0c2650');
 const PANEL_ACTIVE = new Color('#1a4680');
-const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const rect = (b: NodeBox, y: number) => {
   const [x0, x1, z0, z1] = [b.x - b.w / 2, b.x + b.w / 2, b.z - b.d / 2, b.z + b.d / 2];
   return [[x0, z0], [x1, z0], [x1, z1], [x0, z1], [x0, z0]].map(([x, z]) => new Vector3(x, y, z));
 };
 
 /** Every node of one layer, batched: a handful of draw calls regardless of node count. */
-export function LayerNodes({ views, layer, layerFade, interactive, detail }: {
-  views: NodeView[]; layer: number; layerFade: number; interactive: boolean; detail: boolean;
+export function LayerNodes({ views, layer, layerFade, interactive, detail, tags: showTags }: {
+  views: NodeView[]; layer: number; layerFade: number; interactive: boolean; detail: boolean; tags: boolean;
 }) {
   const panels = useRef<InstancedMesh>(null);
   const accents = useRef<InstancedMesh>(null);
@@ -54,17 +75,21 @@ export function LayerNodes({ views, layer, layerFade, interactive, detail }: {
   const active = views.filter((v) => v.selected || v.hovered);
 
   const labels = useMemo<TextItem[]>(() => views.map(({ node, box, fade }) => ({
-    text: short(node.label, 21), position: [box.x - box.w / 2 + 0.95, TOP + 0.01, box.z - 0.13], fontSize: 0.4,
+    // Clipped at the node border (and before the sub-tower badge): long labels never spill out.
+    text: fit(node.label, box.w - 0.95 - (node.tower ? 1.05 : 0.2), 0.4 * LABEL_EM), position: [box.x - box.w / 2 + 0.95, TOP + 0.01, box.z - 0.13], fontSize: 0.4,
+    clip: box.w - 0.95 - (node.tower ? 1.05 : 0.2),
     color: COLORS.white, opacity: fade * layerFade * (node.status === 'deprecated' ? 0.55 : 1),
   })), [views, layerFade]);
   const tags = useMemo<TextItem[]>(() => views.map(({ node, box, fade }) => ({
-    text: [
+    text: fitParts([
+      node.tower && '⇣ SUB',
       node.status !== 'active' && node.status.toUpperCase(),
       NODE_STYLE[node.type].tag,
       node.model?.replace(/^claude-/, ''),
-      node.runtime && `@${short(node.runtime.id, 14)}`,
-    ].filter(Boolean).join('  ·  '),
+      node.runtime && `@${node.runtime.id}`,
+    ], box.w - 0.95 - 0.2, 0.2 * TAG_EM),
     position: [box.x - box.w / 2 + 0.95, TOP + 0.01, box.z + 0.34], fontSize: 0.2, letterSpacing: 0.06,
+    clip: box.w - 0.95 - 0.2,
     color: COLORS.amber, opacity: 0.85 * fade * layerFade,
   })), [views, layerFade]);
 
@@ -113,7 +138,7 @@ export function LayerNodes({ views, layer, layerFade, interactive, detail }: {
         <Line points={pending.points} vertexColors={pending.colors} segments dashed dashSize={0.25} gapSize={0.18} lineWidth={1.4} transparent opacity={layerFade} toneMapped={false} />
       )}
       {active.map((v) => (
-        <Line key={v.node.key} points={rect(v.box, TOP + 0.005)} color={v.selected ? GLOW.white : GLOW.amber} lineWidth={v.selected ? 2.8 : 2.2} transparent opacity={layerFade} toneMapped={false} />
+        <Line key={v.node.key} points={rect(v.box, TOP + 0.005)} color={v.selected ? HOT.white : HOT.amber} lineWidth={v.selected ? 2.8 : 2.2} transparent opacity={layerFade} toneMapped={false} />
       ))}
 
       {glyphs.map(([kind, items]) => <GlyphBatch key={kind} kind={kind} items={items} layerFade={layerFade} />)}
@@ -121,7 +146,7 @@ export function LayerNodes({ views, layer, layerFade, interactive, detail }: {
 
       <group visible={detail}>
         <TextBatch items={labels} font={FONTS.ui} />
-        <TextBatch items={tags} font={FONTS.mono} />
+        {showTags && <TextBatch items={tags} font={FONTS.mono} />}
       </group>
     </group>
   );
@@ -171,7 +196,8 @@ function Badges({ items, layerFade }: { items: NodeView[]; layerFade: number }) 
     if (!mesh) return;
     items.forEach(({ box, fade }, i) => {
       for (let k = 0; k < 3; k++) {
-        setInstance(mesh, i * 3 + k, [box.x + box.w / 2 - 0.4, TOP + 0.08 + k * 0.11, box.z - box.d / 2 + 0.38], [0.42 - k * 0.08, 0.035, 0.32 - k * 0.06]);
+        // Bigger than before: the stacked plates are THE sign that a node opens its own tower.
+        setInstance(mesh, i * 3 + k, [box.x + box.w / 2 - 0.5, TOP + 0.1 + k * 0.16, box.z - box.d / 2 + 0.45], [0.62 - k * 0.12, 0.05, 0.46 - k * 0.09]);
         mesh.setColorAt(i * 3 + k, scaled(GLOW.amber, fade * (0.9 - k * 0.2)));
       }
     });

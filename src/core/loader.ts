@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { parseDocument } from 'yaml';
@@ -118,6 +118,7 @@ async function loadTower(file: string, id: string, watched: Set<string>) {
   const tower = await buildTower(def, id, fs, issues, (p) => existsSync(resolve(root, p)));
   const refs = new Set(tower.layers.flatMap((l) => l.nodes.flatMap((n) => [n.tower, n.agent?.tower])).filter(Boolean) as string[]);
   const nested = [...refs].map((ref) => ({ ref, abs: resolve(root, ref) }));
+  tower.updatedAt = await stat(file).then((st) => st.mtime.toISOString(), () => undefined);
   return { tower, root, nested };
 }
 

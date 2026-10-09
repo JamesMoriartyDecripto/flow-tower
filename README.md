@@ -12,8 +12,8 @@
 - **Structural changes.** Mark nodes `planned`, `experimental` or `deprecated`.
 - **Library.** Point it at a folder and browse every project you work on.
 - **Live.** Save the YAML, or any referenced file, and the tower updates.
-- **Generate towers with Claude Code.** The bundled skill reads an agentic codebase and writes a validated tower. It works with Claude Code, the Agent SDK, LangGraph, CrewAI, OpenAI Agents, Pi, Hermes and more.
-- **Realtime agents.** Connect Claude Code, the Agent SDK, Pi, Hermes or your own loops. Active nodes light up, errors flash, and a live feed shows every step. See [docs/realtime.md](docs/realtime.md).
+- **Generate towers with any coding agent.** Claude Code, Codex, Pi, Hermes, Cursor or any other agent reads an agentic codebase and writes a validated tower. It maps Claude Code, the Agent SDK, LangGraph, CrewAI, OpenAI Agents, Pi, Hermes and more.
+- **Realtime agents.** Connect Claude Code, the Agent SDK, Codex, Pi, Hermes or your own loops. Active nodes light up, errors flash, and a live feed shows every step. See [docs/realtime.md](docs/realtime.md).
 
 ![Library](docs/screenshot-library.png)
 
@@ -70,6 +70,15 @@ See the full **[schema reference](docs/schema.md)**. A generated JSON Schema (`s
 
 ## Examples
 
+Start small: the **starters** are one short YAML file each, the presets below show large systems.
+
+| Starter | Layers | What it shows |
+|---|---|---|
+| [`single-agent`](examples/starters/single-agent) | 1 | One agent in a tool loop (web search) |
+| [`rag-bot`](examples/starters/rag-bot) | 2 | Nightly ingestion feeding a cited Q&A flow, one cross-layer link |
+| [`pr-reviewer`](examples/starters/pr-reviewer) | 3 | GitHub Actions PR review: trigger, review, outcome |
+| [`voice-assistant`](examples/starters/voice-assistant) | 3 | Personal voice assistant: local wake word / STT / TTS, Claude in the middle |
+
 | Preset | What it shows |
 |---|---|
 | [`dev-squad`](examples/dev-squad) | Software delivery on the Claude Agent SDK: triage, orchestrator-workers, review loop, hooks, MCP, memory |
@@ -78,13 +87,21 @@ See the full **[schema reference](docs/schema.md)**. A generated JSON Schema (`s
 
 Every example ships real prompt, agent, code, config and log files, so the popups have something to show.
 
-## Generate a tower from your code (Claude Code skill)
+## Generate a tower from your code (any coding agent)
+
+Your coding agent reads the codebase and writes the tower. The procedure is harness-neutral: [docs/generate-a-tower.md](docs/generate-a-tower.md). Install it as an [Agent Skill](https://agentskills.io) for your agent:
 
 ```bash
-node bin/flow-tower.js install-skill            # into ~/.claude/skills (or --project for ./.claude/skills)
+node bin/flow-tower.js install-skill                  # Claude Code: ~/.claude/skills
+node bin/flow-tower.js install-skill --target codex   # Codex: ~/.agents/skills
+node bin/flow-tower.js install-skill --target pi      # Pi: ~/.pi/agent/skills
+node bin/flow-tower.js install-skill --target hermes  # Hermes Agent: ~/.hermes/skills
+node bin/flow-tower.js install-skill --target cursor  # Cursor: ~/.cursor/skills
+node bin/flow-tower.js install-skill --target agents  # shared ~/.agents/skills (Agent Skills clients)
+# add --project to install into the current project instead (e.g. ./.claude/skills)
 ```
 
-Then ask Claude Code, inside any agent project: *"map this agent system into a flow tower"*. The skill:
+Then ask your agent, inside any agent project: *"map this agent system into a flow tower"*. Any other agent works too: tell it to run `node <flow-tower>/bin/flow-tower.js guide` and follow the printed procedure. Agents that clone this repo find the same pointer in [AGENTS.md](AGENTS.md). The procedure:
 1. inventories agents, prompts, tools/MCP, hooks, memory, models, runtimes and logs, from the code only;
 2. writes `<system>.tower.yaml`, plus nested towers when needed;
 3. runs `flow-tower validate` until there are no errors or warnings.
@@ -102,7 +119,7 @@ npm run simulate -- game-studio        # see it without wiring anything
 npx flow-tower emit --kind tool.start --agent coder --tool Bash -m "npm test"
 ```
 
-Ready-made configs for Claude Code, the Agent SDK, Pi and Hermes are in [`integrations/`](integrations).
+Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [`integrations/`](integrations).
 
 ## Controls
 
@@ -112,40 +129,56 @@ Ready-made configs for Claude Code, the Agent SDK, Pi and Hermes are in [`integr
 | Right-drag, **Shift + drag**, **Shift + two-finger scroll** (trackpad) | Pan |
 | Scroll, pinch | Zoom |
 | Click node | Inspect it and highlight its upstream and downstream paths |
-| Double-click node, or **Enter** | Enter its sub-tower |
+| Double-click node, **Enter**, or ⇣ in the Sub-towers list | Enter its sub-tower (marked by stacked plates and `⇣ SUB`) |
 | **1–9**, **0** | Focus a layer / overview |
 | **Esc**, **Backspace** | Go back (file, then selection, then layer, then parent tower) |
 | **/** | Search nodes, models, tools |
 | **L** | Project library |
+| **M** | Switch Tower / Map view (map: layers side by side, seen from above); the choice also applies to sub-towers |
+| **,** | Settings: theme, interface size and fonts, performance, effects, views, live behaviour |
+| **← → ↑ ↓** | Move to the nearest node; ↑ ↓ cross to the layer above / below (library: move between cards) |
+| **PgUp / PgDn** | Previous / next layer |
+| **Shift / Alt + arrows**, **+ / −** | Orbit / pan / zoom the camera |
+| **[ ]** | Previous / next tab of the selected node |
+| **F**, **O** | Live feed, auto-orbit |
+| **?** | Every keyboard shortcut |
+
+Everything works without a mouse: **Tab** moves between HUD buttons, **Enter / Space** press them.
 | Hover a layer | Lens: magnify it and spread the stack around it |
 
 The bottom bar toggles orbit, flow particles and the rendering quality (`high` / `balanced` / `low`). You can also force a preset with `?quality=low`.
 
 ## Performance
 
-Each layer is drawn in a handful of draw calls: instanced meshes, batched lines and troika `BatchedText`. Labels you couldn't read at the current zoom are skipped. Measured on a 2017 Radeon Pro 570 at 1440×900 with `balanced` quality:
+Flow Tower is meant to run next to busy agents, so it is frugal by design:
 
-| Tower | Nodes | FPS |
-|---|---|---|
-| dev-squad | 56 | 50–55 |
-| course-studio | 109 | 60 (vsync) |
-| game-studio | 141 | 60 (vsync) |
-| synthetic 30 × 20 (`npm run stress -- 30 20`) | 600 | 19–29 (`low`) |
+- **On-demand rendering.** Nothing is drawn unless something changed: camera, transitions, live events. In `eco` an idle tower costs **0 frames per second**.
+- **FPS budget per preset:**
+
+  | Preset | Cap | Post-processing |
+  |---|---|---|
+  | `eco` | 20 fps | none |
+  | `balanced` (default) | 30 fps | light bloom |
+  | `high` | 60 fps | full effects |
+
+  The **FX** button cycles through them, or force one with `?quality=eco`.
+- **Background.** When the window is not focused the canvas drops to 10 fps and stops decorative motion.
+- **Batched scene.** Each layer is drawn with a handful of draw calls (instanced meshes, batched lines, troika `BatchedText`). Labels you could not read at the current zoom are skipped.
 
 ## Project layout
 
 ```
-bin/            CLI: serve, init, validate, emit, install-skill
+bin/            CLI: serve, init, validate, emit, guide, install-skill
 src/core/       schema (zod), YAML loader, validation, live-event adapters and matching
 src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /api/events, live reload
 src/app/        React + three.js app: scene/ (3D) and hud/ (overlay UI)
 src/cli/        TypeScript CLI commands (validate)
 schema/         generated JSON Schema
-skills/         Claude Code skill that generates towers from a codebase
-integrations/   live-event configs for Claude Code, Agent SDK, Pi, Hermes
-examples/       reference towers (coding, game dev, course creation)
+skills/         Agent Skill (SKILL.md) that generates towers from a codebase
+integrations/   live-event configs for Claude Code, Agent SDK, Codex, Pi, Hermes
+examples/       starters (1–3 layers) and reference towers (coding, game dev, course creation)
 scripts/        schema, stress-tower and event-simulator scripts
-docs/           schema reference, realtime guide
+docs/           schema reference, realtime guide, tower generation procedure
 ```
 
 ## Contributing

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { NodeType } from '../core/schema';
 import type { ResolvedNode, ResolvedTower, Workspace } from '../core/types';
 
-export type Quality = 'high' | 'balanced' | 'low';
+export type Quality = 'eco' | 'balanced' | 'high';
 
 export interface OpenFile {
   tower: string;
@@ -26,6 +26,10 @@ interface State {
   autoRotate: boolean;
   particles: boolean;
   quality: Quality;
+  /** Decorative, always-moving effects (flow particles, scanner, sparkles, rotating base). */
+  animations: boolean;
+  /** Tower (stacked) or map (side by side, from above). */
+  view: 'tower' | 'map';
   search: string;
   hiddenTypes: Set<NodeType>;
   /** Runtime id whose nodes are highlighted (everything else dims). */
@@ -46,11 +50,18 @@ interface State {
   resetView(): void;
   enterTower(id: string): void;
   openProject(id: string): void;
+  /** Jump to a tower by breadcrumb (project → … → tower) and optionally select a node there. */
+  openPath(stack: string[], select?: string): void;
   showLibrary(open: boolean): void;
   goTo(depth: number): void;
-  set(patch: Partial<Pick<State, 'explode' | 'autoRotate' | 'particles' | 'search' | 'quality' | 'runtimeFocus'>>): void;
+  set(patch: Partial<Pick<State, 'explode' | 'autoRotate' | 'particles' | 'search' | 'quality' | 'animations' | 'view' | 'runtimeFocus'>>): void;
   toggleType(type: NodeType): void;
   openFile(file?: OpenFile): void;
+}
+
+function initialQuality(): Quality {
+  const q = new URLSearchParams(location.search).get('quality');
+  return q === 'low' ? 'eco' : q === 'eco' || q === 'high' || q === 'balanced' ? q : 'balanced';
 }
 
 let leaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -61,7 +72,9 @@ export const useStore = create<State>()((set, get) => ({
   explode: 1,
   autoRotate: false,
   particles: true,
-  quality: (new URLSearchParams(location.search).get('quality') as Quality | null) ?? 'balanced',
+  quality: initialQuality(),
+  animations: true,
+  view: new URLSearchParams(location.search).get('view') === 'map' ? 'map' : 'tower',
   search: '',
   hiddenTypes: new Set(),
   revision: 0,
@@ -96,9 +109,22 @@ export const useStore = create<State>()((set, get) => ({
   openProject(id) {
     set({ stack: [id], library: false, selected: undefined, focusedLayer: undefined, hoveredLayer: undefined, file: undefined, search: '', runtimeFocus: undefined });
   },
+  openPath(stack, select) {
+    set({ stack, library: false, selected: select, focusedLayer: undefined, hoveredLayer: undefined, file: undefined });
+  },
   showLibrary: (library) => set({ library }),
   goTo(depth) {
-    set({ stack: get().stack.slice(0, depth + 1), selected: undefined, focusedLayer: undefined, hoveredLayer: undefined, file: undefined });
+    const { stack, workspace } = get();
+    // Coming back up: land on the node that opens the tower we leave, so the user is where they left.
+    const child = stack[depth + 1];
+    const parent = workspace?.towers[stack[depth]];
+    let selected: string | undefined;
+    let focusedLayer: number | undefined;
+    parent?.layers.forEach((l, i) => {
+      const n = !selected && l.nodes.find((x) => x.tower === child);
+      if (n) { selected = n.key; focusedLayer = i; }
+    });
+    set({ stack: stack.slice(0, depth + 1), selected, focusedLayer, hoveredLayer: undefined, file: undefined });
   },
   set: (patch) => set(patch),
   toggleType(type) {

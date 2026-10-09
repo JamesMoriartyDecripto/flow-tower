@@ -1,11 +1,18 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { ResolvedEdge, ResolvedNode, ResolvedPrompt, ResolvedTower } from '../../core/types';
-import { neighbours } from '../graph';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { ResolvedNode, ResolvedPrompt, ResolvedTower } from '../../core/types';
+import { Connections } from './Connections';
 import { findNode, useStore, useTower } from '../store';
 import { NODE_STYLE } from '../theme';
 import { NodeLiveInfo } from './LiveFeed';
 
 type Tab = 'overview' | 'prompt' | 'tools' | 'files';
+
+const TAB_HINT: Record<Tab, string> = {
+  overview: 'Description, model, runtime, harness, live state and connections',
+  prompt: 'System prompt with its template variables',
+  tools: 'Tools this node can use (click one to jump to its node)',
+  files: 'Source files, logs, scripts and dashboards',
+};
 
 /** Right-hand panel with everything known about the selected node. */
 export function Inspector() {
@@ -14,6 +21,24 @@ export function Inspector() {
   const node = findNode(tower, selected);
   const [tab, setTab] = useState<Tab>('overview');
   useEffect(() => setTab('overview'), [selected]);
+  // Switching tabs from the keyboard keeps the focus on the (re-rendered) tab bar.
+  const refocus = useRef(false);
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    document.querySelector<HTMLElement>('.inspector .tabs button.on')?.focus();
+  }, [tab]);
+  // [ and ] (App keyboard) cycle through the tabs that have content.
+  useEffect(() => {
+    const onTab = (e: Event) => {
+      if (!node) return;
+      const open: Tab[] = ['overview', ...(node.prompt ? ['prompt' as const] : []), ...(node.tools.length ? ['tools' as const] : []), ...(node.files.length + node.resources.length ? ['files' as const] : [])];
+      refocus.current = !!document.activeElement?.closest('.inspector .tabs');
+      setTab((cur) => open[(open.indexOf(cur) + (e as CustomEvent<number>).detail + open.length) % open.length]);
+    };
+    window.addEventListener('flow-tower:tab', onTab);
+    return () => window.removeEventListener('flow-tower:tab', onTab);
+  }, [node]);
   if (!tower || !node) return null;
 
   const { select, enterTower } = useStore.getState();
@@ -33,13 +58,14 @@ export function Inspector() {
           {node.model && <span className="chip">{node.model}</span>}
           {node.status !== 'active' && <span className={`chip status-${node.status}`}>{node.status.toUpperCase()}</span>}
           {node.runtime && <span className="chip" title={node.runtime.description}>@{node.runtime.label ?? node.runtime.id}</span>}
+          {node.tower && <span className="chip sub" title="This node contains its own tower: use the button below, Enter, or double-click the node">⇣ SUB-TOWER</span>}
         </div>
         <h2>{node.label}</h2>
         <div className="mono dim">{node.key}</div>
       </header>
       <nav className="tabs">
         {tabs.map(([id, label, count]) => (
-          <button key={id} className={tab === id ? 'on' : ''} disabled={count === 0} onClick={() => setTab(id)}>
+          <button key={id} className={tab === id ? 'on' : ''} disabled={count === 0} onClick={() => setTab(id)} title={count === 0 ? `This node has no ${label.toLowerCase()}` : TAB_HINT[id]}>
             {label}{count ? ` ${count}` : ''}
           </button>
         ))}
@@ -51,7 +77,7 @@ export function Inspector() {
         {tab === 'files' && <Files node={node} tower={tower.id} />}
       </div>
       {node.tower && (
-        <button className="btn primary enter" onClick={() => enterTower(node.tower!)}>
+        <button className="btn primary enter" onClick={() => enterTower(node.tower!)} title="Open the tower inside this node (Enter or double-click the node)">
           ⇣ Enter sub-tower
         </button>
       )}
@@ -60,7 +86,8 @@ export function Inspector() {
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return <div className="section"><span className="title">{title}</span>{children}</div>;
+  // tabIndex -1: not a Tab stop, but arrow keys stop here so information scrolls into view.
+  return <div className="section" tabIndex={-1}><span className="title">{title}</span>{children}</div>;
 }
 
 function Table({ data }: { data: Record<string, unknown> }) {
@@ -79,7 +106,6 @@ function Table({ data }: { data: Record<string, unknown> }) {
 }
 
 function Overview({ node, tower }: { node: ResolvedNode; tower: ResolvedTower }) {
-  const { incoming, outgoing } = useMemo(() => neighbours(tower, node.key), [tower, node.key]);
   const agent = node.agent;
   return (
     <>
@@ -95,6 +121,7 @@ function Overview({ node, tower }: { node: ResolvedNode; tower: ResolvedTower })
           'sub-tower': node.tower,
         }} />
       </Section>
+      <Connections node={node} tower={tower} />
       {node.runtime && (
         <Section title={`Runtime · ${node.runtime.kind}`}>
           <Table data={{
@@ -106,29 +133,7 @@ function Overview({ node, tower }: { node: ResolvedNode; tower: ResolvedTower })
       )}
       {agent && Object.keys(agent.harness).length > 0 && <Section title="Harness"><Table data={agent.harness} /></Section>}
       {Object.keys({ ...agent?.meta, ...node.meta }).length > 0 && <Section title="Meta"><Table data={{ ...agent?.meta, ...node.meta }} /></Section>}
-      <Section title={`Incoming · ${incoming.length}`}>
-        {incoming.map((e) => <Conn key={e.id} edge={e} other={e.from} tower={tower} arrow="←" />)}
-      </Section>
-      <Section title={`Outgoing · ${outgoing.length}`}>
-        {outgoing.map((e) => <Conn key={e.id} edge={e} other={e.to} tower={tower} arrow="→" />)}
-      </Section>
     </>
-  );
-}
-
-function Conn({ edge, other, tower, arrow }: { edge: ResolvedEdge; other: string; tower: ResolvedTower; arrow: string }) {
-  const target = findNode(tower, other);
-  const go = () => {
-    const s = useStore.getState();
-    s.select(other);
-    if (s.focusedLayer !== undefined && target) s.focusLayer(tower.layers.findIndex((l) => l.id === target.layer));
-  };
-  return (
-    <button className="conn" onClick={go}>
-      <span className="k">{edge.kind.toUpperCase()}</span>
-      <span>{arrow} {target?.label ?? other}</span>
-      {edge.label && <span className="dim mono">· {edge.label}</span>}
-    </button>
   );
 }
 
@@ -141,7 +146,7 @@ function Prompt({ prompt, tower }: { prompt: ResolvedPrompt; tower: string }) {
           <span className="chip">~{prompt.tokens.toLocaleString()} tokens</span>
           {prompt.id && <span className="chip">registry: {prompt.id}</span>}
           {prompt.source && (
-            <button className="chip clickable" onClick={() => useStore.getState().openFile({ tower, files: [prompt.source!], index: 0 })}>
+            <button className="chip clickable" onClick={() => useStore.getState().openFile({ tower, files: [prompt.source!], index: 0 })} title="Open the prompt file">
               ⧉ {prompt.source}
             </button>
           )}
@@ -187,7 +192,7 @@ function Files({ node, tower }: { node: ResolvedNode; tower: string }) {
         <Section title="Related files">
           <div className="filelist">
             {files.map((f, i) => (
-              <button key={f} onClick={() => open(files, i)}>
+              <button key={f} onClick={() => open(files, i)} title={`Open ${f}`}>
                 <span className="ext">{(f.split('.').pop() ?? '').toUpperCase().slice(0, 4)}</span>
                 {f}
               </button>

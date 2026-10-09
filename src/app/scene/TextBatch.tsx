@@ -15,6 +15,8 @@ export interface TextItem {
   letterSpacing?: number;
   /** Lay the text flat on the plate (readable from above). */
   flat?: boolean;
+  /** Hard right edge (world units from the anchor): text never draws past it (e.g. a node's border). */
+  clip?: number;
 }
 
 type TroikaText = Object3D & Record<string, unknown> & { sync(cb?: () => void): void; dispose(): void };
@@ -42,7 +44,9 @@ export function TextBatch({ items, font, outline }: { items: TextItem[]; font: s
     }
     items.forEach((it, i) => {
       const t = list[i];
-      Object.assign(t, {
+      // Assign only what changed: re-setting layout props (text, font…) makes troika re-typeset,
+      // which is expensive when opacity alone changes several times a second (live spotlight).
+      const props: Record<string, unknown> = {
         text: it.text,
         font,
         fontSize: it.fontSize,
@@ -57,7 +61,12 @@ export function TextBatch({ items, font, outline }: { items: TextItem[]; font: s
         outlineWidth: outline ? '12%' : 0,
         outlineColor: outline ?? 0,
         outlineOpacity: it.opacity * 0.9,
-      });
+      };
+      for (const k in props) if (t[k] !== props[k]) t[k] = props[k];
+      // clipRect is an array: compare by value so unchanged items are not touched.
+      const clip = it.clip === undefined ? null : [-1, -2, it.clip, 2];
+      const cur = t.clipRect as number[] | null;
+      if ((cur?.[2] ?? null) !== (clip?.[2] ?? null)) t.clipRect = clip;
       t.position.set(...it.position);
       t.rotation.set(it.flat === false ? 0 : -Math.PI / 2, 0, 0);
     });

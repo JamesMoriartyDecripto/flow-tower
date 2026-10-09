@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+# Two layers: an offline ingestion pipeline feeds an online question-answering flow.
+name: Docs Q&A Bot
+description: Retrieval-augmented answers over a team's Markdown docs, with citations checked before replying.
+tags: [starter, rag]
+
+runtimes:
+  laptop: { kind: local, label: Dev laptop }
+  voyage: { kind: saas, label: Voyage AI embeddings, url: https://www.voyageai.com }
+
+layers:
+  - id: ingest
+    title: Ingest (nightly)
+    nodes:
+      - { id: docs, type: entry, label: docs/*.md, runtime: laptop }
+      - { id: chunk, type: process, label: Chunk by heading, files: [ingest.py], runtime: laptop }
+      - { id: embed, type: model, label: Embed chunks, model: voyage-3.5, runtime: voyage }
+      - { id: store, type: memory, label: Vector index, description: SQLite + sqlite-vec file on disk., runtime: laptop }
+    edges:
+      - docs -> chunk
+      - chunk -> embed [call]
+      - embed -> store [data]
+
+  - id: answer
+    title: Answer
+    nodes:
+      - { id: question, type: entry, label: Question }
+      - { id: retrieve, type: process, label: Top-5 retrieval, files: [answer.py] }
+      - id: writer
+        type: agent
+        label: Answer writer
+        model: claude-haiku-5-5
+        prompt: { file: prompts/answer.md }
+      - { id: cited, type: guard, label: Every claim cited? }
+      - { id: reply, type: output, label: Reply }
+    edges:
+      - question -> retrieve
+      - "retrieve -> writer: chunks"
+      - writer -> cited
+      - "cited -> writer [return]: missing citation"
+      - "cited -> reply: ok"
+
+links:
+  - "ingest.store -> answer.retrieve [data]: similarity search"
