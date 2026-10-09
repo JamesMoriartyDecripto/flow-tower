@@ -48,6 +48,28 @@ const world = new Vector3();
 const target = new Vector3();
 const position = new Vector3();
 
+const corner = new Vector3();
+
+/** Screen-space size of the visible nodes (focused layer, or every layer), in CSS pixels. */
+function contentExtent(camera: PerspectiveCamera, size: { width: number; height: number }, layout: TowerLayout, layerIds: string[]) {
+  const focused = useStore.getState().focusedLayer;
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+  layerIds.forEach((id, i) => {
+    if (focused !== undefined && i !== focused) return;
+    const group = layerGroups.get(id);
+    if (!group?.visible) return;
+    for (const b of Object.values(layout.layers[i]?.nodes ?? {})) {
+      for (const [dx, dz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        corner.set(b.x + (dx * b.w) / 2, 0.2, b.z + (dz * b.d) / 2).applyMatrix4(group.matrixWorld).project(camera);
+        const sx = ((corner.x + 1) / 2) * size.width;
+        const sy = ((1 - corner.y) / 2) * size.height;
+        x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy);
+      }
+    }
+  });
+  return x1 > x0 ? { w: x1 - x0, h: y1 - y0 } : undefined;
+}
+
 export function useHudFrame(controls: React.RefObject<CameraControls | null>, layout: TowerLayout, layerIds: string[]) {
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const size = useThree((s) => s.size);
@@ -56,20 +78,42 @@ export function useHudFrame(controls: React.RefObject<CameraControls | null>, la
   const feedOpen = useLive((s) => s.feedOpen);
   const scale = usePrefs((s) => s.uiScale);
   const goal = useRef({ x: 0, y: 0 });
+  // Distance chosen by the user before panels forced a zoom-out (restored when they close).
+  const autoBase = useRef<number>(undefined);
+  const focusedLayer = useStore((st) => st.focusedLayer);
+  const viewNonce = useStore((st) => st.viewNonce);
+  const view = useStore((st) => st.view);
+  useEffect(() => { autoBase.current = undefined; }, [focusedLayer, viewNonce, view]);
   const cur = useRef({ x: 0, y: 0 });
 
   // Panels open, close or resize: aim the projection center at the middle of the free area.
   useEffect(() => {
-    const measure = () => {
+    const measure = (settled: boolean) => {
       const r = freeRect(size.width, size.height);
       goal.current = { x: size.width / 2 - (r.left + r.w / 2), y: size.height / 2 - (r.top + r.h / 2) };
+      // Panels opened or closed: fit what is on screen (the focused layer, or the whole tower) into the
+      // free area. Zoom out only when it no longer fits, and come back to the user's distance when it
+      // fits again. Angle and target stay as the user left them. Only once panels finished sliding in.
+      const ctl = controls.current;
+      const ext = settled && ctl ? contentExtent(camera, size, layout, layerIds) : undefined;
+      if (ctl && ext) {
+        const need = Math.max(ext.w / (r.w * 0.94), ext.h / (r.h * 0.94));
+        if (need > 1.03) {
+          autoBase.current ??= ctl.distance;
+          ctl.dollyTo(ctl.distance * need, true);
+        } else if (autoBase.current !== undefined && need < 0.97) {
+          const d = Math.max(autoBase.current, ctl.distance * need);
+          ctl.dollyTo(d, true);
+          if (d === autoBase.current) autoBase.current = undefined;
+        }
+      }
       keepAlive(600);
       invalidate();
     };
     // Panels mount (and slide in) after this render: measure once they are laid out.
-    const t = [setTimeout(measure, 0), setTimeout(measure, 300)];
+    const t = [setTimeout(() => measure(false), 0), setTimeout(() => measure(true), 300)];
     return () => t.forEach(clearTimeout);
-  }, [size.width, size.height, selected, feedOpen, scale, invalidate]);
+  }, [size.width, size.height, selected, feedOpen, scale, invalidate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useFrame((_, dt) => {
     const k = 1 - Math.exp(-dt * 8);
