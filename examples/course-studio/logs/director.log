@@ -1,0 +1,23 @@
+2026-10-01T08:02:11.304Z INFO  [pipeline] brief received course="Intro to Prompt Engineering for Product Managers" owner=programs@example.com
+2026-10-01T08:02:13.870Z INFO  [intake] route=new modules=6 complexity=2 freshness_months=6 flags=fast_moving,localization cost=$0.004
+2026-10-01T08:02:14.012Z INFO  [pipeline] run created slug=intro-to-prompt-engineering-for-product-managers dir=runs/intro-to-prompt-engineering-for-product-managers
+2026-10-01T08:02:41.556Z INFO  [director] stage=research_design session=4f1c9a2e plan: 6 modules, 24 research questions, 3 checkpoints
+2026-10-01T08:02:42.101Z INFO  [director] -> research-librarian: m1 how LLMs behave (4 questions)
+2026-10-01T08:02:42.118Z INFO  [director] -> research-librarian: m2 anatomy of a prompt (4 questions)
+2026-10-01T08:02:42.130Z INFO  [director] -> research-librarian: m3 examples and structure (4 questions)
+2026-10-01T08:02:42.144Z INFO  [director] -> research-librarian: m4 multi-step tasks (4 questions)
+2026-10-01T08:02:42.159Z INFO  [director] -> research-librarian: m5 evaluating prompts (4 questions)
+2026-10-01T08:02:42.171Z INFO  [director] -> research-librarian: m6 shipping AI features (4 questions)
+2026-10-01T08:19:05.442Z WARN  [director] coverage gap m5: "LLM-as-judge agreement with humans" has 1 primary source; re-dispatching
+2026-10-01T08:24:37.019Z INFO  [director] coverage ok: 24/24 questions, 61 sources (38 primary), 0 licence denials pending
+2026-10-01T08:25:02.774Z INFO  [director] -> curriculum-architect: objectives, Bloom matrix, evidence plan, outline
+2026-10-01T08:41:58.305Z INFO  [director] request_signoff checkpoint=outline reviewer=dana.okafor@example.com
+2026-10-01T08:42:00.001Z INFO  [director] status=awaiting_signoff cost=$6.12
+2026-10-02T15:37:44.912Z INFO  [signoff] outline approved by dana.okafor@example.com comment="Swap m4 and m5? No - keep. Add a PM-facing cost example to m6."
+2026-10-02T15:38:10.220Z INFO  [modules] fan-out 6 modules concurrency=3
+2026-10-02T16:51:33.648Z INFO  [modules] m1 done m2 done m3 done m4 done m5 blocked(retry) m6 done
+2026-10-02T17:09:12.003Z INFO  [modules] m5 done (attempt 2)
+2026-10-02T17:09:40.557Z INFO  [director] stage=media_assessment resume=4f1c9a2e
+2026-10-02T17:09:41.310Z INFO  [director] -> media-producer: m1..m6 (parallel, max 6)
+2026-10-02T17:09:41.322Z INFO  [director] -> assessment-designer: blueprint, 38 items, capstone + rubric
+2026-10-03T09:12:27.880Z INFO  [director] stage_done cost_total=$23.47
