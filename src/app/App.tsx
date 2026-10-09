@@ -15,6 +15,8 @@ import { Tooltip } from './hud/Tooltip';
 import { chooseView, usePrefs, viewFor } from './settings';
 import { useLive, useLiveSync } from './live';
 import { useDemoSimulator } from './demo';
+import { exportPng, exportSvg } from './exporter';
+import { Snapshot } from './scene/Snapshot';
 import { navigate, nextSubTower, nudgeCamera, stepLayer, type Dir } from './keynav';
 import { Effects } from './scene/Effects';
 import { TowerScene } from './scene/Tower';
@@ -51,6 +53,7 @@ export function App() {
           <TowerScene key={themeRev} />
           <FrameDriver />
           <Effects />
+          <Snapshot />
         </Suspense>
       </Canvas>
       <div className="scanlines" />
@@ -207,6 +210,10 @@ function useKeyboard() {
         cycleConnection(tower, e.shiftKey ? -1 : 1);
       } else if (key === 'b' && tower) {
         jumpBack(tower);
+      } else if (key === 'p' && tower) {
+        void exportPng();
+      } else if (key === 'x' && tower) {
+        exportSvg();
       }
     };
     window.addEventListener('keydown', onKey);

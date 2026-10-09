@@ -48,6 +48,7 @@ The server only reads files under the tower roots. Workspace changes and live ev
 | `src/app/layout.ts` | ELK layout of a layer (left to right) |
 | `src/app/ops.ts` | Operational markers and inspector rows |
 | `src/app/api.ts` | Fetching the workspace and refetching on server push |
+| `src/app/exporter.ts`, `exportSvg.ts`, `scene/Snapshot.tsx` | PNG snapshot (captured after post-processing) and SVG diagram export (P / X) |
 | `src/app/staticData.ts`, `demo.ts` | Static demo mode (Vite mode `demo`): data from `data/`, in-browser live simulator, DEMO chip |
 | `src/app/theme.ts`, `themes.ts` | Node / edge styles and bloom colors; theme switching (shared colors mutated in place, scene remounted) |
 | `src/app/graph.ts` | Neighbours, related nodes, search, breadcrumb paths |

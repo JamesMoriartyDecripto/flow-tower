@@ -15,6 +15,8 @@ import { useStore } from './store';
 const layouts = new Map<string, TowerLayout>();
 /** The scene publishes its layout here, so keyboard navigation knows where nodes are. */
 export const publishLayout = (towerId: string, layout: TowerLayout) => layouts.set(towerId, layout);
+/** The layout of a tower on screen (used by the SVG export). */
+export const layoutOf = (towerId: string) => layouts.get(towerId);
 
 function boxes(tower: ResolvedTower, layer: number): NodeBox[] {
   const layout = layouts.get(tower.id)?.layers[layer];

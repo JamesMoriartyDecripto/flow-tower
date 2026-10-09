@@ -148,11 +148,12 @@ Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [
 | **Shift / Alt + arrows**, **+ / −** | Orbit / pan / zoom the camera |
 | **[ ]** | Previous / next tab of the selected node |
 | **F**, **O** | Live feed, auto-orbit |
+| **P**, **X** | Download the 3D view as PNG; the focused layer (or every layer) as an editable SVG diagram |
 | **?** | Every keyboard shortcut |
 
 Everything works without a mouse: **Tab** moves between HUD buttons, **Enter / Space** press them.
 
-The bottom bar toggles orbit, flow particles and the rendering quality (`eco` / `balanced` / `high`). You can also force a preset with `?quality=eco`.
+The bottom bar toggles orbit, flow particles and the rendering quality (`eco` / `balanced` / `high`), and has the PNG / SVG export buttons. You can also force a preset with `?quality=eco`.
 
 ## Performance
 

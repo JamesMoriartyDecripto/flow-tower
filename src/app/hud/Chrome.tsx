@@ -4,6 +4,7 @@ import { search as rank } from '../graph';
 import { useLive } from '../live';
 import { chooseView, usePrefs } from '../settings';
 import { useDemo } from '../demo';
+import { exportPng, exportSvg } from '../exporter';
 import { STATIC } from '../staticData';
 import { useCurrentTowerLive } from '../liveHooks';
 import { useStore, useTower } from '../store';
@@ -288,6 +289,8 @@ export function Controls() {
       <button className={`btn ${particles ? 'on' : ''}`} onClick={() => set({ particles: !particles })} title="Show or hide the dots travelling along the edges (needs ambient animations)">Flow</button>
       <button className="btn" onClick={() => set({ quality: next[quality] })} title="Rendering: eco (20 fps cap, no post-processing) / balanced (30 fps) / high (60 fps, full effects)">FX {quality}</button>
       <button className="btn" onClick={resetView} title="Reset the camera to the overview (0)">Reset</button>
+      <button className="btn" onClick={() => void exportPng()} title="Download the 3D view as a PNG image (P)">PNG</button>
+      <button className="btn" onClick={exportSvg} title="Download the focused layer, or every layer, as an editable SVG diagram (X)">SVG</button>
     </div>
   );
 }
