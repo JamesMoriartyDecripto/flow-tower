@@ -6,23 +6,48 @@ description: >-
   Everything goes through editor Python over the Unreal MCP so every step is scripted and repeatable.
 root: ..
 
+runtimes:
+  render-farm:
+    kind: server
+    label: "Unreal farm"
+    description: "Four UE 5.6 editor nodes with Remote Control for import, animation, lighting, world building and profiling."
+    host: "ue-farm-01..04"
+    provider: "on-prem"
+    region: "studio-rack-a"
+  studio-cluster:
+    kind: container
+    label: "Orchestrator cluster"
+    description: "Producer, directors and specialist agents as Claude Agent SDK containers on GKE Autopilot."
+    host: "gke-forge-prod"
+    provider: "gcp"
+    region: "europe-west4"
+    url: "https://argocd.forge.example.com/applications/studio-orchestrator"
+
 prompts:
   integration-lead: { file: prompts/integration-lead.md }
 
 agents:
   lead:
+    runtime: render-farm
+    resources:
+      - { kind: log, label: "Unreal farm log", path: "logs/unreal-farm.log" }
+      - { kind: script, label: "Launch farm editor", path: "scripts/farm-editor.sh" }
     name: Integration lead
     model: claude-sonnet-5-5
     prompt: integration-lead
     tools: [Agent, Read, mcp__unreal__run_python, mcp__unreal__list_assets]
     files: [src/departments/engine.ts]
   animator:
+    runtime: render-farm
     from: .claude/agents/animator.md
   lighting:
+    runtime: render-farm
     from: .claude/agents/lighting-artist.md
   audio:
+    runtime: studio-cluster
     from: .claude/agents/audio-designer.md
   art-director:
+    runtime: studio-cluster
     from: .claude/agents/art-director.md
 
 layers:
@@ -31,6 +56,7 @@ layers:
     description: Idempotent imports with enforced naming and folder layout. Reimport never duplicates.
     nodes:
       - id: manifest
+        runtime: studio-cluster
         type: entry
         label: Asset manifest
         description: Registry entries with status approved, grouped by level and class.
@@ -38,15 +64,18 @@ layers:
       - id: lead
         agent: lead
       - id: naming
+        runtime: render-farm
         type: guard
         label: Naming & paths
         description: SM_/SK_/T_/MI_ prefixes, /Game/Emberwake/<Class>/<Asset>. Wrong names are refused before import.
         files: [pipelines/unreal/import_assets.py]
       - id: import
+        runtime: render-farm
         label: Interchange import
         description: AssetImportTask batch, automated, replace_existing, no dialogs.
         files: [pipelines/unreal/import_assets.py]
       - id: listed
+        runtime: render-farm
         type: tool
         label: list_assets
         description: Confirms every manifest entry now exists in the content browser.
@@ -62,19 +91,26 @@ layers:
     description: Material instances from three masters; Nanite and LODs decided per class.
     nodes:
       - id: masters
+        runtime: render-farm
+        resources:
+          - { kind: config, label: "Style tokens", path: "config/style-guide.json" }
         type: memory
         label: Master materials
         description: M_Painterly_Opaque, M_Painterly_Masked, M_Ember_Emissive. Never edited by agents.
         files: [config/style-guide.json]
       - id: instances
+        runtime: render-farm
         label: Material instances
         description: MaterialEditingLibrary creates MI_<Asset> and sets BC/N/ORM plus palette parameters.
         files: [pipelines/unreal/material_instances.py]
       - id: nanite
+        runtime: render-farm
+        status: experimental
         type: decision
         label: Nanite?
         description: Static, opaque, over 20k tris -> Nanite; otherwise imported LOD chain.
       - id: lod_settings
+        runtime: render-farm
         label: LOD & collision
         description: Screen sizes from the budget file, simple collision for props, complex for terrain kits.
         files: [config/asset-budgets.yaml]
@@ -90,16 +126,20 @@ layers:
       - id: animator
         agent: animator
       - id: retarget
+        runtime: render-farm
         label: IK retarget
         description: IK Rig + IK Retargeter from the mannequin library to the Keeper and Cinder Wisp skeletons.
       - id: anim_bp
+        runtime: render-farm
         label: Anim Blueprint
         description: Locomotion state machine, blend spaces, montage slots, foot IK.
         files: [pipelines/unreal/anim_blueprint.py]
       - id: montages
+        runtime: render-farm
         label: Montages & notifies
         description: Attack, rekindle and interact montages with sound and VFX notifies for the audio pass.
       - id: sequencer
+        runtime: render-farm
         label: Sequencer shots
         description: Intro cinematic and trailer shot list as Level Sequences with camera cuts.
         files: [pipelines/unreal/sequencer_shots.py]
@@ -114,6 +154,7 @@ layers:
     description: Assemble streaming cells, light them, add audio, then validate and review.
     nodes:
       - id: streaming
+        runtime: render-farm
         label: Level streaming
         description: World Partition cells and data layers per island; HLOD build.
         files: [pipelines/unreal/level_streaming.py]
@@ -124,10 +165,14 @@ layers:
         agent: audio
         label: Audio designer
       - id: validate
+        runtime: render-farm
+        resources:
+          - { kind: script, label: "validate_level.py", path: "pipelines/unreal/validate_level.py" }
         label: Validate level
         description: Map check, missing references, default materials, texture streaming pool, shader count.
         files: [pipelines/unreal/validate_level.py]
       - id: screenshot
+        runtime: render-farm
         type: tool
         label: take_screenshot
         description: Fixed camera bookmarks for before/after comparisons.
@@ -137,9 +182,13 @@ layers:
         label: Art director
         description: Grades lit screenshots against the art bible; max 2 rounds.
       - id: ok
+        runtime: studio-cluster
         type: decision
         label: Integrated?
       - id: done
+        runtime: render-farm
+        resources:
+          - { kind: dashboard, label: "Unreal farm", url: "https://grafana.forge.example.com/d/ue-farm/unreal-farm" }
         type: output
         label: Integrated level
         description: Ready for the review gates and QA.

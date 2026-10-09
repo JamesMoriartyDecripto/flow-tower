@@ -6,6 +6,46 @@ description: >-
   brand review (max 2 rounds) -> human publish approval -> launch and community loop.
 root: ..
 
+runtimes:
+  studio-cluster:
+    kind: container
+    label: "Orchestrator cluster"
+    description: "Producer, directors and specialist agents as Claude Agent SDK containers on GKE Autopilot."
+    host: "gke-forge-prod"
+    provider: "gcp"
+    region: "europe-west4"
+    url: "https://argocd.forge.example.com/applications/studio-orchestrator"
+  site-edge:
+    kind: edge
+    label: "Website edge"
+    description: "Landing page and press kit served from Cloudflare Pages."
+    provider: "cloudflare"
+    url: "https://emberwake.example.com"
+  steam:
+    kind: saas
+    label: "Steamworks"
+    description: "Store page, beta branches and wishlists."
+    provider: "valve"
+    url: "https://partner.steamgames.com"
+  analytics:
+    kind: saas
+    label: "PostHog"
+    description: "Playtest funnels, wishlist and community traffic."
+    provider: "posthog"
+    region: "eu"
+    url: "https://eu.posthog.com"
+  imagegen:
+    kind: saas
+    label: "Image generation"
+    description: "Concept and capsule art generation with licence metadata per image."
+    provider: "example-imagegen"
+    url: "https://imagegen.example.com"
+  review-portal:
+    kind: browser
+    label: "Review portal"
+    description: "Approval UI where humans sign off greenlight, art direction, publishing and go/no-go."
+    url: "https://review.forge.example.com"
+
 prompts:
   marketing-lead: { file: prompts/marketing-lead.md }
   positioning: { file: prompts/positioning.md }
@@ -17,34 +57,41 @@ prompts:
 
 agents:
   lead:
+    runtime: studio-cluster
     name: Marketing lead
     model: claude-sonnet-5-5
     prompt: marketing-lead
     tools: [Agent, Read, Write, WebSearch, mcp__analytics__query_insights]
     files: [src/departments/marketing.ts]
   analyst:
+    runtime: studio-cluster
     from: .claude/agents/market-analyst.md
   web:
+    runtime: studio-cluster
     name: Web developer
     model: claude-sonnet-5-5
     prompt: web-developer
     tools: [Read, Write, Edit, Bash, mcp__figma__get_variable_defs]
   trailer:
+    runtime: studio-cluster
     name: Trailer writer
     model: claude-sonnet-5-5
     prompt: trailer-writer
     tools: [Read, Write]
   store:
+    runtime: studio-cluster
     name: Store page writer
     model: claude-sonnet-5-5
     prompt: store-page-writer
     tools: [Read, Write, WebSearch]
   community:
+    runtime: studio-cluster
     name: Community manager
     model: claude-sonnet-5-5
     prompt: community-manager
     tools: [Read, Write, mcp__analytics__query_insights]
   cd:
+    runtime: studio-cluster
     name: Creative director
     model: claude-opus-5-5
     prompt: creative-director
@@ -56,6 +103,9 @@ layers:
     description: Know the shelf before writing a word. Every claim in the copy traces back to this layer.
     nodes:
       - id: report
+        runtime: studio-cluster
+        resources:
+          - { kind: doc, label: "Competitors", path: "memory/competitors.md" }
         type: entry
         label: Market report
         description: From the research department; comps, price bands, review sentiment, wishlist proxies.
@@ -67,11 +117,13 @@ layers:
         label: Comp teardown
         description: Store pages and trailers of the top 6 comps - hooks, first 5 seconds, tag sets.
       - id: positioning
+        runtime: studio-cluster
         label: Positioning
         description: One-line hook, audience segments, three differentiators.
         prompt: positioning
         model: claude-sonnet-5-5
       - id: pillars
+        runtime: studio-cluster
         type: memory
         label: Pillars & tone
         files: [memory/art-bible.md, config/style-guide.json]
@@ -86,15 +138,22 @@ layers:
     description: Four branches from one positioning brief. Captures come from Sequencer shots in the real build.
     nodes:
       - id: website
+        runtime: site-edge
+        resources:
+          - { kind: endpoint, label: "Landing page", url: "https://emberwake.example.com" }
         agent: web
         label: Website
       - id: press_kit
+        runtime: site-edge
+        resources:
+          - { kind: endpoint, label: "Press kit", url: "https://emberwake.example.com/presskit" }
         label: Press kit
         description: Fact sheet, logo pack, 10 screenshots, GIFs, contact. Generated next to the site.
       - id: trailer
         agent: trailer
         label: Trailer script
       - id: capture
+        runtime: studio-cluster
         label: Trailer capture
         description: Movie Render Queue renders of the scripted Sequencer shots at 4K.
         files: [pipelines/unreal/sequencer_shots.py]
@@ -102,6 +161,7 @@ layers:
         agent: store
         label: Store page
       - id: capsule
+        runtime: imagegen
         type: tool
         label: Capsule art
         description: Key art variations generated then painted over; licence record attached.
@@ -120,15 +180,20 @@ layers:
         agent: community
         label: Social posts
       - id: calendar
+        runtime: studio-cluster
         label: Content calendar
         description: 6 weeks to launch, beats tied to Steam Next Fest and the trailer drop.
       - id: brand
         agent: cd
         label: Brand review
       - id: on_brand
+        runtime: studio-cluster
         type: decision
         label: On brand?
       - id: approval
+        runtime: review-portal
+        resources:
+          - { kind: endpoint, label: "Publish approvals", url: "https://review.forge.example.com/approvals?kind=publish" }
         type: human
         label: Publish approval
         description: Drafts only until approved. The publish tools are on the settings.json ask list.
@@ -144,19 +209,25 @@ layers:
     description: Measure, listen, route feedback back into the studio.
     nodes:
       - id: live
+        runtime: steam
         type: output
         label: Store page live
         description: Coming-soon page with trailer, wishlist button, Discord link.
       - id: wishlists
+        runtime: analytics
+        resources:
+          - { kind: dashboard, label: "Wishlists & traffic", url: "https://grafana.forge.example.com/d/wishlists/wishlists-and-traffic" }
         type: tool
         label: Wishlist metrics
         tools: [mcp__analytics__query_insights]
         files: [.mcp.json]
       - id: community
+        status: planned
         agent: community
         label: Community digest
         description: Weekly Discord/Reddit digest - top requests, bugs, sentiment.
       - id: feedback
+        runtime: studio-cluster
         type: output
         label: Feedback to studio
         description: Bugs to QA triage, design requests to the game designer, insights to memory.

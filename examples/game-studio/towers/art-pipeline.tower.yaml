@@ -7,23 +7,47 @@ description: >-
   validation against the asset budget, graded by the art director (max 2 rounds).
 root: ..
 
+runtimes:
+  artist-ws:
+    kind: local
+    label: "Artist workstation"
+    description: "Blender 4.4 with the MCP addon on an RTX 4080 workstation, reached through a Tailscale tunnel."
+    host: "ws-art-03"
+    provider: "on-prem"
+  studio-cluster:
+    kind: container
+    label: "Orchestrator cluster"
+    description: "Producer, directors and specialist agents as Claude Agent SDK containers on GKE Autopilot."
+    host: "gke-forge-prod"
+    provider: "gcp"
+    region: "europe-west4"
+    url: "https://argocd.forge.example.com/applications/studio-orchestrator"
+
 prompts:
   review-round: { file: prompts/review-round.md }
   asset-tagger: { file: prompts/asset-tagger.md }
 
 agents:
   modeler:
+    runtime: artist-ws
+    resources:
+      - { kind: log, label: "Blender MCP log", path: "logs/blender-mcp.log" }
+      - { kind: script, label: "Start Blender MCP", path: "scripts/start-blender-mcp.sh" }
     from: .claude/agents/blender-modeler.md
     harness: { max_turns: 60, context: isolated }
   materials:
+    runtime: artist-ws
     from: .claude/agents/material-artist.md
     tower: towers/material-bake.tower.yaml
   rigger:
+    runtime: artist-ws
     from: .claude/agents/rigger.md
   art-director:
+    runtime: studio-cluster
     from: .claude/agents/art-director.md
     harness: { fresh_session_each_round: true, max_rounds: 2 }
   tagger:
+    runtime: studio-cluster
     name: Asset tagger
     model: claude-haiku-5-5
     prompt: asset-tagger
@@ -36,26 +60,33 @@ layers:
     description: Everything the modeller needs before the first vertex. No guessing scale or budget.
     nodes:
       - id: ticket
+        runtime: studio-cluster
         type: entry
         label: Asset ticket
         description: "Example: SM_Beacon_Brazier (hero prop). Concept, turnarounds, budget class, due milestone."
         files: [src/departments/art.ts]
       - id: budgets
+        runtime: studio-cluster
+        resources:
+          - { kind: config, label: "Asset budgets", path: "config/asset-budgets.yaml" }
         type: memory
         label: Asset budgets
         description: Tris per LOD, texture resolution, material slots and bone limits per class.
         files: [config/asset-budgets.yaml]
       - id: refs
+        runtime: studio-cluster
         type: memory
         label: Turnarounds
         description: Locked concept, orthographic sheets and the art bible shape language.
         files: [memory/art-bible.md]
       - id: asset_class
+        runtime: studio-cluster
         type: decision
         label: Asset class?
         description: hero / prop / modular kit / skinned character. Skinned assets go through the rigger.
         files: [config/asset-budgets.yaml]
       - id: plan
+        runtime: studio-cluster
         label: Block-out plan
         description: Primitive breakdown, pivot, real-world scale (1 unit = 1 m) and modular grid if a kit.
     edges:
@@ -72,23 +103,31 @@ layers:
         agent: modeler
         label: Block-out
       - id: screenshot
+        runtime: artist-ws
         type: tool
         label: Viewport shot
         description: Front, side and 3/4 views at the concept camera angle for silhouette comparison.
         tools: [mcp__blender__get_viewport_screenshot]
         files: [.mcp.json]
       - id: silhouette
+        runtime: artist-ws
         type: decision
         label: Silhouette reads?
         description: Self-check against the concept at thumbnail size before any detail work.
       - id: sculpt
+        runtime: artist-ws
+        status: experimental
         label: High-poly detail
         description: Multires sculpt or bevel/subdivision pass for the bake source.
       - id: retopo
+        runtime: artist-ws
+        resources:
+          - { kind: script, label: "retopo.py", path: "pipelines/blender/retopo.py" }
         label: Retopology
         description: Quad remesh to the LOD0 budget, preserving hard edges and deformation loops.
         files: [pipelines/blender/retopo.py]
       - id: uv
+        runtime: artist-ws
         label: UV unwrap
         description: Smart seams on hard edges, pack at the class texel density, 8 px padding.
         files: [pipelines/blender/uv_unwrap.py]
@@ -105,6 +144,7 @@ layers:
     description: Fan-out after UVs. Three branches run concurrently on copies of the low-poly, then fan in.
     nodes:
       - id: fork
+        runtime: artist-ws
         label: Parallel fork
         description: Promise.all over three agents, each on its own .blend copy to avoid write conflicts.
         files: [src/departments/art.ts]
@@ -115,18 +155,22 @@ layers:
         agent: rigger
         label: Rigger
       - id: auto_rig
+        runtime: artist-ws
         label: Auto-rig
         description: Rigify metarig fitted to landmarks, deform-only export skeleton, weight transfer.
         files: [pipelines/blender/auto_rig.py]
       - id: deforms
+        runtime: artist-ws
         type: decision
         label: Deforms clean?
         description: Range-of-motion test poses; no candy-wrapping at wrists, no volume loss at knees.
       - id: lods
+        runtime: artist-ws
         label: LOD chain
         description: LOD1-3 by decimation ratios from the budget file, normals preserved.
         files: [pipelines/blender/generate_lods.py]
       - id: join
+        runtime: artist-ws
         label: Fan-in
         description: Merges textures, armature and LODs into the export scene.
     edges:
@@ -145,15 +189,20 @@ layers:
     description: Deterministic export, a guard on budgets, then the art director grades it (max 2 rounds).
     nodes:
       - id: export
+        runtime: artist-ws
         label: Export
         description: glTF 2.0 for static meshes, FBX for skinned meshes; +Y forward, cm scale for Unreal.
         files: [pipelines/blender/export_asset.py]
       - id: budget_guard
+        runtime: studio-cluster
+        resources:
+          - { kind: log, label: "Guardrails log", path: "logs/guardrails.log" }
         type: guard
         label: Budget guard
         description: PreToolUse denies registering an asset whose export exceeds its class budget.
         files: [src/hooks/asset-budget.ts]
       - id: validate
+        runtime: artist-ws
         type: tool
         label: validate_asset
         description: Headless validate_mesh.py report - tris, n-gons, UV overlap, scale, bones.
@@ -164,6 +213,7 @@ layers:
         label: Art director
         prompt: review-round
       - id: verdict
+        runtime: studio-cluster
         type: decision
         label: Approved?
         description: Score >= 8 and no blockers. Round 2 is final; then the producer is told.
@@ -171,6 +221,9 @@ layers:
       - id: tagger
         agent: tagger
       - id: ready
+        runtime: studio-cluster
+        resources:
+          - { kind: database, label: "Asset registry", url: "https://db.forge.example.com/asset-registry" }
         type: output
         label: Asset ready
         description: Registered with tags, licence and budget class; queued for Unreal import.

@@ -6,8 +6,30 @@ description: >-
   once, conflicts are resolved by source priority, and every claim leaves with a citation.
 root: ..
 
+runtimes:
+  vps:
+    kind: container
+    label: "Squad container"
+    description: "Pipeline, lead and every subagent in one docker compose stack; worktrees on a volume."
+    host: "squad-01.example.com"
+    provider: "hetzner"
+    region: "fsn1"
+  context7:
+    kind: saas
+    label: "Context7"
+    description: "Version-pinned library documentation over MCP."
+    provider: "upstash"
+    url: "https://context7.com"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "Opus, Sonnet and Haiku 5.5 plus server-side web search."
+    provider: "anthropic"
+    url: "https://console.anthropic.com"
+
 agents:
   researcher:
+    runtime: vps
     from: .claude/agents/researcher.md
     harness: { max_turns: 20, context: isolated, output_words: 300 }
 
@@ -17,6 +39,7 @@ layers:
     description: Independent tracks, issued in the same turn so they run concurrently.
     nodes:
       - id: question
+        runtime: vps
         type: entry
         label: One question
         description: A single answerable question from the architect's plan, plus the step it unblocks.
@@ -26,22 +49,30 @@ layers:
         label: Split tracks
         description: Turns the question into one query per track.
       - id: docs
+        runtime: context7
+        resources:
+          - { kind: endpoint, label: "Context7 MCP", url: "https://mcp.context7.com/mcp" }
         type: tool
         label: Context7 docs
         description: resolve-library-id, then query-docs for the version pinned in the lockfile.
         tools: [mcp__context7__resolve-library-id, mcp__context7__query-docs]
         files: [.mcp.json]
       - id: code
+        runtime: vps
         type: tool
         label: Codebase grep
         description: Existing usages, wrappers and tests. Project conventions beat generic advice.
         tools: [Grep, Glob, Read]
       - id: web
+        runtime: anthropic
         type: tool
         label: Web search
         description: Only for known bugs, migration notes and changelogs. Official sources first.
         tools: [WebSearch, WebFetch]
       - id: versions
+        runtime: vps
+        resources:
+          - { kind: config, label: "MCP servers", path: ".mcp.json" }
         type: tool
         label: Lockfile check
         description: Reads the pinned version so docs and answers match what actually ships.
@@ -58,17 +89,21 @@ layers:
     description: Merge evidence, resolve conflicts by source priority, answer the question in 2-5 sentences.
     nodes:
       - id: collect
+        runtime: vps
         label: Collect evidence
         description: Claims with their source, deduplicated.
       - id: agree
+        runtime: vps
         type: decision
         label: Sources agree?
       - id: priority
+        runtime: vps
         type: guard
         label: Source priority
         description: pinned docs > project code > official tracker > everything else. Conflict is reported.
         files: [.claude/agents/researcher.md]
       - id: answer
+        runtime: vps
         label: Draft answer
         description: Directly unblocks the plan step. No pasted files, no long excerpts.
     edges:
@@ -82,16 +117,20 @@ layers:
     description: Uncited claims are demoted to "unverified". The brief is all the lead ever sees.
     nodes:
       - id: cite
+        runtime: vps
         label: Attach citations
         description: file:line, URL or library@version for every claim.
       - id: check
+        runtime: vps
         type: decision
         label: All cited?
       - id: brief
+        runtime: vps
         type: output
         label: Research brief
         description: "Answer / Evidence / Gotchas / Confidence, max 300 words."
       - id: model
+        runtime: anthropic
         type: model
         label: Sonnet 5.5
         model: claude-sonnet-5-5

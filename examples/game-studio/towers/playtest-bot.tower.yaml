@@ -6,11 +6,27 @@ description: >-
   model only picks the next goal every few seconds, so a 20-minute run costs cents.
 root: ..
 
+runtimes:
+  gpu-cloud:
+    kind: cloud
+    label: "GPU playtest fleet"
+    description: "Spot g5.xlarge fleet running headless builds with bot clients. Scales to zero between runs."
+    host: "forge-playtest-spot"
+    provider: "aws"
+    region: "eu-central-1"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "Opus, Sonnet and Haiku 5.5 plus server-side web search."
+    provider: "anthropic"
+    url: "https://console.anthropic.com"
+
 prompts:
   playtest-bot: { file: prompts/playtest-bot.md }
 
 agents:
   bot:
+    runtime: gpu-cloud
     name: Playtest bot
     model: claude-haiku-5-5
     prompt: playtest-bot
@@ -23,17 +39,20 @@ layers:
     description: Headless client with the bot plugin, fixed seed and persona.
     nodes:
       - id: persona
+        runtime: gpu-cloud
         type: entry
         label: Persona + seed
         description: "Example: explorer on seed 0x5EED0042, objective rekindle 3 beacons."
         files: [memory/playtest-insights.md]
       - id: launch
+        runtime: gpu-cloud
         type: tool
         label: run_playtest
         description: -nullrhi -nosound -ExecCmds="Bot.Start persona", telemetry over a local socket.
         tools: [mcp__forge__run_playtest]
         files: [src/tools/run-playtest.ts]
       - id: observe
+        runtime: gpu-cloud
         label: Observe state
         description: Compact JSON snapshot - position, health, inventory, visible POIs, current quest.
     edges:
@@ -48,17 +67,23 @@ layers:
         agent: bot
         label: Choose goal
       - id: policy
+        runtime: gpu-cloud
+        resources:
+          - { kind: script, label: "bot_policy.py", path: "pipelines/playtest/bot_policy.py" }
         label: Bot policy
         description: Navmesh pathing, combat micro and interaction from the persona weights.
         files: [pipelines/playtest/bot_policy.py]
       - id: act
+        runtime: gpu-cloud
         label: Send inputs
         description: Input events at 30 Hz through the bot plugin.
       - id: stuck
+        runtime: gpu-cloud
         type: decision
         label: Stuck > 30s?
         description: No progress toward goal for 30 s, or position delta under 1 m for 10 s.
       - id: haiku
+        runtime: anthropic
         type: model
         label: Haiku 5.5
         model: claude-haiku-5-5
@@ -75,15 +100,22 @@ layers:
     description: Everything the triage agent needs to reproduce, nothing it does not.
     nodes:
       - id: stream
+        runtime: gpu-cloud
+        resources:
+          - { kind: log, label: "Fleet log", path: "logs/playtest-fleet.log" }
         type: memory
         label: Telemetry stream
         description: NDJSON events - deaths, crafts, beacons, frame times, errors.
         files: [src/telemetry/aggregate.ts]
       - id: crash
+        runtime: gpu-cloud
+        resources:
+          - { kind: dashboard, label: "Crash reports", url: "https://sentry.forge.example.com/organizations/forge/issues/?project=emberwake" }
         type: output
         label: Crash report
         description: Minidump, last 200 log lines and the input trace for replay.
       - id: run_report
+        runtime: gpu-cloud
         type: output
         label: Run report
         description: Objective result, stuck points, frustration notes from the persona's point of view.

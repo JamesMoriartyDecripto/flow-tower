@@ -136,7 +136,10 @@ export async function buildTower(
     if (ref && !runtimes[ref]) issues.push({ level: 'error', message: `unknown runtime "${ref}"`, path: where });
     return ref ? runtimes[ref] : undefined;
   };
-  for (const [aid, a] of Object.entries(agents)) runtimeOf(a.runtime, `agents.${aid}`);
+  for (const [aid, a] of Object.entries(agents)) {
+    runtimeOf(a.runtime, `agents.${aid}`);
+    for (const r of a.resources) if (r.path && !exists(r.path)) issues.push({ level: 'warning', message: `resource not found: ${r.path}`, path: `agents.${aid}` });
+  }
 
   const layers: ResolvedLayer[] = [];
   const keys = new Set<string>();
