@@ -37,13 +37,38 @@ layers:                                   # top → bottom
         description: "Runs npm test; max 3 fix rounds"
         status: active                    # active | planned | experimental | deprecated
         resources:
-          - { kind: log, label: Test log, path: logs/test.log }     # log script dashboard endpoint config doc queue database repo other
+          - { kind: log, label: Test log, path: logs/test.log }     # log script dashboard endpoint config doc queue database repo recording other
     edges:
       - lead -> gate
       - "gate -> lead [return]: fail, max 3"
 links:                                    # cross-layer, "layer.node"
   - orchestration.lead -> tools.github [call]
 ```
+
+Operational fields (optional, on agents or nodes; nodes inherit from their agent). Add them only when the real system has them:
+
+```yaml
+      - id: alert
+        type: entry
+        trigger: { kind: webhook, source: PagerDuty }        # manual cron webhook event queue chat email file; cron: schedule: "0 9 * * 1-5"
+      - id: searcher
+        agent: searcher
+        fanout: { min: 3, max: 5, by: query complexity }     # or a number: 4
+        budget: { usd: 2, turns: 30, on_exceed: pause }
+        limits: { timeout: 10m, retries: 2, max_iterations: 3 }
+        data: { sensitivity: pii, region: eu, retention: 30d }  # public internal confidential pii phi pci secret
+        evals: [{ name: pass@1, value: 0.82, target: 0.8 }]
+        version: v4
+        rollout: { strategy: canary, percent: 10, previous: v3 }
+        credentials: service                                 # service | author | user
+        sandbox: { network: allowlist, allow: [api.github.com], filesystem: workspace }
+      - id: oncall
+        type: human
+        approval: { by: on-call SRE, via: Slack, actions: [approve, reject], timeout: 15m, on_timeout: escalate }
+        sla: 72h
+```
+
+Edges can carry a wire protocol: `{ from: concierge, to: seller, kind: call, protocol: a2a }` (mcp a2a http grpc webhook queue event stdio). Durations: `250ms 90s 5m 72h 7d 2w`.
 
 Edge kinds: `flow` (default, sequence), `call` (synchronous tool/function), `spawn` (starts a subagent), `handoff` (transfers control), `return` (result or loop back), `data` (reads/writes memory, files, DB).
 

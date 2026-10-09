@@ -4,7 +4,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { parseDocument } from 'yaml';
 import { TowerSchema, type TowerDef } from './schema.ts';
 import { parseEdge } from './edges.ts';
-import { resolveAgent, resolvePromptDef, resolvePromptRef, type FileReader } from './resolve.ts';
+import { pickOps, resolveAgent, resolvePromptDef, resolvePromptRef, type FileReader } from './resolve.ts';
 import type { Issue, ResolvedAgent, ResolvedEdge, ResolvedLayer, ResolvedPrompt, ResolvedTower, Workspace } from './types.ts';
 
 export interface LoadResult {
@@ -177,6 +177,7 @@ export async function buildTower(
         status: n.status ?? 'active',
         resources,
         match: n.match ?? agent?.match,
+        ops: { ...agent?.ops, ...pickOps(n) },
         meta: n.meta ?? {},
       });
     }

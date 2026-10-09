@@ -13,8 +13,14 @@ layers:
     title: Listen
     nodes:
       - { id: mic, type: entry, label: Microphone, runtime: pi }
-      - { id: wake, type: hook, label: Wake word, description: 'openWakeWord "hey jarvis" model on 80 ms frames.', runtime: pi }
-      - { id: stt, type: model, label: Speech to text, model: faster-whisper small, runtime: pi, files: [assistant.py] }
+      - { id: wake, type: hook, label: Wake word, description: 'openWakeWord "hey jarvis" model on 80 ms frames.', runtime: pi, trigger: { kind: event, source: microphone } }
+      - id: stt
+        type: model
+        label: Speech to text
+        model: faster-whisper small
+        runtime: pi
+        files: [assistant.py]
+        data: { sensitivity: confidential, description: Raw audio never leaves the Pi; only the transcript goes to Claude. }
     edges:
       - mic -> wake
       - "wake -> stt: until silence"

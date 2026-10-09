@@ -221,6 +221,7 @@
                     "queue",
                     "database",
                     "repo",
+                    "recording",
                     "other"
                   ]
                 },
@@ -250,6 +251,322 @@
             "items": {
               "type": "string"
             }
+          },
+          "trigger": {
+            "description": "What starts this node (entry nodes, scheduled agents).",
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "cron",
+                  "webhook",
+                  "event",
+                  "queue",
+                  "chat",
+                  "email",
+                  "file"
+                ]
+              },
+              "schedule": {
+                "description": "Cron expression for `cron` (e.g. \"0 9 * * 1-5\").",
+                "type": "string"
+              },
+              "source": {
+                "description": "Who fires it: PagerDuty, Gmail, a queue name, a Slack channel...",
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          },
+          "approval": {
+            "description": "Human-in-the-loop gate: who, how, deadline.",
+            "type": "object",
+            "properties": {
+              "by": {
+                "description": "Role or person who approves.",
+                "type": "string"
+              },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "approve",
+                    "edit",
+                    "reject",
+                    "respond",
+                    "snooze"
+                  ]
+                }
+              },
+              "timeout": {
+                "type": "string",
+                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+              },
+              "on_timeout": {
+                "type": "string",
+                "enum": [
+                  "approve",
+                  "reject",
+                  "escalate",
+                  "wait"
+                ]
+              },
+              "via": {
+                "description": "Slack, email, PR review, app...",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "budget": {
+            "type": "object",
+            "properties": {
+              "usd": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "tokens": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "turns": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "on_exceed": {
+                "type": "string",
+                "enum": [
+                  "pause",
+                  "stop",
+                  "escalate",
+                  "downgrade"
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "timeout": {
+                "type": "string",
+                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+              },
+              "ttl": {
+                "description": "Lifetime of a session / sandbox / browser.",
+                "type": "string",
+                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+              },
+              "retries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "backoff": {
+                "description": "e.g. \"exponential 2s..60s\".",
+                "type": "string"
+              },
+              "max_iterations": {
+                "description": "Bound for loops (review rounds, tournament rounds...).",
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "concurrency": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "additionalProperties": false
+          },
+          "fanout": {
+            "description": "Runs as N parallel copies.",
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "min": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "max": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 9007199254740991
+                  },
+                  "by": {
+                    "description": "What decides the count.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "max"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "data": {
+            "description": "Sensitivity and residency of the data handled here.",
+            "type": "object",
+            "properties": {
+              "sensitivity": {
+                "type": "string",
+                "enum": [
+                  "public",
+                  "internal",
+                  "confidential",
+                  "pii",
+                  "phi",
+                  "pci",
+                  "secret"
+                ]
+              },
+              "region": {
+                "description": "Where data must stay (eu, us, eu-west-1...).",
+                "type": "string"
+              },
+              "retention": {
+                "type": "string",
+                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "evals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "string"
+                  ]
+                },
+                "target": {
+                  "type": [
+                    "number",
+                    "string"
+                  ]
+                },
+                "higher_is_better": {
+                  "description": "Defaults to true. Used to color value vs target.",
+                  "type": "boolean"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "pattern": "^https?:\\/\\/"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "version": {
+            "type": "string"
+          },
+          "rollout": {
+            "type": "object",
+            "properties": {
+              "strategy": {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "canary",
+                  "ab",
+                  "shadow",
+                  "blue-green",
+                  "rainbow"
+                ]
+              },
+              "percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "previous": {
+                "description": "Version being replaced (rollback target).",
+                "type": "string"
+              }
+            },
+            "required": [
+              "strategy"
+            ],
+            "additionalProperties": false
+          },
+          "sla": {
+            "description": "Deadline to complete (e.g. a regulatory 72h).",
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+          },
+          "credentials": {
+            "description": "Whose credentials the tools use: a service account, the author, or the end user.",
+            "type": "string",
+            "enum": [
+              "service",
+              "author",
+              "user"
+            ]
+          },
+          "sandbox": {
+            "type": "object",
+            "properties": {
+              "network": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "allowlist",
+                  "open"
+                ]
+              },
+              "allow": {
+                "description": "Allowed hosts when network is `allowlist`.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "filesystem": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "read-only",
+                  "workspace",
+                  "full"
+                ]
+              }
+            },
+            "additionalProperties": false
           },
           "meta": {
             "type": "object",
@@ -397,6 +714,7 @@
                           "queue",
                           "database",
                           "repo",
+                          "recording",
                           "other"
                         ]
                       },
@@ -426,6 +744,322 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "trigger": {
+                  "description": "What starts this node (entry nodes, scheduled agents).",
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "manual",
+                        "cron",
+                        "webhook",
+                        "event",
+                        "queue",
+                        "chat",
+                        "email",
+                        "file"
+                      ]
+                    },
+                    "schedule": {
+                      "description": "Cron expression for `cron` (e.g. \"0 9 * * 1-5\").",
+                      "type": "string"
+                    },
+                    "source": {
+                      "description": "Who fires it: PagerDuty, Gmail, a queue name, a Slack channel...",
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                "approval": {
+                  "description": "Human-in-the-loop gate: who, how, deadline.",
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "description": "Role or person who approves.",
+                      "type": "string"
+                    },
+                    "actions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "approve",
+                          "edit",
+                          "reject",
+                          "respond",
+                          "snooze"
+                        ]
+                      }
+                    },
+                    "timeout": {
+                      "type": "string",
+                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                    },
+                    "on_timeout": {
+                      "type": "string",
+                      "enum": [
+                        "approve",
+                        "reject",
+                        "escalate",
+                        "wait"
+                      ]
+                    },
+                    "via": {
+                      "description": "Slack, email, PR review, app...",
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "budget": {
+                  "type": "object",
+                  "properties": {
+                    "usd": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "tokens": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "turns": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "on_exceed": {
+                      "type": "string",
+                      "enum": [
+                        "pause",
+                        "stop",
+                        "escalate",
+                        "downgrade"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "limits": {
+                  "type": "object",
+                  "properties": {
+                    "timeout": {
+                      "type": "string",
+                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                    },
+                    "ttl": {
+                      "description": "Lifetime of a session / sandbox / browser.",
+                      "type": "string",
+                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                    },
+                    "retries": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "backoff": {
+                      "description": "e.g. \"exponential 2s..60s\".",
+                      "type": "string"
+                    },
+                    "max_iterations": {
+                      "description": "Bound for loops (review rounds, tournament rounds...).",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "concurrency": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "fanout": {
+                  "description": "Runs as N parallel copies.",
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 2,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "min": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "max": {
+                          "type": "integer",
+                          "minimum": 2,
+                          "maximum": 9007199254740991
+                        },
+                        "by": {
+                          "description": "What decides the count.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "max"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "data": {
+                  "description": "Sensitivity and residency of the data handled here.",
+                  "type": "object",
+                  "properties": {
+                    "sensitivity": {
+                      "type": "string",
+                      "enum": [
+                        "public",
+                        "internal",
+                        "confidential",
+                        "pii",
+                        "phi",
+                        "pci",
+                        "secret"
+                      ]
+                    },
+                    "region": {
+                      "description": "Where data must stay (eu, us, eu-west-1...).",
+                      "type": "string"
+                    },
+                    "retention": {
+                      "type": "string",
+                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "evals": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": [
+                          "number",
+                          "string"
+                        ]
+                      },
+                      "target": {
+                        "type": [
+                          "number",
+                          "string"
+                        ]
+                      },
+                      "higher_is_better": {
+                        "description": "Defaults to true. Used to color value vs target.",
+                        "type": "boolean"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "pattern": "^https?:\\/\\/"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "version": {
+                  "type": "string"
+                },
+                "rollout": {
+                  "type": "object",
+                  "properties": {
+                    "strategy": {
+                      "type": "string",
+                      "enum": [
+                        "all",
+                        "canary",
+                        "ab",
+                        "shadow",
+                        "blue-green",
+                        "rainbow"
+                      ]
+                    },
+                    "percent": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "previous": {
+                      "description": "Version being replaced (rollback target).",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "strategy"
+                  ],
+                  "additionalProperties": false
+                },
+                "sla": {
+                  "description": "Deadline to complete (e.g. a regulatory 72h).",
+                  "type": "string",
+                  "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                },
+                "credentials": {
+                  "description": "Whose credentials the tools use: a service account, the author, or the end user.",
+                  "type": "string",
+                  "enum": [
+                    "service",
+                    "author",
+                    "user"
+                  ]
+                },
+                "sandbox": {
+                  "type": "object",
+                  "properties": {
+                    "network": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "allowlist",
+                        "open"
+                      ]
+                    },
+                    "allow": {
+                      "description": "Allowed hosts when network is `allowlist`.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "filesystem": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "read-only",
+                        "workspace",
+                        "full"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
                 },
                 "meta": {
                   "type": "object",
@@ -476,6 +1110,19 @@
                     },
                     "condition": {
                       "type": "string"
+                    },
+                    "protocol": {
+                      "type": "string",
+                      "enum": [
+                        "mcp",
+                        "a2a",
+                        "http",
+                        "grpc",
+                        "webhook",
+                        "queue",
+                        "event",
+                        "stdio"
+                      ]
                     }
                   },
                   "required": [
@@ -532,6 +1179,19 @@
               },
               "condition": {
                 "type": "string"
+              },
+              "protocol": {
+                "type": "string",
+                "enum": [
+                  "mcp",
+                  "a2a",
+                  "http",
+                  "grpc",
+                  "webhook",
+                  "queue",
+                  "event",
+                  "stdio"
+                ]
               }
             },
             "required": [

@@ -1,4 +1,4 @@
-import type { EdgeKind, NodeType, ResourceDef, RuntimeDef, Status } from './schema.ts';
+import type { EdgeKind, NodeType, OpsDef, Protocol, ResourceDef, RuntimeDef, Status } from './schema.ts';
 
 /** Fully resolved data sent to the browser. Every reference is already expanded. */
 
@@ -29,6 +29,7 @@ export interface ResolvedAgent {
   runtime?: string;
   resources: ResourceDef[];
   match?: string[];
+  ops: OpsDef;
   meta: Record<string, unknown>;
 }
 
@@ -50,6 +51,8 @@ export interface ResolvedNode {
   status: Status;
   resources: ResourceDef[];
   match?: string[];
+  /** Operational facts (trigger, approval, budget, limits, fan-out, data, evals...), node over agent. */
+  ops: OpsDef;
   meta: Record<string, unknown>;
 }
 
@@ -60,6 +63,7 @@ export interface ResolvedEdge {
   kind: EdgeKind;
   label?: string;
   condition?: string;
+  protocol?: Protocol;
 }
 
 export interface ResolvedLayer {
