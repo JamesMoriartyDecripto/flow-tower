@@ -51,7 +51,7 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
         {stack.map((id, i) => (
           <span key={id} style={{ display: 'contents' }}>
             {i > 0 && <span className="sep">›</span>}
-            <button onClick={() => goTo(i)}>{workspace?.towers[id]?.name ?? id}</button>
+            <button onClick={() => goTo(i)} title={i === stack.length - 1 ? 'Current tower' : 'Go back up to this tower (Backspace)'}>{workspace?.towers[id]?.name ?? id}</button>
           </span>
         ))}
       </nav>
@@ -109,7 +109,7 @@ export function LayerNav() {
   return (
     <nav className="panel layernav">
       <div className="title">Layers</div>
-      <button className={focusedLayer === undefined ? 'on' : ''} onClick={resetView}>
+      <button className={focusedLayer === undefined ? 'on' : ''} onClick={resetView} title="Show the whole tower (0)">
         <span className="idx">◈</span><span className="name">Tower overview</span><span className="count">{tower.layers.length}L</span>
       </button>
       {tower.layers.map((l) => (
@@ -119,7 +119,7 @@ export function LayerNav() {
           onClick={() => focusLayer(l.index)}
           onMouseEnter={() => hoverLayer(l.index)}
           onMouseLeave={() => hoverLayer(undefined)}
-          title={l.description}
+          title={`Focus this layer (${l.index < 9 ? l.index + 1 : 'click'})${l.description ? ` — ${l.description}` : ''}`}
         >
           <span className="idx">L{String(l.index + 1).padStart(2, '0')}</span>
           <span className="name">{l.title}</span>
@@ -153,9 +153,9 @@ export function Legend() {
   return (
     <aside className="panel legend">
       <nav className="legend-tabs">
-        <button className={tab === 'types' ? 'on' : ''} onClick={() => setTab('types')}>Types</button>
-        <button className={tab === 'edges' ? 'on' : ''} onClick={() => setTab('edges')}>Edges</button>
-        <button className={tab === 'runtimes' ? 'on' : ''} disabled={!runtimes.length} onClick={() => setTab('runtimes')}>
+        <button className={tab === 'types' ? 'on' : ''} onClick={() => setTab('types')} title="Node types: click a type to hide or show it">Types</button>
+        <button className={tab === 'edges' ? 'on' : ''} onClick={() => setTab('edges')} title="What each edge style means">Edges</button>
+        <button className={tab === 'runtimes' ? 'on' : ''} disabled={!runtimes.length} onClick={() => setTab('runtimes')} title={runtimes.length ? 'Where things run: click one to spotlight its nodes' : 'This tower declares no runtimes'}>
           Runtimes{runtimes.length ? ` ${runtimes.length}` : ''}
         </button>
       </nav>
@@ -187,7 +187,7 @@ export function Legend() {
         <div className="runtimes">
           {runtimes.map((r) => (
             <button key={r.id} className={runtimeFocus === r.id ? 'on' : ''} onClick={() => set({ runtimeFocus: runtimeFocus === r.id ? undefined : r.id })}
-              title={[r.description, r.host, r.provider, r.region].filter(Boolean).join(' · ')}>
+              title={`Spotlight nodes running here (click again to clear)${[r.description, r.host, r.provider, r.region].some(Boolean) ? ` — ${[r.description, r.host, r.provider, r.region].filter(Boolean).join(' · ')}` : ''}`}>
               <span className="tag">{RUNTIME_ICON[r.kind]} {r.kind.toUpperCase()}</span>
               <span className="name">{r.label ?? r.id}</span>
               <span className="count">{counts.get(r.id) ?? 0}</span>
@@ -204,15 +204,15 @@ export function Controls() {
   const next = { high: 'eco', balanced: 'high', eco: 'balanced' } as const;
   return (
     <div className="panel controls">
-      <label>EXPLODE<input type="range" min={0.4} max={2.5} step={0.05} value={explode} disabled={view === 'map'} onChange={(e) => set({ explode: Number(e.target.value) })} /></label>
+      <label title={view === 'map' ? 'Layer spacing applies to tower view only' : 'Vertical spacing between layers'}>EXPLODE<input type="range" min={0.4} max={2.5} step={0.05} value={explode} disabled={view === 'map'} onChange={(e) => set({ explode: Number(e.target.value) })} /></label>
       <div className="seg view-seg" title="Tower: stacked layers. Map: side by side, seen from above (M)">
-        <button className={view === 'tower' ? 'on' : ''} onClick={() => { set({ view: 'tower' }); resetView(); }}>Tower</button>
-        <button className={view === 'map' ? 'on' : ''} onClick={() => { set({ view: 'map' }); resetView(); }}>Map</button>
+        <button className={view === 'tower' ? 'on' : ''} onClick={() => { set({ view: 'tower' }); resetView(); }} title="Tower view: layers stacked vertically (M to switch)">Tower</button>
+        <button className={view === 'map' ? 'on' : ''} onClick={() => { set({ view: 'map' }); resetView(); }} title="Map view: layers side by side, seen from above (M to switch)">Map</button>
       </div>
-      <button className={`btn ${autoRotate ? 'on' : ''}`} onClick={() => set({ autoRotate: !autoRotate })} disabled={view === 'map'}>Orbit</button>
-      <button className={`btn ${particles ? 'on' : ''}`} onClick={() => set({ particles: !particles })}>Flow</button>
+      <button className={`btn ${autoRotate ? 'on' : ''}`} onClick={() => set({ autoRotate: !autoRotate })} disabled={view === 'map'} title={view === 'map' ? 'Orbit is only available in tower view' : 'Slowly rotate the camera around the tower'}>Orbit</button>
+      <button className={`btn ${particles ? 'on' : ''}`} onClick={() => set({ particles: !particles })} title="Show or hide the dots travelling along the edges (needs ambient animations)">Flow</button>
       <button className="btn" onClick={() => set({ quality: next[quality] })} title="Rendering: eco (20 fps cap, no post-processing) / balanced (30 fps) / high (60 fps, full effects)">FX {quality}</button>
-      <button className="btn" onClick={resetView}>Reset</button>
+      <button className="btn" onClick={resetView} title="Reset the camera to the overview (0)">Reset</button>
     </div>
   );
 }
@@ -223,7 +223,7 @@ export function Issues({ onClose }: { onClose(): void }) {
   const issues = [...(tower?.issues ?? [])].sort((a, b) => ['error', 'warning', 'info'].indexOf(a.level) - ['error', 'warning', 'info'].indexOf(b.level));
   return (
     <aside className={`panel issues ${inspecting ? 'shifted' : ''}`}>
-      <button className="close" style={{ position: 'absolute', top: 10, right: 18 }} onClick={onClose}>✕</button>
+      <button className="close" style={{ position: 'absolute', top: 10, right: 18 }} onClick={onClose} title="Close the validation panel">✕</button>
       <div className="title" style={{ marginBottom: 10 }}>Validation · {issues.length}</div>
       {issues.length === 0 && <p className="mono dim">All systems nominal.</p>}
       {issues.map((i, k) => (

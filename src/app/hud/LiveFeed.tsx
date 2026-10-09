@@ -66,12 +66,12 @@ export function LiveFeed() {
       <div className="feed-tools">
         <div className="seg">
           {(['all', 'run', 'error'] as Filter[]).map((f) => (
-            <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>{f === 'run' ? 'Starts' : f === 'error' ? 'Errors' : 'All'}</button>
+            <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)} title={f === 'all' ? 'Show every event' : f === 'run' ? 'Only starts of agents and tools' : 'Only errors'}>{f === 'run' ? 'Starts' : f === 'error' ? 'Errors' : 'All'}</button>
           ))}
         </div>
         <div className="seg">
-          <button className={scope === 'tower' ? 'on' : ''} onClick={() => setScope('tower')}>Tower</button>
-          <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>Library</button>
+          <button className={scope === 'tower' ? 'on' : ''} onClick={() => setScope('tower')} title="Only events that land in the tower on screen">Tower</button>
+          <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')} title="Events from every project and nested tower (click one to go there)">Library</button>
         </div>
         <button className={`chip clickable ${spotlight ? 'on' : ''}`} onClick={() => setOption({ spotlight: !spotlight })} title="Dim everything that is not live">Spotlight</button>
         <button className={`chip clickable ${follow ? 'on' : ''}`} onClick={() => setOption({ follow: !follow })} title="Camera follows the layer of the latest event">Follow</button>
@@ -99,7 +99,7 @@ const FeedRow = memo(function FeedRow({ e, label, away, mapped, onJump }: {
   e: FlowEvent; label?: string; away?: string; mapped: boolean; onJump(e: FlowEvent): void;
 }) {
   return (
-    <button className={`feed-row ${tone(e)} ${mapped ? '' : 'unmapped'}`} onClick={() => onJump(e)}>
+    <button className={`feed-row ${tone(e)} ${mapped ? '' : 'unmapped'}`} onClick={() => onJump(e)} title={mapped ? 'Select the node this event landed on' : 'No node matched this event: add a match: rule (docs/realtime.md)'}>
       <span className="t">{time(e.ts)}</span>
       <span className="k" title={e.kind}>{ICON[e.kind] ?? '·'}</span>
       <span className="who">

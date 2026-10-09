@@ -8,6 +8,7 @@ import { Library } from './hud/Library';
 import { LiveFeed } from './hud/LiveFeed';
 import { LiveChips } from './hud/LiveChips';
 import { Settings } from './hud/Settings';
+import { Tooltip } from './hud/Tooltip';
 import { usePrefs, viewFor } from './settings';
 import { useLiveSync } from './live';
 import { Effects } from './scene/Effects';
@@ -61,6 +62,7 @@ export function App() {
       </div>
       <FileViewer />
       <Settings />
+      <Tooltip />
       <Library />
       {!tower && (
         <div className="boot">
@@ -90,13 +92,15 @@ function useKeyboard() {
   const tower = useTower();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
+      // Typing in a text field must not trigger shortcuts; sliders and toggles are fine.
+      if (e.target instanceof HTMLInputElement && e.target.type !== 'range') return;
       const s = useStore.getState();
       if (usePrefs.getState().open) {
         if (e.key === 'Escape') usePrefs.getState().set({ open: false });
         return;
       }
       if (e.key === ',') {
+        e.preventDefault();
         usePrefs.getState().set({ open: true });
         return;
       }
@@ -105,6 +109,7 @@ function useKeyboard() {
         return;
       }
       if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault(); // the library focuses its filter: do not type the "l" into it
         s.showLibrary(true);
       } else if (e.key === 'Escape') {
         if (s.file) s.openFile(undefined);

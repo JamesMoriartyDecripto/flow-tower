@@ -47,7 +47,7 @@ function Chip({ liveKey, nodeKey, label, error }: { liveKey: string; nodeKey: st
       className={`live-chip ${error ? 'error' : 'run'}`}
       style={{ visibility: 'hidden' }}
       onClick={() => useStore.getState().select(nodeKey)}
-      title={last?.message}
+      title={`Inspect ${label}${last?.message ? ` — ${last.message}` : ''}`}
     >
       <i>{error ? '✕' : '◆'}</i>
       <b>{label}</b>

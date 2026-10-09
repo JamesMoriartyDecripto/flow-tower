@@ -297,3 +297,12 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .toggle.on { background: color-mix(in srgb, var(--orange) 25%, transparent); border-color: var(--orange); }
 .toggle.on i { transform: translateX(20px); background: var(--orange); }
 .set-control .seg button.on { background: var(--orange); color: var(--bg); }
+
+/* HUD tooltip */
+.hud-tip { position: fixed; z-index: 10; transform: translateX(-50%); max-width: 300px; padding: 6px 10px; pointer-events: none;
+  font: 500 12.5px/1.35 var(--ui); color: var(--white); background: color-mix(in srgb, var(--bg) 94%, transparent);
+  border: 1px solid var(--line); box-shadow: 0 0 12px color-mix(in srgb, var(--orange) 25%, transparent); animation: fade .12s; }
+.hud-tip.above { transform: translate(-50%, -100%); }
+.hud-tip::before { content: ''; position: absolute; left: 50%; top: -4px; width: 7px; height: 7px; background: inherit;
+  border-left: 1px solid var(--line); border-top: 1px solid var(--line); transform: translateX(-50%) rotate(45deg); }
+.hud-tip.above::before { top: auto; bottom: -4px; transform: translateX(-50%) rotate(225deg); }

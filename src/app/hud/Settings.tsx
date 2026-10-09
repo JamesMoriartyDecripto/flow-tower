@@ -16,13 +16,13 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 function Seg<T extends string>({ value, options, onChange }: { value: T; options: [T, string][]; onChange(v: T): void }) {
   return (
     <div className="seg">
-      {options.map(([v, label]) => <button key={v} className={value === v ? 'on' : ''} onClick={() => onChange(v)}>{label}</button>)}
+      {options.map(([v, label]) => <button key={v} className={value === v ? 'on' : ''} onClick={() => onChange(v)} title={`Set to ${label}`}>{label}</button>)}
     </div>
   );
 }
 
 function Toggle({ on, onChange }: { on: boolean; onChange(v: boolean): void }) {
-  return <button className={`toggle ${on ? 'on' : ''}`} role="switch" aria-checked={on} onClick={() => onChange(!on)}><i /></button>;
+  return <button className={`toggle ${on ? 'on' : ''}`} role="switch" aria-checked={on} onClick={() => onChange(!on)} title={on ? 'On: click to turn off' : 'Off: click to turn on'}><i /></button>;
 }
 
 /** Settings page: theme, performance budget, effects, view, live behaviour, HUD. Saved per browser. */
@@ -45,7 +45,7 @@ export function Settings() {
             <h3>Theme</h3>
             <div className="themes">
               {THEMES.map((t) => (
-                <button key={t.id} className={`theme ${prefs.theme === t.id ? 'on' : ''}`} onClick={() => prefs.setTheme(t.id)}
+                <button key={t.id} className={`theme ${prefs.theme === t.id ? 'on' : ''}`} onClick={() => prefs.setTheme(t.id)} title={`Use the ${t.name} theme`}
                   style={{ background: t.bg, borderColor: prefs.theme === t.id ? t.accent : undefined }}>
                   <span className="sw" style={{ background: t.accent }} />
                   <span className="sw" style={{ background: t.accent2 }} />
@@ -70,6 +70,14 @@ export function Settings() {
             <Row label="Glow" hint="Bloom strength on highlights and live activity (no effect in eco).">
               <input type="range" min={0} max={2} step={0.1} value={prefs.bloom} onChange={(e) => prefs.set({ bloom: Number(e.target.value) })} />
               <span className="mono dim">{prefs.bloom.toFixed(1)}×</span>
+            </Row>
+          </section>
+
+          <section>
+            <h3>Appearance</h3>
+            <Row label="Layer transparency" hint="Glass plates of the layers: lower = see the flows below, higher = calmer, more readable. The focused layer always stays nearly opaque.">
+              <input type="range" min={0.1} max={0.95} step={0.05} value={prefs.plateOpacity} onChange={(e) => prefs.set({ plateOpacity: Number(e.target.value) })} />
+              <span className="mono dim">{Math.round((1 - prefs.plateOpacity) * 100)}%</span>
             </Row>
           </section>
 
@@ -105,7 +113,7 @@ export function Settings() {
               <Toggle on={prefs.hints} onChange={(hints) => prefs.set({ hints })} />
             </Row>
             <Row label="Reset" hint="Forget all saved preferences in this browser.">
-              <button className="btn" onClick={resetPrefs}>Reset to defaults</button>
+              <button className="btn" onClick={resetPrefs} title="Forget all saved preferences in this browser and reload">Reset to defaults</button>
             </Row>
           </section>
         </div>

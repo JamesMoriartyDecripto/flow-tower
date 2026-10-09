@@ -10,6 +10,8 @@ interface Prefs {
   theme: string;
   /** Bloom strength multiplier (0 = off). */
   bloom: number;
+  /** Opacity of the layer glass plates (0.1 = see-through, 0.95 = solid). */
+  plateOpacity: number;
   chips: boolean;
   hints: boolean;
   defaultView: DefaultView;
@@ -23,7 +25,7 @@ interface Prefs {
 const KEY = 'flow-tower:prefs';
 
 interface Saved {
-  theme?: string; bloom?: number; chips?: boolean; hints?: boolean; defaultView?: DefaultView;
+  theme?: string; bloom?: number; plateOpacity?: number; chips?: boolean; hints?: boolean; defaultView?: DefaultView;
   quality?: Quality; animations?: boolean; particles?: boolean; explode?: number; spotlight?: boolean; follow?: boolean;
 }
 
@@ -36,6 +38,7 @@ const saved = load();
 export const usePrefs = create<Prefs>()((set, get) => ({
   theme: saved.theme ?? 'mark',
   bloom: saved.bloom ?? 1,
+  plateOpacity: saved.plateOpacity ?? 0.42,
   chips: saved.chips ?? true,
   hints: saved.hints ?? true,
   defaultView: saved.defaultView ?? 'auto',
@@ -74,7 +77,7 @@ export function initPrefs() {
     const ui = useStore.getState();
     const live = useLive.getState();
     const data: Saved = {
-      theme: p.theme, bloom: p.bloom, chips: p.chips, hints: p.hints, defaultView: p.defaultView,
+      theme: p.theme, bloom: p.bloom, plateOpacity: p.plateOpacity, chips: p.chips, hints: p.hints, defaultView: p.defaultView,
       quality: ui.quality, animations: ui.animations, particles: ui.particles, explode: ui.explode,
       spotlight: live.spotlight, follow: live.follow,
     };
