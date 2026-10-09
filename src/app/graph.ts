@@ -33,9 +33,22 @@ export function neighbours(tower: ResolvedTower, key: string) {
   };
 }
 
-export function matches(node: ResolvedNode, query: string): boolean {
+/** Relevance of a node for a search query (0 = no match). Label hits rank above description hits. */
+export function score(node: ResolvedNode, query: string): number {
   const q = query.trim().toLowerCase();
-  if (!q) return false;
-  return [node.label, node.id, node.type, node.model, node.description, ...node.tools]
-    .some((v) => v?.toLowerCase().includes(q));
+  if (!q) return 0;
+  const label = node.label.toLowerCase();
+  if (label === q) return 100;
+  if (label.startsWith(q)) return 80;
+  if (label.includes(q)) return 60;
+  if (node.id.toLowerCase().includes(q)) return 50;
+  if ([node.type, node.model, node.runtime?.id, node.runtime?.label, ...node.tools].some((v) => v?.toLowerCase().includes(q))) return 30;
+  return node.description?.toLowerCase().includes(q) ? 10 : 0;
+}
+
+export const matches = (node: ResolvedNode, query: string) => score(node, query) > 0;
+
+/** Best match first. */
+export function search(nodes: ResolvedNode[], query: string): ResolvedNode[] {
+  return nodes.map((n) => [n, score(n, query)] as const).filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1]).map(([n]) => n);
 }

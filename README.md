@@ -13,6 +13,8 @@
 - **Library.** Point it at a folder and browse every project you work on.
 - **Live.** Save the YAML, or any referenced file, and the tower updates.
 
+![Library](docs/screenshot-library.png)
+
 ## Quick start
 
 ```bash
@@ -94,8 +96,9 @@ Each layer is drawn in a handful of draw calls: instanced meshes, batched lines 
 
 | Tower | Nodes | FPS |
 |---|---|---|
-| dev-squad | 55 | 50–55 |
-| game-studio | 140 | 60 (vsync) |
+| dev-squad | 56 | 50–55 |
+| course-studio | 109 | 60 (vsync) |
+| game-studio | 141 | 60 (vsync) |
 | synthetic 30 × 20 (`npm run stress -- 30 20`) | 600 | 19–29 (`low`) |
 
 ## Project layout
