@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { FlowEventSchema, resolveTargets, type FlowEvent } from '../core/events.ts';
 import { normalize } from '../core/adapters.ts';
+import { otlpLogsToEvents } from '../core/otlp.ts';
 import type { Workspace } from '../core/types.ts';
 
 export const EVENTS_EVENT = 'flow-tower:events';
@@ -8,6 +9,8 @@ const MAX_BODY = 1_000_000;
 const KEEP = 2000;
 /** Each event is matched against every node of the library: a huge batch would stall the dev server. */
 const MAX_BATCH = 1000;
+/** OTLP batches carry many records we ignore (prompts, tool results): allow more bytes, keep only usage. */
+const MAX_OTLP_BODY = 4_000_000;
 
 /**
  * In-memory live event hub: validates, normalizes and maps incoming events onto tower nodes,
@@ -65,7 +68,36 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     });
   };
 
-  return { ingest, handle, recent: () => buffer };
+  /**
+   * OTLP/HTTP JSON receiver: /v1/logs carries tokens and cost (see core/otlp.ts); /v1/metrics and
+   * /v1/traces are accepted and dropped, so exporters configured for every signal do not log errors.
+   */
+  const otlp = (signal: 'logs' | 'metrics' | 'traces') => (req: IncomingMessage, res: ServerResponse) => {
+    if (req.method !== 'POST') return json(res, 405, { error: 'use POST' });
+    const type = req.headers['content-type'] ?? '';
+    if (type.includes('protobuf')) return json(res, 415, { error: 'set OTEL_EXPORTER_OTLP_PROTOCOL=http/json (protobuf is not supported)' });
+    if (!type.includes('application/json')) return json(res, 415, { error: 'content-type must be application/json' });
+    if (token && req.headers['x-flow-tower-token'] !== token) return json(res, 401, { error: 'bad or missing x-flow-tower-token' });
+    let size = 0;
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => {
+      size += c.length;
+      if (size > MAX_OTLP_BODY) { json(res, 413, { error: 'body too large' }); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      if (res.writableEnded) return;
+      try {
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (signal === 'logs') ingest(otlpLogsToEvents(body).slice(0, MAX_BATCH));
+        json(res, 200, {}); // ExportLogsServiceResponse / ExportMetricsServiceResponse / ExportTraceServiceResponse
+      } catch {
+        json(res, 400, { error: 'invalid JSON' });
+      }
+    });
+  };
+
+  return { ingest, handle, otlp, recent: () => buffer };
 }
 
 /** Source from ?source=, or sniffed from headers (Hermes webhooks send X-Hermes-Event). */

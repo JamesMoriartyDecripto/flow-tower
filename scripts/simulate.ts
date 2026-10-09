@@ -4,6 +4,7 @@
  * Agent nodes send Claude Code hook payloads (exercising the adapter); other nodes send explicit events.
  */
 import { parseArgs } from 'node:util';
+import { sampleApiRequest } from '../src/core/otlp.ts';
 import type { ResolvedNode, ResolvedTower, Workspace } from '../src/core/types.ts';
 
 const { values, positionals } = parseArgs({
@@ -41,6 +42,10 @@ async function runAgent(node: ResolvedNode, session: string) {
       : { hook_event_name: 'PostToolUse', tool_name: tool, tool_use_id: id, tool_response: 'ok', duration_ms: 420 });
   }
   await hook({ hook_event_name: 'PostToolUse', tool_name: 'Agent', tool_input: { subagent_type: agent } });
+  // Tokens and cost arrive through OpenTelemetry, as with Claude Code telemetry enabled.
+  await fetch(`${values.url}/v1/logs`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(sampleApiRequest(agent, node.model, session)),
+  }).catch(() => undefined);
 }
 
 async function runStep(node: ResolvedNode, tower: ResolvedTower) {

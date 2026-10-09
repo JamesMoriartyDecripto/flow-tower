@@ -6,3 +6,9 @@ notify = ["sh", "-c", 'printf "%s" "$1" | node /path/to/flow-tower/bin/flow-towe
 
 # One-off runs: pipe the JSONL stream of `codex exec --json` (lines are sent as one batch when it ends).
 #   codex exec --json "fix the failing test" | flow-tower emit --source codex
+
+# Tokens and cost (OpenTelemetry, optional): Codex logs token counts on `codex.sse_event`
+# (response.completed) and an estimated cost on `codex.turn_cost`. Flow Tower reads OTLP/HTTP JSON only.
+[otel]
+exporter = { otlp-http = { endpoint = "http://127.0.0.1:5317/v1/logs", protocol = "json" } }
+log_user_prompt = false

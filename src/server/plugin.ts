@@ -64,6 +64,10 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         env.FLOW_TOWER_TOKEN,
       );
       server.middlewares.use('/api/events', hub.handle);
+      // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.
+      server.middlewares.use('/v1/logs', hub.otlp('logs'));
+      server.middlewares.use('/v1/metrics', hub.otlp('metrics'));
+      server.middlewares.use('/v1/traces', hub.otlp('traces'));
 
       // Update notice (#35): one quiet check per start, never blocking the server.
       let update: UpdateInfo = { current: VERSION, newer: false };

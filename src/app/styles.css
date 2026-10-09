@@ -408,6 +408,8 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 /* Half-screen windows: the shifted feed would cover the Layers panel and the legend; stack it on the right. */
 @media (max-width: 760px) {
   .livefeed.shifted { right: 14px; }
+  /* The bottom bar would run over the legend; layer spacing stays available in Settings. */
+  .controls label { display: none; }
   .hud:has(.livefeed) .inspector { bottom: calc(76px + 42 * var(--vh) + 12px); }
 }
 /* Smallest labels: never below ~7px on screen, even at the 0.7× interface floor. */
@@ -420,3 +422,5 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .demo-chip { padding: 4px 10px; font-size: 10px; color: var(--live-run); border-color: color-mix(in srgb, var(--live-run) 50%, transparent); }
 .demo-chip:not(.on) { color: var(--dim); }
 .update-chip { padding: 4px 10px; font-size: 10px; text-transform: none; text-decoration: none; }
+.feed-usage { margin-left: auto; margin-right: 10px; font-size: 11px; color: var(--live-done); }
+.lib-usage { color: var(--live-done); }

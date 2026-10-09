@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { create } from 'zustand';
 import { normalize } from '../core/adapters';
 import { FlowEventSchema, resolveTargets, type FlowEvent } from '../core/events';
+import { otlpLogsToEvents, sampleApiRequest } from '../core/otlp';
 import type { ResolvedNode, ResolvedTower } from '../core/types';
 import { useLive } from './live';
 import { STATIC } from './staticData';
@@ -57,6 +58,8 @@ async function walk(tower: ResolvedTower, alive: () => boolean, n: number) {
           ? { hook_event_name: 'PostToolUseFailure', tool_name: tool, tool_use_id: id, error: 'exit code 1 (simulated)' }
           : { hook_event_name: 'PostToolUse', tool_name: tool, tool_use_id: id, tool_response: 'ok' });
         hook({ hook_event_name: 'PostToolUse', tool_name: 'Agent', tool_input: { subagent_type: agent } });
+        // Tokens and cost, through the same OTLP parser the server uses for Claude Code telemetry.
+        for (const e of otlpLogsToEvents(sampleApiRequest(agent, cur.model, session))) emit(e);
       } else {
         const base = { source: 'demo', node: cur.key, tower: tower.id };
         emit({ ...base, kind: 'tool.start', message: cur.label });

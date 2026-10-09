@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ResolvedTower, Workspace } from '../../core/types';
-import { subtreeState, useLive, type LiveState } from '../live';
+import { formatUsage, subtreeState, useLive, usageOf, type LiveState } from '../live';
 import { useDescendants } from '../liveHooks';
 import { chooseView } from '../settings';
 import { useStore } from '../store';
@@ -128,10 +128,12 @@ interface CardProps {
   live: LiveState;
   current: boolean;
   view: 'tower' | 'map';
+  /** Tokens and cost reported live for the project and its sub-towers, already formatted (keeps memo cheap). */
+  usage?: string;
   onOpen(id: string, view?: 'tower' | 'map'): void;
 }
 
-const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, onOpen }: CardProps) {
+const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, usage, onOpen }: CardProps) {
   const open = (v?: 'tower' | 'map') => (e: { stopPropagation(): void }) => { e.stopPropagation(); onOpen(id, v); };
   return (
     // A plain container (clickable anywhere) with one primary button: a card that is itself a button
@@ -173,6 +175,7 @@ const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current,
             {stats.errors > 0 && <span className="chip err">{stats.errors} ERR</span>}
             {stats.warnings > 0 && <span className="chip warn">{stats.warnings} WARN</span>}
             {ago(stats.updatedAt)}
+            {usage && <span className="lib-usage" title="Tokens and cost reported by live telemetry, from the events the local server keeps (the last 2000), sub-towers included"> · {usage}</span>}
           </span>
           <span className="lib-open">
             <button className="btn" onClick={open('tower')} title="Open as a tower (sets the default view)">Tower</button>
@@ -210,6 +213,12 @@ export function Library() {
   }, [cards]);
   const [allTags, setAllTags] = useState(false);
   const live = useProjectsLive(workspace?.projects ?? NO_PROJECTS, library);
+  const usageMap = useLive((s) => s.usage);
+  const desc = useDescendants();
+  const usage = useMemo(() => Object.fromEntries((workspace?.projects ?? []).flatMap((p) => {
+    const u = usageOf(usageMap, new Set([p, ...(desc.get(p) ?? [])]));
+    return u ? [[p, formatUsage(u)]] : [];
+  })), [usageMap, desc, workspace]);
   useEffect(() => { try { localStorage.setItem('flow-tower:library-sort', sort); } catch { /* ignore */ } }, [sort]);
   // Stable, so the memoized cards do not all re-render when one project's live state changes.
   const onOpen = useCallback((id: string, v?: 'tower' | 'map') => {
@@ -277,7 +286,7 @@ export function Library() {
       )}
       <div className="lib-grid" ref={grid}>
         {shown.map(({ id, tower, stats }) => (
-          <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} onOpen={onOpen} />
+          <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} usage={usage[id]} onOpen={onOpen} />
         ))}
         {shown.length === 0 && <p className="mono dim">No project matches. Clear the filter or the tag.</p>}
       </div>
