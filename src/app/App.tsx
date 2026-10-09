@@ -43,7 +43,7 @@ export function App() {
         <Legend />
         <Controls />
         {!selected && (
-          <div className="hint">DRAG rotate · RIGHT-DRAG pan · SCROLL zoom · CLICK inspect · DBL-CLICK enter · 1-9 layers · ESC back</div>
+          <div className="hint">DRAG rotate · SHIFT+DRAG / RIGHT-DRAG pan · SCROLL zoom · SHIFT+SCROLL pan · CLICK inspect · DBL-CLICK enter · 1-9 layers · ESC back</div>
         )}
         <Inspector />
         <LiveFeed />
