@@ -10,6 +10,7 @@ import { Ambient, Base, Scanner } from './Environment';
 import { Layer, type Visual } from './Layer';
 import { createLens, stepLens } from './lens';
 import { Links } from './Links';
+import { useShiftPan } from './shiftPan';
 
 /** Root of the 3D scene: stacks the layers, animates spacing, drives the camera. */
 export function TowerScene() {
@@ -61,6 +62,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
   }, [focusedLayer, width, depth, height, viewNonce, layout]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { document.body.style.cursor = hovered ? 'pointer' : ''; }, [hovered]);
+  useShiftPan(controls);
 
   const layerIndex = useMemo(() => Object.fromEntries(tower.layers.map((l) => [l.id, l.index])), [tower]);
   const focusKey = selected ?? hovered;
