@@ -20,6 +20,8 @@ interface State {
   selected?: string;
   hovered?: string;
   focusedLayer?: number;
+  /** Layer under the pointer: drives the lens (magnify + spread) effect in overview. */
+  hoveredLayer?: number;
   explode: number;
   autoRotate: boolean;
   particles: boolean;
@@ -39,6 +41,8 @@ interface State {
   select(key?: string): void;
   hover(key?: string): void;
   focusLayer(index?: number): void;
+  /** Pass undefined to leave: cleared after a short delay so moving onto a node does not flicker. */
+  hoverLayer(index?: number): void;
   resetView(): void;
   enterTower(id: string): void;
   openProject(id: string): void;
@@ -48,6 +52,8 @@ interface State {
   toggleType(type: NodeType): void;
   openFile(file?: OpenFile): void;
 }
+
+let leaveTimer: ReturnType<typeof setTimeout> | undefined;
 
 export const useStore = create<State>()((set, get) => ({
   stack: [],
@@ -76,18 +82,23 @@ export const useStore = create<State>()((set, get) => ({
   setError: (error) => set({ error }),
   select: (selected) => set({ selected }),
   hover: (hovered) => set({ hovered }),
-  focusLayer: (focusedLayer) => set({ focusedLayer }),
+  focusLayer: (focusedLayer) => set({ focusedLayer, hoveredLayer: undefined }),
+  hoverLayer(index) {
+    clearTimeout(leaveTimer);
+    if (index === undefined) leaveTimer = setTimeout(() => set({ hoveredLayer: undefined }), 140);
+    else if (get().hoveredLayer !== index) set({ hoveredLayer: index });
+  },
   resetView: () => set({ focusedLayer: undefined, viewNonce: get().viewNonce + 1 }),
   enterTower(id) {
     if (!get().workspace?.towers[id]) return;
-    set({ stack: [...get().stack, id], selected: undefined, focusedLayer: undefined, file: undefined, runtimeFocus: undefined });
+    set({ stack: [...get().stack, id], selected: undefined, focusedLayer: undefined, hoveredLayer: undefined, file: undefined, runtimeFocus: undefined });
   },
   openProject(id) {
-    set({ stack: [id], library: false, selected: undefined, focusedLayer: undefined, file: undefined, search: '', runtimeFocus: undefined });
+    set({ stack: [id], library: false, selected: undefined, focusedLayer: undefined, hoveredLayer: undefined, file: undefined, search: '', runtimeFocus: undefined });
   },
   showLibrary: (library) => set({ library }),
   goTo(depth) {
-    set({ stack: get().stack.slice(0, depth + 1), selected: undefined, focusedLayer: undefined, file: undefined });
+    set({ stack: get().stack.slice(0, depth + 1), selected: undefined, focusedLayer: undefined, hoveredLayer: undefined, file: undefined });
   },
   set: (patch) => set(patch),
   toggleType(type) {
