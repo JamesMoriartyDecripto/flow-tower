@@ -1,0 +1,14 @@
+2026-10-01T08:02:44.210Z INFO  [librarian:m3] q1 "How do examples change model output format?" search=brave results=10
+2026-10-01T08:02:51.733Z INFO  [librarian:m3] context7 resolve "anthropic docs" -> /anthropics/docs query="multishot prompting examples"
+2026-10-01T08:03:20.418Z INFO  [librarian:m3] fetched https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/multishot-prompting
+2026-10-01T08:03:22.005Z INFO  [librarian:m3] registry add S4 licence=all-rights-reserved reuse=cite
+2026-10-01T08:04:40.661Z INFO  [librarian:m3] fetched https://arxiv.org/abs/2202.12837
+2026-10-01T08:04:41.117Z WARN  [hook:source-license] DENY S12 reuse=adapt licence=unknown -> "cannot adapt under unknown"
+2026-10-01T08:04:58.902Z INFO  [librarian:m3] licence page confirms CC-BY-4.0; registry add S12 reuse=cite
+2026-10-01T08:06:13.348Z INFO  [librarian:m3] q2 "Common PM misconceptions about examples" sources=3 (1 SME interview pending)
+2026-10-01T08:06:13.350Z WARN  [librarian:m3] skipped https://promptguru.example.net/10-secret-tricks (undated, no author)
+2026-10-01T08:11:52.471Z INFO  [librarian:m3] done questions=4 sources=9 primary=6 gaps=0 cost=$0.71
+2026-10-01T08:12:30.092Z INFO  [librarian:m5] q3 "LLM-as-judge agreement with human raters" sources=1 primary=1
+2026-10-01T08:19:04.990Z WARN  [librarian:m5] GAP: q3 needs a second independent source
+2026-10-01T08:23:58.214Z INFO  [librarian:m5] q3 second source found (peer-reviewed, 2025) registry add S41
+2026-10-01T08:24:30.640Z INFO  [librarian:m5] done questions=4 sources=11 primary=7 gaps=0 cost=$0.94
