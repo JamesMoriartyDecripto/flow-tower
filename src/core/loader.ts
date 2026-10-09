@@ -13,6 +13,8 @@ export interface LoadResult {
   roots: Map<string, string>;
   /** Every file the workspace depends on, for live reload. */
   watched: Set<string>;
+  /** Referenced files that do not exist yet: creating one must reload (its warning goes away). */
+  missing: Set<string>;
 }
 
 /** Expands files and directories (scanned recursively) into a sorted list of tower files. */
@@ -48,6 +50,7 @@ export async function loadLibrary(entries: string[]): Promise<LoadResult> {
     workspace: { projects: [], towers: {}, loadedAt: new Date().toISOString() },
     roots: new Map(),
     watched: new Set(),
+    missing: new Set(),
   };
   const nestedIds = new Set<string>();
   const queue = [...files];
@@ -55,7 +58,7 @@ export async function loadLibrary(entries: string[]): Promise<LoadResult> {
     const file = queue.shift()!;
     const id = toId(base, file);
     if (result.workspace.towers[id]) continue;
-    const { tower, root, nested } = await loadTower(file, id, result.watched);
+    const { tower, root, nested } = await loadTower(file, id, result.watched, result.missing);
     result.workspace.towers[id] = tower;
     result.roots.set(id, root);
     for (const n of nested) {
@@ -81,7 +84,7 @@ function patchTowerRef(tower: ResolvedTower, ref: string, id: string) {
   }
 }
 
-async function loadTower(file: string, id: string, watched: Set<string>) {
+async function loadTower(file: string, id: string, watched: Set<string>, missing: Set<string>) {
   watched.add(file);
   const issues: Issue[] = [];
   const empty = (root: string) => ({
@@ -112,10 +115,15 @@ async function loadTower(file: string, id: string, watched: Set<string>) {
     async read(path) {
       const abs = resolve(root, path);
       watched.add(abs);
-      try { return await readFile(abs, 'utf8'); } catch { return undefined; }
+      try { return await readFile(abs, 'utf8'); } catch { missing.add(abs); return undefined; }
     },
   };
-  const tower = await buildTower(def, id, fs, issues, (p) => existsSync(resolve(root, p)));
+  const tower = await buildTower(def, id, fs, issues, (p) => {
+    const abs = resolve(root, p);
+    if (existsSync(abs)) return true;
+    missing.add(abs);
+    return false;
+  });
   const refs = new Set(tower.layers.flatMap((l) => l.nodes.flatMap((n) => [n.tower, n.agent?.tower])).filter(Boolean) as string[]);
   const nested = [...refs].map((ref) => ({ ref, abs: resolve(root, ref) }));
   tower.updatedAt = await stat(file).then((st) => st.mtime.toISOString(), () => undefined);

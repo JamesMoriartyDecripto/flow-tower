@@ -1,5 +1,6 @@
 import { open, readFile, realpath, stat } from 'node:fs/promises';
-import { extname, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, extname, resolve } from 'node:path';
 import { env } from 'node:process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin, ViteDevServer } from 'vite';
@@ -18,7 +19,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
     if (!entries.length) return;
     state = await loadLibrary(entries);
     if (server) {
-      server.watcher.add([...state.watched]);
+      server.watcher.add([...state.watched, ...existingDirs(state.missing)]);
       server.ws.send(UPDATE_EVENT, { loadedAt: state.workspace.loadedAt });
     }
   };
@@ -27,10 +28,10 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
     name: 'flow-tower',
     async configureServer(server) {
       await reload();
-      if (state) server.watcher.add([...state.watched, ...entries.map((e) => resolve(e))]);
+      if (state) server.watcher.add([...state.watched, ...existingDirs(state.missing), ...entries.map((e) => resolve(e))]);
       // A tower file added to or removed from a watched directory changes the library too.
       const onFsEvent = (file: string) => {
-        if (!state?.watched.has(file) && !file.endsWith('.tower.yaml')) return;
+        if (!state?.watched.has(file) && !state?.missing.has(file) && !file.endsWith('.tower.yaml')) return;
         clearTimeout(timer);
         timer = setTimeout(() => void reload(server), 120);
       };
@@ -52,6 +53,17 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       server.middlewares.use('/api/events', hub.handle);
     },
   };
+}
+
+/** Nearest existing directory of each missing file: watching it reports the file when it appears. */
+function existingDirs(files: Set<string>): string[] {
+  const dirs = new Set<string>();
+  for (const f of files) {
+    let d = dirname(f);
+    while (!existsSync(d) && dirname(d) !== d) d = dirname(d);
+    dirs.add(d);
+  }
+  return [...dirs];
 }
 
 async function serveFile(req: IncomingMessage, res: ServerResponse, state?: LoadResult) {
