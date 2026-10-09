@@ -6,8 +6,23 @@ description: >-
   pack ORM, enforce the palette, compare against the concept and retry at most twice.
 root: ..
 
+runtimes:
+  artist-ws:
+    kind: local
+    label: "Artist workstation"
+    description: "Blender 4.4 with the MCP addon on an RTX 4080 workstation, reached through a Tailscale tunnel."
+    host: "ws-art-03"
+    provider: "on-prem"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "Opus, Sonnet and Haiku 5.5 plus server-side web search."
+    provider: "anthropic"
+    url: "https://console.anthropic.com"
+
 agents:
   materials:
+    runtime: artist-ws
     from: .claude/agents/material-artist.md
     harness: { max_attempts: 2 }
 
@@ -17,16 +32,21 @@ layers:
     description: Start from tokens, not taste. The palette and roughness ranges come from the style guide.
     nodes:
       - id: uv_mesh
+        runtime: artist-ws
         type: entry
         label: UV'd low poly
         description: Low-poly with packed UVs plus the high-poly bake source.
         files: [pipelines/blender/uv_unwrap.py]
       - id: tokens
+        runtime: artist-ws
+        resources:
+          - { kind: config, label: "Style tokens", path: "config/style-guide.json" }
         type: memory
         label: Style tokens
         description: Ember & slate palette, roughness bands per surface, emissive rules for beacons.
         files: [config/style-guide.json]
       - id: texel
+        runtime: artist-ws
         type: decision
         label: Texel density?
         description: Within 10% of the class target, otherwise back to the UV step.
@@ -44,21 +64,28 @@ layers:
     description: Deterministic Cycles bakes through bpy, then procedural paint layers.
     nodes:
       - id: normal_ao
+        runtime: artist-ws
+        resources:
+          - { kind: script, label: "bake_pbr.py", path: "pipelines/blender/bake_pbr.py" }
         label: Normal + AO
         description: Cage-based high-to-low bake, 16 samples AO, 2048 px for heroes.
         files: [pipelines/blender/bake_pbr.py]
       - id: curvature
+        runtime: artist-ws
         label: Curvature mask
         description: Drives edge wear and ember glow on worn edges.
         files: [pipelines/blender/bake_pbr.py]
       - id: albedo
+        runtime: artist-ws
         label: Albedo paint
         description: Painterly gradients and hand-placed grime masks over the base palette.
       - id: orm
+        runtime: artist-ws
         label: ORM pack
         description: Occlusion, roughness, metallic packed into one texture (R, G, B).
         files: [pipelines/blender/bake_pbr.py]
       - id: palette
+        runtime: artist-ws
         type: guard
         label: Palette check
         description: Rejects albedo values outside the palette Delta-E tolerance and pure black or white.
@@ -74,19 +101,25 @@ layers:
     description: Look at it the way the art director will, before the art director does.
     nodes:
       - id: preview
+        runtime: artist-ws
+        resources:
+          - { kind: log, label: "Blender MCP log", path: "logs/blender-mcp.log" }
         type: tool
         label: Lookdev shot
         description: Viewport render under the three standard lighting rigs.
         tools: [mcp__blender__get_viewport_screenshot]
       - id: matches
+        runtime: artist-ws
         type: decision
         label: Matches concept?
         description: Side-by-side with the locked concept. Max 2 attempts, then return with notes.
       - id: textures
+        runtime: artist-ws
         type: output
         label: PBR set
         description: T_<Asset>_BC, T_<Asset>_N, T_<Asset>_ORM at class resolution.
       - id: model
+        runtime: anthropic
         type: model
         label: Sonnet 5.5
         model: claude-sonnet-5-5

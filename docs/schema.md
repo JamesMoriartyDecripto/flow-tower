@@ -8,6 +8,8 @@ A tower is one YAML file (`*.tower.yaml`). Add the first line below to get autoc
 
 Unknown keys are **errors**, so typos never fail silently.
 
+> **YAML gotcha:** inside one-line maps (`{ ... }`) a comma ends the value. Quote any text that contains commas: `{ id: a, description: "plans, routes and reviews" }`. Otherwise the rest becomes a bogus key and validation reports it.
+
 ## Top level
 
 | Key | Type | Notes |

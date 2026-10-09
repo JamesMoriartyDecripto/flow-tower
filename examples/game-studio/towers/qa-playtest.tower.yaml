@@ -7,6 +7,42 @@ description: >-
   their owners and a regression loop (max 2 cycles) decides pass or block.
 root: ..
 
+runtimes:
+  studio-cluster:
+    kind: container
+    label: "Orchestrator cluster"
+    description: "Producer, directors and specialist agents as Claude Agent SDK containers on GKE Autopilot."
+    host: "gke-forge-prod"
+    provider: "gcp"
+    region: "europe-west4"
+    url: "https://argocd.forge.example.com/applications/studio-orchestrator"
+  gpu-cloud:
+    kind: cloud
+    label: "GPU playtest fleet"
+    description: "Spot g5.xlarge fleet running headless builds with bot clients. Scales to zero between runs."
+    host: "forge-playtest-spot"
+    provider: "aws"
+    region: "eu-central-1"
+  render-farm:
+    kind: server
+    label: "Unreal farm"
+    description: "Four UE 5.6 editor nodes with Remote Control for import, animation, lighting, world building and profiling."
+    host: "ue-farm-01..04"
+    provider: "on-prem"
+    region: "studio-rack-a"
+  cron:
+    kind: serverless
+    label: "Scheduled jobs"
+    description: "Cloud Run jobs for the daily standup digest and webhook-triggered bug triage."
+    provider: "gcp"
+    region: "europe-west4"
+  github:
+    kind: saas
+    label: "GitHub"
+    description: "Repository, issues and pull requests."
+    provider: "github"
+    url: "https://github.com/forge-studio-example/emberwake"
+
 prompts:
   qa-lead: { file: prompts/qa-lead.md }
   playtest-bot: { file: prompts/playtest-bot.md }
@@ -15,12 +51,17 @@ prompts:
 
 agents:
   lead:
+    runtime: studio-cluster
     name: QA lead
     model: claude-sonnet-5-5
     prompt: qa-lead
     tools: [Agent, Read, mcp__forge__run_playtest, mcp__forge__query_telemetry]
     files: [src/departments/qa.ts]
   bot:
+    runtime: gpu-cloud
+    resources:
+      - { kind: log, label: "Fleet log", path: "logs/playtest-fleet.log" }
+      - { kind: script, label: "Run playtest fleet", path: "scripts/playtest-fleet.sh" }
     name: Playtest bot
     model: claude-haiku-5-5
     prompt: playtest-bot
@@ -28,16 +69,19 @@ agents:
     files: [pipelines/playtest/bot_policy.py]
     tower: towers/playtest-bot.tower.yaml
   triage:
+    runtime: cron
     name: Bug triage
     model: claude-haiku-5-5
     prompt: bug-triage
     tools: [Read, mcp__github__list_issues]
   ux:
+    runtime: studio-cluster
     name: UX researcher
     model: claude-sonnet-5-5
     prompt: ux-researcher
     tools: [Read, Write, mcp__forge__query_telemetry]
   perf:
+    runtime: render-farm
     from: .claude/agents/perf-profiler.md
 
 layers:
@@ -46,6 +90,7 @@ layers:
     description: Which personas, which seeds, which builds. The matrix is the contract with release.
     nodes:
       - id: build
+        runtime: studio-cluster
         type: entry
         label: Candidate build
         description: Development build with telemetry enabled, from the review gates.
@@ -53,11 +98,15 @@ layers:
       - id: lead
         agent: lead
       - id: personas
+        runtime: studio-cluster
+        resources:
+          - { kind: doc, label: "Playtest insights", path: "memory/playtest-insights.md" }
         type: memory
         label: Personas
         description: Explorer, speedrunner, chaos, co-op host, newcomer. Each with goals and input style.
         files: [memory/playtest-insights.md]
       - id: matrix
+        runtime: studio-cluster
         label: Test matrix
         description: 5 personas x 4 seeds x 2 graphics presets = 40 runs, 8 in parallel.
         files: [src/departments/qa.ts]
@@ -77,6 +126,7 @@ layers:
         agent: bot
         label: Speedrun bot
       - id: chaos
+        status: experimental
         agent: bot
         label: Chaos bot
       - id: coop
@@ -84,6 +134,7 @@ layers:
         label: Co-op host bot
         description: Hosts a 4-player session with three follower bots; tests join, desync and host leave.
       - id: run_playtest
+        runtime: gpu-cloud
         type: tool
         label: run_playtest
         description: Launches the build with -nullrhi and the bot plugin; streams JSON telemetry.
@@ -100,10 +151,14 @@ layers:
     description: Numbers first, opinions second. Perf and UX read the same aggregated telemetry.
     nodes:
       - id: aggregate
+        runtime: studio-cluster
+        resources:
+          - { kind: dashboard, label: "Playtest funnels", url: "https://eu.posthog.example.com/project/48213/dashboard/playtest-funnels" }
         label: Aggregate runs
         description: Death and stuck heatmaps, beacon funnel, time-to-first-craft, fps percentiles.
         files: [src/telemetry/aggregate.ts]
       - id: query
+        runtime: studio-cluster
         type: tool
         label: query_telemetry
         tools: [mcp__forge__query_telemetry]
@@ -127,29 +182,38 @@ layers:
         agent: triage
         label: Bug triage
       - id: dedupe
+        runtime: studio-cluster
         label: Dedupe
         description: Clusters by stack hash and location; links duplicates instead of filing new issues.
       - id: severity
+        runtime: studio-cluster
         type: decision
         label: S1/S2 open?
         files: [config/quality-gates.yaml]
       - id: file
+        runtime: github
+        resources:
+          - { kind: repo, label: "QA issues", url: "https://github.com/forge-studio-example/emberwake/issues?q=label%3Aqa" }
         type: tool
         label: File issues
         description: GitHub issues with repro seed, persona, timestamp and clip link.
         tools: [mcp__github__create_issue]
         files: [.mcp.json]
       - id: regression
+        runtime: gpu-cloud
         label: Regression run
         description: Replays failing seeds on the fix build plus the smoke subset.
       - id: cycle
+        runtime: studio-cluster
         type: decision
         label: Cycle < 2?
       - id: pass
+        runtime: studio-cluster
         type: output
         label: QA pass
         description: Report to release - runs, crash rate, perf percentiles, known issues.
       - id: blocked
+        runtime: studio-cluster
         type: output
         label: Release blocked
         description: Open blockers with owners; the producer re-plans.
