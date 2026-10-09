@@ -19,7 +19,7 @@ The design principle: **the LLM writes, Jev decides, code acts.**
 This is a read-only flow-tower example: meant to be read, not run.
 
 ```bash
-npx flow-tower examples/jev-agent/jev-agent.tower.yaml
+node bin/flow-tower.js examples/jev-agent/jev-agent.tower.yaml
 ```
 
 ## Layers

@@ -1,0 +1,153 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: E2E Sweep
+description: >-
+  How the Playwright sweep exercises Flow Tower: one test per tower in the library, driven from the
+  keyboard like a user, asserting on app state through a dev-only hook instead of canvas pixels, and
+  failing on any console or page error. Each step reports itself to this tower while it runs.
+root: ../../..
+tags: [playwright, e2e, accessibility, axe, webgl]
+
+runtimes:
+  chrome:
+    kind: browser
+    label: Headless Chrome
+    description: "Installed Google Chrome (channel: chrome); bundled Chromium no longer supports macOS 13."
+  devserver:
+    kind: local
+    label: flow-tower dev server
+    host: 127.0.0.1:5317
+
+layers:
+  - id: boot
+    title: Boot
+    description: Same workspace as the server, read at collection time, so there is one named test per tower.
+    nodes:
+      - id: config
+        type: entry
+        label: playwright test
+        runtime: chrome
+        files: [playwright.config.ts]
+        trigger: { kind: manual, source: "npm run e2e" }
+        limits: { timeout: 3m, concurrency: 3, retries: 0 }
+      - id: workspace
+        type: process
+        label: loadLibrary(examples)
+        description: The tests import the real loader, so a new example gets a test without editing the suite.
+        files: [e2e/fixtures.ts, src/core/loader.ts]
+      - id: hook
+        type: tool
+        label: window.__flowTower
+        description: Dev-only store hook. Canvas content is opaque to the DOM, so tests read selection, layer and view from state.
+        files: [src/app/main.tsx]
+      - id: errors
+        type: guard
+        label: Console + page errors
+        description: Auto fixture. Any uncaught exception or console.error fails the test that caused it.
+        files: [e2e/fixtures.ts]
+    edges:
+      - config -> workspace
+      - workspace -> hook
+      - "errors -> hook: watches every page"
+
+  - id: tower
+    title: Per Tower
+    description: Fan-out over every project of the library, sub-towers visited recursively.
+    nodes:
+      - id: open
+        type: process
+        label: Open from library
+        runtime: chrome
+        description: Click the card, wait for the stack and a non-empty canvas, expect 0 errors and 0 warnings.
+        files: [e2e/towers.spec.ts]
+        fanout: { min: 25, max: 40, by: project }
+      - id: keyboard
+        type: process
+        label: Keyboard walk
+        description: PageDown through every layer, arrows to select, I into the node panel, ] tabs, Esc out, C / B connections.
+        files: [e2e/towers.spec.ts, src/app/App.tsx]
+      - id: map
+        type: process
+        label: Map view
+        description: M switches to map and back; the choice must carry into sub-towers.
+      - id: subs
+        type: process
+        label: Sub-towers
+        description: S selects each sub-tower node, Enter dives in, Backspace must land back on the owner node. Recursive.
+      - id: files
+        type: tool
+        label: /api/file for every reference
+        runtime: devserver
+        description: Every file and resource path of every tower is served; paths outside the root are refused.
+        files: [src/server/plugin.ts]
+    edges:
+      - open -> keyboard
+      - keyboard -> map
+      - map -> subs
+      - "open -> files [call]: http"
+
+  - id: live
+    title: Live Events
+    nodes:
+      - id: events
+        type: process
+        label: POST /api/events
+        runtime: devserver
+        description: A mapped start, a mapped error and an unmapped event. Must answer 204 with an empty body (Claude Code hooks).
+        files: [e2e/live.spec.ts, src/server/events.ts]
+      - id: feed
+        type: process
+        label: Live feed
+        runtime: chrome
+        description: F opens the feed; error count, unmapped marker, clicking a row selects the node.
+        files: [src/app/hud/LiveFeed.tsx]
+      - id: malformed
+        type: guard
+        label: Malformed bodies
+        description: Broken JSON, wrong types and a 200 KB message must not crash the server.
+    edges:
+      - events -> feed
+      - "malformed -> events"
+
+  - id: layout
+    title: Layout + Accessibility
+    nodes:
+      - id: panels
+        type: process
+        label: Panels at 6 sizes
+        runtime: chrome
+        description: 1024 to 2560 px, interface size 1x to 1.6x, inspector and feed open; no overlap, nothing off screen.
+        files: [e2e/layout.spec.ts, src/app/scene/hudFrame.ts, src/app/styles.css]
+        fanout: 6
+      - id: axe
+        type: tool
+        label: axe-core (WCAG 2 A/AA)
+        runtime: chrome
+        description: Library and HUD DOM; the WebGL canvas is excluded because axe cannot see inside it.
+        files: [e2e/layout.spec.ts]
+    edges:
+      - panels -> axe
+
+  - id: evidence
+    title: Evidence
+    nodes:
+      - id: traces
+        type: memory
+        label: Traces + screenshots
+        description: Kept only for failing tests (trace retain-on-failure, screenshot only-on-failure).
+      - id: report
+        type: output
+        label: e2e.json
+        description: Read by the UX, performance and correctness finders of the parent tower.
+        resources:
+          - { kind: log, label: Last run, path: examples/release-auditor/reports/e2e.log }
+    edges:
+      - "traces -> report [data]"
+
+links:
+  - "boot.hook -> tower.open"
+  - "boot.hook -> live.events"
+  - "boot.hook -> layout.panels"
+  - "tower.subs -> evidence.traces [data]"
+  - "live.feed -> evidence.traces [data]"
+  - "layout.axe -> evidence.traces [data]"

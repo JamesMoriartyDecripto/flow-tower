@@ -34,6 +34,7 @@ Objectives: O1, O2 · Prerequisites: none / module N
 | m{{n}}-l1 | | | | video 4 min |
 
 Gagné map per lesson (events 6-8 are mandatory):
+
 | Event | m{{n}}-l1 | m{{n}}-l2 |
 |-------|-----------|-----------|
 | 1 Gain attention | scenario | |

@@ -9,7 +9,7 @@ The scenario follows the cookbook: `checkout-svc` is OOMKilled (exit 137) after 
 and the fix raises the memory request and limit in `infra/k8s/checkout-deploy.yaml`.
 
 ```bash
-npx flow-tower examples/sre-incident/sre-incident.tower.yaml
+node bin/flow-tower.js examples/sre-incident/sre-incident.tower.yaml
 ```
 
 ## Layers

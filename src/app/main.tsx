@@ -10,8 +10,11 @@ import '@fontsource/jetbrains-mono/500.css';
 import './styles.css';
 import { App } from './App';
 import { initPrefs } from './settings';
+import { useStore } from './store';
 
 initPrefs();
+// Dev-only hook for the E2E sweep (e2e/): tests assert on app state, not on canvas pixels. App.tsx adds `three`.
+if (import.meta.env.DEV) Object.assign(window, { __flowTower: { store: useStore } });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

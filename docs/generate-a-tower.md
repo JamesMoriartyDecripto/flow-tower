@@ -68,7 +68,7 @@ node <flow-tower>/bin/flow-tower.js validate <tower-file> --json
 - Fix every `error`: unknown keys, bad references, missing endpoints.
 - Fix every `warning`: missing files and resources. Correct the path, or drop the reference if the file really does not exist.
 - Fix `info: node has no connections` by connecting the node, or remove it if it is not part of the flow.
-- Re-run until it reports no errors and no warnings (exit code 0).
+- Re-run until it reports no errors and no warnings. The exit code is 1 only on errors, so read the report: warnings still exit 0.
 
 ### 6. Live wiring (offer, don't force)
 

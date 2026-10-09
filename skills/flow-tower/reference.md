@@ -95,7 +95,7 @@ Edge kinds: `flow` (default, sequence), `call` (synchronous tool/function), `spa
 | Anthropic API loops | `messages.create`, `tool_use` handling, `while`/`for` loops around calls | agent + loop decision + tools |
 | OpenAI Agents SDK | `Agent(name=, instructions=, tools=, handoffs=)`, `Runner.run` | agents, `[handoff]` edges |
 | LangGraph | `StateGraph`, `add_node`, `add_edge`, `add_conditional_edges`, `interrupt` | nodes/edges directly; conditionals → decision; interrupt → human |
-| CrewAI | `Agent(role=, goal=)`, `Task(`, `Crew(process=Process.sequential|hierarchical)` | agents, task flow, manager agent |
+| CrewAI | `Agent(role=, goal=)`, `Task(`, `Crew(process=Process.sequential\|hierarchical)` | agents, task flow, manager agent |
 | AutoGen / AG2 | `AssistantAgent`, `UserProxyAgent`, `GroupChat`, `GroupChatManager` | agents, human, orchestrator |
 | Pi | `~/.pi/agent/extensions/`, `pi.on(`, session JSONL | agent + extensions as hooks |
 | Hermes Agent | `~/.hermes/config.yaml` (`hooks`, `skills`, `tools`), `HOOK.yaml` | agent, hooks, tools |

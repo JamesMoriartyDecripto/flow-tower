@@ -53,7 +53,8 @@ export function navigate(tower: ResolvedTower, dir: Dir) {
     return;
   }
   const own = boxes(tower, layer);
-  const from = own.find((b) => b.key === s.selected);
+  // The selected node may be of a type hidden in the legend: navigate from where it sits anyway.
+  const from = own.find((b) => b.key === s.selected) ?? layouts.get(tower.id)?.layers[layer]?.nodes[s.selected!];
   if (!from) return;
   const target = nearest(own, from, dir);
   if (target) return pick(layer, target.key);

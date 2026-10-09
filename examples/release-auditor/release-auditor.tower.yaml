@@ -1,0 +1,377 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Release Auditor
+tags: [qa, security, code-review, release, playwright, claude-code, dogfooding]
+description: >-
+  The pre-release bug sweep that gated Flow Tower v0.1.0, run on this very repository. Deterministic
+  gates first (typecheck, tests, examples, semgrep, npm audit, secrets in git history), then a
+  Playwright sweep of every tower, then one finder agent per charter. Every candidate finding must
+  survive an adversarial verifier that tries to refute it with the code and a reproduction; survivors
+  are ranked, fixed test-first and re-gated, and the maintainer decides the release. Paths are relative
+  to the repository root, so every reference opens the real file.
+root: ../..
+
+runtimes:
+  laptop:
+    kind: local
+    label: Maintainer laptop
+    description: "macOS 13, Node 22, Google Chrome. Everything runs here; nothing leaves the machine except the Claude API calls."
+  devserver:
+    kind: local
+    label: flow-tower dev server
+    description: "node bin/flow-tower.js examples on 127.0.0.1:5317: the app under test, which also shows this tower live."
+    host: 127.0.0.1:5317
+  chrome:
+    kind: browser
+    label: Headless Chrome (Playwright)
+    description: "Installed Google Chrome driven by @playwright/test 1.64 (channel: chrome)."
+  claude-code:
+    kind: local
+    label: Claude Code
+    description: "Lead session plus subagents (Agent tool), one per charter, each with its own context."
+  anthropic:
+    kind: saas
+    label: Claude API
+    provider: anthropic
+    url: https://platform.claude.com
+  semgrep:
+    kind: saas
+    label: Semgrep Registry
+    description: "Rulesets p/javascript, p/typescript, p/react, p/nodejs, p/secrets; run locally with --metrics off."
+    provider: semgrep
+    url: https://semgrep.dev/explore
+  github:
+    kind: saas
+    label: GitHub
+    description: "Issues, pull requests and Actions of the flow-tower repository."
+    provider: github
+    url: https://github.com/JamesMoriartyDecripto/flow-tower
+  gha:
+    kind: ci
+    label: GitHub Actions
+    provider: github-actions
+
+prompts:
+  lead: { file: examples/release-auditor/prompts/lead.md, description: "Scope, charters, triage and the final report." }
+  correctness: { file: examples/release-auditor/prompts/finder-correctness.md, description: "State, keyboard, loader and edge cases." }
+  security: { file: examples/release-auditor/prompts/finder-security.md, description: "Trust boundaries of a local server that reads files and accepts events." }
+  ux: { file: examples/release-auditor/prompts/finder-ux.md, description: "Keyboard-first UX, layout at every size, accessibility." }
+  perf: { file: examples/release-auditor/prompts/finder-performance.md, description: "Render budget, idle cost, leaks." }
+  docs: { file: examples/release-auditor/prompts/finder-docs.md, description: "Every Markdown file: rendering, links, stale facts." }
+  verifier: { file: examples/release-auditor/prompts/verifier.md, description: "Try to refute each finding; keep it only with a reproduction." }
+  fixer: { file: examples/release-auditor/prompts/fixer.md, description: "Failing test first, smallest fix, re-gate." }
+
+agents:
+  lead:
+    name: Lead auditor
+    description: The main Claude Code session. Writes the scope, dispatches the finders, triages, never approves its own fixes.
+    model: claude-opus-5-5
+    prompt: lead
+    runtime: claude-code
+    tools: [Read, Grep, Glob, Bash, Agent, Write]
+    files: [examples/release-auditor/config/charters.md, examples/release-auditor/config/severity.md]
+    credentials: author
+    match: ["source:release-auditor&agent:lead"]
+  correctness:
+    name: Correctness finder
+    description: Read-only subagent. Looks for wrong behavior, not style.
+    model: claude-opus-5-5
+    prompt: correctness
+    runtime: claude-code
+    tools: [Read, Grep, Glob, Bash]
+    sandbox: { network: none, filesystem: read-only }
+    budget: { turns: 60, on_exceed: stop }
+    match: ["agent:finder-correctness"]
+  security:
+    name: Security finder
+    description: Read-only subagent with the threat model of charters.md. Semgrep output is its starting point, not its answer.
+    model: claude-opus-5-5
+    prompt: security
+    runtime: claude-code
+    tools: [Read, Grep, Glob, Bash]
+    sandbox: { network: allowlist, allow: [127.0.0.1], filesystem: read-only }
+    budget: { turns: 60, on_exceed: stop }
+    match: ["agent:finder-security"]
+  ux:
+    name: UX and accessibility finder
+    description: Reads the E2E report, axe results and screenshots, then the HUD code.
+    model: claude-opus-5-5
+    prompt: ux
+    runtime: claude-code
+    tools: [Read, Grep, Glob, Bash]
+    sandbox: { network: allowlist, allow: [127.0.0.1], filesystem: read-only }
+    budget: { turns: 60, on_exceed: stop }
+    match: ["agent:finder-ux"]
+  perf:
+    name: Performance finder
+    description: Render loop, on-demand frames, idle cost, listeners and timers that outlive their component.
+    model: claude-opus-5-5
+    prompt: perf
+    runtime: claude-code
+    tools: [Read, Grep, Glob, Bash]
+    sandbox: { network: allowlist, allow: [127.0.0.1], filesystem: read-only }
+    budget: { turns: 60, on_exceed: stop }
+    match: ["agent:finder-perf"]
+  docs:
+    name: Docs finder
+    description: Every tracked .md file. May fix purely mechanical problems (table pipes, fences, links) itself.
+    model: claude-opus-5-5
+    prompt: docs
+    runtime: claude-code
+    tools: [Read, Grep, Glob, Bash, Edit]
+    sandbox: { network: none, filesystem: workspace }
+    budget: { turns: 80, on_exceed: stop }
+    match: ["agent:finder-docs"]
+  verifier:
+    name: Adversarial verifier
+    description: A fresh context per batch of findings. Its job is to prove each one wrong; it keeps only what it can reproduce.
+    model: claude-opus-5-5
+    prompt: verifier
+    runtime: claude-code
+    tools: [Read, Grep, Glob, Bash, Write]
+    sandbox: { network: allowlist, allow: [127.0.0.1], filesystem: workspace }
+    budget: { turns: 80, on_exceed: escalate }
+    match: ["agent:verifier"]
+  fixer:
+    name: Fixer
+    description: Writes the failing test, then the smallest fix, on a fix branch. Never merges.
+    model: claude-opus-5-5
+    prompt: fixer
+    runtime: claude-code
+    tools: [Read, Edit, Write, Bash]
+    sandbox: { network: allowlist, allow: [127.0.0.1, registry.npmjs.org, api.github.com], filesystem: workspace }
+    credentials: author
+    match: ["agent:fixer"]
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: scope
+    title: Scope
+    description: Pin the release candidate, write the charters and the threat model before anyone looks for bugs.
+    nodes:
+      - id: rc
+        type: entry
+        label: Release candidate
+        description: main at the commit to release. Findings are only valid against this exact commit.
+        trigger: { kind: manual, source: maintainer, description: "Bug sweep before tagging v0.1.0 and making the repo public" }
+        resources:
+          - { kind: repo, label: flow-tower, url: "https://github.com/JamesMoriartyDecripto/flow-tower" }
+      - id: lead
+        agent: lead
+        label: Lead auditor
+      - id: charters
+        type: memory
+        label: Charters + threat model
+        description: One charter per finder (area, goal, out of scope), trust boundaries, severity rubric, false-positive rules.
+        files:
+          - examples/release-auditor/config/charters.md
+          - examples/release-auditor/config/severity.md
+          - examples/release-auditor/config/false-positives.md
+    edges:
+      - rc -> lead
+      - "lead -> charters [data]: writes"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: gates
+    title: Deterministic Gates
+    description: Cheap, repeatable checks run first and in parallel. Their output feeds the finders; a red gate is a finding by itself.
+    nodes:
+      - id: run
+        type: process
+        label: gates.sh
+        runtime: laptop
+        description: Runs every gate, writes reports/ and emits live events to this tower.
+        files: [examples/release-auditor/scripts/gates.sh]
+        limits: { timeout: 20m }
+      - { id: typecheck, type: tool, label: tsc --noEmit, runtime: laptop, files: [tsconfig.json] }
+      - { id: unit, type: tool, label: vitest, runtime: laptop, files: [vitest.config.ts] }
+      - id: examples
+        type: tool
+        label: validate examples
+        runtime: laptop
+        description: Every example loads with 0 errors and 0 warnings; no git-ignored files.
+        files: [tests/examples.test.ts]
+      - id: semgrep
+        type: tool
+        label: semgrep
+        runtime: semgrep
+        description: SAST with registry rulesets, run locally. Raw output, not yet findings.
+      - id: deps
+        type: tool
+        label: npm audit
+        runtime: laptop
+        description: Known advisories in the dependency tree; gate on high and critical.
+      - id: secrets
+        type: tool
+        label: gitleaks (history)
+        runtime: laptop
+        description: Every commit of every branch, redacted output. Mandatory before the repo goes public.
+        data: { sensitivity: secret, description: "Matches are redacted; a real hit means rotate first, then rewrite history." }
+      - id: queue
+        type: memory
+        label: Raw signals
+        description: Gate reports in reports/, read by the finders.
+        resources:
+          - { kind: log, label: Gate run, path: examples/release-auditor/reports/gates.log }
+    edges:
+      - run -> typecheck
+      - run -> unit
+      - run -> examples
+      - run -> semgrep
+      - run -> deps
+      - run -> secrets
+      - "typecheck -> queue [data]"
+      - "unit -> queue [data]"
+      - "examples -> queue [data]"
+      - "semgrep -> queue [data]"
+      - "deps -> queue [data]"
+      - "secrets -> queue [data]"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: sweep
+    title: Dynamic Sweep
+    description: The app under test is the app showing this tower. Playwright drives it from the keyboard, the way a user would.
+    nodes:
+      - id: server
+        type: process
+        label: Dev server
+        runtime: devserver
+        description: Reused by Playwright when running (webServer.reuseExistingServer), started otherwise.
+        files: [bin/flow-tower.js, src/server/plugin.ts]
+      - id: e2e
+        type: process
+        label: E2E sweep
+        runtime: chrome
+        description: One test per tower plus live, layout and accessibility suites.
+        tower: examples/release-auditor/towers/e2e-sweep.tower.yaml
+        files: [playwright.config.ts, e2e/fixtures.ts]
+        fanout: { min: 25, max: 40, by: "tower in the library" }
+        limits: { timeout: 3m, concurrency: 3 }
+      - id: report
+        type: memory
+        label: E2E report
+        description: JSON report, traces and screenshots of failures, axe results.
+        resources:
+          - { kind: log, label: E2E run, path: examples/release-auditor/reports/e2e.log }
+    edges:
+      - "server -> e2e [call]: http"
+      - "e2e -> report [data]"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: finders
+    title: Finders
+    description: One read-only agent per charter, in parallel, each with its own context. Diversity finds more; it also adds noise, which the next layer removes.
+    nodes:
+      - id: correctness
+        agent: correctness
+        label: Correctness
+      - id: security
+        agent: security
+        label: Security
+      - id: ux
+        agent: ux
+        label: UX + a11y
+      - id: perf
+        agent: perf
+        label: Performance
+      - id: docs
+        agent: docs
+        label: Docs
+      - id: dedupe
+        type: process
+        label: Dedupe + scope check
+        description: Merge duplicates across finders; drop anything outside the charters (style, policy, wishes).
+    edges:
+      - "correctness -> dedupe [return]: candidates"
+      - "security -> dedupe [return]: candidates"
+      - "ux -> dedupe [return]: candidates"
+      - "perf -> dedupe [return]: candidates"
+      - "docs -> dedupe [return]: candidates"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: verify
+    title: Verification
+    description: A finding is real only when a fresh agent fails to refute it and can show it happening.
+    nodes:
+      - id: verifier
+        agent: verifier
+        label: Adversarial verifier
+        limits: { max_iterations: 2 }
+      - id: rules
+        type: guard
+        label: False-positive rules
+        description: Known non-issues and precedents (local-only server, dev-only hooks, illustrative example data).
+        files: [examples/release-auditor/config/false-positives.md]
+      - id: real
+        type: decision
+        label: Reproduced?
+      - id: dropped
+        type: output
+        label: Rejected, with reason
+        description: Kept in the report so the next sweep does not raise them again.
+    edges:
+      - "rules -> verifier [data]"
+      - verifier -> real
+      - "real -> dropped: no"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: ship
+    title: Triage, Fix, Release
+    description: Rank by severity, fix test-first, re-run the gates, and let the maintainer decide.
+    nodes:
+      - id: triage
+        agent: lead
+        label: Rank by severity
+        description: Blocker / major / minor per severity.md. Blockers stop the release; minors may become issues.
+      - id: issues
+        type: output
+        label: GitHub issues
+        runtime: github
+        description: Deferred findings, each with the reproduction and the reason it can wait.
+      - id: fixer
+        agent: fixer
+        label: Fix test-first
+        description: A test that fails on the release candidate and passes after the fix; the E2E suite keeps it fixed.
+      - id: regate
+        type: process
+        label: Re-run gates + E2E
+        runtime: laptop
+        files: [examples/release-auditor/scripts/gates.sh]
+      - id: pr
+        type: output
+        label: Pull request + CI
+        runtime: gha
+        files: [.github/workflows/ci.yml]
+      - id: maintainer
+        type: human
+        label: Maintainer
+        description: Merges and decides the release. Agents never approve their own work.
+        approval: { by: maintainer, via: PR review, actions: [approve, reject, edit] }
+      - id: release
+        type: output
+        label: Tag + release notes
+        runtime: github
+        description: Tag v0.1.0 with notes from CHANGELOG.md and the audit report.
+        files: [CHANGELOG.md, examples/release-auditor/reports/v0.1.0.md]
+    edges:
+      - "triage -> issues: minor"
+      - "triage -> fixer: blocker / major"
+      - fixer -> regate
+      - regate -> pr
+      - "pr -> maintainer: review"
+      - "maintainer -> release: go"
+      - "maintainer -> fixer [return]: changes requested"
+
+links:
+  - scope.charters -> gates.run
+  - scope.charters -> sweep.server
+  - "gates.queue -> finders.correctness [data]"
+  - "gates.queue -> finders.security [data]"
+  - "gates.queue -> finders.docs [data]"
+  - "sweep.report -> finders.ux [data]"
+  - "sweep.report -> finders.perf [data]"
+  - "sweep.report -> finders.correctness [data]"
+  - "finders.dedupe -> verify.verifier: candidates"
+  - "verify.real -> ship.triage: yes"
+  - "verify.dropped -> ship.release [data]: rejected list"
+  - "ship.regate -> gates.run [call]: same gates"

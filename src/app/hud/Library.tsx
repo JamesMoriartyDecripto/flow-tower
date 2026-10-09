@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ResolvedTower, Workspace } from '../../core/types';
 import { subtreeState, useLive, type LiveState } from '../live';
 import { useDescendants } from '../liveHooks';
@@ -189,7 +189,13 @@ const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current,
 
 /** Project gallery: every top-level tower found by the CLI, with size, health and live state. */
 export function Library() {
-  const { workspace, library, stack, view, openProject, showLibrary } = useStore();
+  // Narrow subscriptions: a hover or a camera toggle must not redraw every card.
+  const workspace = useStore((s) => s.workspace);
+  const library = useStore((s) => s.library);
+  const stack = useStore((s) => s.stack);
+  const view = useStore((s) => s.view);
+  const openProject = useStore((s) => s.openProject);
+  const showLibrary = useStore((s) => s.showLibrary);
   const [filter, setFilter] = useState('');
   const [tag, setTag] = useState<string>();
   const [sort, setSort] = useState<Sort>(loadSort);
@@ -208,12 +214,13 @@ export function Library() {
   const [allTags, setAllTags] = useState(false);
   const live = useProjectsLive(workspace?.projects ?? NO_PROJECTS, library);
   useEffect(() => { try { localStorage.setItem('flow-tower:library-sort', sort); } catch { /* ignore */ } }, [sort]);
-  if (!library || !workspace) return null;
-
-  const onOpen = (id: string, v?: 'tower' | 'map') => {
+  // Stable, so the memoized cards do not all re-render when one project's live state changes.
+  const onOpen = useCallback((id: string, v?: 'tower' | 'map') => {
     openProject(id);
     if (v) chooseView(v);
-  };
+  }, [openProject]);
+  if (!library || !workspace) return null;
+
   const q = filter.trim().toLowerCase();
   const shown = cards
     .filter((c) => (!tag || c.tower.tags.includes(tag)) &&

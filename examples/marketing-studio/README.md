@@ -7,7 +7,7 @@ review of claims, spend changes above a threshold and the weekly reallocation. S
 **Tallymoor** (fictional), accounts-payable automation for mid-market finance teams in DE, NL and FR.
 
 ```bash
-npx flow-tower examples/marketing-studio
+node bin/flow-tower.js examples/marketing-studio
 ```
 
 Organic social posting is out of scope. It appears as one handoff node (`content.social`);

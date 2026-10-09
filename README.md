@@ -120,7 +120,7 @@ node bin/flow-tower.js validate path/to/agent.tower.yaml [--json]   # also great
 
 ```bash
 npm run simulate -- game-studio        # see it without wiring anything
-npx flow-tower emit --kind tool.start --agent coder --tool Bash -m "npm test"
+flow-tower emit --kind tool.start --agent coder --tool Bash -m "npm test"   # after `npm link` here
 ```
 
 Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [`integrations/`](integrations).
@@ -132,6 +132,7 @@ Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [
 | Drag | Rotate |
 | Right-drag, **Shift + drag**, **Shift + two-finger scroll** (trackpad) | Pan |
 | Scroll, pinch | Zoom |
+| Hover a layer | Lens: magnify it and spread the stack around it |
 | Click node | Inspect it and highlight its upstream and downstream paths |
 | Double-click node, **Enter**, or ⇣ in the Sub-towers list | Enter its sub-tower (marked by stacked plates and `⇣ SUB`) |
 | **1–9**, **0** | Focus a layer / overview |
@@ -148,7 +149,6 @@ Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [
 | **?** | Every keyboard shortcut |
 
 Everything works without a mouse: **Tab** moves between HUD buttons, **Enter / Space** press them.
-| Hover a layer | Lens: magnify it and spread the stack around it |
 
 The bottom bar toggles orbit, flow particles and the rendering quality (`eco` / `balanced` / `high`). You can also force a preset with `?quality=eco`.
 

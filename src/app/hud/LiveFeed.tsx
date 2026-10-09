@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import type { FlowEvent } from '../../core/events';
+import { splitTarget, type FlowEvent } from '../../core/events';
 import { towerPath } from '../graph';
 import { useLive } from '../live';
 import { findNode, useStore, useTower } from '../store';
@@ -39,7 +39,7 @@ export function LiveFeed() {
   const where = useCallback((e: FlowEvent) => {
     const t = (tower && e.targets.find((x) => x.startsWith(`${tower.id}#`))) ?? e.targets[0];
     if (!t || !ws) return undefined;
-    const [towerId, key] = t.split('#');
+    const [towerId, key] = splitTarget(t);
     return { towerId, key, node: findNode(ws.towers[towerId], key), here: towerId === tower?.id, towerName: ws.towers[towerId]?.name };
   }, [tower, ws]);
   const jump = useCallback((e: FlowEvent) => {
