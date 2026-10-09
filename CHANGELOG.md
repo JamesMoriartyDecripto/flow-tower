@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- `flow-tower emit` streams JSONL from stdin live (batches every 250 ms), so `codex exec --json` and `pi --mode json` show up in real time.
+- Harness-neutral tower generation: `docs/generate-a-tower.md` procedure, root `AGENTS.md`, `flow-tower guide`, and `install-skill --target claude|codex|pi|hermes|cursor|agents [--project]` (Agent Skills folders, ships `procedure.md`).
+- Live events from OpenAI Codex: `codex` adapter for hooks, `codex exec --json` streams and the legacy `notify` payload; `integrations/codex/`.
 - On-demand rendering with an FPS budget: `eco` (20 fps cap, no post-processing, 0 renders when idle), `balanced` (30 fps), `high` (60 fps); 10 fps and no decorative motion while the window is unfocused.
 - Live palette (cyan running, green done, red error), live chips above active nodes, per-layer live badges, library live dots, sub-tower activity on parent nodes.
 - Live feed: Starts/Errors filters, Tower/Library scope, Spotlight, Follow (camera follows activity), Pause, jump to nodes in any tower.

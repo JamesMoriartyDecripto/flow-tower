@@ -22,7 +22,7 @@ Keep `npm run dev` running and open the **LIVE** feed in the top bar. Events tha
 1. **Claude Code** (#4): merge `integrations/claude-code/settings.json` into the `.claude/settings.json` of a test project. The `SessionStart` command hook calls `npx flow-tower emit`; on a clone use `node <repo>/bin/flow-tower.js emit --source claude-code`. Run a session that uses subagents and some tools. To see the events land on nodes, generate a tower for that project with the skill (step 4).
 2. **Pi** (#5): copy `integrations/pi/flow-tower.ts` to `~/.pi/agent/extensions/`, then run Pi. Also try `pi --mode json "hello" | node bin/flow-tower.js emit --source pi`.
 3. **Hermes** (#6): merge `integrations/hermes/config.yaml` into `~/.hermes/config.yaml`. Inspect a raw payload with `curl -s 127.0.0.1:5317/api/events | tail -c 2000` and check where `child_role` and friends live: top level, or under `extra`.
-4. **Skill** (#7): run `node bin/flow-tower.js install-skill`, then in Claude Code, inside each agent project, ask *"map this agent system into a flow tower"*. Open the result with `node bin/flow-tower.js <dir>`.
+4. **Skill** (#7): run `node bin/flow-tower.js install-skill --target <claude|codex|pi|hermes>` for each installed harness, then inside each agent project ask *"map this agent system into a flow tower"*. Check the skill is discovered (Codex: `/skills`; Hermes: `/flow-tower`). Open the result with `node bin/flow-tower.js <dir>`. Procedure: `docs/generate-a-tower.md` (also `node bin/flow-tower.js guide`).
 
 For every mismatch, fix the adapter in `src/core/adapters.ts` and add a test with the real payload in `tests/events.test.ts`. Paste the real payload into the issue.
 
