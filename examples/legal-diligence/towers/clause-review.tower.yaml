@@ -1,0 +1,131 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Clause reviewer internals
+description: >-
+  How one clause-reviewer session answers the review-table columns of one clause family for
+  one document: locate candidate passages, extract with a quote per answer, run conditional
+  columns only when their parent is true, self-check, and return verified-ready cells.
+root: ..
+tags: [legal, extraction, citations]
+
+runtimes:
+  matter-svc:
+    kind: container
+    label: Diligence service (EU)
+    host: eks:dd-eu/diligence
+    provider: aws
+    region: eu-central-1
+  bedrock:
+    kind: cloud
+    label: Claude on Bedrock (EU)
+    provider: aws-bedrock
+    region: eu-central-1
+    url: https://bedrock-runtime.eu-central-1.amazonaws.com
+
+agents:
+  reviewer:
+    name: Clause reviewer
+    model: claude-sonnet-5-5
+    prompt: { file: prompts/clause-reviewer.md }
+    tools: [mcp__docstore__read_pages, mcp__docstore__search_passages]
+    runtime: matter-svc
+    files: [src/extract.ts]
+    limits: { timeout: 5m, retries: 2 }
+    data: { sensitivity: confidential, region: eu }
+    sandbox: { network: none, filesystem: none }
+
+layers:
+  - id: locate
+    title: Locate
+    description: Change-of-control language hides in assignment, termination and consent sections, so search before reading.
+    nodes:
+      - id: job
+        type: entry
+        label: Doc x family job
+        description: Document id, doc type, clause family, deal structure and the family's columns.
+        runtime: matter-svc
+        files: [templates/review-columns.yaml]
+      - id: definitions
+        label: Read definitions
+        description: Defined terms first (Control, Affiliate, Change of Control); they change the meaning of every clause.
+        agent: reviewer
+      - id: search
+        type: tool
+        label: search_passages
+        description: Hybrid BM25 + vector search inside this document only. Queries per family (e.g. "change of control", "Kontrollwechsel", "merger", "assign").
+        runtime: matter-svc
+        files: [src/docstore.ts]
+      - id: read
+        type: tool
+        label: read_pages
+        description: Full text of the candidate pages plus one page either side, for clauses that run across a page break.
+        runtime: matter-svc
+        files: [src/docstore.ts]
+    edges:
+      - "job -> definitions"
+      - { from: definitions, to: search, kind: call, label: family queries, protocol: mcp }
+      - { from: search, to: read, kind: data, label: candidate pages }
+
+  - id: extract
+    title: Extract
+    description: One answer per column, each with a verbatim quote and location. Conditional columns only if their parent is true.
+    nodes:
+      - id: answer
+        agent: reviewer
+        label: Answer columns
+      - id: present
+        type: decision
+        label: Clause present?
+        description: e.g. assignment clause exists -> extract consent requirement; otherwise the dependent columns are skipped.
+        runtime: matter-svc
+        files: [templates/review-columns.yaml]
+      - id: conditional
+        agent: reviewer
+        label: Dependent columns
+        description: assign_by_law, assign_consent, coc_effect, coc_control_def...
+      - id: schema
+        type: guard
+        label: Schema check
+        description: Column type (date, currency, enum, yes/no, verbatim) and a non-empty quote for every answer except "not found".
+        runtime: matter-svc
+        files: [src/extract.ts]
+      - id: sonnet
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        runtime: bedrock
+    edges:
+      - answer -> present
+      - "present -> conditional: yes"
+      - "present -> schema: no (skip dependents)"
+      - conditional -> schema
+      - { from: answer, to: sonnet, kind: call, protocol: http }
+      - "schema -> answer [return]: invalid, max 2"
+
+  - id: output
+    title: Return
+    description: Cells go to the deterministic quote verifier in the parent tower; nothing is shown to lawyers before it.
+    nodes:
+      - id: confidence
+        type: decision
+        label: Confidence ok?
+        description: Cells under 0.7 are marked for the associate even if the quote verifies.
+        runtime: matter-svc
+      - id: cells
+        type: output
+        label: Cells
+        description: answer, quote, location (p. and §), reasoning, confidence. Sample in samples/review-table.csv.
+        runtime: matter-svc
+        files: [samples/review-table.csv]
+      - id: low
+        type: output
+        label: Associate queue
+        description: Low-confidence cells, flagged with the reviewer's reasoning.
+        runtime: matter-svc
+    edges:
+      - "confidence -> cells: >= 0.7"
+      - "confidence -> low: < 0.7"
+
+links:
+  - "locate.read -> extract.answer [data]: page text"
+  - "extract.schema -> output.confidence: valid"

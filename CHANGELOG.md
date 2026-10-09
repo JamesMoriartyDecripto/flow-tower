@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Ten researched presets for different professions and shapes: SRE incident responder, fraud review desk, deep research team, AI co-scientist, airline customer service, ambient chief of staff, legacy-portal browser worker, A2A purchasing concierge, legal due diligence, website & web design studio (frontend and backend sub-towers), plus a Jev decision-layer harness. Each has real files, sources in its README and uses the operational fields.
+- Schema: operational fields on agents and nodes (inherited by nodes): `trigger`, `approval`, `budget`, `limits`, `fanout`, `data`, `evals`, `version`, `rollout`, `sla`, `credentials`, `sandbox`; edge `protocol` (mcp, a2a, http, grpc, webhook, queue, event, stdio); `recording` resource kind. Shown as node markers (×N, PII, WEBHOOK, ≤15m, $2), ghost outlines for fan-out, protocol on edge labels, and Operations / Data / Evals sections in the node panel. Search matches triggers, sensitivity, region and version.
 - Settings → Text: interface size (80–160%, scales panels and text together, capped automatically so panels still fit the window), text font (HUD / system) and title font (Orbitron / same as text).
 - Starter examples (1–3 layers, short YAML): single agent, RAG bot, PR review bot, personal voice assistant.
 - Node panel: connections split into "Across layers" (with the target layer) and "In this layer"; click or Enter jumps there and moves the camera, hover highlights the target, "Back to …" (B) undoes a jump, C / Shift+C cycle connected nodes.
@@ -57,6 +59,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Focused layer gets a near-opaque plate and the other layers dim further, so the focused flow reads cleanly.
 
 ### Fixed
+- vitest only runs `tests/`: sample `*.spec.ts` files inside examples are content, not project tests.
 - Library: project descriptions are no longer cut; up to 4 lines, longer ones scroll inside the card.
 - Schema docs: labeled edge shorthand (`a -> b: label`) must be quoted in YAML.
 - Node titles and subtitles no longer spill out of the node: width-aware truncation (whole subtitle parts) plus a clip at the node border.

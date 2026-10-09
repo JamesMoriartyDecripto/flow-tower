@@ -372,3 +372,15 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 
 /* Interface size (Settings): the whole HUD scales, text and panels together, so layouts never break. */
 .hud, .overlay, .library, .hud-tip { zoom: var(--ui-scale, 1); }
+
+/* Operations / data / evals in the node panel */
+.chip.sens { margin-left: 8px; font-size: 9px; padding: 0 5px; vertical-align: middle; }
+.chip.sens.pii, .chip.sens.phi, .chip.sens.pci, .chip.sens.secret { color: var(--live-error); border-color: color-mix(in srgb, var(--live-error) 50%, transparent); }
+.chip.sens.confidential { color: var(--warn); border-color: rgba(255, 209, 102, .4); }
+.eval { display: flex; align-items: baseline; gap: 10px; padding: 3px 0; font-size: 14px; }
+.eval .name { flex: 1; min-width: 0; }
+.eval .name a { color: inherit; text-decoration: underline dotted; }
+.eval .val { font: 700 14px var(--mono); color: var(--amber); }
+.eval .val.pass { color: var(--live-done); }
+.eval .val.fail { color: var(--live-error); }
+.conn .proto { font: 9px var(--mono); color: var(--live-run); border: 1px solid color-mix(in srgb, var(--live-run) 45%, transparent); padding: 0 4px; }

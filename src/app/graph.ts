@@ -42,7 +42,9 @@ export function score(node: ResolvedNode, query: string): number {
   if (label.startsWith(q)) return 80;
   if (label.includes(q)) return 60;
   if (node.id.toLowerCase().includes(q)) return 50;
-  if ([node.type, node.model, node.runtime?.id, node.runtime?.label, ...node.tools].some((v) => v?.toLowerCase().includes(q))) return 30;
+  const ops = node.ops;
+  if ([node.type, node.model, node.runtime?.id, node.runtime?.label, ...node.tools, ops.trigger?.kind, ops.trigger?.source, ops.data?.sensitivity, ops.data?.region, ops.version]
+    .some((v) => v?.toLowerCase().includes(q))) return 30;
   return node.description?.toLowerCase().includes(q) ? 10 : 0;
 }
 

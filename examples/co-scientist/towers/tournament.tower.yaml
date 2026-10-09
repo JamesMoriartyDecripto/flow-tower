@@ -1,0 +1,127 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Elo tournament
+description: >-
+  One Ranking task: pick a pair (new, top-ranked and similar hypotheses first),
+  choose a debate or a single-turn comparison, judge on the plan's criteria,
+  update Elo and leave a rationale for the meta-review agent.
+root: ..
+
+runtimes:
+  backend:
+    kind: cloud
+    label: "Co-scientist backend"
+    description: "Supervisor and asynchronous worker processes."
+    provider: "google-cloud"
+  gemini:
+    kind: saas
+    label: "Gemini API"
+    provider: "google"
+    url: "https://ai.google.dev"
+
+agents:
+  ranking:
+    name: Ranking
+    model: gemini-2.0-flash
+    prompt: { file: prompts/ranking.md }
+    runtime: backend
+    files: [src/elo_tournament.py, src/specialists.py]
+
+layers:
+  - id: pair
+    title: Pairing
+    description: Matches are where test-time compute goes; pick them well.
+    nodes:
+      - id: task
+        type: entry
+        runtime: backend
+        label: Match task
+        description: Pulled from the supervisor queue by a worker.
+        trigger: { kind: queue, source: supervisor task queue }
+      - id: pick
+        runtime: backend
+        label: Pick pair
+        description: Weight by few matches played and high Elo; opponent drawn by proximity similarity.
+        files: [src/elo_tournament.py]
+      - id: graph
+        type: memory
+        runtime: backend
+        label: Proximity graph
+        files: [src/proximity_graph.py]
+      - id: top
+        type: decision
+        runtime: backend
+        label: Both in top 10?
+        description: match_format() in elo_tournament.py.
+        files: [src/elo_tournament.py]
+    edges:
+      - task -> pick
+      - "graph -> pick [data]: similarity"
+      - pick -> top
+
+  - id: judge
+    title: Judge
+    description: Same criteria and weights as the research plan; style and length do not count.
+    nodes:
+      - id: debate
+        agent: ranking
+        label: Multi-turn debate
+        description: Two simulated experts, up to 4 turns, each must answer the strongest objection first.
+        limits: { max_iterations: 4 }
+      - id: single
+        agent: ranking
+        label: Single-turn
+        description: Direct comparison on each criterion.
+      - id: winner
+        type: decision
+        runtime: backend
+        label: Winner named?
+        description: Last line must read "better hypothesis A" or B; otherwise the match is discarded.
+        files: [src/elo_tournament.py]
+      - id: model
+        type: model
+        runtime: gemini
+        label: Gemini 2.0
+        model: gemini-2.0-flash
+    edges:
+      - "debate -> winner [data]: rationale"
+      - "single -> winner [data]: rationale"
+      - "debate -> model [call]"
+      - "single -> model [call]"
+
+  - id: record
+    title: Record
+    description: Ratings move, rationales feed the meta-review.
+    nodes:
+      - id: update
+        runtime: backend
+        label: Elo update
+        description: "K = 32; expected score 1 / (1 + 10^((Rb - Ra) / 400))."
+        files: [src/elo_tournament.py]
+      - id: elo
+        type: memory
+        runtime: backend
+        label: Elo table
+        resources:
+          - { kind: log, label: "Tournament log", path: "logs/tournament.log" }
+        files: [logs/tournament.log]
+      - id: rationale
+        type: memory
+        runtime: backend
+        label: Debate rationales
+        description: Last 50 rationales; meta-review mines recurring losses ("no AML expression evidence").
+        files: [src/context_memory.py]
+      - id: done
+        type: output
+        runtime: backend
+        label: Match recorded
+    edges:
+      - "update -> elo [data]: new ratings"
+      - "update -> rationale [data]: why"
+      - update -> done
+
+links:
+  - "pair.top -> judge.debate: yes"
+  - "pair.top -> judge.single: no"
+  - "judge.winner -> record.update: yes"
+  - "judge.winner -> record.done: no, discard"

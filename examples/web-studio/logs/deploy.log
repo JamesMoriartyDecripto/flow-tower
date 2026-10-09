@@ -1,0 +1,8 @@
+2026-10-13T06:55:02Z GUARD  vercel deploy --prod -> ask studio lead (client sign-off preview round 2 on record)
+2026-10-13T06:57:40Z GUARD  approved by=lead.marta via=slack
+2026-10-13T06:58:10Z BUILD  payload migrate (production, Neon main): 0 pending
+2026-10-13T07:01:33Z DEPLOY dpl_8Qv production v2.0.0 ready
+2026-10-13T07:01:35Z RR     rolling release start stages=[25%, 100%] advancement=manual-approval previous=v1.7.2
+2026-10-13T07:31:00Z RR     stage 25%: 5xx=0.00% checkout_success=3/3 Speed Insights LCP p75 1.9s
+2026-10-13T08:02:12Z GUARD  vercel rolling-release complete -> ask studio lead -> approved
+2026-10-13T08:02:20Z RR     100% on v2.0.0; Stripe switched to live keys; DNS unchanged (same project)

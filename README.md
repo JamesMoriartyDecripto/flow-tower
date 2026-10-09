@@ -84,6 +84,17 @@ Start small: the **starters** are one short YAML file each, the presets below sh
 | [`dev-squad`](examples/dev-squad) | Software delivery on the Claude Agent SDK: triage, orchestrator-workers, review loop, hooks, MCP, memory |
 | [`game-studio`](examples/game-studio) | AI game studio: design, concept art, Blender, Unreal, world generation, code review, QA bots, marketing. 140 nodes, nesting depth 2 |
 | [`course-studio`](examples/course-studio) | Course creation: instructional design, parallel module writers, assessment, review board, SCORM/LMS publishing |
+| [`sre-incident`](examples/sre-incident) | SRE: PagerDuty webhook, sandboxed investigation split from remediation, fix PR behind a Slack approval with timeout, postmortem |
+| [`fraud-desk`](examples/fraud-desk) | Fintech fraud review: hard pre-checks, hybrid search, fraud-ring graph, escalation thresholds, append-only audit, PII retention |
+| [`deep-research`](examples/deep-research) | Deep research: lead + 1–10 parallel searchers (fan-out), citation agent, verifier, budgets and evals |
+| [`co-scientist`](examples/co-scientist) | AI co-scientist: generation, reflection, Elo tournament, evolution, meta-review; long-running queue-driven loop |
+| [`airline-support`](examples/airline-support) | Customer service: triage with peer handoffs, relevance and jailbreak guardrails, browser UI vs server agents over HTTP |
+| [`chief-of-staff`](examples/chief-of-staff) | Ambient executive assistant: event + cron triggers, notify / question / review human-in-the-loop, memory, hooks, audit log |
+| [`browser-worker`](examples/browser-worker) | Insurance ops computer-use agent on a legacy portal: browser runtime, live-view takeover, session recordings, TTLs |
+| [`a2a-concierge`](examples/a2a-concierge) | E-commerce A2A: ADK concierge discovering CrewAI and LangGraph seller agents (sub-towers) over the A2A protocol |
+| [`legal-diligence`](examples/legal-diligence) | M&A due diligence: data room, per-document fan-out clause review, red flags, lawyer approvals, EU-resident confidential data |
+| [`web-studio`](examples/web-studio) | Website agency: brief to launch, design system via Figma MCP, separate frontend and backend sub-towers, Lighthouse / axe evals |
+| [`jev-agent`](examples/jev-agent) | Decision-model harness for Jev (TypeSafe): the LLM writes, Jev decides (routing, tool-risk gate, browser next action, compaction, stop checks), code acts |
 
 Every example ships real prompt, agent, code, config and log files, so the popups have something to show.
 

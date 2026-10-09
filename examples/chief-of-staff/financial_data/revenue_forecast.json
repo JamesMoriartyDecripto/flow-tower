@@ -1,0 +1,12 @@
+{
+  "as_of": "2026-09-30",
+  "cash_on_hand": 10000000,
+  "current_arr": 2400000,
+  "current_mrr": 200000,
+  "mom_growth": 0.15,
+  "scenarios": {
+    "base": { "mom_growth": 0.15 },
+    "conservative": { "mom_growth": 0.08 },
+    "aggressive": { "mom_growth": 0.2 }
+  }
+}

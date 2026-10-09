@@ -1,0 +1,21 @@
+# Firm M&A diligence playbook (excerpt). Set per matter at scoping; the scorer reads it.
+matter: Project Lindwurm
+deal_structure: share_deal
+materiality:
+  contract_annual_value_eur: 250000
+  revenue_share_pct: 2
+  always_material: [ip_assignment, financing, top_20_customers, top_10_suppliers]
+severity_rules:
+  - { when: "coc_effect in [consent, termination_right] and material", severity: amber }
+  - { when: "coc_effect == termination_right and counterparty is buyer competitor", severity: red }
+  - { when: "executed == false and doc_type == ip.assignment", severity: red }
+  - { when: "indem_uncapped present and material", severity: amber }
+  - { when: "excl_affiliates == true", severity: amber, note: binds buyer group after closing }
+model_clauses:
+  change_of_control: playbook/model-clauses/coc-standard.docx
+  limitation_of_liability: playbook/model-clauses/lol-12m-fees.docx
+review_rounds:
+  classification: associate
+  review_table: associate
+  flags: senior_associate
+  report: partner

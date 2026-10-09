@@ -1,0 +1,13 @@
+2026-10-05T09:43:02Z INFO  dispatch docs=1069 families=5 jobs=5345 concurrency=32 prompt=v7 shadow=v8
+2026-10-05T10:58:36Z INFO  extract  model=claude-sonnet-5-5 jobs=5345 ok=5339 retried=6 cost_usd=188.40
+2026-10-05T10:58:40Z INFO  cite-check verified=15822 rejected=211 (quote not on cited page)
+2026-10-05T11:06:12Z INFO  cite-check re-run rejected=211 -> verified=187 still_rejected=24 -> associate queue
+2026-10-05T11:14:55Z INFO  consistency model=claude-opus-5-5 doc_types=14 findings=58 gaps=9
+2026-10-05T11:14:55Z WARN  consistency supply_agreement VDR 4.2.17 uncapped liability; 41 of 42 peers capped at 12m fees
+2026-10-05T11:14:56Z INFO  shadow v8 vs v7 agreement=0.962 v8_better=31 v7_better=9 (graded on associate edits)
+2026-10-06T16:30:09Z INFO  checkpoint review_table approved by=a.keller cells_edited=142 flags red=6 yellow=31 green=1032
+2026-10-06T17:02:44Z INFO  scoring model=claude-opus-5-5 findings=96 red=7 amber=38 green=51
+2026-10-07T10:21:33Z INFO  rfi drafted=27 approved=24 posted=24 (Datasite Q&A)
+2026-10-07T15:47:20Z INFO  checkpoint flags approved by=m.brandt upgraded=2 downgraded=1 rejected=4
+2026-10-08T18:05:51Z INFO  memo draft v1 sections=5 citations=212 unsupported_sentences=0
+2026-10-09T08:14:02Z INFO  checkpoint report approved by=partner.s.hoffmann edits=17 -> iManage M-2026-0412/DD/RFR-v2

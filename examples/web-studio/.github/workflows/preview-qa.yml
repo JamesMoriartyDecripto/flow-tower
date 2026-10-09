@@ -1,0 +1,37 @@
+# Runs on every PR once Vercel reports the preview deployment as ready.
+name: preview-qa
+on:
+  deployment_status:
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Semgrep (OWASP Top 10, Next.js, secrets)
+        run: pipx run semgrep scan --config p/owasp-top-ten --config p/nextjs --config p/secrets --error
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+  qa:
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Preview'
+    runs-on: ubuntu-latest
+    env:
+      PREVIEW_URL: ${{ github.event.deployment_status.environment_url }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: API integration tests (Neon preview branch, Stripe test mode)
+        run: npx vitest run --project api
+      - name: Accessibility, visual regression, checkout e2e
+        run: npx playwright test -c qa/playwright.config.ts
+      - name: Lighthouse CI
+        run: |
+          sed -i "s|{{PREVIEW_URL}}|$PREVIEW_URL|g" qa/lighthouserc.json
+          npx @lhci/cli autorun --config=qa/lighthouserc.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: qa-report, path: qa-report }

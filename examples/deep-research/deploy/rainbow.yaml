@@ -1,0 +1,21 @@
+# Rainbow deployment for long-running research agents.
+# A run can last 10-40 minutes and holds state, so a deploy must not kill it.
+# New runs go to the newest color; old colors keep serving their in-flight runs
+# and are drained only when their active-run count reaches zero.
+service: deep-research
+colors:
+  - name: v12
+    image: registry.example.com/deep-research:v12
+    weight: 90
+  - name: v13
+    image: registry.example.com/deep-research:v13
+    weight: 10            # new prompts for the lead; watch evals before promoting
+promotion:
+  steps: [10, 50, 100]
+  gate:
+    judge_overall_min: 0.80
+    citation_accuracy_min: 0.90
+    error_rate_max: 0.02
+drain:
+  wait_for_active_runs: true
+  max_wait: 2h

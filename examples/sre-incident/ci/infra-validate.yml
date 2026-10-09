@@ -1,0 +1,23 @@
+# GitHub Actions workflow in example-org/infra (.github/workflows/infra-validate.yml).
+# Required check on every PR, including the agent's: a fix that does not validate is never shown for approval.
+name: infra-validate
+on:
+  pull_request:
+    paths: ["k8s/**"]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Schema check
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz
+          ./kubeconform -strict -summary k8s/
+      - name: Policy check (limits, no :latest, max 1Gi per container)
+        run: docker run --rm -v "$PWD:/project" openpolicyagent/conftest:v0.56.0 test k8s/ --policy policy/
+      - name: Diff scope
+        if: startsWith(github.head_ref, 'incident/')
+        run: |
+          changed=$(git diff --name-only origin/main...HEAD | wc -l)
+          test "$changed" -le 2 || { echo "incident PRs touch at most 2 files"; exit 1; }

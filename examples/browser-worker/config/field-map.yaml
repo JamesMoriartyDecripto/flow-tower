@@ -1,0 +1,29 @@
+# Portal screens and the fields the worker must fill per request type.
+# The submit guard reads this file: every `verify: true` field must be confirmed
+# on a fresh screenshot before the Submit button may be clicked.
+address_change:
+  screen: Policy > Endorsements > Change of Address
+  fields:
+    - { name: street, source: payload.new_address.street, verify: true }
+    - { name: postcode, source: payload.new_address.postcode, verify: true }
+    - { name: city, source: payload.new_address.city, verify: true }
+    - { name: effective_date, source: payload.effective_date, verify: true, format: DD/MM/YYYY }
+  documents: []
+
+add_driver:
+  screen: Policy > Endorsements > Named Drivers > Add
+  fields:
+    - { name: first_name, source: payload.driver.first_name, verify: true }
+    - { name: last_name, source: payload.driver.last_name, verify: true }
+    - { name: date_of_birth, source: payload.driver.dob, verify: true, format: DD/MM/YYYY }
+    - { name: licence_number, source: payload.driver.licence, verify: true }
+    - { name: relationship, source: payload.driver.relationship, verify: false }
+  documents: [driving_licence_scan]
+
+claim_documents:
+  screen: Claims > Claim File > Documents > Upload
+  fields:
+    - { name: claim_number, source: payload.claim_number, verify: true }
+    - { name: document_type, source: payload.documents[*].type, verify: true }
+  documents: [repair_estimate, photos, police_report]
+  max_upload_mb: 10

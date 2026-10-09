@@ -1,0 +1,37 @@
+# Custom AgentCore Browser for the legacy portal (created once by infra, not per run).
+# aws.browser.v1 cannot record, so a custom browser is required for session replay.
+browser:
+  name: portal_browser
+  network_configuration:
+    network_mode: PUBLIC            # the portal is internet-facing; egress is pinned by the proxy below
+  recording:
+    enabled: true
+    s3_location:
+      bucket: acme-ins-browser-recordings-eu
+      prefix: portal-worker/        # DOM changes, user actions, console logs, network events
+  execution_role_arn: arn:aws:iam::111122223333:role/PortalBrowserExecutionRole   # s3:PutObject on the prefix only
+
+session:
+  default_timeout_seconds: 900      # AgentCore default: 15 minutes
+  batch_timeout_seconds: 28800      # nightly renewal batch: the 8 hour maximum
+  viewport: { width: 1456, height: 819 }   # InvokeBrowser default; coordinates must stay inside it
+  max_concurrent_sessions: 6        # the portal locks a service user after 8 parallel logins
+
+portal:
+  base_url: https://agents.legacy-insurer.example.com
+  allow_hosts:
+    - agents.legacy-insurer.example.com
+    - sso.legacy-insurer.example.com
+  login_secret: portal/service-user-ops-bot   # Secrets Manager name; value is never sent to the model
+  idle_logout_minutes: 20
+
+model:
+  provider: bedrock
+  region: eu-central-1
+  worker: claude-sonnet-5-5         # computer_20251124 + beta computer-use-2025-11-24 (accepted on Bedrock)
+  verifier: claude-opus-5-5
+  classifier: claude-haiku-5-5
+  max_steps: 60
+
+recordings:
+  lifecycle_days: 90                # S3 lifecycle rule; AgentCore keeps its own session data 30 days

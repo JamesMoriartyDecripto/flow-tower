@@ -1,0 +1,17 @@
+2026-10-06T09:12:03Z [session] run=7c41e9a0b2 goal="AML drug repurposing" safety=allowed
+2026-10-06T09:12:40Z [parser] plan_config space=closed candidates=2300 output=nih_specific_aims
+2026-10-06T09:31:17Z [approval] scientist=dr.r edited=constraints(+1) approved
+2026-10-06T09:31:18Z [supervisor] start workers=32 batch=64 model=gemini-2.0-flash
+2026-10-06T09:31:20Z [supervisor] cycle=1 weights gen=0.45 refl=0.25 rank=0.15 evo=0.05 prox=0.05 meta=0.05
+2026-10-06T09:44:52Z [supervisor] cycle=1 done hypotheses=37 rejected_initial=11 safety_blocked=0 matches=4
+2026-10-06T09:44:53Z [context] snapshot cycle-00001 bytes=1.8M
+2026-10-06T13:02:10Z [supervisor] cycle=18 hypotheses=212 in_tournament=164 matches=1033 top_elo=[1388,1371,1349,1340,1322]
+2026-10-06T13:02:11Z [supervisor] cycle=18 weights gen=0.15 refl=0.25 rank=0.35 evo=0.15 prox=0.05 meta=0.05
+2026-10-06T13:40:27Z [meta-review] cycle=20 feedback_items=8 overview_directions=4
+2026-10-06T21:15:02Z [worker-17] ERROR evolution: google.genai 503 UNAVAILABLE (task dropped, retried next cycle)
+2026-10-07T02:03:44Z [inbox] scientist added hypothesis "KIRA6 via IRE1a" -> queued first
+2026-10-07T02:05:10Z [reflection] hid=e19c04aa initial=pass full=pass deep_verification=pass
+2026-10-07T06:47:30Z [restart] pod rescheduled; restored cycle-00071 hypotheses=498
+2026-10-07T18:22:15Z [supervisor] cycle=96 top10 stable for 12 cycles -> terminal
+2026-10-07T18:40:02Z [meta-review] final overview aims_pages=4 top_hypotheses=12
+2026-10-07T18:40:03Z [session] done wall=33h28m hypotheses=611 matches=5871

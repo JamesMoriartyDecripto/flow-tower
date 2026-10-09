@@ -1,0 +1,22 @@
+{
+  "work_item_id": "wi_20261008_4f21",
+  "type": "add_driver",
+  "source": "guidewire-policycenter",
+  "policy_number": "MTR-0048813-02",
+  "requested_by": "broker:hollis-partners",
+  "received_at": "2026-10-08T07:42:11Z",
+  "effective_date": "2026-10-15",
+  "payload": {
+    "driver": {
+      "first_name": "Maren",
+      "last_name": "Albrecht",
+      "dob": "1994-03-27",
+      "licence": "B072RRE2I55",
+      "relationship": "spouse"
+    }
+  },
+  "documents": [
+    { "type": "driving_licence_scan", "s3": "s3://acme-ins-inbound-docs/wi_20261008_4f21/licence.pdf", "size_kb": 412 }
+  ],
+  "idempotency_key": "MTR-0048813-02:add_driver:2026-10-15:B072RRE2I55"
+}

@@ -1,0 +1,209 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Backend lane internals
+description: >-
+  How the backend lead delivers the server side of a client site in Claude Code: contract first,
+  then data model and migrations, then handlers, then proof (integration tests, Stripe events,
+  security scans) on a seeded Neon branch before the PR.
+root: ..
+tags: [backend, openapi, payload-cms, postgres, stripe, security]
+
+runtimes:
+  laptop:
+    kind: local
+    label: Lead dev workstation
+  vercel-fn:
+    kind: serverless
+    label: Vercel Functions
+    provider: vercel
+    region: fra1
+  neon:
+    kind: cloud
+    label: Neon Postgres
+    provider: neon
+    region: aws-eu-central-1
+  stripe:
+    kind: saas
+    label: Stripe (test mode)
+    provider: stripe
+    url: https://dashboard.stripe.com
+  resend:
+    kind: saas
+    label: Resend
+    provider: resend
+  cloudflare:
+    kind: saas
+    label: Cloudflare Turnstile
+    provider: cloudflare
+    url: https://challenges.cloudflare.com
+  gha:
+    kind: ci
+    label: GitHub Actions
+    provider: github-actions
+
+agents:
+  be:
+    name: Backend lead
+    model: claude-opus-5-5
+    prompt: { file: prompts/backend-lead.md }
+    tools: [Read, Edit, Write, Bash]
+    runtime: laptop
+    sandbox: { network: allowlist, allow: [registry.npmjs.org, api.stripe.com, console.neon.tech, api.github.com], filesystem: workspace }
+    data: { sensitivity: pii, region: eu }
+
+layers:
+  - id: contract
+    title: Contract
+    description: The frontend never invents an endpoint, the backend never ships one that is not in the contract.
+    nodes:
+      - id: needs
+        type: entry
+        label: Backend needs
+        description: Pages flagged with backend work in the signed sitemap (checkout, subscriptions, wholesale enquiry, contact).
+        runtime: laptop
+        files: [samples/sitemap.yaml]
+      - id: spec
+        agent: be
+        label: Edit OpenAPI
+        files: [api/openapi.yaml]
+      - id: gen
+        label: Generate client
+        description: openapi-typescript + payload generate:types; committed so both lanes compile against the same types.
+        runtime: laptop
+        files: [scripts/gen-api-client.sh]
+      - id: fe_review
+        type: human
+        label: FE lead review
+        description: The frontend lead approves the contract diff on the PR before handlers are written.
+        runtime: laptop
+        approval: { by: frontend lead, via: PR review, actions: [approve, edit, reject], timeout: 1d, on_timeout: escalate }
+    edges:
+      - needs -> spec
+      - "spec -> gen [data]: openapi.yaml"
+      - gen -> fe_review
+      - "fe_review -> spec [return]: changes"
+
+  - id: data
+    title: Data model & migrations
+    description: Payload collections with field-level access; every schema change is a reviewed migration.
+    nodes:
+      - id: collections
+        agent: be
+        label: Collections
+        description: products, posts, faqs, enquiries, orders, media. Public read for content only; PII collections editor-only.
+        files: [backend/collections.ts]
+      - id: migrate
+        label: migrate:create
+        description: Generates SQL by diffing the schema against previous migrations. The lead reads it before committing.
+        runtime: laptop
+      - id: destructive
+        type: decision
+        label: Destructive?
+        description: DROP, RENAME or type narrowing on a table with data.
+        runtime: laptop
+      - id: approve
+        type: human
+        label: Studio lead OK
+        description: Destructive migrations need a written plan (backfill, deploy order) and the studio lead's approval.
+        runtime: laptop
+        approval: { by: studio lead, via: Slack, actions: [approve, reject], timeout: 1d, on_timeout: reject }
+      - id: branch
+        type: memory
+        label: Neon branch
+        description: preview/<git-branch>, migrated and seeded with PII-free fixtures by backend/seed.ts.
+        runtime: neon
+        files: [backend/seed.ts]
+        data: { sensitivity: internal, region: eu, description: Seed data only; production PII never copied to previews. }
+    edges:
+      - collections -> migrate
+      - migrate -> destructive
+      - "destructive -> approve: yes"
+      - "destructive -> branch [data]: no"
+      - "approve -> branch [data]: approved"
+
+  - id: handlers
+    title: Handlers
+    description: Route handlers on Vercel Functions. Validate, verify, then act; every external call is server-to-server.
+    nodes:
+      - id: checkout
+        agent: be
+        label: /api/checkout
+        description: Prices are read from the CMS, never from the client; creates a Stripe Checkout Session.
+        runtime: vercel-fn
+        files: [backend/checkout-route.ts]
+      - id: webhook
+        agent: be
+        label: /api/stripe/webhook
+        description: constructEvent signature check, idempotent by event id, creates the order.
+        runtime: vercel-fn
+        files: [backend/stripe-webhook.ts]
+      - id: enquiries
+        agent: be
+        label: /api/enquiries
+        description: zod validation, server-side Turnstile verification, stored in Payload, team notified via Resend.
+        runtime: vercel-fn
+        files: [backend/enquiries-route.ts]
+      - id: stripe
+        type: tool
+        label: Stripe
+        runtime: stripe
+        data: { sensitivity: pci, description: Hosted Checkout keeps card data at Stripe. }
+      - id: turnstile
+        type: tool
+        label: Turnstile
+        runtime: cloudflare
+      - id: resend
+        type: tool
+        label: Resend
+        runtime: resend
+    edges:
+      - { from: checkout, to: stripe, kind: call, label: sessions.create, protocol: http }
+      - { from: stripe, to: webhook, label: checkout.session.completed, protocol: webhook }
+      - { from: enquiries, to: turnstile, kind: call, label: siteverify, protocol: http }
+      - { from: enquiries, to: resend, kind: call, label: emails.send, protocol: http }
+
+  - id: verify
+    title: Verify & PR
+    description: Proof before the PR. Three fix rounds, then the issue goes back to the studio lead.
+    nodes:
+      - id: vitest
+        label: Integration tests
+        description: Vitest against the seeded branch; contract tests check responses against openapi.yaml.
+        runtime: gha
+        files: [.github/workflows/preview-qa.yml]
+      - id: stripe_cli
+        type: tool
+        label: stripe trigger
+        description: Stripe CLI sends checkout.session.completed twice; the second must be a no-op.
+        runtime: gha
+      - id: semgrep
+        type: guard
+        label: Semgrep + Gitleaks
+        description: OWASP Top 10, Next.js and secrets rulesets; Gitleaks on the full history.
+        runtime: gha
+        files: [.github/workflows/preview-qa.yml]
+        evals:
+          - { name: blocking findings, value: 0, target: 0, higher_is_better: false }
+      - id: green
+        type: decision
+        label: Green?
+        runtime: gha
+        limits: { max_iterations: 3 }
+      - id: pr
+        type: output
+        label: Pull request
+        description: PR with contract diff, migration SQL, test summary and the preview URL.
+        runtime: laptop
+    edges:
+      - "stripe_cli -> vitest [data]: events"
+      - vitest -> green
+      - semgrep -> green
+      - "green -> pr: yes"
+
+links:
+  - "contract.fe_review -> data.collections: approved"
+  - "data.branch -> handlers.checkout [data]"
+  - "data.branch -> verify.vitest [data]: seeded DB"
+  - "handlers.webhook -> verify.stripe_cli"
+  - "handlers.enquiries -> verify.semgrep"
+  - "verify.green -> handlers.checkout [return]: no, max 3"

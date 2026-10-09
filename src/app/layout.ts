@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js';
-import type { EdgeKind } from '../core/schema';
+import type { EdgeKind, Protocol } from '../core/schema';
 import type { ResolvedLayer, ResolvedTower } from '../core/types';
 import { NODE_H, NODE_W, SCALE } from './theme';
 
 export type XZ = [number, number];
 
 export interface NodeBox { key: string; x: number; z: number; w: number; d: number }
-export interface EdgePath { id: string; kind: EdgeKind; from: string; to: string; label?: string; points: XZ[] }
+export interface EdgePath { id: string; kind: EdgeKind; from: string; to: string; label?: string; protocol?: Protocol; points: XZ[] }
 export interface LayerLayout { index: number; width: number; depth: number; nodes: Record<string, NodeBox>; edges: EdgePath[] }
 export interface TowerLayout { layers: LayerLayout[]; width: number; depth: number }
 
@@ -50,7 +50,7 @@ async function layoutLayer(layer: ResolvedLayer): Promise<LayerLayout> {
     const points = s
       ? [s.startPoint, ...(s.bendPoints ?? []), s.endPoint].map((p) => toWorld(p.x, p.y))
       : [[nodes[e.from].x, nodes[e.from].z], [nodes[e.to].x, nodes[e.to].z]] as XZ[];
-    return { id: e.id, kind: e.kind, from: e.from, to: e.to, label: e.label, points };
+    return { id: e.id, kind: e.kind, from: e.from, to: e.to, label: e.label, protocol: e.protocol, points };
   });
 
   return { index: layer.index, width: w, depth: d, nodes, edges };

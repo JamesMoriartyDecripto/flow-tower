@@ -1,0 +1,24 @@
+2026-10-08T09:00:00.112Z batch start pending=5 session=sesn_011D4fRq8XaZ2nPm7kYt3VwL agent=fraud-reviewer v4 model=claude-haiku-5-5
+2026-10-08T09:00:03.540Z tool verify_mandates txn=txn-review-clean -> valid=true constraints=true double_spend=false
+2026-10-08T09:00:04.881Z tool get_transaction txn=txn-review-clean amount=182.40
+2026-10-08T09:00:06.207Z tool hybrid_search_similar_frauds txn=txn-review-clean k=5 -> 5 precedents (rankFusion vector+lexical)
+2026-10-08T09:00:07.019Z tool detect_fraud_ring account=...4421 -> network_size=2 suspicious=false
+2026-10-08T09:00:08.344Z tool record_decision txn=txn-review-clean decision=approve confidence=94 escalated=false [terminal 1/1]
+2026-10-08T09:00:09.902Z tool verify_mandates txn=txn-review-fraud -> valid=true constraints=false detail=constraints
+2026-10-08T09:00:10.455Z tool record_decision txn=txn-review-fraud decision=reject reasoning="mandate constraints unsatisfied" [terminal 1/1, hard gate]
+2026-10-08T09:00:12.733Z tool verify_mandates txn=txn-review-struct -> ok
+2026-10-08T09:00:16.090Z tool detect_fraud_ring account=...0072 -> network_size=2 suspicious=false
+2026-10-08T09:00:17.411Z tool escalate txn=txn-review-struct recommended=approve reason="structuring band 4900-4999" confidence=70 -> analyst queue
+2026-10-08T09:41:52.006Z human_decision txn=txn-review-struct analyst=fa-17 decision=reject (override)
+2026-10-08T09:41:53.320Z tool record_decision txn=txn-review-struct decision=reject escalated=true recommended=approve [terminal 1/1]
+2026-10-08T09:41:53.322Z sar_referral txn=txn-review-struct trigger=structuring_band deadline=2026-11-07
+2026-10-08T09:42:01.874Z tool escalate txn=txn-review-high recommended=approve reason="amount >= 50000" confidence=91 -> analyst queue
+2026-10-08T10:02:30.551Z human_decision txn=txn-review-high analyst=fa-04 decision=approve
+2026-10-08T10:02:31.190Z tool record_decision txn=txn-review-high decision=approve escalated=true [terminal 1/1]
+2026-10-08T10:02:36.447Z tool detect_fraud_ring account=...1180 -> network_size=6 circular_flow=true layering=true suspicious=true
+2026-10-08T10:02:37.002Z tool escalate txn=txn-review-ring recommended=reject reason="fraud ring" confidence=88 -> analyst queue
+2026-10-08T14:02:37.010Z analyst timeout 4h txn=txn-review-ring -> senior queue
+2026-10-08T15:20:11.645Z human_decision txn=txn-review-ring analyst=senior-02 decision=reject
+2026-10-08T15:20:12.300Z tool record_decision txn=txn-review-ring decision=reject escalated=true [terminal 1/1]
+2026-10-08T15:20:12.302Z tool record_decision txn=txn-review-ring -> error already_decided (duplicate terminal call blocked)
+2026-10-08T15:20:14.019Z end_turn terminal_calls=5/5 escalated=3 overrides=1 tool_calls=29 cost_usd=0.21

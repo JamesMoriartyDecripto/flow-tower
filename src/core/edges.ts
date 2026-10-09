@@ -1,4 +1,4 @@
-import { EDGE_KINDS, type EdgeDef, type EdgeKind } from './schema.ts';
+import { EDGE_KINDS, type EdgeDef, type EdgeKind, type Protocol } from './schema.ts';
 
 export interface ParsedEdge {
   from: string;
@@ -6,6 +6,7 @@ export interface ParsedEdge {
   kind: EdgeKind;
   label?: string;
   condition?: string;
+  protocol?: Protocol;
 }
 
 // "a -> b", "a -> b: label", "a -> b [spawn]", "a -> b [spawn]: label"

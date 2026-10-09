@@ -1,0 +1,518 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: SRE Incident Responder
+tags: [sre, claude-managed-agents, human-in-the-loop, incident-response]
+description: >-
+  A PagerDuty alert opens one Claude Managed Agents session per incident. A read-only
+  investigator in a sandboxed container finds the failure signature with get_logs,
+  get_alerts, get_recent_deployments and the incident-runbooks skill. A separate remediator
+  opens a fix PR, waits for the on-call SRE to approve in Slack (15m, then escalate), merges,
+  and the close-out writes the status page, resolves the incident and drafts a postmortem.
+
+runtimes:
+  pagerduty:
+    kind: saas
+    label: "PagerDuty"
+    description: "Payments on-call schedule and escalation policy; V3 webhooks on incident.triggered."
+    provider: "pagerduty"
+    url: "https://example.pagerduty.com"
+  app:
+    kind: container
+    label: "Responder service"
+    description: "FastAPI webhook, event loop, custom tool handlers and the Slack Bolt app."
+    host: "sre-responder.internal"
+    provider: "aws-ecs"
+    region: "us-east-1"
+  sandbox:
+    kind: cloud
+    label: "Managed Agents sandbox"
+    description: "One cloud container per session, limited networking; infra repo and runbooks mounted."
+    provider: "anthropic"
+    url: "https://platform.claude.com"
+  slack:
+    kind: saas
+    label: "Slack"
+    description: "#payments-oncall approvals and per-incident channels."
+    provider: "slack"
+    url: "https://example.slack.com"
+  github:
+    kind: saas
+    label: "GitHub"
+    description: "example-org/infra: PRs, required checks, deployments API."
+    provider: "github"
+    url: "https://github.com/example-org/infra"
+  actions:
+    kind: ci
+    label: "GitHub Actions"
+    provider: "github-actions"
+    url: "https://github.com/example-org/infra/actions"
+  k8s:
+    kind: cloud
+    label: "EKS prod + Argo CD"
+    description: "Production cluster; Argo CD syncs main of the infra repo."
+    provider: "aws"
+    region: "us-east-1"
+  datadog:
+    kind: saas
+    label: "Datadog"
+    description: "Logs and metrics behind get_logs and the rollout watch."
+    provider: "datadog"
+    url: "https://app.datadoghq.com"
+  statuspage:
+    kind: saas
+    label: "Statuspage"
+    provider: "atlassian"
+    url: "https://status.example.com"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "Managed Agents (beta), Console session traces, Opus / Sonnet / Haiku 5.5."
+    provider: "anthropic"
+    url: "https://platform.claude.com"
+
+prompts:
+  investigator: { file: prompts/investigator.md, description: "Read-only investigation, findings block output." }
+  remediator: { file: prompts/remediator.md, description: "Minimal fix, PR, approval, merge only on approved." }
+  postmortem: { file: prompts/postmortem.md, description: Blameless postmortem draft from the session trace. }
+  status: { file: prompts/status-update.md, description: Customer-facing status page text. }
+
+agents:
+  investigator:
+    name: Investigator
+    description: Read-only. Built-in bash/read/grep in the sandbox plus three read custom tools. No edit, no write path.
+    model: claude-opus-5-5
+    prompt: investigator
+    runtime: sandbox
+    tools: [bash, read, grep, glob, get_logs, get_alerts, get_recent_deployments]
+    harness: { toolset: agent_toolset_20260401, permission_policy: always_allow, disabled: [edit, write, web_search, web_fetch], skills: [incident-runbooks] }
+    files: [src/setup.py, src/tools.py]
+    budget: { usd: 3, turns: 60, on_exceed: escalate }
+    limits: { timeout: 20m, ttl: 24h }
+    sandbox: { network: allowlist, allow: [pypi.org], filesystem: read-only }
+    credentials: service
+    data: { sensitivity: confidential, retention: 90d, description: "Production logs may contain customer ids; traces kept 90 days." }
+    version: v3
+    evals:
+      - { name: signature accuracy (replayed incidents), value: 0.91, target: 0.9 }
+      - { name: median time to findings (min), value: 2.1, target: 5, higher_is_better: false }
+    match: ["agent:sre-investigator"]
+  remediator:
+    name: Remediator
+    description: Separate agent and session. The only write path is a PR; merge is gated on a human.
+    model: claude-opus-5-5
+    prompt: remediator
+    runtime: sandbox
+    tools: [bash, read, edit, grep, open_pull_request, request_approval, merge_pull_request]
+    harness: { toolset: agent_toolset_20260401, permission_policy: always_allow, disabled: [web_search, web_fetch], skills: [incident-runbooks] }
+    files: [src/setup.py, src/tools.py, src/event_loop.py]
+    tower: towers/remediator.tower.yaml
+    budget: { usd: 3, turns: 40, on_exceed: escalate }
+    limits: { timeout: 30m, ttl: 24h }
+    sandbox: { network: none, filesystem: workspace }
+    credentials: service
+    version: v2
+    rollout: { strategy: canary, percent: 20, previous: v1 }
+    evals:
+      - { name: PRs approved without edits, value: 0.78, target: 0.75 }
+      - { name: fixes reverted within 24h, value: 0.04, target: 0.05, higher_is_better: false }
+    match: ["agent:sre-remediator"]
+  scribe:
+    name: Postmortem writer
+    description: Drafts the blameless postmortem from the archived session events and the merged PR.
+    model: claude-sonnet-5-5
+    prompt: postmortem
+    runtime: sandbox
+    tools: [read, write_postmortem]
+    files: [src/closeout.py]
+    budget: { usd: 0.5, turns: 10, on_exceed: stop }
+    sandbox: { network: none, filesystem: workspace }
+  comms:
+    name: Status writer
+    description: One cheap call per status change; no tools.
+    model: claude-haiku-5-5
+    prompt: status
+    runtime: app
+    tools: []
+    files: [src/closeout.py]
+    budget: { usd: 0.02, turns: 1, on_exceed: stop }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: intake
+    title: Alert Intake
+    description: One verified webhook, one session per incident. Redeliveries never start a second agent.
+    nodes:
+      - id: alert
+        runtime: pagerduty
+        type: entry
+        label: PagerDuty alert
+        description: Datadog monitor -> PagerDuty service checkout-svc -> incident.triggered (P1, high urgency).
+        trigger: { kind: webhook, source: PagerDuty V3, description: "incident.triggered on the Payments services" }
+        files: [example_data/alert.json]
+        resources:
+          - { kind: dashboard, label: "Incident #4127", url: "https://example.pagerduty.com/incidents/Q2K7XJ4PL9WZ1R" }
+      - id: webhook
+        runtime: app
+        label: Webhook route
+        description: "POST /pagerduty: HMAC X-PagerDuty-Signature check (rotation-safe), ignores non-trigger events."
+        files: [src/webhook.py]
+        resources:
+          - { kind: endpoint, label: "Webhook URL", url: "https://sre-responder.example.com/pagerduty" }
+          - { kind: log, label: "Responder log", path: logs/responder.log }
+      - id: verify
+        runtime: app
+        type: guard
+        label: Signature check
+        description: Invalid signature -> 401. Nothing reaches the agent unsigned.
+        files: [src/webhook.py]
+      - id: dedupe
+        runtime: app
+        type: decision
+        label: New incident?
+        description: Redis incident:<id> -> session id. Redeliveries and re-triggers return the existing session.
+        files: [src/state.py]
+      - id: existing
+        runtime: app
+        type: output
+        label: Existing session
+        description: 200 with the session id; the running investigation continues.
+      - id: session
+        runtime: anthropic
+        label: sessions.create
+        description: Investigator pinned by version, resources mounted, title "[service] incident title"; raw alert JSON is the first user.message.
+        files: [src/webhook.py, src/state.py]
+        limits: { ttl: 24h, concurrency: 5 }
+        budget: { usd: 6, on_exceed: escalate }
+      - id: channel
+        runtime: slack
+        type: tool
+        label: Incident channel
+        description: "#inc-<number>-<service> with the PagerDuty link and the session id."
+        files: [src/slack_approval.py]
+    edges:
+      - "alert -> webhook [call]: incident.triggered"
+      - { from: webhook, to: verify, kind: call, protocol: webhook, label: HMAC }
+      - verify -> dedupe
+      - "dedupe -> existing: seen"
+      - "dedupe -> session: new"
+      - "session -> channel [call]: announce"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: investigation
+    title: Investigation
+    description: Read-only. External systems only through custom tools the app executes; the sandbox has no credentials.
+    nodes:
+      - id: investigator
+        agent: investigator
+      - id: skill
+        runtime: anthropic
+        type: memory
+        label: incident-runbooks
+        description: Custom skill uploaded with skills.create; tells the agent to find the signature first and never patch live.
+        files: [skills/incident-runbooks/SKILL.md]
+      - id: mounts
+        runtime: sandbox
+        type: memory
+        label: Mounted files
+        description: infra/ (github_repository, branch main), runbooks/, a log snapshot. Read-only for this agent.
+        files: [infra/k8s/checkout-deploy.yaml, runbooks/oom.md, runbooks/5xx.md]
+        resources:
+          - { kind: repo, label: "example-org/infra", url: "https://github.com/example-org/infra" }
+      - id: builtin
+        runtime: sandbox
+        type: tool
+        label: bash / read / grep
+        description: agent_toolset_20260401 with edit, write, web_search and web_fetch disabled.
+        tools: [bash, read, grep, glob]
+        files: [src/setup.py]
+      - id: get_alerts
+        runtime: app
+        type: tool
+        label: get_alerts
+        description: PagerDuty GET /incidents/{id}/alerts.
+        files: [src/tools.py]
+      - id: get_deploys
+        runtime: app
+        type: tool
+        label: get_recent_deploys
+        description: get_recent_deployments(service, since) from the GitHub deployments API.
+        files: [src/tools.py]
+      - id: get_logs
+        runtime: app
+        type: tool
+        label: get_logs
+        description: Datadog Logs search API, newest first, 200 lines max.
+        files: [src/tools.py]
+        resources:
+          - { kind: log, label: "checkout-svc log", path: logs/checkout-svc.log }
+          - { kind: dashboard, label: "checkout-svc logs", url: "https://app.datadoghq.com/logs?query=service%3Acheckout-svc" }
+      - id: signature
+        runtime: sandbox
+        type: decision
+        label: Signature?
+        description: oom / 5xx / latency with a runbook, or unknown / low confidence.
+      - id: findings
+        runtime: app
+        label: Findings block
+        description: "YAML: signature, root cause, evidence lines, suspect files, runbook, confidence."
+        files: [prompts/investigator.md]
+      - id: human_takeover
+        runtime: slack
+        type: human
+        label: On-call takes over
+        description: No runbook or low confidence. Findings posted in the incident channel; no remediation session.
+        sla: 30m
+    edges:
+      - "investigator -> skill [data]: load"
+      - "investigator -> mounts [data]: read"
+      - "investigator -> builtin [call]: grep, read"
+      - "investigator -> get_alerts [call]"
+      - "investigator -> get_deploys [call]: since 2h"
+      - "investigator -> get_logs [call]: OOMKilled"
+      - "investigator -> signature: evidence"
+      - "signature -> findings: runbook match"
+      - "signature -> human_takeover [handoff]: unknown / low"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: remediation
+    title: Remediation
+    description: >-
+      A second agent in a second session. Fix as code, PR through CI, merge only after the
+      on-call human approves; 15 minutes without an answer escalates, never auto-approves.
+    nodes:
+      - id: handoff
+        runtime: app
+        label: Remediator session
+        description: New session with the remediator agent; the findings block is its first user.message.
+        files: [src/event_loop.py]
+      - id: remediator
+        agent: remediator
+      - id: open_pr
+        runtime: app
+        type: tool
+        label: open_pull_request
+        description: "title, body, diff -> git apply --check on a fresh incident/<slug> branch, POST /pulls."
+        files: [src/github_pr.py, src/tools.py]
+      - id: ci
+        runtime: actions
+        type: guard
+        label: infra-validate
+        description: kubeconform, conftest policy (limits, no :latest, max 1Gi) and the 2-file scope check.
+        files: [ci/infra-validate.yml]
+        limits: { timeout: 5m }
+      - id: request_approval
+        runtime: app
+        type: tool
+        label: request_approval
+        description: Session idles with requires_action; the event id is parked and a 15m timer armed.
+        files: [src/event_loop.py, src/slack_approval.py]
+      - id: oncall
+        runtime: slack
+        type: human
+        label: On-call approval
+        description: Block Kit Approve / Reject in #payments-oncall. Only the current on-call group, one click.
+        approval: { by: on-call SRE, via: Slack, actions: [approve, reject], timeout: 15m, on_timeout: escalate }
+        files: [src/slack_approval.py]
+      - id: decision
+        runtime: sandbox
+        type: decision
+        label: Approved?
+        description: The custom tool result is "approved", "rejected" or "escalated".
+      - id: merge
+        runtime: app
+        type: tool
+        label: merge_pull_request
+        description: Squash merge of the approved PR number.
+        files: [src/tools.py]
+      - id: escalate
+        runtime: pagerduty
+        type: human
+        label: Escalation
+        description: 'Timer fired: escalation_level 2 (secondary, then incident commander), note on the incident, agent unblocked with "escalated".'
+        files: [src/escalation.py, config/escalation.yaml]
+        sla: 30m
+      - id: stopped
+        runtime: sandbox
+        type: output
+        label: Stop and report
+        description: Rejected or escalated. The PR stays open with the agent's report; humans finish the fix.
+      - id: rollout
+        runtime: k8s
+        label: Argo CD rollout
+        description: main synced to EKS. The app watches restarts and 5xx ratio for 10 minutes.
+        resources:
+          - { kind: dashboard, label: "Argo CD checkout-svc", url: "https://argocd.example.com/applications/checkout-svc" }
+      - id: recovered
+        runtime: datadog
+        type: decision
+        label: Recovered?
+        description: 5xx < 0.5% and 0 restarts for 10m, per the runbook's Verify section.
+        limits: { timeout: 10m }
+    edges:
+      - "handoff -> remediator: findings"
+      - "remediator -> open_pr [call]: title, body, diff"
+      - "open_pr -> ci [call]: required check"
+      - "ci -> remediator [return]: red"
+      - "ci -> request_approval: green"
+      - "request_approval -> oncall [handoff]: Slack"
+      - "oncall -> decision [return]: approved / rejected"
+      - "oncall -> escalate [handoff]: 15m timeout"
+      - "escalate -> decision [return]: escalated"
+      - "decision -> merge [call]: approved"
+      - "decision -> stopped: rejected / escalated"
+      - merge -> rollout
+      - rollout -> recovered
+      - "recovered -> escalate [handoff]: still failing"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: closeout
+    title: Recovery & Postmortem
+    description: Customers informed at every state change; the incident is resolved by evidence, then written up.
+    nodes:
+      - id: status_writer
+        agent: comms
+        label: Status writer
+      - id: statuspage
+        runtime: statuspage
+        type: tool
+        label: Statuspage
+        description: investigating -> identified -> monitoring -> resolved on the Checkout component.
+        files: [src/closeout.py]
+        resources:
+          - { kind: endpoint, label: "Status page", url: "https://status.example.com" }
+      - id: resolve
+        runtime: pagerduty
+        label: Resolve incident
+        description: PUT /incidents/{id} status=resolved with the PR link as resolution.
+        files: [src/closeout.py]
+      - id: scribe
+        agent: scribe
+        label: Postmortem writer
+      - id: write_postmortem
+        runtime: app
+        type: tool
+        label: write_postmortem
+        description: Writes postmortems/<date>-<service>-<number>.md as a draft PR in the incident-docs repo.
+        files: [src/closeout.py]
+      - id: review
+        runtime: github
+        type: human
+        label: Postmortem review
+        description: Incident commander edits and publishes; action items become tickets.
+        approval: { by: incident commander, via: PR review, actions: [approve, edit], timeout: 72h, on_timeout: wait }
+        sla: 72h
+      - id: published
+        runtime: github
+        type: output
+        label: Postmortem
+        description: Published blameless postmortem.
+        files: [postmortems/2026-10-07-checkout-svc-4127.md]
+      - id: archive
+        runtime: anthropic
+        label: Archive sessions
+        description: sessions.archive for both sessions; the trace stays in the Console.
+        files: [src/closeout.py]
+    edges:
+      - "status_writer -> statuspage [call]: status + body"
+      - "resolve -> scribe [spawn]: session events + PR"
+      - "scribe -> write_postmortem [call]: markdown"
+      - "write_postmortem -> review [handoff]: draft PR"
+      - "review -> published: approved"
+      - "published -> archive: done"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: platform
+    title: Harness, Tools & Models
+    description: "What keeps the agents bounded: event loop, budgets, credentials outside the sandbox, the trace, the models."
+    nodes:
+      - id: event_loop
+        runtime: app
+        label: Event loop
+        description: Polls sessions.events.list every 1s; answers custom tools at once, parks request_approval. A Console webhook on session.requires_action can replace polling.
+        files: [src/event_loop.py]
+        resources:
+          - { kind: log, label: "Responder log", path: logs/responder.log }
+      - id: permissions
+        runtime: anthropic
+        type: guard
+        label: Tool permissions
+        description: Built-ins always_allow inside the sandbox; every external write is a custom tool the app controls.
+        files: [src/setup.py]
+      - id: budget
+        runtime: app
+        type: guard
+        label: Budget per session
+        description: $6 per incident across both sessions, 60 / 40 turns. Over budget pages a human, keeps the trace.
+        files: [config/escalation.yaml]
+        budget: { usd: 6, turns: 100, on_exceed: escalate }
+      - id: secrets
+        runtime: app
+        type: guard
+        label: Host-side secrets
+        description: PagerDuty, Datadog, GitHub and Slack tokens live only in the app's secret store. The sandbox never sees them.
+        credentials: service
+        data: { sensitivity: secret }
+        files: [src/state.py]
+      - id: state
+        runtime: app
+        type: memory
+        label: Redis state
+        description: incident -> session map (7 days), on-call Slack ids synced from PagerDuty every 5 minutes.
+        files: [src/state.py]
+      - id: trace
+        runtime: anthropic
+        type: memory
+        label: Console trace
+        description: Managed Agents -> Sessions shows every file read, diff, custom tool call and the approval.
+        resources:
+          - { kind: recording, label: "Session sesn_011CZpw3gtC691y7qmaLNmLM", url: "https://platform.claude.com/workspaces/default/sessions/sesn_011CZpw3gtC691y7qmaLNmLM" }
+        data: { sensitivity: confidential, retention: 90d }
+      - id: opus
+        runtime: anthropic
+        type: model
+        label: Opus 5.5
+        model: claude-opus-5-5
+        description: Investigator and remediator; judgment on production changes.
+      - id: sonnet
+        runtime: anthropic
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        description: Postmortem drafts.
+      - id: haiku
+        runtime: anthropic
+        type: model
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        description: Status page text.
+    edges:
+      - "event_loop -> permissions [call]: tool events"
+      - "budget -> event_loop: over budget"
+      - "secrets -> event_loop [data]: tokens"
+      - "event_loop -> state [data]: sessions"
+      - "event_loop -> trace [data]: events"
+
+links:
+  # intake -> investigation
+  - "intake.session -> investigation.investigator [spawn]: alert JSON"
+  - "intake.channel -> closeout.status_writer: investigating"
+  # investigation -> remediation
+  - "investigation.findings -> remediation.handoff [handoff]: findings block"
+  - "investigation.findings -> closeout.status_writer: identified"
+  - "investigation.human_takeover -> closeout.resolve: manual fix"
+  # remediation -> closeout
+  - "remediation.recovered -> closeout.resolve: recovered"
+  - "remediation.rollout -> closeout.status_writer: monitoring"
+  - "remediation.stopped -> investigation.human_takeover [handoff]: PR left open"
+  # custom tools run in the app, through the event loop
+  - "investigation.get_logs -> platform.event_loop [return]: tool result"
+  - "remediation.request_approval -> platform.event_loop [return]: parked"
+  - "platform.secrets -> remediation.open_pr [data]: GitHub token"
+  # models
+  - "investigation.investigator -> platform.opus [call]"
+  - "remediation.remediator -> platform.opus [call]"
+  - "closeout.scribe -> platform.sonnet [call]"
+  - "closeout.status_writer -> platform.haiku [call]"
+  # trace
+  - "remediation.oncall -> platform.trace [data]: decision"
+  - "closeout.archive -> platform.trace [data]: archived"
