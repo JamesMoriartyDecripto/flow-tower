@@ -5,7 +5,7 @@ import { Color, Quaternion, Vector3, type InstancedMesh } from 'three';
 import type { ResolvedNode } from '../../core/types';
 import type { NodeBox } from '../layout';
 import { useStore } from '../store';
-import { COLORS, FONTS, GLOW, NODE_STYLE, type Glyph } from '../theme';
+import { COLORS, FONTS, GLOW, HOT, NODE_STYLE, type Glyph } from '../theme';
 import { commit, fadeTo, GLYPHS, scaled, setInstance, toSegments, UNIT_BOX, WIRE_GLYPHS } from './batch';
 import { TextBatch, type TextItem } from './TextBatch';
 
@@ -113,7 +113,7 @@ export function LayerNodes({ views, layer, layerFade, interactive, detail }: {
         <Line points={pending.points} vertexColors={pending.colors} segments dashed dashSize={0.25} gapSize={0.18} lineWidth={1.4} transparent opacity={layerFade} toneMapped={false} />
       )}
       {active.map((v) => (
-        <Line key={v.node.key} points={rect(v.box, TOP + 0.005)} color={v.selected ? GLOW.white : GLOW.amber} lineWidth={v.selected ? 2.8 : 2.2} transparent opacity={layerFade} toneMapped={false} />
+        <Line key={v.node.key} points={rect(v.box, TOP + 0.005)} color={v.selected ? HOT.white : HOT.amber} lineWidth={v.selected ? 2.8 : 2.2} transparent opacity={layerFade} toneMapped={false} />
       ))}
 
       {glyphs.map(([kind, items]) => <GlyphBatch key={kind} kind={kind} items={items} layerFade={layerFade} />)}

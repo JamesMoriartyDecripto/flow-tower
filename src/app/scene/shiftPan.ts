@@ -1,6 +1,7 @@
 import { useEffect, type RefObject } from 'react';
 import { useThree } from '@react-three/fiber';
 import type { CameraControls } from '@react-three/drei';
+import { keepAlive } from './frameBudget';
 
 /** World units panned per wheel pixel, relative to the camera distance. */
 const WHEEL_PAN = 0.0012;
@@ -36,6 +37,7 @@ export function useShiftPan(controls: RefObject<CameraControls | null>) {
       // Some platforms turn Shift+vertical wheel into a horizontal delta: honour whichever axis moved.
       const k = c.distance * WHEEL_PAN;
       c.truck(e.deltaX * k, e.deltaX && !e.deltaY ? 0 : e.deltaY * k, false);
+      keepAlive(300); // on-demand canvas: render the pan
     };
     const onKey = (e: KeyboardEvent) => setShift(e.shiftKey);
     const onBlur = () => setShift(false);

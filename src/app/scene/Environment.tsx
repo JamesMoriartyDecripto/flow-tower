@@ -11,10 +11,11 @@ const circle = (r: number, seg = 96): [number, number, number][] =>
   });
 
 /** Arc-reactor style base under the tower: concentric rings and rotating tick marks. */
-export const Base = memo(function Base({ radius, y, dim }: { radius: number; y: number; dim: boolean }) {
+export const Base = memo(function Base({ radius, y, dim, spin }: { radius: number; y: number; dim: boolean; spin: boolean }) {
   const outer = useRef<Group>(null);
   const inner = useRef<Group>(null);
   useFrame((_, dt) => {
+    if (!spin) return;
     if (outer.current) outer.current.rotation.y += dt * 0.08;
     if (inner.current) inner.current.rotation.y -= dt * 0.15;
   });

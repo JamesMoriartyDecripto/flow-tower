@@ -11,6 +11,7 @@ import { Layer, type Visual } from './Layer';
 import { createLens, stepLens } from './lens';
 import { Links } from './Links';
 import { useShiftPan } from './shiftPan';
+import { decorative, keepAlive } from './frameBudget';
 import { useChipProjector } from './chips';
 import { useFollow, useSceneLive } from '../liveHooks';
 import { useLive } from '../live';
@@ -24,7 +25,8 @@ export function TowerScene() {
 }
 
 function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTower>>; layout: TowerLayout }) {
-  const { explode, focusedLayer, hoveredLayer, selected, hovered, search, hiddenTypes, runtimeFocus, autoRotate, viewNonce, quality } = useStore();
+  const { explode, focusedLayer, hoveredLayer, selected, hovered, search, hiddenTypes, runtimeFocus, autoRotate, viewNonce, quality, animations } = useStore();
+  const deco = decorative(quality, animations);
   const spacing = useRef(0.02); // starts collapsed: the tower "assembles" on mount
   const lens = useMemo(() => createLens(tower.layers.length), [tower]);
   const group = useRef<Group>(null);
@@ -42,8 +44,13 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
     if (group.current) group.current.position.y = ((n - 1) * LAYER_GAP * spacing.current) / 2;
     if (pillars.current) pillars.current.scale.y = Math.max(spacing.current, 1e-3);
     // The lens only applies in overview: in focus mode the camera already isolates one layer.
-    stepLens(lens, spacing.current, focusedLayer === undefined ? hoveredLayer : undefined, dt);
-    if (autoRotate && focusedLayer === undefined) controls.current?.rotate(dt * 0.12, 0, false);
+    const lensMoved = stepLens(lens, spacing.current, focusedLayer === undefined ? hoveredLayer : undefined, dt);
+    // On-demand rendering: keep frames coming only while something is actually moving.
+    if (lensMoved || Math.abs(explode - spacing.current) > 1e-3) keepAlive(120);
+    if (autoRotate && focusedLayer === undefined) {
+      controls.current?.rotate(dt * 0.12, 0, false);
+      keepAlive(120);
+    }
   });
 
   // Camera: overview of the whole tower, or a tilted top-down view of the focused layer.
@@ -55,12 +62,14 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
       const fit = Math.max(height + 10, width * 0.75, depth) / (2 * Math.tan((42 / 2) * (Math.PI / 180)));
       const dir = new Vector3(0.5, 0.32, 0.85).normalize().multiplyScalar(fit * 1.3);
       c.setLookAt(dir.x, dir.y, dir.z, 0, 0, 0, true);
+      keepAlive(1500);
     } else {
       const y = layerY(focusedLayer);
       // Fit the focused layer's own flowchart, not the (wider) shared plate.
       const own = layout.layers[focusedLayer];
       const r = Math.max((own.width + 4) * 0.82, (own.depth + 4) * 1.5, 10);
       c.setLookAt(0, y + r * 0.92, r * 0.5, 0, y, 0, true);
+      keepAlive(1500);
     }
   }, [focusedLayer, width, depth, height, viewNonce, layout]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -98,14 +107,14 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
     edgeHighlight: (id) => rel?.edges.has(id),
   }), [selected, hovered, hiddenTypes, types, runtimeFocus, runtimeOf, hits, rel, spotlight]);
   const layerFade = useCallback((i: number) => {
-    if (focusedLayer !== undefined) return i === focusedLayer ? 1 : i < focusedLayer ? 0.04 : 0.16;
+    if (focusedLayer !== undefined) return i === focusedLayer ? 1 : i < focusedLayer ? 0.04 : 0.1;
     if (hoveredLayer === undefined) return 1;
     return [1, 0.72, 0.4][Math.min(Math.abs(i - hoveredLayer), 2)];
   }, [focusedLayer, hoveredLayer]);
 
   return (
     <>
-      <Ambient w={width * 1.4} h={height + 12} d={depth * 2} sparkles={quality !== 'low'} />
+      <Ambient w={width * 1.4} h={height + 12} d={depth * 2} sparkles={deco} />
       <CameraControls ref={controls} makeDefault minDistance={4} maxDistance={400} dollySpeed={0.6} smoothTime={0.35} />
       <group ref={group}>
         {tower.layers.map((l, i) => (
@@ -119,6 +128,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
             lens={lens}
             fade={layerFade(i)}
             interactive={focusedLayer === undefined || i === focusedLayer}
+            focused={focusedLayer === i}
             visual={visual}
             liveTint={live.tints[l.id]}
             subtrees={live.subtrees}
@@ -129,8 +139,8 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
           <Pillars width={width} depth={depth} bottom={-(n - 1) * LAYER_GAP} />
         </group>
       </group>
-      {focusedLayer === undefined && <Scanner width={width} depth={depth} top={height / 2 + 1} bottom={-height / 2 - 1} />}
-      <Base radius={Math.max(width, depth) * 0.62} y={-height / 2 - 5} dim={focusedLayer !== undefined} />
+      {deco && focusedLayer === undefined && <Scanner width={width} depth={depth} top={height / 2 + 1} bottom={-height / 2 - 1} />}
+      <Base radius={Math.max(width, depth) * 0.62} y={-height / 2 - 5} dim={focusedLayer !== undefined} spin={deco} />
     </>
   );
 }

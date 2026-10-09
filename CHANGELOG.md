@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- On-demand rendering with an FPS budget: `eco` (20 fps cap, no post-processing, 0 renders when idle), `balanced` (30 fps), `high` (60 fps); 10 fps and no decorative motion while the window is unfocused.
+- Live palette (cyan running, green done, red error), live chips above active nodes, per-layer live badges, library live dots, sub-tower activity on parent nodes.
+- Live feed: Starts/Errors filters, Tower/Library scope, Spotlight, Follow (camera follows activity), Pause, jump to nodes in any tower.
 - Pan with Shift + left drag and with Shift + two-finger trackpad scroll (pinch still zooms).
 - Claude Code skill (`skills/flow-tower`) that inventories an agentic codebase and writes a validated tower; `flow-tower install-skill [--project]`.
 - `flow-tower validate <files|dirs> [--json]` (exit 1 on errors), usable in CI.
@@ -33,7 +36,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `examples/course-studio`: course creation studio (12 layers, 109 nodes, 5 nested towers) with researched references.
 - Search results ranked by relevance (label > id > model/tools/runtime > description).
 
+### Changed
+- Glow only where it matters: static structure stays below the bloom threshold; selection, hover, focused layer and live activity glow. Cheaper bloom.
+- Focused layer gets a near-opaque plate and the other layers dim further, so the focused flow reads cleanly.
+
 ### Fixed
+- Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
 ### Security

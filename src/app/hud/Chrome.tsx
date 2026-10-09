@@ -199,13 +199,13 @@ export function Legend() {
 
 export function Controls() {
   const { explode, autoRotate, particles, quality, set, resetView } = useStore();
-  const next = { high: 'balanced', balanced: 'low', low: 'high' } as const;
+  const next = { high: 'eco', balanced: 'high', eco: 'balanced' } as const;
   return (
     <div className="panel controls">
       <label>EXPLODE<input type="range" min={0.4} max={2.5} step={0.05} value={explode} onChange={(e) => set({ explode: Number(e.target.value) })} /></label>
       <button className={`btn ${autoRotate ? 'on' : ''}`} onClick={() => set({ autoRotate: !autoRotate })}>Orbit</button>
       <button className={`btn ${particles ? 'on' : ''}`} onClick={() => set({ particles: !particles })}>Flow</button>
-      <button className="btn" onClick={() => set({ quality: next[quality] })} title="Rendering quality: high / balanced / low">FX {quality}</button>
+      <button className="btn" onClick={() => set({ quality: next[quality] })} title="Rendering: eco (20 fps cap, no post-processing) / balanced (30 fps) / high (60 fps, full effects)">FX {quality}</button>
       <button className="btn" onClick={resetView}>Reset</button>
     </div>
   );

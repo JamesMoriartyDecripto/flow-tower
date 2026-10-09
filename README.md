@@ -123,14 +123,20 @@ The bottom bar toggles orbit, flow particles and the rendering quality (`high` /
 
 ## Performance
 
-Each layer is drawn in a handful of draw calls: instanced meshes, batched lines and troika `BatchedText`. Labels you couldn't read at the current zoom are skipped. Measured on a 2017 Radeon Pro 570 at 1440×900 with `balanced` quality:
+Flow Tower is meant to run next to busy agents, so it is frugal by design:
 
-| Tower | Nodes | FPS |
-|---|---|---|
-| dev-squad | 56 | 50–55 |
-| course-studio | 109 | 60 (vsync) |
-| game-studio | 141 | 60 (vsync) |
-| synthetic 30 × 20 (`npm run stress -- 30 20`) | 600 | 19–29 (`low`) |
+- **On-demand rendering.** Nothing is drawn unless something changed: camera, transitions, live events. In `eco` an idle tower costs **0 frames per second**.
+- **FPS budget per preset:**
+
+  | Preset | Cap | Post-processing |
+  |---|---|---|
+  | `eco` | 20 fps | none |
+  | `balanced` (default) | 30 fps | light bloom |
+  | `high` | 60 fps | full effects |
+
+  The **FX** button cycles through them, or force one with `?quality=eco`.
+- **Background.** When the window is not focused the canvas drops to 10 fps and stops decorative motion.
+- **Batched scene.** Each layer is drawn with a handful of draw calls (instanced meshes, batched lines, troika `BatchedText`). Labels you could not read at the current zoom are skipped.
 
 ## Project layout
 

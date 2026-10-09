@@ -5,7 +5,8 @@ import { BufferGeometry, Float32BufferAttribute, Vector3, type Group, type Persp
 import type { ResolvedLayer } from '../../core/types';
 import type { LayerLayout } from '../layout';
 import { useStore } from '../store';
-import { COLORS, EDGE_STYLE, FONTS, GLOW } from '../theme';
+import { decorative } from './frameBudget';
+import { COLORS, EDGE_STYLE, FONTS, GLOW, HOT } from '../theme';
 import type { LensState } from './lens';
 import { LayerEdges, type EdgeView } from './LayerEdges';
 import { LayerNodes, type NodeView } from './LayerNodes';
@@ -31,11 +32,13 @@ interface Props {
   interactive: boolean;
   visual: Visual;
   liveTint?: 'run' | 'error';
+  /** The focused layer: near-opaque plate so whatever lies below stops competing for attention. */
+  focused: boolean;
   subtrees: Map<string, Set<string>>;
 }
 
 /** A glass plate holding one left-to-right flowchart. Height and scale follow the animated lens. */
-export const Layer = memo(function Layer({ tower, layer, layout, width, depth, lens, fade, interactive, visual, liveTint, subtrees }: Props) {
+export const Layer = memo(function Layer({ tower, layer, layout, width, depth, lens, fade, interactive, visual, liveTint, subtrees, focused }: Props) {
   const ref = useRef<Group>(null);
   useEffect(() => {
     const g = ref.current;
@@ -43,6 +46,7 @@ export const Layer = memo(function Layer({ tower, layer, layout, width, depth, l
     return () => { if (layerGroups.get(layer.id) === g) layerGroups.delete(layer.id); };
   }, [layer.id]);
   const particles = useStore((s) => s.particles);
+  const deco = useStore((s) => decorative(s.quality, s.animations));
   const focusLayer = useStore((s) => s.focusLayer);
   const hoverLayer = useStore((s) => s.hoverLayer);
 
@@ -105,13 +109,13 @@ export const Layer = memo(function Layer({ tower, layer, layout, width, depth, l
         }}
       >
         <boxGeometry args={[width, 0.06, depth]} />
-        <meshBasicMaterial color={COLORS.plate} transparent opacity={0.42 * fade} depthWrite={false} />
+        <meshBasicMaterial color={focused ? COLORS.bg : COLORS.plate} transparent opacity={focused ? 0.9 : 0.42 * fade} depthWrite={false} />
       </mesh>
       <lineSegments geometry={grid}>
-        <lineBasicMaterial color={COLORS.dim} transparent opacity={0.09 * fade} depthWrite={false} />
+        <lineBasicMaterial color={COLORS.dim} transparent opacity={(focused ? 0.06 : 0.09) * fade} depthWrite={false} />
       </lineSegments>
-      <Line points={outline} color={layerLive === 'error' ? GLOW.error : layerLive === 'run' ? GLOW.run : GLOW.orange}
-        lineWidth={layerLive ? 2 : 1} transparent opacity={(layerLive ? 0.9 : 0.55) * fade} toneMapped={false} />
+      <Line points={outline} color={layerLive === 'error' ? GLOW.error : layerLive === 'run' ? GLOW.run : focused ? HOT.orange : GLOW.orange}
+        lineWidth={layerLive || focused ? 2 : 1} transparent opacity={(layerLive || focused ? 0.9 : 0.55) * fade} toneMapped={false} />
       <Line points={brackets} segments color={GLOW.white} lineWidth={2.2} transparent opacity={0.9 * fade} toneMapped={false} />
 
       <Billboard position={[-width / 2 - 0.6, 0.6, depth / 2]}>
@@ -134,8 +138,8 @@ export const Layer = memo(function Layer({ tower, layer, layout, width, depth, l
 
       <LayerEdges views={edgeViews} layerFade={fade} detail={detail && fade > 0.5} />
       <LayerNodes views={nodeViews} layer={layer.index} layerFade={fade} interactive={interactive} detail={detail && fade > 0.5} />
-      {particles && fade > 0.5 && <Particles paths={paths} />}
-      <LiveOverlay tower={tower} views={nodeViews} fade={fade} subtrees={subtrees} />
+      {particles && deco && fade > 0.5 && <Particles paths={paths} />}
+      <LiveOverlay tower={tower} views={nodeViews} fade={fade} subtrees={subtrees} muted={!interactive} />
     </group>
   );
 });

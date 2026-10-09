@@ -23,13 +23,23 @@ export const LIVE = {
   error: '#ff4d5e',
 };
 
+/**
+ * Static structure stays just under the bloom threshold (luminance < 0.9): crisp, no halo.
+ * Only HOT colors (selection, hover, focus) and live states bloom. Glow where and when it matters.
+ */
 export const GLOW = {
-  orange: new Color(COLORS.orange).multiplyScalar(2.2),
-  amber: new Color(COLORS.amber).multiplyScalar(1.6),
-  white: new Color(COLORS.white).multiplyScalar(1.6),
+  orange: new Color(COLORS.orange).multiplyScalar(1.25),
+  amber: new Color(COLORS.amber).multiplyScalar(1.05),
+  white: new Color(COLORS.white).multiplyScalar(0.8),
   run: new Color(LIVE.run).multiplyScalar(2.4),
   done: new Color(LIVE.done).multiplyScalar(2),
-  error: new Color(LIVE.error).multiplyScalar(2.4),
+  error: new Color(LIVE.error).multiplyScalar(3.6),
+};
+
+export const HOT = {
+  orange: new Color(COLORS.orange).multiplyScalar(2.6),
+  amber: new Color(COLORS.amber).multiplyScalar(2.2),
+  white: new Color(COLORS.white).multiplyScalar(1.7),
 };
 
 /** World units per ELK pixel, and node footprint in ELK pixels. */
