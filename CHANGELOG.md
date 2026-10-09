@@ -57,6 +57,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Focused layer gets a near-opaque plate and the other layers dim further, so the focused flow reads cleanly.
 
 ### Fixed
+- Library: project descriptions are no longer cut; up to 4 lines, longer ones scroll inside the card.
 - Schema docs: labeled edge shorthand (`a -> b: label`) must be quoted in YAML.
 - Node titles and subtitles no longer spill out of the node: width-aware truncation (whole subtitle parts) plus a clip at the node border.
 - Crash when returning to a parent tower with a layer focused (stale scene used the new focus index).
