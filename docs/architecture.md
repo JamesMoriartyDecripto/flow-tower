@@ -22,6 +22,7 @@ The server only reads files under the tower roots. Workspace changes and live ev
 | `src/core/loader.ts` | File discovery, library vs nested towers, node resolution, issues |
 | `src/core/resolve.ts` | Prompts, `from:` agent files, operational fields (`pickOps`) |
 | `src/core/edges.ts` | Edge shorthand parsing |
+| `src/core/otlp.ts` | OTLP/HTTP JSON logs → `usage` / `error` events (Claude Code, Codex telemetry) |
 | `src/core/events.ts`, `adapters.ts` | Live event shape, matching, per-harness adapters (Claude Code, Agent SDK, Codex, Pi, Hermes) |
 | `src/core/types.ts` | Resolved model sent to the browser |
 

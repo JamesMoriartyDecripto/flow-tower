@@ -1,7 +1,8 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import { splitTarget, type FlowEvent } from '../../core/events';
 import { towerPath } from '../graph';
-import { useLive } from '../live';
+import { formatUsage, useLive, usageOf } from '../live';
+import { useDescendants } from '../liveHooks';
 import { findNode, useStore, useTower } from '../store';
 
 const ICON: Record<string, string> = {
@@ -31,6 +32,10 @@ function FeedPanel() {
   const ws = useStore((s) => s.workspace);
   const inspecting = useStore((s) => !!s.selected);
   const [scope, setScope] = useState<'tower' | 'all'>('tower');
+  const usageMap = useLive((s) => s.usage);
+  const desc = useDescendants();
+  // Tokens and cost of this tower and its sub-towers, from usage events (OpenTelemetry and adapters).
+  const usage = useMemo(() => (tower ? usageOf(usageMap, new Set([tower.id, ...(desc.get(tower.id) ?? [])])) : undefined), [usageMap, desc, tower]);
   const [filter, setFilter] = useState<Filter>('all');
 
   const rows = useMemo(() => {
@@ -64,6 +69,7 @@ function FeedPanel() {
     <aside className={`panel livefeed ${inspecting ? 'shifted' : ''}`}>
       <header>
         <span className="title">Live · {events.length}{errors ? <em className="err-count"> · {errors} err</em> : null}</span>
+        {usage && <span className="feed-usage mono" title={`Reported by live telemetry, from the events the local server keeps (the last 2000), for this tower and its sub-towers: ${usage.calls} model calls`}>{formatUsage(usage)}</span>}
         <button className="chip clickable" onClick={() => toggleFeed(false)} title="Close (the scene keeps showing activity)">✕</button>
       </header>
       <div className="feed-tools">
@@ -130,6 +136,7 @@ export function NodeLiveInfo({ nodeKey }: { nodeKey: string }) {
         <dt>last</dt><dd>{live.last ? `${time(live.last.ts)} · ${live.last.kind}${live.last.tool ? ` · ${live.last.tool}` : ''}` : '—'}</dd>
         {live.last?.message && <><dt>message</dt><dd>{live.last.message}</dd></>}
         {live.errorTs > 0 && <><dt>last error</dt><dd className="live-error">{time(live.errorTs)}</dd></>}
+        {live.usage && <><dt>usage</dt><dd>{formatUsage(live.usage)} · {live.usage.calls} model calls</dd></>}
       </dl>
     </div>
   );

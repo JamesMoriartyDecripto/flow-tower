@@ -127,6 +127,8 @@ flow-tower emit --kind tool.start --agent coder --tool Bash -m "npm test"   # af
 
 Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [`integrations/`](integrations).
 
+**Tokens and cost per node:** point Claude Code's or Codex's OpenTelemetry exporter at Flow Tower (OTLP/HTTP JSON, `http://127.0.0.1:5317`) and each agent node shows what it spent; see [docs/realtime.md](docs/realtime.md#tokens-and-cost-opentelemetry).
+
 ## Controls
 
 | Input | Action |

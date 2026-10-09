@@ -38,7 +38,6 @@ Notes:
 - **Codex one-off runs:** `codex exec --json "…" | flow-tower emit --source codex` adds token usage per turn (input + output) and `spawn_agent`/`close_agent` subagents. Only the `thread.started` line carries the thread id, so other lines have no session.
 - **Codex `notify`:** the legacy hook passes its JSON as the last argument, not stdin, and only reports turn ends. Use it where hooks are unavailable, not together with them.
 - **Hermes:** keep it observe-only, with no `fail_closed`. Otherwise a stopped flow-tower would block Hermes' tools.
-- **OpenTelemetry (OTLP)** ingestion, for token and cost metrics (Claude Code, Codex `[otel]`), is on the roadmap (#9).
 
 ## Any other agent
 
@@ -66,6 +65,29 @@ flow-tower emit --kind error --node build.package -m "exit 1"
 ```
 
 `emit` always exits 0 and gives up after 1.5 s, so it never breaks the thing it observes.
+
+## Tokens and cost (OpenTelemetry)
+
+Hooks say what agents do, not what it costs. Token counts and cost come from OpenTelemetry: point the
+agent's OTLP exporter at Flow Tower (OTLP/HTTP with **JSON** encoding; protobuf is refused with a hint).
+The server accepts `POST /v1/logs`, `/v1/metrics` and `/v1/traces`; only logs are read, the other two are
+acknowledged and dropped so exporters set up for every signal do not complain.
+
+| Source | Setup | What is read |
+|---|---|---|
+| **Claude Code** | Merge [`integrations/claude-code/telemetry.json`](../integrations/claude-code/telemetry.json) into `.claude/settings.json` (its `env` block), or export the same variables: `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_LOGS_EXPORTER=otlp`, `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:5317` | `claude_code.api_request`: `cost_usd`, input / output / cache tokens, model, `query_source`, `agent.name` (subagents); `claude_code.api_error` as an error |
+| **Codex** | The `[otel]` block in [`integrations/codex/config.toml`](../integrations/codex/config.toml): `otlp-http`, `protocol = "json"`, endpoint `http://127.0.0.1:5317/v1/logs` | `codex.sse_event` on `response.completed` (token counts) and `codex.turn_cost` (`usage.estimated_usd`) |
+
+Each one becomes a `usage` event that lands like any other: on the node whose agent matches `agent`
+(the subagent name). The main Claude Code thread has no agent name; send its usage to the orchestrator
+with a rule such as `match: ["kind:usage&query_source:main"]`. Logs are exported every 5 s.
+
+Totals show in the node panel (Live → usage), in the live feed header (the tower on screen and its
+sub-towers) and on library cards. They cover the events the local server keeps (the last 2000), and an
+agent present in both a tower and its sub-tower is counted once per project. If `FLOW_TOWER_TOKEN` is
+set, add it to the exporter: `OTEL_EXPORTER_OTLP_HEADERS=x-flow-tower-token=<token>`.
+
+`npm run simulate` sends sample `api_request` logs for every agent step, so you can see it without setup.
 
 ## Matching events to nodes
 

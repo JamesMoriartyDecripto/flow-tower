@@ -1,40 +1,43 @@
-# npm run e2e: passed, 39 tests, 0 not passed (2026-10-09T19:17Z)
+# npm run e2e: passed, 42 tests, 0 not passed (2026-10-09T20:31Z)
 passed      0.7s  the file API refuses paths outside the tower root
-passed      1.0s  events endpoint rejects malformed bodies without crashing
-passed      9.6s  every referenced file is served by /api/file
-passed     15.1s  layout 1024x640 at 1x
-passed     15.1s  tower: Website & Web Design Studio
-passed     15.2s  tower: Research Helper
-passed     15.4s  layout 720x900 at 1x
-passed     15.8s  layout 1920x1080 at 1.15x
-passed     16.2s  layout 1280x720 at 1x
-passed     16.5s  tower: Docs Q&A Bot
-passed     16.6s  layout 1440x900 at 1.3x
-passed     16.6s  tower: Pocket Voice Assistant
-passed     17.6s  live feed: mapped, error and unmapped events
-passed     17.6s  tower: PR Review Bot
-passed     18.2s  layout 2560x1440 at 1.6x
+passed      1.2s  events endpoint rejects malformed bodies without crashing
+passed      8.1s  every referenced file is served by /api/file
+passed     15.4s  tower: Website & Web Design Studio
+passed     15.6s  layout 720x900 at 1x
+passed     15.9s  layout 1280x720 at 1x
+passed     15.9s  tower: Docs Q&A Bot
+passed     16.2s  layout 2560x1440 at 1.6x
+passed     16.2s  live feed: mapped, error and unmapped events
+passed     16.4s  layout 1440x900 at 1x
+passed     16.4s  layout 1920x1080 at 1.15x
+passed     16.6s  tower: Research Helper
+passed     16.9s  export PNG and SVG (eco)
+passed     17.0s  OTLP logs: tokens and cost per node, per tower and per project
+passed     17.2s  layout 1440x900 at 1.3x
+passed     17.5s  tower: Pocket Voice Assistant
 passed     18.4s  tower: Legacy Portal Browser Worker
-passed     18.9s  tower: Fraud Review Desk
-passed     20.4s  tower: Airline Customer Service
-passed     22.2s  tower: Deep Research Team
-passed     22.4s  layout 1440x900 at 1x
-passed     22.4s  tower: A2A Purchasing Concierge
-passed     22.9s  tower: AI Co-Scientist
-passed     23.0s  tower: Jev Agent
-passed     23.7s  zoom is kept when moving to the next node of the same layer
-passed     23.9s  tower: Ambient Chief of Staff
-passed     25.0s  tower: AI Video Studio
-passed     25.6s  tower: Social Media Studio
-passed     26.7s  tower: Dev Squad
-passed     26.7s  tower: Release Auditor
-passed     26.7s  tower: SRE Incident Responder
-passed     27.9s  tower: Invoicing with Fatture in Cloud
-passed     28.4s  tower: Ebook Studio
-passed     30.3s  tower: Legal Due Diligence
-passed     30.4s  tower: Sales Pipeline: prospect to invoice
-passed     31.8s  tower: Marketing Studio
-passed     32.4s  tower: Mobile App Studio
-passed     38.7s  accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)
-passed     43.5s  tower: Syllabus Forge
-passed     66.5s  tower: Forge Studio
+passed     18.5s  layout 1024x640 at 1x
+passed     18.6s  tower: PR Review Bot
+passed     19.1s  tower: Airline Customer Service
+passed     19.9s  tower: Fraud Review Desk
+passed     21.3s  zoom is kept when moving to the next node of the same layer
+passed     21.7s  export PNG and SVG (balanced)
+passed     22.8s  tower: A2A Purchasing Concierge
+passed     22.8s  tower: Deep Research Team
+passed     23.2s  tower: AI Co-Scientist
+passed     23.2s  tower: Jev Agent
+passed     23.7s  tower: Ambient Chief of Staff
+passed     25.5s  tower: AI Video Studio
+passed     25.7s  tower: Ebook Studio
+passed     26.6s  tower: SRE Incident Responder
+passed     26.6s  tower: Social Media Studio
+passed     27.0s  tower: Release Auditor
+passed     27.1s  tower: Invoicing with Fatture in Cloud
+passed     28.6s  tower: Dev Squad
+passed     29.7s  tower: Legal Due Diligence
+passed     30.1s  tower: Marketing Studio
+passed     30.5s  tower: Sales Pipeline: prospect to invoice
+passed     32.6s  tower: Mobile App Studio
+passed     36.7s  accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)
+passed     40.5s  tower: Syllabus Forge
+passed     64.0s  tower: Forge Studio

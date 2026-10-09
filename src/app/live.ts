@@ -15,7 +15,17 @@ export interface NodeLive {
   doneTs: number;
   count: number;
   last?: FlowEvent;
+  /** Summed from `usage` events (OTLP telemetry, Pi, Codex exec...). */
+  usage?: Usage;
 }
+
+export interface Usage { tokens: number; cost: number; calls: number }
+
+const addUsage = (u: Usage | undefined, e: FlowEvent): Usage => ({
+  tokens: (u?.tokens ?? 0) + (e.tokens ?? 0),
+  cost: (u?.cost ?? 0) + (e.cost_usd ?? 0),
+  calls: (u?.calls ?? 0) + 1,
+});
 
 export type LiveState = 'run' | 'done' | 'error' | 'flash' | 'idle';
 
@@ -28,7 +38,15 @@ const ERROR_MS = 5000;
 interface LiveStore {
   events: FlowEvent[];
   nodes: Map<string, NodeLive>;
+  /**
+   * Usage per group of towers an event landed in (key: sorted tower ids joined by newlines). A tower or a
+   * project total sums the groups it intersects, so an agent present in a tower and in its sub-tower
+   * is counted once per project, not twice.
+   */
+  usage: Map<string, Usage>;
   lastId: number;
+  /** Smallest event id applied: applied ids always form the range firstId..lastId (pushes are sequential). */
+  firstId: number;
   feedOpen: boolean;
   /** Dim everything that is not live while the feed is open. */
   spotlight: boolean;
@@ -39,7 +57,8 @@ interface LiveStore {
   lastEvent?: FlowEvent;
   /** Bumped per batch: lets React panels re-render without the scene doing so. */
   version: number;
-  apply(events: FlowEvent[]): void;
+  /** `initial`: the GET of recent events at page load, which can resolve after newer pushed events. */
+  apply(events: FlowEvent[], initial?: boolean): void;
   toggleFeed(open?: boolean): void;
   setOption(patch: Partial<Pick<LiveStore, 'spotlight' | 'follow' | 'paused'>>): void;
   clear(): void;
@@ -48,17 +67,25 @@ interface LiveStore {
 export const useLive = create<LiveStore>()((set, get) => ({
   events: [],
   nodes: new Map(),
+  usage: new Map(),
   lastId: 0,
+  firstId: Infinity,
   feedOpen: false,
   spotlight: true,
   follow: false,
   paused: false,
   version: 0,
 
-  apply(batch) {
-    // Ids restart from 1 when the server restarts: a batch entirely below lastId means a new server.
-    const restarted = batch.length > 0 && batch[batch.length - 1].id < get().lastId;
-    const fresh = batch.filter((e) => e.id > (restarted ? 0 : get().lastId));
+  apply(batch, initial = false) {
+    // Ids restart from 1 when the server restarts: a pushed batch entirely below lastId means a new server.
+    // The initial fetch is never that signal: it may simply arrive after newer pushed events, so it only
+    // adds the events not seen yet.
+    // The feed keeps only the last events, so "already applied" is the id range, not the feed contents.
+    const { firstId, lastId } = get();
+    const restarted = !initial && batch.length > 0 && batch[batch.length - 1].id < lastId;
+    const fresh = initial
+      ? batch.filter((e) => e.id < firstId || e.id > lastId)
+      : batch.filter((e) => e.id > (restarted ? 0 : lastId));
     if (!fresh.length) return;
     // Let the flash/ripple animations play, but only for events that land somewhere: an agent busy in
     // another project must not keep the tower on screen rendering.
@@ -66,7 +93,13 @@ export const useLive = create<LiveStore>()((set, get) => ({
     // Copy-on-write: selectors (useLive(s => s.nodes.get(k)?.last)) must never see a value change
     // without a store update, or useSyncExternalStore tears and re-renders in a loop.
     const nodes = new Map(get().nodes);
+    let usage = get().usage;
     for (const e of fresh) {
+      if (e.kind === 'usage' && e.targets.length) {
+        if (usage === get().usage) usage = new Map(usage);
+        const group = [...new Set(e.targets.map((t) => splitTarget(t)[0]))].sort().join('\n');
+        usage.set(group, addUsage(usage.get(group), e));
+      }
       for (const key of e.targets) {
         const n = { ...(nodes.get(key) ?? { open: 0, lastTs: 0, errorTs: 0, doneTs: 0, count: 0 }) };
         if (e.kind === 'tool.start' || e.kind === 'agent.start') n.open++;
@@ -78,21 +111,24 @@ export const useLive = create<LiveStore>()((set, get) => ({
         n.lastTs = Math.max(n.lastTs, e.ts);
         n.count++;
         n.last = e;
+        if (e.kind === 'usage') n.usage = addUsage(n.usage, e);
         nodes.set(key, n);
       }
     }
     // While paused the scene keeps updating; only the feed list is frozen.
     set({
       nodes,
-      events: get().paused ? get().events : [...get().events, ...fresh].slice(-FEED),
-      lastId: fresh[fresh.length - 1].id,
+      usage,
+      events: get().paused ? get().events : (initial ? [...get().events, ...fresh].sort((a, b) => a.id - b.id) : [...get().events, ...fresh]).slice(-FEED),
+      lastId: Math.max(initial ? lastId : 0, fresh[fresh.length - 1].id),
+      firstId: Math.min(restarted ? Infinity : firstId, ...fresh.map((e) => e.id)),
       lastEvent: fresh[fresh.length - 1],
       version: get().version + 1,
     });
   },
   toggleFeed: (open) => set({ feedOpen: open ?? !get().feedOpen }),
   setOption: (patch) => set(patch),
-  clear: () => set({ events: [], nodes: new Map(), version: get().version + 1 }),
+  clear: () => set({ events: [], nodes: new Map(), usage: new Map(), version: get().version + 1 }),
 }));
 
 /** Current state of a node and an intensity 0..1 for animations. */
@@ -179,6 +215,23 @@ export function useLivePoll<T>(
   return snapshot.value;
 }
 
+/** Usage summed over every tower group that touches one of `towers` (a tower, or a project and its sub-towers). */
+export function usageOf(usage: Map<string, Usage>, towers: Set<string>): Usage | undefined {
+  let total: Usage | undefined;
+  for (const [group, u] of usage) {
+    if (!group.split('\n').some((t) => towers.has(t))) continue;
+    total = { tokens: (total?.tokens ?? 0) + u.tokens, cost: (total?.cost ?? 0) + u.cost, calls: (total?.calls ?? 0) + u.calls };
+  }
+  return total;
+}
+
+/** "12.3k tokens · $0.42" */
+export function formatUsage(u: Usage): string {
+  const tokens = u.tokens >= 1e6 ? `${(u.tokens / 1e6).toFixed(1)}M` : u.tokens >= 1e3 ? `${(u.tokens / 1e3).toFixed(1)}k` : String(u.tokens);
+  const cost = u.cost > 0 ? ` · $${u.cost < 0.01 ? u.cost.toFixed(4) : u.cost.toFixed(2)}` : '';
+  return `${tokens} tokens${cost}`;
+}
+
 const statesSig = (m: Map<string, LiveState>) => [...m].map(([k, s]) => `${k}:${s}`).sort().join('|');
 const EMPTY_STATES = new Map<string, LiveState>();
 
@@ -193,7 +246,7 @@ export function useLiveSync() {
     if (STATIC) return; // the demo has no server: see demo.ts
     fetch('/api/events')
       .then((r) => (r.ok ? r.json() : []))
-      .then((events: FlowEvent[]) => useLive.getState().apply(events))
+      .then((events: FlowEvent[]) => useLive.getState().apply(events, true))
       .catch(() => {});
     const onEvents = (events: FlowEvent[]) => useLive.getState().apply(events);
     import.meta.hot?.on('flow-tower:events', onEvents);

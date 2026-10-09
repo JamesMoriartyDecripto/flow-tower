@@ -132,6 +132,32 @@ describe('live reload', () => {
   });
 });
 
+describe('live feed', () => {
+  it('the initial fetch arriving after a pushed event does not duplicate events', async () => {
+    vi.stubGlobal('location', { search: '' });
+    const { useLive } = await import('../src/app/live');
+    const ev = (id: number) => ({ id, ts: id, kind: 'log' as const, source: 't', targets: [] });
+    useLive.getState().clear();
+    useLive.setState({ lastId: 0 });
+    useLive.getState().apply([ev(205), ev(206), ev(207)]); // pushed over the websocket first
+    useLive.getState().apply([ev(204), ev(205), ev(206)], true); // then the initial GET resolves
+    const ids = useLive.getState().events.map((e) => e.id);
+    expect(ids).toEqual([204, 205, 206, 207]);
+  });
+
+  it('usage older than the feed window is counted once, even when the initial fetch runs twice', async () => {
+    vi.stubGlobal('location', { search: '' });
+    const { useLive, usageOf } = await import('../src/app/live');
+    useLive.getState().clear();
+    useLive.setState({ lastId: 0, firstId: Infinity });
+    const usage = (id: number) => ({ id, ts: id, kind: 'usage' as const, source: 't', tokens: 10, cost_usd: 0.01, targets: ['t#l.n'] });
+    const buffer = Array.from({ length: 500 }, (_, i) => usage(i + 1)); // more than the 300 the feed keeps
+    useLive.getState().apply(buffer, true);
+    useLive.getState().apply(buffer, true); // React StrictMode runs the effect twice in development
+    expect(usageOf(useLive.getState().usage, new Set(['t']))?.calls).toBe(500);
+  });
+});
+
 describe('live targets', () => {
   it('split on the last #, since tower ids are paths and may contain one', () => {
     expect(splitTarget('c#-agents/x.tower.yaml#core.step')).toEqual(['c#-agents/x.tower.yaml', 'core.step']);
