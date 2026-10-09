@@ -6,6 +6,8 @@ import type { Workspace } from '../core/types.ts';
 export const EVENTS_EVENT = 'flow-tower:events';
 const MAX_BODY = 1_000_000;
 const KEEP = 2000;
+/** Each event is matched against every node of the library: a huge batch would stall the dev server. */
+const MAX_BATCH = 1000;
 
 /**
  * In-memory live event hub: validates, normalizes and maps incoming events onto tower nodes,
@@ -51,7 +53,9 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     req.on('end', () => {
       if (res.writableEnded) return;
       try {
-        const result = ingest(JSON.parse(Buffer.concat(chunks).toString('utf8')), sourceOf(req, url));
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (Array.isArray(body) && body.length > MAX_BATCH) return json(res, 413, { error: `at most ${MAX_BATCH} events per request` });
+        const result = ingest(body, sourceOf(req, url));
         // Claude Code HTTP hooks read a JSON body as a hook decision: answer with an empty 204 by default.
         if (url.searchParams.has('verbose')) json(res, 202, result);
         else { res.statusCode = 204; res.end(); }

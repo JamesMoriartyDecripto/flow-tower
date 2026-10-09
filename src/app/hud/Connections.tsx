@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { ResolvedEdge, ResolvedNode, ResolvedTower } from '../../core/types';
 import { neighbours } from '../graph';
 import { findNode, useStore } from '../store';
@@ -24,15 +24,19 @@ export function connections(tower: ResolvedTower, key: string): { across: Conn[]
   };
 }
 
-/** Nodes visited by jumping along connections, so the jump can be undone (B or the back button). */
-const trail: string[] = [];
+/**
+ * Nodes visited by jumping along connections, so the jump can be undone (B or the back button).
+ * One trail per tower: node keys repeat across towers, and each tower keeps its own history.
+ */
+const trails = new Map<string, string[]>();
+const trailOf = (tower: ResolvedTower) => trails.get(tower.id) ?? trails.set(tower.id, []).get(tower.id)!;
 
 /** Selects a connected node and brings the camera to its layer. */
 export function jump(tower: ResolvedTower, key: string, remember = true) {
   const s = useStore.getState();
   const node = findNode(tower, key);
   if (!node) return;
-  if (remember && s.selected && s.selected !== key) trail.push(s.selected);
+  if (remember && s.selected && s.selected !== key) trailOf(tower).push(s.selected);
   s.hover(undefined);
   s.select(key);
   const li = layerOf(tower, node);
@@ -43,6 +47,7 @@ export function jump(tower: ResolvedTower, key: string, remember = true) {
 }
 
 export function jumpBack(tower: ResolvedTower) {
+  const trail = trailOf(tower);
   while (trail.length) {
     const key = trail.pop()!;
     if (findNode(tower, key)) return jump(tower, key, false);
@@ -57,13 +62,17 @@ export function cycleConnection(tower: ResolvedTower, step: number) {
   const list = [...across, ...inside];
   if (!list.length) return;
   // Cycle from the node we came from, so repeated presses walk the whole list.
-  const from = trail.at(-1);
+  const from = trailOf(tower).at(-1);
   const i = list.findIndex((c) => c.other.key === from);
-  jump(tower, list[(i + step + list.length) % list.length].other.key);
+  // No previous jump: C starts at the first connection, Shift+C at the last.
+  const next = i < 0 ? (step > 0 ? 0 : list.length - 1) : (i + step + list.length) % list.length;
+  jump(tower, list[next].other.key);
 }
 
 function Row({ c, tower }: { c: Conn; tower: ResolvedTower }) {
   const hover = (key?: string) => useStore.getState().hover(key);
+  // Esc closes the panel under the pointer: no mouseleave fires, so drop the hover this row set.
+  useEffect(() => () => { if (useStore.getState().hovered === c.other.key) hover(undefined); }, [c.other.key]);
   return (
     <button
       className="conn"
@@ -86,6 +95,7 @@ function Row({ c, tower }: { c: Conn; tower: ResolvedTower }) {
 
 export function Connections({ node, tower }: { node: ResolvedNode; tower: ResolvedTower }) {
   const { across, inside } = useMemo(() => connections(tower, node.key), [tower, node.key]);
+  const trail = trailOf(tower);
   const back = trail.length ? findNode(tower, trail[trail.length - 1]) : undefined;
   return (
     <>

@@ -37,14 +37,34 @@ export type FlowEvent = z.output<typeof FlowEventSchema> & {
 };
 
 export const targetKey = (tower: string, node: string) => `${tower}#${node}`;
+/** Inverse of targetKey. Tower ids are file paths and may contain '#'; node keys never do. */
+export function splitTarget(target: string): [tower: string, node: string] {
+  const i = target.lastIndexOf('#');
+  return [target.slice(0, i), target.slice(i + 1)];
+}
 
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9*]/g, '');
+const norm = (s: unknown) => String(s).toLowerCase().replace(/[^a-z0-9*]/g, '');
+
+// Every event is tested against every node of the library: compile each pattern once.
+const compiled = new Map<string, RegExp | string>();
+function compile(pattern: string): RegExp | string {
+  let re = compiled.get(pattern);
+  if (re === undefined) {
+    const p = norm(pattern);
+    // Without a wildcard a plain comparison is enough (and far cheaper than a RegExp).
+    re = p.includes('*') ? new RegExp(`^${p.split('*').map((x) => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`) : p;
+    if (compiled.size > 20_000) compiled.clear();
+    compiled.set(pattern, re);
+  }
+  return re;
+}
 
 /** Glob-lite: `*` matches anything, comparison ignores case and punctuation. */
 function like(value: string | undefined, pattern: string): boolean {
   if (value === undefined) return false;
-  const re = new RegExp(`^${norm(pattern).split('*').map((p) => p.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`);
-  return re.test(norm(value));
+  const re = compile(pattern);
+  const v = norm(value);
+  return typeof re === 'string' ? re === v : re.test(v);
 }
 
 /**

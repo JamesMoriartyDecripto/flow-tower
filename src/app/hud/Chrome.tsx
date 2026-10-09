@@ -23,7 +23,13 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === '/' && document.activeElement !== input.current) { e.preventDefault(); input.current?.focus(); }
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || document.activeElement === input.current) return;
+      // Dialogs on top (settings, shortcuts, file viewer, library) keep their keys.
+      const prefs = usePrefs.getState();
+      const s = useStore.getState();
+      if (prefs.open || prefs.help || s.file || s.library) return;
+      e.preventDefault();
+      input.current?.focus();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -119,7 +125,9 @@ export function LayerNav() {
           onClick={() => focusLayer(l.index)}
           onMouseEnter={() => hoverLayer(l.index)}
           onMouseLeave={() => hoverLayer(undefined)}
-          title={`Focus this layer (${l.index < 9 ? l.index + 1 : 'click'})${l.description ? ` — ${l.description}` : ''}`}
+          onFocus={() => hoverLayer(l.index)}
+          onBlur={() => hoverLayer(undefined)}
+          title={`${l.title}: focus this layer (${l.index < 9 ? l.index + 1 : 'click'})${l.description ? ` — ${l.description}` : ''}`}
         >
           <span className="idx">L{String(l.index + 1).padStart(2, '0')}</span>
           <span className="name">{l.title}</span>
@@ -200,7 +208,7 @@ export function Legend() {
       {tab === 'edges' && (
         <div className="grid">
           {EDGE_KINDS.map((k) => (
-            <span key={k} className="edge" title={EDGE_STYLE[k].hint}>
+            <span key={k} className="edge" tabIndex={0} title={EDGE_STYLE[k].hint}>
               <span className="swatch" style={{
                 borderTopStyle: EDGE_STYLE[k].dashed ? 'dashed' : 'solid',
                 borderTopWidth: Math.max(1, EDGE_STYLE[k].width),
@@ -209,7 +217,7 @@ export function Legend() {
               {k}
             </span>
           ))}
-          <span className="edge" title="Node status other than active"><span className="swatch" style={{ borderTopStyle: 'dashed', borderTopColor: 'var(--amber)' }} />planned / exp.</span>
+          <span className="edge" tabIndex={0} title="Node status other than active"><span className="swatch" style={{ borderTopStyle: 'dashed', borderTopColor: 'var(--amber)' }} />planned / exp.</span>
         </div>
       )}
       {tab === 'runtimes' && (

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" font-family="sans-serif" font-size="12">
+  <title>Figure 6.1: wind speeds up around the corners of a building</title>
+  <rect width="480" height="300" fill="#fff"/>
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#2a6f97"/></marker></defs>
+  <rect x="190" y="95" width="120" height="110" fill="#d9d9d9" stroke="#555"/>
+  <text x="250" y="154" text-anchor="middle" fill="#333">building</text>
+  <g stroke="#2a6f97" stroke-width="2" fill="none" marker-end="url(#a)">
+    <path d="M20,60 L170,60"/><path d="M20,240 L170,240"/><path d="M20,150 L170,150"/>
+    <path d="M180,80 C220,70 300,70 360,72 L460,72" stroke-width="3"/>
+    <path d="M180,220 C220,230 300,230 360,228 L460,228" stroke-width="3"/>
+    <path d="M330,120 C360,140 380,150 430,150" stroke-dasharray="4 4"/>
+  </g>
+  <rect x="296" y="83" width="26" height="14" fill="#e07a1f"/>
+  <text x="330" y="60" fill="#e07a1f">balcony on the corner: fastest stream</text>
+  <text x="20" y="40" fill="#2a6f97">wind</text>
+  <text x="350" y="175" fill="#555">slower, spread out behind</text>
+</svg>

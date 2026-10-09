@@ -14,7 +14,7 @@
 
 ## Conventions
 
-- English only, everywhere: code, docs, examples, commits.
+- English only, everywhere: code, docs, examples, commits. Exception: customer-facing sample documents for Italian customers (sales-pipeline quote/contract, invoicing-fic dunning letters), declared in their README.
 - Never work on `main`: one branch per feature or issue (`feat/…`, `fix/…`) from an up-to-date `main`. The user merges, or asks Claude to.
 - Stacked PRs: merge bottom-up with merge commits; retarget the next PR to `main` *before* deleting a merged base branch (GitHub closes PRs whose base disappears).
 - Commit and push after every completed piece of work; then check CI (`gh pr checks`): local runs can pass on files git ignores.
@@ -37,7 +37,9 @@
 - CSS `zoom` (interface size) does not rescale `vh`/`vw`: use `var(--vh)` / `var(--vw)` in HUD styles.
 - Some environments block shell commands containing `.env` or `pip install`: use `import { env } from 'node:process'` and file-edit tools.
 - zsh does not word-split unquoted `$var`; use `${=var}`.
+- Tower files read only inside their project (git root or opened folder; `loader.ts` `projectOf`). A dogfood tower can use `root: ../..` because the repo is the project.
+- E2E: Playwright's bundled Chromium does not run on macOS 13, so `playwright.config.ts` uses `channel: 'chrome'`. Tests read state through `window.__flowTower.store` (dev only). Never edit `src/` or `examples/` while `npm run e2e` runs: HMR and library reloads make it flaky. Playwright empties `test-results/` at start: do not redirect output there. A CLI `--reporter` replaces the config reporters, so `examples/release-auditor/reports/e2e.log` is only written by a plain `npm run e2e`; commit it only from a full run.
 
 ## Commands
 
-`npm run dev` · `npm run check` · `npm run simulate -- <project>` · `npm run stress -- <layers> <nodes>` · `node bin/flow-tower.js validate <path> --json`
+`npm run dev` · `npm run check` · `npm run e2e` (Playwright, installed Chrome; reuses a running dev server) · `npm run simulate -- <project>` · `npm run stress -- <layers> <nodes>` · `node bin/flow-tower.js validate <path> --json`

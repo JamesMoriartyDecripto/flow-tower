@@ -30,9 +30,10 @@ npm run simulate -- game-studio    # terminal 2: 3 parallel walkers replay a pla
 | Shell hooks, cron jobs, CI, your own loops | `flow-tower emit` or plain HTTP | see below |
 
 Notes:
+- **Claude Code:** the SessionStart hook is a `command` hook that runs `flow-tower emit`: put the CLI on your `PATH` with `npm link` in your checkout (never `npx flow-tower`: the name is not published on npm, so npx would fetch whatever package claims it). Without it only the session start is missed.
 - **Claude Code:** the endpoint answers `204` with an empty body, because Claude Code reads a JSON response body as a hook decision. If the server is down, the hook simply fails open.
 - **Claude Code subagents:** these are detected from the `Agent` (formerly `Task`) tool and from `SubagentStart`/`SubagentStop`.
-- **Pi:** `pi --mode json "…" | npx flow-tower emit --source pi` also works for one-off runs.
+- **Pi:** `pi --mode json "…" | flow-tower emit --source pi` also works for one-off runs.
 - **Codex:** approve the hooks once with `/hooks`; hooks in a repo's `.codex/` only run in trusted projects. Hosted tools (web search) do not fire hooks. Tool names match across sources (`Bash`, `apply_patch`, `mcp__<server>__<tool>`); failures are inferred from the tool response (non-zero `exit_code`, `isError`), since hooks carry no status and no tokens.
 - **Codex one-off runs:** `codex exec --json "…" | flow-tower emit --source codex` adds token usage per turn (input + output) and `spawn_agent`/`close_agent` subagents. Only the `thread.started` line carries the thread id, so other lines have no session.
 - **Codex `notify`:** the legacy hook passes its JSON as the last argument, not stdin, and only reports turn ends. Use it where hooks are unavailable, not together with them.
@@ -57,11 +58,11 @@ Notes:
 | `status` | `ok` or `error` |
 | `message`, `session`, `call`, `parent`, `model`, `tokens`, `cost_usd`, `duration_ms`, `ts` | Optional details. `call` pairs a start with its end. `ts` is epoch ms. |
 
-From a shell script:
+From a shell script (`flow-tower` is not on npm yet: run `npm link` in your checkout, or call `node <flow-tower>/bin/flow-tower.js`):
 
 ```bash
-npx flow-tower emit --kind agent.start --agent nightly-report -m "building report"
-npx flow-tower emit --kind error --node build.package -m "exit 1"
+flow-tower emit --kind agent.start --agent nightly-report -m "building report"
+flow-tower emit --kind error --node build.package -m "exit 1"
 ```
 
 `emit` always exits 0 and gives up after 1.5 s, so it never breaks the thing it observes.

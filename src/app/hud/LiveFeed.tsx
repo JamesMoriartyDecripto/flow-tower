@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import type { FlowEvent } from '../../core/events';
+import { splitTarget, type FlowEvent } from '../../core/events';
 import { towerPath } from '../graph';
 import { useLive } from '../live';
 import { findNode, useStore, useTower } from '../store';
@@ -21,7 +21,12 @@ const tone = (e: FlowEvent) => (isError(e) ? 'error' : isStart(e) ? 'run' : e.ki
 
 /** Live feed: color-coded events, filters, pause, spotlight/follow toggles, jump to any tower. */
 export function LiveFeed() {
-  const { events, feedOpen, spotlight, follow, paused, toggleFeed, setOption, clear } = useLive();
+  // Closed: subscribe to nothing else, so incoming events cost no render and no filtering.
+  return useLive((s) => s.feedOpen) ? <FeedPanel /> : null;
+}
+
+function FeedPanel() {
+  const { events, spotlight, follow, paused, toggleFeed, setOption, clear } = useLive();
   const tower = useTower();
   const ws = useStore((s) => s.workspace);
   const inspecting = useStore((s) => !!s.selected);
@@ -39,7 +44,7 @@ export function LiveFeed() {
   const where = useCallback((e: FlowEvent) => {
     const t = (tower && e.targets.find((x) => x.startsWith(`${tower.id}#`))) ?? e.targets[0];
     if (!t || !ws) return undefined;
-    const [towerId, key] = t.split('#');
+    const [towerId, key] = splitTarget(t);
     return { towerId, key, node: findNode(ws.towers[towerId], key), here: towerId === tower?.id, towerName: ws.towers[towerId]?.name };
   }, [tower, ws]);
   const jump = useCallback((e: FlowEvent) => {
@@ -54,8 +59,6 @@ export function LiveFeed() {
     const path = towerPath(ws, w.towerId);
     if (path) s.openPath(path, w.key);
   }, [where, tower, ws]);
-
-  if (!feedOpen) return null;
 
   return (
     <aside className={`panel livefeed ${inspecting ? 'shifted' : ''}`}>
@@ -107,7 +110,7 @@ const FeedRow = memo(function FeedRow({ e, label, away, mapped, onJump }: {
         {away && <em> ↗ {away}</em>}
         {!mapped && <em> unmapped</em>}
       </span>
-      {e.message && <span className="msg">{e.message}</span>}
+      {e.message && <span className="msg" title={e.message}>{e.message}</span>}
     </button>
   );
 }, (a, b) => a.e === b.e && a.label === b.label && a.away === b.away && a.mapped === b.mapped && a.onJump === b.onJump);

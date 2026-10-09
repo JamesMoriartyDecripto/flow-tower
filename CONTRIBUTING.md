@@ -8,6 +8,7 @@ Thanks for helping build Flow Tower.
 npm install
 npm run dev        # library of every example, with live reload
 npm run check      # typecheck + tests
+npm run e2e        # Playwright sweep of every example tower (uses your installed Google Chrome)
 ```
 
 ## Guidelines

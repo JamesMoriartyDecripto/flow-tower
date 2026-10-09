@@ -87,6 +87,8 @@ export const Layer = memo(function Layer({ tower, layer, layout, width, depth, l
   });
 
   const grid = useMemo(() => gridGeometry(width, depth, 1), [width, depth]);
+  // Passed as a prop, so React three fiber does not own it: dispose it on resize and unmount.
+  useEffect(() => () => grid.dispose(), [grid]);
   const outline = useMemo(() => {
     const [x, z] = [width / 2, depth / 2];
     return [[-x, 0, -z], [x, 0, -z], [x, 0, z], [-x, 0, z], [-x, 0, -z]] as [number, number, number][];

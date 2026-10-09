@@ -10,7 +10,7 @@ guard holds *Submit* until a second model has verified every field on a fresh sc
 It is meant to be read, not run: the portal and the AWS account are fictional.
 
 ```bash
-npx flow-tower examples/browser-worker/browser-worker.tower.yaml
+node bin/flow-tower.js examples/browser-worker/browser-worker.tower.yaml
 ```
 
 ## Layers

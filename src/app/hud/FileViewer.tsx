@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { codeToHtml } from 'shiki';
 import { fetchFile } from '../api';
 import { useStore } from '../store';
+import { useDialogFocus } from './dialog';
 
 const LANGS: Record<string, string> = {
   ts: 'typescript', tsx: 'tsx', js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'jsx',
@@ -35,18 +36,13 @@ export function FileViewer() {
   }, [file, path]);
 
   // Keyboard: the viewer takes the focus when it opens and gives it back when it closes.
-  const open = !!file;
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.activeElement as HTMLElement | null;
-    setTimeout(() => document.querySelector<HTMLElement>('.viewer .files button.on')?.focus(), 0);
-    return () => prev?.focus();
-  }, [open]);
+  const panel = useRef<HTMLDivElement>(null);
+  useDialogFocus(panel, !!file, '.files button.on');
 
   if (!file || !path) return null;
   return (
     <div className="overlay" onClick={() => openFile(undefined)}>
-      <div className="panel viewer" onClick={(e) => e.stopPropagation()}>
+      <div className="panel viewer" ref={panel} role="dialog" aria-modal="true" aria-label={`File ${path}`} tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <button className="close" title="Close the file viewer (Esc)" style={{ position: 'absolute', top: 10, right: 20, fontSize: 18, zIndex: 1 }} onClick={() => openFile(undefined)}>✕</button>
         <nav className="files">
           {file.files.map((f, i) => (

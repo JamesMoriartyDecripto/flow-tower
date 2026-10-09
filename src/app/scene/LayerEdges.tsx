@@ -1,9 +1,9 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
-import { Line } from '@react-three/drei';
 import { Quaternion, Vector3, type InstancedMesh } from 'three';
 import { EDGE_KINDS } from '../../core/schema';
 import type { EdgePath } from '../layout';
 import { COLORS, EDGE_STYLE, FONTS, HOT } from '../theme';
+import { BatchLine } from './BatchLine';
 import { commit, CONE, scaled, setInstance, toSegments } from './batch';
 import { TextBatch, type TextItem } from './TextBatch';
 
@@ -53,11 +53,10 @@ export function LayerEdges({ views, layerFade, detail, labels: showLabels }: { v
   return (
     <group>
       {byKind.map(({ kind, style, points, colors }) => (
-        <Line
+        <BatchLine
           key={kind}
           points={points}
           vertexColors={colors}
-          segments
           lineWidth={style.width}
           dashed={style.dashed}
           dashSize={0.32}
@@ -68,7 +67,7 @@ export function LayerEdges({ views, layerFade, detail, labels: showLabels }: { v
         />
       ))}
       {hot.points.length > 0 && (
-        <Line points={hot.points} vertexColors={hot.colors} segments lineWidth={3.2} transparent opacity={0.55 * layerFade} toneMapped={false} />
+        <BatchLine points={hot.points} vertexColors={hot.colors} lineWidth={3.2} transparent opacity={0.55 * layerFade} toneMapped={false} />
       )}
       {lines.length > 0 && (
         <instancedMesh key={lines.length} ref={arrows} args={[CONE, undefined, lines.length]} raycast={() => null}>

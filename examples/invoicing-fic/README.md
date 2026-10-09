@@ -6,7 +6,7 @@ step. Sample company: **Brezza Sensori S.r.l.** (fictional), Bologna: IoT sensor
 services and a monitoring SaaS. All clients, VAT numbers, IBANs and people are placeholders.
 
 ```bash
-npx flow-tower examples/invoicing-fic
+node bin/flow-tower.js examples/invoicing-fic
 ```
 
 The `sales-pipeline` preset ends where this one starts: its closed-won deal is the

@@ -14,7 +14,7 @@ Three frameworks talk to each other over one protocol. The user confirms every o
 payment is not automated in the codelab and appears as a **planned** node.
 
 ```bash
-npx flow-tower examples/a2a-concierge/a2a-concierge.tower.yaml
+node bin/flow-tower.js examples/a2a-concierge/a2a-concierge.tower.yaml
 ```
 
 Double-click a seller node to open its sub-tower (`towers/burger-seller.tower.yaml`,

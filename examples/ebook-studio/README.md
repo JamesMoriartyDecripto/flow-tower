@@ -5,7 +5,7 @@ A small press's pipeline from book proposal to a launched, accessible ebook sold
 How it differs from `course-studio`: this is **book publishing** (EPUB/print, ISBN, store metadata, KDP/Apple/Kobo/Google/D2D, AI disclosure, pre-orders, ARC readers). It does not cover lessons, quizzes or an LMS.
 
 ```bash
-npx flow-tower examples/ebook-studio
+node bin/flow-tower.js examples/ebook-studio
 ```
 
 ## Layers

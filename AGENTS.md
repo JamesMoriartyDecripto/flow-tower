@@ -25,6 +25,6 @@ node bin/flow-tower.js install-skill --target <claude|codex|pi|hermes|cursor|age
 Conventions and gotchas: [CLAUDE.md](CLAUDE.md). Code map: [docs/architecture.md](docs/architecture.md). Handoff: [NEXT.md](NEXT.md). GitHub issues are the source of truth.
 
 - English only. Never work on `main`: one branch per feature (`feat/…`, `fix/…`).
-- `npm run check` (typecheck + tests) must pass; every tower in `examples/` loads with 0 errors and 0 warnings.
+- `npm run check` (typecheck + tests) must pass; every tower in `examples/` loads with 0 errors and 0 warnings. UI changes: `npm run e2e`.
 - Schema change: `npm run schema`, then docs/schema.md and the skill reference. Update `CHANGELOG.md` under `[Unreleased]`.
 - Files under ~400 lines; plain functions over classes; comments explain *why*.
