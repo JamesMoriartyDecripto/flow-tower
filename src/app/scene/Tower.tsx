@@ -8,6 +8,7 @@ import { useStore, useTower } from '../store';
 import { LAYER_GAP, PLATE_PAD } from '../theme';
 import { Ambient, Base, Scanner } from './Environment';
 import { Layer, type Visual } from './Layer';
+import { createLens, stepLens } from './lens';
 import { Links } from './Links';
 
 /** Root of the 3D scene: stacks the layers, animates spacing, drives the camera. */
@@ -19,10 +20,11 @@ export function TowerScene() {
 }
 
 function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTower>>; layout: TowerLayout }) {
-  const { explode, focusedLayer, selected, hovered, search, hiddenTypes, runtimeFocus, autoRotate, viewNonce } = useStore();
+  const { explode, focusedLayer, hoveredLayer, selected, hovered, search, hiddenTypes, runtimeFocus, autoRotate, viewNonce } = useStore();
   const spacing = useRef(0.02); // starts collapsed: the tower "assembles" on mount
+  const lens = useMemo(() => createLens(tower.layers.length), [tower]);
   const group = useRef<Group>(null);
-  const links = useRef<Group>(null);
+  const pillars = useRef<Group>(null);
   const controls = useRef<CameraControls>(null);
 
   const n = tower.layers.length;
@@ -34,7 +36,9 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
   useFrame((_, dt) => {
     spacing.current += (explode - spacing.current) * (1 - Math.exp(-dt * 3.2));
     if (group.current) group.current.position.y = ((n - 1) * LAYER_GAP * spacing.current) / 2;
-    if (links.current) links.current.scale.y = Math.max(spacing.current, 1e-3);
+    if (pillars.current) pillars.current.scale.y = Math.max(spacing.current, 1e-3);
+    // The lens only applies in overview: in focus mode the camera already isolates one layer.
+    stepLens(lens, spacing.current, focusedLayer === undefined ? hoveredLayer : undefined, dt);
     if (autoRotate && focusedLayer === undefined) controls.current?.rotate(dt * 0.12, 0, false);
   });
 
@@ -80,10 +84,11 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
     },
     edgeHighlight: (id) => rel?.edges.has(id),
   }), [selected, hovered, hiddenTypes, types, runtimeFocus, runtimeOf, hits, rel]);
-  const layerFade = useCallback(
-    (i: number) => (focusedLayer === undefined || i === focusedLayer ? 1 : i < focusedLayer ? 0.04 : 0.16),
-    [focusedLayer],
-  );
+  const layerFade = useCallback((i: number) => {
+    if (focusedLayer !== undefined) return i === focusedLayer ? 1 : i < focusedLayer ? 0.04 : 0.16;
+    if (hoveredLayer === undefined) return 1;
+    return [1, 0.72, 0.4][Math.min(Math.abs(i - hoveredLayer), 2)];
+  }, [focusedLayer, hoveredLayer]);
 
   return (
     <>
@@ -97,14 +102,14 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
             layout={layout.layers[i]}
             width={width}
             depth={depth}
-            spacing={spacing}
+            lens={lens}
             fade={layerFade(i)}
             interactive={focusedLayer === undefined || i === focusedLayer}
             visual={visual}
           />
         ))}
-        <group ref={links}>
-          <Links links={tower.links} layout={layout} layerIndex={layerIndex} visual={visual} layerFade={layerFade} />
+        <Links links={tower.links} layout={layout} layerIndex={layerIndex} visual={visual} layerFade={layerFade} lens={lens} />
+        <group ref={pillars}>
           <Pillars width={width} depth={depth} bottom={-(n - 1) * LAYER_GAP} />
         </group>
       </group>

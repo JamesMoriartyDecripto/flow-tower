@@ -187,3 +187,5 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .reslist .ext { font: 600 9px var(--display); color: var(--bg); background: var(--amber); padding: 3px 5px; min-width: 64px; text-align: center; }
 .status-planned, .status-experimental { color: var(--amber); border-style: dashed !important; }
 .status-deprecated { color: var(--dim); text-decoration: line-through; }
+.layernav button.hot { background: rgba(255, 138, 31, 0.16); border-left-color: var(--amber); }
+.layernav button.hot .name { color: var(--amber); }

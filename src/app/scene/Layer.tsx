@@ -1,11 +1,12 @@
-import { useMemo, useRef, useState, type RefObject } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Billboard, Line, Text } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { BufferGeometry, Float32BufferAttribute, Vector3, type Group, type PerspectiveCamera } from 'three';
 import type { ResolvedLayer } from '../../core/types';
 import type { LayerLayout } from '../layout';
 import { useStore } from '../store';
-import { COLORS, EDGE_STYLE, FONTS, GLOW, LAYER_GAP } from '../theme';
+import { COLORS, EDGE_STYLE, FONTS, GLOW } from '../theme';
+import type { LensState } from './lens';
 import { LayerEdges, type EdgeView } from './LayerEdges';
 import { LayerNodes, type NodeView } from './LayerNodes';
 import { Particles, type ParticlePath } from './Particles';
@@ -22,24 +23,32 @@ interface Props {
   layout: LayerLayout;
   width: number;
   depth: number;
-  spacing: RefObject<number>;
+  lens: LensState;
   fade: number;
   interactive: boolean;
   visual: Visual;
 }
 
-/** A glass plate holding one left-to-right flowchart. Its height follows the animated tower spacing. */
-export function Layer({ layer, layout, width, depth, spacing, fade, interactive, visual }: Props) {
+/** A glass plate holding one left-to-right flowchart. Height and scale follow the animated lens. */
+export function Layer({ layer, layout, width, depth, lens, fade, interactive, visual }: Props) {
   const ref = useRef<Group>(null);
   const particles = useStore((s) => s.particles);
   const focusLayer = useStore((s) => s.focusLayer);
+  const hoverLayer = useStore((s) => s.hoverLayer);
+
+  // Plates are see-through: a node visible behind a plate wins, and only the nearest plate reacts.
+  const ownsEvent = (e: ThreeEvent<PointerEvent | MouseEvent>) => {
+    if (!interactive || e.intersections.some((h) => h.object.userData.nodes)) return false;
+    return e.intersections.find((h) => h.object.userData.plate !== undefined)?.object.userData.plate === layer.index;
+  };
 
   // Text LOD: node labels are only drawn when they would be readable (≈ 4.5px+ tall).
   const [detail, setDetail] = useState(true);
   const center = useMemo(() => new Vector3(), []);
   useFrame(({ camera, size }) => {
     if (!ref.current) return;
-    ref.current.position.y = -layer.index * LAYER_GAP * spacing.current;
+    ref.current.position.y = lens.y[layer.index];
+    ref.current.scale.setScalar(lens.s[layer.index]);
     ref.current.getWorldPosition(center);
     const fov = ((camera as PerspectiveCamera).fov ?? 42) * (Math.PI / 180);
     const px = (0.4 * size.height) / (2 * Math.tan(fov / 2) * camera.position.distanceTo(center));
@@ -71,7 +80,19 @@ export function Layer({ layer, layout, width, depth, spacing, fade, interactive,
 
   return (
     <group ref={ref} visible={fade > 0.05}>
-      <mesh position-y={-0.04} renderOrder={-1}>
+      <mesh
+        position-y={-0.04}
+        renderOrder={-1}
+        userData={{ plate: layer.index }}
+        onPointerMove={(e) => ownsEvent(e) && hoverLayer(layer.index)}
+        onPointerOut={() => hoverLayer(undefined)}
+        onClick={(e) => {
+          if (!ownsEvent(e)) return;
+          e.stopPropagation();
+          useStore.getState().select(undefined);
+          focusLayer(layer.index);
+        }}
+      >
         <boxGeometry args={[width, 0.06, depth]} />
         <meshBasicMaterial color={COLORS.plate} transparent opacity={0.42 * fade} depthWrite={false} />
       </mesh>
@@ -100,7 +121,7 @@ export function Layer({ layer, layout, width, depth, spacing, fade, interactive,
       </Billboard>
 
       <LayerEdges views={edgeViews} layerFade={fade} detail={detail && fade > 0.5} />
-      <LayerNodes views={nodeViews} layerFade={fade} interactive={interactive} detail={detail && fade > 0.5} />
+      <LayerNodes views={nodeViews} layer={layer.index} layerFade={fade} interactive={interactive} detail={detail && fade > 0.5} />
       {particles && fade > 0.5 && <Particles paths={paths} />}
     </group>
   );
