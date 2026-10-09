@@ -70,7 +70,7 @@ export function Layer({ layer, layout, width, depth, spacing, fade, interactive,
   })), [layout, nodeFade, edgeHighlight]);
 
   return (
-    <group ref={ref}>
+    <group ref={ref} visible={fade > 0.05}>
       <mesh position-y={-0.04} renderOrder={-1}>
         <boxGeometry args={[width, 0.06, depth]} />
         <meshBasicMaterial color={COLORS.plate} transparent opacity={0.42 * fade} depthWrite={false} />
@@ -99,8 +99,8 @@ export function Layer({ layer, layout, width, depth, spacing, fade, interactive,
         </group>
       </Billboard>
 
-      <LayerEdges views={edgeViews} layerFade={fade} detail={detail} />
-      <LayerNodes views={nodeViews} layerFade={fade} interactive={interactive} detail={detail} />
+      <LayerEdges views={edgeViews} layerFade={fade} detail={detail && fade > 0.5} />
+      <LayerNodes views={nodeViews} layerFade={fade} interactive={interactive} detail={detail && fade > 0.5} />
       {particles && fade > 0.5 && <Particles paths={paths} />}
     </group>
   );
