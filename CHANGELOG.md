@@ -10,6 +10,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Commit history rewritten to the GitHub noreply address before going public.
 
 ### Added
+- Export (#15): **P** (or the PNG button) downloads the 3D view as a PNG, post-processing included, with a caption naming the tower and layer; **X** (or SVG) downloads the focused layer, or every layer stacked, as a plain, editable SVG diagram in the active theme's colors (nodes with type, model and runtime tags; edges with kinds, arrows and labels). Works in the online demo too.
 - Update notice (#35): once a day the local server asks GitHub for the latest release (cached 24 h, 1.5 s timeout, silent on failure). A newer version prints the update command in the terminal and shows a `↑ vX.Y.Z` link to the release notes in the top bar (`/api/version`). Off with `--no-update-check`, `FLOW_TOWER_NO_UPDATE_CHECK=1`, in CI, in the E2E suite and in the static demo; documented in the README (*Privacy and updates*).
 - Live demo on GitHub Pages (https://jamesmoriartydecripto.github.io/flow-tower/): `npm run build:demo` freezes the example library and every referenced file into a static site (same sandbox rules as `/api/file`, no local paths), and an in-browser simulator plays live events on the tower on screen (DEMO chip to pause). Deployed by `.github/workflows/pages.yml` with pinned actions.
 - Pull request template.

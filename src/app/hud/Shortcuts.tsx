@@ -22,6 +22,8 @@ const GROUPS: [string, [string, string][]][] = [
     ['+  −', 'Zoom in / out'],
     ['M', 'Tower ⇄ Map view (kept for sub-towers)'],
     ['O', 'Auto-orbit on / off'],
+    ['P', 'Download the 3D view as PNG'],
+    ['X', 'Download the focused layer (or all layers) as SVG'],
   ]],
   ['Panels', [
     ['/', 'Search nodes, models, tools'],
