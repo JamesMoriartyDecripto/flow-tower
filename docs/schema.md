@@ -18,7 +18,7 @@ Unknown keys are **errors**, so typos never fail silently.
 | `name` | string | **Required.** Shown in the breadcrumb. |
 | `description` | string | |
 | `tags` | list of strings | Filter chips in the library view. |
-| `root` | path | Base directory for every relative path. Defaults to the tower file's directory. |
+| `root` | path | Base directory for every relative path. Defaults to the tower file's directory. Every referenced file (and `root` itself) must stay inside the project: the git repository that contains the tower, or the folder you opened. Paths outside are refused with an error, so a tower from a cloned repository cannot read your other files. |
 | `runtimes` | map id → [Runtime](#runtime) | Where things execute: laptop, servers, SaaS, CI... |
 | `prompts` | map id → [Prompt](#prompt) | Reusable system prompts. |
 | `agents` | map id → [Agent](#agent) | Reusable agent definitions. |

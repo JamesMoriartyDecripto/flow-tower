@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import { usePrefs } from '../settings';
+import { useDialogFocus } from './dialog';
 
 const GROUPS: [string, [string, string][]][] = [
   ['Navigate', [
@@ -37,11 +39,14 @@ const GROUPS: [string, [string, string][]][] = [
 /** Keyboard reference (press ?). */
 export function Shortcuts() {
   const help = usePrefs((s) => s.help);
+  const panel = useRef<HTMLDivElement>(null);
+  // Focus on the panel itself: ↑ ↓ PageDown scroll it on short screens.
+  useDialogFocus(panel, help);
   if (!help) return null;
   const close = () => usePrefs.getState().set({ help: false });
   return (
     <div className="overlay" onClick={close}>
-      <div className="panel shortcuts" role="dialog" aria-label="Keyboard shortcuts" onClick={(e) => e.stopPropagation()}>
+      <div className="panel shortcuts" ref={panel} role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <header>
           <div className="title">Keyboard</div>
           <button className="close" onClick={close} title="Close (Esc or ?)">✕</button>

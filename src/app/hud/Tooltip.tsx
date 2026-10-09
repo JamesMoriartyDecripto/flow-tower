@@ -13,13 +13,18 @@ export function Tooltip() {
   const anchor = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    const show = (e: MouseEvent) => {
+    const show = (e: Event) => {
       const el = (e.target as Element | null)?.closest?.('[title],[data-tip]') as HTMLElement | null;
       if (!el || el.matches(':disabled')) return;
+      // Keyboard users get the tip too, but only for keyboard focus (not after a click).
+      if (e.type === 'focusin' && !el.matches(':focus-visible')) return;
       const title = el.getAttribute('title');
       if (title) {
         el.dataset.tip = title;
         el.removeAttribute('title');
+        // The title was also the accessible name or description: keep it for screen readers.
+        if (!el.getAttribute('aria-label') && !el.textContent?.trim()) el.setAttribute('aria-label', title);
+        else if (!el.getAttribute('aria-description')) el.setAttribute('aria-description', title);
       }
       const text = el.dataset.tip;
       if (!text) return;
@@ -45,9 +50,10 @@ export function Tooltip() {
     // Panels can close under the pointer (Esc, re-render): then no mouseout ever arrives.
     const watchdog = window.setInterval(() => {
       const el = anchor.current;
-      if (el && (!el.isConnected || !el.matches(':hover'))) reset();
+      if (el && (!el.isConnected || (!el.matches(':hover') && el !== document.activeElement))) reset();
     }, 250);
     document.addEventListener('mouseover', show);
+    document.addEventListener('focusin', show);
     document.addEventListener('mouseout', hide);
     document.addEventListener('mousedown', reset);
     window.addEventListener('blur', reset);
@@ -56,6 +62,7 @@ export function Tooltip() {
       clearInterval(watchdog);
       window.removeEventListener('keydown', reset);
       document.removeEventListener('mouseover', show);
+      document.removeEventListener('focusin', show);
       document.removeEventListener('mouseout', hide);
       document.removeEventListener('mousedown', reset);
       window.removeEventListener('blur', reset);

@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Release Auditor preset (`examples/release-auditor`): the pre-release bug sweep of this repository as a tower, with charters, threat model, severity and false-positive rules, finder and verifier prompts, `gates.sh` (tsc, vitest, examples, semgrep, npm audit, gitleaks over the whole history) reporting live to the tower, and an E2E Sweep sub-tower. The v0.1.0 audit report is in `reports/v0.1.0.md`.
+- Playwright E2E suite (`npm run e2e`, `e2e/`): one test per example tower driven from the keyboard (layers, node panel, connections, map view, every sub-tower in and out), referenced files served, path traversal refused, live feed, malformed and oversized event bodies, panels at seven screen and interface sizes, axe (WCAG 2 A/AA) on library, HUD and Settings. Fails on any console or page error.
+- Every YAML and JSON file under `examples/` must parse (`tests/examples.test.ts`).
 - Sales Pipeline (prospect → closed deal → invoice) and Invoicing with Fatture in Cloud (SDI e-invoicing, collections, passive cycle) presets, researched online with sources.
 - README demo GIF (and full MP4) plus new screenshots: tower, map, node panel, library.
 - Social Media Studio preset (per-platform API quotas, approval gates, comment/DM triage, publisher sub-tower).
@@ -58,12 +61,45 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `examples/course-studio`: course creation studio (12 layers, 109 nodes, 5 nested towers) with researched references.
 - Search results ranked by relevance (label > id > model/tools/runtime > description).
 
+### Security
+- Tower files can only read inside their project (the git repository that contains them, or the opened folder): prompt `file:`, agent `from:`, nested `tower:`, `files`, resources and symlinks pointing outside are refused with an error, and `root:` cannot leave the project. Before, a tower from a cloned repository could pull any local file (e.g. `~/.ssh`) into the workspace and the node panel, and `root: /` widened the `/api/file` sandbox to the whole disk.
+- The Claude Code SessionStart hook runs `flow-tower emit` instead of `npx flow-tower emit`: the package name is not published, so npx would have fetched whatever package claims it. Docs and example READMEs no longer suggest `npx flow-tower`.
+- `POST /api/events` refuses batches over 1000 events (413): each event is matched against every node, and a huge batch stalled the dev server.
+
 ### Changed
+- Library cards are plain containers with one primary button (the title), so the Tower / Map buttons are no longer nested inside a button; descriptions are focusable and scroll with ↑ ↓.
+- Dialogs (Settings, Shortcuts, file viewer) are modal for the keyboard: focus moves in on open, Tab stays inside, and focus returns to where it was on close. Shortcuts scrolls with ↑ ↓ PageDown on short screens.
+- Tooltips also appear on keyboard focus; the stripped `title` stays available to screen readers. Settings sliders and switches are named after their row. Layers panel entries preview their layer on focus as on hover. Live feed messages show their full text on hover.
+- File viewer: ← → switch files and ↑ ↓ PageUp PageDown Home End scroll the code from anywhere in the viewer.
+- `prefers-reduced-motion` turns off HUD animations; the smallest labels never render below ~7 px at the 0.7× interface floor.
 - README trimmed: examples summarized with a link to the full index; NEXT.md and CONTRIBUTING.md refreshed.
 - Glow only where it matters: static structure stays below the bloom threshold; selection, hover, focused layer and live activity glow. Cheaper bloom.
 - Focused layer gets a near-opaque plate and the other layers dim further, so the focused flow reads cleanly.
 
 ### Fixed
+- Found by the release audit (each with a regression test in `tests/` or `e2e/`):
+  - Two towers that reference each other no longer vanish from the library (the app showed "no tower files found").
+  - A number in agent frontmatter (`name: 2025`) no longer breaks every live event POST and the search.
+  - Backspace out of a sub-tower shared by several nodes lands on the node you entered from, not the first one.
+  - The runtime spotlight of a sub-tower no longer dims the whole parent tower after going back up.
+  - A live reload that removes the selected node or the focused layer clears the selection instead of dimming everything.
+  - Clicking the current tower in the breadcrumb keeps the selection.
+  - Arrows still move when the selected node's type is hidden in the legend.
+  - Shift+C without a previous jump goes to the last connection, not the second to last.
+  - The B / "Back to …" trail is per tower (node keys repeat across towers).
+  - Esc with the pointer on a connection row no longer leaves its hover highlight stuck.
+  - `/` no longer focuses the top-bar search behind Settings, Shortcuts, the file viewer or the library.
+  - Live events land on towers whose path contains `#`.
+  - Live feed and inspector no longer overlap in half-screen windows; the Issues panel stays above the live feed.
+  - Focus rings of full-width rows (feed, files, connections) are no longer clipped.
+  - Six example data files were invalid YAML (unquoted `[slug]`, `: ` inside plain scalars, flow sequences as keys); two missing figures of the ebook sample were added; Markdown tables and links fixed across the docs.
+- Performance, found by the release audit:
+  - Hovering or selecting a node no longer rebuilds every line batch and relinks the line shader (game-studio, 11 hovers: shader links 48 → 4, buffer uploads 6,488 → ~320).
+  - Live events are matched with compiled patterns (41 ms → 1.4 ms per event on the 1,769-node examples library).
+  - Events that land on no node no longer keep the visible tower rendering for 1.7 s each.
+  - The file watcher no longer adds a listener per path on every reload.
+  - Layer grid geometries are disposed on tower switch and theme change (GPU memory grew with each switch).
+  - The library re-renders only the card whose live state changed.
 - Creating a file that a tower references (and was missing) now reloads the library, so its warning disappears without touching the YAML.
 - Library tag bar shows the 12 most used tags with counts and a toggle for the rest (100+ tags filled the screen).
 - HUD corner brackets no longer scroll with the content of scrolling panels (legend, layers, issues, shortcuts).

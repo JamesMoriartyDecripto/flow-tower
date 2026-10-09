@@ -107,7 +107,7 @@ const FeedRow = memo(function FeedRow({ e, label, away, mapped, onJump }: {
         {away && <em> ↗ {away}</em>}
         {!mapped && <em> unmapped</em>}
       </span>
-      {e.message && <span className="msg">{e.message}</span>}
+      {e.message && <span className="msg" title={e.message}>{e.message}</span>}
     </button>
   );
 }, (a, b) => a.e === b.e && a.label === b.label && a.away === b.away && a.mapped === b.mapped && a.onJump === b.onJump);

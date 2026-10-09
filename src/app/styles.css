@@ -178,10 +178,13 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 16px; }
 .lib-card { position: relative; display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 14px; padding: 16px; text-align: left; cursor: pointer;
   transition: transform .15s, border-color .15s, box-shadow .15s; outline: none; }
-.lib-card:hover, .lib-card:focus-visible { transform: translateY(-3px); border-color: var(--orange); box-shadow: 0 0 18px color-mix(in srgb, var(--orange) 20%, transparent); }
+.lib-card:hover, .lib-card:focus-within { transform: translateY(-3px); border-color: var(--orange); box-shadow: 0 0 18px color-mix(in srgb, var(--orange) 20%, transparent); }
 .lib-card.current { border-color: var(--white); }
 .lib-card h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font: 700 20px var(--ui); letter-spacing: .03em; }
 .lib-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-main { all: unset; display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; cursor: pointer; }
+.lib-main .lib-name { display: block; }
+.lib-main:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
 .lib-current { font-size: 9px; padding: 1px 6px; }
 /* Full description, capped at ~4 lines; longer ones scroll inside the card. */
 .lib-desc { margin: 0 0 10px; font-size: 14px; line-height: 1.4; max-height: calc(14px * 1.4 * 4); overflow-y: auto; padding-right: 4px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; overscroll-behavior: contain; }
@@ -398,3 +401,19 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 }
 .layernav::before, .layernav::after, .legend::before, .legend::after,
 .issues::before, .issues::after, .shortcuts::before, .shortcuts::after { content: none; }
+
+/* Release audit (v0.1.0): layout edge cases, focus visibility, reduced motion */
+/* Issues and the live feed share the right edge: keep the issues list above the feed. */
+.hud:has(.livefeed) .issues { max-height: calc(54 * var(--vh) - 160px); }
+/* Half-screen windows: the shifted feed would cover the Layers panel and the legend; stack it on the right. */
+@media (max-width: 760px) {
+  .livefeed.shifted { right: 14px; }
+  .hud:has(.livefeed) .inspector { bottom: calc(76px + 42 * var(--vh) + 12px); }
+}
+/* Smallest labels: never below ~7px on screen, even at the 0.7× interface floor. */
+.lib-stats dt, .legend-tabs button, .filelist .ext, .lib-current, .chip.sens, .conn .proto { font-size: max(9px, calc(7px / var(--ui-scale, 1))); }
+/* Full-width rows inside scrolling lists: an outer ring would be clipped by the list. */
+.feed-row:focus-visible, .files button:focus-visible, .conn:focus-visible { outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

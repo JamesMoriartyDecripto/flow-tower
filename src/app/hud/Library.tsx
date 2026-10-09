@@ -134,23 +134,20 @@ interface CardProps {
 const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, onOpen }: CardProps) {
   const open = (v?: 'tower' | 'map') => (e: { stopPropagation(): void }) => { e.stopPropagation(); onOpen(id, v); };
   return (
-    <div
-      className={`panel lib-card ${current ? 'current' : ''}`}
-      role="button"
-      tabIndex={0}
-      data-card={id}
-      onClick={() => onOpen(id)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(id); } }}
-      title={`Open ${tower.name} (${view} view)`}
-    >
+    // A plain container (clickable anywhere) with one primary button: a card that is itself a button
+    // cannot contain the Tower / Map buttons (axe nested-interactive).
+    <article className={`panel lib-card ${current ? 'current' : ''}`} data-card={id} onClick={() => onOpen(id)}>
       <MiniTower tower={tower} />
       <div className="lib-body">
         <h3>
-          <span className="lib-name">{tower.name}</span>
+          <button className="lib-main" onClick={open()} title={`Open ${tower.name} (${view} view)`}>
+            <span className="lib-name">{tower.name}</span>
+          </button>
           {live !== 'idle' && <span className={`live-dot ${live}`} title={`Live: ${LIVE_LABEL[live]}`} />}
           {current && <span className="chip lib-current">open</span>}
         </h3>
-        <p className="dim lib-desc">{tower.description ?? id}</p>
+        {/* Focusable so keyboard users can scroll a long description (↑ ↓ while it has the focus). */}
+        <p className="dim lib-desc" tabIndex={0} aria-label={`About ${tower.name}`}>{tower.description ?? id}</p>
         {tower.tags.length > 0 && (
           <div className="lib-cardtags">
             {tower.tags.slice(0, 4).map((t) => <span key={t}>#{t}</span>)}
@@ -183,7 +180,7 @@ const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current,
           </span>
         </footer>
       </div>
-    </div>
+    </article>
   );
 });
 
@@ -252,7 +249,7 @@ export function Library() {
             onKeyDown={(e) => {
               e.stopPropagation();
               // The filter has focus while the library is open: Esc clears it first, then closes.
-              if (e.key === 'ArrowDown') { e.preventDefault(); grid.current?.querySelector<HTMLElement>('[data-card]')?.focus(); }
+              if (e.key === 'ArrowDown') { e.preventDefault(); grid.current?.querySelector<HTMLElement>('[data-card] .lib-main')?.focus(); }
               if (e.key !== 'Escape') return;
               if (filter) setFilter('');
               else if (stack.length) showLibrary(false);
