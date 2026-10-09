@@ -49,10 +49,12 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
       c.setLookAt(dir.x, dir.y, dir.z, 0, 0, 0, true);
     } else {
       const y = layerY(focusedLayer);
-      const r = Math.max(width * 0.82, depth * 1.5);
+      // Fit the focused layer's own flowchart, not the (wider) shared plate.
+      const own = layout.layers[focusedLayer];
+      const r = Math.max((own.width + 4) * 0.82, (own.depth + 4) * 1.5, 10);
       c.setLookAt(0, y + r * 0.92, r * 0.5, 0, y, 0, true);
     }
-  }, [focusedLayer, width, depth, height, viewNonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [focusedLayer, width, depth, height, viewNonce, layout]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { document.body.style.cursor = hovered ? 'pointer' : ''; }, [hovered]);
 
@@ -79,7 +81,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
     edgeHighlight: (id) => rel?.edges.has(id),
   }), [selected, hovered, hiddenTypes, types, runtimeFocus, runtimeOf, hits, rel]);
   const layerFade = useCallback(
-    (i: number) => (focusedLayer === undefined || i === focusedLayer ? 1 : i < focusedLayer ? 0.04 : 0.28),
+    (i: number) => (focusedLayer === undefined || i === focusedLayer ? 1 : i < focusedLayer ? 0.04 : 0.16),
     [focusedLayer],
   );
 
