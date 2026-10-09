@@ -108,7 +108,9 @@ Ready-made configs for Claude Code, the Agent SDK, Pi and Hermes are in [`integr
 
 | Input | Action |
 |---|---|
-| Drag / right-drag / scroll | Rotate / pan / zoom |
+| Drag | Rotate |
+| Right-drag, **Shift + drag**, **Shift + two-finger scroll** (trackpad) | Pan |
+| Scroll, pinch | Zoom |
 | Click node | Inspect it and highlight its upstream and downstream paths |
 | Double-click node, or **Enter** | Enter its sub-tower |
 | **1–9**, **0** | Focus a layer / overview |
