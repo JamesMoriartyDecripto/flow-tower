@@ -66,6 +66,15 @@ export function navigate(tower: ResolvedTower, dir: Dir) {
   else stepLayer(tower, dir === 'down' ? 1 : -1);
 }
 
+/** S / Shift+S: select the next / previous node that opens a sub-tower (Enter then dives in). */
+export function nextSubTower(tower: ResolvedTower, step: number) {
+  const subs = tower.layers.flatMap((l, li) => l.nodes.filter((n) => n.tower).map((n) => ({ key: n.key, li })));
+  if (!subs.length) return;
+  const i = subs.findIndex((x) => x.key === useStore.getState().selected);
+  const next = subs[i < 0 ? (step > 0 ? 0 : subs.length - 1) : (i + step + subs.length) % subs.length];
+  pick(next.li, next.key);
+}
+
 let camera: CameraControls | null = null;
 export const publishCamera = (c: CameraControls | null) => { camera = c; };
 

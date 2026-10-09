@@ -34,6 +34,15 @@ export function FileViewer() {
     return () => { alive = false; };
   }, [file, path]);
 
+  // Keyboard: the viewer takes the focus when it opens and gives it back when it closes.
+  const open = !!file;
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.activeElement as HTMLElement | null;
+    setTimeout(() => document.querySelector<HTMLElement>('.viewer .files button.on')?.focus(), 0);
+    return () => prev?.focus();
+  }, [open]);
+
   if (!file || !path) return null;
   return (
     <div className="overlay" onClick={() => openFile(undefined)}>

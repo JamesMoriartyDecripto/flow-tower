@@ -15,6 +15,8 @@ export interface TextItem {
   letterSpacing?: number;
   /** Lay the text flat on the plate (readable from above). */
   flat?: boolean;
+  /** Hard right edge (world units from the anchor): text never draws past it (e.g. a node's border). */
+  clip?: number;
 }
 
 type TroikaText = Object3D & Record<string, unknown> & { sync(cb?: () => void): void; dispose(): void };
@@ -61,6 +63,10 @@ export function TextBatch({ items, font, outline }: { items: TextItem[]; font: s
         outlineOpacity: it.opacity * 0.9,
       };
       for (const k in props) if (t[k] !== props[k]) t[k] = props[k];
+      // clipRect is an array: compare by value so unchanged items are not touched.
+      const clip = it.clip === undefined ? null : [-1, -2, it.clip, 2];
+      const cur = t.clipRect as number[] | null;
+      if ((cur?.[2] ?? null) !== (clip?.[2] ?? null)) t.clipRect = clip;
       t.position.set(...it.position);
       t.rotation.set(it.flat === false ? 0 : -Math.PI / 2, 0, 0);
     });

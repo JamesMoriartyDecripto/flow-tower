@@ -9,10 +9,12 @@ import { LiveFeed } from './hud/LiveFeed';
 import { LiveChips } from './hud/LiveChips';
 import { Settings } from './hud/Settings';
 import { Shortcuts } from './hud/Shortcuts';
+import { cycleConnection, jumpBack } from './hud/Connections';
+import { focusInspector, panelKey, panelOf } from './hud/focusNav';
 import { Tooltip } from './hud/Tooltip';
 import { chooseView, usePrefs, viewFor } from './settings';
 import { useLive, useLiveSync } from './live';
-import { navigate, nudgeCamera, stepLayer, type Dir } from './keynav';
+import { navigate, nextSubTower, nudgeCamera, stepLayer, type Dir } from './keynav';
 import { Effects } from './scene/Effects';
 import { TowerScene } from './scene/Tower';
 import { FrameDriver } from './scene/frameBudget';
@@ -136,6 +138,18 @@ function useKeyboard() {
         else libraryKey(e);
         return;
       }
+      // Focus inside a HUD panel: arrows walk the panel, Esc returns to the scene.
+      const panel = panelOf(t);
+      if (panel) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          if (s.file) s.openFile(undefined);
+          else t.blur();
+          return;
+        }
+        if (panelKey(panel, e)) { e.preventDefault(); return; }
+        if (e.key === 'PageUp' || e.key === 'PageDown') return; // native scrolling of the panel
+      }
       const dir = ARROWS[e.key];
       if (dir && tower) {
         e.preventDefault();
@@ -154,7 +168,9 @@ function useKeyboard() {
         else if (s.focusedLayer !== undefined) s.resetView();
         else if (s.stack.length > 1) s.goTo(s.stack.length - 2);
       } else if (key === 'Backspace' && s.stack.length > 1) {
-        s.goTo(s.stack.length - 2);
+        s.goTo(e.shiftKey ? 0 : s.stack.length - 2);
+      } else if (key === 's' && tower) {
+        nextSubTower(tower, e.shiftKey ? -1 : 1);
       } else if (key === 'PageUp' || key === 'PageDown') {
         e.preventDefault();
         if (tower) stepLayer(tower, key === 'PageDown' ? 1 : -1);
@@ -177,7 +193,14 @@ function useKeyboard() {
       } else if (key === 'Enter' && tower) {
         const node = findNode(tower, s.selected);
         if (node?.tower) s.enterTower(node.tower);
-        else if (!node) navigate(tower, 'right');
+        else if (node) focusInspector();
+        else navigate(tower, 'right');
+      } else if (key === 'i' && s.selected) {
+        focusInspector();
+      } else if (key === 'c' && tower) {
+        cycleConnection(tower, e.shiftKey ? -1 : 1);
+      } else if (key === 'b' && tower) {
+        jumpBack(tower);
       }
     };
     window.addEventListener('keydown', onKey);

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { ResolvedEdge, ResolvedNode, ResolvedPrompt, ResolvedTower } from '../../core/types';
-import { neighbours } from '../graph';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { ResolvedNode, ResolvedPrompt, ResolvedTower } from '../../core/types';
+import { Connections } from './Connections';
 import { findNode, useStore, useTower } from '../store';
 import { NODE_STYLE } from '../theme';
 import { NodeLiveInfo } from './LiveFeed';
@@ -21,11 +21,19 @@ export function Inspector() {
   const node = findNode(tower, selected);
   const [tab, setTab] = useState<Tab>('overview');
   useEffect(() => setTab('overview'), [selected]);
+  // Switching tabs from the keyboard keeps the focus on the (re-rendered) tab bar.
+  const refocus = useRef(false);
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    document.querySelector<HTMLElement>('.inspector .tabs button.on')?.focus();
+  }, [tab]);
   // [ and ] (App keyboard) cycle through the tabs that have content.
   useEffect(() => {
     const onTab = (e: Event) => {
       if (!node) return;
       const open: Tab[] = ['overview', ...(node.prompt ? ['prompt' as const] : []), ...(node.tools.length ? ['tools' as const] : []), ...(node.files.length + node.resources.length ? ['files' as const] : [])];
+      refocus.current = !!document.activeElement?.closest('.inspector .tabs');
       setTab((cur) => open[(open.indexOf(cur) + (e as CustomEvent<number>).detail + open.length) % open.length]);
     };
     window.addEventListener('flow-tower:tab', onTab);
@@ -78,7 +86,8 @@ export function Inspector() {
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return <div className="section"><span className="title">{title}</span>{children}</div>;
+  // tabIndex -1: not a Tab stop, but arrow keys stop here so information scrolls into view.
+  return <div className="section" tabIndex={-1}><span className="title">{title}</span>{children}</div>;
 }
 
 function Table({ data }: { data: Record<string, unknown> }) {
@@ -97,7 +106,6 @@ function Table({ data }: { data: Record<string, unknown> }) {
 }
 
 function Overview({ node, tower }: { node: ResolvedNode; tower: ResolvedTower }) {
-  const { incoming, outgoing } = useMemo(() => neighbours(tower, node.key), [tower, node.key]);
   const agent = node.agent;
   return (
     <>
@@ -113,6 +121,7 @@ function Overview({ node, tower }: { node: ResolvedNode; tower: ResolvedTower })
           'sub-tower': node.tower,
         }} />
       </Section>
+      <Connections node={node} tower={tower} />
       {node.runtime && (
         <Section title={`Runtime · ${node.runtime.kind}`}>
           <Table data={{
@@ -124,29 +133,7 @@ function Overview({ node, tower }: { node: ResolvedNode; tower: ResolvedTower })
       )}
       {agent && Object.keys(agent.harness).length > 0 && <Section title="Harness"><Table data={agent.harness} /></Section>}
       {Object.keys({ ...agent?.meta, ...node.meta }).length > 0 && <Section title="Meta"><Table data={{ ...agent?.meta, ...node.meta }} /></Section>}
-      <Section title={`Incoming · ${incoming.length}`}>
-        {incoming.map((e) => <Conn key={e.id} edge={e} other={e.from} tower={tower} arrow="←" />)}
-      </Section>
-      <Section title={`Outgoing · ${outgoing.length}`}>
-        {outgoing.map((e) => <Conn key={e.id} edge={e} other={e.to} tower={tower} arrow="→" />)}
-      </Section>
     </>
-  );
-}
-
-function Conn({ edge, other, tower, arrow }: { edge: ResolvedEdge; other: string; tower: ResolvedTower; arrow: string }) {
-  const target = findNode(tower, other);
-  const go = () => {
-    const s = useStore.getState();
-    s.select(other);
-    if (s.focusedLayer !== undefined && target) s.focusLayer(tower.layers.findIndex((l) => l.id === target.layer));
-  };
-  return (
-    <button className="conn" onClick={go} title={`Select ${target?.label ?? other}`}>
-      <span className="k">{edge.kind.toUpperCase()}</span>
-      <span>{arrow} {target?.label ?? other}</span>
-      {edge.label && <span className="dim mono">· {edge.label}</span>}
-    </button>
   );
 }
 
