@@ -9,7 +9,7 @@ import { LiveFeed } from './hud/LiveFeed';
 import { LiveChips } from './hud/LiveChips';
 import { Settings } from './hud/Settings';
 import { Tooltip } from './hud/Tooltip';
-import { usePrefs, viewFor } from './settings';
+import { chooseView, usePrefs, viewFor } from './settings';
 import { useLive, useLiveSync } from './live';
 import { Effects } from './scene/Effects';
 import { TowerScene } from './scene/Tower';
@@ -120,8 +120,7 @@ function useKeyboard() {
       } else if (e.key === 'Backspace' && s.stack.length > 1) {
         s.goTo(s.stack.length - 2);
       } else if (e.key === 'm' || e.key === 'M') {
-        s.set({ view: s.view === 'map' ? 'tower' : 'map' });
-        s.resetView();
+        chooseView(s.view === 'map' ? 'tower' : 'map');
       } else if (e.key === '0') {
         s.resetView();
       } else if (/^[1-9]$/.test(e.key) && tower && Number(e.key) <= tower.layers.length) {

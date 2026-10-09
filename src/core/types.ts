@@ -85,6 +85,8 @@ export interface ResolvedTower {
   name: string;
   description?: string;
   tags: string[];
+  /** Last modification of the tower file (ISO), for sorting the library. */
+  updatedAt?: string;
   runtimes: Record<string, ResolvedRuntime>;
   layers: ResolvedLayer[];
   links: ResolvedEdge[];

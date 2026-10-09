@@ -79,6 +79,16 @@ export const usePrefs = create<Prefs>()((set, get) => ({
   },
 }));
 
+/**
+ * The user's explicit choice of view. It becomes the default, so nested towers and other projects
+ * open the same way (Map stays Map inside sub-towers, Tower stays Tower). Saved with the preferences.
+ */
+export function chooseView(view: 'tower' | 'map') {
+  usePrefs.getState().set({ defaultView: view });
+  useStore.getState().set({ view });
+  useStore.getState().resetView();
+}
+
 /** Picks the view for a tower: explicit preference, or map for complex towers (more than 10 layers). */
 export const viewFor = (pref: DefaultView, layers: number) => (pref === 'auto' ? (layers > 10 ? 'map' : 'tower') : pref);
 

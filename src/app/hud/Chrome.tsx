@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { EDGE_KINDS, NODE_TYPES } from '../../core/schema';
 import { search as rank } from '../graph';
 import { useLive } from '../live';
-import { usePrefs } from '../settings';
+import { chooseView, usePrefs } from '../settings';
 import { useCurrentTowerLive } from '../liveHooks';
 import { useStore, useTower } from '../store';
-import { EDGE_STYLE, NODE_STYLE } from '../theme';
+import { EDGE_STYLE, NODE_STYLE, RUNTIME_ICON } from '../theme';
 
 /** Logo, breadcrumb through nested towers, search, validation badge and live-reload indicator. */
 export function TopBar({ onIssues }: { onIssues(): void }) {
@@ -166,10 +166,6 @@ function LiveCount({ run, error, total }: { run: number; error: boolean; total: 
   return <span className={`count live-badge ${error ? 'error' : 'run'}`} title={`${run} running${error ? ', recent error' : ''}`}>● {run || '!'}</span>;
 }
 
-const RUNTIME_ICON: Record<string, string> = {
-  local: '⌂', server: '▤', cloud: '☁', container: '▣', serverless: 'λ', saas: '◎', edge: '◇', ci: '⟳', browser: '◫', device: '▯',
-};
-
 /** Bottom-left key: node types (click to hide), edge kinds, and runtimes (click to spotlight). */
 export function Legend() {
   const tower = useTower();
@@ -240,8 +236,8 @@ export function Controls() {
     <div className="panel controls">
       <label title={view === 'map' ? 'Layer spacing applies to tower view only' : 'Vertical spacing between layers'}>EXPLODE<input type="range" min={0.4} max={2.5} step={0.05} value={explode} disabled={view === 'map'} onChange={(e) => set({ explode: Number(e.target.value) })} /></label>
       <div className="seg view-seg" title="Tower: stacked layers. Map: side by side, seen from above (M)">
-        <button className={view === 'tower' ? 'on' : ''} onClick={() => { set({ view: 'tower' }); resetView(); }} title="Tower view: layers stacked vertically (M to switch)">Tower</button>
-        <button className={view === 'map' ? 'on' : ''} onClick={() => { set({ view: 'map' }); resetView(); }} title="Map view: layers side by side, seen from above (M to switch)">Map</button>
+        <button className={view === 'tower' ? 'on' : ''} onClick={() => chooseView('tower')} title="Tower view: layers stacked vertically (M to switch)">Tower</button>
+        <button className={view === 'map' ? 'on' : ''} onClick={() => chooseView('map')} title="Map view: layers side by side, seen from above (M to switch)">Map</button>
       </div>
       <button className={`btn ${autoRotate ? 'on' : ''}`} onClick={() => set({ autoRotate: !autoRotate })} disabled={view === 'map'} title={view === 'map' ? 'Orbit is only available in tower view' : 'Slowly rotate the camera around the tower'}>Orbit</button>
       <button className={`btn ${particles ? 'on' : ''}`} onClick={() => set({ particles: !particles })} title="Show or hide the dots travelling along the edges (needs ambient animations)">Flow</button>
