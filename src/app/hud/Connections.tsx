@@ -78,6 +78,7 @@ function Row({ c, tower }: { c: Conn; tower: ResolvedTower }) {
       <span className="arrow">{c.dir === 'in' ? '←' : '→'}</span>
       <span className="name">{c.other.label}</span>
       {c.edge.label && <span className="dim mono">· {c.edge.label}</span>}
+      {c.edge.protocol && <span className="proto">{c.edge.protocol.toUpperCase()}</span>}
       <span className="lay">L{String(c.layer + 1).padStart(2, '0')}</span>
     </button>
   );

@@ -6,6 +6,7 @@ import type { ResolvedNode } from '../../core/types';
 import type { NodeBox } from '../layout';
 import { useStore } from '../store';
 import { COLORS, FONTS, GLOW, HOT, NODE_STYLE, type Glyph } from '../theme';
+import { opsMarks } from '../ops';
 import { commit, fadeTo, GLYPHS, scaled, setInstance, toSegments, UNIT_BOX, WIRE_GLYPHS } from './batch';
 import { TextBatch, type TextItem } from './TextBatch';
 
@@ -70,6 +71,12 @@ export function LayerNodes({ views, layer, layerFade, interactive, detail, tags:
   // Non-active nodes (planned / experimental / deprecated) get a dashed outline in their own batch.
   const outline = useMemo(() => toSegments(views.filter((v) => v.node.status === 'active')
     .map((v) => ({ points: rect(v.box, TOP), color: scaled(GLOW.orange, v.fade) }))), [views]);
+  // Fan-out nodes (×N parallel copies) show two ghost outlines stacked behind them.
+  const ghosts = useMemo(() => toSegments(views.filter((v) => v.node.ops.fanout !== undefined).flatMap((v) => [1, 2].map((k) => {
+    const o = 0.16 * k;
+    const [x0, x1, z0, z1] = [v.box.x - v.box.w / 2 + o, v.box.x + v.box.w / 2 + o, v.box.z - v.box.d / 2 - o, v.box.z + v.box.d / 2 - o];
+    return { points: [[x0, z0], [x1, z0], [x1, z1]].map(([x, z]) => new Vector3(x, TOP * 0.6, z)), color: scaled(GLOW.orange, v.fade * (0.7 - k * 0.2)) };
+  }))), [views]);
   const pending = useMemo(() => toSegments(views.filter((v) => v.node.status !== 'active')
     .map((v) => ({ points: rect(v.box, TOP), color: scaled(v.node.status === 'deprecated' ? GLOW.white : GLOW.amber, v.fade * 0.8) }))), [views]);
   const active = views.filter((v) => v.selected || v.hovered);
@@ -85,6 +92,7 @@ export function LayerNodes({ views, layer, layerFade, interactive, detail, tags:
       node.tower && '⇣ SUB',
       node.status !== 'active' && node.status.toUpperCase(),
       NODE_STYLE[node.type].tag,
+      ...opsMarks(node.ops),
       node.model?.replace(/^claude-/, ''),
       node.runtime && `@${node.runtime.id}`,
     ], box.w - 0.95 - 0.2, 0.2 * TAG_EM),
@@ -133,6 +141,9 @@ export function LayerNodes({ views, layer, layerFade, interactive, detail, tags:
 
       {outline.points.length > 0 && (
         <Line points={outline.points} vertexColors={outline.colors} segments lineWidth={1.2} transparent opacity={layerFade} toneMapped={false} />
+      )}
+      {ghosts.points.length > 0 && (
+        <Line points={ghosts.points} vertexColors={ghosts.colors} segments lineWidth={1} transparent opacity={layerFade} toneMapped={false} />
       )}
       {pending.points.length > 0 && (
         <Line points={pending.points} vertexColors={pending.colors} segments dashed dashSize={0.25} gapSize={0.18} lineWidth={1.4} transparent opacity={layerFade} toneMapped={false} />
