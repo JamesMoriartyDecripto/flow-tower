@@ -1,0 +1,25 @@
+# Reading level targets (Flesch-Kincaid grade for English; locale targets are
+# approximate equivalents checked with the locale's own readability formula).
+# Professional audience, but many learners read in a second language: aim for plain language.
+
+default:
+  fk_grade_max: 10               # lessons, transcripts
+  avg_sentence_words_max: 20
+  passive_voice_max_share: 0.15
+
+by_content_type:
+  lesson: { fk_grade_max: 10 }
+  quiz_stem: { fk_grade_max: 9 }   # test the skill, not reading speed
+  captions: { fk_grade_max: 9 }
+  marketing: { fk_grade_max: 9 }
+  legal: { fk_grade_max: 12 }      # terms and privacy: reviewed by humans, not gated
+
+audiences:
+  esl_b2:
+    fk_grade_max: 9
+    notes: Avoid idioms and phrasal verbs; define every acronym on first use.
+
+locales:
+  es-ES: { fk_grade_max: 10, formula: fernandez-huerta }
+  de-DE: { fk_grade_max: 10, formula: wiener-sachtextformel }
+  pt-BR: { fk_grade_max: 10, formula: flesch-pt }

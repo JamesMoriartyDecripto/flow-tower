@@ -1,0 +1,26 @@
+# Sample brief for the reference run. Posted by the intake form; validated by BriefSchema (src/main.ts).
+topic: Intro to Prompt Engineering for Product Managers
+audience:
+  role: Product managers at B2B and B2C software companies
+  prior_knowledge: Uses chat assistants for writing; has never called a model API or written an eval
+  constraints: 20-30 minutes a day, mostly on a laptop; no coding required; many non-native English readers
+outcomes:
+  - Write a prompt spec that an engineer can ship without guessing the intent
+  - Use examples and structure to make model output consistent
+  - Diagnose a misbehaving prompt from sample outputs
+  - Design an evaluation plan with test cases and pass criteria for an AI feature
+  - Justify a model choice using cost, latency and quality data
+modules: 6
+minutes_per_module: 120
+locales: [en, es-ES]
+sme:
+  name: Dana Okafor
+  email: dana.okafor@example.com
+owner:
+  name: Learning Programs Lead
+  email: programs@example.com
+lms:
+  target: moodle
+  standard: scorm2004-4th
+deadline: 2026-11-30
+budget_usd: 60

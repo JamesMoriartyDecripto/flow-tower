@@ -1,0 +1,198 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Review board internals
+description: >-
+  Evaluator-optimizer with a hard cap of 3 rounds. Four reviewers run in parallel, each in a
+  fresh session with its own rubric; a consolidator dedupes and ranks findings; the verdict
+  either passes the build, sends a revision brief back to the owners, or escalates to the SME.
+root: ..
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Studio orchestrator
+    host: ecs:syllabus-forge/orchestrator
+    provider: aws
+    region: eu-west-1
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  notion:
+    kind: saas
+    label: Notion workspace
+    provider: notion
+    url: https://notion.example.com/acme-learning/syllabus-forge
+
+prompts:
+  review-round: { file: prompts/review-round.md, description: Shared evaluator round prompt. }
+  revise-round: { file: prompts/revise-round.md, description: Optimizer prompt for the owners. }
+  consolidator: { file: prompts/consolidator.md, description: "Merge, dedupe, rank, verdict." }
+
+agents:
+  pedagogy:
+    from: .claude/agents/pedagogy-reviewer.md
+    runtime: orchestrator
+  fact-checker:
+    from: .claude/agents/fact-checker.md
+    tower: towers/fact-check.tower.yaml
+    runtime: orchestrator
+  a11y:
+    from: .claude/agents/accessibility-auditor.md
+    runtime: orchestrator
+  rights:
+    from: .claude/agents/rights-reviewer.md
+    runtime: orchestrator
+  consolidator:
+    name: Review consolidator
+    model: claude-opus-5-5
+    prompt: consolidator
+    tools: [Read]
+    runtime: orchestrator
+    files: [src/loop/review-board.ts]
+
+layers:
+  - id: intake
+    title: Round Setup
+    description: Same candidate, same rubric, plus what was found last round.
+    nodes:
+      - id: candidate
+        type: entry
+        label: Candidate build
+        description: Lessons, media bundle, item bank and rubric at a content hash. Reviewers read, never write.
+        runtime: orchestrator
+        files: [src/loop/review-board.ts]
+      - id: round
+        label: Round N
+        prompt: review-round
+        description: Renders the round prompt per reviewer with the round number and that reviewer's prior findings.
+        runtime: orchestrator
+        files: [prompts/review-round.md]
+        resources:
+          - { kind: log, label: Review rounds, path: logs/review-board.log }
+      - id: prior
+        type: memory
+        label: Prior findings
+        description: Last round's blocking findings per reviewer, so each can confirm the fix instead of re-reviewing from scratch.
+        runtime: orchestrator
+        files: [src/loop/review-board.ts]
+    edges:
+      - "candidate -> round [data]: hash"
+      - "prior -> round [data]: findings"
+
+  - id: parallel
+    title: Parallel Reviewers
+    description: Promise.all over four fresh sessions. Nobody sees the others' reports.
+    nodes:
+      - id: pedagogy
+        agent: pedagogy
+        label: Pedagogy
+      - id: fact
+        agent: fact-checker
+        label: Fact-check
+      - id: a11y
+        agent: a11y
+        label: Accessibility
+      - id: rights
+        agent: rights
+        label: Rights & licences
+      - id: isolation
+        type: guard
+        label: Fresh sessions
+        description: No resume, no shared context, read-only tools, settingSources ['project'] only.
+        runtime: orchestrator
+        files: [src/loop/review-board.ts]
+    edges:
+      - "isolation -> pedagogy: isolated"
+      - "isolation -> fact: isolated"
+      - "isolation -> a11y: isolated"
+      - "isolation -> rights: isolated"
+
+  - id: consolidate
+    title: Consolidate & Decide
+    description: One verdict, one revision brief per owner, ranked by severity.
+    nodes:
+      - id: merge
+        agent: consolidator
+        label: Consolidator
+      - id: opus
+        type: model
+        label: Opus 5.5
+        model: claude-opus-5-5
+        runtime: anthropic
+        description: Judgment across conflicting findings (e.g. pedagogy wants more text, reading level wants less).
+      - id: dedupe
+        label: Dedupe + rank
+        description: Same location + same cause = one finding. Severity blocker / major / minor; only blockers fail the round.
+        runtime: orchestrator
+        files: [prompts/consolidator.md]
+      - id: verdict
+        type: decision
+        label: Blockers = 0?
+        description: Pass when no blocker remains in any of the four reports.
+        runtime: orchestrator
+        files: [config/quality-gates.yaml]
+      - id: cap
+        type: decision
+        label: Round < 3?
+        description: Hard cap. Round 3 revisions are escalated to Opus writers; after round 3 the loop stops.
+        runtime: orchestrator
+        files: [src/config.ts]
+      - id: revise
+        label: Revision brief
+        prompt: revise-round
+        description: Blocking findings grouped by owner (writer, media, assessment) with location and expected fix.
+        runtime: orchestrator
+        files: [prompts/revise-round.md]
+    edges:
+      - "merge -> opus [call]: reasoning"
+      - "merge -> dedupe [data]: findings"
+      - dedupe -> verdict
+      - "verdict -> cap: blockers"
+      - "cap -> revise: yes"
+
+  - id: outcome
+    title: Outcome
+    description: Pass, revise, or hand to a human. Every round is logged.
+    nodes:
+      - id: pass
+        type: output
+        label: Board pass
+        description: Consolidated report (incl. non-blocking backlog) attached to the SME sign-off request.
+        runtime: orchestrator
+        files: [src/loop/review-board.ts]
+      - id: owners
+        type: output
+        label: To owners
+        description: Revision briefs dispatched to the module writers, media producer and assessment designer.
+        runtime: orchestrator
+        files: [src/pipelines/modules.ts]
+      - id: escalate
+        type: human
+        label: SME escalation
+        description: Loop did not converge in 3 rounds. The SME decides per finding - fix, accept, or cut the section.
+        runtime: notion
+        files: [src/tools/request-signoff.ts]
+      - id: log
+        type: memory
+        label: Review log
+        description: Round, reviewer, findings count and cost per round, appended to the session log.
+        runtime: orchestrator
+        files: [memory/session-log.md]
+    edges:
+      - "pass -> log [data]: report"
+      - "owners -> log [data]: round N"
+      - "escalate -> log [data]: decision"
+
+links:
+  - "intake.round -> parallel.isolation [spawn]: 4 sessions"
+  - "parallel.pedagogy -> consolidate.merge [return]: findings"
+  - "parallel.fact -> consolidate.merge [return]: verdicts"
+  - "parallel.a11y -> consolidate.merge [return]: violations"
+  - "parallel.rights -> consolidate.merge [return]: clearances"
+  - "consolidate.verdict -> outcome.pass: pass"
+  - "consolidate.revise -> outcome.owners [handoff]: brief"
+  - "consolidate.cap -> outcome.escalate [handoff]: cap hit"
+  - "outcome.owners -> intake.candidate [return]: next build"
+  - "consolidate.dedupe -> intake.prior [data]: blockers"

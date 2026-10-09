@@ -1,0 +1,142 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Fact-check internals
+description: >-
+  Claim-level verification, one level below the review board. A cheap model extracts atomic
+  claims, the fact-checker checks each against the registry first and the web second, labels
+  the evidence, and returns a verdict per claim. Hallucinated citations are always blocking.
+root: ..
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Studio orchestrator
+    host: ecs:syllabus-forge/orchestrator
+    provider: aws
+    region: eu-west-1
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  remote-mcp:
+    kind: saas
+    label: Remote MCP servers
+    url: https://mcp.context7.com/mcp
+
+prompts:
+  claim-extractor: { file: prompts/claim-extractor.md, description: "Haiku. Lesson -> atomic, checkable claims as JSON." }
+
+agents:
+  fact-checker:
+    from: .claude/agents/fact-checker.md
+    runtime: orchestrator
+
+layers:
+  - id: extract
+    title: Claim Extraction
+    description: Split prose into atomic claims so nothing hides inside a long sentence.
+    nodes:
+      - id: lesson
+        type: entry
+        label: Lesson draft
+        description: One lesson at a content hash, with its [S#] citations.
+        runtime: orchestrator
+        files: [samples/lesson-m3-l2.md]
+      - id: extractor
+        label: Claim extractor
+        prompt: claim-extractor
+        model: claude-haiku-5-5
+        description: Returns claims with type (fact, number, date, quote, attribution, opinion) and the cited source id, if any.
+        runtime: anthropic
+        files: [prompts/claim-extractor.md]
+      - id: claims
+        type: memory
+        label: Claims list
+        description: claims.json per lesson; reused next round so unchanged claims are not re-checked.
+        runtime: orchestrator
+        files: [src/loop/review-board.ts]
+      - id: checkable
+        type: decision
+        label: Checkable?
+        description: Opinions and advice are not facts; they must be framed as such, not verified.
+        runtime: orchestrator
+        files: [.claude/agents/fact-checker.md]
+    edges:
+      - "lesson -> extractor [call]: text"
+      - "extractor -> claims [data]: JSON"
+      - claims -> checkable
+
+  - id: verify
+    title: Evidence
+    description: Registry first (already licence-checked), then fresh search for anything uncited or time-sensitive.
+    nodes:
+      - id: checker
+        agent: fact-checker
+        label: Fact-checker
+      - id: registry
+        type: memory
+        label: Source registry
+        description: The cited source must exist and contain the claim. A citation to a source that does not say it is a blocker.
+        runtime: orchestrator
+        files: [samples/source-registry.json]
+      - id: search
+        type: tool
+        label: Brave Search
+        description: For uncited claims and anything with a date, version or price.
+        runtime: orchestrator
+        files: [.mcp.json]
+      - id: docs
+        type: tool
+        label: Context7
+        description: Vendor docs at the current version for API and product behaviour claims.
+        runtime: remote-mcp
+        files: [.mcp.json]
+      - id: compare
+        label: Compare evidence
+        description: Label each piece of evidence supports / contradicts / neutral and keep the exact quote span.
+        runtime: orchestrator
+        files: [.claude/agents/fact-checker.md]
+    edges:
+      - "checker -> registry [data]: cited source"
+      - "checker -> search [call]: uncited"
+      - "checker -> docs [call]: API claims"
+      - "registry -> compare [data]: quote"
+      - "search -> compare [data]: results"
+      - "docs -> compare [data]: doc text"
+
+  - id: verdict
+    title: Verdict
+    description: Per-claim verdict with evidence; the board only sees the summary and the blockers.
+    nodes:
+      - id: supported
+        type: decision
+        label: Supported?
+        description: supported | outdated | unsupported | contradicted | misattributed.
+        runtime: orchestrator
+        files: [.claude/agents/fact-checker.md]
+      - id: hedge
+        label: Frame opinion
+        description: Advice and opinions are rewritten as attributed recommendations ("Anthropic's guide recommends...").
+        runtime: orchestrator
+        files: [config/style-guide.md]
+      - id: verified
+        type: output
+        label: Verified claims
+        description: Claim, verdict, source id, quote span, checked_at.
+        runtime: orchestrator
+      - id: blockers
+        type: output
+        label: Fix list
+        description: Unsupported, contradicted or misattributed claims with a suggested rewrite or replacement source.
+        runtime: orchestrator
+    edges:
+      - "supported -> verified: yes"
+      - "supported -> blockers: no"
+
+links:
+  - "extract.checkable -> verify.checker: yes"
+  - "extract.checkable -> verdict.hedge: opinion"
+  - "verify.compare -> verdict.supported [data]: evidence"
+  - "verdict.hedge -> verdict.verified [data]: framed"
+  - "verdict.blockers -> extract.claims [data]: recheck next round"
