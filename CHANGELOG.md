@@ -22,3 +22,5 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Batched renderer (instancing, batched lines, troika BatchedText), distance-based text LOD, quality presets.
 - Large log files are previewed by their tail.
 - `scripts/gen-stress.ts` synthetic tower generator for performance testing.
+- `examples/course-studio`: course creation studio (12 layers, 109 nodes, 5 nested towers) with researched references.
+- Search results ranked by relevance (label > id > model/tools/runtime > description).

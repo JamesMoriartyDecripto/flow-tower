@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { EDGE_KINDS, NODE_TYPES } from '../../core/schema';
-import { matches } from '../graph';
+import { search as rank } from '../graph';
 import { useStore, useTower } from '../store';
 import { EDGE_STYLE, NODE_STYLE } from '../theme';
 
@@ -31,7 +31,7 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
   const warnings = issues.filter((i) => i.level === 'warning').length;
 
   const jump = () => {
-    const hit = tower?.layers.flatMap((l) => l.nodes).find((n) => matches(n, search));
+    const hit = rank(tower?.layers.flatMap((l) => l.nodes) ?? [], search)[0];
     if (!hit || !tower) return;
     const s = useStore.getState();
     s.select(hit.key);
