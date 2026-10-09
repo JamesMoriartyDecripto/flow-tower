@@ -1,0 +1,32 @@
+# Read by the brand guard (prompts/brand-guard.md). "block" fails the check,
+# "flag" routes the post to legal review (config/approval-policy.yaml, tier high).
+
+block:
+  - pattern: "\\b(safest|best|number one|#1)\\b"
+    reason: Unsourced superlative (EU Unfair Commercial Practices Directive)
+  - pattern: "\\b(zero emissions?|carbon[- ]neutral|climate[- ]neutral|eco-friendly)\\b"
+    reason: Generic environmental claim; needs a substantiated, specific claim
+  - pattern: "\\b(guaranteed|never breaks|maintenance[- ]free)\\b"
+    reason: Absolute product claim
+  - pattern: "\\bcure|healthier than\\b"
+    reason: Health claim
+
+flag:
+  - pattern: "\\b\\d{2,3}\\s?km\\b"
+    reason: Range figure; must cite the test (battery, load, assist level)
+  - pattern: "(€|EUR)\\s?\\d"
+    reason: Price or discount; must match the shop and the promo end date
+  - pattern: "\\b(subsidy|subsidie|Förderung|tax)\\b"
+    reason: Subsidy or tax statement differs per country and city
+  - pattern: "\\b(helmet|child seat|brake|recall)\\b"
+    reason: Safety topic
+
+topics_to_avoid:
+  - Party politics and elections (city cycling policy is fine, candidates are not)
+  - Accidents involving identifiable people
+  - Competitor products by name
+  - Tragedies and disasters (no newsjacking)
+
+hashtags:
+  max_per_post: { instagram: 5, tiktok: 4, linkedin: 3, threads: 1, bluesky: 2, x: 1 }
+  never: ["#fyp", "#viral", "#followforfollow"]

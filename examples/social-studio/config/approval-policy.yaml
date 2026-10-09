@@ -1,0 +1,65 @@
+# Who approves what, how long they have, and what happens on silence.
+# Principle: silence never publishes. Every on_timeout below is reject, escalate or wait.
+
+approvers:
+  social_manager: { name: "Marit V.", slack: "@marit", backup: "@joost" }
+  community_lead: { name: "Joost K.", slack: "@joost", backup: "@marit" }
+  comms_lead: { name: "Eva D.", slack: "@eva", phone: "on-call rota" }
+  legal: { name: "external counsel", slack: "#legal-review" }
+  marketing_lead: { name: "Pieter H.", slack: "@pieter" }
+
+gates:
+  weekly_plan:
+    approver: social_manager
+    channel: "#social-approvals"
+    timeout: 24h
+    on_timeout: escalate   # to marketing_lead
+    max_rounds: 2
+
+  post:
+    approver: social_manager
+    channel: "#social-approvals"
+    shows: [every platform variant, AI flags per platform, slot, generation spend, risk tier]
+    timeout: 24h
+    on_timeout: reject     # the slot is skipped and logged, never auto-published
+    max_rounds: 2
+
+  legal:
+    when: risk_tier == high
+    approver: legal
+    timeout: 48h
+    on_timeout: reject
+
+  reply:
+    approver: community_lead
+    channel: "#social-inbox"
+    timeout: 2h
+    on_timeout: escalate   # to social_manager; SLA is 4h
+    auto_send: faq_templates_only
+
+  boost:
+    approver: marketing_lead
+    timeout: 24h
+    on_timeout: reject
+    weekly_cap_eur: 300
+    note: Campaigns are created PAUSED by the Meta Ads MCP server; a person switches them on.
+
+risk_tiers:
+  high:
+    - any "flag" match in brand/banned-claims.yaml
+    - a real, identifiable person who is not staff (UGC needs written permission on file)
+    - realistic AI-generated or AI-altered image, video or audio
+    - news-adjacent or reactive posts (trend scout source is news)
+    - prices, discounts, subsidies
+    - paid partnership or creator content
+  standard: everything else
+
+rights:
+  ugc: "Written permission stored as UGC-#### before repost; credit the creator in the caption."
+  music: "Licensed library only on Meta and YouTube; TikTok sounds are picked in the app."
+  creators: "Paid partnership label (is_paid_partnership on Instagram, brand_content_toggle on TikTok)."
+
+ai_disclosure:
+  realistic_synthetic_media: label on every platform (platform flag + caption line "AI-generated")
+  ai_assisted_text: no label; human review with editorial responsibility (EU AI Act Art. 50(4) exception)
+  never_generate: [realistic people, customers, staff, real places presented as real]

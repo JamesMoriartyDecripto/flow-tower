@@ -1,0 +1,8 @@
+2026-10-06T06:30:02+02:00 sweep mentions ig=14 bsky=9 x_reads=212(cost_usd=1.06) yt_comments=6 sentiment=pos:61% neu:31% neg:8% spike=no
+2026-10-06T06:34:40+02:00 scout ideas=5 kept=3 top="Utrecht adds 12 km of lit bike route" score=8 pillar=city-cycling risk=high(news)
+2026-10-07T06:30:01+02:00 sweep mentions ig=11 bsky=7 x_reads=180(cost_usd=0.90) yt_comments=4 sentiment=pos:58% neu:35% neg:7% spike=no
+2026-10-07T06:33:12+02:00 scout ideas=4 kept=2 top="clocks go back 2026-10-25: lights reminder" score=9 pillar=how-to
+2026-10-08T06:30:02+02:00 sweep mentions ig=19 bsky=8 x_reads=240(cost_usd=1.20) yt_comments=9 sentiment=pos:52% neu:33% neg:15% spike=no
+2026-10-08T11:03:30+02:00 realtime trigger="battery smoke" source=fb:c_5121 -> crisis path (comms lead), publisher queue paused
+2026-10-09T06:30:01+02:00 sweep mentions ig=22 bsky=10 x_reads=260(cost_usd=1.30) yt_comments=7 sentiment=pos:63% neu:29% neg:8% spike=no
+2026-10-09T06:35:05+02:00 scout ideas=6 kept=3 top="reply-video: 'can it carry two kids and a dog?'" score=8 pillar=real-riders

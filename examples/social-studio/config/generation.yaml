@@ -1,0 +1,28 @@
+# Generation models and weekly spend caps (EUR caps are our own budget, not vendor prices).
+# Every generated file keeps its prompt, model id and seed next to it in the asset library.
+
+image:
+  model: gemini-3.1-flash-image        # Nano Banana 2, Gemini API; SynthID watermark on all outputs
+  fallback: gemini-2.5-flash-image
+  aspect_ratios: { feed: "4:5", story: "9:16", linkedin: "1:1" }
+  use_for: [backgrounds, mood boards, concept frames]
+  never: [product shots used as evidence, realistic people, real places presented as real]
+  weekly_cap_usd: 15
+
+video:
+  model: veo-3.1-fast-generate-preview # Veo 3.1 Fast; 4/6/8 s, 9:16 supported, native audio
+  downgrade_to: veo-3.1-lite-generate-preview
+  defaults: { aspect_ratio: "9:16", duration_s: 8, resolution: 720p }
+  person_generation: allow_adult        # the only value allowed in the EU for image-to-video
+  retention_note: "Files are deleted from Google's servers after 2 days: copy to R2 at once."
+  weekly_cap_usd: 25
+  on_cap: downgrade                     # then stop at 120% of the cap
+
+carousels:
+  tool: Canva Connect API (brand templates + autofill; Canva Pro, Teams or Enterprise)
+  templates: [quote-card-v3, how-to-5-step, numbers-card]
+  export: { format: png, size: "1080x1350" }
+
+text:
+  models: { strategist: claude-opus-5-5, writers: claude-sonnet-5-5, judges: claude-haiku-5-5 }
+  weekly_cap_usd: 35
