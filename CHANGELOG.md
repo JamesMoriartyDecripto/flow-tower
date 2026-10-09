@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-09
+
+First release.
+
 ### Added
 - Release Auditor preset (`examples/release-auditor`): the pre-release bug sweep of this repository as a tower, with charters, threat model, severity and false-positive rules, finder and verifier prompts, `gates.sh` (tsc, vitest, examples, semgrep, npm audit, gitleaks over the whole history) reporting live to the tower, and an E2E Sweep sub-tower. The v0.1.0 audit report is in `reports/v0.1.0.md`.
 - Playwright E2E suite (`npm run e2e`, `e2e/`): one test per example tower driven from the keyboard (layers, node panel, connections, map view, every sub-tower in and out), referenced files served, path traversal refused, live feed, malformed and oversized event bodies, panels at seven screen and interface sizes, axe (WCAG 2 A/AA) on library, HUD and Settings. Fails on any console or page error.
@@ -62,6 +66,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Search results ranked by relevance (label > id > model/tools/runtime > description).
 
 ### Security
+- Release audit (see `examples/release-auditor/reports/v0.1.0.md`): semgrep (javascript, typescript, react, nodejs, secrets) clean after one false positive, npm audit 0 vulnerabilities, gitleaks over the whole git history: no leaks.
+- semgrep (javascript, typescript, react, nodejs, python, secrets rulesets): no findings; two loopback `http://127.0.0.1` fetches in `integrations/` annotated as intentional.
 - Tower files can only read inside their project (the git repository that contains them, or the opened folder): prompt `file:`, agent `from:`, nested `tower:`, `files`, resources and symlinks pointing outside are refused with an error, and `root:` cannot leave the project. Before, a tower from a cloned repository could pull any local file (e.g. `~/.ssh`) into the workspace and the node panel, and `root: /` widened the `/api/file` sandbox to the whole disk.
 - The Claude Code SessionStart hook runs `flow-tower emit` instead of `npx flow-tower emit`: the package name is not published, so npx would have fetched whatever package claims it. Docs and example READMEs no longer suggest `npx flow-tower`.
 - `POST /api/events` refuses batches over 1000 events (413): each event is matched against every node, and a huge batch stalled the dev server.
@@ -119,5 +125,5 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-### Security
-- semgrep (javascript, typescript, react, nodejs, python, secrets rulesets): no findings; two loopback `http://127.0.0.1` fetches in `integrations/` annotated as intentional.
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/JamesMoriartyDecripto/flow-tower/releases/tag/v0.1.0
