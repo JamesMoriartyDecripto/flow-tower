@@ -8,7 +8,7 @@ import { useStore, useTower } from '../store';
 import { LAYER_GAP, PLATE_PAD } from '../theme';
 import { Ambient, Base, Scanner } from './Environment';
 import { Layer, type Visual } from './Layer';
-import { createLens, stepLens } from './lens';
+import { createLens, lensTarget, mapGrid, stepLens } from './lens';
 import { Links } from './Links';
 import { useShiftPan } from './shiftPan';
 import { decorative, keepAlive } from './frameBudget';
@@ -25,7 +25,7 @@ export function TowerScene() {
 }
 
 function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTower>>; layout: TowerLayout }) {
-  const { explode, focusedLayer, hoveredLayer, selected, hovered, search, hiddenTypes, runtimeFocus, autoRotate, viewNonce, quality, animations } = useStore();
+  const { explode, focusedLayer, hoveredLayer, selected, hovered, search, hiddenTypes, runtimeFocus, autoRotate, viewNonce, quality, animations, view } = useStore();
   const deco = decorative(quality, animations);
   const spacing = useRef(0.02); // starts collapsed: the tower "assembles" on mount
   const lens = useMemo(() => createLens(tower.layers.length), [tower]);
@@ -39,15 +39,26 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
   const height = (n - 1) * LAYER_GAP * explode;
   const layerY = (i: number) => height / 2 - i * LAYER_GAP * explode;
 
+  const grid = useMemo(() => mapGrid(n, width, depth), [n, width, depth]);
+  const centerY = useRef(0);
+
   useFrame((_, dt) => {
-    spacing.current += (explode - spacing.current) * (1 - Math.exp(-dt * 3.2));
-    if (group.current) group.current.position.y = ((n - 1) * LAYER_GAP * spacing.current) / 2;
-    if (pillars.current) pillars.current.scale.y = Math.max(spacing.current, 1e-3);
+    const k = 1 - Math.exp(-dt * 3.2);
+    spacing.current += (explode - spacing.current) * k;
+    // Tower: centered stack. Map: every section on the ground plane.
+    const targetY = view === 'tower' ? ((n - 1) * LAYER_GAP * spacing.current) / 2 : 0;
+    centerY.current += (targetY - centerY.current) * k;
+    if (group.current) group.current.position.y = centerY.current;
+    if (pillars.current) {
+      pillars.current.scale.y = Math.max(spacing.current, 1e-3);
+      pillars.current.visible = view === 'tower';
+    }
     // The lens only applies in overview: in focus mode the camera already isolates one layer.
-    const lensMoved = stepLens(lens, spacing.current, focusedLayer === undefined ? hoveredLayer : undefined, dt);
+    const hoverLens = focusedLayer === undefined ? hoveredLayer : undefined;
+    const lensMoved = stepLens(lens, (i) => lensTarget(i, spacing.current, hoverLens, view, n, width, depth), dt);
     // On-demand rendering: keep frames coming only while something is actually moving.
-    if (lensMoved || Math.abs(explode - spacing.current) > 1e-3) keepAlive(120);
-    if (autoRotate && focusedLayer === undefined) {
+    if (lensMoved || Math.abs(explode - spacing.current) > 1e-3 || Math.abs(targetY - centerY.current) > 1e-3) keepAlive(120);
+    if (autoRotate && focusedLayer === undefined && view === 'tower') {
       controls.current?.rotate(dt * 0.12, 0, false);
       keepAlive(120);
     }
@@ -57,9 +68,20 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
-    if (focusedLayer === undefined) {
+    const tan = Math.tan((42 / 2) * (Math.PI / 180));
+    if (view === 'map') {
+      // Map: look down at the whole grid, or hover above one section.
+      const t = focusedLayer === undefined ? { x: 0, z: 0 } : lensTarget(focusedLayer, 1, undefined, 'map', n, width, depth);
+      const overview = focusedLayer === undefined;
+      const extent = overview ? Math.max(grid.depth * 1.3, (grid.width * 1.3) / 1.6) : Math.max(depth * 1.3, width / 1.4);
+      const d = extent / (2 * tan);
+      // Shift the overview so the grid clears the left HUD column (layers panel).
+      const x = overview ? t.x - grid.width * 0.07 : t.x;
+      c.setLookAt(x, d * 0.95, t.z + d * 0.3, x, 0, t.z, true);
+      keepAlive(1500);
+    } else if (focusedLayer === undefined) {
       // Fit the taller of (tower height, plate width) inside the vertical field of view.
-      const fit = Math.max(height + 10, width * 0.75, depth) / (2 * Math.tan((42 / 2) * (Math.PI / 180)));
+      const fit = Math.max(height + 10, width * 0.75, depth) / (2 * tan);
       const dir = new Vector3(0.5, 0.32, 0.85).normalize().multiplyScalar(fit * 1.3);
       c.setLookAt(dir.x, dir.y, dir.z, 0, 0, 0, true);
       keepAlive(1500);
@@ -71,7 +93,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
       c.setLookAt(0, y + r * 0.92, r * 0.5, 0, y, 0, true);
       keepAlive(1500);
     }
-  }, [focusedLayer, width, depth, height, viewNonce, layout]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [focusedLayer, width, depth, height, viewNonce, layout, view, grid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { document.body.style.cursor = hovered ? 'pointer' : ''; }, [hovered]);
   useShiftPan(controls);
@@ -109,8 +131,9 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
   const layerFade = useCallback((i: number) => {
     if (focusedLayer !== undefined) return i === focusedLayer ? 1 : i < focusedLayer ? 0.04 : 0.1;
     if (hoveredLayer === undefined) return 1;
+    if (view === 'map') return i === hoveredLayer ? 1 : 0.8; // neighbours in a list are not neighbours on a map
     return [1, 0.72, 0.4][Math.min(Math.abs(i - hoveredLayer), 2)];
-  }, [focusedLayer, hoveredLayer]);
+  }, [focusedLayer, hoveredLayer, view]);
 
   return (
     <>
@@ -129,18 +152,19 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
             fade={layerFade(i)}
             interactive={focusedLayer === undefined || i === focusedLayer}
             focused={focusedLayer === i}
+            mapView={view === 'map'}
             visual={visual}
             liveTint={live.tints[l.id]}
             subtrees={live.subtrees}
           />
         ))}
-        <Links links={tower.links} layout={layout} layerIndex={layerIndex} visual={visual} layerFade={layerFade} lens={lens} />
+        <Links links={tower.links} layout={layout} layerIndex={layerIndex} visual={visual} layerFade={layerFade} lens={lens} quiet={view === 'map'} />
         <group ref={pillars}>
           <Pillars width={width} depth={depth} bottom={-(n - 1) * LAYER_GAP} />
         </group>
       </group>
-      {deco && focusedLayer === undefined && <Scanner width={width} depth={depth} top={height / 2 + 1} bottom={-height / 2 - 1} />}
-      <Base radius={Math.max(width, depth) * 0.62} y={-height / 2 - 5} dim={focusedLayer !== undefined} spin={deco} />
+      {deco && view === 'tower' && focusedLayer === undefined && <Scanner width={width} depth={depth} top={height / 2 + 1} bottom={-height / 2 - 1} />}
+      <Base radius={view === 'map' ? Math.max(grid.width, grid.depth) * 0.6 : Math.max(width, depth) * 0.62} y={view === 'map' ? -3 : -height / 2 - 5} dim={focusedLayer !== undefined || view === 'map'} spin={deco} />
     </>
   );
 }

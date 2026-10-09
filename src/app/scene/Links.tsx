@@ -20,6 +20,8 @@ interface Props {
   visual: Visual;
   layerFade: (index: number) => number;
   lens: LensState;
+  /** Map view: seen from above, links cross everything; keep them faint unless highlighted. */
+  quiet: boolean;
 }
 
 const STEPS = 24;
@@ -35,20 +37,27 @@ interface Curve {
   points: Vector3[];
 }
 
-/** Places a curve's points as a vertical S-bend between two (possibly scaled, shifted) layers. */
+/**
+ * Places a curve between two (possibly scaled, moved) layers. Tower: vertical S-bend between plates.
+ * Map: both ends on the ground plane, so the curve arcs above the map instead.
+ */
 function place(c: Curve, lens: LensState) {
   const [sa, sb] = [lens.s[c.la], lens.s[c.lb]];
   const [ya, yb] = [lens.y[c.la] + LIFT * sa, lens.y[c.lb] + LIFT * sb];
-  const [ax, az, bx, bz] = [c.a.x * sa, c.a.z * sa, c.b.x * sb, c.b.z * sb];
+  const [ax, az] = [c.a.x * sa + lens.x[c.la], c.a.z * sa + lens.z[c.la]];
+  const [bx, bz] = [c.b.x * sb + lens.x[c.lb], c.b.z * sb + lens.z[c.lb]];
+  const flat = Math.hypot(bx - ax, bz - az);
+  const arc = Math.max(0, Math.min(flat * 0.22, 14) - Math.abs(yb - ya));
   const bend = (yb - ya) * 0.45;
+  const [c1, c2] = [ya + bend + arc, yb - bend + arc];
   for (let k = 0; k <= STEPS; k++) {
     const t = k / STEPS;
     const u = 1 - t;
-    // Cubic Bezier with control points straight above/below the endpoints.
+    // Cubic Bezier: x/z ease between the ends, y follows the bend (tower) or the arc (map).
     const w0 = u * u * u, w1 = 3 * u * u * t, w2 = 3 * u * t * t, w3 = t * t * t;
     c.points[k].set(
       ax * (w0 + w1) + bx * (w2 + w3),
-      ya * w0 + (ya + bend) * w1 + (yb - bend) * w2 + yb * w3,
+      ya * w0 + c1 * w1 + c2 * w2 + yb * w3,
       az * (w0 + w1) + bz * (w2 + w3),
     );
   }
@@ -61,7 +70,7 @@ function flatten(points: Vector3[]): Float32Array {
 }
 
 /** Cross-layer edges, batched into solid / dashed / highlighted lines that follow the layer lens. */
-export function Links({ links, layout, layerIndex, visual, layerFade, lens }: Props) {
+export function Links({ links, layout, layerIndex, visual, layerFade, lens, quiet }: Props) {
   const particles = useStore((s) => s.particles);
   const deco = useStore((s) => decorative(s.quality, s.animations));
 
@@ -80,12 +89,12 @@ export function Links({ links, layout, layerIndex, visual, layerFade, lens }: Pr
       Math.min(layerFade(c.la), layerFade(c.lb)) * Math.min(visual.nodeFade(c.link.from), visual.nodeFade(c.link.to));
     const group = (dashed: boolean) => toSegments(curves
       .filter((c) => EDGE_STYLE[c.link.kind].dashed === dashed && !visual.edgeHighlight(c.link.id))
-      .map((c) => ({ points: c.points, color: scaled(GLOW.white, 0.32 * fadeOf(c)) })));
+      .map((c) => ({ points: c.points, color: scaled(GLOW.white, (quiet ? 0.12 : 0.32) * fadeOf(c)) })));
     const hot = toSegments(curves
       .filter((c) => visual.edgeHighlight(c.link.id))
       .map((c) => ({ points: c.points, color: scaled(HOT.orange, fadeOf(c)) })));
     return { solid: group(false), dashed: group(true), hot };
-  }, [curves, visual, layerFade]);
+  }, [curves, visual, layerFade, quiet]);
 
   // Imperative updates: when the lens animates, move the existing geometry instead of re-rendering.
   const refs = { solid: useRef<LineSegments2>(null), dashed: useRef<LineSegments2>(null), hot: useRef<LineSegments2>(null) };

@@ -34,11 +34,13 @@ interface Props {
   liveTint?: 'run' | 'error';
   /** The focused layer: near-opaque plate so whatever lies below stops competing for attention. */
   focused: boolean;
+  /** Map view: bigger titles above each section's corner, readable from high above. */
+  mapView: boolean;
   subtrees: Map<string, Set<string>>;
 }
 
 /** A glass plate holding one left-to-right flowchart. Height and scale follow the animated lens. */
-export const Layer = memo(function Layer({ tower, layer, layout, width, depth, lens, fade, interactive, visual, liveTint, subtrees, focused }: Props) {
+export const Layer = memo(function Layer({ tower, layer, layout, width, depth, lens, fade, interactive, visual, liveTint, subtrees, focused, mapView }: Props) {
   const ref = useRef<Group>(null);
   useEffect(() => {
     const g = ref.current;
@@ -61,7 +63,7 @@ export const Layer = memo(function Layer({ tower, layer, layout, width, depth, l
   const center = useMemo(() => new Vector3(), []);
   useFrame(({ camera, size }) => {
     if (!ref.current) return;
-    ref.current.position.y = lens.y[layer.index];
+    ref.current.position.set(lens.x[layer.index], lens.y[layer.index], lens.z[layer.index]);
     ref.current.scale.setScalar(lens.s[layer.index]);
     ref.current.getWorldPosition(center);
     const fov = ((camera as PerspectiveCamera).fov ?? 42) * (Math.PI / 180);
@@ -118,7 +120,7 @@ export const Layer = memo(function Layer({ tower, layer, layout, width, depth, l
         lineWidth={layerLive || focused ? 2 : 1} transparent opacity={(layerLive || focused ? 0.9 : 0.55) * fade} toneMapped={false} />
       <Line points={brackets} segments color={GLOW.white} lineWidth={2.2} transparent opacity={0.9 * fade} toneMapped={false} />
 
-      <Billboard position={[-width / 2 - 0.6, 0.6, depth / 2]}>
+      <Billboard position={mapView ? [-width / 2, 1.2, -depth / 2 - 1.6] : [-width / 2 - 0.6, 0.6, depth / 2]} scale={mapView ? 3 : 1}>
         <group
           onClick={(e) => { if (!interactive) return; e.stopPropagation(); focusLayer(layer.index); }}
           onPointerOver={(e) => { if (interactive) { e.stopPropagation(); document.body.style.cursor = 'pointer'; } }}

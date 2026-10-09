@@ -198,12 +198,16 @@ export function Legend() {
 }
 
 export function Controls() {
-  const { explode, autoRotate, particles, quality, set, resetView } = useStore();
+  const { explode, autoRotate, particles, quality, view, set, resetView } = useStore();
   const next = { high: 'eco', balanced: 'high', eco: 'balanced' } as const;
   return (
     <div className="panel controls">
-      <label>EXPLODE<input type="range" min={0.4} max={2.5} step={0.05} value={explode} onChange={(e) => set({ explode: Number(e.target.value) })} /></label>
-      <button className={`btn ${autoRotate ? 'on' : ''}`} onClick={() => set({ autoRotate: !autoRotate })}>Orbit</button>
+      <label>EXPLODE<input type="range" min={0.4} max={2.5} step={0.05} value={explode} disabled={view === 'map'} onChange={(e) => set({ explode: Number(e.target.value) })} /></label>
+      <div className="seg view-seg" title="Tower: stacked layers. Map: side by side, seen from above (M)">
+        <button className={view === 'tower' ? 'on' : ''} onClick={() => { set({ view: 'tower' }); resetView(); }}>Tower</button>
+        <button className={view === 'map' ? 'on' : ''} onClick={() => { set({ view: 'map' }); resetView(); }}>Map</button>
+      </div>
+      <button className={`btn ${autoRotate ? 'on' : ''}`} onClick={() => set({ autoRotate: !autoRotate })} disabled={view === 'map'}>Orbit</button>
       <button className={`btn ${particles ? 'on' : ''}`} onClick={() => set({ particles: !particles })}>Flow</button>
       <button className="btn" onClick={() => set({ quality: next[quality] })} title="Rendering: eco (20 fps cap, no post-processing) / balanced (30 fps) / high (60 fps, full effects)">FX {quality}</button>
       <button className="btn" onClick={resetView}>Reset</button>

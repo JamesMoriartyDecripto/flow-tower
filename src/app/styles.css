@@ -271,3 +271,6 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .live-chips { position: fixed; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
 .live-chips .live-chip { position: absolute; left: 0; top: 0; pointer-events: auto; will-change: transform; }
 .live i.ping { animation: flash .6s; }
+.view-seg button { padding: 6px 10px; font: 600 11px var(--display); letter-spacing: .14em; text-transform: uppercase; }
+.view-seg button.on { background: var(--orange); color: var(--bg); }
+.btn:disabled { opacity: .35; cursor: default; }

@@ -48,7 +48,7 @@ export function App() {
         <Legend />
         <Controls />
         {!selected && (
-          <div className="hint">DRAG rotate · SHIFT+DRAG / RIGHT-DRAG pan · SCROLL zoom · SHIFT+SCROLL pan · CLICK inspect · DBL-CLICK enter · 1-9 layers · ESC back</div>
+          <div className="hint">DRAG rotate · SHIFT+DRAG / RIGHT-DRAG pan · SCROLL zoom · SHIFT+SCROLL pan · CLICK inspect · DBL-CLICK enter · 1-9 layers · M map · ESC back</div>
         )}
         <Inspector />
         <LiveFeed />
@@ -88,6 +88,9 @@ function useKeyboard() {
         else if (s.stack.length > 1) s.goTo(s.stack.length - 2);
       } else if (e.key === 'Backspace' && s.stack.length > 1) {
         s.goTo(s.stack.length - 2);
+      } else if (e.key === 'm' || e.key === 'M') {
+        s.set({ view: s.view === 'map' ? 'tower' : 'map' });
+        s.resetView();
       } else if (e.key === '0') {
         s.resetView();
       } else if (/^[1-9]$/.test(e.key) && tower && Number(e.key) <= tower.layers.length) {

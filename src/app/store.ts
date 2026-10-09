@@ -28,6 +28,8 @@ interface State {
   quality: Quality;
   /** Decorative, always-moving effects (flow particles, scanner, sparkles, rotating base). */
   animations: boolean;
+  /** Tower (stacked) or map (side by side, from above). */
+  view: 'tower' | 'map';
   search: string;
   hiddenTypes: Set<NodeType>;
   /** Runtime id whose nodes are highlighted (everything else dims). */
@@ -52,7 +54,7 @@ interface State {
   openPath(stack: string[], select?: string): void;
   showLibrary(open: boolean): void;
   goTo(depth: number): void;
-  set(patch: Partial<Pick<State, 'explode' | 'autoRotate' | 'particles' | 'search' | 'quality' | 'animations' | 'runtimeFocus'>>): void;
+  set(patch: Partial<Pick<State, 'explode' | 'autoRotate' | 'particles' | 'search' | 'quality' | 'animations' | 'view' | 'runtimeFocus'>>): void;
   toggleType(type: NodeType): void;
   openFile(file?: OpenFile): void;
 }
@@ -72,6 +74,7 @@ export const useStore = create<State>()((set, get) => ({
   particles: true,
   quality: initialQuality(),
   animations: true,
+  view: new URLSearchParams(location.search).get('view') === 'map' ? 'map' : 'tower',
   search: '',
   hiddenTypes: new Set(),
   revision: 0,
