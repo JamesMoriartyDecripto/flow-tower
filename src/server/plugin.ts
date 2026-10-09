@@ -1,11 +1,18 @@
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin, ViteDevServer } from 'vite';
 import { loadLibrary, type LoadResult } from '../core/loader.ts';
 import { readTowerFile } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
+import { checkForUpdate, updateCheckDisabled, type UpdateInfo } from './update.ts';
+
+const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
+// A git checkout updates with git; anything else (a package install) points to the release page.
+const UPDATE_COMMAND = existsSync(join(PKG_ROOT, '.git')) ? `cd ${PKG_ROOT} && git pull && npm install` : undefined;
 
 export const UPDATE_EVENT = 'flow-tower:update';
 
@@ -57,6 +64,16 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         env.FLOW_TOWER_TOKEN,
       );
       server.middlewares.use('/api/events', hub.handle);
+
+      // Update notice (#35): one quiet check per start, never blocking the server.
+      let update: UpdateInfo = { current: VERSION, newer: false };
+      if (!updateCheckDisabled()) {
+        void checkForUpdate({ current: VERSION }).then((u) => {
+          update = u;
+          if (u.newer) server.config.logger.warn(`\n  ↑ Flow Tower ${u.latest} is available (you have v${VERSION}): ${u.url}${UPDATE_COMMAND ? `\n    update: ${UPDATE_COMMAND}` : ''}\n`);
+        });
+      }
+      server.middlewares.use('/api/version', (_req, res) => send(res, 200, { ...update, command: UPDATE_COMMAND }));
     },
   };
 }

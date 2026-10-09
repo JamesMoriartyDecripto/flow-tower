@@ -25,6 +25,8 @@ Usage
 Options
   -p, --port     Port to listen on (default 5317)
       --no-open  Do not open the browser
+      --no-update-check  Do not ask GitHub once a day whether a newer release exists
+                 (also FLOW_TOWER_NO_UPDATE_CHECK=1; always off in CI)
       --url      emit: server URL (default http://127.0.0.1:5317)
   -h, --help     Show this help`;
 
@@ -80,6 +82,7 @@ const { values, positionals } = parseArgs({
   options: {
     port: { type: 'string', short: 'p', default: '5317' },
     'no-open': { type: 'boolean', default: false },
+    'no-update-check': { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
     // emit
     url: { type: 'string', default: 'http://127.0.0.1:5317' },
@@ -221,8 +224,9 @@ if (missing.length) {
   process.exit(1);
 }
 
-// The vite plugin reads its entries from the environment of this process.
+// The vite plugin reads its entries (and the update-check opt-out) from the environment of this process.
 env.FLOW_TOWER_ENTRIES = JSON.stringify(entries);
+if (values['no-update-check']) env.FLOW_TOWER_NO_UPDATE_CHECK = '1';
 const { createServer } = await import('vite');
 const server = await createServer({
   root: pkgRoot,

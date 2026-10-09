@@ -28,6 +28,7 @@ export default defineConfig({
     command: 'node bin/flow-tower.js examples --no-open --port 5317',
     url: 'http://127.0.0.1:5317/api/workspace',
     reuseExistingServer: !CI,
+    env: { FLOW_TOWER_NO_UPDATE_CHECK: '1' }, // tests stay offline
     timeout: 60_000,
   },
 });

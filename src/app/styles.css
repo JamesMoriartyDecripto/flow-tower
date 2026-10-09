@@ -419,3 +419,4 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 }
 .demo-chip { padding: 4px 10px; font-size: 10px; color: var(--live-run); border-color: color-mix(in srgb, var(--live-run) 50%, transparent); }
 .demo-chip:not(.on) { color: var(--dim); }
+.update-chip { padding: 4px 10px; font-size: 10px; text-transform: none; text-decoration: none; }

@@ -171,6 +171,10 @@ Flow Tower is meant to run next to busy agents, so it is frugal by design:
 - **Background.** When the window is not focused the canvas drops to 10 fps and stops decorative motion.
 - **Batched scene.** Each layer is drawn with a handful of draw calls (instanced meshes, batched lines, troika `BatchedText`). Labels you could not read at the current zoom are skipped.
 
+## Privacy and updates
+
+Flow Tower runs on your machine: the server listens on `127.0.0.1` only, reads only inside your projects, and live events never leave your computer. Its only outbound call is an **update check**: once a day it asks GitHub for the latest release (`api.github.com/repos/JamesMoriartyDecripto/flow-tower/releases/latest`, nothing about you or your towers is sent). When a newer version exists, the terminal prints how to update and the top bar shows a small `↑ vX.Y.Z` link to the release notes. Turn it off with `--no-update-check` or `FLOW_TOWER_NO_UPDATE_CHECK=1`; it is always off in CI and in the online demo.
+
 ## Project layout
 
 ```

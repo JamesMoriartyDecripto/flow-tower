@@ -83,9 +83,32 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
         <span className={`chip ${warnings ? 'warn' : ''}`}>{warnings} WARN</span>
       </button>
       <DemoChip />
+      <UpdateChip />
       <LiveButton flash={flash} />
       <button className="btn gear" onClick={() => usePrefs.getState().set({ open: true })} title="Settings (,)">⚙</button>
     </header>
+  );
+}
+
+interface Version { current: string; latest?: string; url?: string; newer: boolean; command?: string }
+
+/** A newer release on GitHub (checked by the local server once a day, see src/server/update.ts). */
+function UpdateChip() {
+  const [v, setV] = useState<Version>();
+  useEffect(() => {
+    if (STATIC) return;
+    // The server checks in the background: ask again shortly after start, then leave it.
+    const get = () => fetch('/api/version').then((r) => (r.ok ? r.json() : undefined)).then(setV).catch(() => {});
+    void get();
+    const t = setTimeout(get, 4000);
+    return () => clearTimeout(t);
+  }, []);
+  if (!v?.newer || !v.url) return null;
+  return (
+    <a className="btn update-chip" href={v.url} target="_blank" rel="noopener noreferrer"
+      title={`Flow Tower ${v.latest} is available (you have v${v.current}). Opens the release notes.${v.command ? ' Update: git pull && npm install in your flow-tower folder (the exact command is in the terminal).' : ''}`}>
+      ↑ {v.latest}
+    </a>
   );
 }
 
