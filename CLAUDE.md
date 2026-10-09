@@ -13,8 +13,11 @@
 - After a schema change: `npm run schema`, then update `docs/schema.md`.
 - Every tower in `examples/` must load with 0 errors and 0 warnings (`tests/examples.test.ts`). Presets must be researched and realistic, with real files behind every reference.
 - Verify UI changes in a browser (Playwright screenshots), not only via typecheck.
+- After every push, check CI (`gh pr checks` / `gh run list`): local runs can pass on files that git ignores.
 
 ## Gotchas
+
+- `.gitignore` has `*.log` with an exception for `examples/**/*.log` (log fixtures referenced by the towers). A test fails if any file under `examples/` is git-ignored.
 
 - `/api/events` must answer **204 with an empty body**: Claude Code HTTP hooks read a JSON response body as a hook decision.
 - Rendering is batched per layer (instanced meshes, LineSegments2, troika `BatchedText`). Do not reintroduce per-node meshes or `<Text>`: 55 nodes dropped to 14 FPS that way.
