@@ -109,8 +109,8 @@ export function Library() {
               <h3>{tower.name}</h3>
               <p className="dim">{tower.description ?? id}</p>
               <dl className="lib-stats">
-                <div><dt>Layers</dt><dd>{stats.layers}</dd></div>
-                <div><dt>Nodes</dt><dd>{stats.nodes}</dd></div>
+                <div title={`${stats.layers} layers including sub-towers`}><dt>Layers</dt><dd>{tower.layers.length}</dd></div>
+                <div title="Including sub-towers"><dt>Nodes Σ</dt><dd>{stats.nodes}</dd></div>
                 <div><dt>Agents</dt><dd>{stats.agents}</dd></div>
                 <div><dt>Sub-towers</dt><dd>{stats.subTowers}{stats.depth > 1 ? ` · d${stats.depth}` : ''}</dd></div>
               </dl>

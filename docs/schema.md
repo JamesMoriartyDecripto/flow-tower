@@ -15,11 +15,41 @@ Unknown keys are **errors**, so typos never fail silently.
 | `version` | `1` | Optional, defaults to 1. |
 | `name` | string | **Required.** Shown in the breadcrumb. |
 | `description` | string | |
+| `tags` | list of strings | Filter chips in the library view. |
 | `root` | path | Base directory for every relative path. Defaults to the tower file's directory. |
+| `runtimes` | map id → [Runtime](#runtime) | Where things execute: laptop, servers, SaaS, CI... |
 | `prompts` | map id → [Prompt](#prompt) | Reusable system prompts. |
 | `agents` | map id → [Agent](#agent) | Reusable agent definitions. |
 | `layers` | list of [Layer](#layer) | **Required.** Ordered **top to bottom**. |
 | `links` | list of [Edge](#edge) | Cross-layer edges. Endpoints are written `layer.node`. |
+
+## Runtime
+
+Real systems are hybrid: some agents run on a laptop, others in containers on a server, some steps are third-party services, CI jobs or serverless functions. Declare each place once and reference it from agents and nodes.
+
+```yaml
+runtimes:
+  laptop:  { kind: local, label: Dev laptop }
+  vps:     { kind: server, host: vps-01, provider: hetzner, region: fsn1 }
+  gha:     { kind: ci, provider: github-actions }
+  context7: { kind: saas, url: https://context7.com }
+```
+
+`kind`: `local` `server` `cloud` `container` `serverless` `saas` `edge` `ci` `browser` `device`. Optional: `label`, `description`, `host`, `provider`, `region`, `url` (http/https), `meta`.
+
+Nodes inherit the runtime of their agent. In the app, the **Runtimes** tab of the legend spotlights every node running in one place, and the node tag shows `@runtime`.
+
+## Resources
+
+Logs, scripts, dashboards, endpoints, queues, databases attached to a node or agent:
+
+```yaml
+resources:
+  - { kind: log, label: Worker log, path: logs/worker.log }          # opens in the viewer (large logs show their tail)
+  - { kind: dashboard, label: Grafana, url: https://grafana.example.com/d/abc }   # opens in a new tab
+```
+
+`kind`: `log` `script` `dashboard` `endpoint` `config` `doc` `queue` `database` `repo` `other`. Exactly one of `path` or `url`. **Never put secrets here**: reference them by name in `meta` if needed.
 
 ## Prompt
 
@@ -78,6 +108,9 @@ layers:
 | `label` | Short display name (≈18 chars). Defaults to the agent name or the id. |
 | `description` | Long text, shown in the inspector. |
 | `agent` | Reference to the `agents` registry. The node inherits model, prompt, tools, files and tower. |
+| `runtime` | Reference to `runtimes`. Inherited from the agent. |
+| `status` | `active` (default) · `planned` · `experimental` · `deprecated`. Non-active nodes get a dashed outline: use it to show structural changes in progress. |
+| `resources` | See [Resources](#resources). |
 | `model`, `prompt`, `tools`, `files`, `tower`, `meta` | Override or set directly. |
 
 Every path in `files` opens in the file viewer. Missing files are reported as warnings.
@@ -108,12 +141,16 @@ edges:
 
 Any agent or node with `tower:` gets a stacked-plates badge. Double-click it (or press **Enter** while it is selected) to dive in; use the breadcrumb, **Esc** or **Backspace** to go back up. Nested towers are separate files with their own `root`, prompts and agents, and they can nest further.
 
+## Library
+
+`flow-tower <dir>` scans recursively for `*.tower.yaml` (skipping `node_modules` and dot-folders). Towers referenced by another tower are nested; the others become **projects** in the library (press **L**). Pass several files or directories to combine projects from different repos.
+
 ## Validation
 
 | Level | Examples |
 |---|---|
-| error | invalid YAML, unknown keys, unknown agent/prompt reference, edge to a missing node, duplicate ids |
-| warning | referenced file not found |
+| error | invalid YAML, unknown keys, unknown agent/prompt/runtime reference, edge to a missing node, duplicate ids |
+| warning | referenced file or resource not found |
 | info | node without connections |
 
 Open the panel with the **ERR / WARN** badge in the top bar.

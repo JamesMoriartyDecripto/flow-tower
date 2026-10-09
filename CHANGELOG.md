@@ -16,3 +16,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Validation panel (errors, warnings, info) and live reload on any referenced file change.
 - `flow-tower` CLI with `init` starter template; read-only file API sandboxed to the tower root.
 - `examples/dev-squad`: multi-agent software delivery system on the Claude Agent SDK with two nested towers.
+- `examples/game-studio`: AI game development studio (14 layers, 140 nodes, 7 nested towers, depth 2).
+- `runtimes` registry, per-node `runtime`, `resources` (logs, scripts, dashboards, endpoints) and `status` (planned / experimental / deprecated).
+- Library mode: CLI accepts directories and multiple entries; project gallery with tags, stats and health.
+- Batched renderer (instancing, batched lines, troika BatchedText), distance-based text LOD, quality presets.
+- Large log files are previewed by their tail.
+- `scripts/gen-stress.ts` synthetic tower generator for performance testing.
