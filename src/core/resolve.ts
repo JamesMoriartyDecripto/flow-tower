@@ -88,6 +88,7 @@ export async function resolveAgent(
     tower: def.tower,
     runtime: def.runtime,
     resources: def.resources ?? [],
+    match: def.match,
     meta: { ...rest, ...def.meta },
   };
 }

@@ -9,6 +9,7 @@ import { COLORS, EDGE_STYLE, FONTS, GLOW } from '../theme';
 import type { LensState } from './lens';
 import { LayerEdges, type EdgeView } from './LayerEdges';
 import { LayerNodes, type NodeView } from './LayerNodes';
+import { LiveOverlay } from './LiveOverlay';
 import { Particles, type ParticlePath } from './Particles';
 
 export interface Visual {
@@ -19,6 +20,7 @@ export interface Visual {
 }
 
 interface Props {
+  tower: string;
   layer: ResolvedLayer;
   layout: LayerLayout;
   width: number;
@@ -30,7 +32,7 @@ interface Props {
 }
 
 /** A glass plate holding one left-to-right flowchart. Height and scale follow the animated lens. */
-export function Layer({ layer, layout, width, depth, lens, fade, interactive, visual }: Props) {
+export function Layer({ tower, layer, layout, width, depth, lens, fade, interactive, visual }: Props) {
   const ref = useRef<Group>(null);
   const particles = useStore((s) => s.particles);
   const focusLayer = useStore((s) => s.focusLayer);
@@ -123,6 +125,7 @@ export function Layer({ layer, layout, width, depth, lens, fade, interactive, vi
       <LayerEdges views={edgeViews} layerFade={fade} detail={detail && fade > 0.5} />
       <LayerNodes views={nodeViews} layer={layer.index} layerFade={fade} interactive={interactive} detail={detail && fade > 0.5} />
       {particles && fade > 0.5 && <Particles paths={paths} />}
+      <LiveOverlay tower={tower} views={nodeViews} fade={fade} />
     </group>
   );
 }

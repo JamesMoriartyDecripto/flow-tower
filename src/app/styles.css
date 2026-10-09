@@ -189,3 +189,37 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .status-deprecated { color: var(--dim); text-decoration: line-through; }
 .layernav button.hot { background: rgba(255, 138, 31, 0.16); border-left-color: var(--amber); }
 .layernav button.hot .name { color: var(--amber); }
+
+/* Layout fixes: nothing in the HUD may overlap text. */
+.inspector header { padding-right: 52px; }
+.inspector h2 { overflow-wrap: anywhere; }
+.tabbody { padding-bottom: 30px; scrollbar-gutter: stable; }
+.kv { grid-template-columns: fit-content(42%) minmax(0, 1fr); }
+.kv dt, .kv dd { overflow-wrap: anywhere; min-width: 0; }
+.conn { flex-wrap: wrap; row-gap: 2px; }
+.conn > span { min-width: 0; overflow-wrap: anywhere; }
+.prompt { overflow-wrap: anywhere; }
+.filelist button, .reslist a, .reslist button { overflow-wrap: anywhere; }
+.enter { flex-shrink: 0; }
+.issues.shifted { right: 448px; }
+.layernav { max-height: calc(100vh - 80px - 290px); }
+.legend { max-height: 260px; }
+.panel::before, .panel::after { z-index: 1; }
+
+/* Live feed */
+.livefeed { right: 14px; bottom: 76px; width: 440px; max-height: 46vh; display: flex; flex-direction: column; padding: 12px 14px; z-index: 3; animation: slidein .25s ease-out; }
+.livefeed.shifted { right: 448px; }
+.livefeed header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; padding-right: 10px; }
+.feed-sources { font-size: 10px; margin-bottom: 6px; }
+.feed { overflow: auto; display: flex; flex-direction: column; gap: 1px; padding-bottom: 14px; }
+.feed-row { display: grid; grid-template-columns: 62px 16px minmax(0, 1fr); column-gap: 6px; padding: 4px 6px; text-align: left; font: 12px var(--mono); border-left: 2px solid transparent; }
+.feed-row:hover { background: rgba(255, 138, 31, .08); border-left-color: var(--orange); }
+.feed-row .t { color: var(--dim); }
+.feed-row .k { color: var(--amber); }
+.feed-row .who { overflow-wrap: anywhere; }
+.feed-row .who em { color: var(--dim); font-style: normal; font-size: 10px; }
+.feed-row .msg { grid-column: 3; color: #9fb2d3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed-row.err .k, .feed-row.err .who { color: var(--error); }
+.feed-row.unmapped { opacity: .6; }
+.live { cursor: pointer; }
+.live.on { color: var(--orange); }
