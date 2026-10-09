@@ -31,6 +31,7 @@ The server only reads files under the tower roots. Workspace changes and live ev
 |---|---|
 | `src/server/plugin.ts` | API routes, file sandbox, live reload |
 | `src/server/events.ts` | Event hub (ring buffer, 204 empty responses for Claude Code hooks) |
+| `src/server/update.ts` | Daily update check against GitHub releases (cache, opt-out), served as `/api/version` |
 | `src/server/files.ts` | Reading one referenced file inside its tower root (shared by `/api/file` and the demo build) |
 | `scripts/build-demo.ts` | Static demo for GitHub Pages: freezes the workspace and referenced files into `data/`, then builds the app in `demo` mode |
 | `bin/flow-tower.js` | CLI commands: serve, init, validate, emit, guide, install-skill |
