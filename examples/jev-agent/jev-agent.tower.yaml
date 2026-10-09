@@ -1,0 +1,484 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Jev Agent
+tags: [coding, jev, typesafe, decision-model, guardrails, browser]
+description: >-
+  A coding agent harness built around Jev, TypeSafe's "System One" decision model.
+  The LLM writes, Jev decides, code acts: every branching point (routing, tool-risk
+  gating, next action, compaction relevance, the Stop check, preference review,
+  browser steps) is a Jev question with declared candidates, deterministic code turns
+  its probabilities into allow / warn / review / block, and an LLM runs only where
+  text must be written. Every judgment is logged with its probability for calibration.
+
+runtimes:
+  laptop:
+    kind: local
+    label: "Developer terminal"
+    description: "Where the request is typed and where held calls are approved or rejected."
+  devbox:
+    kind: container
+    label: "Agent devbox"
+    description: "Harness process, repo worktree and sandboxed shell. Network limited to the model APIs and the package registry."
+    host: "devbox-01"
+  jev:
+    kind: saas
+    label: "TypeSafe API"
+    description: "Jev via POST /v1/systemone. Also reachable through OpenRouter and Vercel AI Gateway (as jev-mcp supports)."
+    provider: "typesafe"
+    url: "https://api.typesafe.ai"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "The writers: Haiku, Sonnet and Opus 5.5, chosen per task by the Jev router."
+    provider: "anthropic"
+    url: "https://console.anthropic.com"
+  openrouter:
+    kind: saas
+    label: "OpenRouter"
+    description: "Mercury 2.5 as the browser's text helper, as in jev-ultrafast."
+    provider: "openrouter"
+    url: "https://openrouter.ai"
+  chrome:
+    kind: browser
+    label: "Chrome (CDP)"
+    description: "A dedicated Chrome profile driven over the DevTools Protocol. No saved logins."
+  ci:
+    kind: ci
+    label: "Nightly calibration"
+    description: "Scheduled job that recomputes calibration and proposes threshold changes as a PR."
+    provider: "github-actions"
+
+prompts:
+  agent:
+    file: prompts/agent.md
+    description: The writing half. Writes code and commands; never decides safety, next step or completion.
+  browser-text:
+    file: prompts/browser-text.md
+    description: Text helper for TYPE_TEXT only. Returns one small JSON object.
+  compaction-fallback:
+    file: prompts/compaction-fallback.md
+    description: LLM summary used only when Jev pruning fails or frees under 25%.
+
+agents:
+  coder:
+    runtime: devbox
+    name: Coding LLM
+    description: Writes code, shell commands and explanations, and proposes tool calls. Model picked by the Jev router.
+    model: claude-sonnet-5-5
+    prompt: agent
+    tools: [Bash, Read, Write, Edit, Grep, browse]
+    files: [src/loop.ts, src/tools.ts, prompts/agent.md]
+    harness: { loop: manual messages.create, max_tokens: 16000, models_by_route: { haiku: claude-haiku-5-5, sonnet: claude-sonnet-5-5, opus: claude-opus-5-5 } }
+    budget: { usd: 3, turns: 60, on_exceed: escalate }
+    limits: { timeout: 30m, max_iterations: 60 }
+    sandbox: { network: allowlist, allow: [api.anthropic.com, api.typesafe.ai, registry.npmjs.org], filesystem: workspace }
+    credentials: service
+  browser:
+    runtime: devbox
+    name: Browser worker
+    description: Jev Ultrafast-style loop. Jev picks operation and element; Mercury writes text only for TYPE_TEXT.
+    files: [src/browser.ts]
+    tower: towers/browser.tower.yaml
+    resources:
+      - { kind: log, label: "Browser trace", path: "logs/browser.log" }
+    budget: { usd: 0.05, on_exceed: stop }
+    limits: { timeout: 2m, max_iterations: 40 }
+    sandbox: { network: open, filesystem: none }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: intake
+    title: Intake & Routing
+    description: One Jev Choice picks the worker. No LLM reads the request to route it.
+    nodes:
+      - id: task
+        runtime: laptop
+        type: entry
+        label: Task
+        description: A request typed in the terminal (`npm start -- "<request>"`).
+        trigger: { kind: chat, source: terminal }
+        files: [src/main.ts]
+      - id: state
+        runtime: devbox
+        label: Build state
+        description: "Deterministic: request, repo map, AGENTS.md headings and the last 10 commits become the Jev state."
+        files: [src/route.ts]
+      - id: route
+        runtime: jev
+        type: decision
+        label: "Jev: route"
+        model: jev-1.13.0
+        description: >-
+          Choice over declared candidates: haiku (lookup, one-file edit), sonnet (multi-file
+          change with tests), opus (architecture, no-repro bug), browser (needs a live site),
+          ask_user (ambiguous). Returns choice, a probability per candidate and confidence.
+        files: [config/decisions.yaml, src/route.ts, src/jev.ts]
+        limits: { timeout: 2s, retries: 2, backoff: "exponential 200ms..800ms" }
+        evals:
+          - { name: "route kept by user", value: 0.91, target: 0.9, description: "Illustrative. Share of runs where the user did not re-route." }
+      - id: route_policy
+        runtime: devbox
+        type: guard
+        label: Route policy
+        description: >-
+          Confidence under 0.6 goes to ask_user (floor from TypeSafe's confidence-gated routing
+          pattern); opus needs 0.7 and browser 0.75 (illustrative). Jev down means sonnet.
+          The pick is sticky for the run.
+        files: [config/policy.yaml, src/route.ts]
+      - id: clarify
+        runtime: laptop
+        type: human
+        label: Ask user
+        description: One clarifying question; the answer is appended to the request and routing runs again.
+        approval: { by: requester, via: terminal, actions: [respond], timeout: 30m, on_timeout: wait }
+        files: [src/main.ts]
+    edges:
+      - task -> state
+      - { from: state, to: route, kind: call, protocol: http, label: "POST /v1/systemone" }
+      - "route -> route_policy [data]: choice + confidence"
+      - "route_policy -> clarify [handoff]: confidence < 0.6"
+      - "clarify -> state [return]: answer"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: act
+    title: Act Loop
+    description: >-
+      The LLM proposes, Jev judges each mutating call and the next step, code enforces.
+      Read-only calls skip Jev entirely; destructive patterns hold with no request at all.
+    nodes:
+      - id: coder
+        agent: coder
+      - id: ask_gate
+        runtime: devbox
+        type: guard
+        label: Ask gate
+        description: >-
+          Offline, before any request. Read-only tools and commands run directly (no Jev answer
+          could change them). Force push, reset --hard, rm -rf outside scratch, DROP and
+          terraform destroy hold for review with no request (pi-warden's offline floor).
+        files: [src/risk-gate.ts, config/policy.yaml]
+      - id: risk
+        runtime: jev
+        type: decision
+        label: "Jev: tool risk"
+        model: jev-1.13.0
+        description: >-
+          One request, three nouls over the same state (request, plan, call, git status):
+          irreversible, leaks_secret, off_task. Mutating calls only.
+        files: [config/decisions.yaml, src/risk-gate.ts]
+        limits: { timeout: 2s, retries: 1 }
+        evals:
+          - { name: "held per 1k calls", value: 3, target: 5, higher_is_better: false, description: "Reported by pi-warden (repo description, real sessions). Not measured here.", url: "https://github.com/DevMortimer/pi-warden" }
+          - { name: "holds re-planned safely", value: 0.71, target: 0.6, description: "Reported by pi-warden: 79 of 111 held actions, agent found a safer way (2026-09-16..10-01).", url: "https://github.com/DevMortimer/pi-warden" }
+          - { name: "Brier, irreversible", value: 0.07, target: 0.1, higher_is_better: false, description: "Illustrative. From scripts/calibrate.ts on labelled holds." }
+      - id: risk_policy
+        runtime: devbox
+        type: guard
+        label: Allow/review/block
+        description: >-
+          leaks_secret ≥ 0.5 blocks (no override). irreversible ≥ 0.9 holds for review,
+          0.5–0.9 runs with a one-sentence steer, below 0.5 allows (0.9 and 0.5 are pi-warden's
+          reported defaults). off_task is logged only. Jev error on a mutating call means review.
+        files: [src/risk-gate.ts, config/policy.yaml]
+      - id: review
+        runtime: laptop
+        type: human
+        label: Hold review
+        description: The developer sees the exact call and the reason. The answer is also the calibration label.
+        approval: { by: developer, via: terminal, actions: [approve, reject], timeout: 10m, on_timeout: reject }
+        files: [src/tools.ts]
+      - id: tools
+        runtime: devbox
+        type: tool
+        label: Tool runtime
+        description: Bash, Read, Write, Edit, Grep in the worktree sandbox. Output capped at 20k chars.
+        tools: [Bash, Read, Write, Edit, Grep]
+        files: [src/tools.ts]
+        sandbox: { network: allowlist, allow: [registry.npmjs.org], filesystem: workspace }
+        limits: { timeout: 120s }
+      - id: browser
+        agent: browser
+      - id: next
+        runtime: jev
+        type: decision
+        label: "Jev: next action"
+        model: jev-1.13.0
+        description: >-
+          After every tool batch. Choice over continue, run_check, new_hypothesis, finish,
+          escalate, judged on the request, the plan, the last 3 results and the failure streak.
+        files: [config/decisions.yaml, src/loop.ts]
+      - id: loop_policy
+        runtime: devbox
+        type: guard
+        label: Loop policy
+        description: >-
+          Same failing command 3 times forces new_hypothesis without asking. finish under
+          confidence 0.7 becomes run_check; p(escalate) ≥ 0.5 escalates; 60 iterations max
+          (illustrative). The choice reaches the LLM as one fixed sentence after the results.
+        files: [src/loop.ts, config/policy.yaml]
+        limits: { max_iterations: 60 }
+      - id: escalate
+        runtime: laptop
+        type: human
+        label: Escalate
+        description: The agent needs a decision, access or a credential it does not have. Transcript kept.
+        approval: { by: developer, via: terminal, actions: [respond, reject], timeout: 4h, on_timeout: wait }
+        files: [src/main.ts]
+    edges:
+      - "coder -> ask_gate: tool_use"
+      - "ask_gate -> tools: read-only"
+      - "ask_gate -> risk [call]: mutating"
+      - "ask_gate -> review [handoff]: destructive pattern"
+      - "risk -> risk_policy [data]: 3 nouls"
+      - "risk_policy -> tools: p(irreversible) < 0.9"
+      - "risk_policy -> review [handoff]: p(irreversible) ≥ 0.9"
+      - "risk_policy -> coder [return]: block if p(leaks_secret) ≥ 0.5"
+      - "review -> tools: approved"
+      - "review -> coder [return]: rejected + reason"
+      - "coder -> browser [spawn]: browse(url, goal)"
+      - "browser -> next [return]: DONE / BLOCKED + trace"
+      - "tools -> next [data]: results"
+      - "next -> loop_policy [data]: choice + probabilities"
+      - "loop_policy -> coder [return]: continue / check / new hypothesis"
+      - "loop_policy -> escalate [handoff]: p(escalate) ≥ 0.5 or cap"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: context
+    title: Context & Compaction
+    description: >-
+      Compaction by relevance, not by summary (fast-jev-compaction): Jev scores whether each
+      old tool call and result is still needed; what stays is verbatim.
+    nodes:
+      - id: transcript
+        runtime: devbox
+        type: memory
+        label: Transcript
+        description: Messages, tool calls and results in API order. Append-only between compactions.
+        files: [src/loop.ts]
+      - id: agents_md
+        runtime: devbox
+        type: memory
+        label: AGENTS.md
+        description: Plain-language "Done means" rules and preferences, read mechanically by the Stop hook.
+        files: [AGENTS.md]
+      - id: trigger
+        runtime: devbox
+        type: hook
+        label: Pre-compact
+        description: Runs before each LLM call; fires above 150k estimated tokens (illustrative). First message and the last 6 are pinned.
+        files: [src/compact.ts, config/policy.yaml]
+      - id: keep
+        runtime: jev
+        type: decision
+        label: "Jev: keep?"
+        model: jev-1.13.0
+        description: >-
+          Two nouls per old call: keep_call and keep_result. State is the whole conversation
+          with results replaced by size notes, fitted under 25k tokens; batches stay under 30k
+          and run concurrently (fast-jev-compaction defaults).
+        files: [src/compact.ts, config/decisions.yaml]
+        fanout: { min: 1, max: 8, by: "calls per 30k-token request" }
+        limits: { timeout: 10s, retries: 1 }
+      - id: prune
+        runtime: devbox
+        label: Keep/truncate/drop
+        description: >-
+          keep_result ≥ 0.5 keeps both; else keep_call ≥ 0.5 keeps the call and the first 300
+          chars of the result; else both go. A result never outlives its call.
+        files: [src/compact.ts]
+        evals:
+          - { name: "compaction time (s)", value: 0.5, target: 2, higher_is_better: false, description: "Reported by jev-compaction-plus (a fast-jev-compaction fork): ~0.5 s vs ~35 s for the built-in summary.", url: "https://github.com/cth9191/jev-compaction-plus" }
+          - { name: "context freed", value: 0.58, target: 0.25, description: "Illustrative, from logs/judgments.log. Below 0.25 the LLM summary runs instead." }
+      - id: fallback
+        runtime: anthropic
+        type: agent
+        label: Summary fallback
+        description: Haiku writes a structured summary only when Jev errors or pruning frees under 25%.
+        model: claude-haiku-5-5
+        prompt: compaction-fallback
+        files: [src/compact.ts, prompts/compaction-fallback.md]
+    edges:
+      - "transcript -> trigger [data]: token estimate"
+      - "trigger -> keep [call]: state + 2 nouls per call"
+      - "keep -> prune [data]: keep probabilities"
+      - "prune -> transcript [data]: verbatim kept"
+      - "prune -> fallback: freed < 25% or Jev error"
+      - "fallback -> transcript [data]: summary + recent tail"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: completion
+    title: Completion & Review
+    description: >-
+      The LLM asks to stop; Jev judges whether it is done. One request covers premature-stop
+      shapes (stingray), AGENTS.md "Done means" rules and preference checks per diff hunk (jev-pref).
+    nodes:
+      - id: stop
+        runtime: devbox
+        type: hook
+        label: Stop hook
+        description: Runs when the LLM ends a turn with no tool calls. Also usable as a command hook (stdin JSON, exit 2 blocks).
+        files: [src/hooks/stop.ts]
+      - id: hunks
+        runtime: devbox
+        label: Diff hunks
+        description: "`git diff -U3 HEAD` split into hunks (20 max, 1.5k chars each), paired with every preference (60 pairs max)."
+        files: [src/hooks/stop.ts]
+      - id: done_check
+        runtime: jev
+        type: decision
+        label: "Jev: done?"
+        model: jev-1.13.0
+        description: >-
+          Nouls no_action, broken_promise, unverified_done, plus one per "Done means" rule
+          ("the transcript shows evidence that this rule is satisfied").
+        files: [config/decisions.yaml, src/hooks/stop.ts, AGENTS.md]
+        evals:
+          - { name: "fake done turned into a check", value: 0.76, target: 0.7, description: "Reported by pi-warden's done-check: 94 of 124 nudges led to a check. Analogue, not measured here.", url: "https://github.com/DevMortimer/pi-warden" }
+      - id: pref_check
+        runtime: jev
+        type: decision
+        label: "Jev: prefs"
+        model: jev-1.13.0
+        description: One noul per (hunk, preference) pair, asked in the same request as the done check.
+        files: [src/hooks/stop.ts, AGENTS.md]
+        evals:
+          - { name: "rule precision at 0.7", value: 0.97, target: 0.9, description: "Reported by pi-warden's rules bench (161 cases): precision 0.970, recall 0.865. Same technique, not this repo.", url: "https://github.com/DevMortimer/pi-warden" }
+      - id: stop_policy
+        runtime: devbox
+        type: guard
+        label: Stop policy
+        description: >-
+          Any shape ≥ 0.7, a done rule ≤ 0.3 or a (blocking) preference ≥ 0.7 blocks with a
+          FIXED nudge; other preference hits become advisory notes (thresholds illustrative).
+          Two blocks per turn at most. Any error fails open.
+        files: [src/hooks/stop.ts, config/policy.yaml]
+      - id: result
+        runtime: laptop
+        type: output
+        label: Result
+        description: Final message with changed files, the passing check and advisory notes.
+        files: [src/main.ts]
+    edges:
+      - "stop -> hunks: changed files"
+      - "stop -> done_check [call]: final message + tool log"
+      - "hunks -> pref_check [call]: hunk × preference"
+      - "done_check -> stop_policy [data]: nouls"
+      - "pref_check -> stop_policy [data]: violations"
+      - "stop_policy -> result: allow"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: ops
+    title: Models & Observability
+    description: >-
+      One decision model, three writers and a text helper. Every judgment is logged with its
+      probability and later joined with what happened, so thresholds are measured, not guessed.
+    nodes:
+      - id: jev_model
+        runtime: jev
+        type: model
+        label: Jev 1.13
+        model: jev-1.13.0
+        description: >-
+          Pinned (jev-latest moves). Typed answers only: noul, choice (≤255 options), score
+          (2–10 levels). TypeSafe lists $42 per billion input tokens; output is not billed.
+        version: jev-1.13.0
+        evals:
+          - { name: "p95 latency (ms)", value: 420, target: 500, higher_is_better: false, description: "Illustrative target. Vendor and secondary sources report ~70–500 ms per request." }
+          - { name: "Jev share of task cost", value: 0.02, target: 0.1, higher_is_better: false, description: "Illustrative. Writers dominate cost; decisions are cheap." }
+      - id: sonnet
+        runtime: anthropic
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        description: Default writer for multi-file changes with tests.
+      - id: opus
+        runtime: anthropic
+        type: model
+        label: Opus 5.5
+        model: claude-opus-5-5
+        description: Writer for architecture and no-repro bugs. Routed only at confidence ≥ 0.7.
+      - id: haiku
+        runtime: anthropic
+        type: model
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        description: Writer for lookups and one-file edits; also the compaction fallback.
+      - id: mercury
+        runtime: openrouter
+        type: model
+        label: Mercury 2.5
+        model: inception/mercury-2.5
+        description: Browser text helper with reasoning off, as in the jev-ultrafast demo.
+      - id: jlog
+        runtime: devbox
+        type: memory
+        label: Judgment log
+        description: JSON lines. judgment (probabilities, latency, tokens), action (what code did), outcome (what happened).
+        files: [src/judgments.ts]
+        resources:
+          - { kind: log, label: "Judgment log", path: "logs/judgments.log" }
+        data: { sensitivity: confidential, retention: 90d, description: "Probabilities and tool names; commands and code are not logged." }
+      - id: labels
+        runtime: devbox
+        label: Outcome labels
+        description: "Ground truth arrives later: hold approved or declined, stop block useful or wasted, allowed call reverted."
+        files: [src/tools.ts, src/judgments.ts]
+      - id: calibrate
+        runtime: ci
+        label: Calibration job
+        description: >-
+          Brier score and reliability bins per question; a threshold chosen on one half of the
+          labels and checked on the other; hold and block rates per 1k calls.
+        files: [scripts/calibrate.ts]
+        trigger: { kind: cron, schedule: "0 3 * * *" }
+        evals:
+          - { name: "cost per task ($)", value: 0.42, target: 1, higher_is_better: false, description: "Illustrative. All models, per completed task." }
+          - { name: "labelled judgments", value: 1240, target: 1000, description: "Illustrative. Below ~1000 labels, keep the reported defaults." }
+      - id: thresholds
+        runtime: devbox
+        type: memory
+        label: Thresholds
+        description: Questions and cutoffs in YAML. Calibration proposes changes as a PR; a human merges.
+        files: [config/policy.yaml, config/decisions.yaml]
+        resources:
+          - { kind: config, label: "policy.yaml", path: "config/policy.yaml" }
+    edges:
+      - "jlog -> labels [data]: judgments + actions"
+      - "labels -> calibrate [data]: labelled samples"
+      - "calibrate -> thresholds [data]: proposed cutoffs (PR)"
+
+links:
+  # intake -> act
+  - "intake.route_policy -> act.coder [handoff]: haiku / sonnet / opus"
+  - "intake.route_policy -> act.browser [spawn]: browser route"
+  # every Jev decision calls the same model
+  - "intake.route -> ops.jev_model [call]"
+  - "act.risk -> ops.jev_model [call]"
+  - "act.next -> ops.jev_model [call]"
+  - "context.keep -> ops.jev_model [call]"
+  - "completion.done_check -> ops.jev_model [call]"
+  - "completion.pref_check -> ops.jev_model [call]"
+  # writers
+  - "act.coder -> ops.sonnet [call]: default"
+  - "act.coder -> ops.opus [call]: routed hard"
+  - "act.coder -> ops.haiku [call]: routed easy"
+  - "context.fallback -> ops.haiku [call]"
+  - "act.browser -> ops.mercury [call]: TYPE_TEXT only"
+  # context
+  - "act.tools -> context.transcript [data]: results"
+  - "context.transcript -> act.coder [data]: messages"
+  - "context.agents_md -> completion.done_check [data]: Done means"
+  - "context.agents_md -> completion.pref_check [data]: preferences"
+  # completion
+  - "act.loop_policy -> completion.stop: finish"
+  - "act.coder -> completion.stop: end_turn"
+  - "completion.stop_policy -> act.coder [return]: block + fixed nudge"
+  # observability
+  - "intake.route_policy -> ops.jlog [data]: route"
+  - "act.risk_policy -> ops.jlog [data]: verdict"
+  - "act.loop_policy -> ops.jlog [data]: next"
+  - "context.prune -> ops.jlog [data]: keep/drop"
+  - "completion.stop_policy -> ops.jlog [data]: allow/block"
+  - "act.review -> ops.labels [data]: approved / declined"
+  - "ops.thresholds -> act.risk_policy [data]: cutoffs"
+  - "ops.thresholds -> intake.route_policy [data]: floors"
