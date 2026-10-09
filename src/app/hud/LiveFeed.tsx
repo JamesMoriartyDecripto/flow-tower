@@ -21,7 +21,12 @@ const tone = (e: FlowEvent) => (isError(e) ? 'error' : isStart(e) ? 'run' : e.ki
 
 /** Live feed: color-coded events, filters, pause, spotlight/follow toggles, jump to any tower. */
 export function LiveFeed() {
-  const { events, feedOpen, spotlight, follow, paused, toggleFeed, setOption, clear } = useLive();
+  // Closed: subscribe to nothing else, so incoming events cost no render and no filtering.
+  return useLive((s) => s.feedOpen) ? <FeedPanel /> : null;
+}
+
+function FeedPanel() {
+  const { events, spotlight, follow, paused, toggleFeed, setOption, clear } = useLive();
   const tower = useTower();
   const ws = useStore((s) => s.workspace);
   const inspecting = useStore((s) => !!s.selected);
@@ -54,8 +59,6 @@ export function LiveFeed() {
     const path = towerPath(ws, w.towerId);
     if (path) s.openPath(path, w.key);
   }, [where, tower, ws]);
-
-  if (!feedOpen) return null;
 
   return (
     <aside className={`panel livefeed ${inspecting ? 'shifted' : ''}`}>

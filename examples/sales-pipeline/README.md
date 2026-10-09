@@ -83,6 +83,13 @@ decides this deterministically per contact. The agents never decide who may be c
 - `samples/`: weekly digest.
 - `logs/`: one outreach run.
 
+## Language
+
+Everything is in English except two customer-facing templates, which stay in Italian because they are sent
+to Italian customers as they are: `proposal/quote-template.md` (the quote) and section A of
+`contract/contract-template-outline.md` (the contract clauses). The same applies to the dunning letters in
+`invoicing-fic`.
+
 ## Illustrative vs. sourced
 
 **Fictional and illustrative:**

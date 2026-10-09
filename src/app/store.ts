@@ -68,6 +68,25 @@ function initialQuality(): Quality {
 
 let leaveTimer: ReturnType<typeof setTimeout> | undefined;
 
+const signatures = new WeakMap<ResolvedTower, string>();
+const signature = (t: ResolvedTower) => {
+  let s = signatures.get(t);
+  if (s === undefined) signatures.set(t, (s = JSON.stringify(t)));
+  return s;
+};
+/**
+ * Any watched file change reloads the whole library: keep the previous object of every tower that
+ * did not change, so its layout (ELK) and its layers are not recomputed and re-rendered.
+ */
+function share(prev: Workspace | undefined, next: Workspace): Workspace {
+  if (!prev) return next;
+  const towers = Object.fromEntries(Object.entries(next.towers).map(([id, t]) => {
+    const old = prev.towers[id];
+    return [id, old && signature(old) === signature(t) ? old : t];
+  }));
+  return { ...next, towers };
+}
+
 export const useStore = create<State>()((set, get) => ({
   stack: [],
   owners: [],
@@ -83,7 +102,8 @@ export const useStore = create<State>()((set, get) => ({
   revision: 0,
   viewNonce: 0,
 
-  setWorkspace(ws) {
+  setWorkspace(incoming) {
+    const ws = share(get().workspace, incoming);
     // Keep the user where they are on live reload, unless that tower disappeared.
     const first = !get().workspace;
     const stack = get().stack.filter((id) => ws.towers[id]);

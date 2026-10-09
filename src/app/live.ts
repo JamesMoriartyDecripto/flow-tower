@@ -161,14 +161,19 @@ export function useLivePoll<T>(
   const [snapshot, setSnapshot] = useState<{ sig: string; value: T }>({ sig: '', value: initial });
   useEffect(() => {
     if (!towerId) return;
+    let t: ReturnType<typeof setInterval> | undefined;
     const tick = () => {
-      const value = reduce(computeStates(towerId, nested, desc, useLive.getState().nodes, Date.now()));
+      const states = computeStates(towerId, nested, desc, useLive.getState().nodes, Date.now());
+      const value = reduce(states);
       const next = sig(value);
       setSnapshot((prev) => (prev.sig === next ? prev : { sig: next, value }));
+      // Everything idle: stop waking up 4 times a second until the next event arrives.
+      if (!states.size && t) { clearInterval(t); t = undefined; }
     };
-    tick();
-    const t = setInterval(tick, 250);
-    return () => clearInterval(t);
+    const start = () => { t ??= setInterval(tick, 250); tick(); };
+    start();
+    const unsubscribe = useLive.subscribe((s, prev) => { if (s.nodes !== prev.nodes) start(); });
+    return () => { clearInterval(t); unsubscribe(); };
   }, [towerId, nested, desc]); // eslint-disable-line react-hooks/exhaustive-deps
   return snapshot.value;
 }

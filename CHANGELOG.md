@@ -69,7 +69,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Changed
 - Library cards are plain containers with one primary button (the title), so the Tower / Map buttons are no longer nested inside a button; descriptions are focusable and scroll with ↑ ↓.
 - Dialogs (Settings, Shortcuts, file viewer) are modal for the keyboard: focus moves in on open, Tab stays inside, and focus returns to where it was on close. Shortcuts scrolls with ↑ ↓ PageDown on short screens.
-- Tooltips also appear on keyboard focus; the stripped `title` stays available to screen readers. Settings sliders and switches are named after their row. Layers panel entries preview their layer on focus as on hover. Live feed messages show their full text on hover.
+- Legend entries are focusable. Tooltips also appear on keyboard focus; the stripped `title` stays available to screen readers. Settings sliders and switches are named after their row. Layers panel entries preview their layer on focus as on hover. Live feed messages show their full text on hover.
 - File viewer: ← → switch files and ↑ ↓ PageUp PageDown Home End scroll the code from anywhere in the viewer.
 - `prefers-reduced-motion` turns off HUD animations; the smallest labels never render below ~7 px at the 0.7× interface floor.
 - README trimmed: examples summarized with a link to the full index; NEXT.md and CONTRIBUTING.md refreshed.
@@ -100,6 +100,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
   - The file watcher no longer adds a listener per path on every reload.
   - Layer grid geometries are disposed on tower switch and theme change (GPU memory grew with each switch).
   - The library re-renders only the card whose live state changed.
+  - Idle costs nothing: live polling, the closed live feed and the tooltip watchdog no longer wake up while nothing is live or shown.
+  - A live reload keeps unchanged towers as they are, so the tower on screen is not laid out again when another file changes.
 - Creating a file that a tower references (and was missing) now reloads the library, so its warning disappears without touching the YAML.
 - Library tag bar shows the 12 most used tags with counts and a toggle for the rest (100+ tags filled the screen).
 - HUD corner brackets no longer scroll with the content of scrolling panels (legend, layers, issues, shortcuts).
