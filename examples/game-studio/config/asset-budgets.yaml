@@ -1,0 +1,76 @@
+# Asset budgets per class. Enforced by src/hooks/asset-budget.ts (PreToolUse) and
+# pipelines/blender/validate_mesh.py (via mcp__forge__validate_asset).
+# Target: 60 fps @ 1080p on GTX 1660, 4 players, ~40 characters on screen worst case.
+# Each class exposes both the compact keys (tris/texture_max/materials/bones, read by src/)
+# and the flat keys (tris_lod0/max_texture/max_materials/max_bones, read by the Blender scripts).
+texel_density_px_per_m: 512
+lod_ratios: [0.5, 0.25, 0.1]
+
+classes:
+  hero: &hero                  # Keeper (player), 4 on screen
+    tris: [25000, 12500, 5000]
+    texture_max: 2048
+    materials: 3
+    bones: 75
+    tris_lod0: 25000
+    max_texture: 2048
+    max_materials: 3
+    max_bones: 75
+    uv_channels: 1
+  creature: &creature          # Cinder Wisp, up to 30 on screen
+    tris: [8000, 4000, 1200]
+    texture_max: 1024
+    materials: 2
+    bones: 40
+    tris_lod0: 8000
+    max_texture: 1024
+    max_materials: 2
+    max_bones: 40
+    uv_channels: 1
+  prop: &prop                  # crates, lanterns, wreck pieces, weapons
+    tris: [3000, 1500, 400]
+    texture_max: 1024
+    materials: 1
+    bones: 0
+    tris_lod0: 3000
+    max_texture: 1024
+    max_materials: 1
+    max_bones: 0
+    uv_channels: 2             # UV0 albedo, UV1 lightmap
+  hero_prop:                   # Beacon, Keeper lantern
+    tris: [12000, 6000, 2000]
+    texture_max: 2048
+    materials: 2
+    bones: 8
+    tris_lod0: 12000
+    max_texture: 2048
+    max_materials: 2
+    max_bones: 8
+    uv_channels: 2
+  environment: &environment    # rocks, cliffs, ruins (Nanite: LOD1/2 = 0)
+    tris: [60000, 0, 0]
+    texture_max: 2048
+    materials: 2
+    bones: 0
+    tris_lod0: 60000
+    max_texture: 2048
+    max_materials: 2
+    max_bones: 0
+    uv_channels: 2
+
+  # Aliases used by agents, the asset registry and pipelines/unreal/import_assets.py
+  hero_character: *hero
+  character: *hero
+  enemy: *creature
+  weapon: *prop
+  kit: *environment
+
+scene:
+  max_texture_memory_mb: 1800
+  max_draw_calls: 2500
+  max_unique_materials_per_level: 120
+
+# Hook behaviour: over budget by <= 10% -> ask (art director can approve), > 10% -> deny.
+tolerance:
+  ask_pct: 10
+  deny_pct: 10

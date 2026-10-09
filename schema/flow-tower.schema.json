@@ -1,0 +1,370 @@
+{
+  "title": "Flow Tower",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "default": 1,
+      "type": "number",
+      "const": 1
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "root": {
+      "description": "Base directory for every relative path. Defaults to the tower file directory.",
+      "type": "string"
+    },
+    "prompts": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "description": "Path to the prompt file, relative to `root`.",
+            "type": "string"
+          },
+          "text": {
+            "description": "Inline prompt text.",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "vars": {
+            "description": "Template variables. Auto-detected from {{var}} when omitted.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "agents": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "description": "Import a Claude Code style agent file (.md with YAML frontmatter). Explicit fields override it.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "description": "Path to the prompt file, relative to `root`.",
+                    "type": "string"
+                  },
+                  "text": {
+                    "description": "Inline prompt text.",
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "vars": {
+                    "description": "Template variables. Auto-detected from {{var}} when omitted.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "harness": {
+            "description": "Runtime settings: max_turns, temperature, permission_mode, budget...",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tower": {
+            "description": "Path to a nested .tower.yaml describing this agent internals.",
+            "type": "string"
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "description": "Free-form key/value metadata shown in the inspector."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "layers": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "nodes": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]+$"
+                },
+                "type": {
+                  "description": "Defaults to `agent` when `agent` is set, else `process`.",
+                  "type": "string",
+                  "enum": [
+                    "entry",
+                    "output",
+                    "agent",
+                    "process",
+                    "decision",
+                    "tool",
+                    "model",
+                    "memory",
+                    "human",
+                    "guard",
+                    "hook"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "agent": {
+                  "description": "Reference to an entry of the `agents` registry.",
+                  "type": "string"
+                },
+                "model": {
+                  "type": "string"
+                },
+                "prompt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "file": {
+                          "description": "Path to the prompt file, relative to `root`.",
+                          "type": "string"
+                        },
+                        "text": {
+                          "description": "Inline prompt text.",
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "vars": {
+                          "description": "Template variables. Auto-detected from {{var}} when omitted.",
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "tools": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "files": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "tower": {
+                  "type": "string"
+                },
+                "meta": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Free-form key/value metadata shown in the inspector."
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "edges": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "default": "flow",
+                      "type": "string",
+                      "enum": [
+                        "flow",
+                        "call",
+                        "spawn",
+                        "handoff",
+                        "return",
+                        "data"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "condition": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "nodes"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Ordered top to bottom."
+    },
+    "links": {
+      "default": [],
+      "description": "Cross-layer edges, endpoints written as \"layer.node\".",
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "kind": {
+                "default": "flow",
+                "type": "string",
+                "enum": [
+                  "flow",
+                  "call",
+                  "spawn",
+                  "handoff",
+                  "return",
+                  "data"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "condition": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "name",
+    "layers"
+  ],
+  "additionalProperties": false
+}

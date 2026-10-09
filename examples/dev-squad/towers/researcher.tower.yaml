@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Researcher internals
+description: >-
+  Parallelization (sectioning) inside one read-only subagent: four evidence tracks run at
+  once, conflicts are resolved by source priority, and every claim leaves with a citation.
+root: ..
+
+agents:
+  researcher:
+    from: .claude/agents/researcher.md
+    harness: { max_turns: 20, context: isolated, output_words: 300 }
+
+layers:
+  - id: fanout
+    title: Parallel Fan-out
+    description: Independent tracks, issued in the same turn so they run concurrently.
+    nodes:
+      - id: question
+        type: entry
+        label: One question
+        description: A single answerable question from the architect's plan, plus the step it unblocks.
+        files: [prompts/architect.md]
+      - id: split
+        agent: researcher
+        label: Split tracks
+        description: Turns the question into one query per track.
+      - id: docs
+        type: tool
+        label: Context7 docs
+        description: resolve-library-id, then query-docs for the version pinned in the lockfile.
+        tools: [mcp__context7__resolve-library-id, mcp__context7__query-docs]
+        files: [.mcp.json]
+      - id: code
+        type: tool
+        label: Codebase grep
+        description: Existing usages, wrappers and tests. Project conventions beat generic advice.
+        tools: [Grep, Glob, Read]
+      - id: web
+        type: tool
+        label: Web search
+        description: Only for known bugs, migration notes and changelogs. Official sources first.
+        tools: [WebSearch, WebFetch]
+      - id: versions
+        type: tool
+        label: Lockfile check
+        description: Reads the pinned version so docs and answers match what actually ships.
+        tools: [Read]
+    edges:
+      - question -> split
+      - "split -> docs [spawn]: API"
+      - "split -> code [spawn]: usages"
+      - "split -> web [spawn]: known bugs"
+      - "split -> versions [spawn]: pins"
+
+  - id: synthesis
+    title: Synthesis
+    description: Merge evidence, resolve conflicts by source priority, answer the question in 2-5 sentences.
+    nodes:
+      - id: collect
+        label: Collect evidence
+        description: Claims with their source, deduplicated.
+      - id: agree
+        type: decision
+        label: Sources agree?
+      - id: priority
+        type: guard
+        label: Source priority
+        description: pinned docs > project code > official tracker > everything else. Conflict is reported.
+        files: [.claude/agents/researcher.md]
+      - id: answer
+        label: Draft answer
+        description: Directly unblocks the plan step. No pasted files, no long excerpts.
+    edges:
+      - collect -> agree
+      - "agree -> answer: yes"
+      - "agree -> priority: no"
+      - "priority -> answer: resolved"
+
+  - id: deliver
+    title: Cite & Return
+    description: Uncited claims are demoted to "unverified". The brief is all the lead ever sees.
+    nodes:
+      - id: cite
+        label: Attach citations
+        description: file:line, URL or library@version for every claim.
+      - id: check
+        type: decision
+        label: All cited?
+      - id: brief
+        type: output
+        label: Research brief
+        description: "Answer / Evidence / Gotchas / Confidence, max 300 words."
+      - id: model
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        files: [src/config.ts]
+    edges:
+      - cite -> check
+      - "check -> brief: yes"
+      - "check -> cite [return]: demote"
+
+links:
+  - "fanout.docs -> synthesis.collect [data]: docs"
+  - "fanout.code -> synthesis.collect [data]: usages"
+  - "fanout.web -> synthesis.collect [data]: issues"
+  - "fanout.versions -> synthesis.collect [data]: versions"
+  - "synthesis.answer -> deliver.cite"
+  - "fanout.split -> deliver.model [call]: reasoning"

@@ -1,0 +1,164 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Unreal integration
+description: >-
+  How validated Blender exports become a lit, animated, streamable level in Unreal Engine 5.6.
+  Everything goes through editor Python over the Unreal MCP so every step is scripted and repeatable.
+root: ..
+
+prompts:
+  integration-lead: { file: prompts/integration-lead.md }
+
+agents:
+  lead:
+    name: Integration lead
+    model: claude-sonnet-5-5
+    prompt: integration-lead
+    tools: [Agent, Read, mcp__unreal__run_python, mcp__unreal__list_assets]
+    files: [src/departments/engine.ts]
+  animator:
+    from: .claude/agents/animator.md
+  lighting:
+    from: .claude/agents/lighting-artist.md
+  audio:
+    from: .claude/agents/audio-designer.md
+  art-director:
+    from: .claude/agents/art-director.md
+
+layers:
+  - id: import
+    title: Import
+    description: Idempotent imports with enforced naming and folder layout. Reimport never duplicates.
+    nodes:
+      - id: manifest
+        type: entry
+        label: Asset manifest
+        description: Registry entries with status approved, grouped by level and class.
+        files: [src/memory/asset-registry.ts]
+      - id: lead
+        agent: lead
+      - id: naming
+        type: guard
+        label: Naming & paths
+        description: SM_/SK_/T_/MI_ prefixes, /Game/Emberwake/<Class>/<Asset>. Wrong names are refused before import.
+        files: [pipelines/unreal/import_assets.py]
+      - id: import
+        label: Interchange import
+        description: AssetImportTask batch, automated, replace_existing, no dialogs.
+        files: [pipelines/unreal/import_assets.py]
+      - id: listed
+        type: tool
+        label: list_assets
+        description: Confirms every manifest entry now exists in the content browser.
+        tools: [mcp__unreal__list_assets]
+    edges:
+      - "manifest -> lead [data]: approved assets"
+      - "lead -> naming [call]: paths"
+      - "naming -> import: valid"
+      - "import -> listed [call]: verify"
+
+  - id: surfacing
+    title: Materials & Meshes
+    description: Material instances from three masters; Nanite and LODs decided per class.
+    nodes:
+      - id: masters
+        type: memory
+        label: Master materials
+        description: M_Painterly_Opaque, M_Painterly_Masked, M_Ember_Emissive. Never edited by agents.
+        files: [config/style-guide.json]
+      - id: instances
+        label: Material instances
+        description: MaterialEditingLibrary creates MI_<Asset> and sets BC/N/ORM plus palette parameters.
+        files: [pipelines/unreal/material_instances.py]
+      - id: nanite
+        type: decision
+        label: Nanite?
+        description: Static, opaque, over 20k tris -> Nanite; otherwise imported LOD chain.
+      - id: lod_settings
+        label: LOD & collision
+        description: Screen sizes from the budget file, simple collision for props, complex for terrain kits.
+        files: [config/asset-budgets.yaml]
+    edges:
+      - "masters -> instances [data]: parents"
+      - "instances -> nanite"
+      - "nanite -> lod_settings: no"
+
+  - id: animation
+    title: Animation & Cinematics
+    description: Runs in parallel with lighting. The animator owns retargeting, Anim Blueprints and Sequencer.
+    nodes:
+      - id: animator
+        agent: animator
+      - id: retarget
+        label: IK retarget
+        description: IK Rig + IK Retargeter from the mannequin library to the Keeper and Cinder Wisp skeletons.
+      - id: anim_bp
+        label: Anim Blueprint
+        description: Locomotion state machine, blend spaces, montage slots, foot IK.
+        files: [pipelines/unreal/anim_blueprint.py]
+      - id: montages
+        label: Montages & notifies
+        description: Attack, rekindle and interact montages with sound and VFX notifies for the audio pass.
+      - id: sequencer
+        label: Sequencer shots
+        description: Intro cinematic and trailer shot list as Level Sequences with camera cuts.
+        files: [pipelines/unreal/sequencer_shots.py]
+    edges:
+      - "animator -> retarget [call]: skeletons"
+      - "retarget -> anim_bp [data]: retargeted clips"
+      - "anim_bp -> montages [data]: slots"
+      - "montages -> sequencer [data]: hero moments"
+
+  - id: level
+    title: Level, Light & Sound
+    description: Assemble streaming cells, light them, add audio, then validate and review.
+    nodes:
+      - id: streaming
+        label: Level streaming
+        description: World Partition cells and data layers per island; HLOD build.
+        files: [pipelines/unreal/level_streaming.py]
+      - id: lighting
+        agent: lighting
+        label: Lighting artist
+      - id: audio
+        agent: audio
+        label: Audio designer
+      - id: validate
+        label: Validate level
+        description: Map check, missing references, default materials, texture streaming pool, shader count.
+        files: [pipelines/unreal/validate_level.py]
+      - id: screenshot
+        type: tool
+        label: take_screenshot
+        description: Fixed camera bookmarks for before/after comparisons.
+        tools: [mcp__unreal__take_screenshot]
+      - id: review
+        agent: art-director
+        label: Art director
+        description: Grades lit screenshots against the art bible; max 2 rounds.
+      - id: ok
+        type: decision
+        label: Integrated?
+      - id: done
+        type: output
+        label: Integrated level
+        description: Ready for the review gates and QA.
+    edges:
+      - "streaming -> lighting [spawn]: lighting pass"
+      - "streaming -> audio [spawn]: audio pass"
+      - "lighting -> validate [return]: lit"
+      - "audio -> validate [return]: cues placed"
+      - "validate -> screenshot [call]: bookmarks"
+      - "screenshot -> review [handoff]: shots"
+      - "review -> ok [data]: verdict"
+      - "ok -> done: yes"
+      - "ok -> lighting [return]: notes"
+
+links:
+  - "import.listed -> surfacing.instances: imported"
+  - "import.lead -> animation.animator [spawn]: rigs"
+  - "surfacing.lod_settings -> level.streaming: meshes ready"
+  - "surfacing.nanite -> level.streaming: nanite"
+  - "animation.sequencer -> level.validate [data]: sequences"
+  - "animation.montages -> level.audio [data]: notifies"
+  - "level.ok -> import.lead [return]: missing refs"

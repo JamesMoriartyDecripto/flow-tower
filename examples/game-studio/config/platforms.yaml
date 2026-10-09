@@ -1,0 +1,40 @@
+# Release targets for the Emberwake vertical slice. Used by src/tools/package-build.ts,
+# src/hooks/build-gate.ts and .github/workflows/package.yml.
+studio:
+  name: Forge Studio
+  project: Emberwake
+  uproject: Emberwake.uproject
+  engine: "5.6"
+  version_scheme: "0.<milestone>.<build>"
+  steam_app_id: 3412870
+  steam_depot_id: 3412871
+
+targets:
+  win64_steam:
+    platform: Win64
+    config: Shipping
+    steam_branch: internal       # playtest branch needs release_go_no_go; "default" is never used by agents
+    cook_flags: [-iterate, -compressed, -pak, -iostore, -prereqs]
+    maps: [/Game/Emberwake/Maps/L_FrontEnd, /Game/Emberwake/Maps/L_AshenShoals]
+    store: steam
+    signed: true
+  win64_dev:
+    platform: Win64
+    config: Development
+    steam_branch: null
+    cook_flags: [-iterate, -pak]
+    maps: [/Game/Emberwake/Maps/L_AshenShoals, /Game/Emberwake/Maps/Test/L_BotArena]
+    store: none                  # playtest bots (-nullrhi) and perf captures
+
+steam_branches:
+  internal: { password_protected: true, auto_upload: true }
+  playtest: { password_protected: true, auto_upload: false, requires: release_go_no_go }
+  default:  { auto_upload: false, agents_allowed: false }
+
+signing:
+  windows_cert: azure_trusted_signing
+  required_for: [win64_steam]
+
+limits:
+  max_package_size_gb: 6
+  max_build_minutes: 90

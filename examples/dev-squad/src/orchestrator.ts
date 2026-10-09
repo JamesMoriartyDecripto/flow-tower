@@ -1,0 +1,98 @@
+import { query, type SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
+import { leadTeam } from './agents';
+import { LIMITS, PLAN_GATE, ROLE_MODEL, loadMcpServers, sdkEnv } from './config';
+import { buildHooks } from './hooks';
+import { recallPatterns } from './memory/store';
+import { renderPrompt, untrusted } from './prompts';
+import { squadServer } from './tools';
+import type { Issue } from './main';
+import type { Triage } from './triage';
+
+export interface Worktree { path: string; branch: string }
+
+export interface LeadReport {
+  status: 'ready_for_review' | 'blocked';
+  plan: string;
+  steps_done: string[];
+  steps_skipped: string[];
+  tests: 'green' | 'red';
+  pr_title: string;
+  notes: string;
+  sessionId: string;
+  costUsd: number;
+}
+
+/**
+ * Orchestrator-workers: an Opus lead plans with the architect, fans research out
+ * in parallel, then walks the plan step by step with Sonnet coders. Each subagent
+ * has its own context window; only its final report comes back to the lead.
+ */
+export async function runLead(issue: Issue, triage: Triage, wt: Worktree): Promise<LeadReport> {
+  const vars = {
+    repo: issue.repo,
+    issue_number: String(issue.number),
+    issue_title: issue.title,
+    issue_body: untrusted(issue.body),
+    worktree: wt.path,
+    branch: wt.branch,
+  };
+
+  const run = query({
+    prompt: renderPrompt('orchestrator', {
+      ...vars,
+      kind: triage.kind,
+      complexity: triage.complexity,
+      risk: triage.risk,
+      areas: triage.areas.join(', '),
+      max_steps: PLAN_GATE.maxSteps,
+    }),
+    options: {
+      cwd: wt.path,
+      model: ROLE_MODEL.lead,
+      fallbackModel: ROLE_MODEL.coder,
+      // The lead coordinates; it cannot edit files or run shell commands itself.
+      tools: ['Agent', 'Read', 'Grep', 'Glob', 'TodoWrite', 'mcp__squad__request_approval'],
+      allowedTools: ['Agent', 'Read', 'Grep', 'Glob', 'TodoWrite'],
+      permissionMode: 'default',
+      agents: leadTeam({ ...vars, triage: JSON.stringify(triage), patterns: recallPatterns(triage.areas) }),
+      mcpServers: { ...loadMcpServers(), squad: squadServer },
+      hooks: buildHooks({ worktree: wt.path, issue: issue.number }),
+      settingSources: ['project'], // loads CLAUDE.md + .claude/settings.json permissions
+      maxTurns: LIMITS.lead.maxTurns,
+      maxBudgetUsd: LIMITS.lead.maxBudgetUsd,
+      effort: 'high',
+      env: sdkEnv({ SQUAD_ISSUE: String(issue.number) }),
+    },
+  });
+
+  let result: SDKResultMessage | undefined;
+  for await (const msg of run) {
+    if (msg.type === 'assistant') logDelegations(msg.message.content);
+    if (msg.type === 'result') result = msg;
+  }
+  if (!result) throw new Error('lead produced no result');
+  if (result.subtype !== 'success') {
+    return blocked(result.session_id, result.total_cost_usd, `lead stopped: ${result.subtype}`);
+  }
+  return { ...parseReport(result.result), sessionId: result.session_id, costUsd: result.total_cost_usd };
+}
+
+function logDelegations(content: Array<{ type: string; name?: string; input?: unknown }>) {
+  for (const block of content) {
+    // "Agent" in current SDKs, "Task" in older ones.
+    if (block.type === 'tool_use' && (block.name === 'Agent' || block.name === 'Task')) {
+      const input = block.input as { subagent_type?: string; description?: string };
+      console.log(`[lead] -> ${input.subagent_type ?? 'general'}: ${input.description ?? ''}`);
+    }
+  }
+}
+
+function parseReport(text: string): Omit<LeadReport, 'sessionId' | 'costUsd'> {
+  const json = text.match(/\{[\s\S]*\}\s*$/)?.[0];
+  if (!json) throw new Error('lead did not return the final JSON report');
+  return JSON.parse(json);
+}
+
+const blocked = (sessionId: string, costUsd: number, notes: string): LeadReport => ({
+  status: 'blocked', plan: '', steps_done: [], steps_skipped: [], tests: 'red', pr_title: '', notes, sessionId, costUsd,
+});
