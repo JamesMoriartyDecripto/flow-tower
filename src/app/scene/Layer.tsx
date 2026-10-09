@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Billboard, Line, Text } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { BufferGeometry, Float32BufferAttribute, Vector3, type Group, type PerspectiveCamera } from 'three';
@@ -10,6 +10,7 @@ import type { LensState } from './lens';
 import { LayerEdges, type EdgeView } from './LayerEdges';
 import { LayerNodes, type NodeView } from './LayerNodes';
 import { LiveOverlay } from './LiveOverlay';
+import { layerGroups } from './chips';
 import { Particles, type ParticlePath } from './Particles';
 
 export interface Visual {
@@ -29,11 +30,18 @@ interface Props {
   fade: number;
   interactive: boolean;
   visual: Visual;
+  liveTint?: 'run' | 'error';
+  subtrees: Map<string, Set<string>>;
 }
 
 /** A glass plate holding one left-to-right flowchart. Height and scale follow the animated lens. */
-export function Layer({ tower, layer, layout, width, depth, lens, fade, interactive, visual }: Props) {
+export const Layer = memo(function Layer({ tower, layer, layout, width, depth, lens, fade, interactive, visual, liveTint, subtrees }: Props) {
   const ref = useRef<Group>(null);
+  useEffect(() => {
+    const g = ref.current;
+    if (g) layerGroups.set(layer.id, g);
+    return () => { if (layerGroups.get(layer.id) === g) layerGroups.delete(layer.id); };
+  }, [layer.id]);
   const particles = useStore((s) => s.particles);
   const focusLayer = useStore((s) => s.focusLayer);
   const hoverLayer = useStore((s) => s.hoverLayer);
@@ -72,6 +80,7 @@ export function Layer({ tower, layer, layout, width, depth, lens, fade, interact
   })), [layout.edges]);
 
   const idx = String(layer.index + 1).padStart(2, '0');
+  const layerLive = liveTint;
   const { nodeFade, edgeHighlight, selected, hovered } = visual;
   const nodeViews = useMemo<NodeView[]>(() => layer.nodes.filter((n) => layout.nodes[n.key]).map((n) => ({
     node: n, box: layout.nodes[n.key], fade: nodeFade(n.key), selected: selected === n.key, hovered: hovered === n.key,
@@ -101,7 +110,8 @@ export function Layer({ tower, layer, layout, width, depth, lens, fade, interact
       <lineSegments geometry={grid}>
         <lineBasicMaterial color={COLORS.dim} transparent opacity={0.09 * fade} depthWrite={false} />
       </lineSegments>
-      <Line points={outline} color={GLOW.orange} lineWidth={1} transparent opacity={0.55 * fade} toneMapped={false} />
+      <Line points={outline} color={layerLive === 'error' ? GLOW.error : layerLive === 'run' ? GLOW.run : GLOW.orange}
+        lineWidth={layerLive ? 2 : 1} transparent opacity={(layerLive ? 0.9 : 0.55) * fade} toneMapped={false} />
       <Line points={brackets} segments color={GLOW.white} lineWidth={2.2} transparent opacity={0.9 * fade} toneMapped={false} />
 
       <Billboard position={[-width / 2 - 0.6, 0.6, depth / 2]}>
@@ -125,10 +135,10 @@ export function Layer({ tower, layer, layout, width, depth, lens, fade, interact
       <LayerEdges views={edgeViews} layerFade={fade} detail={detail && fade > 0.5} />
       <LayerNodes views={nodeViews} layer={layer.index} layerFade={fade} interactive={interactive} detail={detail && fade > 0.5} />
       {particles && fade > 0.5 && <Particles paths={paths} />}
-      <LiveOverlay tower={tower} views={nodeViews} fade={fade} />
+      <LiveOverlay tower={tower} views={nodeViews} fade={fade} subtrees={subtrees} />
     </group>
   );
-}
+});
 
 function gridGeometry(w: number, d: number, step: number) {
   const pts: number[] = [];

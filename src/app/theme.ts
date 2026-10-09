@@ -16,10 +16,20 @@ export const COLORS = {
 };
 
 /** Colors pushed above 1.0 so the bloom pass picks them up. */
+/** Live states use their own hues, complementary to the orange structure, so activity always pops. */
+export const LIVE = {
+  run: '#3ee6ff',
+  done: '#5cff9d',
+  error: '#ff4d5e',
+};
+
 export const GLOW = {
   orange: new Color(COLORS.orange).multiplyScalar(2.2),
   amber: new Color(COLORS.amber).multiplyScalar(1.6),
   white: new Color(COLORS.white).multiplyScalar(1.6),
+  run: new Color(LIVE.run).multiplyScalar(2.4),
+  done: new Color(LIVE.done).multiplyScalar(2),
+  error: new Color(LIVE.error).multiplyScalar(2.4),
 };
 
 /** World units per ELK pixel, and node footprint in ELK pixels. */

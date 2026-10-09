@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ResolvedTower, Workspace } from '../../core/types';
+import { subtreeState, useLive, type LiveState } from '../live';
+import { useDescendants } from '../liveHooks';
 import { useStore } from '../store';
 
 interface Stats {
@@ -64,6 +66,26 @@ function MiniTower({ tower }: { tower: ResolvedTower }) {
   );
 }
 
+const NO_PROJECTS: string[] = [];
+
+/** Live state per project (including nested towers), refreshed every second while the library is open. */
+function useProjectsLive(projects: string[], active: boolean) {
+  const desc = useDescendants();
+  const [states, setStates] = useState<Record<string, LiveState>>({});
+  useEffect(() => {
+    if (!active) return;
+    const tick = () => {
+      const nodes = useLive.getState().nodes;
+      const now = Date.now();
+      setStates(Object.fromEntries(projects.map((p) => [p, subtreeState(new Set([p, ...(desc.get(p) ?? [])]), nodes, now).state])));
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [projects, desc, active]);
+  return states;
+}
+
 /** Project gallery: every top-level tower found by the CLI, with size and health at a glance. */
 export function Library() {
   const { workspace, library, stack, openProject, showLibrary } = useStore();
@@ -74,6 +96,7 @@ export function Library() {
     id, tower: workspace!.towers[id], stats: projectStats(workspace!, id),
   })), [workspace]);
   const tags = useMemo(() => [...new Set(cards.flatMap((c) => c.tower.tags))].sort(), [cards]);
+  const live = useProjectsLive(workspace?.projects ?? NO_PROJECTS, library);
   if (!library || !workspace) return null;
 
   const q = filter.trim().toLowerCase();
@@ -106,7 +129,7 @@ export function Library() {
           <button key={id} className={`panel lib-card ${stack[0] === id ? 'current' : ''}`} onClick={() => openProject(id)}>
             <MiniTower tower={tower} />
             <div className="lib-body">
-              <h3>{tower.name}</h3>
+              <h3>{tower.name}{live[id] && live[id] !== 'idle' && <span className={`live-dot ${live[id]}`} title={`live: ${live[id]}`} />}</h3>
               <p className="dim">{tower.description ?? id}</p>
               <dl className="lib-stats">
                 <div title={`${stats.layers} layers including sub-towers`}><dt>Layers</dt><dd>{tower.layers.length}</dd></div>

@@ -46,6 +46,8 @@ interface State {
   resetView(): void;
   enterTower(id: string): void;
   openProject(id: string): void;
+  /** Jump to a tower by breadcrumb (project → … → tower) and optionally select a node there. */
+  openPath(stack: string[], select?: string): void;
   showLibrary(open: boolean): void;
   goTo(depth: number): void;
   set(patch: Partial<Pick<State, 'explode' | 'autoRotate' | 'particles' | 'search' | 'quality' | 'runtimeFocus'>>): void;
@@ -95,6 +97,9 @@ export const useStore = create<State>()((set, get) => ({
   },
   openProject(id) {
     set({ stack: [id], library: false, selected: undefined, focusedLayer: undefined, hoveredLayer: undefined, file: undefined, search: '', runtimeFocus: undefined });
+  },
+  openPath(stack, select) {
+    set({ stack, library: false, selected: select, focusedLayer: undefined, hoveredLayer: undefined, file: undefined });
   },
   showLibrary: (library) => set({ library }),
   goTo(depth) {

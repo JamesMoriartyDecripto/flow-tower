@@ -9,6 +9,10 @@
   --line: rgba(255, 138, 31, 0.32);
   --line-soft: rgba(232, 241, 255, 0.12);
   --error: #ff5a4f;
+  /* live states: complementary to the orange structure so activity always stands out */
+  --live-run: #3ee6ff;
+  --live-done: #5cff9d;
+  --live-error: #ff4d5e;
   --warn: #ffd166;
   --glow: 0 0 10px rgba(255, 138, 31, 0.55);
   --display: 'Orbitron', sans-serif;
@@ -213,13 +217,57 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .feed-sources { font-size: 10px; margin-bottom: 6px; }
 .feed { overflow: auto; display: flex; flex-direction: column; gap: 1px; padding-bottom: 14px; }
 .feed-row { display: grid; grid-template-columns: 62px 16px minmax(0, 1fr); column-gap: 6px; padding: 4px 6px; text-align: left; font: 12px var(--mono); border-left: 2px solid transparent; }
-.feed-row:hover { background: rgba(255, 138, 31, .08); border-left-color: var(--orange); }
+.feed-row:hover { background: rgba(62, 230, 255, .08); }
 .feed-row .t { color: var(--dim); }
 .feed-row .k { color: var(--amber); }
 .feed-row .who { overflow-wrap: anywhere; }
 .feed-row .who em { color: var(--dim); font-style: normal; font-size: 10px; }
 .feed-row .msg { grid-column: 3; color: #9fb2d3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.feed-row.err .k, .feed-row.err .who { color: var(--error); }
+/* row tone = same palette as the 3D overlay */
+.feed-row.run { border-left-color: rgba(62, 230, 255, .55); }
+.feed-row.run .k { color: var(--live-run); }
+.feed-row.done { border-left-color: rgba(92, 255, 157, .4); }
+.feed-row.done .k { color: var(--live-done); }
+.feed-row.error { border-left-color: var(--live-error); background: rgba(255, 77, 94, .07); }
+.feed-row.error .k, .feed-row.error .who { color: var(--live-error); }
 .feed-row.unmapped { opacity: .6; }
 .live { cursor: pointer; }
 .live.on { color: var(--orange); }
+
+/* Live: feed tools, legend, chips and badges */
+.livefeed { width: 460px; max-height: 42vh; }
+.livefeed .title em.err-count { color: var(--live-error); font-style: normal; }
+.feed-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+.feed-tools .chip.on { border-color: var(--live-run); color: var(--live-run); background: rgba(62, 230, 255, .1); }
+.seg { display: inline-flex; border: 1px solid var(--line-soft); }
+.seg button { padding: 2px 8px; font: 500 11px var(--mono); color: var(--dim); }
+.seg button.on { color: var(--bg); background: var(--live-run); }
+.feed-legend { display: flex; gap: 12px; font: 10px var(--mono); margin-bottom: 6px; }
+.feed-legend .run { color: var(--live-run); }
+.feed-legend .done { color: var(--live-done); }
+.feed-legend .error { color: var(--live-error); }
+.feed-row .who em { color: var(--live-run); }
+
+.live-chip { display: flex; align-items: center; gap: 6px; padding: 3px 8px; white-space: nowrap; font: 600 11px var(--mono);
+  color: var(--white); background: rgba(3, 14, 30, .82); border: 1px solid var(--live-run);
+  box-shadow: 0 0 12px rgba(62, 230, 255, .45); cursor: pointer; }
+.live-chip i { font-style: normal; color: var(--live-run); animation: pulse 1.2s infinite; }
+.live-chip b { font: 700 12px var(--ui); letter-spacing: .03em; }
+.live-chip span { color: #9fe9f5; }
+.live-chip.error { border-color: var(--live-error); box-shadow: 0 0 12px rgba(255, 77, 94, .5); }
+.live-chip.error i, .live-chip.error span { color: var(--live-error); }
+
+.live-badge { font-weight: 700; animation: pulse 1.4s infinite; }
+.live-badge.run { color: var(--live-run); }
+.live-badge.error { color: var(--live-error); }
+.live-run { color: var(--live-run); }
+.live-error { color: var(--live-error); }
+.live-dot { display: inline-block; width: 9px; height: 9px; margin-left: 8px; border-radius: 50%; vertical-align: middle; animation: pulse 1.4s infinite; }
+.live-dot.run { background: var(--live-run); box-shadow: 0 0 8px var(--live-run); }
+.live-dot.error { background: var(--live-error); box-shadow: 0 0 8px var(--live-error); }
+.live-dot.done, .live-dot.flash { background: var(--live-done); }
+.live i { background: var(--live-run); box-shadow: 0 0 10px rgba(62, 230, 255, .7); }
+
+.live-chips { position: fixed; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+.live-chips .live-chip { position: absolute; left: 0; top: 0; pointer-events: auto; will-change: transform; }
+.live i.ping { animation: flash .6s; }
