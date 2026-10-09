@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { EDGE_KINDS, NODE_TYPES } from '../../core/schema';
 import { search as rank } from '../graph';
+import { useLive } from '../live';
 import { useStore, useTower } from '../store';
 import { EDGE_STYLE, NODE_STYLE } from '../theme';
 
@@ -71,8 +72,28 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
         <span className={`chip ${errors ? 'err' : ''}`}>{errors} ERR</span>
         <span className={`chip ${warnings ? 'warn' : ''}`}>{warnings} WARN</span>
       </button>
-      <div className={`live ${flash ? 'flash' : ''}`} title="Live reload: edit the YAML and the tower updates"><i />LIVE</div>
+      <LiveButton flash={flash} />
     </header>
+  );
+}
+
+/** LIVE indicator: flashes on file reloads and incoming events; click to open the live feed. */
+function LiveButton({ flash }: { flash: boolean }) {
+  const { events, feedOpen, toggleFeed } = useLive();
+  const perMin = events.filter((e) => e.ts > Date.now() - 60_000).length;
+  const [ping, setPing] = useState(false);
+  const last = events[events.length - 1]?.id;
+  useEffect(() => {
+    if (last === undefined) return;
+    setPing(true);
+    const t = setTimeout(() => setPing(false), 600);
+    return () => clearTimeout(t);
+  }, [last]);
+  return (
+    <button className={`live ${flash || ping ? 'flash' : ''} ${feedOpen ? 'on' : ''}`} onClick={() => toggleFeed()}
+      title="Live: file reloads + agent events. Click for the live feed.">
+      <i />LIVE{perMin ? ` ${perMin}/min` : ''}
+    </button>
   );
 }
 
@@ -182,9 +203,10 @@ export function Controls() {
 
 export function Issues({ onClose }: { onClose(): void }) {
   const tower = useTower();
+  const inspecting = useStore((s) => !!s.selected);
   const issues = [...(tower?.issues ?? [])].sort((a, b) => ['error', 'warning', 'info'].indexOf(a.level) - ['error', 'warning', 'info'].indexOf(b.level));
   return (
-    <aside className="panel issues">
+    <aside className={`panel issues ${inspecting ? 'shifted' : ''}`}>
       <button className="close" style={{ position: 'absolute', top: 10, right: 18 }} onClick={onClose}>✕</button>
       <div className="title" style={{ marginBottom: 10 }}>Validation · {issues.length}</div>
       {issues.length === 0 && <p className="mono dim">All systems nominal.</p>}

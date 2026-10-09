@@ -5,12 +5,15 @@ import { Controls, Issues, LayerNav, Legend, TopBar } from './hud/Chrome';
 import { FileViewer } from './hud/FileViewer';
 import { Inspector } from './hud/Inspector';
 import { Library } from './hud/Library';
+import { LiveFeed } from './hud/LiveFeed';
+import { useLiveSync } from './live';
 import { Effects } from './scene/Effects';
 import { TowerScene } from './scene/Tower';
 import { findNode, useStore, useTower } from './store';
 
 export function App() {
   useWorkspaceSync();
+  useLiveSync();
   useKeyboard();
   const tower = useTower();
   const error = useStore((s) => s.error);
@@ -43,6 +46,7 @@ export function App() {
           <div className="hint">DRAG rotate · RIGHT-DRAG pan · SCROLL zoom · CLICK inspect · DBL-CLICK enter · 1-9 layers · ESC back</div>
         )}
         <Inspector />
+        <LiveFeed />
         {(showIssues || broken) && <Issues onClose={() => setShowIssues(false)} />}
       </div>
       <FileViewer />

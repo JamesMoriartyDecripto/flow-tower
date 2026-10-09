@@ -30,7 +30,8 @@
     "test": "vitest run",
     "schema": "node --experimental-strip-types scripts/gen-schema.ts",
     "check": "npm run typecheck && npm test",
-    "stress": "node --experimental-strip-types scripts/gen-stress.ts"
+    "stress": "node --experimental-strip-types scripts/gen-stress.ts",
+    "simulate": "node --experimental-strip-types scripts/simulate.ts"
   },
   "files": [
     "bin",

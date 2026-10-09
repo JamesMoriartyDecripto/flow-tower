@@ -12,6 +12,7 @@
 - **Structural changes.** Mark nodes `planned`, `experimental` or `deprecated`.
 - **Library.** Point it at a folder and browse every project you work on.
 - **Live.** Save the YAML, or any referenced file, and the tower updates.
+- **Realtime agents.** Connect Claude Code, the Agent SDK, Pi, Hermes or your own loops. Active nodes light up, errors flash, and a live feed shows every step. See [docs/realtime.md](docs/realtime.md).
 
 ![Library](docs/screenshot-library.png)
 
@@ -76,6 +77,15 @@ See the full **[schema reference](docs/schema.md)**. A generated JSON Schema (`s
 
 Every example ships real prompt, agent, code, config and log files, so the popups have something to show.
 
+## Live events
+
+```bash
+npm run simulate -- game-studio        # see it without wiring anything
+npx flow-tower emit --kind tool.start --agent coder --tool Bash -m "npm test"
+```
+
+Ready-made configs for Claude Code, the Agent SDK, Pi and Hermes are in [`integrations/`](integrations).
+
 ## Controls
 
 | Input | Action |
@@ -87,6 +97,7 @@ Every example ships real prompt, agent, code, config and log files, so the popup
 | **Esc**, **Backspace** | Go back (file, then selection, then layer, then parent tower) |
 | **/** | Search nodes, models, tools |
 | **L** | Project library |
+| Hover a layer | Lens: magnify it and spread the stack around it |
 
 The bottom bar toggles orbit, flow particles and the rendering quality (`high` / `balanced` / `low`). You can also force a preset with `?quality=low`.
 

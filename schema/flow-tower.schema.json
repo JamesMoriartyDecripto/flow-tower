@@ -244,6 +244,13 @@
               "additionalProperties": false
             }
           },
+          "match": {
+            "description": "Live event rules, e.g. \"agent:coder\", \"tool:mcp__github__*\", \"source:hermes&tool:shell\".",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "meta": {
             "type": "object",
             "propertyNames": {
@@ -411,6 +418,13 @@
                       "label"
                     ],
                     "additionalProperties": false
+                  }
+                },
+                "match": {
+                  "description": "Live event rules; inherited from the agent. Default: match by id, label, agent and tool names.",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
                   }
                 },
                 "meta": {

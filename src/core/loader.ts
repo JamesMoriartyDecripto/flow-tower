@@ -175,6 +175,7 @@ export async function buildTower(
         runtime: n.runtime ? runtimeOf(n.runtime, where) : agent?.runtime ? runtimes[agent.runtime] : undefined,
         status: n.status ?? 'active',
         resources,
+        match: n.match ?? agent?.match,
         meta: n.meta ?? {},
       });
     }

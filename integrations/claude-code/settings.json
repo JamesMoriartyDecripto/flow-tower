@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart":       [{ "hooks": [{ "type": "command", "command": "npx flow-tower emit --source claude-code", "async": true }] }],
+    "UserPromptSubmit":   [{ "hooks": [{ "type": "http", "url": "http://127.0.0.1:5317/api/events?source=claude-code", "timeout": 2 }] }],
+    "PreToolUse":         [{ "hooks": [{ "type": "http", "url": "http://127.0.0.1:5317/api/events?source=claude-code", "timeout": 2 }] }],
+    "PostToolUse":        [{ "hooks": [{ "type": "http", "url": "http://127.0.0.1:5317/api/events?source=claude-code", "timeout": 2 }] }],
+    "PostToolUseFailure": [{ "hooks": [{ "type": "http", "url": "http://127.0.0.1:5317/api/events?source=claude-code", "timeout": 2 }] }],
+    "SubagentStart":      [{ "hooks": [{ "type": "http", "url": "http://127.0.0.1:5317/api/events?source=claude-code", "timeout": 2 }] }],
+    "SubagentStop":       [{ "hooks": [{ "type": "http", "url": "http://127.0.0.1:5317/api/events?source=claude-code", "timeout": 2 }] }],
+    "Stop":               [{ "hooks": [{ "type": "http", "url": "http://127.0.0.1:5317/api/events?source=claude-code", "timeout": 2 }] }],
+    "StopFailure":        [{ "hooks": [{ "type": "http", "url": "http://127.0.0.1:5317/api/events?source=claude-code", "timeout": 2 }] }],
+    "Notification":       [{ "hooks": [{ "type": "http", "url": "http://127.0.0.1:5317/api/events?source=claude-code", "timeout": 2 }] }],
+    "SessionEnd":         [{ "hooks": [{ "type": "http", "url": "http://127.0.0.1:5317/api/events?source=claude-code", "timeout": 2 }] }]
+  }
+}

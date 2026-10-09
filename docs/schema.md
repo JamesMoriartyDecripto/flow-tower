@@ -113,6 +113,7 @@ layers:
 | `runtime` | Reference to `runtimes`. Inherited from the agent. |
 | `status` | `active` (default) · `planned` · `experimental` · `deprecated`. Non-active nodes get a dashed outline: use it to show structural changes in progress. |
 | `resources` | See [Resources](#resources). |
+| `match` | Live event rules (`"agent:coder"`, `"source:ci&tool:deploy*"`). Inherited from the agent. See [realtime](realtime.md). |
 | `model`, `prompt`, `tools`, `files`, `tower`, `meta` | Override or set directly. |
 
 Every path in `files` opens in the file viewer. Missing files are reported as warnings.

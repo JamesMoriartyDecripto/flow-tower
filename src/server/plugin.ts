@@ -4,6 +4,7 @@ import { env } from 'node:process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin, ViteDevServer } from 'vite';
 import { loadLibrary, safeJoin, type LoadResult } from '../core/loader.ts';
+import { createEventHub, EVENTS_EVENT } from './events.ts';
 
 const MAX_FILE_BYTES = 1_000_000;
 export const UPDATE_EVENT = 'flow-tower:update';
@@ -42,6 +43,13 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         send(res, 200, state.workspace);
       });
       server.middlewares.use('/api/file', (req, res) => void serveFile(req, res, state));
+
+      const hub = createEventHub(
+        () => state?.workspace,
+        (events) => server.ws.send(EVENTS_EVENT, events),
+        env.FLOW_TOWER_TOKEN,
+      );
+      server.middlewares.use('/api/events', hub.handle);
     },
   };
 }

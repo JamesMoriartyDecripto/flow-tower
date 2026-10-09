@@ -28,6 +28,7 @@ export interface ResolvedAgent {
   tower?: string;
   runtime?: string;
   resources: ResourceDef[];
+  match?: string[];
   meta: Record<string, unknown>;
 }
 
@@ -48,6 +49,7 @@ export interface ResolvedNode {
   runtime?: ResolvedRuntime;
   status: Status;
   resources: ResourceDef[];
+  match?: string[];
   meta: Record<string, unknown>;
 }
 
