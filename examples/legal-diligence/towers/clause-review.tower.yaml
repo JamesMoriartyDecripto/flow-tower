@@ -79,6 +79,7 @@ layers:
         description: e.g. assignment clause exists -> extract consent requirement; otherwise the dependent columns are skipped.
         runtime: matter-svc
         files: [templates/review-columns.yaml]
+        decision: { output: binary }
       - id: conditional
         agent: reviewer
         label: Dependent columns
@@ -96,8 +97,8 @@ layers:
         runtime: bedrock
     edges:
       - answer -> present
-      - "present -> conditional: yes"
-      - "present -> schema: no (skip dependents)"
+      - { from: present, to: conditional, label: "yes", group: present }
+      - { from: present, to: schema, label: no (skip dependents), group: present }
       - conditional -> schema
       - { from: answer, to: sonnet, kind: call, protocol: http }
       - "schema -> answer [return]: invalid, max 2"
@@ -111,6 +112,7 @@ layers:
         label: Confidence ok?
         description: Cells under 0.7 are marked for the associate even if the quote verifies.
         runtime: matter-svc
+        decision: { output: binary, threshold: 0.7 }
       - id: cells
         type: output
         label: Cells
@@ -123,8 +125,8 @@ layers:
         description: Low-confidence cells, flagged with the reviewer's reasoning.
         runtime: matter-svc
     edges:
-      - "confidence -> cells: >= 0.7"
-      - "confidence -> low: < 0.7"
+      - { from: confidence, to: cells, label: ">= 0.7", group: confidence }
+      - { from: confidence, to: low, label: "< 0.7", group: confidence }
 
 links:
   - "locate.read -> extract.answer [data]: page text"

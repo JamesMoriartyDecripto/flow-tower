@@ -32,15 +32,16 @@ The **Elo tournament** node drills down into `towers/tournament.tower.yaml`.
 
 | Field | Where |
 |---|---|
+| top-level `budget`, `limits` | one session: token budget per `session` (`on_exceed: pause`), `ttl: 72h`, `max_iterations: 400` cycles, `concurrency: 32` |
 | `trigger` | goal (`chat`), every specialised agent (`queue`, from the supervisor) |
 | `approval` | scientist approves or edits the research plan; scientist input (`respond`, `edit`) |
-| `limits` | supervisor `ttl: 72h`, `max_iterations: 400`, `concurrency: 32`; worker timeout and retry; debate turns |
-| `fanout` | worker pool `{ min: 8, max: 32, by: supervisor weights and budget }` |
-| `budget` | supervisor token budget, `on_exceed: pause` |
+| `limits` | worker timeout and retry; terminal-state cycle bound; debate turns |
+| `fanout` | worker pool `{ min: 8, max: 32 }`, `from` the six specialised agents, `pick` weighted by the supervisor |
+| `decision` | initial review `choice` (pass / revise / reject); tournament: debate vs single-turn, winner A / B (`fail: closed`, unclear matches are discarded) |
 | `data` | confidential goals and state, 180-day retention for snapshots |
 | `credentials` | domain databases on a service account; private papers on the user's grant |
-| `evals` | adversarial goals blocked, GPQA top-1 of the top-Elo answer, top Elo, expert preference rank, novelty, impact |
-| `sla` | wet-lab validation (illustrative 12 weeks) |
+| `evals` | adversarial goals blocked, GPQA top-1 of the top-Elo answer, top Elo (`unit: Elo`, no target, `illustrative`), expert preference `rank`, novelty and impact (`/5`) |
+| `sla` | wet-lab validation (illustrative 12 weeks, `external`: lab time) |
 | edge `protocol: queue` | weights → task queue → workers |
 
 Eval **values** marked "paper" come from the paper (78.4% GPQA diamond top-1 for the

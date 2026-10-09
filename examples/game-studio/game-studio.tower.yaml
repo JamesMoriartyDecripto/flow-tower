@@ -9,6 +9,8 @@ description: >-
   humans sign off at greenlight, art direction and release go/no-go. Current project is
   Emberwake, a co-op survival-crafting roguelite on a procedurally generated archipelago.
 
+budget: { usd: 400, per: run, on_exceed: stop, description: "Whole-project ceiling for one pitch-to-launch run (STUDIO_BUDGET_USD, override with --budget); the cost ledger aborts above it." }
+
 runtimes:
   studio-cluster:
     kind: container
@@ -133,7 +135,8 @@ agents:
     model: claude-haiku-5-5
     prompt: pitch-intake
     tools: []
-    harness: { max_turns: 2, budget_usd: 0.05, output: json_schema }
+    harness: { max_turns: 2, output: json_schema }
+    budget: { usd: 0.05, on_exceed: stop }
     files: [src/greenlight.ts]
     meta: { pattern: routing }
   creative-director:
@@ -143,7 +146,8 @@ agents:
     model: claude-opus-5-5
     prompt: creative-director
     tools: [Read, Grep, Agent, mcp__forge__request_approval]
-    harness: { max_turns: 30, budget_usd: 4, effort: high }
+    harness: { max_turns: 30, effort: high }
+    budget: { usd: 4, on_exceed: stop }
     files: [src/studio.ts, memory/art-bible.md, memory/decisions.md]
   producer:
     runtime: studio-cluster
@@ -157,7 +161,8 @@ agents:
     model: claude-opus-5-5
     prompt: producer
     tools: [Agent, Read, TodoWrite, mcp__forge__request_approval, mcp__forge__query_telemetry]
-    harness: { max_turns: 120, budget_usd: 25, permission_mode: default, effort: high, fallback_model: claude-sonnet-5-5, max_concurrent_subagents: 6, max_subagent_depth: 2 }
+    harness: { max_turns: 120, permission_mode: default, effort: high, fallback_model: claude-sonnet-5-5, max_concurrent_subagents: 6, max_subagent_depth: 2 }
+    budget: { usd: 25, on_exceed: stop }
     files: [src/studio.ts, src/pipeline.ts, src/agents.ts, CLAUDE.md]
     meta: { pattern: orchestrator-workers }
   technical-director:
@@ -167,7 +172,8 @@ agents:
     model: claude-opus-5-5
     prompt: technical-director
     tools: [Read, Grep, Glob, WebFetch]
-    harness: { max_turns: 40, budget_usd: 4 }
+    harness: { max_turns: 40 }
+    budget: { usd: 4, on_exceed: stop }
     files: [src/departments/engineering.ts, config/quality-gates.yaml]
   design-critic:
     runtime: studio-cluster
@@ -176,7 +182,8 @@ agents:
     model: claude-opus-5-5
     prompt: design-critic
     tools: [Read]
-    harness: { max_turns: 10, budget_usd: 1.5, fresh_session_each_round: true }
+    harness: { max_turns: 10, fresh_session_each_round: true }
+    budget: { usd: 1.5, on_exceed: stop }
     files: [src/loop/review-gate.ts, src/departments/preproduction.ts]
     meta: { pattern: evaluator-optimizer, role: evaluator }
   # ── Specialists from prompts ────────────────────────────────────────
@@ -194,7 +201,9 @@ agents:
     model: claude-sonnet-5-5
     prompt: qa-lead
     tools: [Agent, Read, mcp__forge__run_playtest, mcp__forge__query_telemetry, mcp__github__create_issue]
-    harness: { max_turns: 40, budget_usd: 3, max_regression_cycles: 2 }
+    harness: { max_turns: 40 }
+    limits: { max_iterations: 2, description: "regression cycles" }
+    budget: { usd: 3, on_exceed: stop }
     files: [src/departments/qa.ts]
     tower: towers/qa-playtest.tower.yaml
   playtest-bot:
@@ -207,7 +216,9 @@ agents:
     model: claude-haiku-5-5
     prompt: playtest-bot
     tools: [mcp__forge__run_playtest]
-    harness: { max_turns: 60, budget_usd: 0.3, parallel: 8 }
+    harness: { max_turns: 60 }
+    budget: { usd: 0.3, on_exceed: stop }
+    limits: { concurrency: 8 }
     files: [src/tools/run-playtest.ts, pipelines/playtest/bot_policy.py]
   bug-triage:
     runtime: cron
@@ -216,6 +227,7 @@ agents:
     prompt: bug-triage
     tools: [Read, mcp__github__list_issues]
     harness: { max_turns: 4, output: json_schema }
+    trigger: { kind: webhook, source: GitHub issues }
     files: [src/departments/qa.ts]
   web-developer:
     runtime: studio-cluster
@@ -253,7 +265,7 @@ agents:
     model: claude-sonnet-5-5
     prompt: community-manager
     tools: [Read, Write, mcp__analytics__query_insights]
-    harness: { publish_requires_approval: true }
+    approval: { when: before anything is published, via: review portal, actions: [approve, reject] }
     files: [src/departments/marketing.ts]
   asset-tagger:
     runtime: studio-cluster
@@ -269,7 +281,8 @@ agents:
     model: claude-haiku-5-5
     prompt: standup-summary
     tools: []
-    harness: { max_turns: 1, schedule: daily }
+    harness: { max_turns: 1 }
+    trigger: { kind: cron, description: daily standup digest }
     files: [src/studio.ts]
   worldgen-planner:
     runtime: studio-cluster
@@ -315,7 +328,8 @@ agents:
       - { kind: log, label: "Review gates log", path: "logs/review-gates.log" }
     from: .claude/agents/art-director.md
     files: [memory/art-bible.md, config/style-guide.json]
-    harness: { fresh_session_each_round: true, max_rounds: 3 }
+    harness: { fresh_session_each_round: true }
+    limits: { max_iterations: 3 }
     meta: { pattern: evaluator-optimizer, role: evaluator }
   blender-modeler:
     runtime: artist-ws
@@ -325,7 +339,8 @@ agents:
     from: .claude/agents/blender-modeler.md
     tower: towers/art-pipeline.tower.yaml
     files: [src/departments/art.ts]
-    harness: { max_turns: 60, budget_usd: 2 }
+    harness: { max_turns: 60 }
+    budget: { usd: 2, on_exceed: stop }
   material-artist: { runtime: artist-ws, from: .claude/agents/material-artist.md, files: [pipelines/blender/bake_pbr.py] }
   rigger: { runtime: artist-ws, from: .claude/agents/rigger.md, files: [pipelines/blender/auto_rig.py] }
   animator: { runtime: render-farm, from: .claude/agents/animator.md, files: [pipelines/unreal/anim_blueprint.py] }
@@ -344,7 +359,8 @@ agents:
       - { kind: log, label: "Review gates log", path: "logs/review-gates.log" }
     from: .claude/agents/code-reviewer.md
     files: [src/loop/review-gate.ts]
-    harness: { fresh_session_each_round: true, max_rounds: 3, escalate_fixer_on_round: 3 }
+    harness: { fresh_session_each_round: true, escalate_fixer_on_round: 3 }
+    limits: { max_iterations: 3 }
     meta: { pattern: evaluator-optimizer, role: evaluator }
   perf-profiler: { runtime: render-farm, from: .claude/agents/perf-profiler.md, files: [config/quality-gates.yaml] }
   ui-designer: { runtime: studio-cluster, from: .claude/agents/ui-designer.md }
@@ -373,6 +389,7 @@ layers:
         type: decision
         label: Studio fit?
         description: Scope <= vertical slice in 10 weeks, team skills, no licensed IP, budget under the studio cap.
+        decision: { output: score, threshold: ">= 0.6", description: "pitch_fit gate in config/quality-gates.yaml" }
         files: [src/greenlight.ts]
       - id: greenlight
         runtime: review-portal
@@ -381,6 +398,7 @@ layers:
         type: human
         label: Greenlight
         description: Studio head approves the one-pager + market scan. Checkpoint kind greenlight.
+        approval: { by: studio head, via: [review portal, GitHub issue, Slack], actions: [approve, reject], timeout: 72h, on_timeout: reject }
         files: [src/tools/request-approval.ts, src/greenlight.ts]
       - id: passed
         runtime: studio-cluster
@@ -404,7 +422,8 @@ layers:
         resources:
           - { kind: queue, label: "Department jobs topic", url: "https://pubsub.forge.example.com/topics/department-jobs" }
         label: Parallel dispatch
-        description: Promise.all over department pipelines, max 6 concurrent agents, dependencies respected (art before engine).
+        description: Promise.all over department pipelines, dependencies respected (art before engine).
+        limits: { concurrency: 6 }
         files: [src/pipeline.ts]
       - id: standup
         agent: standup
@@ -414,6 +433,7 @@ layers:
         type: human
         label: Milestone review
         description: Producer posts the milestone build + digest. A human accepts or asks for a re-plan.
+        approval: { via: [review portal, GitHub issue, Slack], actions: [approve, reject], timeout: 72h, on_timeout: reject }
         files: [src/tools/request-approval.ts]
     edges:
       - "pitch -> intake [call]: pitch.md"
@@ -464,7 +484,8 @@ layers:
         runtime: studio-cluster
         type: decision
         label: Cited & fresh?
-        description: Every claim has a source younger than 18 months. Gaps go back for one more round (max 2).
+        description: Every claim has a source younger than 18 months. Gaps go back for one more round.
+        limits: { max_iterations: 2 }
       - id: report
         runtime: studio-cluster
         resources:
@@ -533,6 +554,8 @@ layers:
         type: decision
         label: Score >= 8?
         description: Blocking findings go back to the designer. Round 3 is final; unresolved items escalate to the creative director.
+        decision: { output: score, threshold: ">= 8" }
+        limits: { max_iterations: 3 }
         files: [config/quality-gates.yaml, src/loop/review-gate.ts]
       - id: gdd_locked
         runtime: studio-cluster
@@ -583,7 +606,9 @@ layers:
         runtime: studio-cluster
         type: decision
         label: On style?
-        description: Score >= 8 and no silhouette or palette blockers. Notes return to the concept artist (max 3 rounds).
+        description: No silhouette or palette blockers either. Notes return to the concept artist.
+        decision: { output: score, threshold: ">= 8" }
+        limits: { max_iterations: 3 }
         files: [config/quality-gates.yaml]
       - id: signoff
         runtime: review-portal
@@ -592,6 +617,7 @@ layers:
         type: human
         label: Art sign-off
         description: Checkpoint art_direction. A human picks the direction or asks for another one.
+        approval: { via: [review portal, GitHub issue, Slack], actions: [approve, reject], timeout: 72h, on_timeout: reject }
         files: [src/tools/request-approval.ts]
       - id: style_lock
         runtime: studio-cluster
@@ -868,7 +894,8 @@ layers:
         runtime: ci
         type: decision
         label: Tests green?
-        description: Red goes back to the author (max 3 attempts) before the producer is told.
+        description: Red goes back to the author before the producer is told.
+        limits: { max_iterations: 3 }
       - id: pr
         runtime: github
         resources:
@@ -935,7 +962,7 @@ layers:
         runtime: studio-cluster
         type: decision
         label: Round < cap?
-        description: Caps per gate (code 3, assets 2, design 3). The last fix round escalates the fixer to Opus.
+        description: Caps per gate (code 3, assets 2, design 3, craft 2). The last fix round escalates the fixer to Opus.
         prompt: fix-round
         files: [config/quality-gates.yaml]
       - id: escalate
@@ -1007,8 +1034,9 @@ layers:
         runtime: studio-cluster
         type: decision
         label: Blockers?
-        description: Any S1/S2 or crash rate above gate returns to the owning department; max 2 regression cycles.
+        description: Any S1/S2 or crash rate above gate returns to the owning department.
         files: [config/quality-gates.yaml]
+        limits: { max_iterations: 2, description: "regression cycles before release is blocked" }
       - id: regression
         runtime: gpu-cloud
         label: Regression suite
@@ -1073,6 +1101,7 @@ layers:
         type: human
         label: Go / no-go
         description: Checkpoint release_go_no_go with the build, notes, QA summary and open risks.
+        approval: { via: [review portal, GitHub issue, Slack], actions: [approve, reject], timeout: 72h, on_timeout: reject }
         files: [src/tools/request-approval.ts]
       - id: beta
         runtime: steam
@@ -1130,12 +1159,14 @@ layers:
         runtime: studio-cluster
         type: decision
         label: On brand?
-        description: Creative director grades every asset against pillars and tone; max 2 rounds.
+        description: Creative director grades every asset against pillars and tone.
+        limits: { max_iterations: 2 }
       - id: publish_ok
         runtime: review-portal
         type: human
         label: Publish approval
         description: Store page, posts and press emails are queued as drafts until a human approves.
+        approval: { via: review portal, actions: [approve, reject] }
         files: [src/tools/request-approval.ts]
       - id: launch
         runtime: steam

@@ -22,7 +22,7 @@ node bin/flow-tower.js examples/ai-video-studio
 |---|---|---|
 | 1 | Brief & Research | Slack `/brief` (chat) or weekly calendar (cron) → Haiku intake → route (declines real people without consent, political, medical) → Opus producer → researchers (fan-out 3–5) and hook lab → client direction sign-off (48 h, escalate). |
 | 2 | Script & Storyboard | Master script → variants per format (fan-out) → claims guard → storyboard → `shots.json` → cost estimate → within budget? → script sign-off (max 3 rounds). |
-| 3 | Asset Generation | Job dispatcher (concurrency 4, budget $90, pause) → **shot pipeline** per shot (fan-out 6–24, sub-tower) + ElevenLabs voice (PVC, MCP) + HeyGen avatar (callback webhook) + Eleven Music + SFX; consent registry (PII, 1095 d) checked before every voice or avatar job. |
+| 3 | Asset Generation | Job dispatcher (concurrency 4, budget $90, pause) → **shot pipeline** per shot (fan-out 6–24, sub-tower) + ElevenLabs voice (PVC, MCP) + HeyGen avatar (callback webhook) + Eleven Music + SFX; consent registry (PII, 3 y after expiry) checked before every voice or avatar job. |
 | 4 | Edit & Assembly | Editor agent writes Remotion `inputProps` → Remotion Lambda (webhook) → FFmpeg sidechain ducking + two-pass loudnorm → whisper-1 word timestamps for captions → reframe per platform (fan-out) → producer rough-cut review. |
 | 5 | QA & Compliance | Frame QA (vision), brand guard, rights & consent, platform specs → gate (3 fix rounds; can send a shot back to generation) → C2PA signing + disclosure flags → legal review when a likeness or claim is used (24 h, reject on timeout) → client approval (max 3 rounds, SLA 72 h). |
 | 6 | Packaging & Publishing | Titles/copy, 3 thumbnails (A/B rollout), schedule, YouTube `videos.insert` (`containsSyntheticMedia`), TikTok direct post (`is_aigc`), Instagram Reels container flow. |
@@ -36,13 +36,15 @@ vision check → score ≥ 7? (3 takes) → keep take with provenance, or escala
 ## Operational features exercised
 
 - `trigger`: chat (Slack), cron (calendar, analytics), and webhooks on edges.
-- `approval` on direction, script, rough cut, legal and final; `timeout` 8 h–48 h, `on_timeout` escalate or reject; `limits.max_iterations: 3` for revision rounds, QA fixes and takes.
+- `approval` on direction, script, rough cut, legal and final; `timeout` 8 h–48 h, `on_timeout` escalate or reject; `rounds: 3` on script and final sign-off; legal only `when` a likeness, voice, claim or paid partnership is involved (alternative edges in `group: review`).
+- `decision` typed outputs: intake route (choice), within budget (binary), take score (`score`, threshold `>= 7`).
 - `fanout`: research questions, formats, shots (6–24), platforms, thumbnails (3).
-- `limits`: async job `timeout` (Veo 10 m, HeyGen 30 m, Lambda 15 m), `retries` + `backoff`, `concurrency` (Veo jobs, Lambda), `ttl` (TikTok upload URL 1 h).
-- `budget`: producer $150 (pause), dispatcher $90 (pause), per shot $6 (`downgrade` tier).
-- `data`: PII on the consent registry, voice clone and avatar; confidential briefs and takes.
+- `limits`: async job `timeout` (Veo 10 m, HeyGen 30 m, Lambda 15 m), `retries` + `backoff`, `concurrency` (Veo jobs, Lambda), `ttl` (TikTok upload URL 1 h), `max_iterations` for QA fixes and takes, `rate` quotas (TikTok 6/min, Instagram 100/24 h).
+- `async`: poll (Veo every 10 s, Runway, Luma, Instagram containers every minute) and callback (HeyGen `callback_url`, Remotion webhook).
+- `budget`: producer $150 (pause), dispatcher $90 per run `for: media` (pause), per shot $6 (`per: copy` / `per: item`, `downgrade` tier), and vendor unit `rate`s (Veo, Runway, Nano Banana, ElevenLabs, Remotion, HeyGen as an assumption).
+- `data`: `biometric` + `lawful_basis: consent` on the voice clone and avatar; consent registry kept 3 y `retention_after: consent expiry`; Veo files 2 d; `disclosure` (C2PA Content Credentials, platform AI flags, SynthID).
 - `credentials`: `service` for vendor API keys, `user` for the client's YouTube/TikTok/Instagram OAuth.
-- `evals`, `version` + `rollout: ab` (thumbnails), `sla` (legal, final, Test & compare), `status: experimental` (Luma), edge `protocol` (`http`, `webhook`, `mcp`).
+- `evals` (all `illustrative`, with `unit` where it applies), `version` + `rollout: ab` with `arms` and `metric` (thumbnails, Test & compare), `sla` (legal, final, Test & compare), `status: experimental` (Luma), edge `protocol` (`http`, `webhook`, `mcp`) and `group` (model choice per take).
 
 ## Files
 

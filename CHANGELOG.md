@@ -10,6 +10,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Commit history rewritten to the GitHub noreply address before going public.
 
 ### Added
+- Schema (#31), the gaps the presets hit, all optional and backward compatible:
+  - run-wide `budget` / `limits` at the top level (shown in the Layers panel);
+  - `budget` as a list, with `amount` + `currency`, `per` (run, item, month...), `for` (model, media...) and unit `rate`;
+  - quotas in `limits.rate` (`100/24h`, `300/5m`) and `limits.description`;
+  - `trigger.timezone` and `hours`;
+  - `approval.when` (conditions such as `refund > 500 EUR`), `per` (per-item), `rounds`, `escalate_to`, `relayed_by`, `via` as a list, and the `dismiss` and `takeover` actions;
+  - `fanout.by` as several dimensions, plus `from` and `pick` for supervisor queues;
+  - `data`: `biometric` sensitivity, `retention: none`, `retention_after`, `lawful_basis` (GDPR), `disclosure` (C2PA, AI labels);
+  - evals with `unit` and `illustrative`;
+  - `rollout`: `staged` with `steps`, `metric`, `guard`, `arms`, `sample`;
+  - `sla` relative to an event, before one, by a date, in business days, or as an external wait;
+  - `async` (poll / callback), `exactly_once`, and typed `decision` outputs (binary / choice / score / ranking, threshold, confidence, pinned model, fail open / closed);
+  - agent `skills` and `disabled_tools`;
+  - edges with `async`, `group` (alternatives), `version`, the A2A `card`, and the `email` / `manual` protocols;
+  - durations in years (`10y`).
+
+  The node panel, markers (`BIO`, `1×`, `POLL`, currency budgets) and edge labels show them; JSON Schema, docs and the skill reference are updated, and the presets use them instead of the old workarounds.
 - Tokens and cost per node (#9): Flow Tower accepts OpenTelemetry logs (OTLP/HTTP JSON on `/v1/logs`; `/v1/metrics` and `/v1/traces` are acknowledged). Claude Code's `claude_code.api_request` and Codex's `codex.sse_event` / `codex.turn_cost` become `usage` events on the matching agent node; totals show in the node panel, the live feed header (tower and sub-towers) and the library cards, counted once per project. Ready-made `integrations/claude-code/telemetry.json` and a Codex `[otel]` block; the simulator and the online demo send sample telemetry.
 - Export (#15): **P** (or the PNG button) downloads the 3D view as a PNG, post-processing included, with a caption naming the tower and layer; **X** (or SVG) downloads the focused layer, or every layer stacked, as a plain, editable SVG diagram in the active theme's colors (nodes with type, model and runtime tags; edges with kinds, arrows and labels). Works in the online demo too.
 - Update notice (#35): once a day the local server asks GitHub for the latest release (cached 24 h, 1.5 s timeout, silent on failure). A newer version prints the update command in the terminal and shows a `↑ vX.Y.Z` link to the release notes in the top bar (`/api/version`). Off with `--no-update-check`, `FLOW_TOWER_NO_UPDATE_CHECK=1`, in CI, in the E2E suite and in the static demo; documented in the README (*Privacy and updates*).

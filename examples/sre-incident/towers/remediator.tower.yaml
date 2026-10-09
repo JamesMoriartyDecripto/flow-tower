@@ -37,6 +37,8 @@ agents:
     prompt: { file: prompts/remediator.md }
     runtime: sandbox
     tools: [bash, read, edit, grep, open_pull_request, request_approval, merge_pull_request]
+    skills: [incident-runbooks]
+    disabled_tools: [web_search, web_fetch]
     files: [src/setup.py]
 
 layers:
@@ -84,6 +86,7 @@ layers:
         type: decision
         label: Diff minimal?
         description: "Self-check: only the fields the runbook names, no unrelated reformatting."
+        decision: { output: binary, candidates: [minimal, too broad] }
     edges:
       - "findings -> plan: signature + files"
       - "runbook -> plan [data]: remediate steps"
@@ -120,12 +123,13 @@ layers:
         type: human
         label: On-call SRE
         description: Only members of the synced on-call group can click, once.
-        approval: { by: on-call SRE, via: Slack, actions: [approve, reject], timeout: 15m, on_timeout: escalate }
+        approval: { by: on-call SRE, via: Slack, actions: [approve, reject], timeout: 15m, on_timeout: escalate, escalate_to: "secondary on-call, then incident commander" }
       - id: result
         runtime: sandbox
         type: decision
         label: Result?
-        description: The custom tool result is approved, rejected or escalated.
+        description: The request_approval custom tool result.
+        decision: { output: choice, candidates: [approved, rejected, escalated] }
       - id: merge
         runtime: app
         type: tool

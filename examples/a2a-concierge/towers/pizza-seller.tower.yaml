@@ -81,7 +81,8 @@ layers:
         runtime: pizza_run
         type: memory
         label: MemorySaver
-        description: "thread_id = A2A contextId. In process only: lost on a new Cloud Run instance."
+        description: "thread_id = A2A contextId. Lost on a new Cloud Run instance."
+        data: { retention: none }
         files: [remote_seller_agents/pizza_agent/agent.py]
       - id: model
         runtime: vertex

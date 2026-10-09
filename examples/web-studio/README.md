@@ -23,10 +23,10 @@ node bin/flow-tower.js examples/web-studio
 
 ## Operational features exercised
 
-- `approval` on every client checkpoint (`timeout: 5d`, `on_timeout: escalate`), plus the contract review, destructive migrations and the production release (`on_timeout: reject`).
-- `limits.max_iterations` for revision rounds (2 for sitemap and wireframes, 3 for design and preview) and for the QA fix loop; `limits.ttl` for browser sessions.
-- `evals`: Lighthouse scores vs targets, LCP/CLS/TBT and field INP with `higher_is_better: false`, axe violations target 0, visual diff, Semgrep blocking findings, checkout conversion, rounds used.
-- `fanout` (competitors, templates, pages × locales, locales), `budget`, `trigger` (webhook, event, cron), `data` (PII/EU/1825d on Postgres, PCI on Stripe), `credentials` (user for Figma/Vercel OAuth, service for the bot and handlers), `sandbox` allowlists, `version` + `rollout: canary` (Vercel Rolling Releases), edge `protocol` (mcp, webhook, http), and a `recording` resource (Playwright traces).
+- `approval` on every client checkpoint (`timeout: 5d`, `on_timeout: escalate`, `rounds` included: 2 for sitemap and wireframes, 3 for design and preview, `via` lists of channels), plus the contract review, destructive migrations (`when`, replacing a decision node) and each rolling-release step (`per: rollout step`, `on_timeout: reject`).
+- `limits.max_iterations` for the QA and self-review fix loops; `limits.ttl` for browser sessions.
+- `evals` (all `illustrative`, with `unit`): Lighthouse scores vs targets, LCP/CLS/TBT and field INP with `higher_is_better: false`, axe violations target 0, visual diff, Semgrep blocking findings, checkout conversion, rounds used.
+- `decision` (route: ready / needs_info / decline; in scope?), `exactly_once` (Stripe webhook creates each order once), `rollout: staged` with `steps: [25, 100]` (Vercel Rolling Releases), `fanout` (competitors, templates, pages × locales, locales), `budget`, `trigger` (webhook, event, cron), `data` (PII/EU/`5y` on Postgres, PCI on Stripe), `credentials` (user for Figma/Vercel OAuth, service for the bot and handlers), `sandbox` allowlists, edge `protocol` (mcp, webhook, http), and a `recording` resource (Playwright traces).
 
 ## Sources
 

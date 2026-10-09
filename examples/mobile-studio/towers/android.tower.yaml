@@ -104,7 +104,7 @@ layers:
         runtime: mac
         limits: { timeout: 20m }
         evals:
-          - { name: AAB size delta (MB), value: 0.4, target: 1, higher_is_better: false }
+          - { name: AAB size delta, value: 0.4, target: 1, higher_is_better: false, unit: MB, illustrative: true }
       - id: emu
         type: tool
         label: mobile-mcp

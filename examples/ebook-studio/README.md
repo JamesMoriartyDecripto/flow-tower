@@ -25,15 +25,17 @@ node bin/flow-tower.js examples/ebook-studio
 ## Operational features used
 
 - `trigger`: email (proposal), file (weekly report exports).
-- `approval` on greenlight, outline, author rewrite (`on_timeout: wait`), author response, editor, cover, proofs and publisher go (`on_timeout: reject`), with `limits.max_iterations` for the rounds.
+- `approval` on greenlight, outline, author rewrite (`per: chapter`, `on_timeout: wait`), author response, editor, cover, proofs and publisher go (`on_timeout: reject`); revision `rounds` (2 or 3) and `via` lists (Slack + contract addendum, Google Docs + Slack).
+- `decision` typed outputs: chapter gate (revise / hand off / escalate), update or new edition.
 - `fanout`: comps, librarian, writers, line editor and fact-checker per chapter, alt text per figure, ARC readers.
-- `limits`: timeouts, retries, `concurrency: 4` for writers, loop bounds.
-- `budget`: $140 per book on the lead, per-chapter caps on writers and fact-checkers.
-- `data`: manuscript `confidential`, newsletter `pii` (EU, 730d), sales `internal`.
+- `limits`: timeouts, retries, `concurrency: 4` for writers, loop bounds, KDP's `rate` of 3 new titles a day.
+- `budget`: run-wide $140 of model spend per book at the top level (owned by the lead, `pause`), per-chapter caps on writers and fact-checkers (`per: copy`), the cover designer's fee in GBP.
+- `async: callback` for the Copyleaks scan (webhook).
+- `data`: manuscript `confidential` (1y), newsletter `pii` (EU, 2y, `lawful_basis: consent`, double opt-in), sales `internal`; `disclosure` on the copyright page and the store AI declarations.
 - `credentials`: `service` (press store accounts, Copyleaks), `author` (newsletter).
 - `sandbox`: writers have `network: none`, so no facts arrive without a source id.
-- `evals` (illustrative): Vale errors per 1k words, word budget, continuity conflicts, fact-check first-pass rate, misattributions = 0, similarity %, alt-text coverage, EPUBCheck errors/warnings = 0 and Ace serious/critical = 0 (`higher_is_better: false`), cover CTR uplift, pre-orders.
-- `sla`: author rewrite 42d, KDP final file 72h, ARC window 21d. `version` + `rollout: ab` for the cover test. Edge `protocol`: mcp, http, webhook.
+- `evals` (all `illustrative: true`): Vale errors per 1k words, word budget, continuity conflicts, fact-check first-pass rate, misattributions = 0, similarity %, alt-text coverage, EPUBCheck errors/warnings = 0 and Ace serious/critical = 0 (`higher_is_better: false`), cover CTR uplift, pre-orders.
+- `sla`: author rewrite 42d, KDP final file 72h `before: release`, ARC copies 21d `before: launch`. `version` + `rollout: ab` with `arms` and `metric` for the cover test. Edge `protocol`: mcp, http, webhook, and `manual` for the store uploads (no publishing API).
 
 ## Files
 

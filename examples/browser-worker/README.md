@@ -26,11 +26,14 @@ node bin/flow-tower.js examples/browser-worker/browser-worker.tower.yaml
 ## Operational fields exercised
 
 `trigger` (queue, cron) · `limits.ttl` (15m and 8h), `timeout`, `retries`, `backoff`,
-`max_iterations`, `concurrency` · `fanout` (1–6 parallel sessions) · `budget` ·
-`data.sensitivity: pii` / `secret` with region and retention · `credentials: service` ·
-`sandbox` (host allowlist) · `approval` + `sla` on the takeover and the exception review ·
-`evals` · `version` + canary `rollout` · resources of kind `recording`, `dashboard`, `queue`,
-`database` · edge `protocol: queue`.
+`max_iterations`, `concurrency` with a `description` (the portal's login lock) · `fanout`
+(1–6 parallel sessions) · `budget` · `data.sensitivity: pii` / `secret` with region and
+retention · `credentials: service` · `sandbox` (host allowlist) · `approval` + `sla` on the
+operator takeover (`actions: [takeover, reject]`, two channels in `via`) and the exception
+review · `exactly_once` on the guarded submit · typed `decision` on routing, session mode and
+worker outcome · `evals` (`illustrative: true`: the portal is fictional, so no number is a
+measurement) · `version` + canary `rollout` · resources of kind `recording`, `dashboard`,
+`queue`, `database` · edge `protocol: queue`.
 
 ## Files
 

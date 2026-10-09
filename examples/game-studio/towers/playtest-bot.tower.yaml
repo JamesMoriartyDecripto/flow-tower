@@ -31,7 +31,8 @@ agents:
     model: claude-haiku-5-5
     prompt: playtest-bot
     tools: [mcp__forge__run_playtest]
-    harness: { max_turns: 60, budget_usd: 0.3, decision_interval_s: 5 }
+    harness: { max_turns: 60, decision_interval_s: 5 }
+    budget: { usd: 0.3, on_exceed: stop }
 
 layers:
   - id: boot

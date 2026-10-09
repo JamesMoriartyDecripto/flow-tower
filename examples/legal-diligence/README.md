@@ -20,10 +20,11 @@ Sub-tower: `towers/clause-review.tower.yaml` (double-click any clause reviewer) 
 
 ## Operational features exercised
 
-- `approval` on five checkpoints (scope, classification, review table, flags, report) with `edit` actions, as in Harvey's "step in, edit, then approve" workflows.
-- `data: { sensitivity: confidential, region: eu }` on every agent; `retention` on the docstore (180d) and audit trail (2555d).
-- `fanout` for batch classification and per-document clause review; `limits` with concurrency, retries and backoff; `budget` with `pause` / `escalate`.
-- `evals` (illustrative, labeled): extraction accuracy, citation verified rate, associate edit rate (`higher_is_better: false`), BigLaw Bench-style answer and source scores.
+- `approval` on five checkpoints (scope, classification, review table, flags, report) with `edit` actions, as in Harvey's "step in, edit, then approve" workflows: classification only `when: "confidence < 0.8 or privileged"`, `per: document`; flags `per: flag`; partner sign-off with `rounds: 3`.
+- `data: { sensitivity: confidential, region: eu }` on every agent; `retention` with `retention_after: matter close` on the docstore and review table (180d) and audit trail (`7y`).
+- `fanout` for batch classification and per-document clause review; `limits` with concurrency, retries and backoff; `budget` (`per: run` for the fan-outs) with `pause` / `escalate`.
+- `decision`: severity as a `choice` over red / amber / green / information gap; in the sub-tower, clause presence and a confidence `threshold: 0.7`, with their branches as edge `group`s.
+- `evals` (all `illustrative: true`): extraction accuracy, citation verified rate, associate edit rate (`higher_is_better: false`), BigLaw Bench-style answer and source scores.
 - `version` + `rollout: shadow` for the v8 clause prompt; `sla` on review, alerts and delivery; `credentials: user` for DMS and VDR calls; `sandbox: { network: none }` for reviewers; `trigger: webhook`; edge `protocol` (webhook, queue, mcp, http).
 
 ## Sources

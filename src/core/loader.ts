@@ -261,7 +261,8 @@ export async function buildTower(
   const connected = new Set([...layers.flatMap((l) => l.edges), ...links].flatMap((e) => [e.from, e.to]));
   for (const k of keys) if (!connected.has(k)) issues.push({ level: 'info', message: 'node has no connections', path: k });
 
-  return { id, name: def.name, description: def.description, tags: def.tags, runtimes, layers, links, issues };
+  const run = def.budget || def.limits ? { budget: def.budget, limits: def.limits } : undefined;
+  return { id, name: def.name, description: def.description, tags: def.tags, runtimes, run, layers, links, issues };
 }
 
 function toEdge(

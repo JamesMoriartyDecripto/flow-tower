@@ -75,7 +75,7 @@ agents:
     files: [src/intake.py]
     budget: { usd: 0.01, tokens: 2000 }
     evals:
-      - { name: route accuracy, value: 0.97, target: 0.95 }
+      - { name: route accuracy, value: 0.97, target: 0.95, illustrative: true }
   worker:
     name: Portal worker
     runtime: agentcore
@@ -87,16 +87,16 @@ agents:
     resources:
       - { kind: log, label: "Worker log", path: "logs/worker.log" }
       - { kind: dashboard, label: "CloudWatch: portal worker", url: "https://eu-central-1.console.aws.amazon.com/cloudwatch/home?region=eu-central-1#dashboards/dashboard/portal-worker" }
-    fanout: { min: 1, max: 6, by: queue depth (portal locks the service user after 8 logins) }
+    fanout: { min: 1, max: 6, by: queue depth }
     budget: { usd: 1.5, turns: 60, on_exceed: escalate }
-    limits: { timeout: 12m, ttl: 15m, retries: 2, backoff: "SQS visibility 120s", max_iterations: 60, concurrency: 6 }
+    limits: { timeout: 12m, ttl: 15m, retries: 2, backoff: "SQS visibility 120s", max_iterations: 60, concurrency: 6, description: "At most 6 sessions: the portal locks the service user after 8 parallel logins." }
     data: { sensitivity: pii, region: eu, retention: 90d, description: "Policyholder names, dates of birth, licence numbers, addresses on screenshots" }
     credentials: service
     sandbox: { network: allowlist, allow: [agents.legacy-insurer.example.com, sso.legacy-insurer.example.com], filesystem: workspace }
     evals:
-      - { name: straight-through rate, value: 0.81, target: 0.8 }
-      - { name: wrong-field submits, value: 0, target: 0, higher_is_better: false }
-      - { name: median steps per item, value: 19, target: 30, higher_is_better: false }
+      - { name: straight-through rate, value: 0.81, target: 0.8, illustrative: true }
+      - { name: wrong-field submits, value: 0, target: 0, higher_is_better: false, illustrative: true }
+      - { name: median steps per item, value: 19, target: 30, unit: steps, higher_is_better: false, illustrative: true }
     version: v7
     rollout: { strategy: canary, percent: 10, previous: v6 }
   verifier:
@@ -109,7 +109,7 @@ agents:
     budget: { usd: 0.25, turns: 1 }
     data: { sensitivity: pii, region: eu }
     evals:
-      - { name: field mismatch recall, value: 0.99, target: 0.98, description: "Seeded wrong values caught on the replay set" }
+      - { name: field mismatch recall, value: 0.99, target: 0.98, illustrative: true, description: "Seeded wrong values caught on the replay set" }
 
 layers:
   # 1 ───────────────────────────────────────────────────────────────
@@ -148,6 +148,7 @@ layers:
         type: decision
         label: Supported?
         description: "Cancellations, bank details and claim payouts are never automated; missing fields go to a person."
+        decision: { output: choice, candidates: [address_change, add_driver, claim_documents, unsupported] }
         files: [prompts/classifier.md]
       - id: review_queue
         runtime: sqs
@@ -182,6 +183,7 @@ layers:
         type: decision
         label: Single or batch?
         description: "Nightly renewal batches (> 20 policies) need one long session instead of 20 logins."
+        decision: { output: choice, candidates: [single, batch] }
         files: [src/session.py]
       - id: start
         runtime: browser
@@ -221,7 +223,7 @@ layers:
         resources:
           - { kind: log, label: "Takeover log", path: "logs/takeover.log" }
           - { kind: dashboard, label: "Live View (ops console)", url: "https://ops.acme-insurance.example.com/portal-bot/sessions" }
-        approval: { by: portal operations analyst, via: "Slack #ops-portal-bot + Live View", actions: [respond, reject], timeout: 10m, on_timeout: reject }
+        approval: { by: portal operations analyst, via: ["Slack #ops-portal-bot", Live View], actions: [takeover, reject], timeout: 10m, on_timeout: reject }
         sla: 10m
       - id: live_view
         runtime: browser
@@ -290,7 +292,8 @@ layers:
         runtime: agentcore
         type: decision
         label: Worker outcome?
-        description: "ready_to_submit, request_takeover, or report(exception | mismatch | stuck)."
+        description: "The worker's stop tool; report carries exception, mismatch or stuck."
+        decision: { output: choice, candidates: [ready_to_submit, request_takeover, report] }
         files: [src/handler.py]
       - id: attempts
         runtime: sqs
@@ -328,9 +331,10 @@ layers:
       - id: submit
         runtime: portal
         label: Guarded submit
-        description: "Playwright clicks #submit-endorsement and reads the confirmation number. The model has no Submit action."
+        description: "Playwright clicks #submit-endorsement and reads the confirmation number. The model has no Submit action; a wrong endorsement cannot be undone in the portal."
         files: [src/submit_guard.py, src/verify.py]
-        limits: { timeout: 30s, retries: 0 }
+        exactly_once: true
+        limits: { timeout: 30s }
       - id: review
         runtime: ops
         type: human

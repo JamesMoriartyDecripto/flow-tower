@@ -16,20 +16,21 @@ node bin/flow-tower.js examples/mobile-studio
 | 4 | Build | Shared contract → Expo app lead → **iOS lane** (`towers/ios.tower.yaml`: widget target, privacy strings, StoreKit config, Xcode MCP + MobileBuildMCP, XCUITest, real iPhone) and **Android lane** (`towers/android.tower.yaml`: Glance widget as a local Expo module, Android CLI inspections, Play policy check, R8 build, mobile-mcp, Compose UI test, real Galaxy A15) → code review (max 3 rounds). |
 | 5 | QA & Devices | PR checks on GitHub Actions (fingerprint diff flags native changes) → EAS preview builds → Maestro flows on a cloud device matrix (fan-out) + device-lab agent with VoiceOver/TalkBack + performance (cold start, size) → release-ready gate. |
 | 6 | Release & Store Review | Code signing (EAS-managed, secrets) → store builds → TestFlight + Play closed testing → listings per locale (fan-out 4) + privacy forms (privacy lead) → **product owner sign-off** (no answer = no release) → App Review (SLA 48h) and Play review (SLA 72h) → rejected? → rejection responder → resubmit (max 3). |
-| 7 | Rollout, Monitoring & Iteration | iOS 7-day phased release and Play staged rollout (`rollout` percent) → Crashlytics + consented Analytics → **crash-rate guard** halts Play and pauses the phased release → kill switch (Remote Config, `on_timeout: approve`) → monitor → JS-only fixes via EAS Update (10% rollout), native fixes back to store builds → review triage with approved replies → backlog → next version. |
+| 7 | Rollout, Monitoring & Iteration | iOS 7-day phased release and Play staged rollout (`rollout: staged` with steps) → Crashlytics + consented Analytics → **crash-rate guard** halts Play and pauses the phased release → kill switch (Remote Config, `on_timeout: approve`) → monitor → JS-only fixes via EAS Update (10% rollout), native fixes back to store builds → review triage with approved replies → backlog → next version. |
 | 8 | Tools, Models & Guardrails | Expo, Figma, device (mobile-mcp + Maestro) and Firebase MCP servers, release guard hook, studio memory, Opus / Sonnet / Haiku 5.5. |
 
 64 nodes in the main tower, 13 in the iOS lane, 12 in the Android lane. Runtimes show where each piece runs: `mac` (local, Xcode 26.4 + Android tooling), `orchestrator` (container), `gha` (CI), `eas` (cloud builds, submit, OTA), `device-lab`, `testers` and `users` (devices), `maestro-cloud`, `asc`, `play`, `firebase`, `revenuecat`, `figma`, `appfigures` (SaaS) and `supabase` (cloud, EU).
 
 ## Operational features exercised
 
-- `approval`: go / no-go, design, ADR, privacy lead, release sign-off (`on_timeout: reject`), reply approval (`wait`), kill switch (`on_timeout: approve`, fail-safe).
-- `limits`: store review timeouts (4d / 7d), build timeouts and retries, `max_iterations` on pivots, design rounds, code review, QA and resubmissions; `ttl` on device sessions.
-- `sla`: App Review 48h, Play review 72h, beta 5d. `trigger`: chat, cron (monitor hourly, guard every 30 min, triage daily), GitHub events.
-- `fanout`: competitors, competitor × store, locales, platforms, device × OS, stores. `budget` per agent with `on_exceed`.
-- `data`: PII in Postgres, auth and Analytics (EU, retention), confidential purchase history, `secret` signing material. `credentials`: `service` for store APIs and submit, `user` for Figma, Expo and Supabase OAuth.
-- `sandbox` allowlists for every coding agent; `version` + `rollout` (canary 5% on both stores, 10% OTA, previous version); edge `protocol` (`mcp`, `http`, `webhook`, `stdio`).
-- `evals` (illustrative targets): contrast failures and touch targets, Maestro pass rate, unlabeled controls, cold start, download size, crash-free sessions ≥ 99.5%, Android vitals crash rate < 1.09% and ANR < 0.47% (`higher_is_better: false`), crash-free users, store rating, review reply time.
+- `approval`: go / no-go (2 `rounds`), design (3 `rounds`, `via` Figma prototype + Slack), ADR, privacy lead, release sign-off (`on_timeout: reject`), reply approval (`per: reply`, `wait`), kill switch (`on_timeout: approve`, fail-safe).
+- `decision` typed outputs: stack choice (with its candidates), store verdict (binary), fix path (OTA update or store build).
+- `limits`: store review timeouts (4d / 7d), build timeouts and retries, `max_iterations` on code review, QA and resubmissions; `ttl` on device sessions.
+- `sla`: App Review 48h and Play review 72h as `external` waits `after: submission`, beta 5d. `trigger`: chat, cron (monitor hourly, guard every 30 min, triage daily), GitHub events.
+- `fanout`: competitors, `[competitor, store]`, locales, platforms, `[device, OS version]`, `[store, locale]`, stores. `budget` per agent with `on_exceed`.
+- `data`: PII in Postgres (30d `retention_after: account deletion`), auth and Analytics (EU, `lawful_basis: consent`), confidential purchase history, `secret` signing material. `credentials`: `service` for store APIs and submit, `user` for Figma, Expo and Supabase OAuth.
+- `sandbox` allowlists for every coding agent; `version` + `rollout`: `staged` with `steps` on both stores (App Store 1-2-5-10-20-50-100 %, Play 1-5-20-50-100 %), `metric` and crash-rate `guard`, canary 10 % OTA, previous version; edge `protocol` (`mcp`, `http`, `webhook`, `stdio`).
+- `evals` (all `illustrative: true`, with `unit`): contrast failures and touch targets, Maestro pass rate, unlabeled controls, cold start, download size, crash-free sessions ≥ 99.5%, Android vitals crash rate < 1.09% and ANR < 0.47% (`higher_is_better: false`), crash-free users, store rating, review reply time.
 
 ## Files
 

@@ -137,6 +137,7 @@ layers:
         type: decision
         label: Round < 3?
         description: Hard cap. Round 3 revisions are escalated to Opus writers; after round 3 the loop stops.
+        limits: { max_iterations: 3 }
         runtime: orchestrator
         files: [src/config.ts]
       - id: revise
@@ -173,6 +174,7 @@ layers:
         label: SME escalation
         description: Loop did not converge in 3 rounds. The SME decides per finding - fix, accept, or cut the section.
         runtime: notion
+        approval: { by: SME, via: [Notion, email], per: finding }
         files: [src/tools/request-signoff.ts]
       - id: log
         type: memory

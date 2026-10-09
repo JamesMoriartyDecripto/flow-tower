@@ -20,40 +20,63 @@ export const RESOURCE_KINDS = ['log', 'script', 'dashboard', 'endpoint', 'config
 export const EDGE_KINDS = ['flow', 'call', 'spawn', 'handoff', 'return', 'data'] as const;
 
 /** Wire protocol of an edge, when it matters (agents of different vendors, queues, webhooks). */
-export const PROTOCOLS = ['mcp', 'a2a', 'http', 'grpc', 'webhook', 'queue', 'event', 'stdio'] as const;
+export const PROTOCOLS = ['mcp', 'a2a', 'http', 'grpc', 'webhook', 'queue', 'event', 'stdio', 'email', 'manual'] as const;
 
 export const TRIGGER_KINDS = ['manual', 'cron', 'webhook', 'event', 'queue', 'chat', 'email', 'file'] as const;
-export const SENSITIVITY = ['public', 'internal', 'confidential', 'pii', 'phi', 'pci', 'secret'] as const;
-export const ROLLOUTS = ['all', 'canary', 'ab', 'shadow', 'blue-green', 'rainbow'] as const;
+export const SENSITIVITY = ['public', 'internal', 'confidential', 'pii', 'phi', 'pci', 'biometric', 'secret'] as const;
+export const ROLLOUTS = ['all', 'canary', 'staged', 'ab', 'shadow', 'blue-green', 'rainbow'] as const;
+/** GDPR art. 6(1) lawful bases for processing personal data. */
+export const LAWFUL_BASES = ['consent', 'contract', 'legal_obligation', 'vital_interests', 'public_task', 'legitimate_interests'] as const;
+export const APPROVAL_ACTIONS = ['approve', 'edit', 'reject', 'respond', 'snooze', 'dismiss', 'takeover'] as const;
+/** Over what a budget or a quota is counted. */
+export const PER = ['call', 'run', 'session', 'item', 'copy', 'day', 'week', 'month', 'year'] as const;
 export const CREDENTIALS = ['service', 'author', 'user'] as const;
 export const NETWORK = ['none', 'allowlist', 'open'] as const;
 
 const id = z.string().regex(/^[A-Za-z0-9_-]+$/, 'ids may only contain letters, digits, "_" and "-"');
 const meta = z.record(z.string(), z.unknown()).describe('Free-form key/value metadata shown in the inspector.');
-/** "90s", "5m", "72h", "7d", "250ms". */
-const duration = z.string().regex(/^\d+(\.\d+)?(ms|s|m|h|d|w)$/, 'durations look like 250ms, 90s, 5m, 72h, 7d, 2w');
+/** "250ms", "90s", "5m", "72h", "7d", "2w", "10y". */
+const duration = z.string().regex(/^\d+(\.\d+)?(ms|s|m|h|d|w|y)$/, 'durations look like 250ms, 90s, 5m, 72h, 7d, 2w, 10y');
+/** "100/24h", "300/5m", "15000/d": a count per time window. */
+const rate = z.string().regex(/^\d+(\.\d+)?\s*\/\s*(\d+(\.\d+)?)?(ms|s|m|h|d|w|y)$/, 'rates look like 100/24h, 300/5m, 15000/d');
+const oneOrMany = <T extends z.ZodType>(t: T) => z.union([t, z.array(t).min(1)]);
 
 export const TriggerSchema = z.strictObject({
   kind: z.enum(TRIGGER_KINDS),
   schedule: z.string().optional().describe('Cron expression for `cron` (e.g. "0 9 * * 1-5").'),
   source: z.string().optional().describe('Who fires it: PagerDuty, Gmail, a queue name, a Slack channel...'),
+  timezone: z.string().optional().describe('IANA zone the schedule and hours are in, e.g. "Europe/Rome".'),
+  hours: z.string().optional().describe('When it may fire, e.g. "Mon-Fri 09:00-18:00" or "business days".'),
   description: z.string().optional(),
 });
 
 export const ApprovalSchema = z.strictObject({
   by: z.string().optional().describe('Role or person who approves.'),
-  actions: z.array(z.enum(['approve', 'edit', 'reject', 'respond', 'snooze'])).optional(),
+  actions: z.array(z.enum(APPROVAL_ACTIONS)).optional().describe('`takeover`: a human takes the session over (live view) while automation pauses.'),
   timeout: duration.optional(),
   on_timeout: z.enum(['approve', 'reject', 'escalate', 'wait']).optional(),
-  via: z.string().optional().describe('Slack, email, PR review, app...'),
+  escalate_to: z.string().optional().describe('Backup approver when it times out or is escalated.'),
+  via: oneOrMany(z.string()).optional().describe('Slack, email, PR review, app... several channels as a list.'),
+  relayed_by: z.string().optional().describe('Agent that carries the request to the human and the answer back.'),
+  when: z.string().optional().describe('Condition that requires it, e.g. "refund > 500 EUR" or "discount > 10%". Without it: always.'),
+  per: z.string().optional().describe('Asked per item instead of once, e.g. "flag", "row", "invoice".'),
+  rounds: z.number().int().positive().optional().describe('Revision rounds included before it must be approved or rejected.'),
 });
 
-export const BudgetSchema = z.strictObject({
-  usd: z.number().positive().optional(),
+const BudgetItemSchema = z.strictObject({
+  usd: z.number().positive().optional().describe('Amount in US dollars (shorthand for amount + currency USD).'),
+  amount: z.number().positive().optional(),
+  currency: z.string().regex(/^[A-Z]{3}$/, 'ISO 4217 code, e.g. EUR').optional(),
   tokens: z.number().int().positive().optional(),
   turns: z.number().int().positive().optional(),
+  per: z.enum(PER).optional().describe('What the budget is counted over. Default: one run of this node.'),
+  for: z.string().optional().describe('What it pays for when several budgets apply: model, media, ads, api...'),
+  rate: z.string().optional().describe('Unit price, e.g. "0.40 USD/s of video" or "1.20 EUR/take".'),
   on_exceed: z.enum(['pause', 'stop', 'escalate', 'downgrade']).optional(),
+  description: z.string().optional(),
 });
+/** One budget, or several (e.g. model spend and media spend counted separately). */
+export const BudgetSchema = oneOrMany(BudgetItemSchema);
 
 export const LimitsSchema = z.strictObject({
   timeout: duration.optional(),
@@ -62,18 +85,29 @@ export const LimitsSchema = z.strictObject({
   backoff: z.string().optional().describe('e.g. "exponential 2s..60s".'),
   max_iterations: z.number().int().positive().optional().describe('Bound for loops (review rounds, tournament rounds...).'),
   concurrency: z.number().int().positive().optional(),
+  rate: oneOrMany(rate).optional().describe('Quotas and rate limits, e.g. "100/24h" posts or ["300/5m", "15000/d"] requests.'),
+  description: z.string().optional(),
 });
 
 /** Parallel copies of this node: a number, or a range when it scales with the task. */
 export const FanoutSchema = z.union([
   z.number().int().min(2),
-  z.strictObject({ min: z.number().int().min(1).optional(), max: z.number().int().min(2), by: z.string().optional().describe('What decides the count.') }),
+  z.strictObject({
+    min: z.number().int().min(1).optional(),
+    max: z.number().int().min(2),
+    by: oneOrMany(z.string()).optional().describe('What decides the count; several dimensions multiply (store × locale × device).'),
+    from: z.array(z.string()).optional().describe('Different agents the copies are picked from (a supervisor queue), by agent id.'),
+    pick: z.string().optional().describe('How they are picked, e.g. "weighted by queue priority".'),
+  }),
 ]);
 
 export const DataSchema = z.strictObject({
   sensitivity: z.enum(SENSITIVITY).optional(),
   region: z.string().optional().describe('Where data must stay (eu, us, eu-west-1...).'),
-  retention: duration.optional(),
+  retention: z.union([duration, z.literal('none')]).optional().describe('How long it is kept; `none` = in memory only, never persisted.'),
+  retention_after: z.string().optional().describe('Event the retention runs from, e.g. "matter close" (default: creation).'),
+  lawful_basis: z.enum(LAWFUL_BASES).optional().describe('GDPR basis for processing personal data.'),
+  disclosure: z.array(z.string()).optional().describe('Labels and provenance on what it publishes: "C2PA", "AI-generated label", "EU AI Act art. 50"...'),
   description: z.string().optional(),
 });
 
@@ -82,14 +116,51 @@ export const EvalSchema = z.strictObject({
   value: z.union([z.number(), z.string()]).optional(),
   target: z.union([z.number(), z.string()]).optional(),
   higher_is_better: z.boolean().optional().describe('Defaults to true. Used to color value vs target.'),
+  unit: z.string().optional().describe('"%", "ms", "Elo", "USD"... Relative scores (Elo, rank) need no target.'),
+  illustrative: z.boolean().optional().describe('True when the number is an example, not a measurement.'),
   description: z.string().optional(),
   url: z.string().regex(/^https?:\/\//).optional(),
 });
 
 export const RolloutSchema = z.strictObject({
   strategy: z.enum(ROLLOUTS),
-  percent: z.number().min(0).max(100).optional(),
+  percent: z.number().min(0).max(100).optional().describe('Current share of traffic.'),
+  steps: z.array(z.number().min(0).max(100)).optional().describe('Staged / phased schedule, e.g. [1, 5, 25, 100].'),
+  metric: z.string().optional().describe('What decides promotion, e.g. "approval rate" or "crash-free sessions".'),
+  guard: z.string().optional().describe('Halt or roll back when, e.g. "crash-free < 99.5%".'),
+  arms: z.array(z.string()).optional().describe('A/B arms, e.g. ["prompt v3", "prompt v4"].'),
+  sample: z.union([z.number(), z.string()]).optional().describe('Sample size per step or arm.'),
   previous: z.string().optional().describe('Version being replaced (rollback target).'),
+});
+
+/** A deadline: a duration, or relative to an event / absolute / on business days, with external waits apart. */
+export const SlaSchema = z.union([duration, z.strictObject({
+  within: duration.optional(),
+  after: z.string().optional().describe('Event it runs from, e.g. "SDI rejection" or "store submission".'),
+  before: z.string().optional().describe('Event it must end before, e.g. "release".'),
+  by: z.string().optional().describe('Absolute date or time, e.g. "2026-12-31".'),
+  business: z.boolean().optional().describe('Counted in business days / hours (see trigger hours and timezone).'),
+  external: z.boolean().optional().describe('An external wait (store review, carrier, regulator), not our processing time.'),
+  description: z.string().optional(),
+})]);
+
+/** Long-running external jobs (renders, reviews, exports): how the result comes back. */
+export const AsyncSchema = z.strictObject({
+  mode: z.enum(['poll', 'callback', 'both']),
+  interval: duration.optional().describe('Polling interval.'),
+  timeout: duration.optional(),
+  description: z.string().optional(),
+});
+
+/** A decision node's typed output (decision models): what it returns and how it is thresholded. */
+export const DecisionSchema = z.strictObject({
+  output: z.enum(['binary', 'choice', 'score', 'ranking']),
+  candidates: z.array(z.string()).optional().describe('Allowed answers for `choice` (and labels for `binary`).'),
+  threshold: z.union([z.number(), z.string()]).optional().describe('e.g. 0.8 (probability) or ">= 70".'),
+  confidence: z.boolean().optional().describe('Returns a probability / confidence with the answer.'),
+  model: z.string().optional().describe('Pinned decision model or policy version.'),
+  fail: z.enum(['open', 'closed']).optional().describe('On error or low confidence: let it through (open) or block (closed).'),
+  description: z.string().optional(),
 });
 
 export const SandboxSchema = z.strictObject({
@@ -109,7 +180,10 @@ const ops = {
   evals: z.array(EvalSchema).optional(),
   version: z.string().optional(),
   rollout: RolloutSchema.optional(),
-  sla: duration.optional().describe('Deadline to complete (e.g. a regulatory 72h).'),
+  sla: SlaSchema.optional().describe('Deadline to complete: "72h", or { within, after, before, by, business, external }.'),
+  async: AsyncSchema.optional().describe('Result comes back later: poll or callback.'),
+  exactly_once: z.boolean().optional().describe('Must run at most once per item (payouts, filings): idempotency key, no retries that repeat it.'),
+  decision: DecisionSchema.optional().describe('Typed output of a decision (decision models).'),
   credentials: z.enum(CREDENTIALS).optional().describe('Whose credentials the tools use: a service account, the author, or the end user.'),
   sandbox: SandboxSchema.optional(),
 };
@@ -155,6 +229,8 @@ export const AgentSchema = z.strictObject({
   runtime: z.string().optional().describe('Reference to an entry of the `runtimes` registry.'),
   resources: z.array(ResourceSchema).optional(),
   match: z.array(z.string()).optional().describe('Live event rules, e.g. "agent:coder", "tool:mcp__github__*", "source:hermes&tool:shell".'),
+  skills: z.array(z.string()).optional().describe('Agent Skills it can load.'),
+  disabled_tools: z.array(z.string()).optional().describe('Built-in tools turned off for this agent.'),
   ...ops,
   meta: meta.optional(),
 });
@@ -185,6 +261,10 @@ export const EdgeObjectSchema = z.strictObject({
   label: z.string().optional(),
   condition: z.string().optional(),
   protocol: z.enum(PROTOCOLS).optional(),
+  async: z.boolean().optional().describe('Fire-and-forget: the source does not wait (spawns, events). Default: it waits.'),
+  group: z.string().optional().describe('Edges from the same node with the same group are alternatives: exactly one is taken.'),
+  version: z.string().optional().describe('Protocol version, e.g. A2A "0.3" or an API version.'),
+  card: z.string().regex(/^https?:\/\//).optional().describe('A2A agent card URL of the target.'),
 });
 
 /** Shorthand: "a -> b", "a -> b: label", "a -> b [spawn]: label". */
@@ -205,6 +285,8 @@ export const TowerSchema = z.strictObject({
   description: z.string().optional(),
   tags: z.array(z.string()).default([]).describe('Used to filter and group towers in the library view.'),
   root: z.string().optional().describe('Base directory for every relative path. Defaults to the tower file directory.'),
+  budget: BudgetSchema.optional().describe('Whole run / session of the system, across every node.'),
+  limits: LimitsSchema.optional().describe('Whole run / session of the system, across every node.'),
   runtimes: z.record(id, RuntimeSchema).default({}),
   prompts: z.record(id, PromptSchema).default({}),
   agents: z.record(id, AgentSchema).default({}),
@@ -225,6 +307,8 @@ export type NodeDef = z.infer<typeof NodeSchema>;
 export type EdgeDef = z.infer<typeof EdgeSchema>;
 export type TowerDef = z.infer<typeof TowerSchema>;
 export type Protocol = (typeof PROTOCOLS)[number];
+export type BudgetItem = z.infer<typeof BudgetItemSchema>;
+export type LimitsDef = z.infer<typeof LimitsSchema>;
 /** The operational fields an agent or node can carry. */
 export type OpsDef = Pick<NodeDef, keyof typeof ops>;
 export const OPS_KEYS = Object.keys(ops) as (keyof typeof ops)[];

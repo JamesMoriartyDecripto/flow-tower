@@ -220,8 +220,9 @@ layers:
       - id: route
         type: decision
         label: Route?
-        description: "ready | needs_info | decline. Declined: real people without a consent record, political or election content, medical claims without a source."
+        description: "Declined: real people without a consent record, political or election content, medical claims without a source."
         runtime: orchestrator
+        decision: { output: choice, candidates: [ready, needs_info, decline] }
       - id: producer
         agent: producer
         files: [briefs/kestrel-first-ultra.yaml, CLAUDE.md]
@@ -234,7 +235,7 @@ layers:
         label: Hook lab
         description: Twelve opening hooks in four patterns, scored against the hook bank of past 3-second hold rates; top three go to the script.
         evals:
-          - { name: predicted 3s hold (top hook), value: 0.71, target: 0.65, description: "Illustrative. Calibrated on the client's last 40 shorts." }
+          - { name: predicted 3s hold (top hook), value: 0.71, target: 0.65, illustrative: true, description: "Calibrated on the client's last 40 shorts." }
       - id: brand_kit
         type: memory
         label: Brand kit
@@ -311,13 +312,13 @@ layers:
         label: Within budget?
         description: "Over budget -> downgrade b-roll to Veo 3.1 Fast or Lite, cut shots, or ask the producer."
         runtime: orchestrator
+        decision: { output: binary, candidates: [yes, "no"] }
       - id: script_ok
         type: human
         label: Script sign-off
-        description: Producer then client approve script, variants and storyboard frames. Three rounds included.
+        description: Producer then client approve script, variants and storyboard frames.
         runtime: slack
-        approval: { by: producer + client marketing lead, via: Slack Connect, actions: [approve, edit, reject], timeout: 48h, on_timeout: escalate }
-        limits: { max_iterations: 3 }
+        approval: { by: producer + client marketing lead, via: Slack Connect, actions: [approve, edit, reject], timeout: 48h, on_timeout: escalate, rounds: 3 }
     edges:
       - "writer -> variants [spawn]: per format"
       - "variants -> claims: drafts"
@@ -344,7 +345,7 @@ layers:
         runtime: orchestrator
         files: [pipeline/estimate-cost.ts]
         limits: { concurrency: 4, retries: 2, backoff: "exponential 10s..2m" }
-        budget: { usd: 90, on_exceed: pause }
+        budget: { usd: 90, per: run, for: media, on_exceed: pause }
         resources:
           - { kind: log, label: Render jobs, path: logs/render-jobs.log }
       - id: shot
@@ -352,7 +353,7 @@ layers:
         label: Shot pipeline
         description: "One run per shot: prompt, keyframe, generate, poll, check, keep the best take."
         fanout: { min: 6, max: 24, by: shots in the shot list }
-        budget: { usd: 6, on_exceed: downgrade }
+        budget: { usd: 6, per: copy, for: media, on_exceed: downgrade }
         limits: { timeout: 20m, max_iterations: 3 }
         credentials: service
       - id: voice
@@ -360,7 +361,8 @@ layers:
         label: Voice-over
         description: ElevenLabs TTS with the spokesperson's Professional Voice Clone (verified by voice captcha). Generated per line so retakes are cheap.
         runtime: elevenlabs
-        data: { sensitivity: pii, region: eu, description: "Voice clone of a real, consenting person; use limited to the scope in the consent record." }
+        data: { sensitivity: biometric, region: eu, lawful_basis: consent, description: "Voice clone of a real person; use limited to the scope in the consent record." }
+        budget: { rate: "0.08 USD/1k chars", for: media }
         limits: { timeout: 2m, retries: 2 }
         credentials: service
       - id: avatar
@@ -368,20 +370,24 @@ layers:
         label: Avatar segments
         description: HeyGen avatar video of the spokesperson's digital twin. Renders only when the avatar group's consent status is cleared.
         runtime: heygen
-        data: { sensitivity: pii, description: Likeness of a real person. }
+        data: { sensitivity: biometric, lawful_basis: consent, description: Likeness of a real person. }
+        budget: { rate: "3 USD/min", for: media, description: "Assumption: HeyGen credits are plan-dependent." }
         limits: { timeout: 30m, retries: 1, backoff: "Retry-After on 429" }
+        async: { mode: callback, timeout: 30m, description: "callback_url webhook, verified by fetching the job status." }
         credentials: service
       - id: music
         type: tool
         label: Music bed
         description: Eleven Music (music_v2_5, instrumental, 3 s to 5 min); Lyria 3.5 as fallback. No artist names or lyrics in prompts.
         runtime: elevenlabs
+        budget: { rate: "0.15 USD/min", for: media }
         limits: { timeout: 5m, retries: 1 }
       - id: sfx
         type: tool
         label: Sound effects
         description: Footsteps on gravel, wind, zipper, gel pack. Short ElevenLabs sound-effect generations with a set duration.
         runtime: elevenlabs
+        budget: { rate: "0.12 USD/min", for: media }
       - id: callbacks
         label: Webhook receiver
         description: Receives HeyGen callback_url and Remotion webhook events, verifies them by fetching the job status, and wakes the waiting step. Returns 2xx fast.
@@ -394,13 +400,13 @@ layers:
         description: Signed likeness and voice releases with scope (channels, territories, uses), expiry and revocation. Checked before every avatar or voice job.
         runtime: bucket
         files: [compliance/consent-record-mara.json]
-        data: { sensitivity: pii, region: eu, retention: 1095d, description: "Release forms, ID check result, voice captcha recording id. Kept 3 years after expiry." }
+        data: { sensitivity: pii, region: eu, retention: 3y, retention_after: consent expiry, description: "Release forms, ID check result, voice captcha recording id." }
       - id: store
         type: memory
         label: Takes & stems
         description: Every kept take and audio stem with a provenance sidecar (model, version, prompt hash, cost, SynthID flag).
         runtime: bucket
-        data: { sensitivity: confidential, retention: 365d }
+        data: { sensitivity: confidential, retention: 1y }
     edges:
       - "dispatch -> shot [spawn]: per shot"
       - { from: dispatch, to: voice, kind: call, label: "VO lines (text_to_speech)", protocol: mcp }
@@ -433,6 +439,8 @@ layers:
         runtime: lambda
         files: [pipeline/render-lambda.ts, pipeline/remotion/ShortVideo.tsx]
         limits: { timeout: 15m, retries: 1, concurrency: 200 }
+        budget: { rate: "0.01 USD/render", description: "Remotion automators licence, USD 100 monthly minimum." }
+        async: { mode: callback, timeout: 15m }
       - id: captions
         label: Captions
         description: whisper-1 with word timestamps -> SRT for upload and word-level JSON for animated captions; brand terms passed as prompt.
@@ -474,7 +482,7 @@ layers:
         label: Frame QA
         description: Contact sheet plus 2 frames per second around cuts. Flags warped hands and faces, garbled text, logo drift, continuity breaks, flicker.
         evals:
-          - { name: shots flagged per video, value: 2, target: 3, higher_is_better: false, description: Illustrative. }
+          - { name: shots flagged per video, value: 2, target: 3, higher_is_better: false, illustrative: true }
       - id: brand_guard
         type: guard
         label: Brand guard
@@ -496,10 +504,11 @@ layers:
         files: [pipeline/check-specs.py, config/platform-specs.yaml]
       - id: label
         label: AI label + C2PA
-        description: "Signs a C2PA manifest (digitalSourceType trainedAlgorithmicMedia or compositeWithTrainedAlgorithmicMedia) with c2patool and sets per-platform disclosure flags: YouTube containsSyntheticMedia, TikTok is_aigc, Meta AI info."
+        description: "Signs a C2PA manifest (digitalSourceType trainedAlgorithmicMedia or compositeWithTrainedAlgorithmicMedia) with c2patool and sets each platform's disclosure flag."
         runtime: render-box
         files: [pipeline/sign-c2pa.sh, compliance/c2pa-manifest.json]
         credentials: service
+        data: { disclosure: [C2PA Content Credentials, YouTube containsSyntheticMedia, TikTok is_aigc, Meta AI info] }
       - id: gate
         type: decision
         label: All pass?
@@ -509,28 +518,26 @@ layers:
       - id: legal
         type: human
         label: Legal review
-        description: Only when the video uses a real person's likeness or voice, a health or performance claim, or a paid partnership.
         runtime: slack
-        approval: { by: client legal counsel, via: Slack Connect, actions: [approve, reject, respond], timeout: 24h, on_timeout: reject }
+        approval: { by: client legal counsel, via: Slack Connect, actions: [approve, reject, respond], timeout: 24h, on_timeout: reject, when: "real likeness or voice, health or performance claim, or paid partnership" }
         sla: 48h
       - id: final_ok
         type: human
         label: Client approval
-        description: Client approves every platform cut with captions, labels and the publish plan. Three revision rounds included; a fourth is a change order.
+        description: Client approves every platform cut with captions, labels and the publish plan. A fourth revision round is a change order.
         runtime: slack
-        approval: { by: client marketing lead, via: Slack Connect review link, actions: [approve, edit, reject], timeout: 48h, on_timeout: escalate }
-        limits: { max_iterations: 3 }
+        approval: { by: client marketing lead, via: Slack Connect review link, actions: [approve, edit, reject], timeout: 48h, on_timeout: escalate, rounds: 3 }
         sla: 72h
         evals:
-          - { name: revision rounds used, value: 1, target: 3, higher_is_better: false, description: Illustrative. }
+          - { name: revision rounds used, value: 1, target: 3, higher_is_better: false, illustrative: true }
     edges:
       - "frame_qa -> gate [data]"
       - "brand_guard -> gate [data]"
       - "rights -> gate [data]"
       - "specs -> gate [data]"
       - "gate -> label: pass"
-      - "label -> legal: likeness or claims"
-      - "label -> final_ok: otherwise"
+      - { from: label, to: legal, label: likeness or claims, group: review }
+      - { from: label, to: final_ok, label: otherwise, group: review }
       - "legal -> final_ok: cleared"
 
   # 6 ───────────────────────────────────────────────────────────────
@@ -549,7 +556,7 @@ layers:
         runtime: gemini
         fanout: 3
         version: thumb-v3
-        rollout: { strategy: ab, percent: 33, previous: thumb-v2 }
+        rollout: { strategy: ab, percent: 33, arms: [A, B, C], metric: watch time share, previous: thumb-v2 }
       - id: schedule
         label: Schedule
         description: Picks slots from the calendar and audience activity; staggers platforms by 2 hours.
@@ -567,18 +574,19 @@ layers:
       - id: tiktok
         type: tool
         label: TikTok post
-        description: "Direct post with is_aigc true; 6 requests per minute per token; upload_url valid 1 hour."
+        description: "Direct post with is_aigc true; upload_url valid 1 hour."
         runtime: tiktok
         files: [pipeline/publish-tiktok.ts]
         credentials: user
-        limits: { ttl: 1h, retries: 2 }
+        limits: { ttl: 1h, retries: 2, rate: "6/m", description: Requests per user token. }
       - id: reels
         type: tool
         label: Instagram Reels
-        description: "Container (media_type REELS) -> poll status_code until FINISHED (once a minute, max 5 min) -> media_publish. 100 API posts per 24 h."
+        description: "Container (media_type REELS) -> poll status_code until FINISHED -> media_publish."
         runtime: meta
         credentials: user
-        limits: { timeout: 5m, retries: 1 }
+        limits: { timeout: 5m, retries: 1, rate: "100/24h", description: API posts per account. }
+        async: { mode: poll, interval: 1m, timeout: 5m }
     edges:
       - "packager -> thumbs [call]: 3 briefs"
       - "packager -> schedule"
@@ -600,19 +608,19 @@ layers:
         limits: { retries: 3 }
       - id: abtest
         label: Thumbnail test
-        description: YouTube Test & compare on the long-form video, up to 3 thumbnails or titles, winner by watch time share, up to 2 weeks. Not available for Shorts.
+        description: YouTube Test & compare on the long-form video, up to 3 thumbnails or titles. Not available for Shorts.
         runtime: youtube
-        rollout: { strategy: ab, percent: 33 }
+        rollout: { strategy: ab, percent: 33, arms: [A, B, C], metric: watch time share }
         sla: 14d
       - id: analyst
         agent: analyst
         files: [analytics/first-ultra-week1.md]
         evals:
-          - { name: 3s hook rate (shorts), value: 0.68, target: 0.65, description: "Illustrative target, share of viewers still watching at 3 s." }
-          - { name: avg % viewed (shorts), value: 0.74, target: 0.7, description: Illustrative. }
-          - { name: long-form CTR, value: 0.052, target: 0.05, description: "Illustrative; impressions click-through rate." }
-          - { name: avg view duration (min), value: 3.1, target: 3.5, description: "Illustrative, long-form 7:40 cut." }
-          - { name: cost per finished minute (USD), value: 7.6, target: 15, higher_is_better: false, description: "Illustrative sample (fictional), all vendors incl. rejected takes." }
+          - { name: 3s hook rate (shorts), value: 0.68, target: 0.65, illustrative: true, description: Share of viewers still watching at 3 s. }
+          - { name: avg % viewed (shorts), value: 0.74, target: 0.7, illustrative: true }
+          - { name: long-form CTR, value: 0.052, target: 0.05, illustrative: true, description: Impressions click-through rate. }
+          - { name: avg view duration, value: 3.1, target: 3.5, unit: min, illustrative: true, description: Long-form 7:40 cut. }
+          - { name: cost per finished minute, value: 7.6, target: 15, higher_is_better: false, unit: USD, illustrative: true, description: "All vendors incl. rejected takes (fictional sample)." }
       - id: ledger
         type: memory
         label: Cost ledger

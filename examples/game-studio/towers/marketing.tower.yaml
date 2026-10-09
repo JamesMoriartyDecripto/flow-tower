@@ -190,6 +190,7 @@ layers:
         runtime: studio-cluster
         type: decision
         label: On brand?
+        limits: { max_iterations: 2 }
       - id: approval
         runtime: review-portal
         resources:
@@ -197,6 +198,7 @@ layers:
         type: human
         label: Publish approval
         description: Drafts only until approved. The publish tools are on the settings.json ask list.
+        approval: { via: review portal, actions: [approve, reject] }
         files: [src/tools/request-approval.ts, .claude/settings.json]
     edges:
       - "social -> calendar [data]: posts"

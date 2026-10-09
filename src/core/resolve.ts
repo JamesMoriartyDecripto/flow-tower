@@ -79,7 +79,7 @@ export async function resolveAgent(
     }
   }
 
-  const { name, description, model, tools, ...rest } = imported;
+  const { name, description, model, tools, skills, ...rest } = imported;
   // Frontmatter is free YAML: `name: 2025` is a number. Everything downstream expects strings.
   const text = (v: unknown) => (v === undefined || v === null ? undefined : String(v));
   return {
@@ -90,6 +90,8 @@ export async function resolveAgent(
     prompt: (await resolvePromptRef(def.prompt, prompts, fs, issues, where)) ?? importedPrompt,
     tools: def.tools ?? toList(tools),
     harness: def.harness ?? {},
+    skills: def.skills ?? toList(skills),
+    disabledTools: def.disabled_tools ?? [],
     files: [...(def.from ? [def.from] : []), ...(def.files ?? [])],
     source: def.from,
     tower: def.tower,

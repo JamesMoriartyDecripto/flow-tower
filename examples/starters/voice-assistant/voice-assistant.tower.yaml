@@ -20,7 +20,7 @@ layers:
         model: faster-whisper small
         runtime: pi
         files: [assistant.py]
-        data: { sensitivity: confidential, description: Raw audio never leaves the Pi; only the transcript goes to Claude. }
+        data: { sensitivity: confidential, retention: none, description: Raw audio stays in memory on the Pi; only the transcript goes to Claude. }
     edges:
       - mic -> wake
       - "wake -> stt: until silence"

@@ -14,6 +14,7 @@ description: >-
   opt-out. The sequence engine is a nested tower. Sample company: "Ferrovento S.r.l."
   (fictional), a Bologna data and automation consultancy selling fixed-price projects and
   retainers to manufacturing SMEs in Northern Italy and France.
+budget: { usd: 600, per: month, for: model, on_exceed: downgrade, description: "Across agents; at the cap, Opus roles drop to Sonnet and the Head of Sales is told." }
 tags: [sales, b2b, outbound, crm, hubspot, apollo, atoka, instantly, calendly, fireflies, meddicc, cpq, yousign, fatture-in-cloud, sdi, gdpr, italy, human-in-the-loop, claude-agent-sdk]
 
 runtimes:
@@ -133,7 +134,7 @@ agents:
     harness: { max_turns: 6, output: json_schema }
     budget: { usd: 0.03, turns: 6, on_exceed: stop }
     limits: { timeout: 60s, retries: 2 }
-    data: { sensitivity: pii, region: eu, retention: 180d }
+    data: { sensitivity: pii, region: eu, retention: 180d, retention_after: last engagement, lawful_basis: legitimate_interests }
     credentials: service
   sequencer:
     name: Sequence engine
@@ -154,7 +155,7 @@ agents:
     harness: { max_turns: 3, output: json_schema }
     budget: { usd: 0.01, turns: 3, on_exceed: stop }
     limits: { timeout: 30s, retries: 2 }
-    data: { sensitivity: pii, region: eu, retention: 730d }
+    data: { sensitivity: pii, region: eu, retention: 2y }
     credentials: service
   objection:
     name: Objection drafter
@@ -181,7 +182,7 @@ agents:
     files: [qualification/meddicc-scorecard.md]
     harness: { max_turns: 8, output: json_schema }
     budget: { usd: 0.4, turns: 8, on_exceed: stop }
-    data: { sensitivity: pii, region: eu, retention: 365d, description: "Transcripts are deleted from Fireflies after 90 days; the scorecard keeps quotes only." }
+    data: { sensitivity: pii, region: eu, retention: 1y, description: "Transcripts are deleted from Fireflies after 90 days; the scorecard keeps quotes only." }
     credentials: service
   scoping:
     name: Solution scoper
@@ -232,7 +233,7 @@ layers:
         label: Quarterly review
         runtime: workers
         description: First Monday of the quarter, or manually after a pricing or offer change.
-        trigger: { kind: cron, schedule: "0 7 1-7 1,4,7,10 1", source: Cloud Scheduler, description: Europe/Rome }
+        trigger: { kind: cron, schedule: "0 7 1-7 1,4,7,10 1", timezone: Europe/Rome, source: Cloud Scheduler }
       - id: icp
         agent: icp
         label: ICP strategist
@@ -279,7 +280,7 @@ layers:
         type: entry
         label: Weekly run
         runtime: workers
-        trigger: { kind: cron, schedule: "0 6 * * 1", source: Cloud Scheduler, description: Europe/Rome }
+        trigger: { kind: cron, schedule: "0 6 * * 1", timezone: Europe/Rome, source: Cloud Scheduler }
       - id: pull
         label: Pull per source
         runtime: workers
@@ -302,7 +303,7 @@ layers:
         label: Consented lists
         runtime: hubspot
         description: Trade-fair badge scans and webinar sign-ups with a recorded marketing consent (date, text, source).
-        data: { sensitivity: pii, region: eu, retention: 730d }
+        data: { sensitivity: pii, region: eu, retention: 2y, lawful_basis: consent }
       - id: dedupe
         label: Dedupe + suppress
         runtime: workers
@@ -314,15 +315,15 @@ layers:
         runtime: workers
         description: "Per contact: country, source, consent record. Decides allowed channels (email / call / LinkedIn manual) and logs the basis. No basis, no outreach."
         files: [scripts/lawful_basis.py, compliance/channel-rules.yaml, compliance/legitimate-interest-assessment.md]
-        data: { sensitivity: pii, region: eu, retention: 180d, description: "Non-responding prospects are deleted after 180 days (LIA)." }
+        data: { sensitivity: pii, region: eu, retention: 180d, retention_after: last engagement, lawful_basis: legitimate_interests, description: "Per compliance/legitimate-interest-assessment.md." }
       - id: enrich
         label: Enrich contacts
         runtime: workers
         description: "Apollo people enrichment (credits) only for tier A/B accounts that passed the basis check. Work emails only."
         fanout: { min: 2, max: 20, by: account batch }
-        budget: { usd: 400, on_exceed: pause }
+        budget: { usd: 400, per: month, for: Apollo credits, on_exceed: pause }
         limits: { concurrency: 2, retries: 2, backoff: "exponential 2s..60s" }
-        data: { sensitivity: pii, region: eu, retention: 180d }
+        data: { sensitivity: pii, region: eu, retention: 180d, retention_after: last engagement, lawful_basis: legitimate_interests }
       - id: scorer
         agent: scorer
         label: Prospect scorer
@@ -333,6 +334,7 @@ layers:
         runtime: workers
         description: "A >= 70 goes to sequences this week; B 50-69 waits for a trigger event; C is not contacted."
         files: [scoring/prospect-scoring.yaml]
+        decision: { output: choice, candidates: [A, B, C] }
     edges:
       - weekly -> pull [spawn]
       - { from: pull, to: atoka, kind: call, protocol: http, label: "IT accounts" }
@@ -357,26 +359,27 @@ layers:
         agent: sequencer
         label: Sequence engine
         version: v3-pain-led
-        rollout: { strategy: ab, percent: 50, previous: v2-case-study }
+        rollout: { strategy: ab, percent: 50, arms: [v3-pain-led, v2-case-study], previous: v2-case-study }
         evals:
-          - { name: reply rate % (illustrative), value: 7.4, target: 5 }
-          - { name: positive reply rate % (illustrative), value: 2.1, target: 2 }
-          - { name: unverifiable personalization % (blocked), value: 3.2, target: 5, higher_is_better: false }
+          - { name: reply rate, value: 7.4, target: 5, unit: "%", illustrative: true }
+          - { name: positive reply rate, value: 2.1, target: 2, unit: "%", illustrative: true }
+          - { name: unverifiable personalization (blocked), value: 3.2, target: 5, unit: "%", higher_is_better: false, illustrative: true }
       - id: first_batch
         type: human
         label: First batch review
         runtime: slack
-        description: First 20 messages of a new sequence or variant, with the evidence behind each personalization line.
-        approval: { by: SDR lead, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: wait }
+        description: First 20 messages, with the evidence behind each personalization line.
+        approval: { by: SDR lead, via: Slack, actions: [approve, edit, reject], when: new sequence or variant, timeout: 24h, on_timeout: wait }
       - id: deliverability
         type: guard
         label: Deliverability
         runtime: workers
-        description: "SPF, DKIM, aligned DMARC; 30 new emails/day per mailbox after warm-up; pause at 0.1 % complaints or 2 % bounces."
+        description: "SPF, DKIM, aligned DMARC; pause at 0.1 % complaints or 2 % bounces."
         files: [outreach/deliverability.yaml, scripts/send_guard.py]
+        limits: { rate: "30/d", description: New emails per mailbox after warm-up. }
         evals:
-          - { name: Gmail spam rate %, value: 0.04, target: 0.1, higher_is_better: false }
-          - { name: hard bounce rate %, value: 0.9, target: 2, higher_is_better: false }
+          - { name: Gmail spam rate, value: 0.04, target: 0.1, unit: "%", higher_is_better: false, illustrative: true }
+          - { name: hard bounce rate, value: 0.9, target: 2, unit: "%", higher_is_better: false, illustrative: true }
       - id: instantly
         type: tool
         label: Instantly API
@@ -396,18 +399,18 @@ layers:
         runtime: instantly
         description: "reply_received, lead_out_of_office, lead_unsubscribed, email_bounced; call outcomes logged by reps."
         trigger: { kind: webhook, source: Instantly webhooks }
-        data: { sensitivity: pii, region: eu, retention: 730d }
+        data: { sensitivity: pii, region: eu, retention: 2y }
       - id: triage
         agent: triage
         label: Reply triage
         evals:
-          - { name: triage accuracy vs rep label (%), value: 94, target: 92 }
+          - { name: triage accuracy vs rep label, value: 94, target: 92, unit: "%", illustrative: true }
       - id: route
         type: decision
         label: Reply type?
         runtime: workers
-        description: interested / objection / not now / unsubscribe / out of office / wrong person / bounce.
         files: [outreach/reply-triage-rules.yaml]
+        decision: { output: choice, candidates: [unsubscribe, objection_to_processing, bounce, out_of_office, wrong_person, interested, objection, not_now, not_interested], description: "Labels from outreach/reply-triage-rules.yaml; the first matching label wins." }
       - id: optout
         type: guard
         label: Opt-out + erasure
@@ -447,7 +450,7 @@ layers:
         description: Website contact form with privacy notice; consent checkbox unticked by default.
         trigger: { kind: webhook, source: HubSpot form submission }
         sla: 2h
-        data: { sensitivity: pii, region: eu, retention: 730d }
+        data: { sensitivity: pii, region: eu, retention: 2y }
       - id: booking
         type: entry
         label: Meeting booked
@@ -465,7 +468,7 @@ layers:
         description: Account executive runs the call. Recording starts only after the participants are told and agree.
         approval: { by: account executive, via: Google Meet, actions: [respond], timeout: 7d, on_timeout: wait }
         evals:
-          - { name: meeting held rate % (illustrative), value: 81, target: 80 }
+          - { name: meeting held rate, value: 81, target: 80, unit: "%", illustrative: true }
       - id: notes
         type: tool
         label: Fireflies
@@ -482,6 +485,7 @@ layers:
         runtime: workers
         description: "Pain, Metrics and Economic Buyer known, total >= 14/21, and the AE agrees. Otherwise nurture with a reason."
         files: [qualification/meddicc-scorecard.md]
+        decision: { output: binary, threshold: ">= 14/21" }
       - id: crm
         type: tool
         label: HubSpot MCP
@@ -517,18 +521,19 @@ layers:
         type: decision
         label: Discount gate
         runtime: workers
-        description: "<= 10 %: rep. 10-20 % or payment terms 60d: Sales Director. > 20 %, below margin floor, or fixed price > 80k: CEO."
+        description: "<= 10 %: the rep decides. Bands and always-CEO cases in pricing/discount-policy.yaml."
         files: [pricing/discount-policy.yaml, scripts/discount_gate.py]
+        decision: { output: choice, candidates: [rep, Sales Director, CEO], fail: closed }
       - id: director
         type: human
         label: Sales Director
         runtime: slack
-        approval: { by: Sales Director, via: "Slack #deal-desk", actions: [approve, edit, reject], timeout: 24h, on_timeout: reject }
+        approval: { by: Sales Director, via: "Slack #deal-desk", actions: [approve, edit, reject], when: "discount 10-20 %, payment terms 31-60 days, deposit < 30 %, or extras > 5 % of fees", per: quote, timeout: 24h, on_timeout: reject }
       - id: ceo
         type: human
         label: CEO
         runtime: slack
-        approval: { by: CEO, via: "Slack #deal-desk", actions: [approve, reject], timeout: 48h, on_timeout: reject }
+        approval: { by: CEO, via: "Slack #deal-desk", actions: [approve, reject], when: "discount > 20 %, margin below floor, fixed price > 80000 EUR, liability cap > 100 % of fees, or terms > 60 days", per: quote, timeout: 48h, on_timeout: reject }
       - id: hs_quote
         type: tool
         label: HubSpot Quotes API
@@ -544,13 +549,13 @@ layers:
         runtime: hubspot
         description: Quote PDF + scope document sent by the AE; deal stage "Proposal".
         evals:
-          - { name: proposal-to-win rate % (illustrative), value: 38, target: 35 }
+          - { name: proposal-to-win rate, value: 38, target: 35, unit: "%", illustrative: true }
     edges:
       - "scoping -> quote: estimate"
       - quote -> discount_gate
-      - { from: discount_gate, to: director, label: "10-20 % or 60d terms", condition: "discount > 0.10" }
-      - { from: discount_gate, to: ceo, label: "> 20 % or floor breach", condition: "discount > 0.20 || margin < floor" }
-      - { from: discount_gate, to: hs_quote, kind: call, protocol: http, label: within policy }
+      - { from: discount_gate, to: director, label: "10-20 % or 60d terms", condition: "discount > 0.10", group: approver }
+      - { from: discount_gate, to: ceo, label: "> 20 % or floor breach", condition: "discount > 0.20 || margin < floor", group: approver }
+      - { from: discount_gate, to: hs_quote, kind: call, protocol: http, label: within policy, group: approver }
       - { from: director, to: hs_quote, kind: call, protocol: http, label: approved }
       - { from: ceo, to: hs_quote, kind: call, protocol: http, label: approved }
       - "hs_quote -> proposal_out"
@@ -579,14 +584,15 @@ layers:
         label: Legal review
         runtime: slack
         description: External counsel for redlines on liability, IP or penalties.
-        approval: { by: legal counsel, via: Slack, actions: [approve, edit, reject], timeout: 72h, on_timeout: wait }
+        approval: { by: legal counsel, via: Slack, actions: [approve, edit, reject], when: non-standard clause, timeout: 72h, on_timeout: wait }
       - id: esign
         type: tool
         label: Yousign API
         runtime: yousign
-        description: Signature request with advanced electronic signature, OTP by SMS, reminders every 3 days, expiry 30 days.
+        description: Signature request with advanced electronic signature, OTP by SMS.
         files: [contract/esign-config.yaml]
         limits: { retries: 3, backoff: "exponential 2s..60s" }
+        async: { mode: callback, timeout: 30d, description: "signature_request.done webhook; reminders every 3 days, request expires after 30 days." }
       - id: signed
         type: entry
         label: Signed webhook
@@ -601,8 +607,8 @@ layers:
         type: output
         label: Delivery handoff
         runtime: workers
-        description: Kickoff ticket with scope, assumptions, contacts and the MEDDICC notes; the delivery lead accepts within 2 business days.
-        sla: 48h
+        description: Kickoff ticket with scope, assumptions, contacts and the MEDDICC notes; the delivery lead accepts it.
+        sla: { within: 2d, business: true }
     edges:
       - assemble -> deviation
       - "deviation -> legal: non-standard clause"
@@ -638,15 +644,15 @@ layers:
         label: Finance review
         runtime: slack
         description: "Checks VAT, SDI code or PEC, split payment and amounts. Sending to SDI cannot be undone, only corrected by a credit note."
-        approval: { by: finance manager, via: "Slack #billing", actions: [approve, edit, reject], timeout: 24h, on_timeout: escalate }
+        approval: { by: finance manager, via: "Slack #billing", actions: [approve, edit, reject], per: invoice, timeout: 24h, on_timeout: escalate }
       - id: fic
         type: tool
         label: Fatture in Cloud
         runtime: fic
         description: "POST issued_documents, GET e_invoice/xml_verify, POST e_invoice/send. 429 or 403 carry Retry-After."
-        sla: 12d
-        limits: { retries: 4, backoff: "Retry-After, exponential 5s..10m", concurrency: 2 }
-        data: { sensitivity: confidential, region: eu, retention: 3650d, description: "Invoices are accounting records, kept 10 years." }
+        sla: { within: 12d, after: effettuazione }
+        limits: { retries: 4, backoff: "Retry-After, exponential 5s..10m", concurrency: 2, rate: ["300/5m", "1000/h"], description: "FIC quotas: per company and per company-app." }
+        data: { sensitivity: confidential, region: eu, retention: 10y, lawful_basis: legal_obligation, description: Invoices are accounting records. }
         credentials: service
       - id: sdi_status
         type: entry
@@ -660,7 +666,7 @@ layers:
         description: Daily match of bank movements to open invoices; marks payments_list items paid and updates the HubSpot deal.
         trigger: { kind: cron, schedule: "0 8 * * 1-5", source: Cloud Scheduler }
         evals:
-          - { name: DSO days (illustrative), value: 52, target: 60, higher_is_better: false }
+          - { name: DSO, value: 52, target: 60, unit: days, higher_is_better: false, illustrative: true }
       - id: dunning
         agent: dunning
         label: Payment follow-up
@@ -701,17 +707,17 @@ layers:
         label: Pipeline mart
         runtime: workers
         description: "Daily HubSpot export (deals, stages, activities), Instantly stats, FIC invoices and payments. BigQuery, EU region."
-        data: { sensitivity: confidential, region: eu, retention: 1095d }
+        data: { sensitivity: confidential, region: eu, retention: 3y }
       - id: analyst
         agent: analyst
         label: Weekly digest
         trigger: { kind: cron, schedule: "0 7 * * 1", source: Cloud Scheduler }
         files: [samples/pipeline-digest-2026-w41.md]
         evals:
-          - { name: meetings per 100 prospects (illustrative), value: 3.1, target: 3 }
-          - { name: win rate % (illustrative), value: 27, target: 25 }
-          - { name: sales cycle days (illustrative), value: 64, target: 75, higher_is_better: false }
-          - { name: pipeline velocity EUR/day (illustrative), value: 7420, target: 7000 }
+          - { name: meetings per 100 prospects, value: 3.1, target: 3, illustrative: true }
+          - { name: win rate, value: 27, target: 25, unit: "%", illustrative: true }
+          - { name: sales cycle, value: 64, target: 75, unit: days, higher_is_better: false, illustrative: true }
+          - { name: pipeline velocity, value: 7420, target: 7000, unit: EUR/day, illustrative: true }
       - id: winloss
         agent: analyst
         label: Win/loss review
@@ -722,12 +728,6 @@ layers:
         label: CRM data quality
         runtime: workers
         description: Required fields per stage, stale next steps, duplicate companies; failures go to the owner's task list, not into the digest.
-      - id: llm_budget
-        type: guard
-        label: LLM budget
-        runtime: workers
-        description: 600 USD per month across agents; at the cap, Opus roles drop to Sonnet and the Head of Sales is told.
-        budget: { usd: 600, on_exceed: downgrade }
       - id: audit
         type: memory
         label: Audit log
@@ -735,7 +735,7 @@ layers:
         description: Append-only record of approvals, lawful-basis decisions, opt-outs, sends and invoice submissions.
         resources:
           - { kind: log, label: Outreach run log, path: logs/outreach-run.log }
-        data: { sensitivity: confidential, region: eu, retention: 1825d }
+        data: { sensitivity: confidential, region: eu, retention: 5y }
     edges:
       - "mart -> data_quality [data]"
       - "data_quality -> analyst: clean data"
@@ -757,4 +757,3 @@ links:
   - "analytics.winloss -> outreach.sequencer [return]: messaging feedback"
   - "outreach.optout -> analytics.audit [data]: suppression events"
   - "prospecting.basis -> analytics.audit [data]: basis decisions"
-  - "analytics.llm_budget -> proposal.scoping: over budget, downgrade"

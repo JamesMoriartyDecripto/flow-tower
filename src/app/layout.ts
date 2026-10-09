@@ -7,7 +7,7 @@ import { NODE_H, NODE_W, SCALE } from './theme';
 export type XZ = [number, number];
 
 export interface NodeBox { key: string; x: number; z: number; w: number; d: number }
-export interface EdgePath { id: string; kind: EdgeKind; from: string; to: string; label?: string; protocol?: Protocol; points: XZ[] }
+export interface EdgePath { id: string; kind: EdgeKind; from: string; to: string; label?: string; protocol?: Protocol; version?: string; async?: boolean; group?: string; points: XZ[] }
 export interface LayerLayout { index: number; width: number; depth: number; nodes: Record<string, NodeBox>; edges: EdgePath[] }
 export interface TowerLayout { layers: LayerLayout[]; width: number; depth: number }
 
@@ -50,7 +50,7 @@ async function layoutLayer(layer: ResolvedLayer): Promise<LayerLayout> {
     const points = s
       ? [s.startPoint, ...(s.bendPoints ?? []), s.endPoint].map((p) => toWorld(p.x, p.y))
       : [[nodes[e.from].x, nodes[e.from].z], [nodes[e.to].x, nodes[e.to].z]] as XZ[];
-    return { id: e.id, kind: e.kind, from: e.from, to: e.to, label: e.label, protocol: e.protocol, points };
+    return { id: e.id, kind: e.kind, from: e.from, to: e.to, label: e.label, protocol: e.protocol, version: e.version, async: e.async, group: e.group, points };
   });
 
   return { index: layer.index, width: w, depth: d, nodes, edges };
@@ -90,4 +90,10 @@ export function pointAt(points: XZ[], t: number): XZ {
     target -= segs[i];
   }
   return points[0];
+}
+
+/** Text drawn on an edge: protocol (and version), label, then fire-and-forget and alternative markers. */
+export function edgeText(e: { protocol?: string; version?: string; label?: string; async?: boolean; group?: string }): string {
+  return [e.protocol && `${e.protocol.toUpperCase()}${e.version ? ` ${e.version}` : ''}`, e.label, e.async && 'ASYNC', e.group && `ALT ${e.group}`]
+    .filter(Boolean).join(' · ');
 }

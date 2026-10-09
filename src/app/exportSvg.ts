@@ -1,6 +1,6 @@
 import type { EdgeKind } from '../core/schema';
 import type { ResolvedTower } from '../core/types';
-import type { TowerLayout } from './layout';
+import { edgeText, type TowerLayout } from './layout';
 import { COLORS, EDGE_STYLE, NODE_STYLE, SCALE } from './theme';
 
 /**
@@ -64,7 +64,7 @@ export function towerSvg(tower: ResolvedTower, layout: TowerLayout, opts: { laye
       const color = edgeColor(e.kind, p);
       const d = e.points.map(([x, z], k) => `${k ? 'L' : 'M'}${X(x).toFixed(1)} ${Y(z).toFixed(1)}`).join(' ');
       parts.push(`<path d="${d}" fill="none" stroke="${color}" stroke-width="${Math.max(1, style.width).toFixed(1)}"${style.dashed ? ' stroke-dasharray="6 4"' : ''} marker-end="url(#arrow-${e.kind})"/>`);
-      const text = [e.protocol?.toUpperCase(), e.label].filter(Boolean).join(' · ');
+      const text = edgeText(e);
       if (text) {
         // On the longest segment, like the 3D labels.
         let best = 0;

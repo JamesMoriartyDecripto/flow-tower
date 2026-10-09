@@ -40,7 +40,7 @@ decides this deterministically per contact. The agents never decide who may be c
 | 5 | Proposal & Negotiation | The Opus scoper estimates days only. A deterministic quote builder prices from the rate card. The **discount gate** sends 10-20 % or 60-day terms to the Sales Director (24h, reject) and > 20 % or a margin-floor breach to the CEO (48h, reject). The quote is created via the HubSpot Quotes API, because MCP is read-only for quotes. The negotiation assistant proposes give/get options and never grants them. |
 | 6 | Contract & Close | The MSA + SOW + DPA are assembled from templates. A **deviation check** sends redlines to legal (72h). Yousign runs an advanced e-signature. The `signature_request.done` webhook sets the deal to closed-won and triggers the delivery handoff (48h SLA). |
 | 7 | Invoicing & Payment | The billing plan is 30/40/30: a proforma for the deposit, then milestone invoices. Deals are mapped to the FIC `issued_documents` payload. **Finance review** comes before sending, because a sent invoice can only be corrected by a credit note. Then come FIC create, `xml_verify` and `send` (12d SLA), and the SDI status webhook. Daily payment matching and a Haiku follow-up agent handle collections; the AR manager decides on formal notices. |
-| 8 | Analytics & Learning | A BigQuery pipeline mart and a CRM data-quality guard feed the weekly Opus digest. The monthly win/loss review feeds back into the ICP and the sequences. An LLM budget guard (`downgrade`) and an append-only audit log cover all agents. |
+| 8 | Analytics & Learning | A BigQuery pipeline mart and a CRM data-quality guard feed the weekly Opus digest. The monthly win/loss review feeds back into the ICP and the sequences. An append-only audit log covers all agents; the tower-wide LLM budget (600 USD `per: month`, `downgrade`) sits at the top level. |
 
 **Sub-tower `towers/outreach.tower.yaml`** (4 layers, 21 nodes):
 - **Plan:** a channel plan from the lawful-basis result, approved templates, and A/B variant per account.
@@ -51,18 +51,20 @@ decides this deterministically per contact. The agents never decide who may be c
 ## Operational features used
 
 - `trigger`:
-  - cron: quarterly ICP, weekly prospecting, daily payments, weekly digest, monthly win/loss
+  - cron: quarterly ICP and weekly prospecting (`timezone: Europe/Rome`), daily payments, weekly digest, monthly win/loss
   - webhook: Instantly replies, HubSpot form, Calendly, Fireflies, Yousign, HubSpot closed-won, FIC SDI status
   - queue: sub-tower intake
-- `approval`: ICP 5d escalate; first batch 24h wait; rep tasks 2d; Sales Director 24h reject; CEO 48h reject; legal 72h wait; finance 24h escalate; AR manager 72h wait.
+- `approval`: ICP 5d escalate; first batch 24h wait `when: new sequence or variant`; rep tasks 2d; Sales Director and CEO `per: quote` with the discount-policy conditions in `when` (24h / 48h, reject); legal 72h wait `when: non-standard clause`; finance `per: invoice` 24h escalate; AR manager 72h wait.
+- `decision`: prospect tier (choice A/B/C), reply route (choice over the triage labels), qualified (`threshold: ">= 14/21"`), discount gate (choice of approver, `fail: closed`) with its branches as an edge `group`.
 - `fanout`: per source, account batch, prospect, prospect in batch.
-- `limits`: retries with backoff (FIC honours `Retry-After`), concurrency for API quotas, `max_iterations` on the pacer.
-- `budget`: Apollo credits 400 USD/month pause; per-agent LLM budgets; 600 USD/month LLM cap with downgrade.
-- `data`: PII/EU with retention for prospects (180d), replies and leads (730d), transcripts (90d); confidential invoices (10 years), mart and audit.
+- `limits`: retries with backoff (FIC honours `Retry-After`), concurrency, `rate` quotas (FIC `300/5m` and `1000/h`, 30 new emails per mailbox per day, 180 per domain, 15 LinkedIn notes per rep), `max_iterations` on the pacer.
+- `budget`: Apollo credits 400 USD `per: month` pause; per-agent LLM budgets; tower-wide 600 USD `per: month` `for: model` with downgrade.
+- `data`: PII/EU with retention for prospects (180d `retention_after: last engagement`, `lawful_basis: legitimate_interests` per the LIA), consented event lists (`lawful_basis: consent`), replies and leads (2y), transcripts (90d); confidential invoices (10y, `legal_obligation`), mart (3y) and audit (5y).
+- `async`: Yousign signature request (callback, 30-day expiry).
 - `credentials`: `service` for integrations, `user` for rep LinkedIn and calls, `author` for scoping and negotiation.
-- `evals`: reply rate, positive reply rate, blocked personalization, spam rate, bounce rate, triage accuracy, meeting-held rate, proposal-to-win, meetings per 100 prospects, win rate, sales cycle days, pipeline velocity, DSO.
-- `sla`: inbound 2h, interested 4h, opt-out 24h, delivery handoff 48h, invoice to SDI 12d.
-- `version` + `rollout: ab 50 %` on the email variant.
+- `evals` (all `illustrative`, with `unit`): reply rate, positive reply rate, blocked personalization, spam rate, bounce rate, triage accuracy, meeting-held rate, proposal-to-win, meetings per 100 prospects, win rate, sales cycle days, pipeline velocity, DSO.
+- `sla`: inbound 2h, interested 4h, opt-out 24h, delivery handoff 2 business days, invoice to SDI 12d `after: effettuazione`.
+- `version` + `rollout: ab 50 %` with `arms` on the email variant.
 - `status: planned` on the invoicing-fic handoff.
 - Edge `protocol`: mcp, http, webhook.
 - A `log` resource.

@@ -176,19 +176,19 @@ layers:
         type: human
         label: Notify
         description: "FYI: important, no action taken (DocuSign waiting, board doc shared, daily brief)."
-        approval: { by: Executive, via: "Review Inbox + push", actions: [respond, reject], on_timeout: wait }
+        approval: { by: Executive, via: [Review Inbox, push], actions: [respond, dismiss], on_timeout: wait }
       - id: question_card
         runtime: inbox_app
         type: human
         label: Question
         description: "The agent is blocked on a fact only she knows ('Attend DevTools Summit in Berlin?')."
-        approval: { by: Executive, via: "Review Inbox + push", actions: [respond, reject], timeout: 48h, on_timeout: wait }
+        approval: { by: Executive, via: [Review Inbox, push], actions: [respond, dismiss], timeout: 48h, on_timeout: wait }
       - id: review_card
         runtime: inbox_app
         type: human
         label: Review
         description: "Draft reply, invite or plan. Edit sends her text verbatim; respond sends it back for a redraft."
-        approval: { by: Executive, via: "Review Inbox + push", actions: [approve, edit, reject, respond], timeout: 24h, on_timeout: wait }
+        approval: { by: Executive, per: outbound action, rounds: 3, via: [Review Inbox, push], actions: [approve, edit, reject, respond], timeout: 24h, on_timeout: wait }
         sla: 24h
       - id: answer
         runtime: worker
@@ -231,21 +231,21 @@ layers:
         runtime: cloud_scheduler
         type: entry
         label: Daily brief 07:00
-        trigger: { kind: cron, schedule: "0 7 * * 1-5", source: "Cloud Scheduler daily-brief", description: "America/Los_Angeles" }
+        trigger: { kind: cron, schedule: "0 7 * * 1-5", timezone: America/Los_Angeles, source: "Cloud Scheduler daily-brief" }
         files: [ambient/schedules.yaml]
       - id: sweep_cron
         runtime: cloud_scheduler
         type: entry
         label: Sweep 10 min
         description: "Catches dropped pushes and resumes threads answered in the inbox (same cadence as the EAIA cron)."
-        trigger: { kind: cron, schedule: "*/10 * * * *", source: "Cloud Scheduler sweep" }
+        trigger: { kind: cron, schedule: "*/10 * * * *", timezone: America/Los_Angeles, source: "Cloud Scheduler sweep" }
         files: [ambient/schedules.yaml]
       - id: renew
         runtime: cloud_scheduler
         type: entry
         label: Renew watches
         description: "Gmail watches expire after 7 days; renewed daily at 03:15."
-        trigger: { kind: cron, schedule: "15 3 * * *", source: "Cloud Scheduler renew-watches" }
+        trigger: { kind: cron, schedule: "15 3 * * *", timezone: America/Los_Angeles, source: "Cloud Scheduler renew-watches" }
         files: [ambient/oauth.py, ambient/schedules.yaml]
       - id: receiver
         runtime: worker
@@ -277,7 +277,8 @@ layers:
         runtime: worker
         type: decision
         label: Verdict?
-        description: "ignore / notify / respond (EAIA triage_no / triage_notify / triage_email)."
+        description: "EAIA triage_no / triage_notify / triage_email."
+        decision: { output: choice, candidates: [ignore, notify, respond] }
         files: [ambient/run_thread.py]
       - id: ignored
         runtime: worker
@@ -291,7 +292,7 @@ layers:
       - { from: sweep_cron, to: receiver, label: "POST /cron/sweep", protocol: http }
       - { from: renew, to: receiver, label: "POST /cron/renew-watches", protocol: http }
       - receiver -> dedupe
-      - "dedupe -> history: new historyId"
+      - { from: dedupe, to: history, label: new historyId, async: true }   # BackgroundTasks: the push is acked first
       - "history -> from_me [data]: messages"
       - "from_me -> triage: inbound"
       - "triage -> route [data]: JSON verdict"
@@ -315,6 +316,7 @@ layers:
         type: decision
         label: Plan first?
         description: "Spends money, commits > 1h of her time, or writes to > 3 people -> plan mode."
+        decision: { output: binary, candidates: [risky, routine] }
         files: [prompts/chief-of-staff.md]
       - id: plan_mode
         runtime: worker
@@ -337,13 +339,13 @@ layers:
         type: decision
         label: Card kind?
         description: "FYI -> notify. Missing fact -> question. Any outbound action -> review."
+        decision: { output: choice, candidates: [notify, question, review] }
         files: [prompts/chief-of-staff.md, ambient/inbox_tools.py]
       - id: execute
         runtime: worker
         label: Execute approved
-        description: "/resume: approve sends the draft, edit sends her text verbatim, reject marks read, respond redrafts."
+        description: "/resume: approve sends the draft, edit sends her text verbatim, reject marks read, respond redrafts (up to the review card's 3 rounds)."
         files: [.claude/commands/resume.md]
-        limits: { max_iterations: 3 }
     edges:
       - expand -> cos
       - "cos -> plan_first"
@@ -504,13 +506,14 @@ layers:
         type: decision
         label: Durable lesson?
         description: "Most edits are one-off facts: NO_CHANGE. Only rules that generalize are written."
+        decision: { output: binary, candidates: [dated rule, NO_CHANGE] }
         files: [prompts/reflection.md]
     edges:
       - "send_gate -> cards_db [data]: status == approved?"
       - "post_bash -> audit [data]"
       - "post_write -> audit [data]"
       - "post_action -> audit [data]"
-      - "feedback -> reflect [spawn]"
+      - { from: feedback, to: reflect, kind: spawn, async: true }   # BackgroundTasks after the inbox answer
       - reflect -> durable
       - "durable -> preferences [data]: dated rule"
       - "settings -> send_gate: then hooks"

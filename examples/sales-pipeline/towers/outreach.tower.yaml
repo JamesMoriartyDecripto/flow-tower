@@ -99,7 +99,7 @@ layers:
         runtime: workers
         description: "Assigns variant per account (not per contact) so colleagues never get different pitches."
         version: v3-pain-led
-        rollout: { strategy: ab, percent: 50, previous: v2-case-study }
+        rollout: { strategy: ab, percent: 50, arms: [v3-pain-led, v2-case-study], previous: v2-case-study }
     edges:
       - enrolled -> channels
       - "templates -> variant [data]: steps"
@@ -121,7 +121,7 @@ layers:
         description: "Every personalized claim must cite an enrichment field or a fetched URL that contains it. Unverified lines fall back to the template default."
         files: [scripts/verify_personalization.py]
         evals:
-          - { name: lines with valid citation %, value: 96.8, target: 95 }
+          - { name: lines with valid citation, value: 96.8, target: 95, unit: "%", illustrative: true }
       - id: compliance
         type: guard
         label: Compliance check
@@ -132,8 +132,8 @@ layers:
         type: human
         label: First batch review
         runtime: slack
-        description: First 20 drafts of a new sequence or variant; later batches are sampled at 5 %.
-        approval: { by: SDR lead, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: wait }
+        description: First 20 drafts; later batches are sampled at 5 %.
+        approval: { by: SDR lead, via: Slack, actions: [approve, edit, reject], when: "new sequence or variant, or sampled (5 %)", timeout: 24h, on_timeout: wait }
     edges:
       - "personalizer -> evidence: draft + citations"
       - "evidence -> personalizer [return]: unverified, max 2"
@@ -160,8 +160,9 @@ layers:
         type: guard
         label: Send guard
         runtime: workers
-        description: "Per-mailbox daily cap, domain cap 180/day, pause at 0.1 % complaints, 2 % hard bounces or a blocklist hit."
+        description: "Per-mailbox and per-domain daily caps; pause at 0.1 % complaints, 2 % hard bounces or a blocklist hit."
         files: [scripts/send_guard.py, outreach/deliverability.yaml]
+        limits: { rate: ["30/d", "180/d"], description: "New emails: 30 per mailbox, 180 per sending domain." }
       - id: instantly
         type: tool
         label: Instantly API
@@ -177,8 +178,9 @@ layers:
         type: human
         label: Rep tasks
         runtime: rep-browser
-        description: Call with a suggested opener; LinkedIn connection note written and sent by the rep (max 15/day per rep).
+        description: Call with a suggested opener; LinkedIn connection note written and sent by the rep.
         credentials: user
+        limits: { rate: "15/d", description: LinkedIn connection notes per rep. }
         approval: { by: assigned rep, via: HubSpot task, actions: [respond, snooze], timeout: 2d, on_timeout: wait }
     edges:
       - "pacer -> guard: next batch"
@@ -207,6 +209,7 @@ layers:
         label: Route
         runtime: workers
         files: [outreach/reply-triage-rules.yaml]
+        decision: { output: choice, candidates: [unsubscribe, objection_to_processing, bounce, out_of_office, wrong_person, interested, objection, not_now, not_interested], description: "Labels from outreach/reply-triage-rules.yaml; the first matching label wins." }
       - id: suppress
         type: guard
         label: Suppress

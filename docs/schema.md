@@ -19,6 +19,7 @@ Unknown keys are **errors**, so typos never fail silently.
 | `description` | string | |
 | `tags` | list of strings | Filter chips in the library view. |
 | `root` | path | Base directory for every relative path. Defaults to the tower file's directory. Every referenced file (and `root` itself) must stay inside the project: the git repository that contains the tower, or the folder you opened. Paths outside are refused with an error, so a tower from a cloned repository cannot read your other files. |
+| `budget`, `limits` | see [Operations](#operations) | For one **run of the whole system**, across every node (shown at the top of the Layers panel). |
 | `runtimes` | map id → [Runtime](#runtime) | Where things execute: laptop, servers, SaaS, CI... |
 | `prompts` | map id → [Prompt](#prompt) | Reusable system prompts. |
 | `agents` | map id → [Agent](#agent) | Reusable agent definitions. |
@@ -81,6 +82,8 @@ agents:
     harness: { max_turns: 40, permission_mode: default, budget_usd: 5 }   # free-form
     files: [src/orchestrator.ts]
     tower: towers/lead.tower.yaml     # optional nested tower
+    skills: [repo-conventions]        # Agent Skills it can load
+    disabled_tools: [WebFetch]        # built-in tools turned off
     meta: { owner: platform-team }    # free-form
 
   reviewer:
@@ -119,19 +122,40 @@ Optional fields on agents and nodes that describe **how a step runs in productio
 
 | Key | Values |
 |---|---|
-| `trigger` | `kind`: `manual` `cron` `webhook` `event` `queue` `chat` `email` `file`; `schedule` (cron expression), `source`, `description` |
-| `approval` | `by`, `via`, `actions` (`approve` `edit` `reject` `respond` `snooze`), `timeout`, `on_timeout` (`approve` `reject` `escalate` `wait`) |
-| `budget` | `usd`, `tokens`, `turns`, `on_exceed` (`pause` `stop` `escalate` `downgrade`) |
-| `limits` | `timeout`, `ttl` (session / sandbox lifetime), `retries`, `backoff`, `max_iterations` (loop bound), `concurrency` |
-| `fanout` | a number ≥ 2, or `{ min, max, by }`: parallel copies of the node |
-| `data` | `sensitivity` (`public` `internal` `confidential` `pii` `phi` `pci` `secret`), `region`, `retention`, `description` |
-| `evals` | list of `{ name, value, target, higher_is_better, description, url }`; value vs target is colored |
-| `version`, `rollout` | `rollout.strategy`: `all` `canary` `ab` `shadow` `blue-green` `rainbow`; `percent`, `previous` |
-| `sla` | deadline to complete, e.g. `72h` |
+| `trigger` | `kind`: `manual` `cron` `webhook` `event` `queue` `chat` `email` `file`; `schedule` (cron expression), `timezone` (IANA, e.g. `Europe/Rome`), `hours` (`Mon-Fri 09:00-18:00`, `business days`), `source`, `description` |
+| `approval` | `by`, `via` (one channel or a list), `actions` (`approve` `edit` `reject` `respond` `snooze` `dismiss` `takeover`: a human takes the session over while automation pauses), `timeout`, `on_timeout` (`approve` `reject` `escalate` `wait`), `escalate_to` (backup approver), `when` (condition: `refund > 500 EUR`; without it, always), `per` (asked per item: `flag`, `row`, `invoice`), `rounds` (revision rounds included), `relayed_by` (agent that carries the request) |
+| `budget` | one budget or a list (e.g. model and media spend apart): `usd`, or `amount` + `currency` (ISO 4217); `tokens`, `turns`, `per` (`call` `run` `session` `item` `copy` `day` `week` `month` `year`), `for` (`model`, `media`, `ads`...), `rate` (unit price, `0.40 USD/s`), `on_exceed` (`pause` `stop` `escalate` `downgrade`), `description` |
+| `limits` | `timeout`, `ttl` (session / sandbox lifetime), `retries`, `backoff`, `max_iterations` (loop bound), `concurrency`, `rate` (quotas: `100/24h` or a list `["300/5m", "15000/d"]`), `description` |
+| `fanout` | a number ≥ 2, or `{ min, max, by, from, pick }`: parallel copies. `by` can be a list of dimensions that multiply (`[store, locale, device]`); `from` lists the agents copies are picked from (a supervisor queue), `pick` says how |
+| `data` | `sensitivity` (`public` `internal` `confidential` `pii` `phi` `pci` `biometric` `secret`), `region`, `retention` (a duration, or `none` = in memory only), `retention_after` (event it runs from: `matter close`), `lawful_basis` (GDPR: `consent` `contract` `legal_obligation` `vital_interests` `public_task` `legitimate_interests`), `disclosure` (labels and provenance on outputs: `C2PA`, `AI-generated label`), `description` |
+| `evals` | list of `{ name, value, target, higher_is_better, unit, illustrative, description, url }`; value vs target is colored. Relative scores (Elo, rank) need no target; `illustrative: true` marks example numbers |
+| `version`, `rollout` | `rollout.strategy`: `all` `canary` `staged` `ab` `shadow` `blue-green` `rainbow`; `percent`, `steps` (`[1, 5, 25, 100]`), `metric`, `guard` (halt condition), `arms` (A/B), `sample`, `previous` |
+| `sla` | a duration (`72h`), or `{ within, after, before, by, business, external, description }`: relative to an event (`5d` `after: SDI rejection`), before one (`before: release`), an absolute date (`by: 2026-12-31`), in business days, or an external wait (store review) rather than our processing time |
+| `async` | the result comes back later: `{ mode: poll / callback / both, interval, timeout, description }` |
+| `exactly_once` | `true`: must never run twice for an item (payouts, filings); retries are idempotent. Marker `1×` |
+| `decision` | typed output of a decision (decision models): `{ output: binary / choice / score / ranking, candidates, threshold, confidence, model (pinned version), fail: open / closed, description }` |
 | `credentials` | whose credentials tools use: `service`, `author` or `user` |
 | `sandbox` | `network` (`none` `allowlist` `open`), `allow` (hosts), `filesystem` (`none` `read-only` `workspace` `full`) |
 
-Durations are a number plus `ms` `s` `m` `h` `d` `w` (`90s`, `15m`, `72h`). Edges can also carry a wire **`protocol`**: `mcp` `a2a` `http` `grpc` `webhook` `queue` `event` `stdio` (object form only), shown next to the edge label. Resources gain the `recording` kind (session recordings, browser replays).
+Durations are a number plus `ms` `s` `m` `h` `d` `w` `y` (`90s`, `15m`, `72h`, `10y`). Rates are a count per duration (`100/24h`, `300/5m`, `15000/d`). Resources include the `recording` kind (session recordings, browser replays).
+
+```yaml
+- id: approve-refund
+  type: human
+  approval: { by: finance lead, when: "refund > 500 EUR", per: refund, via: [Slack, email], timeout: 4h, on_timeout: escalate, escalate_to: CFO }
+- id: publish
+  agent: publisher
+  limits: { rate: "100/24h" }
+  budget: [{ amount: 150, currency: EUR, per: month, for: ads }, { usd: 20, per: month, for: model }]
+  data: { sensitivity: biometric, disclosure: [C2PA, platform AI label], lawful_basis: consent }
+- id: risk
+  type: decision
+  decision: { output: binary, threshold: 0.8, confidence: true, model: risk-v3, fail: closed }
+- id: file-return
+  type: tool
+  exactly_once: true
+  sla: { within: 5d, business: true, after: SDI rejection }
+```
 
 ## Layer
 
@@ -173,7 +197,13 @@ edges:
   - lead -> coder [spawn]
   - "lead -> coder [spawn]: implement step"
   - { from: review, to: coder, kind: return, label: changes requested, condition: "score < 8" }
+  - { from: lead, to: indexer, kind: spawn, async: true }               # fire-and-forget: lead does not wait
+  - { from: triage, to: legal, group: escalation, label: "contract" }  # one of the edges in group "escalation"
+  - { from: triage, to: cfo, group: escalation, label: "> 50k EUR" }
+  - { from: concierge, to: seller, kind: call, protocol: a2a, version: "0.3", card: "https://seller.example.com/.well-known/agent.json" }
 ```
+
+Object-form edges can also carry a wire **`protocol`** (`mcp` `a2a` `http` `grpc` `webhook` `queue` `event` `stdio` `email` `manual`) with its `version` and, for A2A, the target's agent `card`; **`async: true`** for fire-and-forget (the source does not wait); and a **`group`**: edges from the same node in one group are alternatives, exactly one is taken. The edge label shows them (`A2A 0.3 · ASYNC · ALT escalation`).
 
 | Kind | Meaning | Style |
 |---|---|---|

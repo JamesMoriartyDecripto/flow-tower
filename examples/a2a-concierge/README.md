@@ -32,10 +32,13 @@ Double-click a seller node to open its sub-tower (`towers/burger-seller.tower.ya
 
 ## Operational fields exercised
 
-Edge `protocol: a2a` on every concierge → seller call and its result, `protocol: http` for card
-discovery and the UI · `approval` on the customer confirmation and on the burger seller's
-confirm-first rule · `trigger` (chat, A2A webhook) · `limits.timeout` (30 s httpx client) ·
-`credentials: service` · `data.sensitivity` (internal, pci on the planned payment) · `version`
+Edge `protocol: a2a` on every concierge → seller call and its result, with the cards'
+`protocolVersion` (`version: "0.2.6"`) and the agent `card` URL; `protocol: http` for card
+discovery and the UI · `approval` `per: order` on the customer confirmation and on the burger
+seller's confirm-first rule, both `relayed_by: concierge` · typed `decision` (seller choice,
+already confirmed?, task result) · `trigger` (chat, A2A webhook) · `limits.timeout` (30 s httpx
+client) · `credentials: service` · `data.sensitivity` (internal, pci on the planned payment),
+`retention: none` for the in-memory orders, task store and LangGraph checkpointer · `version`
 from the agent cards · `status: planned` for payment and Cloud Run IAM.
 
 ## Files

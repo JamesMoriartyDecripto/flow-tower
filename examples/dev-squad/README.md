@@ -31,6 +31,14 @@ and **coder** nodes drill down into their own towers.
 | Least-privilege subagents | `.claude/agents/*.md` |
 | Memory | `CLAUDE.md`, `memory/patterns.md`, `memory/session-log.md` |
 
+## Operational fields used
+
+Top-level `budget` ($15 per issue run) and `limits` (4 concurrent subagents), agent `budget`
+(`maxBudgetUsd` per query from `src/config.ts`), `limits` (2 issues in flight, 3 review rounds),
+`approval` (plan sign-off only `when: "risk == high or steps > 6"`, 4h; merge via PR review),
+an edge `group` for the two plan-gate paths, `async: poll` on `request_approval`, and typed
+`decision` outputs (route, suite green, review verdict).
+
 ## Layout
 
 ```

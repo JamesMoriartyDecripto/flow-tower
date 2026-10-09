@@ -21,15 +21,17 @@ node bin/flow-tower.js examples/social-studio
 
 ## Operational features used
 
-- `trigger`: cron (planning, listening, insights, weekly report), webhook (Meta comments/mentions/DMs), queue (publish jobs).
-- `approval` on plan, post, legal, reply, crisis, boost and the TikTok finish step; `on_timeout` is `reject`, `escalate` or `wait`, never `approve`.
+- `trigger`: cron with `timezone: Europe/Amsterdam` (planning, listening, insights, weekly report), webhook (Meta comments/mentions/DMs), queue (publish jobs).
+- `approval` on plan, post, legal, reply, crisis, boost and the TikTok finish step; `on_timeout` is `reject`, `escalate` or `wait`, never `approve`. Also `rounds: 2` (plan, post), `escalate_to` (plan, reply), `when: "risk tier == high"` (legal), `per: reply`, `via` as a list and the `takeover` action (crisis lead).
+- `decision` typed outputs: spike (binary), risk tier and inbox route (choice with candidates).
 - `fanout`: briefs per week, platforms per brief, platforms per post.
-- `limits`: timeouts, retries with exponential backoff, publisher concurrency, max revision rounds.
-- `budget`: per-agent spend, weekly image/video caps (`on_exceed: downgrade` for Veo), X read and post spend.
-- `data`: PII in DMs and helpdesk tickets (EU, 90d / 730d), secrets in the token store.
+- `limits`: timeouts, retries with exponential backoff, publisher concurrency; `rate` quotas per platform adapter (Instagram 100/24h, Threads, TikTok, YouTube, Bluesky points) and X reads (2,000/d).
+- `budget`: run-wide weekly text-model cap at the top level; per-agent spend; weekly image/video caps (`for: media`, `on_exceed: downgrade` for Veo); X read and post spend with `rate` unit prices; weekly boost cap in EUR (`for: ads`).
+- `async: poll` for Veo, Canva jobs, Instagram containers (1 min, up to 5 min) and the status poller; `exactly_once` on publishing (idempotent by approval id).
+- `data`: PII in DMs and helpdesk tickets (EU, 90d / 2y), secrets in the token store, Veo files kept 2 days by Google; `disclosure` on generated media (SynthID) and the AI-label check (platform flags, Meta AI label, EU AI Act Art. 50).
 - `credentials`: service (publisher, triage), author (Canva), user (Meta Ads OAuth).
-- `evals` and `sla` on approval, triage, replies and the weekly report. **All eval values and targets are illustrative.**
-- Edge `protocol`: http (Gemini, Canva, platform APIs), mcp (Meta Ads), plus webhook triggers.
+- `evals` and `sla` on approval, triage, replies (4h in business hours) and the weekly report. **All eval values and targets are illustrative.**
+- Edge `protocol`: http (Gemini, Canva, platform APIs), mcp (Meta Ads), manual (TikTok posts finished in the app), plus webhook triggers.
 
 ## Files
 

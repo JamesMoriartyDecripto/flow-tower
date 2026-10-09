@@ -48,11 +48,13 @@ the decision to the CEO.
 
 | Field | Where |
 |---|---|
-| `trigger` (`event`, `cron`, `manual`) | Gmail and Calendar push, daily brief `0 7 * * 1-5`, sweep `*/10 * * * *`, renew watches, CLI |
-| `approval` with `actions` | notify and question `[respond, reject]`; review `[approve, edit, reject, respond]` |
+| `trigger` (`event`, `cron`, `manual`) | Gmail and Calendar push, daily brief `0 7 * * 1-5`, sweep `*/10 * * * *`, renew watches (all `timezone: America/Los_Angeles`), CLI |
+| `approval` with `actions` | notify and question `[respond, dismiss]`; review `[approve, edit, reject, respond]`, `per: outbound action`, `rounds: 3` (redrafts via `respond`); `via` Review Inbox and push |
 | `sla`, `timeout`, `on_timeout` | review 24h; cards wait rather than auto-approve |
 | `budget` | Chief of Staff $1.50/40 turns (pause), triage $0.002/1 turn, reflection |
-| `limits` | receiver 10s ack with Pub/Sub retries; `/resume` redraft loop max 3 |
+| `limits` | receiver 10s ack with Pub/Sub retries |
+| `decision` | triage verdict, plan first?, card kind, durable lesson?, analyst question type |
+| edge `async` | push receiver → history (acked first, `BackgroundTasks`), feedback → reflection |
 | `fanout` | Chief of Staff 1-4 parallel thread runs |
 | `data` | pii (email, cards), confidential (finance, preferences, audit) |
 | `credentials: user` | every Gmail/Calendar call uses the executive's OAuth token |

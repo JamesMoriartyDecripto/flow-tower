@@ -70,13 +70,13 @@ agents:
     files: [src/classify.ts, config/taxonomy.yaml]
     harness: { max_turns: 2, setting_sources: [] }
     fanout: { min: 1, max: 40, by: 250-document batches }
-    budget: { usd: 15, on_exceed: pause }
+    budget: { usd: 15, per: run, on_exceed: pause }
     limits: { timeout: 20m, retries: 2, concurrency: 8 }
     data: { sensitivity: confidential, region: eu }
     credentials: service
     sandbox: { network: none, filesystem: none }
     evals:
-      - { name: doc-type accuracy (illustrative), value: 0.96, target: 0.95, description: Graded on associate reclassifications in past matters. }
+      - { name: doc-type accuracy, value: 0.96, target: 0.95, illustrative: true, description: Graded on associate reclassifications in past matters. }
   clause-reviewer:
     name: Clause reviewer
     description: >-
@@ -90,7 +90,7 @@ agents:
     files: [src/extract.ts, src/docstore.ts, templates/review-columns.yaml]
     harness: { max_turns: 12, context: isolated, setting_sources: [] }
     fanout: { min: 1, max: 1200, by: documents in scope }
-    budget: { usd: 250, on_exceed: pause }
+    budget: { usd: 250, per: run, on_exceed: pause }
     limits: { timeout: 5m, retries: 2, backoff: "exponential 2s..60s", concurrency: 32 }
     data: { sensitivity: confidential, region: eu }
     version: v8
@@ -100,9 +100,9 @@ agents:
     resources:
       - { kind: log, label: Review log, path: logs/review.log }
     evals:
-      - { name: key-term extraction accuracy (illustrative), value: 0.95, target: 0.95, description: "Against a gold set of 3 annotated data rooms. Vendors report similar figures (Harvey Vault: 96%)." }
-      - { name: citation verified rate, value: 0.987, target: 0.98, description: Share of cells whose quote is found verbatim on the cited page. }
-      - { name: associate edit rate, value: 0.009, target: 0.02, higher_is_better: false, description: Cells changed by the associate at the review-table checkpoint. }
+      - { name: key-term extraction accuracy, value: 0.95, target: 0.95, illustrative: true, description: "Against a gold set of 3 annotated data rooms. Vendors report similar figures (Harvey Vault: 96%)." }
+      - { name: citation verified rate, value: 0.987, target: 0.98, illustrative: true, description: Share of cells whose quote is found verbatim on the cited page. }
+      - { name: associate edit rate, value: 0.009, target: 0.02, higher_is_better: false, illustrative: true, description: Cells changed by the associate at the review-table checkpoint. }
   consistency:
     name: Consistency analyst
     model: claude-opus-5-5
@@ -139,11 +139,11 @@ agents:
     harness: { max_turns: 40, effort: high }
     data: { sensitivity: confidential, region: eu }
     budget: { usd: 25, on_exceed: escalate }
-    limits: { timeout: 30m, max_iterations: 3 }
+    limits: { timeout: 30m }
     evals:
-      - { name: answer score, value: 0.91, target: 0.9, description: "Illustrative, BigLaw Bench-style: share of a lawyer-quality report completed, net of penalties for errors.", url: https://www.harvey.ai/blog/introducing-biglaw-bench }
-      - { name: source score, value: 0.97, target: 0.95, description: "Illustrative, BigLaw Bench-style: share of correct statements supported by an accurate source.", url: https://www.harvey.ai/blog/introducing-biglaw-bench }
-      - { name: unsupported sentences, value: 0, target: 0, higher_is_better: false }
+      - { name: answer score, value: 0.91, target: 0.9, illustrative: true, description: "BigLaw Bench-style: share of a lawyer-quality report completed, net of penalties for errors.", url: https://www.harvey.ai/blog/introducing-biglaw-bench }
+      - { name: source score, value: 0.97, target: 0.95, illustrative: true, description: "BigLaw Bench-style: share of correct statements supported by an accurate source.", url: https://www.harvey.ai/blog/introducing-biglaw-bench }
+      - { name: unsupported sentences, value: 0, target: 0, higher_is_better: false, illustrative: true }
 
 layers:
   # 1 ───────────────────────────────────────────────────────────────
@@ -193,16 +193,16 @@ layers:
       - id: docstore
         type: memory
         label: Matter docstore
-        description: Postgres + pgvector per matter (pages, passages, embeddings). Deleted 180 days after matter close.
+        description: Postgres + pgvector per matter (pages, passages, embeddings).
         runtime: matter-svc
         files: [src/docstore.ts]
-        data: { sensitivity: confidential, region: eu, retention: 180d }
+        data: { sensitivity: confidential, region: eu, retention: 180d, retention_after: matter close }
       - id: class_review
         type: human
         label: Classification ok
         description: The associate fixes low-confidence types, confirms privilege flags and links orphan amendments. Edits are kept.
         runtime: review-ui
-        approval: { by: associate, via: classification queue, actions: [approve, edit], timeout: 8h, on_timeout: escalate }
+        approval: { by: associate, via: classification queue, actions: [approve, edit], when: "confidence < 0.8 or privileged", per: document, timeout: 8h, on_timeout: escalate }
     edges:
       - "scope -> walls: matter opened"
       - { from: vdr_sync, to: walls, label: batch, protocol: webhook }
@@ -252,14 +252,14 @@ layers:
         runtime: matter-svc
         files: [src/citations.ts]
         evals:
-          - { name: rejected cells after retry, value: 24, target: 50, higher_is_better: false }
+          - { name: rejected cells after retry, value: 24, target: 50, higher_is_better: false, illustrative: true }
       - id: table
         type: memory
         label: Review table
         description: One row per document, one column per question, each cell with answer, quote, location, confidence, flag and verifier.
         runtime: matter-svc
         files: [samples/review-table.csv, templates/review-columns.yaml]
-        data: { sensitivity: confidential, region: eu, retention: 180d }
+        data: { sensitivity: confidential, region: eu, retention: 180d, retention_after: matter close }
       - id: consistency
         agent: consistency
       - id: table_review
@@ -304,6 +304,7 @@ layers:
         label: Severity?
         description: red (price / structure / deal-breaker), amber (warranty, indemnity, condition), green (appendix), or information gap.
         runtime: matter-svc
+        decision: { output: choice, candidates: [red, amber, green, information gap] }
       - id: alert
         type: output
         label: Red-flag alert
@@ -317,7 +318,7 @@ layers:
         label: Senior review
         description: The senior associate approves, edits, upgrades or rejects each flag and the RFI list. Manual flags are never downgraded by the model.
         runtime: review-ui
-        approval: { by: senior associate, via: review workspace, actions: [approve, edit, reject], timeout: 24h, on_timeout: escalate }
+        approval: { by: senior associate, via: review workspace, actions: [approve, edit, reject], per: flag, timeout: 24h, on_timeout: escalate }
       - id: vdr_qa
         type: tool
         label: VDR Q&A
@@ -350,9 +351,9 @@ layers:
       - id: partner
         type: human
         label: Partner sign-off
-        description: The partner edits in Word (DMS add-in) and approves. Rejections return to the memo writer with comments, at most 3 rounds.
+        description: The partner edits in Word (DMS add-in) and approves. Rejections return to the memo writer with comments.
         runtime: review-ui
-        approval: { by: supervising partner, via: Word add-in, actions: [approve, edit, reject], timeout: 48h, on_timeout: wait }
+        approval: { by: supervising partner, via: Word add-in, actions: [approve, edit, reject], rounds: 3, timeout: 48h, on_timeout: wait }
       - id: deliver
         type: output
         label: Report delivered
@@ -365,7 +366,7 @@ layers:
       - "memo -> source_check: draft"
       - "source_check -> memo [return]: uncited sentences"
       - "source_check -> partner: clean draft"
-      - "partner -> memo [return]: edits, max 3 rounds"
+      - "partner -> memo [return]: edits"
       - "partner -> deliver: approved"
 
   # 5 ───────────────────────────────────────────────────────────────
@@ -390,7 +391,7 @@ layers:
         label: Audit trail
         description: S3 Object Lock (compliance mode). Tool calls, checkpoint approvals with before/after diffs, report versions.
         runtime: matter-svc
-        data: { sensitivity: confidential, region: eu, retention: 2555d, description: Kept 7 years for professional-conduct and insurer requirements. }
+        data: { sensitivity: confidential, region: eu, retention: 7y, retention_after: matter close, description: Professional-conduct and insurer requirements. }
         resources:
           - { kind: log, label: Audit trail (sample), path: logs/audit.log }
       - id: haiku

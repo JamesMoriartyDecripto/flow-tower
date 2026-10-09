@@ -2,6 +2,8 @@
 version: 1
 name: Dev Squad
 tags: [coding, claude-agent-sdk, multi-agent]
+budget: { usd: 15, per: run, on_exceed: stop, description: "Whole-issue ceiling across every query (LIMITS.issueUsd); the pipeline aborts above it." }
+limits: { concurrency: 4, description: "At most 4 concurrent subagents, spawn depth 1 (specialists never spawn their own)." }
 description: >-
   A multi-agent software delivery system on the Claude Agent SDK. It takes a GitHub
   issue, routes it, plans, researches, codes, tests, reviews in an evaluator-optimizer
@@ -76,7 +78,8 @@ agents:
     model: claude-haiku-5-5
     prompt: triage
     tools: []
-    harness: { max_turns: 2, budget_usd: 0.05, output: json_schema, setting_sources: [] }
+    harness: { max_turns: 2, output: json_schema, setting_sources: [] }
+    budget: { usd: 0.05, on_exceed: stop }
     files: [src/triage.ts]
     meta: { pattern: routing }
   lead:
@@ -91,7 +94,8 @@ agents:
     model: claude-opus-5-5
     prompt: orchestrator
     tools: [Agent, Read, Grep, Glob, TodoWrite, mcp__squad__request_approval]
-    harness: { max_turns: 80, budget_usd: 8, permission_mode: default, effort: high, fallback_model: claude-sonnet-5-5, max_subagent_depth: 1, max_concurrent_subagents: 4 }
+    harness: { max_turns: 80, permission_mode: default, effort: high, fallback_model: claude-sonnet-5-5, max_subagent_depth: 1, max_concurrent_subagents: 4 }
+    budget: { usd: 8, on_exceed: stop }
     files: [src/orchestrator.ts, src/agents.ts, CLAUDE.md]
     meta: { pattern: orchestrator-workers }
   architect:
@@ -126,18 +130,21 @@ agents:
     resources:
       - { kind: log, label: "Review loop log", path: "logs/review-loop.log" }
     from: .claude/agents/reviewer.md
-    harness: { max_turns: 25, budget_usd: 1.5, fresh_session_each_round: true }
+    harness: { max_turns: 25, fresh_session_each_round: true }
+    budget: { usd: 1.5, on_exceed: stop }
     files: [src/loop/review-loop.ts]
     meta: { pattern: evaluator-optimizer, role: evaluator }
   security:
     runtime: vps
     from: .claude/agents/security-auditor.md
-    harness: { max_turns: 25, budget_usd: 1.5, blocks_on: [critical, high] }
+    harness: { max_turns: 25, blocks_on: [critical, high] }
+    budget: { usd: 1.5, on_exceed: stop }
     files: [src/loop/review-loop.ts]
   verifier:
     runtime: vps
     from: .claude/agents/verifier.md
-    harness: { max_turns: 30, budget_usd: 1.5, permission_mode: dontAsk, context: fresh }
+    harness: { max_turns: 30, permission_mode: dontAsk, context: fresh }
+    budget: { usd: 1.5, on_exceed: stop }
     files: [src/loop/verify.ts]
 
 layers:
@@ -160,9 +167,10 @@ layers:
           - { kind: log, label: "Webhook log", path: "logs/webhook.log" }
           - { kind: endpoint, label: "Webhook URL", url: "https://hooks.dev-squad.example.com/github" }
         label: Webhook receiver
-        description: Verifies the HMAC signature, acks in under 10s, dedupes redeliveries, caps parallel issues at 2.
+        description: Verifies the HMAC signature, acks in under 10s, dedupes redeliveries, caps parallel issues.
         files: [src/main.ts]
-        meta: { endpoint: POST /github, max_parallel_issues: 2 }
+        limits: { concurrency: 2, description: "At most 2 issues in flight." }
+        meta: { endpoint: POST /github }
       - id: triage
         agent: triage
         label: Triage router
@@ -171,6 +179,7 @@ layers:
         type: decision
         label: Route?
         description: Model proposes a route; deterministic policy upgrades sensitive quickfixes to full.
+        decision: { output: choice, candidates: [quickfix, full, needs_info, reject] }
         files: [src/triage.ts]
       - id: quickfix
         runtime: vps
@@ -212,18 +221,13 @@ layers:
         label: Step plan
         description: YAML with criteria, research questions and ordered steps. Each step leaves the suite green.
         files: [prompts/architect.md]
-      - id: risk
-        runtime: vps
-        type: decision
-        label: High risk?
-        description: risk == high OR steps > 6 requires a human sign-off before any code is written.
-        files: [src/config.ts]
       - id: signoff
         runtime: github
         type: human
         label: Plan sign-off
-        description: Maintainer approves with the `squad:approved` label or comments `/squad revise`.
-        files: [src/tools/request-approval.ts]
+        description: Before any code is written. Maintainer approves with the `squad:approved` label or comments `/squad revise <notes>`.
+        approval: { by: maintainer, via: [issue label, issue comment], actions: [approve, respond], when: "risk == high or steps > 6", timeout: 4h }
+        files: [src/tools/request-approval.ts, src/config.ts]
       - id: dispatch
         runtime: vps
         label: Dispatch steps
@@ -238,9 +242,8 @@ layers:
       - "worktree -> lead: cwd"
       - "lead -> architect [spawn]: plan"
       - "architect -> plan [data]: YAML"
-      - plan -> risk
-      - "risk -> signoff [handoff]: high"
-      - "risk -> dispatch: low"
+      - { from: plan, to: signoff, kind: handoff, group: plan gate, label: high risk }
+      - { from: plan, to: dispatch, group: plan gate, label: low risk }
       - "signoff -> dispatch: approved"
       - "signoff -> architect [return]: revise"
       - "integrate -> lead [return]: report"
@@ -261,6 +264,7 @@ layers:
         type: decision
         label: Suite green?
         description: Tester result. Red goes back to the coder at most 2 extra times before the lead reports blocked.
+        decision: { output: binary, candidates: [green, red] }
         files: [.claude/agents/tester.md]
       - id: doc_writer
         agent: doc-writer
@@ -308,12 +312,14 @@ layers:
         type: decision
         label: All pass?
         description: Approve AND pass. Only blocking findings (and critical/high security) fail the round.
+        decision: { output: binary, candidates: [approved, changes] }
         files: [src/loop/review-loop.ts]
       - id: round_cap
         runtime: vps
         type: decision
         label: Round < 3?
         description: Hard iteration cap. The fix before the last round runs on Opus (cheap first, smart when stuck).
+        limits: { max_iterations: 3 }
         prompt: fix-round
         files: [src/config.ts, prompts/fix-round.md]
       - id: escalate
@@ -332,6 +338,7 @@ layers:
         type: human
         label: Merge approval
         description: Draft PR + review request. Agents have no merge tool and `gh pr merge` is denied.
+        approval: { by: maintainer, via: PR review, actions: [approve, respond] }
         files: [src/tools/request-approval.ts]
       - id: merged
         runtime: actions
@@ -387,7 +394,8 @@ layers:
         runtime: vps
         type: tool
         label: request_approval
-        description: Labels + comments + review request. Returns immediately; the pipeline resumes on human response.
+        description: Labels + comments + review request. Returns immediately with a ticket, so no agent waits holding tokens.
+        async: { mode: poll, description: "The pipeline polls the label / review state and resumes the session when a human answers." }
         files: [src/tools/request-approval.ts]
       - id: github
         runtime: github
@@ -487,7 +495,7 @@ layers:
           - { kind: dashboard, label: "Spend per issue", url: "https://grafana.dev-squad.example.com/d/spend/spend-per-issue" }
         type: guard
         label: Turn & $ caps
-        description: maxTurns and maxBudgetUsd per query, $15 per issue, subagent depth 1, concurrency 4.
+        description: Enforces maxTurns and maxBudgetUsd per query (agent budgets) and the run budget and limits ($15 per issue, subagent depth 1, concurrency 4).
         files: [src/config.ts]
     edges:
       - session_start -> prompt_submit

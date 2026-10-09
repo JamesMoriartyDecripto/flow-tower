@@ -138,6 +138,8 @@ layers:
         type: tool
         label: run_playtest
         description: Launches the build with -nullrhi and the bot plugin; streams JSON telemetry.
+        fanout: { max: 40, by: [persona, seed, graphics preset] }
+        limits: { concurrency: 8 }
         tools: [mcp__forge__run_playtest]
         files: [src/tools/run-playtest.ts]
     edges:
@@ -207,6 +209,7 @@ layers:
         runtime: studio-cluster
         type: decision
         label: Cycle < 2?
+        limits: { max_iterations: 2, description: "regression cycles" }
       - id: pass
         runtime: studio-cluster
         type: output

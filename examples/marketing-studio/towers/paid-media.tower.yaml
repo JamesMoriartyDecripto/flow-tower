@@ -65,8 +65,8 @@ agents:
     limits: { timeout: 15m, max_iterations: 3 }
     credentials: service
     evals:
-      - { name: proposals accepted by approver (%), value: 78, target: 70 }
-      - { name: guard rejections per week, value: 4, target: 10, higher_is_better: false }
+      - { name: proposals accepted by approver, value: 78, target: 70, unit: "%", illustrative: true }
+      - { name: guard rejections per week, value: 4, target: 10, higher_is_better: false, illustrative: true }
 
 layers:
   # 1 ───────────────────────────────────────────────────────────────
@@ -78,8 +78,8 @@ layers:
         type: entry
         label: Daily 06:00
         runtime: orchestrator
-        description: After the platforms have closed yesterday in the account time zone (Europe/Berlin).
-        trigger: { kind: cron, schedule: "0 6 * * *", source: Cloud Scheduler }
+        description: After the platforms have closed yesterday in the account time zone.
+        trigger: { kind: cron, schedule: "0 6 * * *", timezone: Europe/Berlin, source: Cloud Scheduler }
       - id: intraday
         type: entry
         label: Spend spike
@@ -97,7 +97,8 @@ layers:
         type: tool
         label: Google Ads
         runtime: google-ads
-        description: "Explorer access allows 2,880 ops/day on production; Basic 15,000. RESOURCE_EXHAUSTED means back off."
+        description: "RESOURCE_EXHAUSTED means back off."
+        limits: { rate: "15000/d", description: "Basic access developer token (Explorer access would allow 2,880)." }
       - id: meta
         type: tool
         label: Meta Ads
@@ -116,7 +117,7 @@ layers:
         label: Spend ledger
         runtime: gcp
         description: "marketing_mart.spend_daily, partitioned by date. Currency normalized to EUR at the ECB reference rate."
-        data: { sensitivity: confidential, region: eu, retention: 1095d }
+        data: { sensitivity: confidential, region: eu, retention: 3y }
     edges:
       - daily -> pull
       - "intraday -> pull: today only"
@@ -145,6 +146,7 @@ layers:
         label: Off plan?
         runtime: orchestrator
         description: Pacing outside +-10 %, projected cap breach, or an anomaly flag.
+        decision: { output: binary, candidates: [off plan, within plan] }
       - id: noop
         type: output
         label: No change
@@ -180,29 +182,23 @@ layers:
         type: guard
         label: Spend guard
         runtime: orchestrator
-        description: Monthly cap, per-change limit (20 % or 500 EUR/day), no edits to campaigns in learning, max 2 budget edits per campaign per week, no new geos or audiences.
+        description: Monthly cap, no change above 50 % per entity, no edits to campaigns in learning, no new geos or audiences. Below 500 EUR/day and 20 % the set is applied without a person.
         files: [scripts/spend_guard.py, policies/spend-approval-policy.yaml]
-        budget: { usd: 140000, on_exceed: pause }
-      - id: size
-        type: decision
-        label: Above threshold?
-        runtime: orchestrator
-        description: Sum of absolute daily-budget deltas in the set, and any pause of a top-5 campaign.
+        budget: { amount: 120000, currency: EUR, per: month, for: media, on_exceed: pause }
+        limits: { rate: "2/w", description: Budget edits per campaign. }
       - id: growth
         type: human
         label: Head of Growth
         runtime: slack
-        description: Sees the change set, evidence links and pacing chart in Slack.
-        approval: { by: Head of Growth, via: Slack, actions: [approve, edit, reject], timeout: 4h, on_timeout: reject }
+        description: Sees the change set, evidence links and pacing chart in Slack. On timeout nothing changes; the next daily run re-proposes.
+        approval: { by: Head of Growth, via: Slack, actions: [approve, edit, reject], timeout: 4h, on_timeout: reject, when: "sum of daily-budget deltas > 500 EUR, > 20 %, or a top-5 campaign paused" }
       - id: finance
         type: human
         label: CMO + Finance
         runtime: slack
-        description: Only for moves that shift more than 5,000 EUR per month between channels.
-        approval: { by: CMO and FP&A partner, via: Slack, actions: [approve, reject], timeout: 48h, on_timeout: reject }
+        approval: { by: CMO and FP&A partner, via: Slack, actions: [approve, reject], timeout: 48h, on_timeout: reject, when: "cross-channel move > 5,000 EUR/month" }
     edges:
-      - "caps -> size: passed"
-      - { from: size, to: growth, label: "> 500 EUR/day or > 20 %", condition: "delta_eur_day > 500 || delta_pct > 0.2" }
+      - { from: caps, to: growth, label: "> 500 EUR/day or > 20 %", condition: "delta_eur_day > 500 || delta_pct > 0.2", group: threshold }
       - { from: growth, to: finance, kind: handoff, label: cross-channel, condition: "cross_channel_eur_month > 5000" }
 
   # 5 ───────────────────────────────────────────────────────────────
@@ -216,6 +212,7 @@ layers:
         description: Google Ads mutate (CampaignBudgetService, partial_failure on), Meta ad set update, LinkedIn adCampaigns partial update, TikTok ad group update.
         fanout: { min: 1, max: 4, by: platform in change set }
         limits: { timeout: 5m, retries: 3, backoff: "exponential 2s..60s", concurrency: 4 }
+        exactly_once: true
         credentials: service
       - id: verify
         label: Read back
@@ -244,7 +241,7 @@ links:
   - "check.off_plan -> propose.optimizer [spawn]: flagged campaigns"
   - "propose.changeset -> guard.caps: validate"
   - "guard.caps -> propose.optimizer [return]: violations, max 3"
-  - "guard.size -> apply.apply: below threshold, auto"
+  - { from: guard.caps, to: apply.apply, label: "below threshold, auto", group: threshold }
   - "guard.growth -> apply.apply: approved"
   - "guard.finance -> apply.apply: approved"
   - "guard.growth -> propose.optimizer [return]: edit"

@@ -112,7 +112,8 @@ layers:
       - id: supported
         type: decision
         label: Supported?
-        description: supported | outdated | unsupported | contradicted | misattributed.
+        description: Unsupported, contradicted and misattributed claims block the round.
+        decision: { output: choice, candidates: [supported, outdated, unsupported, contradicted, misattributed] }
         runtime: orchestrator
         files: [.claude/agents/fact-checker.md]
       - id: hedge

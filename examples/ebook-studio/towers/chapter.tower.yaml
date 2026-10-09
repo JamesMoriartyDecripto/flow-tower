@@ -124,13 +124,13 @@ layers:
         label: Self-review
         description: Reader promise kept, every beat covered, every claim cited, word budget ±10%, author passages untouched.
         evals:
-          - { name: brief checklist items met, value: 0.92, target: 0.9 }
+          - { name: brief checklist items met, value: 0.92, target: 0.9, illustrative: true }
       - id: continuity
         agent: continuity
         label: Continuity check
         description: Locked terms, the recurring example balconies, botanical names, metric-first units, cross-references to other chapters.
         evals:
-          - { name: bible conflicts found, value: 2, target: 0, higher_is_better: false }
+          - { name: bible conflicts found, value: 2, target: 0, higher_is_better: false, illustrative: true }
       - id: bible_req
         type: output
         label: Bible change request
@@ -148,6 +148,7 @@ layers:
         label: Findings left?
         description: Blocking findings from either reviewer -> revise; none -> hand off; still blocking after round 3 -> escalate.
         runtime: orchestrator
+        decision: { output: choice, candidates: [revise, hand off, escalate] }
         limits: { max_iterations: 3 }
       - id: revise_round
         agent: writer

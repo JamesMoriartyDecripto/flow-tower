@@ -23,6 +23,8 @@ export interface ResolvedAgent {
   prompt?: ResolvedPrompt;
   tools: string[];
   harness: Record<string, unknown>;
+  skills: string[];
+  disabledTools: string[];
   files: string[];
   source?: string;
   tower?: string;
@@ -64,6 +66,12 @@ export interface ResolvedEdge {
   label?: string;
   condition?: string;
   protocol?: Protocol;
+  /** Fire-and-forget: the source does not wait. */
+  async?: boolean;
+  /** Alternatives: edges from one node sharing a group, exactly one is taken. */
+  group?: string;
+  version?: string;
+  card?: string;
 }
 
 export interface ResolvedLayer {
@@ -92,6 +100,8 @@ export interface ResolvedTower {
   /** Last modification of the tower file (ISO), for sorting the library. */
   updatedAt?: string;
   runtimes: Record<string, ResolvedRuntime>;
+  /** Run-wide budget and limits (the whole system, across nodes). */
+  run?: { budget?: OpsDef['budget']; limits?: OpsDef['limits'] };
   layers: ResolvedLayer[];
   links: ResolvedEdge[];
   issues: Issue[];

@@ -21,7 +21,7 @@ node bin/flow-tower.js examples/airline-support/airline-support.tower.yaml
 | 1 | Web UI (frontend) | `ui` browser, `console` browser | ChatKit chat widget, streamed reply, seat map, the Agent View panels (agents list, guardrail lights, runner output, context), and the planned human-agent console with payout approvals |
 | 2 | API & Guardrails | `backend` server | `POST /chatkit`, `/chatkit/state`, the SSE state stream, `Runner.run_streamed`, relevance and jailbreak guards, the tripwire leading to a refusal |
 | 3 | Agents & Handoffs | `backend` | Triage plus five specialists, `on_handoff` hydration hooks, the return path to Triage, the planned Baggage Agent and escalation ticket |
-| 4 | Function Tools | `backend` | The real tool names (`flight_status_tool`, `book_new_flight`, `issue_compensation`...) and the planned payout gate |
+| 4 | Function Tools | `backend` | The real tool names (`flight_status_tool`, `book_new_flight`, `issue_compensation`...); payouts over the limit pause for the planned duty-manager approval |
 | 5 | Shared Context, State & Models | `backend`, `openai` saas | `AirlineAgentContext` (PII), `public_context()` filter, in-memory stores, gpt-5.2, gpt-4.1-mini |
 
 **Frontend and backend.** Every edge between the browser and the server is an object-form
@@ -45,9 +45,10 @@ have**:
 |---|---|
 | `trigger: chat` | `ui.chat` |
 | `budget.turns` | `api.runner` (SDK default `max_turns` 10, `MaxTurnsExceeded` caught) |
-| `data` (pii, phi, public; retention, region) | every agent; `special_seat` is phi |
+| `data` (pii, phi, public; retention, region) | every agent; `special_seat` is phi; `retention: none` for everything held in process memory (context, conversation state, thread store) |
 | `credentials: service` | the agents that write bookings |
-| `approval` + `sla` | `ui.duty_manager`, `ui.agent_console` |
+| `approval` + `sla` | `ui.duty_manager` (`when: "payout > 500 USD or any cash refund"`, no separate gate node), `ui.agent_console` |
+| `decision` | `agents.wants_human` (`binary`) |
 | `evals` (targets only, no measured values) | relevance and jailbreak guardrails |
 | edge `protocol` (http, webhook) | all frontend/backend links, the Responses API calls, escalation |
 

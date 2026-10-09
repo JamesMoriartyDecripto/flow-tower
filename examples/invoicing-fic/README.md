@@ -22,31 +22,39 @@ The `sales-pipeline` preset ends where this one starts: its closed-won deal is t
 | 4 | Approval & Issue | Auto-issue only for unchanged recurring invoices under 5,000 EUR. Otherwise an Opus approval brief, the finance controller (24h, escalate) and the CFO (≥ 50k, 48h, wait). Idempotent `create_issued_document`. |
 | 5 | SDI Send & Monitoring | The **sub-tower** sends and fixes. Here: the `e_invoices.status_update` webhook, an ES256-verified receiver with ce-id dedupe, a 30-minute sweep for stuck statuses, the `ei_status` router and client notices. |
 | 6 | Collections & Credit Notes | PSD2 bank feed, deterministic auto-match, a Haiku remittance reader, mark-paid via `modify_issued_document`, an AR clerk for the rest, a D+3/15/30/45 dunning sequence (Sonnet, Italian templates), a credit manager, and **TD04 credit notes** that always pass the controller (CFO above 2,000 EUR; CFO for every write-off). |
-| 7 | Passive Cycle | `received_documents.e_invoices.receive` webhook, Haiku extractor **per received invoice**, PO 3-way match, budget owner approval, **manual registration** in the Fatture in Cloud UI (the API cannot register pending documents), weekly payment run and treasury release with SCA. |
-| 8 | Reporting & Compliance | Monthly VAT data, quarterly bollo check, accountant export by SFTP, Opus 13-week cash-flow forecast and digest, AdE conservazione, append-only audit trail, a monthly LLM budget. |
+| 7 | Passive Cycle | `received_documents.e_invoices.receive` webhook, Haiku extractor **per received invoice**, PO 3-way match, budget owner approval only for no-PO / over-tolerance / new-supplier invoices, **manual registration** in the Fatture in Cloud UI (the API cannot register pending documents), weekly payment run and treasury release with SCA. |
+| 8 | Reporting & Compliance | Monthly VAT data, quarterly bollo check, accountant export by SFTP, Opus 13-week cash-flow forecast and digest, AdE conservazione, append-only audit trail. The monthly LLM budget and the Fatture in Cloud quotas are tower-wide `budget` and `limits`. |
 
 **Sub-tower `towers/sdi-loop.tower.yaml`**: `xml_verify` → `send_e_invoice` with
 `options.dry_run` → real send → `ei_status` (wait up to 2 h on `attempt`). A `discarded` status
 reads `error_reason` (reason, code, date), a Sonnet fixer proposes a minimal patch, master-data
-fixes apply directly and fiscal fixes need the controller, then `modify_issued_document` keeps
-the **same number and date** and the loop resends. A 5-day clock (`sla: 5d`,
+fixes apply directly and fiscal fixes need the controller (`approval.when: fiscal fix`), then `modify_issued_document` keeps
+the **same number and date** and the loop resends. A 5-day clock (`sla: { within: 5d, after: scarto notice }`,
 `max_iterations: 3`) pages the commercialista on day 4 or on a third scarto to renumber in a
 sezionale (e.g. `12/R`). The log `logs/sdi-notifications.log` shows a 00311 scarto fixed in a day.
 
 ## Operational features used
 
 `trigger` (webhook: HubSpot, Fatture in Cloud status and received documents; cron: recurring
-billing, stuck-status sweep, bank feed, dunning scan, payment run, month-end; event: milestone;
-email: manual requests; queue: sub-tower entry) · `approval` (sales ops 48h escalate,
-controller 24h escalate, CFO 48h wait, AR clerk 3d escalate, credit manager 5d wait, budget
-owner 5d escalate, treasurer 24h wait, commercialista 24h escalate) · `fanout` (per order line
-1–40, per received invoice 1–20) · `limits` (Fatture in Cloud retries with backoff honouring
-Retry-After, concurrency 2, `max_iterations: 3` for SDI resubmission, 2h wait on `attempt`) ·
-`budget` (per agent, `on_exceed` stop / pause / downgrade; 180 USD monthly cap with downgrade) ·
-`data` (pii and confidential, region eu, retention 3650d) · `credentials` (service for the OAuth
-app, user for UI registration and payment release) · `sandbox` (allowlist
-api-v2.fattureincloud.it) · `evals` · `sla` (12d issue, 5d scarto fix) · edge `protocol`
-(http, webhook, mcp) · `status: experimental` on the MCP tool · a `log` resource.
+billing with `timezone: Europe/Rome`, stuck-status sweep, bank feed, dunning scan, payment run,
+month-end; event: milestone; email: manual requests; queue: sub-tower entry) · `approval` (sales
+ops 48h escalate; controller `when` the policy requires it, `per: invoice`, 24h, `escalate_to:
+CFO`; CFO `when` ≥ 50k invoices, credit notes > 2k or write-offs, 48h wait; AR clerk `when`
+unmatched or confidence < 0.9; credit manager 5d wait; budget owner `when` no PO, over tolerance
+or new supplier; treasurer 24h wait; commercialista 24h escalate; sub-tower controller `when:
+fiscal fix`) · `decision` (approval route, binary, `fail: closed`) and edge `group` (auto vs
+approval) · `fanout` (per order line 1–40, per received invoice 1–20) · `limits` (Fatture in
+Cloud retries with backoff honouring Retry-After, concurrency 2, `max_iterations: 3` for SDI
+resubmission, 2h wait on `attempt`; tower-wide `rate: ["300/5m", "1000/h"]` for the API quotas) ·
+`budget` (per agent, `on_exceed` stop / pause / downgrade; tower-wide 180 USD `per: month`
+`for: model` with downgrade) · `data` (pii and confidential, region eu, retention `10y`,
+`lawful_basis: legal_obligation` on issued invoices and conservazione) · `exactly_once` (create
+invoice, send to SDI) · `async` (SDI outcome: webhook + 30-minute sweep, up to 5 days) ·
+`credentials` (service for the OAuth app, user for UI registration and payment release) ·
+`sandbox` (allowlist api-v2.fattureincloud.it) · `evals` (`unit: "%"`, all `illustrative`) ·
+`sla` (12d `after: effettuazione`, 5d `after: SDI rejection`, SDI processing as an `external`
+wait) · edge `protocol` (http, webhook, mcp, `manual` for registration in the UI) ·
+`status: experimental` on the MCP tool · a `log` resource.
 
 ## Files
 

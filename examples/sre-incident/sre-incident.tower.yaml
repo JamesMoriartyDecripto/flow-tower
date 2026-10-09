@@ -2,6 +2,7 @@
 version: 1
 name: SRE Incident Responder
 tags: [sre, claude-managed-agents, human-in-the-loop, incident-response]
+budget: { usd: 6, turns: 100, per: run, on_exceed: escalate, description: "One incident across the investigator and remediator sessions; over budget pages a human and keeps the trace." }
 description: >-
   A PagerDuty alert opens one Claude Managed Agents session per incident. A read-only
   investigator in a sandboxed container finds the failure signature with get_logs,
@@ -84,7 +85,9 @@ agents:
     prompt: investigator
     runtime: sandbox
     tools: [bash, read, grep, glob, get_logs, get_alerts, get_recent_deployments]
-    harness: { toolset: agent_toolset_20260401, permission_policy: always_allow, disabled: [edit, write, web_search, web_fetch], skills: [incident-runbooks] }
+    harness: { toolset: agent_toolset_20260401, permission_policy: always_allow }
+    skills: [incident-runbooks]
+    disabled_tools: [edit, write, web_search, web_fetch]
     files: [src/setup.py, src/tools.py]
     budget: { usd: 3, turns: 60, on_exceed: escalate }
     limits: { timeout: 20m, ttl: 24h }
@@ -103,7 +106,9 @@ agents:
     prompt: remediator
     runtime: sandbox
     tools: [bash, read, edit, grep, open_pull_request, request_approval, merge_pull_request]
-    harness: { toolset: agent_toolset_20260401, permission_policy: always_allow, disabled: [web_search, web_fetch], skills: [incident-runbooks] }
+    harness: { toolset: agent_toolset_20260401, permission_policy: always_allow }
+    skills: [incident-runbooks]
+    disabled_tools: [web_search, web_fetch]
     files: [src/setup.py, src/tools.py, src/event_loop.py]
     tower: towers/remediator.tower.yaml
     budget: { usd: 3, turns: 40, on_exceed: escalate }
@@ -170,6 +175,7 @@ layers:
         type: decision
         label: New incident?
         description: Redis incident:<id> -> session id. Redeliveries and re-triggers return the existing session.
+        decision: { output: binary, candidates: [new, seen] }
         files: [src/state.py]
       - id: existing
         runtime: app
@@ -182,7 +188,7 @@ layers:
         description: Investigator pinned by version, resources mounted, title "[service] incident title"; raw alert JSON is the first user.message.
         files: [src/webhook.py, src/state.py]
         limits: { ttl: 24h, concurrency: 5 }
-        budget: { usd: 6, on_exceed: escalate }
+        exactly_once: true
       - id: channel
         runtime: slack
         type: tool
@@ -250,7 +256,8 @@ layers:
         runtime: sandbox
         type: decision
         label: Signature?
-        description: oom / 5xx / latency with a runbook, or unknown / low confidence.
+        description: A signature with a runbook, or unknown / low confidence (handed to on-call).
+        decision: { output: choice, candidates: [oom, 5xx, latency, unknown], confidence: true }
       - id: findings
         runtime: app
         label: Findings block
@@ -311,13 +318,14 @@ layers:
         type: human
         label: On-call approval
         description: Block Kit Approve / Reject in #payments-oncall. Only the current on-call group, one click.
-        approval: { by: on-call SRE, via: Slack, actions: [approve, reject], timeout: 15m, on_timeout: escalate }
+        approval: { by: on-call SRE, via: Slack, actions: [approve, reject], timeout: 15m, on_timeout: escalate, escalate_to: "secondary on-call, then incident commander" }
         files: [src/slack_approval.py]
       - id: decision
         runtime: sandbox
         type: decision
         label: Approved?
-        description: The custom tool result is "approved", "rejected" or "escalated".
+        description: The request_approval custom tool result.
+        decision: { output: choice, candidates: [approved, rejected, escalated] }
       - id: merge
         runtime: app
         type: tool
@@ -346,7 +354,8 @@ layers:
         runtime: datadog
         type: decision
         label: Recovered?
-        description: 5xx < 0.5% and 0 restarts for 10m, per the runbook's Verify section.
+        description: Per the runbook's Verify section, watched for 10 minutes.
+        decision: { output: binary, threshold: "5xx < 0.5% and 0 restarts for 10m" }
         limits: { timeout: 10m }
     edges:
       - "handoff -> remediator: findings"
@@ -428,7 +437,8 @@ layers:
       - id: event_loop
         runtime: app
         label: Event loop
-        description: Polls sessions.events.list every 1s; answers custom tools at once, parks request_approval. A Console webhook on session.requires_action can replace polling.
+        description: Polls sessions.events.list; answers custom tools at once, parks request_approval.
+        async: { mode: poll, interval: 1s, description: "A Console webhook on session.requires_action can replace polling." }
         files: [src/event_loop.py]
         resources:
           - { kind: log, label: "Responder log", path: logs/responder.log }
@@ -442,9 +452,8 @@ layers:
         runtime: app
         type: guard
         label: Budget per session
-        description: $6 per incident across both sessions, 60 / 40 turns. Over budget pages a human, keeps the trace.
+        description: Enforces the run budget (top of the Layers panel) across both sessions, 60 / 40 turns. Over budget pages a human, keeps the trace.
         files: [config/escalation.yaml]
-        budget: { usd: 6, turns: 100, on_exceed: escalate }
       - id: secrets
         runtime: app
         type: guard
@@ -457,7 +466,8 @@ layers:
         runtime: app
         type: memory
         label: Redis state
-        description: incident -> session map (7 days), on-call Slack ids synced from PagerDuty every 5 minutes.
+        description: incident -> session map, on-call Slack ids synced from PagerDuty every 5 minutes.
+        data: { retention: 7d, description: "The incident -> session map expires after 7 days." }
         files: [src/state.py]
       - id: trace
         runtime: anthropic

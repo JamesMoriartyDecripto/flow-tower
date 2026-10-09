@@ -35,6 +35,15 @@ playtest bot).
 | Least-privilege subagents | `.claude/agents/*.md` |
 | Memory | `CLAUDE.md`, `memory/*.md` |
 
+## Operational fields used
+
+Top-level `budget` ($400 per pitch-to-launch run), agent `budget` (`maxBudgetUsd` per query),
+`limits` (6 concurrent department agents, 8 parallel playtest bots, review and regression caps as
+`max_iterations`), `approval` on the human checkpoints (review portal + GitHub issue + Slack, 72h then
+`reject`) and on the community manager `when` publishing, `trigger` (daily standup cron, bug-triage
+webhook), score `decision` thresholds (pitch fit >= 0.6, reviews >= 8) and a multi-dimension `fanout`
+for the playtest matrix (persona × seed × graphics preset).
+
 ## Layout
 
 ```
