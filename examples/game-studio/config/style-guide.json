@@ -1,0 +1,52 @@
+{
+  "name": "Emberwake art style tokens",
+  "version": "1.2.0",
+  "direction": "Stylized painterly PBR. Ember & slate: warm light carves cold stone. Readable silhouettes at 30 m.",
+  "palette": {
+    "ember": ["#FF7A1A", "#FFB347", "#E8471C"],
+    "slate": ["#2E3440", "#4C566A", "#6B7A8F"],
+    "ash": ["#B8B2A7", "#D8D2C4"],
+    "sea_of_clouds": ["#9FB7C9", "#E3ECF2"],
+    "danger": "#C2185B",
+    "max_saturation_environment": 0.45,
+    "max_saturation_interactive": 0.9
+  },
+  "value_rules": {
+    "interactive_min_contrast": 0.35,
+    "background_value_range": [0.15, 0.55],
+    "silhouette_readable_at_m": 30
+  },
+  "texel_density_px_per_m": 512,
+  "texel_density": { "target": 512, "tolerance": 0.15 },
+  "materials": {
+    "defaults": {
+      "RoughnessBias": 0.05,
+      "RimLightStrength": 0.6,
+      "BrushStrokeIntensity": 0.35,
+      "EmberEmissive": 0.0,
+      "TintColor": [1.0, 1.0, 1.0, 1.0]
+    },
+    "hero_character": { "RimLightStrength": 0.9, "BrushStrokeIntensity": 0.25 },
+    "enemy": { "EmberEmissive": 4.0, "TintColor": [1.0, 0.48, 0.1, 1.0] },
+    "hero_prop": { "EmberEmissive": 8.0 },
+    "environment": { "RoughnessBias": 0.15, "BrushStrokeIntensity": 0.5 },
+    "roughness_range": { "stone": [0.7, 0.95], "metal": [0.3, 0.6], "cloth": [0.8, 1.0], "skin": [0.45, 0.6] }
+  },
+  "shapes": {
+    "keeper": "triangle-up (lantern held high), chunky boots, oversized hood",
+    "enemies": "round, flickering, no hard edges",
+    "beacons": "tall vertical spires, readable from any island"
+  },
+  "ui": {
+    "font_display": "Cinzel Decorative",
+    "font_body": "Inter",
+    "radius": 6,
+    "spacing": 8,
+    "hud_safe_zone_pct": 5,
+    "color_primary": "#FF7A1A",
+    "color_surface": "#2E3440",
+    "color_text": "#ECEFF4",
+    "min_text_px_1080p": 18
+  },
+  "references_policy": "Only CC0, licensed stock or studio-owned references. No living artists' names in image prompts."
+}

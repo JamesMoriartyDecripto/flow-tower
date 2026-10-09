@@ -1,0 +1,64 @@
+# Quality gates. Every threshold a hook, loop or QC step enforces lives here.
+# Changing a gate is a reviewed PR, never an agent decision.
+
+research:
+  min_sources_per_question: 2      # independent sources per research question
+  min_primary: 1                   # at least one primary source (docs, standard, paper)
+  freshness_months_default: 24     # overridden by intake.freshness_months
+  allowed_reuse_licences: [CC0-1.0, CC-BY-4.0, CC-BY-SA-4.0, public-domain, licensed]
+  max_short_quote_words: 50
+
+design:
+  bloom_max_share_lower: 0.30      # Remember + Understand, practitioner courses
+  bloom_min_create_objectives: 1   # capstone
+  minutes_tolerance: 0.10          # outline vs brief time budget
+  banned_objective_verbs: [understand, know, learn, appreciate, be aware of, be familiar with]
+
+reading:
+  tolerance_grade: 1               # deny above target + 1 (targets in reading-levels.yaml)
+
+media:
+  max_segment_seconds: 360
+  caption_max_chars_per_line: 42
+  caption_max_lines: 2
+  caption_max_drift_ms: 200
+  loudness_lufs: -16
+  loudness_tolerance: 1
+  min_text_px: 24
+  min_contrast_text: 4.5           # WCAG 1.4.3
+  min_contrast_ui: 3.0             # WCAG 1.4.11
+
+assessment:
+  min_items_per_objective: 2
+  default_options: 3               # Rodriguez (2005): three options is usually enough
+  weight_tolerance: 0.05
+  banned_option_patterns: ["all of the above", "none of the above", "both a and"]
+
+review:
+  max_rounds: 3
+  opus_on_round: 3
+  blocking:
+    accessibility: [A, AA]
+    fact_check: [unsupported, contradicted, misattributed]
+    rights: [missing_licence, nc_in_paid_course, nd_adapted]
+
+pilot:
+  personas: 3
+  p_min: 0.30
+  p_max: 0.90
+  discrimination_min: 0.20
+  max_critical_friction: 0
+
+packaging:
+  standard: scorm2004-4th
+  mastery_score: 0.8
+  max_package_mb: 500
+
+marketing:
+  banned_claims: [guaranteed, certified, accredited, "double your salary", "only N seats left", "100% pass"]
+  require_ai_disclosure: true
+  require_sme_credit: true
+
+budget:
+  course_usd: 60
+  alert_at: 0.8

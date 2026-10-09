@@ -1,0 +1,13 @@
+[2026.10.06-11.00.02:118][  0]LogInit: ue-farm-02 UnrealEditor 5.6.1-38817265 -RCWebControlEnable -RCWebInterfaceEnable
+[2026.10.06-11.00.09:604][  0]LogRemoteControl: Web server started on port 30010
+[2026.10.06-11.00.41:227][ 12]LogPython: import_assets.py manifest=6 assets dest=/Game/Emberwake
+[2026.10.06-11.01:17:930][ 98]LogInterchangeEngine: Imported SM_Beacon_Brazier (LODs=4, Nanite=false)
+[2026.10.06-11.01.44:512][140]LogInterchangeEngine: Imported SK_CinderWisp (bones=62, morphs=0)
+[2026.10.06-11.02.03:877][171]LogPython: material_instances.py created MI_Beacon_Brazier parent=M_Painterly_Opaque
+[2026.10.06-11.02.04:090][171]LogPython: material_instances.py created MI_Beacon_Brazier_Ember parent=M_Ember_Emissive
+[2026.10.06-11.09.30:661][802]LogPython: anim_blueprint.py ABP_CinderWisp states=[Idle, Drift, Dive, Stagger]
+[2026.10.06-11.24.12:305][2011]LogPython: level_streaming.py cells=42 data_layers=14 hlod=rebuilt
+[2026.10.06-11.31.58:742][2650]LogMapCheck: Warning: SM_Rock_Kit_07 has no collision (actor PCG_Scatter_0193)
+[2026.10.06-11.32.00:011][2651]LogPython: validate_level.py missing_refs=0 default_materials=0 warnings=1
+[2026.10.06-11.32.03:514][2652]LogShaderCompilers: 0 jobs pending, permutations=1184 (budget 1500)
+[2026.10.06-11.32.40:003][2700]LogRemoteControl: take_screenshot bookmarks=8 res=1920x1080

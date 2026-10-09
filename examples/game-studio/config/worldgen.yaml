@@ -1,0 +1,67 @@
+# Procedural archipelago generation. Read by pipelines/worldgen/*.py and
+# src/tools/generate-world.ts. Same seed -> same world, always.
+max_height_m: 120
+heightmap_res: 1009            # valid UE Landscape size (63 quads x 16 + 1)
+
+seeds:
+  slice: [4127, 9001, 1337, 2718, 31415]   # curated seeds shipped in the vertical slice
+  reject_after_failures: 3
+
+biomes:
+  - id: ashen_shoals           # vertical slice biome
+    slice: true
+    extent_m: 1800
+    altitude_m: [40, 260]
+    loop_ratio: 0.25           # extra links beyond the spanning tree, for route choice
+    bridge_max_m: 260          # longer gaps become updrafts
+    islands: { min: 7, max: 11, min_gap_m: 320, radius_m: [140, 320] }
+    fog_density: 0.035
+    palette: [ash, slate, ember]
+  - id: ember_reach            # post-slice, kept for planning only
+    slice: false
+    extent_m: 2400
+    altitude_m: [80, 340]
+    loop_ratio: 0.35
+    bridge_max_m: 220
+    islands: { min: 10, max: 15, min_gap_m: 300, radius_m: [120, 360] }
+    fog_density: 0.02
+    palette: [ember, ash]
+
+pois:
+  beacon:
+    per_km2: 0.0
+    min_per_island: 1
+    roles: [start, final_beacon, standard]
+    max_slope_deg: 8
+    min_height: 0.55
+    min_spacing_m: 120
+  camp:
+    per_km2: 0.0
+    min_per_island: 1
+    roles: [start, standard]
+    max_slope_deg: 12
+    min_spacing_m: 80
+  ember_vein:
+    per_km2: 9.0
+    max_slope_deg: 30
+    min_spacing_m: 25
+  wisp_nest:
+    per_km2: 4.0
+    roles: [standard, final_beacon]
+    max_slope_deg: 25
+    min_spacing_m: 60
+    min_distance_from_camp_m: 90
+  wreck:
+    per_km2: 2.5
+    max_slope_deg: 20
+    min_spacing_m: 70
+  bridge_anchor:
+    per_km2: 0.0
+    min_per_island: 1
+    max_slope_deg: 10
+    min_spacing_m: 40
+
+validation:
+  max_walk_slope_deg: 38
+  min_route_length: 4          # islands between start and final beacon
+  max_route_length: 8

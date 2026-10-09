@@ -1,0 +1,174 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Assessment internals
+description: >-
+  How the assessment designer builds an aligned item bank and rubric: blueprint first, items
+  written to Haladyna's guidelines with misconception-based distractors, difficulty calibrated
+  against simulated attempts, and an alignment check before anything leaves the tower.
+root: ..
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Studio orchestrator
+    host: ecs:syllabus-forge/orchestrator
+    provider: aws
+    region: eu-west-1
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+
+prompts:
+  item-writer: { file: prompts/item-writer.md, description: Writes scenario MCQs with feedback per option. }
+
+agents:
+  assessor:
+    from: .claude/agents/assessment-designer.md
+    runtime: orchestrator
+
+layers:
+  - id: blueprint
+    title: Blueprint
+    description: Table of specifications before a single item is written.
+    nodes:
+      - id: evidence
+        type: entry
+        label: Evidence plan
+        description: From learning design. Objective -> acceptable evidence -> weight.
+        runtime: orchestrator
+        files: [templates/course-outline.md]
+      - id: assessor
+        agent: assessor
+        label: Assessment author
+      - id: verbs
+        type: memory
+        label: Bloom verbs
+        description: Allowed verbs and item formats per level (Apply -> scenario MCQ; Create -> rubric task).
+        runtime: orchestrator
+        files: [config/bloom-verbs.yaml]
+      - id: specs
+        label: Item specs
+        description: "One spec per item slot: objective id, level, format, misconception to target."
+        runtime: orchestrator
+        files: [templates/rubric.md]
+    edges:
+      - "evidence -> assessor [data]: objectives"
+      - "verbs -> assessor [data]: formats"
+      - "assessor -> specs [data]: blueprint"
+
+  - id: items
+    title: Item Writing
+    description: Scenario stems, one best answer, plausible distractors built from real learner errors.
+    nodes:
+      - id: write
+        label: Item writer
+        prompt: item-writer
+        description: Stem carries the problem; options are short, parallel and similar in length.
+        runtime: orchestrator
+        files: [prompts/item-writer.md]
+      - id: distractors
+        label: Distractors
+        description: Each distractor encodes one named misconception from the research pack. 3 options is the default.
+        runtime: orchestrator
+        files: [prompts/item-writer.md]
+      - id: feedback
+        label: Option feedback
+        description: Why each option is right or wrong, pointing back to the lesson section.
+        runtime: orchestrator
+        files: [samples/quiz-m3.json]
+      - id: lint
+        type: guard
+        label: Item lint
+        description: Rejects "all/none of the above", K-type combos, negatives without emphasis, length cues, trick wording.
+        runtime: orchestrator
+        files: [config/quality-gates.yaml]
+      - id: bank
+        type: memory
+        label: Item bank
+        description: JSON items with objective, level, key, rationale and feedback. Keys stored outside learner content.
+        runtime: orchestrator
+        files: [samples/quiz-m3.json]
+    edges:
+      - "write -> distractors: stem + key"
+      - distractors -> feedback
+      - "feedback -> lint: item"
+      - "lint -> write [return]: violations"
+      - "lint -> bank [data]: clean item"
+
+  - id: calibrate
+    title: Calibration
+    description: Estimate difficulty, then check it against simulated attempts. Simulation flags problems; it does not certify items.
+    nodes:
+      - id: estimate
+        label: Difficulty est.
+        description: Designer's a-priori estimate (easy / medium / hard) with a reason.
+        runtime: orchestrator
+        files: [.claude/agents/assessment-designer.md]
+      - id: simulate
+        label: Sim attempts
+        description: 30 attempts per item from Haiku personas at three ability levels, answer only, no lesson access for the low band.
+        runtime: orchestrator
+        files: [src/loop/pilot.ts]
+      - id: haiku
+        type: model
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        runtime: anthropic
+        description: Cheap simulated respondents.
+      - id: stats
+        label: Item stats
+        description: p-value and point-biserial per item; distractors chosen by nobody are flagged.
+        runtime: orchestrator
+        files: [src/loop/pilot.ts]
+      - id: in_range
+        type: decision
+        label: In range?
+        description: 0.3 <= p <= 0.9 and discrimination >= 0.2; otherwise rewrite or drop.
+        runtime: orchestrator
+        files: [config/quality-gates.yaml]
+    edges:
+      - estimate -> simulate
+      - "simulate -> haiku [call]: respondents"
+      - "simulate -> stats [data]: responses"
+      - stats -> in_range
+
+  - id: rubric
+    title: Rubric & Alignment
+    description: The capstone is scored with an analytic rubric; the whole set is checked against the blueprint.
+    nodes:
+      - id: rubric
+        label: Analytic rubric
+        description: 4 criteria x 4 levels with observable descriptors. No "good / excellent" adjectives without evidence.
+        runtime: orchestrator
+        files: [templates/rubric.md]
+      - id: anchors
+        label: Anchor samples
+        description: One example response per level so human graders (and AI-assisted grading) stay consistent.
+        runtime: orchestrator
+        files: [templates/rubric.md]
+      - id: align
+        type: decision
+        label: All aligned?
+        description: Each objective covered at its level; weights match the blueprint within 5%.
+        runtime: orchestrator
+        files: [.claude/agents/assessment-designer.md]
+      - id: out
+        type: output
+        label: Assessment set
+        description: Item bank, quiz configs per lesson, capstone brief, rubric and anchors, back to the director.
+        runtime: orchestrator
+        files: [samples/quiz-m3.json, templates/rubric.md]
+    edges:
+      - "rubric -> anchors: calibrate graders"
+      - anchors -> align
+      - "align -> out: yes"
+
+links:
+  - "blueprint.specs -> items.write [data]: slot spec"
+  - "items.bank -> calibrate.estimate [data]: new items"
+  - "calibrate.in_range -> items.write [return]: rewrite"
+  - "calibrate.in_range -> rubric.align: yes"
+  - "blueprint.assessor -> rubric.rubric [spawn]: capstone"
+  - "rubric.align -> blueprint.assessor [return]: gaps"

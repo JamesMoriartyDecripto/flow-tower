@@ -1,0 +1,161 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Coder internals
+description: >-
+  How one coder run implements a single plan step: gather just enough context, plan the
+  edit, edit under hooks, run the affected tests, self-review, and retry at most 3 times.
+root: ..
+
+runtimes:
+  vps:
+    kind: container
+    label: "Squad container"
+    description: "Pipeline, lead and every subagent in one docker compose stack; worktrees on a volume."
+    host: "squad-01.example.com"
+    provider: "hetzner"
+    region: "fsn1"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "Opus, Sonnet and Haiku 5.5 plus server-side web search."
+    provider: "anthropic"
+    url: "https://console.anthropic.com"
+
+agents:
+  coder:
+    runtime: vps
+    from: .claude/agents/coder.md
+    harness: { permission_mode: acceptEdits, max_attempts: 3, context: isolated }
+
+layers:
+  - id: context
+    title: Context Gathering
+    description: Read before writing. Find the closest existing example and follow it.
+    nodes:
+      - id: brief
+        runtime: vps
+        type: entry
+        label: Step brief
+        description: From the lead (plan step + files + research brief) or from the review loop (blocking findings).
+        files: [prompts/orchestrator.md, prompts/fix-round.md]
+      - id: rules
+        runtime: vps
+        resources:
+          - { kind: doc, label: "Patterns", path: "memory/patterns.md" }
+        type: memory
+        label: Area rules
+        description: DO/DON'T rules for the touched areas, injected by the SessionStart hook.
+        files: [memory/patterns.md, src/hooks/context-loader.ts]
+      - id: locate
+        runtime: vps
+        type: tool
+        label: Grep / Glob
+        description: Find usages, the nearest test file and an existing example of the same pattern.
+        tools: [Grep, Glob]
+      - id: read
+        runtime: vps
+        type: tool
+        label: Read files
+        description: Read every file the step will touch, fully. No editing blind.
+        tools: [Read]
+      - id: enough
+        runtime: vps
+        type: decision
+        label: Enough context?
+        description: Can the coder name every file to change and the test that will prove it?
+    edges:
+      - "brief -> locate [call]: symbols"
+      - "rules -> locate [data]: conventions"
+      - "locate -> read [data]: paths"
+      - read -> enough
+      - "enough -> locate [return]: no"
+
+  - id: edit
+    title: Edit Cycle
+    description: Small diff, every write passes the guards, every edit is formatted and linted automatically.
+    nodes:
+      - id: plan_edit
+        agent: coder
+        label: Plan the edit
+        description: Decide the minimal change and the test first. No drive-by refactors.
+      - id: fence
+        runtime: vps
+        resources:
+          - { kind: log, label: "Hooks log", path: "logs/hooks.log" }
+        type: guard
+        label: Fence + secrets
+        description: PreToolUse denies writes outside the worktree or containing credentials.
+        files: [src/hooks/index.ts, src/hooks/secret-scan.ts]
+      - id: write
+        runtime: vps
+        type: tool
+        label: Edit / Write
+        description: Code change plus the nearest test file.
+        tools: [Edit, Write]
+      - id: lint
+        runtime: vps
+        type: hook
+        label: Format + lint
+        description: PostToolUse runs Prettier and ESLint --fix; leftovers come back as additionalContext.
+        files: [src/hooks/format-lint.ts]
+      - id: tests
+        runtime: vps
+        resources:
+          - { kind: script, label: "run_tests tool", path: "src/tools/run-tests.ts" }
+        type: tool
+        label: run_tests
+        description: scope "affected" — only tests related to files changed vs origin/main.
+        files: [src/tools/run-tests.ts]
+      - id: green
+        runtime: vps
+        type: decision
+        label: Green?
+    edges:
+      - "plan_edit -> fence [call]: Edit"
+      - "fence -> write: allowed"
+      - "write -> lint: auto"
+      - "lint -> tests [call]: affected"
+      - "tests -> green [data]: summary"
+
+  - id: finish
+    title: Self-check & Return
+    description: Grade your own diff before someone else does; give up loudly instead of faking green.
+    nodes:
+      - id: self_review
+        runtime: vps
+        label: Self-review diff
+        description: Dead code, debug prints, missing awaits, unhandled errors, untested branches.
+        files: [.claude/agents/coder.md]
+      - id: attempts
+        runtime: vps
+        type: decision
+        label: Attempt < 3?
+        description: Fix the root cause, never the assertion. Never skip or weaken tests.
+      - id: model
+        runtime: anthropic
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        description: Default coder model. The review loop swaps in Opus for the last fix round.
+        files: [src/config.ts]
+      - id: done
+        runtime: vps
+        type: output
+        label: STATUS done
+        description: "STATUS / STEP / CHANGED / TESTS / NOTES block, max 200 words, back to the lead."
+      - id: blocked
+        runtime: vps
+        type: output
+        label: STATUS blocked
+        description: Failing test name and best hypothesis, so the lead can re-plan or ask a human.
+    edges:
+      - "self_review -> done: clean"
+      - "attempts -> blocked: no"
+
+links:
+  - "context.enough -> edit.plan_edit: yes"
+  - "edit.green -> finish.self_review: yes"
+  - "edit.green -> finish.attempts: no"
+  - "finish.attempts -> edit.plan_edit [return]: retry"
+  - "finish.self_review -> edit.plan_edit [return]: issue found"
+  - "edit.plan_edit -> finish.model [call]: reasoning"

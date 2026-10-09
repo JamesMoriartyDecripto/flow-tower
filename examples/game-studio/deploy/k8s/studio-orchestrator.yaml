@@ -1,0 +1,32 @@
+# Studio orchestrator: producer + department agents (Claude Agent SDK) on GKE Autopilot.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: studio-orchestrator
+  namespace: forge
+spec:
+  replicas: 1                      # one producer per project; specialists run as subagents
+  selector: { matchLabels: { app: studio-orchestrator } }
+  template:
+    metadata:
+      labels: { app: studio-orchestrator }
+    spec:
+      serviceAccountName: forge-orchestrator
+      containers:
+        - name: orchestrator
+          image: europe-west4-docker.pkg.dev/forge-studio/forge/studio-orchestrator:latest
+          args: ["npx", "tsx", "src/main.ts", "docs/pitch-emberwake.md"]
+          resources:
+            requests: { cpu: "2", memory: 4Gi }
+            limits: { cpu: "4", memory: 8Gi }
+          envFrom:
+            - secretRef: { name: forge-api-keys }      # ANTHROPIC_API_KEY, GITHUB_TOKEN, POSTHOG_KEY
+          env:
+            - { name: FORGE_STUDIO_BUDGET_USD, value: "1200" }
+            - { name: BLENDER_MCP_HOST, value: "ws-art-03.tail.forge.internal:9876" }
+            - { name: UNREAL_RC_URL, value: "http://ue-farm-02.forge.internal:30010" }
+          volumeMounts:
+            - { name: repo, mountPath: /workspace }
+      volumes:
+        - name: repo
+          persistentVolumeClaim: { claimName: emberwake-repo }

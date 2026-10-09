@@ -1,0 +1,8 @@
+2026-10-02T15:52:47.118Z intro-to-prompt-engineering-for-product-managers module-writer Write DENY reading-level grade=12.4
+2026-10-02T16:01:12.880Z intro-to-prompt-engineering-for-product-managers module-writer Write DENY pii-scan email
+2026-10-02T16:33:05.207Z intro-to-prompt-engineering-for-product-managers module-writer Write DENY run-fence path=/srv/forge/config/style-guide.md
+2026-10-02T17:44:19.932Z intro-to-prompt-engineering-for-product-managers marketing-writer Write DENY claims-guard /guarantee[ds]?/i
+2026-10-02T17:45:02.118Z intro-to-prompt-engineering-for-product-managers marketing-writer Write allow
+2026-10-03T11:02:44.660Z intro-to-prompt-engineering-for-product-managers director Stop BLOCK "Quality gates still pending: launch kit"
+2026-10-06T08:30:20.551Z intro-to-prompt-engineering-for-product-managers course-packager mcp__studio__scorm_package allow a11y-gate
+2026-10-06T08:36:31.020Z intro-to-prompt-engineering-for-product-managers director mcp__studio__request_signoff allow

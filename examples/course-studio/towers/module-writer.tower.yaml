@@ -1,0 +1,176 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Module writer internals
+description: >-
+  How one module writer turns a signed-off lesson spec into finished lessons: plan against the
+  objectives, draft along Gagné's nine events in short segments, add a worked example and
+  practice, self-check every objective and citation, and retry at most 3 times.
+root: ..
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Studio orchestrator
+    host: ecs:syllabus-forge/orchestrator
+    provider: aws
+    region: eu-west-1
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+
+prompts:
+  worked-example: { file: prompts/worked-example.md, description: Faded worked example with a fictional product team. }
+  revise-round: { file: prompts/revise-round.md, description: Fix blocking review findings only. }
+
+agents:
+  writer:
+    from: .claude/agents/module-writer.md
+    runtime: orchestrator
+    harness: { permission_mode: acceptEdits, max_attempts: 3, context: isolated }
+
+layers:
+  - id: inputs
+    title: Inputs & Plan
+    description: Write from the spec and the research pack only. No new facts without a source id.
+    nodes:
+      - id: spec
+        type: entry
+        label: Lesson spec
+        description: From the outline (objectives, Bloom level, Gagné map, minutes) or a revision brief from the review board.
+        runtime: orchestrator
+        files: [templates/course-outline.md, prompts/revise-round.md]
+      - id: pack
+        type: memory
+        label: Research pack
+        description: The module's cited brief and the source registry. Claims must map to [S#] ids.
+        runtime: orchestrator
+        files: [samples/source-registry.json]
+      - id: glossary
+        type: memory
+        label: Glossary + style
+        description: Locked terms, voice and example conventions, injected by SessionStart.
+        runtime: orchestrator
+        files: [memory/glossary.md, config/style-guide.md]
+      - id: plan
+        agent: writer
+        label: Plan lesson
+        description: Segment plan (max 7 minutes reading each), which event each segment serves, which source backs each claim.
+      - id: model
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        runtime: anthropic
+        description: Default writer model. Round 3 revisions are escalated to Opus by the review loop.
+        files: [src/config.ts]
+    edges:
+      - "spec -> plan [data]: objectives"
+      - "pack -> plan [data]: claims"
+      - "glossary -> plan [data]: terms"
+      - "plan -> model [call]: reasoning"
+
+  - id: draft
+    title: Draft
+    description: "Gagné events 1-5: attention, objectives, recall, content, guidance. Coherence and signaling over decoration."
+    nodes:
+      - id: hook
+        label: Hook + objectives
+        description: A realistic PM scenario as the attention hook, then the lesson objectives in plain language, then a recall prompt.
+        runtime: orchestrator
+        files: [templates/lesson.md]
+      - id: explain
+        label: Explain
+        description: Concept segments with one idea each, signposted headings, short paragraphs, defined jargon.
+        runtime: orchestrator
+        files: [templates/lesson.md, samples/lesson-m3-l2.md]
+      - id: cite
+        label: Cite sources
+        description: Inline [S#] after each factual claim. Quotes over 50 words need a licence that allows reuse.
+        runtime: orchestrator
+        files: [config/style-guide.md]
+      - id: write
+        type: tool
+        label: Write lesson
+        description: Writes runs/<course>/lessons/m<N>-l<M>.md. Every write passes the PreToolUse guards.
+        tools: [Write, Edit]
+        runtime: orchestrator
+      - id: reading
+        type: guard
+        label: Reading + PII
+        description: Reading-level gate and PII scan. A deny returns the hardest sentences so the writer can fix them.
+        runtime: orchestrator
+        files: [src/hooks/reading-level.ts, src/hooks/pii-scan.ts]
+    edges:
+      - hook -> explain
+      - "explain -> cite [data]: claims"
+      - "cite -> write [call]: lesson.md"
+      - "write -> reading: PreToolUse"
+      - "reading -> explain [return]: too dense"
+
+  - id: enrich
+    title: Practice & Transfer
+    description: "Gagné events 6-9: elicit performance, feedback, assess, retention and transfer."
+    nodes:
+      - id: worked
+        label: Worked example
+        prompt: worked-example
+        description: Fully worked, then faded. Fictional product team, real technique, every step explained.
+        runtime: orchestrator
+        files: [prompts/worked-example.md]
+      - id: practice
+        label: Practice task
+        description: A short task learners do in their own tool (e.g. rewrite a vague prompt into a spec with examples).
+        runtime: orchestrator
+        files: [templates/lesson.md]
+      - id: checks
+        label: Self-check Qs
+        description: 2-3 formative items with feedback per option. Draft only; the assessment designer owns the final bank.
+        runtime: orchestrator
+        files: [samples/quiz-m3.json]
+      - id: recap
+        label: Recap + transfer
+        description: Three-bullet recap and a "use it this week" prompt tied to the learner's job.
+        runtime: orchestrator
+        files: [templates/lesson.md]
+    edges:
+      - worked -> practice
+      - "practice -> checks: feedback"
+      - checks -> recap
+
+  - id: finish
+    title: Self-check & Return
+    description: Grade your own lesson before the board does. Give up loudly instead of padding.
+    nodes:
+      - id: selfcheck
+        type: decision
+        label: Self-check ok?
+        description: Every objective addressed and practised, every claim cited, minutes within 10% of budget, no orphan sections.
+        runtime: orchestrator
+        files: [.claude/agents/module-writer.md]
+      - id: attempts
+        type: decision
+        label: Attempt < 3?
+        description: Fix the cause (missing source, wrong level), never by deleting the objective.
+        runtime: orchestrator
+      - id: done
+        type: output
+        label: STATUS done
+        description: "STATUS / MODULE / LESSONS / OBJECTIVES / SOURCES / NOTES, max 200 words, back to the fan-out."
+        runtime: orchestrator
+      - id: blocked
+        type: output
+        label: STATUS blocked
+        description: Which objective could not be supported and why (usually a research gap), so the director can re-research.
+        runtime: orchestrator
+    edges:
+      - "selfcheck -> done: yes"
+      - "selfcheck -> attempts: no"
+      - "attempts -> blocked: no"
+
+links:
+  - "inputs.plan -> draft.hook: segment plan"
+  - "draft.reading -> enrich.worked: pass"
+  - "enrich.recap -> finish.selfcheck: draft complete"
+  - "finish.attempts -> inputs.plan [return]: retry"
+  - "enrich.checks -> draft.write [call]: append checks"

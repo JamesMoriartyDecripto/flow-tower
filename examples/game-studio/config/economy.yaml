@@ -1,0 +1,58 @@
+# Run economy for the vertical slice. Balanced by the economy-balancer agent with
+# mcp__forge__simulate_economy (Monte Carlo, 10k simulated runs per change).
+currency: embers
+session_minutes: 20
+players: [1, 2, 4]
+scaling_per_player: 0.7        # yields multiply by 1 + 0.7 * (players - 1)
+
+resources:
+  embers:
+    stack: 999
+    sources: { ember_vein: 12, cinder_wisp: 4, beacon_lit: 60, chest: 25 }
+  slate_ore:
+    stack: 99
+    sources: { ember_vein: 2 }
+  driftwood:
+    stack: 99
+    sources: { wreck: 6 }
+  wisp_core:
+    stack: 20
+    rare: true
+    sources: { cinder_wisp: 0.15 }
+  lamp_oil:
+    stack: 10
+    consumable: true
+    sources: { wreck: 1, chest: 2 }
+
+# Mean player interactions per minute, from playtest telemetry (updated by QA).
+actions_per_minute:
+  ember_vein: 1.4
+  wreck: 0.5
+  cinder_wisp: 2.2
+  chest: 0.2
+  beacon_lit: 0.15
+
+sinks:
+  lantern_fuel_per_min: { lamp_oil: 0.25 }
+  revive_teammate: { embers: 30 }
+  bridge_repair: { driftwood: 10, slate_ore: 4 }
+  beacon_rekindle: { embers: 40, wisp_core: 1 }
+
+recipes:
+  grapple_hook:  { cost: { driftwood: 20, slate_ore: 8 }, unlock_minute: 4 }
+  lantern_mk2:   { cost: { embers: 120, slate_ore: 10 }, unlock_minute: 6 }
+  ember_blade:   { cost: { embers: 90, wisp_core: 2 }, unlock_minute: 9 }
+  warding_totem: { cost: { embers: 60, driftwood: 12 }, unlock_minute: 11 }
+
+progression:
+  beacons_to_win: 4
+  beacon_minutes: [4, 9, 14, 19]          # intended pacing of each beacon
+  difficulty_per_beacon: 1.25             # wisp density multiplier after each beacon
+  lantern_radius_m: { base: 8, mk2: 12 }
+
+# What "balanced" means. simulate_economy reports the deviation from this curve.
+target_curve:
+  embers_by_minute: { 5: [40, 90], 10: [100, 200], 15: [150, 280], 20: [80, 200] }
+  first_craft_by_minute: [3, 6]
+  starvation_rate_max: 0.05               # runs that run out of lamp oil before beacon 2
+  gini_coop_max: 0.35                     # inventory inequality between co-op players

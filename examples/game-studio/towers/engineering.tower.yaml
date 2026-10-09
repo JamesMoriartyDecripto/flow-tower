@@ -1,0 +1,265 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Engineering
+description: >-
+  From tech spec to merged feature. Programmers work in parallel on independent tasks, tests
+  gate every attempt, the code reviewer runs a capped evaluator-optimizer loop (max 3 rounds,
+  last fix on Opus), and the perf profiler checks frame and memory budgets before the PR lands.
+root: ..
+
+runtimes:
+  studio-cluster:
+    kind: container
+    label: "Orchestrator cluster"
+    description: "Producer, directors and specialist agents as Claude Agent SDK containers on GKE Autopilot."
+    host: "gke-forge-prod"
+    provider: "gcp"
+    region: "europe-west4"
+    url: "https://argocd.forge.example.com/applications/studio-orchestrator"
+  render-farm:
+    kind: server
+    label: "Unreal farm"
+    description: "Four UE 5.6 editor nodes with Remote Control for import, animation, lighting, world building and profiling."
+    host: "ue-farm-01..04"
+    provider: "on-prem"
+    region: "studio-rack-a"
+  ci:
+    kind: ci
+    label: "Packaging CI"
+    description: "Self-hosted Windows UE runner for automation tests, BuildCookRun and Steam beta uploads."
+    host: "ue-ci-win-01"
+    provider: "github-actions"
+    url: "https://github.com/forge-studio-example/emberwake/actions"
+  github:
+    kind: saas
+    label: "GitHub"
+    description: "Repository, issues and pull requests."
+    provider: "github"
+    url: "https://github.com/forge-studio-example/emberwake"
+  figma:
+    kind: saas
+    label: "Figma"
+    description: "HUD, menus and brand variables."
+    provider: "figma"
+    url: "https://www.figma.com"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "Opus, Sonnet and Haiku 5.5 plus server-side web search."
+    provider: "anthropic"
+    url: "https://console.anthropic.com"
+  review-portal:
+    kind: browser
+    label: "Review portal"
+    description: "Approval UI where humans sign off greenlight, art direction, publishing and go/no-go."
+    url: "https://review.forge.example.com"
+
+prompts:
+  technical-director: { file: prompts/technical-director.md }
+  review-round: { file: prompts/review-round.md }
+  fix-round: { file: prompts/fix-round.md }
+
+agents:
+  td:
+    runtime: studio-cluster
+    name: Technical director
+    model: claude-opus-5-5
+    prompt: technical-director
+    tools: [Read, Grep, Glob]
+    files: [src/departments/engineering.ts]
+  gameplay:
+    runtime: studio-cluster
+    from: .claude/agents/gameplay-programmer.md
+    harness: { permission_mode: acceptEdits, max_attempts: 3 }
+  tools:
+    runtime: studio-cluster
+    from: .claude/agents/tools-engineer.md
+  ui:
+    runtime: studio-cluster
+    from: .claude/agents/ui-designer.md
+  reviewer:
+    runtime: studio-cluster
+    resources:
+      - { kind: log, label: "Review gates log", path: "logs/review-gates.log" }
+    from: .claude/agents/code-reviewer.md
+    harness: { fresh_session_each_round: true }
+  perf:
+    runtime: render-farm
+    from: .claude/agents/perf-profiler.md
+
+layers:
+  - id: spec
+    title: Spec & Split
+    description: The technical director turns locked GDD features into independent, testable tasks.
+    nodes:
+      - id: gdd
+        runtime: studio-cluster
+        type: entry
+        label: Locked GDD
+        description: Mechanics with acceptance criteria and measurable goals.
+        files: [docs/gdd-template.md]
+      - id: td
+        agent: td
+      - id: adr
+        runtime: studio-cluster
+        resources:
+          - { kind: doc, label: "Decision log", path: "memory/decisions.md" }
+        type: memory
+        label: Decision log
+        description: "Architecture decisions, e.g. ADR-004: listen-server co-op with server-authoritative beacons."
+        files: [memory/decisions.md]
+      - id: split
+        runtime: studio-cluster
+        label: Task split
+        description: Tasks tagged independent or ordered; ordered tasks touching the same module run sequentially.
+        files: [src/departments/engineering.ts]
+      - id: risk
+        runtime: studio-cluster
+        type: decision
+        label: Engine change?
+        description: Changes to engine plugins or build config need the producer's approval first.
+    edges:
+      - "gdd -> td [handoff]: features"
+      - "adr -> td [data]: constraints"
+      - "td -> split [data]: tech spec"
+      - "split -> risk"
+
+  - id: implement
+    title: Implement (parallel)
+    description: Each programmer gets one task, an isolated worktree and only the tools that task needs.
+    nodes:
+      - id: gameplay
+        agent: gameplay
+        label: Gameplay prog
+      - id: netcode
+        status: experimental
+        agent: gameplay
+        label: Netcode prog
+        description: Replication, client prediction for the grapple, session join and host migration.
+      - id: tools
+        agent: tools
+        label: Tools engineer
+      - id: ui
+        agent: ui
+        label: UI programmer
+      - id: figma
+        runtime: figma
+        type: tool
+        label: Figma MCP
+        tools: [mcp__figma__get_design_context, mcp__figma__get_variable_defs]
+        files: [.mcp.json]
+      - id: ue_python
+        runtime: render-farm
+        type: tool
+        label: Editor Python
+        description: Blueprint and data asset edits that have no text form go through run_python.
+        tools: [mcp__unreal__run_python]
+        files: [.mcp.json]
+    edges:
+      - "ui -> figma [call]: frames, tokens"
+      - "gameplay -> ue_python [call]: data assets"
+      - "netcode -> ue_python [call]: PIE sessions"
+      - "tools -> ue_python [call]: editor utilities"
+
+  - id: test
+    title: Build & Test
+    description: Headless editor build and the UE automation framework. Up to 3 attempts per task.
+    nodes:
+      - id: build
+        runtime: ci
+        resources:
+          - { kind: dashboard, label: "CI runs", url: "https://github.com/forge-studio-example/emberwake/actions" }
+        label: Editor build
+        description: UnrealBuildTool for the editor target; compile errors return verbatim, first 20 lines.
+        files: [.github/workflows/package.yml]
+      - id: unit
+        runtime: ci
+        label: Automation tests
+        description: Spec tests per module plus functional tests in a test map.
+      - id: coop_test
+        runtime: ci
+        label: Co-op PIE test
+        description: 4 PIE clients, scripted join, rekindle, disconnect and rejoin.
+      - id: green
+        runtime: ci
+        type: decision
+        label: Green?
+        description: Red returns to the author; after 3 attempts the task is reported blocked.
+    edges:
+      - "build -> unit"
+      - "build -> coop_test"
+      - "unit -> green [data]: report"
+      - "coop_test -> green [data]: report"
+
+  - id: review
+    title: Review & Profile
+    description: Fresh-session reviewer each round, then the perf profiler. Caps from quality-gates.yaml.
+    nodes:
+      - id: reviewer
+        agent: reviewer
+        label: Code reviewer
+        prompt: review-round
+      - id: verdict
+        runtime: studio-cluster
+        type: decision
+        label: Approved?
+        description: Score >= 8, no blocking findings (correctness, replication, GC safety, tick cost).
+      - id: cap
+        runtime: studio-cluster
+        type: decision
+        label: Round < 3?
+        prompt: fix-round
+        files: [config/quality-gates.yaml, src/loop/review-gate.ts]
+      - id: opus_fix
+        runtime: anthropic
+        type: model
+        label: Opus 5.5 fixer
+        model: claude-opus-5-5
+        description: The fixer on the final round runs on Opus. Cheap first, smart when stuck.
+        files: [src/config.ts]
+      - id: escalate
+        runtime: review-portal
+        type: human
+        label: Lead decision
+        description: Loop did not converge; open findings go to a human lead via the producer.
+        files: [src/tools/request-approval.ts]
+      - id: perf
+        agent: perf
+        label: Perf profiler
+      - id: perf_ok
+        runtime: studio-cluster
+        resources:
+          - { kind: config, label: "Quality gates", path: "config/quality-gates.yaml" }
+        type: decision
+        label: Within budget?
+        description: Game thread < 8 ms, GPU < 14 ms at 1080p on min spec, no new hitches > 50 ms.
+        files: [config/quality-gates.yaml]
+      - id: pr
+        runtime: github
+        resources:
+          - { kind: repo, label: "Open PRs", url: "https://github.com/forge-studio-example/emberwake/pulls" }
+        type: output
+        label: Draft PR
+        description: Diff, tests, profile capture and screenshots. Humans merge.
+    edges:
+      - "reviewer -> verdict [data]: verdict JSON"
+      - "verdict -> perf [handoff]: approved"
+      - "verdict -> cap: changes"
+      - "cap -> opus_fix [call]: final round"
+      - "cap -> escalate [handoff]: cap hit"
+      - "perf -> perf_ok [data]: capture"
+      - "perf_ok -> pr: yes"
+
+links:
+  - "spec.risk -> implement.gameplay [spawn]: gameplay task"
+  - "spec.risk -> implement.netcode [spawn]: netcode task"
+  - "spec.risk -> implement.tools [spawn]: tools task"
+  - "spec.risk -> implement.ui [spawn]: UI task"
+  - "implement.gameplay -> test.build: diff"
+  - "implement.netcode -> test.build: diff"
+  - "implement.ui -> test.build: diff"
+  - "implement.tools -> test.build: diff"
+  - "test.green -> implement.gameplay [return]: failures"
+  - "test.green -> review.reviewer [handoff]: green"
+  - "review.cap -> implement.gameplay [return]: fix list"
+  - "review.perf_ok -> implement.gameplay [return]: hotspots"
