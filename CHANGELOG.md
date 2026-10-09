@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Settings → Text: interface size (80–160%, scales panels and text together, capped automatically so panels still fit the window), text font (HUD / system) and title font (Orbitron / same as text).
 - Starter examples (1–3 layers, short YAML): single agent, RAG bot, PR review bot, personal voice assistant.
 - Node panel: connections split into "Across layers" (with the target layer) and "In this layer"; click or Enter jumps there and moves the camera, hover highlights the target, "Back to …" (B) undoes a jump, C / Shift+C cycle connected nodes.
 - Keyboard inside panels: Enter / I enters the node panel, ↑ ↓ Home End walk sections and buttons, ← → switch tabs (or move along a row), Esc returns to the scene; the file viewer takes and gives back the focus.

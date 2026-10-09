@@ -5,6 +5,8 @@ import { applyTheme, themeById } from './themes';
 import type { FlowLook } from './scene/Particles';
 
 export type DefaultView = 'tower' | 'map' | 'auto';
+export type TextFont = 'hud' | 'system';
+export type TitleFont = 'display' | 'text';
 
 /** Animated flow along edges inside a layer (nodes) or along links between layers. */
 export interface Flow extends FlowLook { on: boolean }
@@ -40,6 +42,10 @@ interface Prefs {
   chips: boolean;
   hints: boolean;
   defaultView: DefaultView;
+  /** HUD scale (text and panels together), for small laptops up to 4K screens. */
+  uiScale: number;
+  textFont: TextFont;
+  titleFont: TitleFont;
   /** Bumped when the theme changes: the scene remounts to pick up new colors. */
   themeRev: number;
   open: boolean;
@@ -52,7 +58,7 @@ interface Prefs {
 const KEY = 'flow-tower:prefs';
 
 interface Saved {
-  theme?: string; bloom?: number; plateOpacity?: number; flowNodes?: Partial<Flow>; flowLayers?: Partial<Flow>; show?: Partial<Visibility>; chips?: boolean; hints?: boolean; defaultView?: DefaultView;
+  theme?: string; bloom?: number; plateOpacity?: number; flowNodes?: Partial<Flow>; flowLayers?: Partial<Flow>; show?: Partial<Visibility>; chips?: boolean; hints?: boolean; defaultView?: DefaultView; uiScale?: number; textFont?: TextFont; titleFont?: TitleFont;
   quality?: Quality; animations?: boolean; particles?: boolean; explode?: number; spotlight?: boolean; follow?: boolean;
 }
 
@@ -72,6 +78,9 @@ export const usePrefs = create<Prefs>()((set, get) => ({
   chips: saved.chips ?? true,
   hints: saved.hints ?? true,
   defaultView: saved.defaultView ?? 'auto',
+  uiScale: saved.uiScale ?? 1,
+  textFont: saved.textFont ?? 'hud',
+  titleFont: saved.titleFont ?? 'display',
   themeRev: 0,
   open: false,
   help: false,
@@ -118,17 +127,45 @@ export function initPrefs() {
     const ui = useStore.getState();
     const live = useLive.getState();
     const data: Saved = {
-      theme: p.theme, bloom: p.bloom, plateOpacity: p.plateOpacity, flowNodes: p.flowNodes, flowLayers: p.flowLayers, show: p.show, chips: p.chips, hints: p.hints, defaultView: p.defaultView,
+      theme: p.theme, bloom: p.bloom, plateOpacity: p.plateOpacity, flowNodes: p.flowNodes, flowLayers: p.flowLayers, show: p.show, chips: p.chips, hints: p.hints, defaultView: p.defaultView, uiScale: p.uiScale, textFont: p.textFont, titleFont: p.titleFont,
       quality: ui.quality, animations: ui.animations, particles: ui.particles, explode: ui.explode,
       spotlight: live.spotlight, follow: live.follow,
     };
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* not persisted */ }
   };
+  applyTypography();
+  window.addEventListener('resize', applyTypography);
+  usePrefs.subscribe((p, prev) => {
+    if (p.uiScale !== prev.uiScale || p.textFont !== prev.textFont || p.titleFont !== prev.titleFont) applyTypography();
+  });
   usePrefs.subscribe(save);
   useStore.subscribe((s, prev) => {
     if (s.quality !== prev.quality || s.animations !== prev.animations || s.particles !== prev.particles || s.explode !== prev.explode) save();
   });
   useLive.subscribe((s, prev) => { if (s.spotlight !== prev.spotlight || s.follow !== prev.follow) save(); });
+}
+
+const FONTS = {
+  hud: "'Rajdhani', sans-serif",
+  system: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+  display: "'Orbitron', sans-serif",
+};
+
+/** Smallest window, in HUD pixels, where every panel fits side by side (measured at 1280×720 / 1440×900). */
+const FIT = { w: 1180, h: 620 };
+
+/** The scale actually applied: the chosen one, capped so the panels still fit this window. */
+export function effectiveScale(scale = usePrefs.getState().uiScale) {
+  return Math.max(0.7, Math.min(scale, innerWidth / FIT.w, innerHeight / FIT.h));
+}
+
+/** Fonts and HUD scale are CSS variables: the HUD restyles without re-rendering anything. */
+function applyTypography() {
+  const { textFont, titleFont } = usePrefs.getState();
+  const root = document.documentElement.style;
+  root.setProperty('--ui-scale', effectiveScale().toFixed(3));
+  root.setProperty('--ui', FONTS[textFont]);
+  root.setProperty('--display', titleFont === 'display' ? FONTS.display : FONTS[textFont]);
 }
 
 export function resetPrefs() {

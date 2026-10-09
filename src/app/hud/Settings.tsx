@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useLive } from '../live';
-import { chooseView, resetPrefs, usePrefs, type DefaultView, type Flow, type Visibility } from '../settings';
+import { chooseView, effectiveScale, resetPrefs, usePrefs, type DefaultView, type Flow, type TextFont, type TitleFont, type Visibility } from '../settings';
 import type { FlowStyle } from '../scene/Particles';
 import { useStore, type Quality } from '../store';
 import { THEMES } from '../themes';
@@ -106,6 +106,22 @@ export function Settings() {
             <Row label="Glow" hint="Bloom strength on highlights and live activity (no effect in eco).">
               <input type="range" min={0} max={2} step={0.1} value={prefs.bloom} onChange={(e) => prefs.set({ bloom: Number(e.target.value) })} />
               <span className="mono dim">{prefs.bloom.toFixed(1)}×</span>
+            </Row>
+          </section>
+
+          <section>
+            <h3>Text</h3>
+            <Row label="Interface size" hint="Scales every panel and its text together. Larger for 4K or far screens, smaller for small laptops.">
+              <input type="range" min={0.8} max={1.6} step={0.05} value={prefs.uiScale} onChange={(e) => prefs.set({ uiScale: Number(e.target.value) })} />
+              <span className="mono dim" title={effectiveScale(prefs.uiScale) < prefs.uiScale ? 'Capped so the panels fit this window' : undefined}>
+                {Math.round(prefs.uiScale * 100)}%{effectiveScale(prefs.uiScale) < prefs.uiScale - 0.01 && ` → ${Math.round(effectiveScale(prefs.uiScale) * 100)}% fits`}
+              </span>
+            </Row>
+            <Row label="Text font" hint="HUD: Rajdhani, narrow and technical. System: your OS font, easiest to read.">
+              <Seg<TextFont> value={prefs.textFont} options={[['hud', 'HUD'], ['system', 'System']]} onChange={(textFont) => prefs.set({ textFont })} />
+            </Row>
+            <Row label="Title font" hint="Orbitron for headings and buttons, or the same font as the text.">
+              <Seg<TitleFont> value={prefs.titleFont} options={[['display', 'Orbitron'], ['text', 'Same as text']]} onChange={(titleFont) => prefs.set({ titleFont })} />
             </Row>
           </section>
 

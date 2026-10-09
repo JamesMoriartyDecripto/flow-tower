@@ -135,7 +135,7 @@ Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [
 | **/** | Search nodes, models, tools |
 | **L** | Project library |
 | **M** | Switch Tower / Map view (map: layers side by side, seen from above); the choice also applies to sub-towers |
-| **,** | Settings: theme, performance, effects, views, live behaviour |
+| **,** | Settings: theme, interface size and fonts, performance, effects, views, live behaviour |
 | **← → ↑ ↓** | Move to the nearest node; ↑ ↓ cross to the layer above / below (library: move between cards) |
 | **PgUp / PgDn** | Previous / next layer |
 | **Shift / Alt + arrows**, **+ / −** | Orbit / pan / zoom the camera |
