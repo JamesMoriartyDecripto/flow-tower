@@ -85,12 +85,17 @@ function Row({ c, tower }: { c: Conn; tower: ResolvedTower }) {
     >
       <span className="k">{c.edge.kind.toUpperCase()}</span>
       <span className="arrow">{c.dir === 'in' ? '←' : '→'}</span>
-      <span className="name">{c.other.label}</span>
-      {c.edge.label && <span className="dim mono">· {c.edge.label}</span>}
-      {c.edge.protocol && <span className="proto" title={c.edge.card ? `Agent card: ${c.edge.card}` : undefined}>{c.edge.protocol.toUpperCase()}{c.edge.version ? ` ${c.edge.version}` : ''}</span>}
-      {c.edge.async && <span className="proto" title="Fire-and-forget: the source does not wait">ASYNC</span>}
-      {c.edge.group && <span className="proto" title={`One of the alternatives in group "${c.edge.group}"`}>ALT</span>}
-      <span className="lay">L{String(c.layer + 1).padStart(2, '0')}</span>
+      {/* Name and label wrap by words in their own column; the tags on the right never shrink. */}
+      <span className="what">
+        <span className="name">{c.other.label}</span>
+        {c.edge.label && <span className="dim mono lbl"> · {c.edge.label}</span>}
+      </span>
+      <span className="tags">
+        {c.edge.protocol && <span className="proto" title={c.edge.card ? `Agent card: ${c.edge.card}` : undefined}>{c.edge.protocol.toUpperCase()}{c.edge.version ? ` ${c.edge.version}` : ''}</span>}
+        {c.edge.async && <span className="proto" title="Fire-and-forget: the source does not wait">ASYNC</span>}
+        {c.edge.group && <span className="proto" title={`One of the alternatives in group "${c.edge.group}"`}>ALT</span>}
+        <span className="lay">L{String(c.layer + 1).padStart(2, '0')}</span>
+      </span>
     </button>
   );
 }

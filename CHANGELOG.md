@@ -10,6 +10,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Commit history rewritten to the GitHub noreply address before going public.
 
 ### Added
+- File viewer: **Wrap** (W) wraps long lines with a hanging indent under the code; Markdown files open **formatted** (V switches to source) with GitHub tables, YAML frontmatter as a small metadata table, links to the node's other files opening in the viewer and external links in a new tab. Rendering is inert: raw HTML is dropped, unsafe URLs removed and remote images never loaded. Both choices are remembered.
 - Schema (#31), the gaps the presets hit, all optional and backward compatible:
   - run-wide `budget` / `limits` at the top level (shown in the Layers panel);
   - `budget` as a list, with `amount` + `currency`, `per` (run, item, month...), `for` (model, media...) and unit `rate`;
@@ -34,6 +35,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Pull request template.
 
 ### Fixed
+- Node panel connections: long names or labels no longer collapse into a one-letter-wide column (text that looked vertical); they wrap by words next to the kind, and the protocol and layer tags stay whole.
 - Claude Code live events (#44, verified with a real `claude -p` session with background and foreground subagents):
   - turns Claude Code injects (subagent reports, task notifications, system reminders, cross-session messages) are logs, not user prompts;
   - background subagents stay lit until `SubagentStop` instead of ending when they are launched;
