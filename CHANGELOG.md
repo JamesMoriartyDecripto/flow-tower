@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Claude Code skill (`skills/flow-tower`) that inventories an agentic codebase and writes a validated tower; `flow-tower install-skill [--project]`.
+- `flow-tower validate <files|dirs> [--json]` (exit 1 on errors), usable in CI.
 - Realtime: `POST /api/events` ingest with adapters for Claude Code hooks, Claude Agent SDK, Pi and Hermes Agent; node matching by agent/tool names or `match:` rules; live node beams/halos, error flashes, Live feed panel, per-node live info in the inspector.
 - `flow-tower emit` command (stdin payloads from hooks, or flags for scripts) and `integrations/` configs.
 - `npm run simulate` replays a plausible multi-walker run against any tower.

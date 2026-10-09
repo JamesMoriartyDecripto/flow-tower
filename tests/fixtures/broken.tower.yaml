@@ -1,0 +1,5 @@
+name: Broken
+layers:
+  - id: a
+    title: A
+    nodes: [{ id: x, agent: ghost }]

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-import { existsSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
@@ -12,6 +14,8 @@ Usage
   flow-tower init [file.tower.yaml]
   flow-tower emit --source <claude-code|pi|hermes>      < payload.json   (from agent hooks)
   flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [-m text]
+  flow-tower validate <file.tower.yaml | dir>... [--json]
+  flow-tower install-skill [--project]                  Claude Code skill: generate towers from a codebase
 
   Directories are scanned recursively for *.tower.yaml. Several projects open as a library.
   Live events: POST JSON to http://127.0.0.1:<port>/api/events (see docs/realtime.md).
@@ -66,6 +70,8 @@ const { values, positionals } = parseArgs({
     tower: { type: 'string' },
     status: { type: 'string' },
     message: { type: 'string', short: 'm' },
+    json: { type: 'boolean', default: false },
+    project: { type: 'boolean', default: false },
   },
 });
 
@@ -76,6 +82,29 @@ if (values.help || positionals.length === 0) {
 
 if (positionals[0] === 'emit') {
   await emit();
+  process.exit(0);
+}
+
+const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+if (positionals[0] === 'validate') {
+  // The core is TypeScript: run it with Node's built-in type stripping (Node >= 22.12).
+  const script = join(pkgRoot, 'src', 'cli', 'validate.ts');
+  const args = [...positionals.slice(1), ...(process.argv.includes('--json') ? ['--json'] : [])];
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'install-skill') {
+  const target = process.argv.includes('--project')
+    ? resolve('.claude', 'skills', 'flow-tower')
+    : join(homedir(), '.claude', 'skills', 'flow-tower');
+  mkdirSync(dirname(target), { recursive: true });
+  cpSync(join(pkgRoot, 'skills', 'flow-tower'), target, { recursive: true });
+  // The package is not on npm: bake the absolute CLI path into the installed skill.
+  const skillFile = join(target, 'SKILL.md');
+  writeFileSync(skillFile, readFileSync(skillFile, 'utf8').replaceAll('{{FLOW_TOWER_CLI}}', `node ${join(pkgRoot, 'bin', 'flow-tower.js')}`));
+  console.log(`installed the flow-tower skill in ${target}\nask Claude Code: "map this agent system into a flow tower"`);
   process.exit(0);
 }
 
@@ -123,7 +152,6 @@ if (missing.length) {
 
 // The vite plugin reads its entries from the environment of this process.
 env.FLOW_TOWER_ENTRIES = JSON.stringify(entries);
-const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const { createServer } = await import('vite');
 const server = await createServer({
   root: pkgRoot,

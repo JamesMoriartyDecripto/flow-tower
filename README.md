@@ -12,6 +12,7 @@
 - **Structural changes.** Mark nodes `planned`, `experimental` or `deprecated`.
 - **Library.** Point it at a folder and browse every project you work on.
 - **Live.** Save the YAML, or any referenced file, and the tower updates.
+- **Generate towers with Claude Code.** The bundled skill reads an agentic codebase and writes a validated tower. It works with Claude Code, the Agent SDK, LangGraph, CrewAI, OpenAI Agents, Pi, Hermes and more.
 - **Realtime agents.** Connect Claude Code, the Agent SDK, Pi, Hermes or your own loops. Active nodes light up, errors flash, and a live feed shows every step. See [docs/realtime.md](docs/realtime.md).
 
 ![Library](docs/screenshot-library.png)
@@ -77,6 +78,23 @@ See the full **[schema reference](docs/schema.md)**. A generated JSON Schema (`s
 
 Every example ships real prompt, agent, code, config and log files, so the popups have something to show.
 
+## Generate a tower from your code (Claude Code skill)
+
+```bash
+node bin/flow-tower.js install-skill            # into ~/.claude/skills (or --project for ./.claude/skills)
+```
+
+Then ask Claude Code, inside any agent project: *"map this agent system into a flow tower"*. The skill:
+1. inventories agents, prompts, tools/MCP, hooks, memory, models, runtimes and logs, from the code only;
+2. writes `<system>.tower.yaml`, plus nested towers when needed;
+3. runs `flow-tower validate` until there are no errors or warnings.
+
+Run it again later to update the tower, or to mark parts as deprecated or planned.
+
+```bash
+node bin/flow-tower.js validate path/to/agent.tower.yaml [--json]   # also great in CI
+```
+
 ## Live events
 
 ```bash
@@ -115,13 +133,17 @@ Each layer is drawn in a handful of draw calls: instanced meshes, batched lines 
 ## Project layout
 
 ```
-bin/            CLI
-src/core/       schema (zod), YAML loader, validation — shared by server and app
-src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), live reload
+bin/            CLI: serve, init, validate, emit, install-skill
+src/core/       schema (zod), YAML loader, validation, live-event adapters and matching
+src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /api/events, live reload
 src/app/        React + three.js app: scene/ (3D) and hud/ (overlay UI)
+src/cli/        TypeScript CLI commands (validate)
 schema/         generated JSON Schema
-examples/       reference towers
-scripts/        schema and stress-tower generators
+skills/         Claude Code skill that generates towers from a codebase
+integrations/   live-event configs for Claude Code, Agent SDK, Pi, Hermes
+examples/       reference towers (coding, game dev, course creation)
+scripts/        schema, stress-tower and event-simulator scripts
+docs/           schema reference, realtime guide
 ```
 
 ## Contributing
