@@ -1,0 +1,147 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Android lane internals
+description: >-
+  How the Android lane lead ships one native task (the "water today" Glance widget, as a local
+  Expo module) in a Claude Code session on the Mac: read the Material 3 frame and the contract,
+  write Kotlin, inspect it through Android CLI against the open Android Studio project, check
+  target SDK and billing versions, then build with R8, drive the emulator through mobile-mcp
+  and run a Compose UI test before opening a PR.
+root: ..
+tags: [android, kotlin, jetpack-glance, compose, android-cli, mcp]
+
+runtimes:
+  mac:
+    kind: local
+    label: Mac Studio (Android Studio + Android CLI)
+    description: Claude Code with the repo; Android Studio open on the generated project so `android studio ...` commands can reach it.
+  emulator:
+    kind: local
+    label: Android Emulator
+    description: Pixel 9 (API 36) and a small-screen API 26 image.
+  pixel:
+    kind: device
+    label: Galaxy A15 (USB)
+    description: Low-end real device for widget update timing, battery restrictions and TalkBack.
+  figma:
+    kind: saas
+    label: Figma (remote MCP)
+    provider: figma
+    url: https://mcp.figma.com/mcp
+  github:
+    kind: saas
+    label: GitHub
+    provider: github
+    url: https://github.com/example-studio/leafwise
+
+agents:
+  android:
+    name: Android lane lead
+    model: claude-opus-5-5
+    prompt: { file: prompts/android-lead.md }
+    tools: [Read, Edit, Write, Bash, mcp__mobile-mcp__mobile_launch_app, mcp__mobile-mcp__mobile_take_screenshot, mcp__mobile-mcp__mobile_list_elements_on_screen, mcp__mobile-mcp__mobile_get_device_logs]
+    runtime: mac
+    budget: { usd: 35, turns: 120, on_exceed: escalate }
+    sandbox: { network: allowlist, allow: [registry.npmjs.org, dl.google.com, maven.google.com, repo.maven.apache.org, api.github.com], filesystem: workspace }
+
+layers:
+  - id: inputs
+    title: Inputs
+    description: The task, the Material 3 frames and the shared contract.
+    nodes:
+      - id: task
+        type: entry
+        label: Lane task
+        description: GitHub issue from the app lead with acceptance criteria and the Figma frame link.
+        runtime: github
+        trigger: { kind: event, source: GitHub issue assigned to android-lane }
+      - id: design
+        type: tool
+        label: get_design_context
+        description: Figma MCP context for the Material 3 widget frames (2x1 and 4x2) plus a screenshot for comparison.
+        runtime: figma
+        credentials: user
+      - id: contract
+        type: memory
+        label: Shared contract
+        description: SharedPreferences keys written by the JS side, deep-link routes and color tokens.
+        runtime: mac
+        files: [app/src/types/supabase.ts, design/tokens.json]
+    edges:
+      - { from: task, to: design, kind: call, label: frame link, protocol: mcp }
+
+  - id: native
+    title: Native module
+    description: A local Expo module keeps Kotlin next to the app and survives prebuild --clean.
+    nodes:
+      - id: module
+        agent: android
+        label: Glance widget
+        description: GlanceAppWidget with a water action that writes back to SharedPreferences and asks the JS side to sync; Material 3 colors from tokens.
+        files: [app/modules/care-widget/expo-module.config.json, app/modules/care-widget/android/src/main/java/com/example/leafwise/carewidget/CareWidget.kt]
+      - id: cli
+        type: tool
+        label: Android CLI
+        description: "android studio analyze-file and find-usages on the changed files, render-compose-preview for screens, version-lookup before adding a dependency."
+        runtime: mac
+      - id: policy
+        type: guard
+        label: Play policy check
+        description: targetSdk 36 (required for updates from 31 Aug 2026), Play Billing Library 8 via RevenueCat, notification permission on Android 13+, edge-to-edge.
+        runtime: mac
+        files: [app/app.json]
+    edges:
+      - { from: module, to: cli, kind: call, label: inspections, protocol: stdio }
+      - "cli -> policy: clean"
+
+  - id: verify
+    title: Build & test
+    description: Release-like build, then the emulator and one low-end phone. Three rounds, then escalate to the app lead.
+    nodes:
+      - id: gradle
+        label: Gradle release build
+        description: "npx expo prebuild -p android --clean, then ./gradlew :app:assembleRelease with R8; size diff against main."
+        runtime: mac
+        limits: { timeout: 20m }
+        evals:
+          - { name: AAB size delta (MB), value: 0.4, target: 1, higher_is_better: false }
+      - id: emu
+        type: tool
+        label: mobile-mcp
+        description: Installs on the emulator, adds the widget, taps the water action, reads the accessibility tree and logcat.
+        runtime: emulator
+        files: [.mcp.json]
+        limits: { ttl: 30m }
+      - id: uitest
+        label: Compose UI test
+        description: Paywall screen test with a fake billing client; runs on both emulator images.
+        runtime: emulator
+        files: [app/native-tests/android/PaywallScreenTest.kt]
+      - id: device
+        label: Real-device check
+        description: Widget update under battery saver, TalkBack reading order, 200% font scale.
+        runtime: pixel
+      - id: ok
+        type: decision
+        label: Matches & green?
+        runtime: mac
+        limits: { max_iterations: 3 }
+      - id: pr
+        type: output
+        label: Pull request
+        description: PR with screenshots, test output and the size diff; goes to the code reviewer in the main tower.
+        runtime: github
+        resources:
+          - { kind: log, label: Build log, path: logs/build.log }
+    edges:
+      - { from: gradle, to: emu, kind: call, label: install APK, protocol: mcp }
+      - emu -> uitest
+      - uitest -> device
+      - "device -> ok [data]"
+      - "ok -> pr: yes"
+
+links:
+  - "inputs.design -> native.module [data]: Material 3 context"
+  - "inputs.contract -> native.module [data]: keys + tokens"
+  - "native.policy -> verify.gradle"
+  - "verify.ok -> native.module [return]: no, max 3"

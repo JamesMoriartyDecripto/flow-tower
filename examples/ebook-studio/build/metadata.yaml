@@ -1,0 +1,44 @@
+# EPUB package metadata, read by Pandoc (field names from the Pandoc manual, "EPUB Metadata").
+# dcterms:conformsTo and a11y:certifiedBy are not Pandoc fields; scripts/build-ebook.sh adds
+# them to content.opf after the build (EPUB Accessibility 1.1, section 3.5).
+# Names and identifiers are fictional.
+title:
+  - type: main
+    text: The Balcony Harvest
+  - type: subtitle
+    text: Growing Food in Small Spaces in Cool, Windy Climates
+creator:
+  - role: author
+    text: Ines Halvorsen
+    file-as: Halvorsen, Ines
+identifier:
+  - scheme: ISBN-13
+    text: 978-1-917654-03-6
+publisher: Larchwood Press
+rights: © 2026 Ines Halvorsen. All rights reserved.
+date: 2026-11-24
+lang: en-GB
+subject:
+  - GARDENING / Garden Types / Container & Raised Bed
+  - GARDENING / Garden Types / Urban, Community & Small Space
+  - GARDENING / Edible & Medicinal / Vegetables
+description: >-
+  A practical guide to growing salads, vegetables, herbs and berries on balconies and small
+  terraces in cool, windy climates, from load limits and windbreaks to a month-by-month plan.
+
+# Discovery metadata (EPUB Accessibility 1.1, section 2.2). Pandoc writes schema: properties.
+accessModes: [textual, visual]
+accessModeSufficient: [textual]
+accessibilityFeatures:
+  - alternativeText
+  - displayTransformability
+  - readingOrder
+  - structuralNavigation
+  - tableOfContents
+  - index
+accessibilityHazards: [none]
+accessibilitySummary: >-
+  This reflowable ebook meets EPUB Accessibility 1.1 and WCAG 2.2 Level AA. All diagrams and
+  photographs have text alternatives, and the planting diagrams are also described in the text.
+  Headings and a table of contents support navigation. No page list is provided because the
+  print edition is paginated separately.

@@ -1,0 +1,254 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Paid media optimization loop
+description: >-
+  The daily loop behind the Paid media lead. Pull yesterday's performance from every ad platform
+  into one spend ledger, check pacing against the budget plan and look for anomalies, let an
+  agent propose bid, budget and creative changes, run them through hard spend guards, ask a
+  person when a change is large, then apply through each platform's API and read it back.
+  Nothing reaches a platform without passing the guard; nothing above the threshold without
+  a named approver.
+root: ..
+tags: [paid-media, google-ads, meta-ads, linkedin-ads, tiktok-ads, pacing, guardrails, human-in-the-loop]
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Growth agents
+    provider: google-cloud-run
+    region: europe-west3
+  gcp:
+    kind: cloud
+    label: BigQuery (EU)
+    provider: google-cloud
+    region: europe-west3
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  google-ads:
+    kind: saas
+    label: Google Ads API v25
+    provider: google
+    url: https://ads.google.com
+  meta:
+    kind: saas
+    label: Meta Marketing API v25.0
+    provider: meta
+    url: https://adsmanager.facebook.com
+  linkedin:
+    kind: saas
+    label: LinkedIn Marketing API 202609
+    provider: linkedin
+    url: https://www.linkedin.com/campaignmanager
+  tiktok:
+    kind: saas
+    label: TikTok API for Business
+    provider: tiktok
+    url: https://ads.tiktok.com
+  slack:
+    kind: saas
+    label: Slack
+    provider: slack
+
+agents:
+  optimizer:
+    name: Paid optimizer
+    description: Reads the ledger and the pacing output, proposes a change set as JSON. It has no mutate tool.
+    model: claude-sonnet-5-5
+    prompt: { file: prompts/paid-optimizer.md }
+    runtime: orchestrator
+    tools: [bigquery_query, mcp__google_ads__search, mcp__meta_ads, propose_changes]
+    harness: { max_turns: 30, output: json_schema }
+    budget: { usd: 1.5, turns: 30, on_exceed: stop }
+    limits: { timeout: 15m, max_iterations: 3 }
+    credentials: service
+    evals:
+      - { name: proposals accepted by approver (%), value: 78, target: 70 }
+      - { name: guard rejections per week, value: 4, target: 10, higher_is_better: false }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: pull
+    title: Pull & Normalize
+    description: One reader per platform, all into the same ledger shape (date, platform, campaign, spend_eur, clicks, conversions, pipeline_eur).
+    nodes:
+      - id: daily
+        type: entry
+        label: Daily 06:00
+        runtime: orchestrator
+        description: After the platforms have closed yesterday in the account time zone (Europe/Berlin).
+        trigger: { kind: cron, schedule: "0 6 * * *", source: Cloud Scheduler }
+      - id: intraday
+        type: entry
+        label: Spend spike
+        runtime: orchestrator
+        description: Hourly spend check fires an event when today's spend passes 1.6x the daily plan before 14:00.
+        trigger: { kind: event, source: hourly spend watcher }
+      - id: pull
+        label: Pull insights
+        runtime: orchestrator
+        description: GAQL on campaign + metrics, Meta insights at campaign level, LinkedIn adAnalytics, TikTok integrated report.
+        fanout: { min: 3, max: 4, by: platform }
+        limits: { timeout: 10m, retries: 3, backoff: "exponential 5s..5m", concurrency: 4 }
+        credentials: service
+      - id: google
+        type: tool
+        label: Google Ads
+        runtime: google-ads
+        description: "Explorer access allows 2,880 ops/day on production; Basic 15,000. RESOURCE_EXHAUSTED means back off."
+      - id: meta
+        type: tool
+        label: Meta Ads
+        runtime: meta
+      - id: linkedin
+        type: tool
+        label: LinkedIn Ads
+        runtime: linkedin
+      - id: tiktok
+        type: tool
+        label: TikTok Ads
+        runtime: tiktok
+        status: experimental
+      - id: ledger
+        type: memory
+        label: Spend ledger
+        runtime: gcp
+        description: "marketing_mart.spend_daily, partitioned by date. Currency normalized to EUR at the ECB reference rate."
+        data: { sensitivity: confidential, region: eu, retention: 1095d }
+    edges:
+      - daily -> pull
+      - "intraday -> pull: today only"
+      - { from: pull, to: google, kind: call, protocol: http, label: searchStream }
+      - { from: pull, to: meta, kind: call, protocol: http, label: insights }
+      - { from: pull, to: linkedin, kind: call, protocol: http, label: adAnalytics }
+      - { from: pull, to: tiktok, kind: call, protocol: http, label: report }
+      - "pull -> ledger [data]: upsert"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: check
+    title: Pacing & Anomalies
+    description: Deterministic checks first. The agent only sees campaigns that are off plan or anomalous.
+    nodes:
+      - id: pacing
+        label: Pacing check
+        runtime: orchestrator
+        description: Month-to-date spend vs plan per campaign and channel, projected month-end, distance to the monthly cap.
+        files: [scripts/pacing_check.py, plans/budget-plan-2026-q4.yaml]
+      - id: anomaly
+        label: Anomaly scan
+        runtime: gcp
+        description: CPA, CTR and spend against a 28-day baseline (robust z-score > 3); tracking breaks show as conversions dropping to zero.
+      - id: off_plan
+        type: decision
+        label: Off plan?
+        runtime: orchestrator
+        description: Pacing outside +-10 %, projected cap breach, or an anomaly flag.
+      - id: noop
+        type: output
+        label: No change
+        runtime: orchestrator
+        description: Logged as a no-op run; the digest shows how many days ran without changes.
+    edges:
+      - pacing -> off_plan
+      - anomaly -> off_plan
+      - "off_plan -> noop: all within plan"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: propose
+    title: Propose
+    description: The agent proposes; it cannot mutate. Each change carries the evidence and the expected effect.
+    nodes:
+      - id: optimizer
+        agent: optimizer
+        label: Paid optimizer
+      - id: changeset
+        type: memory
+        label: Change set
+        runtime: gcp
+        description: "JSON: platform, entity, field (daily_budget, target_cpa, bid_strategy, status), before, after, reason, evidence query."
+    edges:
+      - "optimizer -> changeset [data]: proposal"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: guard
+    title: Guard & Approve
+    description: Hard limits the agent cannot argue with, then a person for anything large.
+    nodes:
+      - id: caps
+        type: guard
+        label: Spend guard
+        runtime: orchestrator
+        description: Monthly cap, per-change limit (20 % or 500 EUR/day), no edits to campaigns in learning, max 2 budget edits per campaign per week, no new geos or audiences.
+        files: [scripts/spend_guard.py, policies/spend-approval-policy.yaml]
+        budget: { usd: 140000, on_exceed: pause }
+      - id: size
+        type: decision
+        label: Above threshold?
+        runtime: orchestrator
+        description: Sum of absolute daily-budget deltas in the set, and any pause of a top-5 campaign.
+      - id: growth
+        type: human
+        label: Head of Growth
+        runtime: slack
+        description: Sees the change set, evidence links and pacing chart in Slack.
+        approval: { by: Head of Growth, via: Slack, actions: [approve, edit, reject], timeout: 4h, on_timeout: reject }
+      - id: finance
+        type: human
+        label: CMO + Finance
+        runtime: slack
+        description: Only for moves that shift more than 5,000 EUR per month between channels.
+        approval: { by: CMO and FP&A partner, via: Slack, actions: [approve, reject], timeout: 48h, on_timeout: reject }
+    edges:
+      - "caps -> size: passed"
+      - { from: size, to: growth, label: "> 500 EUR/day or > 20 %", condition: "delta_eur_day > 500 || delta_pct > 0.2" }
+      - { from: growth, to: finance, kind: handoff, label: cross-channel, condition: "cross_channel_eur_month > 5000" }
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: apply
+    title: Apply & Verify
+    description: Idempotent writes per platform, read back, logged. A failed write never retries a different value.
+    nodes:
+      - id: apply
+        label: Apply via API
+        runtime: orchestrator
+        description: Google Ads mutate (CampaignBudgetService, partial_failure on), Meta ad set update, LinkedIn adCampaigns partial update, TikTok ad group update.
+        fanout: { min: 1, max: 4, by: platform in change set }
+        limits: { timeout: 5m, retries: 3, backoff: "exponential 2s..60s", concurrency: 4 }
+        credentials: service
+      - id: verify
+        label: Read back
+        runtime: orchestrator
+        description: Re-reads each entity; a mismatch reverts the set and pages the paid lead.
+      - id: log
+        type: memory
+        label: Change log
+        runtime: gcp
+        description: Append-only (who approved, before, after, reason, request ids).
+        resources:
+          - { kind: log, label: Paid optimizer log, path: logs/paid-optimizer.log }
+      - id: done
+        type: output
+        label: Applied
+        runtime: slack
+        description: Thread reply in #growth-approvals with the diff and the next check time.
+    edges:
+      - apply -> verify
+      - "verify -> log [data]: diff"
+      - verify -> done
+
+links:
+  - "pull.ledger -> check.pacing [data]: month to date"
+  - "pull.ledger -> check.anomaly [data]: 28-day baseline"
+  - "check.off_plan -> propose.optimizer [spawn]: flagged campaigns"
+  - "propose.changeset -> guard.caps: validate"
+  - "guard.caps -> propose.optimizer [return]: violations, max 3"
+  - "guard.size -> apply.apply: below threshold, auto"
+  - "guard.growth -> apply.apply: approved"
+  - "guard.finance -> apply.apply: approved"
+  - "guard.growth -> propose.optimizer [return]: edit"
+  - { from: apply.apply, to: pull.google, kind: call, protocol: http, label: mutate }
+  - { from: apply.apply, to: pull.meta, kind: call, protocol: http, label: update }
+  - { from: apply.apply, to: pull.linkedin, kind: call, protocol: http, label: partial update }
+  - { from: apply.apply, to: pull.tiktok, kind: call, protocol: http, label: update }

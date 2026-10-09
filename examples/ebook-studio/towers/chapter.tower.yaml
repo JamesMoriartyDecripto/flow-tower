@@ -1,0 +1,183 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Chapter writing loop
+description: >-
+  How one isolated writer session turns a chapter brief and the author's notes into a draft the
+  author can rewrite: plan, draft section by section under the style lint, self-review against
+  the brief, check continuity against the book bible, and revise at most three times before
+  handing off (or escalating to the publishing lead).
+root: ..
+tags: [ebooks, drafting, evaluator-optimizer, style-consistency]
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Studio orchestrator
+    host: larchwood-studio-01
+    provider: hetzner
+    region: fsn1
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+
+prompts:
+  writer: { file: prompts/chapter-writer.md }
+  self-review: { file: prompts/self-review.md, description: Checklist review against the chapter brief. }
+  continuity: { file: prompts/continuity.md, description: "Terms, examples, units and plant names vs the book bible." }
+  revise: { file: prompts/revise-round.md, description: Fix listed findings only. }
+
+agents:
+  writer:
+    name: Chapter writer
+    model: claude-sonnet-5-5
+    prompt: writer
+    tools: [Read, Write, Edit]
+    runtime: orchestrator
+    harness: { permission_mode: acceptEdits, context: isolated }
+    sandbox: { network: none, filesystem: workspace }
+    data: { sensitivity: confidential }
+  reviewer:
+    name: Self-reviewer
+    model: claude-sonnet-5-5
+    prompt: self-review
+    tools: [Read]
+    runtime: orchestrator
+    sandbox: { network: none, filesystem: read-only }
+  continuity:
+    name: Continuity checker
+    model: claude-haiku-5-5
+    prompt: continuity
+    tools: [Read, Grep]
+    runtime: orchestrator
+    sandbox: { network: none, filesystem: read-only }
+
+layers:
+  - id: inputs
+    title: Chapter inputs
+    description: The writer sees only these. No web access, so no new facts without an [S#] id from the pack.
+    nodes:
+      - id: brief
+        type: entry
+        label: Chapter brief
+        description: Outline entry (reader promise, beats, word budget, figures) or a revision brief from the editors.
+        runtime: orchestrator
+        files: [samples/outline.md]
+      - id: notes
+        type: memory
+        label: Author notes
+        description: Transcribed voice memos, garden diary entries and sample pages for this chapter. The writer shapes them; it does not replace them.
+        runtime: orchestrator
+        data: { sensitivity: confidential }
+      - id: bible
+        type: memory
+        label: Bible + style
+        description: Book bible and style sheet, injected at session start and cached.
+        runtime: orchestrator
+        files: [memory/book-bible.md, memory/style-sheet.md]
+      - id: pack
+        type: memory
+        label: Source pack
+        description: The chapter's slice of the source registry.
+        runtime: orchestrator
+        files: [samples/source-registry.json]
+    edges:
+      - "brief -> notes [data]: note ids"
+
+  - id: draft
+    title: Plan & draft
+    description: Section by section, each one checked by the style lint as it is written.
+    nodes:
+      - id: plan
+        agent: writer
+        label: Section plan
+        description: Maps each beat to author notes and sources, and marks which passages must stay in the author's words.
+      - id: write
+        agent: writer
+        label: Draft sections
+        description: Drafts in the author's voice; quotes the author's notes verbatim where marked; [S#] after each factual claim.
+        files: [samples/chapter-06-excerpt.md]
+      - id: lint
+        type: hook
+        label: Vale lint
+        description: PostToolUse on Write/Edit. Errors (banned words, term swaps, number style) return to the writer.
+        runtime: orchestrator
+        files: [config/vale.ini, config/vale/Balcony/Terms.yml]
+      - id: model
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        runtime: anthropic
+    edges:
+      - "plan -> write: section plan"
+      - "write -> lint [call]: PostToolUse"
+      - "lint -> write [return]: errors"
+      - "write -> model [call]"
+
+  - id: review
+    title: Self-review & continuity
+    description: A fresh-context reviewer and a cheap continuity pass. Neither edits; both return findings.
+    nodes:
+      - id: self_review
+        agent: reviewer
+        label: Self-review
+        description: Reader promise kept, every beat covered, every claim cited, word budget ±10%, author passages untouched.
+        evals:
+          - { name: brief checklist items met, value: 0.92, target: 0.9 }
+      - id: continuity
+        agent: continuity
+        label: Continuity check
+        description: Locked terms, the recurring example balconies, botanical names, metric-first units, cross-references to other chapters.
+        evals:
+          - { name: bible conflicts found, value: 2, target: 0, higher_is_better: false }
+      - id: bible_req
+        type: output
+        label: Bible change request
+        description: New terms or facts the bible lacks go to the author as a request; the writer never edits the bible.
+        runtime: orchestrator
+    edges:
+      - "continuity -> bible_req: new term"
+
+  - id: revise
+    title: Revise or hand off
+    description: Evaluator-optimizer loop, three rounds at most.
+    nodes:
+      - id: gate
+        type: decision
+        label: Findings left?
+        description: Blocking findings from either reviewer -> revise; none -> hand off; still blocking after round 3 -> escalate.
+        runtime: orchestrator
+        limits: { max_iterations: 3 }
+      - id: revise_round
+        agent: writer
+        label: Revise
+        prompt: revise
+        description: Fixes listed findings only; untouched sections stay as approved.
+      - id: handoff
+        type: output
+        label: Draft to author
+        description: Chapter draft plus a provenance entry per section, ready for the author's rewrite.
+        runtime: orchestrator
+        files: [memory/provenance.json]
+      - id: escalate
+        type: output
+        label: Escalate to lead
+        description: "The publishing lead decides: re-brief, ask the author for more notes, or hand the chapter to the author to write."
+        runtime: orchestrator
+    edges:
+      - "gate -> revise_round: blocking"
+      - "gate -> handoff: clean"
+      - "gate -> escalate: round 3 failed"
+
+links:
+  - "inputs.brief -> draft.plan: beats"
+  - "inputs.notes -> draft.plan [data]: author material"
+  - "inputs.bible -> draft.write [data]: voice + terms"
+  - "inputs.pack -> draft.write [data]: [S#] sources"
+  - "draft.write -> review.self_review: chapter.md"
+  - "draft.write -> review.continuity: chapter.md"
+  - "inputs.bible -> review.continuity [data]: locked terms"
+  - "review.self_review -> revise.gate [data]: findings"
+  - "review.continuity -> revise.gate [data]: conflicts"
+  - "revise.revise_round -> draft.write [return]: round N"

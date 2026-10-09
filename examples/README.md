@@ -32,6 +32,10 @@ Every example is a real, validated tower: each prompt, script, config and log it
 | [`legal-diligence`](legal-diligence) | 5 | Per-document fan-out, approvals at every step, confidential EU-resident data |
 | [`jev-agent`](jev-agent) | 5 | Decision-model harness: typed decisions with thresholds, LLM only where text is needed, code enforces |
 | [`social-studio`](social-studio) | 6 | Social media operations: per-platform fan-out and API quotas, approval gates, comment/DM triage, weekly loop |
+| [`ai-video-studio`](ai-video-studio) | 7 | Async media generation: per-shot sub-tower, render jobs with polling / webhooks, per-shot budgets that downgrade, consent and C2PA labelling |
+| [`ebook-studio`](ebook-studio) | 7 | Publishing pipeline: per-chapter writing sub-tower with continuity checks, editorial approvals, EPUB build and validation, store AI-disclosure rules |
+| [`mobile-studio`](mobile-studio) | 8 | Mobile release engineering: iOS and Android sub-towers, device matrix, store review waits, phased rollout with crash-rate guard, OTA updates |
+| [`marketing-studio`](marketing-studio) | 8 | Spend-controlled marketing: paid-media optimization sub-tower with spend guard and approval thresholds, lifecycle email, lead scoring, measurement loop |
 
 ## Rules every example follows
 

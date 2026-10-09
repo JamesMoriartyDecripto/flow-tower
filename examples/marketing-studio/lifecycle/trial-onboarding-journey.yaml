@@ -1,0 +1,65 @@
+# Trial onboarding journey (Customer.io, EU workspace). Drafted by the Lifecycle agent,
+# approved by the lifecycle owner 2026-10-02, activated in the UI (agent has no write:live scope).
+journey: trial-onboarding-v3
+version: 3
+previous: trial-onboarding-v2
+trigger: { event: trial_started }
+exit_when: [subscription_started, trial_expired_plus_14d, unsubscribed_all]
+activation_goal: { event: invoice_posted, within: 7d }
+frequency_cap: { marketing_emails: 3, per: 7d }        # across all journeys
+
+suppress: [unsubscribed_all, hard_bounced, spam_complaint, customer, deal_stage_contract_sent]
+
+steps:
+  - id: welcome
+    type: email
+    kind: transactional                 # account setup, no promotion, sent to every trial user
+    delay: 0m
+    subject: "Your Tallymoor trial: connect your ERP"
+    goal: erp_connected
+  - id: wait_erp
+    type: wait_until
+    event: erp_connected
+    timeout: 2d
+  - id: erp_help
+    type: branch
+    if_not: erp_connected
+    then:
+      - { type: email, kind: transactional, subject: "Stuck on the SAP connector? 3 common fixes", goal: erp_connected }
+      - { type: crm_task, owner: assigned_sdr, note: "Trial not connected after 48h", sla: 1d }
+  - id: first_invoice
+    type: email
+    kind: marketing                     # requires marketing_consent = true
+    delay: 3d
+    subject: "Forward one invoice, watch it post"
+    goal: invoice_posted
+  - id: approvals
+    type: email
+    kind: marketing
+    when: { event: invoice_posted }
+    subject: "Add an approver in 2 minutes"
+    goal: approval_flow_created
+  - id: team
+    type: email
+    kind: marketing
+    delay: 5d
+    when_not: { event: teammate_invited }
+    subject: "Trials with 3+ teammates convert more often"    # claim pending: internal data, no number shown
+    goal: teammate_invited
+  - id: last_call
+    type: email
+    kind: marketing
+    delay: 12d
+    subject: "Your trial ends in 2 days"
+    goal: subscription_started
+
+compliance:
+  headers: [List-Unsubscribe, "List-Unsubscribe-Post: List-Unsubscribe=One-Click"]
+  footer: [legal_entity, postal_address, unsubscribe_link, preference_centre_link]
+  consent_field: marketing_consent
+  opt_out_processing: 2d                # internal SLA; CAN-SPAM requires within 10 business days
+
+metrics:                                # illustrative
+  activation_7d: { value: 0.46, target: 0.5 }
+  trial_to_paid: { value: 0.118, target: 0.12 }
+  unsubscribe_rate_per_send: { value: 0.0021, target: 0.003, higher_is_better: false }

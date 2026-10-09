@@ -1,0 +1,35 @@
+{
+  "book": "the-balcony-harvest",
+  "schema": "one entry per chapter section; origin = author | ai-draft | ai-draft-rewritten; share = fraction of the section's final words",
+  "updated": "2026-09-22",
+  "chapters": [
+    {
+      "chapter": 6,
+      "title": "Wind Is the Weather",
+      "words_final": 4512,
+      "sections": [
+        { "id": "6.1", "origin": "author", "share": 1.0, "note": "Storm story from diary-2020-05, author's words kept verbatim" },
+        { "id": "6.2", "origin": "ai-draft-rewritten", "share": 0.71, "model": "claude-sonnet-5-5", "rewrite_by": "author", "rewritten_share": 0.64 },
+        { "id": "6.3", "origin": "ai-draft-rewritten", "share": 0.58, "model": "claude-sonnet-5-5", "rewrite_by": "author", "rewritten_share": 0.77 },
+        { "id": "6.4", "origin": "ai-draft-rewritten", "share": 0.80, "model": "claude-sonnet-5-5", "rewrite_by": "author", "rewritten_share": 0.52 },
+        { "id": "6.5", "origin": "author", "share": 1.0 },
+        { "id": "6.6", "origin": "ai-draft", "share": 0.12, "model": "claude-sonnet-5-5", "note": "crop list kept with light edits" },
+        { "id": "6.7", "origin": "author", "share": 1.0 }
+      ],
+      "images": [
+        { "id": "fig-6-1", "origin": "human", "tool": "SVG from data (build script)" },
+        { "id": "fig-6-2", "origin": "human", "tool": "SVG from data (build script)" },
+        { "id": "fig-6-3", "origin": "human", "tool": "author photo" }
+      ],
+      "editing_passes": ["dev-edit:claude-opus-5-5", "line-edit:claude-sonnet-5-5", "copyedit:claude-sonnet-5-5", "author-review"]
+    }
+  ],
+  "book_totals": {
+    "sections": 84,
+    "author_only": 31,
+    "ai_draft_rewritten": 47,
+    "ai_draft_light_edit": 6,
+    "ai_generated_images": 0,
+    "ai_translation": false
+  }
+}

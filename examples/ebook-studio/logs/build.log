@@ -1,0 +1,33 @@
+2026-10-02T09:14:03Z build v1.0.0-rc.1 pandoc=3.12 ace=1.4.6
+2026-10-02T09:14:03Z ::group::EPUB 3 (Pandoc)
+2026-10-02T09:14:11Z [WARNING] Could not fetch resource art/fig-9-2.svg: replacing image with description
+2026-10-02T09:14:12Z ::group::Conformance metadata (EPUB Accessibility 1.1, 3.5)
+2026-10-02T09:14:12Z ::group::EPUBCheck
+2026-10-02T09:14:19Z ERROR(RSC-007): the-balcony-harvest.epub/EPUB/text/ch011.xhtml(41,58): Referenced resource "EPUB/media/fig-9-2.svg" could not be found in the EPUB.
+2026-10-02T09:14:19Z WARNING(RSC-017): the-balcony-harvest.epub/EPUB/text/ch008.xhtml(112,31): Duplicate "id" attribute value "sec-6-4" (copied cross-reference anchor).
+2026-10-02T09:14:19Z Check finished with errors: 1 error, 1 warning
+2026-10-02T09:14:19Z ::error::EPUBCheck failed, see out/reports/epubcheck.json
+2026-10-02T09:14:19Z exit 1 -> routed to production lead: missing figure fig-9-2, duplicate anchor in chapter 6 copy
+2026-10-03T15:40:27Z build v1.0.0-rc.2 pandoc=3.12 ace=1.4.6
+2026-10-03T15:40:36Z ::group::EPUBCheck
+2026-10-03T15:40:43Z No errors or warnings detected.
+2026-10-03T15:40:43Z ::group::Ace by DAISY
+2026-10-03T15:41:20Z ace serious+critical=3 moderate=2
+2026-10-03T15:41:20Z   serious  color-contrast       ch011.xhtml  fig-9-2 caption text on pale green box (2.9:1)
+2026-10-03T15:41:20Z   serious  image-alt            ch004.xhtml  fig-3-3 alt="" on an informative photo
+2026-10-03T15:41:20Z   serious  image-alt            ch009.xhtml  fig-8-2 alt="" on an informative chart
+2026-10-03T15:41:20Z ::error::Ace found 3 serious/critical violations
+2026-10-03T15:41:20Z exit 1 -> fig-3-3 and fig-8-2 back to the alt-text writer; caption style fixed in epub.css
+2026-10-06T10:02:51Z build v1.0.0-rc.3 pandoc=3.12 ace=1.4.6
+2026-10-06T10:02:59Z ::group::EPUBCheck
+2026-10-06T10:03:06Z No errors or warnings detected.
+2026-10-06T10:03:06Z ::group::Ace by DAISY
+2026-10-06T10:03:44Z ace serious+critical=0 moderate=2
+2026-10-06T10:03:44Z ::group::Print PDF (Typst, 6 x 9 in)
+2026-10-06T10:04:02Z 7f3c0e61d2a4b9e8...  out/the-balcony-harvest.epub
+2026-10-06T10:04:02Z 2b91d5c07a3e4f16...  out/the-balcony-harvest-6x9.pdf
+2026-10-06T10:04:02Z done v1.0.0-rc.3 epub=4MB severe=0 moderate=2
+2026-10-06T14:30:10Z proofs: Kindle Previewer 4 (e-ink, tablet, phone), Apple Books (iPad), Kobo app -> 6 proof notes
+2026-10-08T11:12:45Z proof_ok round 2 approved by author + managing editor; tag v1.0.0 = rc.3 + proof fixes
+2026-10-08T11:20:03Z build v1.0.0 pandoc=3.12 ace=1.4.6
+2026-10-08T11:20:49Z done v1.0.0 epub=4MB severe=0 moderate=2
