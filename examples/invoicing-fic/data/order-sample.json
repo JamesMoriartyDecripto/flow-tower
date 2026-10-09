@@ -1,0 +1,68 @@
+{
+  "_comment": "Fictional orders. VAT numbers, codes, IBANs and names are placeholders, not real taxpayers.",
+  "orders": [
+    {
+      "idempotency_key": "crm:deal-48213:m1",
+      "source": "won",
+      "reference": "Ordine 2026-0412 – Linea di monitoraggio vibrazioni",
+      "effettuazione_date": "2026-10-06",
+      "series": "main",
+      "payment_terms": "BB30FM",
+      "client": {
+        "legal_name": "Officine Valdoria S.p.A.",
+        "vat_number": "00000000000",
+        "tax_code": "00000000000",
+        "sdi_code": "AAAAAAA",
+        "pec": null,
+        "address": { "street": "Via dei Telai 14", "postal_code": "40100", "city": "Bologna", "province": "BO", "country": "Italia", "country_iso": "IT" },
+        "is_pa": false
+      },
+      "lines": [
+        { "sku": "VS-200", "name": "Sensore vibrazioni VS-200", "qty": 24, "unit": "pz", "unit_price_net": 310.0, "discount_pct": 5, "vat_case_hint": "domestic goods" },
+        { "sku": "GW-10", "name": "Gateway LoRaWAN GW-10", "qty": 2, "unit": "pz", "unit_price_net": 890.0, "discount_pct": 0, "vat_case_hint": "domestic goods" },
+        { "sku": "INST-D", "name": "Installazione e collaudo", "qty": 3, "unit": "gg", "unit_price_net": 680.0, "discount_pct": 0, "vat_case_hint": "domestic service" }
+      ],
+      "expected_amount_gross": 13283.36
+    },
+    {
+      "idempotency_key": "contract:C-0091:2026-10",
+      "source": "recurring",
+      "reference": "Canone monitoraggio – ottobre 2026",
+      "effettuazione_date": "2026-10-01",
+      "series": "main",
+      "payment_terms": "ADV",
+      "client": {
+        "legal_name": "Comune di Valdoria",
+        "tax_code": "00000000001",
+        "pa_code": "UFZZ99",
+        "address": { "street": "Piazza Grande 1", "postal_code": "40000", "city": "Valdoria", "province": "BO", "country": "Italia", "country_iso": "IT" },
+        "is_pa": true,
+        "split_payment": true
+      },
+      "pa": { "cig": "Z000000000", "cup": null, "purchase_order_number": "DET-118/2026", "purchase_order_date": "2026-01-20" },
+      "lines": [
+        { "sku": "SAAS-M", "name": "Canone piattaforma monitoraggio", "qty": 1, "unit": "mese", "unit_price_net": 1450.0, "discount_pct": 0, "vat_case_hint": "client is a PA" }
+      ]
+    },
+    {
+      "idempotency_key": "crm:deal-48377:full",
+      "source": "won",
+      "reference": "Order 2026-0420 – Pilot kit",
+      "effettuazione_date": "2026-10-07",
+      "series": "main",
+      "payment_terms": "BB60",
+      "client": {
+        "legal_name": "Nordwind Sensorik GmbH",
+        "vat_number": "DE000000000",
+        "sdi_code": "XXXXXXX",
+        "address": { "street": "Hafenstrasse 3", "postal_code": "20000", "city": "Hamburg", "province": "EE", "country": "Germania", "country_iso": "DE" },
+        "is_pa": false
+      },
+      "lines": [
+        { "sku": "VS-200", "name": "Sensore vibrazioni VS-200", "qty": 10, "unit": "pz", "unit_price_net": 310.0, "discount_pct": 0, "vat_case_hint": "goods shipped to Germany" },
+        { "sku": "ONB-R", "name": "Remote onboarding", "qty": 1, "unit": "srv", "unit_price_net": 900.0, "discount_pct": 0, "vat_case_hint": "service to a German company" }
+      ],
+      "_note": "N3.2 goods + N2.1 service: 900 EUR on N2.1 > 77.47, so the fiscal guard adds the 2 EUR bollo."
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+# Rate card and quote rules. The quote builder computes prices from these values only;
+# no model output is ever a price. Amounts in EUR, VAT excluded (22 % added on the invoice).
+version: 2026-09-15
+currency: EUR
+
+rate_card_per_day:
+  principal: 1150
+  senior_consultant: 880
+  consultant: 690
+  analyst: 540
+
+packages:
+  data_platform_starter:
+    min_price: 28000
+    includes: [ERP extraction, MES extraction, warehouse setup, 5 dashboards, 2 training sessions]
+    estimate_range_days: [34, 55]
+  integration_sprint:
+    min_price: 9500
+    estimate_range_days: [12, 20]
+  data_ops_retainer:
+    monthly: { small: 3200, medium: 4500, large: 5800 }
+    minimum_months: 3
+
+contingency:
+  fixed_price: 0.15          # added on the estimate for fixed-price work
+  time_and_materials: 0.0
+
+margin_floor:
+  gross_margin_min: 0.38     # below this the quote needs the CEO, whatever the discount
+  cost_per_day: { principal: 610, senior_consultant: 470, consultant: 360, analyst: 280 }
+
+payment_schedule:
+  fixed_price_default: [{ at: signature, share: 0.30 }, { at: go_live, share: 0.40 }, { at: acceptance, share: 0.30 }]
+  retainer: monthly in advance
+  terms_days_default: 30     # bank transfer, from invoice date
+  terms_days_max_without_approval: 30
+
+validity_days: 30
+travel: "Included within Emilia-Romagna and Lombardy; elsewhere at cost, max 5 % of fees."
+
+rounding: nearest 100 EUR on each work package

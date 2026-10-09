@@ -1,0 +1,193 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: SDI send & monitor loop
+description: >-
+  What happens to one issued document (invoice or TD04 credit note) between creation and a final
+  SDI outcome. Fatture in Cloud checks the XML, a dry run exercises every pre-send check, the real
+  send hands the file to the SDI, and the outcome comes back as ei_status. A scarto means the invoice
+  was never issued: the reason is read, a fix is proposed, a person approves anything fiscal, and
+  the corrected document is resent with the same number and date within five days of the rejection
+  notice (circolare 13/E/2018). If that is impossible, the accountant issues it in a separate
+  sezionale (for example 12/R).
+root: ..
+tags: [sdi, fatturapa, fatture-in-cloud, e-invoicing, scarto, human-in-the-loop]
+
+runtimes:
+  workers:
+    kind: container
+    label: Finance agents
+    provider: google-cloud-run
+    region: europe-west8
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  fic:
+    kind: saas
+    label: Fatture in Cloud
+    description: IssuedEInvoicesApi and IssuedDocumentsApi (API v2). Shared limit of 300 requests every 5 minutes per company.
+    provider: teamsystem
+    url: https://developers.fattureincloud.it
+  sdi:
+    kind: saas
+    label: SDI
+    provider: agenzia-entrate
+    url: https://www.fatturapa.gov.it
+  slack:
+    kind: saas
+    label: Slack
+    provider: slack
+
+agents:
+  fixer:
+    name: Scarto fixer
+    description: Reads the rejection reason and the document, looks the SDI error code up in rules/sdi-outcomes.md and proposes a minimal patch. It cannot send.
+    model: claude-sonnet-5-5
+    prompt: { file: prompts/scarto-fixer.md }
+    runtime: workers
+    tools: [fic_get_issued_document, fic_get_e_invoice_rejection_reason, fic_get_client, read_rules]
+    harness: { max_turns: 10, output: json_schema }
+    budget: { usd: 0.25, turns: 10, on_exceed: stop }
+    limits: { timeout: 10m, max_iterations: 3 }
+    sandbox: { network: allowlist, allow: [api-v2.fattureincloud.it], filesystem: read-only }
+    credentials: service
+    data: { sensitivity: pii, region: eu, retention: 3650d }
+    evals:
+      - { name: proposed patch accepted as-is (%), value: 84, target: 80 }
+      - { name: second scarto after fix (%), value: 3, target: 5, higher_is_better: false }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: send
+    title: Pre-flight & Send
+    description: Two checks before anything leaves. A failed verify costs one request; a scarto costs a day.
+    nodes:
+      - id: start
+        type: entry
+        label: Document id
+        runtime: workers
+        description: From approve.create (invoice) or collect.credit_note (TD04) in the main tower.
+        trigger: { kind: queue, source: issued-documents queue }
+      - id: verify
+        type: tool
+        label: Verify XML
+        runtime: fic
+        description: "GET /c/{company_id}/issued_documents/{document_id}/e_invoice/xml_verify. A non-empty validation_result goes straight to the fixer."
+        files: [scripts/send_and_poll.py]
+        limits: { timeout: 30s, retries: 3, backoff: "exponential 2s..60s" }
+      - id: dry_run
+        type: tool
+        label: Dry run
+        runtime: fic
+        description: send_e_invoice with options.dry_run true runs every check without dispatching.
+        files: [scripts/send_and_poll.py]
+      - id: send
+        type: tool
+        label: Send to SDI
+        runtime: fic
+        description: "POST /c/{company_id}/issued_documents/{document_id}/e_invoice/send. One send per document id; a retry after a timeout first reads ei_status."
+        files: [scripts/send_and_poll.py, config/oauth-scopes.yaml]
+        limits: { timeout: 60s, retries: 1, concurrency: 2 }
+        credentials: service
+        data: { sensitivity: pii, region: eu, retention: 3650d }
+      - id: attempt
+        type: decision
+        label: Still attempt?
+        runtime: workers
+        description: "ei_status attempt: Fatture in Cloud is still trying; documented wait is up to 2 hours before acting."
+        limits: { timeout: 2h }
+    edges:
+      - start -> verify
+      - "verify -> dry_run: valid"
+      - "dry_run -> send: ok"
+      - { from: send, to: attempt, kind: flow, protocol: http, label: queued }
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: watch
+    title: Outcome
+    description: "The SDI can take from minutes up to 5 days under heavy load. Webhook first, sweep as fallback."
+    nodes:
+      - id: status
+        type: tool
+        label: Read ei_status
+        runtime: fic
+        description: get_issued_document with fields=ei_status (the field is not returned without fields or the detailed fieldset).
+        files: [scripts/send_and_poll.py]
+      - id: outcome
+        type: decision
+        label: Outcome?
+        runtime: workers
+        description: Mapping in rules/sdi-outcomes.md.
+        files: [rules/sdi-outcomes.md]
+        resources:
+          - { kind: log, label: SDI notifications, path: logs/sdi-notifications.log }
+      - id: done
+        type: output
+        label: Final status
+        runtime: workers
+        description: "sent / accepted / not_delivered (issued) or no_response for PA. Returned to sdi.outcome in the main tower."
+    edges:
+      - status -> outcome
+      - "outcome -> done: issued"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: fix
+    title: Scarto Fix Loop
+    description: Same number, same date, within five days of the rejection notice. Master-data fixes are routine; fiscal fixes need the controller.
+    nodes:
+      - id: reason
+        type: tool
+        label: Rejection reason
+        runtime: fic
+        description: GET .../e_invoice/error_reason returns reason, code and date. The date starts the 5-day clock.
+        files: [scripts/send_and_poll.py]
+      - id: fixer
+        agent: fixer
+        label: Scarto fixer
+      - id: kind
+        type: decision
+        label: Fix type?
+        runtime: workers
+        description: "master_data (codice destinatario, PEC, address, CF) or fiscal (VAT, natura, totals, ritenuta, bollo, dates)."
+        files: [rules/sdi-outcomes.md]
+      - id: controller
+        type: human
+        label: Finance controller
+        runtime: slack
+        description: Approves fiscal patches. Timeout escalates to the CFO in the main tower.
+        approval: { by: finance controller, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: escalate }
+      - id: modify
+        type: tool
+        label: Patch document
+        runtime: fic
+        description: modify_issued_document keeping number, numeration and date; client fixes also go to modify_client.
+        credentials: service
+      - id: clock
+        type: guard
+        label: 5-day clock
+        runtime: workers
+        description: "Days since the scarto date and resend count. Max 3 resends; at day 4 or on a third scarto the loop stops and pages the accountant."
+        limits: { max_iterations: 3 }
+        sla: 5d
+      - id: accountant
+        type: human
+        label: Commercialista
+        runtime: slack
+        description: Decides on a new number in a separate sezionale (e.g. 12/R) linked to the rejected one, as circolare 13/E/2018 allows.
+        approval: { by: external accountant, via: Slack shared channel, actions: [approve, respond], timeout: 24h, on_timeout: escalate }
+    edges:
+      - "reason -> fixer: code + reason"
+      - "fixer -> kind: patch proposal"
+      - "kind -> modify: master_data"
+      - "kind -> controller: fiscal"
+      - "controller -> modify: approved"
+      - modify -> clock
+      - "clock -> accountant [handoff]: day 4 or 3rd scarto"
+
+links:
+  - "send.attempt -> watch.status: left attempt (or 2h passed)"
+  - "send.verify -> fix.fixer: validation_result"
+  - "watch.outcome -> fix.reason: discarded, or rejected by a PA"
+  - "fix.clock -> send.verify [return]: resend same number and date"
+  - "fix.accountant -> watch.done: renumbered or closed"

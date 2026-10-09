@@ -1,0 +1,51 @@
+# Approval policy for issuing, correcting and cancelling revenue (approve.route, collect.*).
+# Thresholds are illustrative for a ~6 M EUR revenue company; finance owns them.
+# Principle: the agents prepare, code checks, a named person signs anything irreversible.
+
+auto_issue:                         # the only path without a person
+  allowed_when:
+    - source == recurring
+    - amount_eur_gross < 5000
+    - amount equals last month's invoice for the same contract
+    - fiscal warnings == 0
+    - client invoiced successfully at least 3 times before
+    - client is not a public administration
+  never_for: [first_invoice_to_client, credit_note, manual_request, pa_client, eu_or_foreign_client]
+
+invoice:
+  controller:
+    when: "amount_eur_gross >= 5000 or any never_for case or warnings > 0 or order_mismatch"
+    via: Slack #fin-approvals
+    actions: [approve, edit, reject]
+    timeout: 24h
+    on_timeout: escalate            # to the CFO; the 12-day clock keeps running
+  cfo:
+    when: "amount_eur_gross >= 50000 or controller timeout"
+    timeout: 48h
+    on_timeout: wait                # never auto-approve; the digest lists waiting items
+
+credit_note:                        # TD04, always human
+  controller: always
+  cfo: "amount_eur_gross > 2000 or reason in [commercial_discount, goodwill]"
+  required: [original_number, original_date, reason_code, evidence_link]
+  reason_codes: [pricing_error, returned_goods, service_not_delivered, pa_rejection, goodwill]
+
+write_off:                          # bad debt, no credit note issued by us
+  cfo: always
+  commercialista_advice: "amount_eur_gross > 10000"   # tax deductibility of losses
+  preconditions: [dunning_completed, credit_manager_recommendation]
+
+payment_plan:
+  credit_manager: "up to 3 instalments, max 90 days"
+  cfo: "longer or larger than 25000 EUR outstanding"
+
+brief_contents:                     # what approve.reviewer must show
+  - client, amount, VAT treatment, due date, payment terms
+  - difference vs CRM order (if any)
+  - rule warnings with the rule id
+  - client's last 6 invoices and average days late
+  - for credit notes: the original invoice and the reason evidence
+
+segregation_of_duties:
+  - the person who requested a manual invoice cannot approve it
+  - the AR clerk who matched a payment cannot approve the related write-off

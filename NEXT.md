@@ -1,6 +1,6 @@
 # Next session: handoff
 
-Status on 2026-10-09 (evening): everything through PR #32 is merged into `main` (live UX, on-demand rendering, map view, settings, keyboard navigation, operational schema fields, HUD-aware camera, 4 starters and 15+ researched presets). Work in progress: branch `feat/social-preset` (social, AI video, ebook, mobile app and marketing presets; docs refresh for context engineering).
+Status on 2026-10-09 (evening): everything through PR #32 is merged into `main` (live UX, on-demand rendering, map view, settings, keyboard navigation, operational schema fields, HUD-aware camera, 4 starters and 15 researched presets). Open: PR #33 (social, AI video, ebook, mobile app and marketing presets; docs for context engineering; HUD corner fix). Then `feat/sales-invoicing`, stacked on #33: sales pipeline and Fatture in Cloud presets, demo GIF and screenshots. Next: first release, bug sweep, public repo with a static demo on GitHub Pages.
 
 Source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**. Where code lives: [docs/architecture.md](docs/architecture.md).
 

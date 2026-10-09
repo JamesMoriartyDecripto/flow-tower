@@ -1,0 +1,33 @@
+2026-10-05T06:00:02+02:00 INFO  run=pr-20261005 trigger=cron schedule="0 6 * * 1" tz=Europe/Rome
+2026-10-05T06:00:04+02:00 INFO  pull source=atoka segment=IT-MFG-EMR accounts=212 lookups_free=212 detail_credits=0
+2026-10-05T06:00:09+02:00 INFO  pull source=apollo transport=mcp segment=FR-MFG accounts=64 people_search=118 credits=0
+2026-10-05T06:00:10+02:00 INFO  pull source=events list=ttf-bologna-2026 contacts=37 consent_records=37
+2026-10-05T06:00:12+02:00 INFO  dedupe in=367 kept=241 dropped={"suppressed":9,"personal":6,"crm":71,"open_deal":28,"dup":12}
+2026-10-05T06:00:14+02:00 INFO  basis IT cold contacts=143 channels=[call,linkedin_manual] email=false reason="art.130 consent required"
+2026-10-05T06:00:14+02:00 INFO  basis IT consented contacts=37 channels=[email,call] basis=consent
+2026-10-05T06:00:14+02:00 INFO  basis FR contacts=58 channels=[email,linkedin_manual,call] basis="legitimate interest, role-relevant"
+2026-10-05T06:00:14+02:00 WARN  basis FR contacts=3 allowed=false reason="role not in persona list"
+2026-10-05T06:00:15+02:00 WARN  basis IT contacts=11 phone=withheld reason="RPO check older than 30 days" action=rpo_recheck_queued
+2026-10-05T06:01:02+02:00 INFO  enrich provider=apollo tier=A/B people=58 credits_used=58 budget_month_usd=118/400
+2026-10-05T06:03:40+02:00 INFO  score model=claude-haiku-5-5 prospects=238 tierA=44 tierB=71 tierC=123 usd=1.94
+2026-10-05T06:03:41+02:00 INFO  enrol sequence=fr-mfg-email-v3 prospects=19 variants={"v3-pain-led":10,"v2-case-study":9}
+2026-10-05T06:03:41+02:00 INFO  enrol sequence=it-mfg-call-led-v3 prospects=25 tasks_created=25
+2026-10-05T06:04:55+02:00 INFO  personalizer model=claude-sonnet-5-5 drafts=19 usd=0.61
+2026-10-05T06:04:56+02:00 WARN  evidence prospect=fr-0417 slot=personal_line reason="claim not supported by source" claim="ouvert une usine à Lyon" cite=ev-3 action=use_default
+2026-10-05T06:04:56+02:00 WARN  evidence prospect=fr-0433 slot=relevance reason="number without citation" text="... 40 % de temps gagné ..." action=use_default
+2026-10-05T06:04:57+02:00 INFO  compliance drafts=19 suppression_recheck=ok footer=ok list_unsubscribe=ok
+2026-10-05T06:04:57+02:00 INFO  review required=false reason="sequence approved 2026-09-22; sample 5 %" sampled=1 -> slack #deal-desk
+2026-10-05T08:30:01+02:00 INFO  send_guard mbx-1 allow_new=30 mbx-2 allow_new=30 mbx-3 allow_new=0 status=paused reason="complaint rate at or above limit"
+2026-10-05T08:30:01+02:00 INFO  send_guard mbx-4 allow_new=30 mbx-5 allow_new=10 status=warming mbx-6 allow_new=10 status=warming domain_allow=110
+2026-10-05T08:30:03+02:00 INFO  instantly POST /api/v2/leads campaign=fr-mfg-email-v3 added=19 status=200
+2026-10-05T10:12:44+02:00 INFO  webhook source=instantly event=reply_received lead=fr-0402
+2026-10-05T10:12:46+02:00 INFO  triage model=claude-haiku-5-5 label=interested confidence=0.93 quote="Oui, envoyez-moi le schéma, et on peut s'appeler jeudi"
+2026-10-05T10:12:47+02:00 INFO  route interested -> owner=Marc deal=created stage="Meeting requested" sla=4h
+2026-10-05T10:41:09+02:00 INFO  webhook source=instantly event=reply_received lead=fr-0388
+2026-10-05T10:41:10+02:00 INFO  triage label=unsubscribe confidence=0.88 quote="Merci de me retirer de vos listes. Où avez-vous eu mon adresse ?"
+2026-10-05T10:41:11+02:00 INFO  suppress lead=fr-0388 instantly=ok hubspot=ok sequence=stopped data_source_question=task(rep,30d)
+2026-10-05T11:05:30+02:00 INFO  webhook source=instantly event=lead_out_of_office lead=fr-0419
+2026-10-05T11:05:31+02:00 INFO  triage label=out_of_office return_date=2026-10-19 action=pause_until=2026-10-21
+2026-10-05T11:20:02+02:00 INFO  marc.owner booked via calendly event=invitee.created lead=fr-0402 meeting=2026-10-08T10:00+02:00
+2026-10-05T15:47:19+02:00 INFO  call_outcome rep=Giulia lead=it-1192 result=asked_for_email consent_recorded=true text_version=call-consent-v2
+2026-10-05T15:47:20+02:00 INFO  sequence it-1192 step=3 channel=email unlocked basis=consent

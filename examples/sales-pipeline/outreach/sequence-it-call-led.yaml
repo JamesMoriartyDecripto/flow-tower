@@ -1,0 +1,51 @@
+# IT manufacturing, cold contacts. Email is NOT a cold channel in Italy (art. 130 Codice privacy):
+# first touches are calls to RPO-checked business numbers and manual LinkedIn messages.
+# Email starts only after the person asks for information or gives consent on the call.
+id: it-mfg-call-led-v3
+language: it
+sender: { name: "{{rep_name}}", reply_to: "{{rep_email}}" }
+
+steps:
+  - n: 1
+    channel: call
+    day: 0
+    precondition: number_checked_against_rpo_within_30_days
+    script: |
+      Buongiorno, sono {{rep_name}} di Ferrovento, Bologna. Chiamo perché lavoriamo con aziende
+      metalmeccaniche come {{company}} sul collegamento tra gestionale e dati di produzione.
+      {{relevance | default: "Molte ci chiamano quando la chiusura mensile richiede troppe giornate."}}
+      È un tema per voi? Se preferisce, le mando una scheda di una pagina via email: posso?
+    on_yes_to_email: record consent (text, date, rep) in HubSpot, then step 3
+    on_no: mark "not interested", stop; on "non chiamate più": suppress
+    info_notice: "Say where the number comes from (Atoka / registro imprese) and offer the privacy notice."
+  - n: 2
+    channel: linkedin_manual
+    day: 2
+    task: "Connection note written by you, max 300 characters, no link, no pitch deck. No automation tools."
+  - n: 3
+    channel: email
+    day: after_consent
+    subject: "Scheda Ferrovento: dati di fabbrica e gestionale"
+    body: |
+      Buongiorno {{first_name}},
+
+      come d'accordo al telefono, le invio la scheda (1 pagina) sul nostro progetto a prezzo fisso
+      "Data Platform Starter": 8-10 settimane, gestionale + MES in un unico data warehouse.
+
+      {{personal_line | default: ""}}
+      Se ha senso, possiamo sentirci 30 minuti: {{booking_link}}
+
+      {{rep_name}}
+  - n: 4
+    channel: call
+    day: 7
+    task: "Follow-up call if no reply; 2 attempts max, then stop."
+
+footer: |
+  {{rep_name}} · Ferrovento S.r.l. · Via dell'Esempio 12, 40121 Bologna · P.IVA 00000000000
+  Riceve questa email perché ce l'ha chiesta il {{consent_date}}. Per non ricevere più messaggi:
+  {{unsubscribe_url}} · Informativa privacy: {{privacy_url}}
+
+rules:
+  - Never email an IT contact without consent_record or existing-customer status.
+  - Max 2 call attempts per step; never call outside 9:00-18:00 on business days.

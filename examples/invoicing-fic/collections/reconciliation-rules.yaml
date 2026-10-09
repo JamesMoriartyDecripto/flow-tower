@@ -1,0 +1,44 @@
+# Bank reconciliation rules (collect.match, scripts/reconcile.py).
+# Deterministic passes in order; the first unique hit wins. Anything ambiguous goes to the
+# remittance reader (Haiku), then to the AR clerk. Nothing is marked paid on a guess.
+
+inputs:
+  bank: booked credit transactions (id, booking_date, amount, currency, debtor_name, debtor_iban, remittance_info)
+  open_items: payments_list instalments with status not_paid (invoice id, number, year, due_date, amount, client vat_number)
+
+normalize:
+  remittance_info: [uppercase, strip_punctuation, collapse_spaces]
+  invoice_number_patterns:
+    - "FATT(?:URA)?\\s*N?\\.?\\s*(\\d{1,6})(?:/(\\d{4}))?"
+    - "FT\\s*(\\d{1,6})"
+    - "INV\\s*(\\d{1,6})"
+  amount_tolerance_eur: 0.01
+
+passes:
+  - id: number_and_amount
+    when: "invoice number found in remittance AND amount == open_item.amount"
+    confidence: 1.0
+  - id: iban_and_amount
+    when: "debtor_iban known for client AND exactly one open item with that amount"
+    confidence: 0.97
+  - id: split_payment_net
+    when: "client is PA AND amount == imponibile (VAT paid to the Treasury by the PA)"
+    confidence: 0.95
+  - id: sum_of_items
+    when: "amount == sum of 2..4 open items of the same client, numbers found in remittance"
+    confidence: 0.95
+  - id: bank_fee_short
+    when: "amount within 15 EUR below open item AND foreign transfer"
+    confidence: 0.85            # below auto threshold: needs the agent or AR
+
+auto_mark_paid_threshold: 0.9
+
+never_auto:
+  - transactions over 50000 EUR
+  - refunds or negative amounts
+  - payer different from the invoiced client (factoring, parent company)
+  - currency other than EUR
+
+writes:
+  fic: "modify_issued_document: payments_list[n].status=paid, paid_date=booking_date, payment_account.id=<account>"
+  ledger: "match row with pass id, confidence, matched_by (rule | agent | person)"

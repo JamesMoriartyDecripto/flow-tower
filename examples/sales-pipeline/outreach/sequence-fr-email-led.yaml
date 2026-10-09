@@ -1,0 +1,60 @@
+# FR manufacturing, email-led. Allowed only when channel-rules.yaml says FR cold email is OK
+# for this contact (role-relevant, work address). {{personal_line}} and {{relevance}} come from the
+# personalizer and must pass the evidence check; otherwise the default text is used.
+id: fr-mfg-email-v3
+language: fr
+variants:
+  v3-pain-led: { share: 0.5, angle: "month-end close and plant data" }
+  v2-case-study: { share: 0.5, angle: "case study: 6-day close at a machinery maker" }
+sender: { name: "{{rep_name}}", mailbox_pool: fr-pool, reply_to: "{{rep_email}}" }
+
+footer: |
+  {{rep_name}} · Ferrovento S.r.l. · Via dell'Esempio 12, 40121 Bologna (IT) · P.IVA 00000000000
+  Vous recevez ce message en raison de votre fonction chez {{company}}. Source : {{data_source}}.
+  Ne plus recevoir nos messages : {{unsubscribe_url}} · Vos droits : {{privacy_url}}
+
+steps:
+  - n: 1
+    channel: email
+    day: 0
+    subject: "{{company}} : données usine et clôture mensuelle"
+    body: |
+      Bonjour {{first_name}},
+
+      {{personal_line | default: "Je travaille avec des industriels de taille moyenne en France et en Italie."}}
+
+      {{relevance | default: "Souvent, les chiffres de production et ceux de l'ERP ne se parlent pas, et la clôture prend deux semaines."}}
+      Nous connectons ERP et MES dans un entrepôt de données en 8 à 10 semaines, à prix fixe.
+
+      Est-ce un sujet chez vous en ce moment ? Si ce n'est pas vous, à qui devrais-je écrire ?
+
+      {{rep_name}}
+  - n: 2
+    channel: linkedin_manual
+    day: 3
+    task: "Visit profile; connect with a note written by you (max 300 characters). No automation."
+  - n: 3
+    channel: email
+    day: 4
+    subject: "Re: {{company}} : données usine et clôture mensuelle"
+    body: |
+      {{first_name}}, un exemple concret : un fabricant de machines (220 salariés) est passé
+      d'une clôture de 14 à 6 jours ouvrés. Je peux vous envoyer le schéma d'architecture d'une page.
+      {{rep_name}}
+  - n: 4
+    channel: call
+    day: 8
+    task: "Call the switchboard; ask for {{first_name}}; 2 attempts max."
+  - n: 5
+    channel: email
+    day: 12
+    subject: "Je clos le sujet"
+    body: |
+      {{first_name}}, je ne veux pas encombrer votre boîte. Si le sujet revient, répondez simplement
+      « plus tard » et je vous recontacterai au trimestre prochain. Sinon, je m'arrête ici.
+      {{rep_name}}
+
+rules:
+  - Stop all steps on any reply, bounce, unsubscribe or meeting booked.
+  - Never claim a customer, number or award not in the proof list (case study id: cs-2025-07, anonymised).
+  - Plain text only, no tracking pixel, one link at most (unsubscribe excluded).

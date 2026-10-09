@@ -1,0 +1,41 @@
+# Passive cycle: received e-invoice -> purchase order -> goods receipt (passive.po_match).
+# Received e-invoices land in "Da registrare"; the API can read them (received_documents/pending)
+# but cannot register them, so registration is a person in the Fatture in Cloud UI.
+
+match_keys:
+  supplier: "CedentePrestatore partita IVA == supplier.vat_number in ERP"
+  po: "DatiOrdineAcquisto/IdDocumento if present, else PO number found in line descriptions"
+  receipt: "goods receipt lines for the PO, quantity and date"
+
+tolerances:
+  goods:
+    price_per_unit_pct: 2
+    quantity: "invoiced <= received"
+    total_eur: 50
+  services:
+    total_pct: 5                    # matched against the PO only
+  freight_and_small_lines_eur: 30
+
+route:
+  matched: register                 # AP registers in the UI, then payment run
+  over_tolerance: budget_owner
+  no_po: budget_owner
+  new_supplier: budget_owner        # plus IBAN verification call-back before first payment
+  duplicate_suspect: ap_lead        # same supplier, number and year already registered
+
+ritenuta_d_acconto:                 # freelancers and agents invoicing Brezza
+  detect: "DatiRitenuta present (TipoRitenuta RT01 persone fisiche / RT02 persone giuridiche)"
+  pay_supplier: "amount due net of the withheld amount"
+  remit: "F24 by the 16th of the month after payment; certificazione unica the following year"
+  owner: commercialista
+
+forfettario_suppliers:
+  detect: "RegimeFiscale RF19"
+  vat: none                         # Natura N2.2, no VAT to deduct
+  bollo: "2 EUR on invoices above 77.47 EUR, paid by the supplier"
+
+payment_run:
+  schedule: weekly, Wednesday 08:00
+  pay: "instalments due in the next 7 days, early-payment discounts if positive return"
+  method: SEPA credit transfer batch, released by the treasurer with SCA
+  blocks: [supplier IBAN changed in the last 30 days without call-back, invoice not registered]
