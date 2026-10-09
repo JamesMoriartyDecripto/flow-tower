@@ -1,3 +1,4 @@
+import { claudeCode } from './claudeCode.ts';
 import type { FlowEventInput } from './events.ts';
 
 /**
@@ -17,40 +18,6 @@ const clip = (v: unknown, n = 240) => {
 };
 /** The most telling bit of a tool input: a command, a path, a query… */
 const gist = (input: Raw) => clip(input.command ?? input.file_path ?? input.path ?? input.pattern ?? input.query ?? input.url ?? input);
-
-/** Claude Code hooks (command stdin or native `http` hooks) and Agent SDK hook callbacks. */
-const claudeCode: Adapter = (r) => {
-  const base = {
-    source: 'claude-code', session: str(r.session_id), agent: str(r.agent_type) ?? str(r.agent_id),
-    tool: str(r.tool_name), call: str(r.tool_use_id), duration_ms: num(r.duration_ms),
-  };
-  const input = obj(r.tool_input);
-  // The Agent (formerly Task) tool spawns a subagent: surface it as that subagent starting/ending.
-  const sub = base.tool === 'Task' || base.tool === 'Agent' ? str(input.subagent_type) : undefined;
-  switch (r.hook_event_name) {
-    case 'SessionStart': return [{ ...base, kind: 'session.start', model: str(r.model), message: str(r.source) }];
-    case 'SessionEnd': return [{ ...base, kind: 'session.end', message: str(r.reason) }];
-    case 'UserPromptSubmit': return [{ ...base, kind: 'prompt', message: clip(r.prompt) }];
-    case 'PreToolUse':
-      return [sub
-        ? { ...base, kind: 'agent.start', agent: sub, tool: undefined, message: clip(input.description ?? input.prompt) }
-        : { ...base, kind: 'tool.start', message: gist(input) }];
-    case 'PostToolUse':
-    case 'PostToolUseFailure': {
-      const failed = r.hook_event_name === 'PostToolUseFailure';
-      return [sub
-        ? { ...base, kind: 'agent.end', agent: sub, tool: undefined, status: failed ? 'error' : 'ok' }
-        : { ...base, kind: 'tool.end', status: failed ? 'error' : 'ok', message: clip(failed ? r.error : r.tool_response, 160) }];
-    }
-    case 'SubagentStart': return [{ ...base, kind: 'agent.start' }];
-    case 'SubagentStop': return [{ ...base, kind: 'agent.end', status: 'ok', message: clip(r.last_assistant_message, 160) }];
-    case 'Stop': return [{ ...base, kind: 'agent.end', agent: base.agent ?? 'main', status: 'ok' }];
-    case 'StopFailure': return [{ ...base, kind: 'error', status: 'error', message: str(r.error) }];
-    case 'Notification': return [{ ...base, kind: 'log', message: clip(r.message) }];
-    case 'PreCompact': return [{ ...base, kind: 'log', message: `context compaction (${str(r.trigger) ?? 'auto'})` }];
-    default: return [{ ...base, kind: 'log', message: str(r.hook_event_name) ?? 'event' }];
-  }
-};
 
 /** Pi coding agent: extension events (`pi.on(...)`) or `pi --mode json` stream lines, tagged with `type`. */
 const pi: Adapter = (r) => {

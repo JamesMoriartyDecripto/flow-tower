@@ -75,9 +75,12 @@ export function eventMatches(node: ResolvedNode, event: z.output<typeof FlowEven
   if (event.node) return event.node === node.key || event.node === node.id;
   const rules = node.match ?? [];
   if (rules.length) {
-    return rules.some((rule) => rule.split('&').every((part) => {
+    return rules.some((rule) => rule.split('&').every((raw) => {
+      // "!field:pattern" negates a condition, e.g. "kind:prompt&!message:<*".
+      const negate = raw.trim().startsWith('!');
+      const part = negate ? raw.trim().slice(1) : raw;
       const [field, pattern] = part.includes(':') ? part.split(/:(.*)/s) : ['agent', part];
-      return like((event as Record<string, unknown>)[field.trim()] as string | undefined, pattern.trim());
+      return like((event as Record<string, unknown>)[field.trim()] as string | undefined, pattern.trim()) !== negate;
     }));
   }
   const names = [node.id, node.label, node.agent?.id, node.agent?.name].filter(Boolean) as string[];
