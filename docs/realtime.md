@@ -25,6 +25,7 @@ npm run simulate -- game-studio    # terminal 2: 3 parallel walkers replay a pla
 | **Claude Code** | Native `http` hooks (plus one `command` hook for SessionStart) | [`integrations/claude-code/settings.json`](../integrations/claude-code/settings.json): merge into `.claude/settings.json` |
 | **Claude Agent SDK** | Hook callbacks that forward to the endpoint | [`integrations/agent-sdk/flow-tower-hooks.ts`](../integrations/agent-sdk/flow-tower-hooks.ts) |
 | **Pi** (coding agent) | Extension listening to `pi.on(...)` events | [`integrations/pi/flow-tower.ts`](../integrations/pi/flow-tower.ts): copy to `~/.pi/agent/extensions/` |
+| **Codex** (OpenAI) | Command hooks (`flow-tower emit`), `codex exec --json` stream, or legacy `notify` | [`integrations/codex/`](../integrations/codex): `hooks.json` to `~/.codex/hooks.json`, or `notify` from `config.toml` |
 | **Hermes Agent** | Native outbound webhooks | [`integrations/hermes/config.yaml`](../integrations/hermes/config.yaml): merge into `~/.hermes/config.yaml` |
 | Shell hooks, cron jobs, CI, your own loops | `flow-tower emit` or plain HTTP | see below |
 
@@ -32,8 +33,11 @@ Notes:
 - **Claude Code:** the endpoint answers `204` with an empty body, because Claude Code reads a JSON response body as a hook decision. If the server is down, the hook simply fails open.
 - **Claude Code subagents:** these are detected from the `Agent` (formerly `Task`) tool and from `SubagentStart`/`SubagentStop`.
 - **Pi:** `pi --mode json "…" | npx flow-tower emit --source pi` also works for one-off runs.
+- **Codex:** approve the hooks once with `/hooks`; hooks in a repo's `.codex/` only run in trusted projects. Hosted tools (web search) do not fire hooks. Tool names match across sources (`Bash`, `apply_patch`, `mcp__<server>__<tool>`); failures are inferred from the tool response (non-zero `exit_code`, `isError`), since hooks carry no status and no tokens.
+- **Codex one-off runs:** `codex exec --json "…" | flow-tower emit --source codex` adds token usage per turn (input + output) and `spawn_agent`/`close_agent` subagents. Only the `thread.started` line carries the thread id, so other lines have no session.
+- **Codex `notify`:** the legacy hook passes its JSON as the last argument, not stdin, and only reports turn ends. Use it where hooks are unavailable, not together with them.
 - **Hermes:** keep it observe-only, with no `fail_closed`. Otherwise a stopped flow-tower would block Hermes' tools.
-- **OpenTelemetry (OTLP)** ingestion, for token and cost metrics, is on the roadmap.
+- **OpenTelemetry (OTLP)** ingestion, for token and cost metrics (Claude Code, Codex `[otel]`), is on the roadmap (#9).
 
 ## Any other agent
 
@@ -92,5 +96,9 @@ The feed marks events that matched nothing as *unmapped*, which helps when writi
 - Claude Code monitoring (OpenTelemetry): https://code.claude.com/docs/en/monitoring-usage
 - Claude Agent SDK hooks: https://code.claude.com/docs/en/agent-sdk/hooks
 - Pi extensions and JSON mode: https://github.com/badlogic/pi-mono (`extensions.md`, `json.md`)
+- Codex hooks: https://learn.chatgpt.com/docs/hooks
+- Codex non-interactive mode (`exec --json`): https://learn.chatgpt.com/docs/non-interactive-mode
+- Codex advanced config (`notify`, `[otel]`): https://learn.chatgpt.com/docs/config-file/config-advanced
+- Codex source: https://github.com/openai/codex
 - Hermes Agent hooks: https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks
 - OpenTelemetry GenAI semantic conventions: https://github.com/open-telemetry/semantic-conventions-genai

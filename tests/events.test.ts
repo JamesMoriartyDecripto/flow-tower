@@ -24,6 +24,41 @@ describe('adapters', () => {
       .toEqual([expect.objectContaining({ kind: 'agent.start', agent: 'researcher', message: 'find docs' })]);
   });
 
+  it('maps Codex hooks', () => {
+    const common = { session_id: '0199a213-81c0-7800-8aa1-bbab2a035a53', transcript_path: '/home/u/.codex/sessions/rollout.jsonl', cwd: '/repo', model: 'gpt-5-codex', turn_id: '1' };
+    expect(normalize('codex', { ...common, hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'call_1', tool_input: { command: 'npm test' } }))
+      .toEqual([{ kind: 'tool.start', source: 'codex', session: common.session_id, agent: 'codex', tool: 'Bash', call: 'call_1', model: 'gpt-5-codex', message: 'npm test' }]);
+    expect(normalize('codex', {
+      ...common, hook_event_name: 'PostToolUse', tool_name: 'mcp__github__create_pull_request', tool_use_id: 'call_2',
+      tool_input: { title: 'Fix login' }, tool_response: { content: [{ type: 'text', text: 'not found' }], isError: true },
+    })).toEqual([expect.objectContaining({ kind: 'tool.end', tool: 'mcp__github__create_pull_request', call: 'call_2', status: 'error' })]);
+    expect(normalize('codex', { ...common, hook_event_name: 'SubagentStart', agent_id: 'a1', agent_type: 'explorer' }))
+      .toEqual([expect.objectContaining({ kind: 'agent.start', agent: 'explorer', source: 'codex' })]);
+  });
+
+  it('maps codex exec --json lines', () => {
+    expect(normalize('codex', { type: 'thread.started', thread_id: '0199a213-81c0-7800-8aa1-bbab2a035a53' }))
+      .toEqual([expect.objectContaining({ kind: 'session.start', session: '0199a213-81c0-7800-8aa1-bbab2a035a53' })]);
+    expect(normalize('codex', { type: 'item.started', item: { id: 'item_1', type: 'command_execution', command: 'bash -lc "npm test"', aggregated_output: '', exit_code: null, status: 'in_progress' } }))
+      .toEqual([expect.objectContaining({ kind: 'tool.start', tool: 'Bash', call: 'item_1', message: 'bash -lc "npm test"' })]);
+    expect(normalize('codex', { type: 'item.completed', item: { id: 'item_1', type: 'command_execution', command: 'bash -lc "npm test"', aggregated_output: '1 failing', exit_code: 1, status: 'failed' } }))
+      .toEqual([expect.objectContaining({ kind: 'tool.end', tool: 'Bash', call: 'item_1', status: 'error', message: '1 failing' })]);
+    expect(normalize('codex', { type: 'item.completed', item: { id: 'item_2', type: 'mcp_tool_call', server: 'github', tool: 'search_issues', arguments: { query: 'login' }, result: { content: [] }, error: null, status: 'completed' } }))
+      .toEqual([expect.objectContaining({ kind: 'tool.end', tool: 'mcp__github__search_issues', status: 'ok' })]);
+    expect(normalize('codex', { type: 'item.completed', item: { id: 'item_3', type: 'file_change', changes: [{ path: 'src/a.ts', kind: 'update' }], status: 'completed' } }))
+      .toEqual([expect.objectContaining({ kind: 'tool.end', tool: 'apply_patch', message: 'update src/a.ts' })]);
+    expect(normalize('codex', { type: 'turn.completed', usage: { input_tokens: 24763, cached_input_tokens: 24448, output_tokens: 122, reasoning_output_tokens: 64 } }))
+      .toEqual([expect.objectContaining({ kind: 'agent.end', status: 'ok' }), expect.objectContaining({ kind: 'usage', tokens: 24885 })]);
+    expect(normalize('codex', { type: 'item.completed', item: { id: 'item_4', type: 'reasoning', text: '**Planning**' } })).toEqual([]);
+  });
+
+  it('maps the legacy Codex notify payload', () => {
+    expect(normalize('codex', {
+      type: 'agent-turn-complete', 'thread-id': 'b5f6c1c2', 'turn-id': '12345', cwd: '/repo', client: 'codex-tui',
+      'input-messages': ['Rename `foo` to `bar`'], 'last-assistant-message': 'Rename complete.',
+    })).toEqual([{ kind: 'agent.end', source: 'codex', agent: 'codex', session: 'b5f6c1c2', status: 'ok', message: 'Rename complete.' }]);
+  });
+
   it('passes normalized events through and drops junk', () => {
     expect(normalize(undefined, { kind: 'log', message: 'hi' })).toEqual([{ kind: 'log', message: 'hi', source: 'custom' }]);
     expect(normalize(undefined, 'nope')).toEqual([]);

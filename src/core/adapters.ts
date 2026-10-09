@@ -102,7 +102,99 @@ const hermes: Adapter = (r) => {
   }
 };
 
-const ADAPTERS: Record<string, Adapter> = { 'claude-code': claudeCode, 'agent-sdk': claudeCode, pi, hermes };
+/** Codex tool names, aligned with its hook `tool_name` values (Bash, apply_patch, mcp__<server>__<tool>). */
+const codexTool = (it: Raw) => {
+  switch (it.type) {
+    case 'command_execution': return 'Bash';
+    case 'file_change': return 'apply_patch';
+    case 'mcp_tool_call': return `mcp__${str(it.server)}__${str(it.tool)}`;
+    case 'web_search': return 'web_search';
+    default: return undefined;
+  }
+};
+
+/** OpenAI Codex hooks (command stdin, Claude Code-like shape). */
+const codexHook: Adapter = (r) => {
+  const base = {
+    source: 'codex', session: str(r.session_id), agent: str(r.agent_type) ?? str(r.agent_id) ?? 'codex',
+    tool: str(r.tool_name), call: str(r.tool_use_id), model: str(r.model),
+  };
+  switch (r.hook_event_name) {
+    case 'SessionStart': return [{ ...base, kind: 'session.start', message: str(r.source) }];
+    case 'SessionEnd': return [{ ...base, kind: 'session.end', message: str(r.reason) }];
+    case 'UserPromptSubmit': return [{ ...base, kind: 'prompt', message: clip(r.prompt) }];
+    case 'PreToolUse': return [{ ...base, kind: 'tool.start', message: gist(obj(r.tool_input)) }];
+    case 'PostToolUse': {
+      // No status field: infer failure from the response (shell exit code, MCP isError).
+      const res = obj(r.tool_response);
+      const failed = (num(res.exit_code) ?? 0) !== 0 || res.is_error === true || res.isError === true;
+      return [{ ...base, kind: 'tool.end', status: failed ? 'error' : 'ok', message: clip(r.tool_response, 160) }];
+    }
+    case 'SubagentStart': return [{ ...base, kind: 'agent.start' }];
+    case 'SubagentStop': return [{ ...base, kind: 'agent.end', status: 'ok', message: clip(r.last_assistant_message, 160) }];
+    case 'Stop': return [{ ...base, kind: 'agent.end', status: 'ok' }];
+    case 'Interrupt': return [{ ...base, kind: 'agent.end', message: 'interrupted' }];
+    case 'PermissionRequest': return [{ ...base, kind: 'log', message: `permission requested${base.tool ? `: ${base.tool}` : ''}` }];
+    case 'PreCompact': return [{ ...base, kind: 'log', message: `context compaction (${str(r.trigger) ?? 'auto'})` }];
+    default: return [{ ...base, kind: 'log', message: str(r.hook_event_name) ?? 'event' }];
+  }
+};
+
+/** `codex exec --json` stdout lines. Only `thread.started` carries the thread id, so other lines have no session. */
+const codexExec: Adapter = (r) => {
+  const base = { source: 'codex', agent: 'codex' };
+  const it = obj(r.item);
+  const tool = codexTool(it);
+  const failed = it.status === 'failed' || it.status === 'declined' || (num(it.exit_code) ?? 0) !== 0 || !!it.error;
+  switch (r.type) {
+    case 'thread.started': return [{ ...base, kind: 'session.start', session: str(r.thread_id) }];
+    case 'turn.started': return [{ ...base, kind: 'agent.start' }];
+    case 'turn.completed': {
+      const u = obj(r.usage);
+      const tokens = (num(u.input_tokens) ?? 0) + (num(u.output_tokens) ?? 0);
+      return [{ ...base, kind: 'agent.end', status: 'ok' }, { ...base, kind: 'usage', tokens }];
+    }
+    case 'turn.failed': return [{ ...base, kind: 'agent.end', status: 'error', message: clip(obj(r.error).message) }];
+    case 'error': return [{ ...base, kind: 'error', status: 'error', message: clip(r.message) }];
+    case 'item.started':
+      if (tool) return [{ ...base, kind: 'tool.start', tool, call: str(it.id), message: gist(it.type === 'mcp_tool_call' ? obj(it.arguments) : it) }];
+      break;
+    case 'item.completed':
+      if (tool) {
+        const out = it.type === 'file_change'
+          ? (Array.isArray(it.changes) ? it.changes : []).map((c) => `${str(obj(c).kind)} ${str(obj(c).path)}`).join(', ')
+          : obj(it.error).message ?? it.error ?? it.aggregated_output ?? it.result;
+        return [{ ...base, kind: 'tool.end', tool, call: str(it.id), status: failed ? 'error' : 'ok', message: clip(out, 160) }];
+      }
+      if (it.type === 'agent_message') return [{ ...base, kind: 'log', message: clip(it.text) }];
+      if (it.type === 'error') return [{ ...base, kind: 'error', status: 'error', message: clip(it.message) }];
+      break;
+  }
+  // collab_tool_call: a completed spawn_agent / close_agent brackets a subagent's life (receiver ids = call).
+  if (it.type === 'collab_tool_call') {
+    const sub = {
+      ...base, agent: str(it.agent_type) ?? 'subagent', parent: str(it.sender_thread_id),
+      call: Array.isArray(it.receiver_thread_ids) ? it.receiver_thread_ids.join(',') : undefined,
+    };
+    if (r.type !== 'item.completed') return [];
+    if (it.tool === 'spawn_agent') {
+      return [failed ? { ...sub, kind: 'agent.end', status: 'error' } : { ...sub, kind: 'agent.start', message: clip(it.prompt) }];
+    }
+    if (it.tool === 'close_agent') return [{ ...sub, kind: 'agent.end', status: failed ? 'error' : 'ok' }];
+  }
+  return [];
+};
+
+/** OpenAI Codex: hooks, `codex exec --json` stream lines, or the legacy `notify` payload (kebab-case). */
+const codex: Adapter = (r) => {
+  if ('hook_event_name' in r) return codexHook(r);
+  if (r.type === 'agent-turn-complete') {
+    return [{ source: 'codex', kind: 'agent.end', agent: 'codex', session: str(r['thread-id']), status: 'ok', message: clip(r['last-assistant-message'], 160) }];
+  }
+  return codexExec(r);
+};
+
+const ADAPTERS: Record<string, Adapter> = { 'claude-code': claudeCode, 'agent-sdk': claudeCode, pi, hermes, codex };
 
 export const SOURCES = Object.keys(ADAPTERS);
 
