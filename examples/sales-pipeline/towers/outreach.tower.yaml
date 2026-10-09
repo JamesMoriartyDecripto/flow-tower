@@ -1,0 +1,248 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Outreach sequence engine
+description: >-
+  The engine behind the Sequence engine node. For each tier-A prospect it picks the channels the
+  lawful-basis check allows, drafts each step from an approved template, verifies every
+  personalization line against cited evidence, runs compliance and deliverability guards, then
+  sends email through Instantly or creates a call / LinkedIn task for the rep. Replies come back
+  by webhook and are triaged. Nothing is sent that a guard did not pass, and no LinkedIn action
+  is automated.
+root: ..
+tags: [outbound, sequences, instantly, deliverability, gdpr, linkedin-manual, human-in-the-loop]
+
+runtimes:
+  workers:
+    kind: container
+    label: Sales agents
+    provider: google-cloud-run
+    region: europe-west8
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  hubspot:
+    kind: saas
+    label: HubSpot CRM
+    provider: hubspot
+    url: https://mcp.hubspot.com
+  instantly:
+    kind: saas
+    label: Instantly API v2
+    provider: instantly
+    url: https://api.instantly.ai/api/v2
+  rpo:
+    kind: saas
+    label: Registro opposizioni
+    provider: fondazione-ugo-bordoni
+    url: https://www.registrodelleopposizioni.it
+  rep-browser:
+    kind: browser
+    label: Rep browser
+    description: LinkedIn Sales Navigator, used by hand.
+  slack:
+    kind: saas
+    label: Slack
+    provider: slack
+
+agents:
+  personalizer:
+    name: Personalizer
+    description: Writes the opening line and one relevance sentence per step from cited evidence; the rest of the email is the approved template.
+    model: claude-sonnet-5-5
+    prompt: { file: prompts/personalizer.md }
+    runtime: workers
+    tools: [Read, mcp__hubspot]
+    harness: { max_turns: 6, output: json_schema }
+    budget: { usd: 0.04, turns: 6, on_exceed: stop }
+    limits: { timeout: 90s, retries: 2 }
+    data: { sensitivity: pii, region: eu, retention: 180d }
+    credentials: service
+  triage:
+    name: Reply triage
+    model: claude-haiku-5-5
+    prompt: { file: prompts/reply-triage.md }
+    runtime: workers
+    tools: [mcp__hubspot]
+    files: [outreach/reply-triage-rules.yaml]
+    budget: { usd: 0.01, turns: 3, on_exceed: stop }
+    data: { sensitivity: pii, region: eu, retention: 730d }
+    credentials: service
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: plan
+    title: Plan
+    description: Channels come from the lawful-basis decision, not from the agent.
+    nodes:
+      - id: enrolled
+        type: entry
+        label: Enrolled prospects
+        runtime: workers
+        description: Tier-A prospects with basis and allowed channels attached, in batches of up to 50.
+        trigger: { kind: queue, source: prospecting.tier output }
+      - id: channels
+        type: decision
+        label: Channel plan
+        runtime: workers
+        description: "FR B2B: email + LinkedIn manual + call. IT with consent: email + call. IT cold: call (RPO-checked) + LinkedIn manual; email only after opt-in."
+        files: [compliance/channel-rules.yaml]
+      - id: templates
+        type: memory
+        label: Sequence templates
+        runtime: workers
+        description: Approved steps per sequence and language; each email carries sender identity, address and opt-out.
+        files: [outreach/sequence-fr-email-led.yaml, outreach/sequence-it-call-led.yaml]
+      - id: variant
+        label: A/B variant
+        runtime: workers
+        description: "Assigns variant per account (not per contact) so colleagues never get different pitches."
+        version: v3-pain-led
+        rollout: { strategy: ab, percent: 50, previous: v2-case-study }
+    edges:
+      - enrolled -> channels
+      - "templates -> variant [data]: steps"
+      - "channels -> variant: email allowed"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: draft
+    title: Draft & Verify
+    description: The model writes two sentences; code checks them; a person reviews the first batch.
+    nodes:
+      - id: personalizer
+        agent: personalizer
+        label: Personalizer
+        fanout: { min: 1, max: 50, by: prospect in batch }
+      - id: evidence
+        type: guard
+        label: Evidence check
+        runtime: workers
+        description: "Every personalized claim must cite an enrichment field or a fetched URL that contains it. Unverified lines fall back to the template default."
+        files: [scripts/verify_personalization.py]
+        evals:
+          - { name: lines with valid citation %, value: 96.8, target: 95 }
+      - id: compliance
+        type: guard
+        label: Compliance check
+        runtime: workers
+        description: "Suppression list re-check, sender identity and address, opt-out link + List-Unsubscribe header, no misleading subject, no invented customers or numbers."
+        files: [compliance/channel-rules.yaml]
+      - id: review
+        type: human
+        label: First batch review
+        runtime: slack
+        description: First 20 drafts of a new sequence or variant; later batches are sampled at 5 %.
+        approval: { by: SDR lead, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: wait }
+    edges:
+      - "personalizer -> evidence: draft + citations"
+      - "evidence -> personalizer [return]: unverified, max 2"
+      - evidence -> compliance
+      - "compliance -> review: new sequence or sampled"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: send
+    title: Send & Pace
+    description: Hard caps per mailbox and domain; calls and LinkedIn are tasks for people.
+    nodes:
+      - id: pacer
+        label: Send pacer
+        runtime: workers
+        description: "Business hours in the recipient's time zone, 2-5 min jitter, step gaps of 3-4 business days, max 4 emails per prospect."
+        limits: { concurrency: 6, max_iterations: 4 }
+      - id: mailboxes
+        type: memory
+        label: Mailbox pool
+        runtime: instantly
+        description: "6 mailboxes on a dedicated subdomain, each warmed for 3 weeks; 30 new emails/day each after warm-up."
+        files: [outreach/deliverability.yaml]
+      - id: guard
+        type: guard
+        label: Send guard
+        runtime: workers
+        description: "Per-mailbox daily cap, domain cap 180/day, pause at 0.1 % complaints, 2 % hard bounces or a blocklist hit."
+        files: [scripts/send_guard.py, outreach/deliverability.yaml]
+      - id: instantly
+        type: tool
+        label: Instantly API
+        runtime: instantly
+        description: Add leads to the campaign with the verified copy as custom variables; Instantly owns the schedule.
+        limits: { retries: 3, backoff: "exponential 2s..2m", concurrency: 2 }
+      - id: rpo
+        type: tool
+        label: RPO check
+        runtime: rpo
+        description: Phone numbers checked against the Registro before each call campaign and at least monthly.
+      - id: tasks
+        type: human
+        label: Rep tasks
+        runtime: rep-browser
+        description: Call with a suggested opener; LinkedIn connection note written and sent by the rep (max 15/day per rep).
+        credentials: user
+        approval: { by: assigned rep, via: HubSpot task, actions: [respond, snooze], timeout: 2d, on_timeout: wait }
+    edges:
+      - "pacer -> guard: next batch"
+      - "mailboxes -> guard [data]: caps + health"
+      - { from: guard, to: instantly, kind: call, protocol: http, label: "add leads" }
+      - "guard -> pacer [return]: capped, next day"
+      - { from: pacer, to: rpo, kind: call, protocol: http, label: phone numbers }
+      - "rpo -> tasks: callable numbers"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: replies
+    title: Replies
+    description: Webhooks in, one label out, and a different owner per label.
+    nodes:
+      - id: hook
+        type: entry
+        label: Instantly webhook
+        runtime: instantly
+        description: "reply_received, lead_out_of_office, lead_unsubscribed, email_bounced, lead_wrong_person."
+        trigger: { kind: webhook, source: Instantly webhooks }
+      - id: triage
+        agent: triage
+        label: Reply triage
+      - id: route
+        type: decision
+        label: Route
+        runtime: workers
+        files: [outreach/reply-triage-rules.yaml]
+      - id: suppress
+        type: guard
+        label: Suppress
+        runtime: workers
+        description: "Unsubscribe, 'stop', objection to processing, or a hostile reply: suppression list in Instantly and HubSpot, sequence stopped."
+        sla: 24h
+      - id: ooo
+        label: Reschedule OOO
+        runtime: workers
+        description: Pauses the prospect until the return date + 2 business days; a named substitute is not contacted automatically.
+      - id: interested
+        type: output
+        label: Interested
+        runtime: hubspot
+        description: Owner notified, booking link reply drafted for the rep, deal created in "Meeting requested".
+        sla: 4h
+      - id: logrun
+        type: memory
+        label: Run log
+        runtime: workers
+        resources:
+          - { kind: log, label: Outreach run log, path: logs/outreach-run.log }
+    edges:
+      - hook -> triage
+      - triage -> route
+      - "route -> suppress: unsubscribe / stop"
+      - "route -> ooo: out of office"
+      - "route -> interested: interested / question"
+      - "suppress -> logrun [data]"
+
+links:
+  - "plan.variant -> draft.personalizer [spawn]: per prospect"
+  - "plan.channels -> send.pacer: call / LinkedIn only"
+  - "draft.compliance -> send.pacer: auto after first batch"
+  - "draft.review -> send.pacer: approved"
+  - "draft.review -> draft.personalizer [return]: edits"
+  - "send.instantly -> replies.hook [data]: events"
+  - "replies.ooo -> send.pacer [return]: resume date"
+  - "send.tasks -> replies.triage: call outcome"

@@ -1,0 +1,61 @@
+# HubSpot deal -> Fatture in Cloud issued document (API v2, POST /c/{company_id}/issued_documents).
+# FIC does not autocomplete: every field shown on the invoice must be sent. Used by scripts/fic_invoice.py.
+# The complete invoicing workflow (credit notes, rejections, reconciliation) is in examples/invoicing-fic.
+company_id_secret: projects/ferrovento-sales/secrets/fic-company-id    # name only
+token_secret: projects/ferrovento-sales/secrets/fic-access-token       # name only
+
+document:
+  type:
+    deposit: proforma           # request for the 30 % deposit; converted to invoice when paid
+    milestone: invoice
+    retainer: invoice
+  date: today (Europe/Rome)
+  numeration: ""                # default series
+  e_invoice: true
+  language: { code: it, name: Italiano }
+  subject: "{{quote_number}} - {{milestone_name}}"
+  visible_subject: "Offerta {{quote_number}}: {{milestone_name}}"
+
+entity:                          # from HubSpot company + Atoka check
+  name: company.legal_name
+  vat_number: company.vat_number
+  tax_code: company.tax_code
+  address_street: company.address
+  address_postal_code: company.zip
+  address_city: company.city
+  address_province: company.province
+  country: Italia
+  e_invoice: true
+  ei_code: company.sdi_code      # 7 characters; "0000000" when a PEC is used instead
+  certified_email: company.pec   # only when ei_code is 0000000
+
+items_list:                      # one per payment-schedule row
+  - name: milestone_name
+    net_price: deal.amount * row.share
+    qty: 1
+    vat: { id: vat_22_id }       # looked up once via /info/vat_types
+    not_taxable: false
+
+payments_list:
+  - amount: gross total (net + VAT)
+    due_date: date + deal.payment_terms_days
+    status: not_paid
+    payment_account: { id: bank_account_id }
+
+payment_method: { id: bonifico_id }
+ei_data:
+  payment_method: MP05           # bank transfer
+  vat_kind: I                    # immediate VAT; "S" if split payment applies to the customer
+
+checks_before_send:
+  - GET /c/{company_id}/issued_documents/{id}/e_invoice/xml_verify returns success
+  - finance approval recorded (Slack #billing)
+  - amounts equal the approved quote row (cent precision)
+send:
+  endpoint: POST /c/{company_id}/issued_documents/{id}/e_invoice/send
+  dry_run_first: true            # options.dry_run runs every check without sending
+status:
+  webhook_event: it.fattureincloud.webhooks.issued_documents.e_invoices.status_update
+  read: GET /c/{company_id}/issued_documents/{id}?fieldset=detailed -> ei_status
+  on_rejected: GET .../e_invoice/error_reason, fix, resend
+limits: { short_term: "300 requests / 5 min per company (429)", hourly: "1,000 per company-app (403)", header: Retry-After }

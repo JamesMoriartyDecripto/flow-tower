@@ -1,0 +1,55 @@
+# Fatture in Cloud API v2: OAuth scopes per service identity (least privilege).
+# Scope names from https://developers.fattureincloud.it/docs/basics/scopes/ (":r" read, ":a" full access).
+# Flow: OAuth 2.0 authorization code, https://api-v2.fattureincloud.it/oauth/authorize -> /oauth/token.
+# Access token 24h, refresh token 1 year from the last refresh: store the newest refresh_token every time.
+# Secrets live in Secret Manager under the names below; never in this repo or in agent context.
+
+app:
+  name: brezza-finance-agents          # private app, company "Brezza Sensori S.r.l." (fictional)
+  company_id_secret: fic-company-id
+  client_id_secret: fic-oauth-client-id
+  client_secret_secret: fic-oauth-client-secret
+  refresh_token_secret: fic-oauth-refresh-token
+  redirect_uri: https://finance-agents.brezza-sensori.example/oauth/callback
+
+identities:
+  issuer:        # create invoices / credit notes, send to SDI, mark payments
+    used_by: [approve.create, collect.mark_paid, collect.credit_note, sdi-loop]
+    scopes:
+      - entity.clients:a
+      - issued_documents.invoices:a
+      - issued_documents.credit_notes:a
+      - products:r
+      - settings:r            # assumption: InfoApi (vat types, payment methods/accounts); confirm in the API reference
+  reader:        # agents that only look things up
+    used_by: [validate.steward, draft.drafter, approve.reviewer, collect.reconciler, collect.dunning, report.cashflow]
+    scopes:
+      - entity.clients:r
+      - issued_documents.invoices:r
+      - issued_documents.credit_notes:r
+      - products:r
+      - settings:r
+  passive:       # received documents; registration itself is manual in the UI
+    used_by: [passive.received, passive.extractor]
+    scopes:
+      - entity.suppliers:r
+      - received_documents:r
+  webhooks:      # a subscription needs read on every scope behind its event types
+    used_by: [sdi.hook, passive.received]
+    scopes:
+      - issued_documents.invoices:r
+      - issued_documents.credit_notes:r
+      - received_documents:r
+
+never_granted:
+  - issued_documents.receipts:a
+  - received_documents:a      # no agent edits supplier invoices
+  - cashbook:a
+  - taxes:a                   # F24 stays with the commercialista
+  - settings:a
+  - archive:a
+
+notes:
+  - A sub-user with the right scopes can still get 403 if the company admin has not granted the same permissions in the app.
+  - The community MCP server (aringad/fattureincloud-mcp) uses a manual token; if used for ad-hoc analysis, create the token with reader scopes only.
+  - Manual tokens never expire (revocable); OAuth tokens are preferred for production so access can be rotated.

@@ -1,0 +1,42 @@
+# Read by scripts/send_guard.py before every batch. Numbers below the provider rules are
+# Ferrovento's own (illustrative) limits for low-volume, one-to-one B2B outreach.
+version: 2026-10-01
+
+domain:
+  sending_subdomain: mail.ferrovento.example   # keeps the main domain's reputation separate
+  spf: pass
+  dkim: { selector: s2026, bits: 2048 }
+  dmarc: { policy: quarantine, aligned: true }
+  ptr_and_tls: required
+  postmaster_tools: [Google Postmaster Tools, Microsoft SNDS, Yahoo Complaint Feedback Loop]
+
+provider_rules:     # from the providers' published sender requirements
+  gmail_spam_rate_max: 0.003          # never reach 0.3 %
+  gmail_spam_rate_target: 0.001       # stay below 0.1 %
+  bulk_threshold_per_day: 5000        # Gmail / Outlook.com bulk sender definition
+  one_click_unsubscribe: true         # List-Unsubscribe + List-Unsubscribe-Post, plus a visible link
+  unsubscribe_honour_within_days: 2   # Yahoo
+
+own_limits:
+  mailboxes: 6
+  warmup:
+    weeks: 3
+    ramp_per_mailbox_per_day: [5, 10, 15, 20, 25, 30]   # new prospects per day, stepping every 3-4 days
+  new_emails_per_mailbox_per_day: 30
+  total_emails_per_mailbox_per_day: 50                  # includes follow-ups
+  domain_new_emails_per_day: 180
+  pause_if:
+    complaint_rate_7d: 0.001
+    hard_bounce_rate_day: 0.02
+    blocklist_hit: true
+    reply_rate_7d_below: 0.01      # copy or list problem: stop and review
+  email_verification: required before first send (catch-all treated as risky, max 10 % of a batch)
+  send_window: "08:30-17:30 recipient local time, business days"
+
+health_mailboxes:
+  - { id: mbx-1, owner: Giulia (fictional), warmup_done: true, complaints_7d: 0 }
+  - { id: mbx-2, owner: Giulia (fictional), warmup_done: true, complaints_7d: 0 }
+  - { id: mbx-3, owner: Marc (fictional), warmup_done: true, complaints_7d: 1 }
+  - { id: mbx-4, owner: Marc (fictional), warmup_done: true, complaints_7d: 0 }
+  - { id: mbx-5, owner: Luca (fictional), warmup_done: false, warmup_day: 9 }
+  - { id: mbx-6, owner: Luca (fictional), warmup_done: false, warmup_day: 9 }

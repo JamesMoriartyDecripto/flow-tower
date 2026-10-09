@@ -1,0 +1,36 @@
+# Payment follow-up stages. The agent drafts; sending at stage 3+ needs the AR manager.
+version: 2026-09
+currency: EUR
+
+stages:
+  - id: pre_due
+    when: due_date - 3d
+    channel: email to the accounts payable contact
+    tone: friendly, informative
+    auto_send: true
+  - id: reminder_1
+    when: due_date + 3d
+    channel: email (AP contact, cc account owner)
+    tone: polite; attach invoice PDF and SDI receipt reference
+    auto_send: true
+  - id: reminder_2
+    when: due_date + 15d
+    channel: email + call task for the account owner
+    tone: firm; ask for a payment date
+    auto_send: false
+    approval: AR manager
+  - id: formal_notice
+    when: due_date + 30d
+    channel: PEC
+    content: formal notice; statutory late interest (ECB rate + 8 points) and 40 EUR flat compensation under D.Lgs. 231/2002
+    auto_send: false
+    approval: AR manager + CEO
+  - id: pause_work
+    when: due_date + 45d
+    action: proposal to pause delivery under the MSA, decided by the CEO
+
+rules:
+  - Stop all reminders when a payment, a dispute or a promised date is recorded.
+  - Never threaten actions the policy does not list; never mention personal circumstances.
+  - Disputed invoices go to the account owner, not to dunning.
+  - Customer under a public body or split payment: check payments_list before any reminder.

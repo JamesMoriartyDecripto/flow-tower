@@ -36,6 +36,8 @@ Every example is a real, validated tower: each prompt, script, config and log it
 | [`ebook-studio`](ebook-studio) | 7 | Publishing pipeline: per-chapter writing sub-tower with continuity checks, editorial approvals, EPUB build and validation, store AI-disclosure rules |
 | [`mobile-studio`](mobile-studio) | 8 | Mobile release engineering: iOS and Android sub-towers, device matrix, store review waits, phased rollout with crash-rate guard, OTA updates |
 | [`marketing-studio`](marketing-studio) | 8 | Spend-controlled marketing: paid-media optimization sub-tower with spend guard and approval thresholds, lifecycle email, lead scoring, measurement loop |
+| [`sales-pipeline`](sales-pipeline) | 8 | B2B sales from prospect to invoice: lawful-basis checks for EU/Italian outreach, outreach sequence sub-tower, discount and contract approvals, e-signature, invoice handoff |
+| [`invoicing-fic`](invoicing-fic) | 8 | Italian e-invoicing with Fatture in Cloud: fiscal checks, idempotent issue, SDI send-and-monitor sub-tower with rejection loop, dunning, passive cycle, 10-year retention |
 
 ## Rules every example follows
 

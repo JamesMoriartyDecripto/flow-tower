@@ -1,0 +1,42 @@
+# Deterministic prospect score (0-100). The scorer agent may only add the "signals" points,
+# each with a cited source URL or field. Weights change only through the quarterly ICP review.
+version: 2026-Q4
+
+fit:            # max 60
+  segment:
+    IT-MFG-EMR: 30
+    IT-FOOD: 18
+    FR-MFG: 20
+  employees:
+    "50-99": 8
+    "100-249": 15
+    "250-500": 12
+  turnover_meur:
+    "10-30": 6
+    "30-120": 10
+  role:          # contact's role relative to the persona list
+    economic_buyer: 5
+    champion: 5
+    technical_evaluator: 3
+
+signals:        # max 40; each needs evidence {source, url_or_field, date}; older than 9 months = 0
+  erp_migration: 15
+  new_plant_or_acquisition: 10
+  data_role_hiring: 10
+  transizione_5_0_project: 10
+  visited_pricing_page_with_consent: 5
+
+penalties:
+  insolvency_flag: -100
+  public_administration: -100
+  competitor_or_partner_non_solicit: -100
+  previous_closed_lost_under_6_months: -20
+
+tiers:
+  A: { min: 70, action: enrol in sequence this week }
+  B: { min: 50, action: watch for a trigger event; re-score monthly }
+  C: { min: 0, action: do not contact }
+
+guardrails:
+  - Never infer age, gender, nationality or health; never use personal social media.
+  - A signal without evidence scores 0, it is not "probably true".

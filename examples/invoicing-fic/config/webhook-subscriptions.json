@@ -1,0 +1,39 @@
+{
+  "_comment": "Body for POST https://api-v2.fattureincloud.it/c/{company_id}/subscriptions (WebhooksApi.create_webhooks_subscription). Event type names from developers.fattureincloud.it/docs/webhooks/notification-types/. The sink must be HTTPS and answer the GET verification with {\"verification\": <x-fic-verification-challenge>}.",
+  "subscriptions": [
+    {
+      "name": "sdi-status",
+      "data": {
+        "sink": "https://finance-agents.brezza-sensori.example/webhooks/fic",
+        "verification_method": "header",
+        "types": [
+          "it.fattureincloud.webhooks.issued_documents.e_invoices.status_update",
+          "it.fattureincloud.webhooks.issued_documents.invoices.update",
+          "it.fattureincloud.webhooks.issued_documents.credit_notes.create"
+        ],
+        "config": { "mapping": "binary" }
+      }
+    },
+    {
+      "name": "passive-cycle",
+      "data": {
+        "sink": "https://finance-agents.brezza-sensori.example/webhooks/fic",
+        "verification_method": "header",
+        "types": [
+          "it.fattureincloud.webhooks.received_documents.e_invoices.receive",
+          "it.fattureincloud.webhooks.received_documents.create"
+        ],
+        "config": { "mapping": "binary" }
+      }
+    }
+  ],
+  "receiver_contract": {
+    "auth": "Authorization: Bearer <JWT ES256>; check jti == ce-id, sub == ce-subject, aud == sink, exp (3h)",
+    "success_codes": [200, 201, 202, 204],
+    "retryable": "5xx, 4 attempts in total, then the notification is discarded",
+    "unretryable": "any other status including 3xx; 410 deletes the subscription",
+    "expiry": "first error sets an expiration date 10 days later; one success clears it",
+    "delivery": "at-least-once, usually ordered; dedupe on ce-id, order by ce-time",
+    "body": "data.ids only: read the resource with the matching Get method"
+  }
+}

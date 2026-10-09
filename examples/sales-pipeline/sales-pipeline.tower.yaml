@@ -1,0 +1,760 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: "Sales Pipeline: prospect to invoice"
+description: >-
+  An AI-agent-assisted B2B sales cycle for a small Italian services company, from ICP to paid
+  invoice. Agents build and score account lists, draft outreach, triage replies, prepare calls,
+  score MEDDICC, draft scopes and quotes, and chase payments. People keep every decision that
+  binds the company or touches a person's rights: the ICP, the first batch of every sequence,
+  discounts above policy, contract deviations, the invoice sent to SDI and formal payment
+  notices. Channel rules follow the recipient's country: in Italy the Garante requires prior
+  consent for promotional email even to business addresses found online (art. 130 Codice
+  privacy), so cold Italian prospects get rep-led calls (RPO-checked) and manual LinkedIn
+  touches, and email only after consent; French prospects can get role-relevant B2B email with
+  opt-out. The sequence engine is a nested tower. Sample company: "Ferrovento S.r.l."
+  (fictional), a Bologna data and automation consultancy selling fixed-price projects and
+  retainers to manufacturing SMEs in Northern Italy and France.
+tags: [sales, b2b, outbound, crm, hubspot, apollo, atoka, instantly, calendly, fireflies, meddicc, cpq, yousign, fatture-in-cloud, sdi, gdpr, italy, human-in-the-loop, claude-agent-sdk]
+
+runtimes:
+  workers:
+    kind: container
+    label: Sales agents
+    description: Claude Agent SDK workers, webhook receiver and schedulers. One service per agent role; data stays in the EU.
+    host: sales-agents
+    provider: google-cloud-run
+    region: europe-west8
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  hubspot:
+    kind: saas
+    label: HubSpot CRM
+    description: CRM of record. Remote MCP (GA April 2026) can write contacts, companies, deals, line items and activities; quotes and invoices are read-only there, so quotes go through the CRM API.
+    provider: hubspot
+    url: https://mcp.hubspot.com
+  apollo:
+    kind: saas
+    label: Apollo MCP
+    description: "Remote MCP over Streamable HTTP, OAuth 2.0. People search is free and returns no emails; enrichment consumes credits. No AI-model training allowed on Apollo data."
+    provider: apollo
+    url: https://mcp.apollo.io/mcp
+  atoka:
+    kind: saas
+    label: Atoka (Cerved)
+    description: Italian company data (legal form, ATECO, turnover, employees, officers) over the v2 REST API. Lookup by VAT is free; detail packages consume credits.
+    provider: spaziodati
+    url: https://api.atoka.io/v2
+  instantly:
+    kind: saas
+    label: Instantly
+    description: "Email sequencing for FR prospects and consented IT contacts. API v2, bearer key; webhooks for reply_received, lead_unsubscribed, email_bounced, lead_out_of_office."
+    provider: instantly
+    url: https://api.instantly.ai/api/v2
+  calendly:
+    kind: saas
+    label: Calendly
+    description: Booking links in replies; invitee.created / invitee.canceled webhooks at organization scope.
+    provider: calendly
+    url: https://api.calendly.com
+  fireflies:
+    kind: saas
+    label: Fireflies
+    description: Call recording and transcription after the participants are told and agree; "Transcription completed" webhook signed with x-hub-signature.
+    provider: fireflies
+    url: https://api.fireflies.ai/graphql
+  yousign:
+    kind: saas
+    label: Yousign (Youtrust)
+    description: eIDAS e-signature (advanced level for contracts). API v3 signature requests; webhook signature_request.done. The company is renaming to Youtrust during 2026.
+    provider: yousign
+    region: eu
+    url: https://api.yousign.app/v3
+  fic:
+    kind: saas
+    label: Fatture in Cloud
+    description: "Issued documents API v2: create, e_invoice/xml_verify, e_invoice/send to SDI. 300 requests / 5 min per company, 1,000 / h per company-app."
+    provider: teamsystem
+    url: https://api-v2.fattureincloud.it
+  sdi:
+    kind: saas
+    label: SDI (Agenzia Entrate)
+    description: Sistema di Interscambio. Every B2B invoice in Italy is an XML e-invoice delivered through SDI; issue date is the transmission date.
+    provider: agenzia-entrate
+  rpo:
+    kind: saas
+    label: Registro opposizioni
+    description: Registro pubblico delle opposizioni. Phone numbers are checked before every call campaign and at least monthly.
+    provider: fondazione-ugo-bordoni
+    url: https://www.registrodelleopposizioni.it
+  rep-browser:
+    kind: browser
+    label: Rep browser
+    description: LinkedIn Sales Navigator used by hand. No scraping, extensions or automated actions (User Agreement section 8.2).
+  slack:
+    kind: saas
+    label: Slack
+    description: "#deal-desk and #billing channels: approvals arrive here with approve / edit / reject buttons."
+    provider: slack
+
+prompts:
+  icp: { file: prompts/icp-strategist.md, description: "Opus. ICP, segments and disqualifiers from won/lost deals." }
+  scorer: { file: prompts/prospect-scorer.md, description: "Haiku. Fit + timing score with cited evidence per prospect." }
+  triage: { file: prompts/reply-triage.md, description: "Haiku. Classify one reply into the triage labels; never answers." }
+  objection: { file: prompts/objection-drafter.md, description: "Sonnet. Draft a reply to one objection for the rep to send." }
+  prep: { file: prompts/call-prep.md, description: "Sonnet. One-page discovery brief from CRM, Atoka and the thread." }
+  meddicc: { file: prompts/meddicc-scorer.md, description: "Sonnet. MEDDICC scorecard from call notes, with quotes." }
+  scoping: { file: prompts/solution-scoper.md, description: "Opus. Scope, assumptions and effort estimate for a quote." }
+  negotiation: { file: prompts/negotiation-assistant.md, description: "Sonnet. Concession plan inside the discount policy." }
+  dunning: { file: prompts/payment-followup.md, description: "Haiku. Polite reminder drafts by overdue stage." }
+  analyst: { file: prompts/pipeline-analyst.md, description: "Opus. Weekly digest, win/loss themes, ICP feedback." }
+
+agents:
+  icp:
+    name: ICP strategist
+    model: claude-opus-5-5
+    prompt: icp
+    runtime: workers
+    tools: [Read, Write, mcp__hubspot]
+    files: [strategy/ideal-customer-profile.md]
+    harness: { max_turns: 30, permission_mode: default }
+    budget: { usd: 6, turns: 30, on_exceed: pause }
+    credentials: service
+  scorer:
+    name: Prospect scorer
+    description: Applies the deterministic rules first, then reads public signals (job posts, news) and cites each one.
+    model: claude-haiku-5-5
+    prompt: scorer
+    runtime: workers
+    tools: [Read, mcp__apollo]
+    files: [scoring/prospect-scoring.yaml]
+    harness: { max_turns: 6, output: json_schema }
+    budget: { usd: 0.03, turns: 6, on_exceed: stop }
+    limits: { timeout: 60s, retries: 2 }
+    data: { sensitivity: pii, region: eu, retention: 180d }
+    credentials: service
+  sequencer:
+    name: Sequence engine
+    description: Plans channels per prospect, drafts and verifies every step, paces sends and handles replies. Nested tower.
+    model: claude-sonnet-5-5
+    prompt: { file: prompts/personalizer.md }
+    runtime: workers
+    tools: [mcp__hubspot, instantly_api, Read]
+    tower: towers/outreach.tower.yaml
+    credentials: service
+  triage:
+    name: Reply triage
+    model: claude-haiku-5-5
+    prompt: triage
+    runtime: workers
+    tools: [mcp__hubspot]
+    files: [outreach/reply-triage-rules.yaml]
+    harness: { max_turns: 3, output: json_schema }
+    budget: { usd: 0.01, turns: 3, on_exceed: stop }
+    limits: { timeout: 30s, retries: 2 }
+    data: { sensitivity: pii, region: eu, retention: 730d }
+    credentials: service
+  objection:
+    name: Objection drafter
+    model: claude-sonnet-5-5
+    prompt: objection
+    runtime: workers
+    tools: [Read, mcp__hubspot]
+    budget: { usd: 0.2, turns: 8, on_exceed: stop }
+    credentials: service
+  prep:
+    name: Call prep
+    model: claude-sonnet-5-5
+    prompt: prep
+    runtime: workers
+    tools: [mcp__hubspot, atoka_company, WebFetch]
+    budget: { usd: 0.5, turns: 15, on_exceed: stop }
+    credentials: service
+  meddicc:
+    name: MEDDICC scorer
+    model: claude-sonnet-5-5
+    prompt: meddicc
+    runtime: workers
+    tools: [fireflies_transcript, mcp__hubspot]
+    files: [qualification/meddicc-scorecard.md]
+    harness: { max_turns: 8, output: json_schema }
+    budget: { usd: 0.4, turns: 8, on_exceed: stop }
+    data: { sensitivity: pii, region: eu, retention: 365d, description: "Transcripts are deleted from Fireflies after 90 days; the scorecard keeps quotes only." }
+    credentials: service
+  scoping:
+    name: Solution scoper
+    model: claude-opus-5-5
+    prompt: scoping
+    runtime: workers
+    tools: [Read, Write, mcp__hubspot]
+    files: [pricing/pricing-rules.yaml]
+    budget: { usd: 4, turns: 30, on_exceed: pause }
+    credentials: author
+  negotiator:
+    name: Negotiation assistant
+    model: claude-sonnet-5-5
+    prompt: negotiation
+    runtime: workers
+    tools: [Read, mcp__hubspot]
+    files: [pricing/discount-policy.yaml]
+    budget: { usd: 1, turns: 15, on_exceed: stop }
+    credentials: author
+  dunning:
+    name: Payment follow-up
+    model: claude-haiku-5-5
+    prompt: dunning
+    runtime: workers
+    tools: [fic_issued_documents, mcp__hubspot]
+    files: [billing/dunning-policy.yaml]
+    budget: { usd: 0.05, turns: 5, on_exceed: stop }
+    credentials: service
+  analyst:
+    name: Pipeline analyst
+    model: claude-opus-5-5
+    prompt: analyst
+    runtime: workers
+    tools: [bigquery_query, mcp__hubspot, Read, Write]
+    budget: { usd: 5, turns: 40, on_exceed: pause }
+    credentials: service
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: targeting
+    title: Targeting
+    description: >-
+      Quarterly. The ICP comes from won and lost deals, not from opinion. A source register says
+      which data sources may be used, for which countries and on which legal basis.
+    nodes:
+      - id: quarterly
+        type: entry
+        label: Quarterly review
+        runtime: workers
+        description: First Monday of the quarter, or manually after a pricing or offer change.
+        trigger: { kind: cron, schedule: "0 7 1-7 1,4,7,10 1", source: Cloud Scheduler, description: Europe/Rome }
+      - id: icp
+        agent: icp
+        label: ICP strategist
+        description: "Segments (ATECO x size x region), buying triggers, personas, disqualifiers, and the reasons behind each."
+      - id: icp_doc
+        type: memory
+        label: ICP + personas
+        runtime: workers
+        files: [strategy/ideal-customer-profile.md]
+      - id: sources
+        type: guard
+        label: Source register
+        runtime: workers
+        description: "Allowed sources and uses per country. Registro Imprese / INI-PEC bulk extraction is never allowed; LinkedIn is browsed by hand only."
+        files: [strategy/data-sources-register.yaml, compliance/channel-rules.yaml]
+      - id: head_sales
+        type: human
+        label: Head of Sales OK
+        runtime: slack
+        description: Signs off the ICP and any new data source (with the DPO for sources).
+        approval: { by: Head of Sales and DPO, via: Slack, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
+      - id: target_list
+        type: output
+        label: Account criteria
+        runtime: hubspot
+        description: Saved filters per segment that the prospecting run executes every week.
+    edges:
+      - quarterly -> icp
+      - "icp -> icp_doc [data]: draft"
+      - "sources -> icp [data]: allowed sources"
+      - icp_doc -> head_sales
+      - "head_sales -> icp [return]: edits"
+      - "head_sales -> target_list: approved"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: prospecting
+    title: Prospecting & Enrichment
+    description: >-
+      Weekly. Accounts from Atoka (Italy) and Apollo (France), plus consented event and webinar
+      contacts. Dedupe against the CRM and suppression list before any credit is spent, check
+      the lawful basis and channel per contact, then score and tier.
+    nodes:
+      - id: weekly
+        type: entry
+        label: Weekly run
+        runtime: workers
+        trigger: { kind: cron, schedule: "0 6 * * 1", source: Cloud Scheduler, description: Europe/Rome }
+      - id: pull
+        label: Pull per source
+        runtime: workers
+        description: One worker per source; account-level first, people only for accounts that pass the filters.
+        fanout: { min: 3, max: 4, by: source }
+        limits: { timeout: 15m, retries: 3, backoff: "exponential 5s..5m", concurrency: 4 }
+        credentials: service
+      - id: atoka
+        type: tool
+        label: Atoka API
+        runtime: atoka
+        description: "companies?vat=… lookup (free), then base + web packages (credits). Officers come from official company records."
+      - id: apollo
+        type: tool
+        label: Apollo MCP
+        runtime: apollo
+        description: Company and people search for FR accounts; people search returns no contact details.
+      - id: events
+        type: memory
+        label: Consented lists
+        runtime: hubspot
+        description: Trade-fair badge scans and webinar sign-ups with a recorded marketing consent (date, text, source).
+        data: { sensitivity: pii, region: eu, retention: 730d }
+      - id: dedupe
+        label: Dedupe + suppress
+        runtime: workers
+        description: Match on VAT number, domain and normalized email against HubSpot, open deals and the suppression list.
+        files: [scripts/dedupe_prospects.py]
+      - id: basis
+        type: guard
+        label: Lawful basis check
+        runtime: workers
+        description: "Per contact: country, source, consent record. Decides allowed channels (email / call / LinkedIn manual) and logs the basis. No basis, no outreach."
+        files: [scripts/lawful_basis.py, compliance/channel-rules.yaml, compliance/legitimate-interest-assessment.md]
+        data: { sensitivity: pii, region: eu, retention: 180d, description: "Non-responding prospects are deleted after 180 days (LIA)." }
+      - id: enrich
+        label: Enrich contacts
+        runtime: workers
+        description: "Apollo people enrichment (credits) only for tier A/B accounts that passed the basis check. Work emails only."
+        fanout: { min: 2, max: 20, by: account batch }
+        budget: { usd: 400, on_exceed: pause }
+        limits: { concurrency: 2, retries: 2, backoff: "exponential 2s..60s" }
+        data: { sensitivity: pii, region: eu, retention: 180d }
+      - id: scorer
+        agent: scorer
+        label: Prospect scorer
+        fanout: { min: 10, max: 200, by: prospect }
+      - id: tier
+        type: decision
+        label: Tier A/B/C?
+        runtime: workers
+        description: "A >= 70 goes to sequences this week; B 50-69 waits for a trigger event; C is not contacted."
+        files: [scoring/prospect-scoring.yaml]
+    edges:
+      - weekly -> pull [spawn]
+      - { from: pull, to: atoka, kind: call, protocol: http, label: "IT accounts" }
+      - { from: pull, to: apollo, kind: call, protocol: mcp, label: "FR accounts" }
+      - "events -> dedupe [data]: consented contacts"
+      - pull -> dedupe
+      - "dedupe -> basis: new contacts"
+      - "basis -> enrich: basis + channels"
+      - { from: enrich, to: apollo, kind: call, protocol: mcp, label: people enrichment }
+      - enrich -> scorer [spawn]
+      - scorer -> tier
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: outreach
+    title: Outreach
+    description: >-
+      The sequence engine (sub-tower) drafts and verifies every touch, enforces send caps and
+      opt-outs, and routes replies. A person reviews the first batch of every new sequence or
+      variant. LinkedIn and calls are rep tasks, never automated.
+    nodes:
+      - id: sequencer
+        agent: sequencer
+        label: Sequence engine
+        version: v3-pain-led
+        rollout: { strategy: ab, percent: 50, previous: v2-case-study }
+        evals:
+          - { name: reply rate % (illustrative), value: 7.4, target: 5 }
+          - { name: positive reply rate % (illustrative), value: 2.1, target: 2 }
+          - { name: unverifiable personalization % (blocked), value: 3.2, target: 5, higher_is_better: false }
+      - id: first_batch
+        type: human
+        label: First batch review
+        runtime: slack
+        description: First 20 messages of a new sequence or variant, with the evidence behind each personalization line.
+        approval: { by: SDR lead, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: wait }
+      - id: deliverability
+        type: guard
+        label: Deliverability
+        runtime: workers
+        description: "SPF, DKIM, aligned DMARC; 30 new emails/day per mailbox after warm-up; pause at 0.1 % complaints or 2 % bounces."
+        files: [outreach/deliverability.yaml, scripts/send_guard.py]
+        evals:
+          - { name: Gmail spam rate %, value: 0.04, target: 0.1, higher_is_better: false }
+          - { name: hard bounce rate %, value: 0.9, target: 2, higher_is_better: false }
+      - id: instantly
+        type: tool
+        label: Instantly API
+        runtime: instantly
+        description: Campaigns, leads and mailbox pool for FR prospects and consented IT contacts.
+        limits: { retries: 3, backoff: "exponential 2s..2m", concurrency: 2 }
+      - id: rep_tasks
+        type: human
+        label: Rep calls + LinkedIn
+        runtime: rep-browser
+        description: "HubSpot tasks: call (number RPO-checked), LinkedIn connection or message written and sent by the rep. Drafts are suggestions."
+        credentials: user
+        approval: { by: assigned rep, via: HubSpot task, actions: [respond, snooze], timeout: 2d, on_timeout: wait }
+      - id: replies
+        type: entry
+        label: Reply webhook
+        runtime: instantly
+        description: "reply_received, lead_out_of_office, lead_unsubscribed, email_bounced; call outcomes logged by reps."
+        trigger: { kind: webhook, source: Instantly webhooks }
+        data: { sensitivity: pii, region: eu, retention: 730d }
+      - id: triage
+        agent: triage
+        label: Reply triage
+        evals:
+          - { name: triage accuracy vs rep label (%), value: 94, target: 92 }
+      - id: route
+        type: decision
+        label: Reply type?
+        runtime: workers
+        description: interested / objection / not now / unsubscribe / out of office / wrong person / bounce.
+        files: [outreach/reply-triage-rules.yaml]
+      - id: optout
+        type: guard
+        label: Opt-out + erasure
+        runtime: workers
+        description: Unsubscribe or objection to processing goes to the suppression list in every tool within 24h; erasure requests within 30 days.
+        sla: 24h
+      - id: objection
+        agent: objection
+        label: Objection drafter
+        description: Drafts a short answer from approved proof points; the rep edits and sends from their own mailbox.
+    edges:
+      - "sequencer -> first_batch: new sequence or variant"
+      - "first_batch -> sequencer [return]: edits"
+      - first_batch -> deliverability
+      - { from: deliverability, to: instantly, kind: call, protocol: http, label: "schedule sends" }
+      - "sequencer -> rep_tasks: call + LinkedIn tasks"
+      - { from: instantly, to: replies, kind: data, protocol: webhook, label: reply events }
+      - "rep_tasks -> triage: call outcome"
+      - replies -> triage
+      - triage -> route
+      - "route -> optout: unsubscribe / objection to processing"
+      - "route -> objection: objection"
+      - "objection -> rep_tasks: draft to send"
+      - "route -> sequencer [return]: out of office, resume later"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: qualification
+    title: Qualification & Meetings
+    description: >-
+      Interested replies and inbound leads get a booking link fast. The call is recorded only
+      with consent; notes and a MEDDICC scorecard are synced to the deal.
+    nodes:
+      - id: inbound
+        type: entry
+        label: Inbound lead
+        runtime: hubspot
+        description: Website contact form with privacy notice; consent checkbox unticked by default.
+        trigger: { kind: webhook, source: HubSpot form submission }
+        sla: 2h
+        data: { sensitivity: pii, region: eu, retention: 730d }
+      - id: booking
+        type: entry
+        label: Meeting booked
+        runtime: calendly
+        description: invitee.created creates or updates the deal in "Discovery scheduled"; invitee.canceled triggers one rebooking nudge.
+        trigger: { kind: webhook, source: "Calendly invitee.created" }
+      - id: prep
+        agent: prep
+        label: Call prep brief
+        description: Company facts from Atoka, CRM history, the email thread, three hypotheses and questions. Every fact carries its source.
+      - id: call
+        type: human
+        label: Discovery call
+        runtime: workers
+        description: Account executive runs the call. Recording starts only after the participants are told and agree.
+        approval: { by: account executive, via: Google Meet, actions: [respond], timeout: 7d, on_timeout: wait }
+        evals:
+          - { name: meeting held rate % (illustrative), value: 81, target: 80 }
+      - id: notes
+        type: tool
+        label: Fireflies
+        runtime: fireflies
+        description: Transcript ready webhook; the transcript is fetched via GraphQL and deleted after 90 days.
+        trigger: { kind: webhook, source: "Fireflies Transcription completed" }
+        data: { sensitivity: pii, region: eu, retention: 90d }
+      - id: meddicc
+        agent: meddicc
+        label: MEDDICC scorer
+      - id: qualified
+        type: decision
+        label: Qualified?
+        runtime: workers
+        description: "Pain, Metrics and Economic Buyer known, total >= 14/21, and the AE agrees. Otherwise nurture with a reason."
+        files: [qualification/meddicc-scorecard.md]
+      - id: crm
+        type: tool
+        label: HubSpot MCP
+        runtime: hubspot
+        description: Deal stage, MEDDICC properties, call note and next step with a date. Agents write as a dedicated integration user.
+    edges:
+      - { from: inbound, to: prep, protocol: webhook, label: "lead, 2h SLA" }
+      - { from: booking, to: prep, protocol: webhook, label: invitee.created }
+      - "prep -> call: brief"
+      - { from: call, to: notes, kind: data, label: recording with consent }
+      - { from: notes, to: meddicc, protocol: webhook, label: transcript ready }
+      - meddicc -> qualified
+      - { from: qualified, to: crm, kind: call, protocol: mcp, label: "stage + scorecard" }
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: proposal
+    title: Proposal & Negotiation
+    description: >-
+      Scope and estimate first, then a quote priced by rules, not by the model. Discounts above
+      policy and non-standard terms need a named approver; the agent prepares concessions but
+      never grants them.
+    nodes:
+      - id: scoping
+        agent: scoping
+        label: Solution scoper
+        description: Scope, assumptions, exclusions and an effort estimate per work package; a senior consultant validates it.
+      - id: quote
+        label: Quote builder
+        runtime: workers
+        description: "Rate card x effort, package minimums, payment schedule (30/40/30), validity 30 days. Deterministic."
+        files: [pricing/pricing-rules.yaml, proposal/quote-template.md]
+      - id: discount_gate
+        type: decision
+        label: Discount gate
+        runtime: workers
+        description: "<= 10 %: rep. 10-20 % or payment terms 60d: Sales Director. > 20 %, below margin floor, or fixed price > 80k: CEO."
+        files: [pricing/discount-policy.yaml, scripts/discount_gate.py]
+      - id: director
+        type: human
+        label: Sales Director
+        runtime: slack
+        approval: { by: Sales Director, via: "Slack #deal-desk", actions: [approve, edit, reject], timeout: 24h, on_timeout: reject }
+      - id: ceo
+        type: human
+        label: CEO
+        runtime: slack
+        approval: { by: CEO, via: "Slack #deal-desk", actions: [approve, reject], timeout: 48h, on_timeout: reject }
+      - id: hs_quote
+        type: tool
+        label: HubSpot Quotes API
+        runtime: hubspot
+        description: Quote with line items and e-sign off (signature happens on the contract). Created over the CRM API; the MCP server reads quotes only.
+      - id: negotiator
+        agent: negotiator
+        label: Negotiation assist
+        description: Maps each objection to a concession that is inside policy (scope, phasing, terms) before price.
+      - id: proposal_out
+        type: output
+        label: Proposal sent
+        runtime: hubspot
+        description: Quote PDF + scope document sent by the AE; deal stage "Proposal".
+        evals:
+          - { name: proposal-to-win rate % (illustrative), value: 38, target: 35 }
+    edges:
+      - "scoping -> quote: estimate"
+      - quote -> discount_gate
+      - { from: discount_gate, to: director, label: "10-20 % or 60d terms", condition: "discount > 0.10" }
+      - { from: discount_gate, to: ceo, label: "> 20 % or floor breach", condition: "discount > 0.20 || margin < floor" }
+      - { from: discount_gate, to: hs_quote, kind: call, protocol: http, label: within policy }
+      - { from: director, to: hs_quote, kind: call, protocol: http, label: approved }
+      - { from: ceo, to: hs_quote, kind: call, protocol: http, label: approved }
+      - "hs_quote -> proposal_out"
+      - "proposal_out -> negotiator: objections"
+      - "negotiator -> quote [return]: revised terms, max 3"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: contract
+    title: Contract & Close
+    description: >-
+      The contract is assembled from the approved quote and a clause library. Any change to a
+      standard clause goes to legal. Signature completion is a webhook that closes the deal.
+    nodes:
+      - id: assemble
+        label: Contract assembly
+        runtime: workers
+        description: "Master services agreement + SOW + DPA (Art. 28 GDPR) from templates; values come only from the approved quote."
+        files: [contract/contract-template-outline.md]
+      - id: deviation
+        type: guard
+        label: Deviation check
+        runtime: workers
+        description: "Clause-level diff against the standard text: liability cap, IP, payment terms, penalties, governing law (Bologna courts)."
+      - id: legal
+        type: human
+        label: Legal review
+        runtime: slack
+        description: External counsel for redlines on liability, IP or penalties.
+        approval: { by: legal counsel, via: Slack, actions: [approve, edit, reject], timeout: 72h, on_timeout: wait }
+      - id: esign
+        type: tool
+        label: Yousign API
+        runtime: yousign
+        description: Signature request with advanced electronic signature, OTP by SMS, reminders every 3 days, expiry 30 days.
+        files: [contract/esign-config.yaml]
+        limits: { retries: 3, backoff: "exponential 2s..60s" }
+      - id: signed
+        type: entry
+        label: Signed webhook
+        runtime: yousign
+        description: signature_request.done; the signed PDF and audit trail are downloaded and stored on the deal.
+        trigger: { kind: webhook, source: "Yousign signature_request.done" }
+      - id: won
+        label: Closed-won
+        runtime: hubspot
+        description: Deal stage Closed won, amount locked, billing schedule copied from the quote.
+      - id: handoff
+        type: output
+        label: Delivery handoff
+        runtime: workers
+        description: Kickoff ticket with scope, assumptions, contacts and the MEDDICC notes; the delivery lead accepts within 2 business days.
+        sla: 48h
+    edges:
+      - assemble -> deviation
+      - "deviation -> legal: non-standard clause"
+      - "legal -> assemble [return]: redline"
+      - { from: deviation, to: esign, kind: call, protocol: http, label: standard }
+      - { from: legal, to: esign, kind: call, protocol: http, label: approved }
+      - { from: esign, to: signed, kind: data, protocol: webhook, label: signature_request.done }
+      - signed -> won
+      - "won -> handoff [handoff]: kickoff"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: invoicing
+    title: Invoicing & Payment
+    description: >-
+      Closed-won starts the billing plan: deposit at signature, milestones at delivery events.
+      Invoices are created in Fatture in Cloud, verified, approved by finance and sent to SDI.
+      This layer shows only the sales-side trigger; the full invoicing workflow lives in the
+      separate invoicing-fic preset.
+    nodes:
+      - id: billing_plan
+        label: Billing plan
+        runtime: workers
+        description: "30 % deposit at signature, 40 % at go-live, 30 % at acceptance; retainers monthly in advance. One row per invoice to issue."
+        trigger: { kind: webhook, source: HubSpot deal stage Closed won }
+        files: [billing/fic-invoice-mapping.yaml]
+      - id: map
+        label: Map to FIC
+        runtime: workers
+        description: Deal + company to an issued_documents payload (entity, items_list, payments_list, ei_data). Proforma first for the deposit.
+        files: [scripts/fic_invoice.py, billing/fic-invoice-mapping.yaml]
+      - id: finance
+        type: human
+        label: Finance review
+        runtime: slack
+        description: "Checks VAT, SDI code or PEC, split payment and amounts. Sending to SDI cannot be undone, only corrected by a credit note."
+        approval: { by: finance manager, via: "Slack #billing", actions: [approve, edit, reject], timeout: 24h, on_timeout: escalate }
+      - id: fic
+        type: tool
+        label: Fatture in Cloud
+        runtime: fic
+        description: "POST issued_documents, GET e_invoice/xml_verify, POST e_invoice/send. 429 or 403 carry Retry-After."
+        sla: 12d
+        limits: { retries: 4, backoff: "Retry-After, exponential 5s..10m", concurrency: 2 }
+        data: { sensitivity: confidential, region: eu, retention: 3650d, description: "Invoices are accounting records, kept 10 years." }
+        credentials: service
+      - id: sdi_status
+        type: entry
+        label: SDI status
+        runtime: fic
+        description: "Webhook issued_documents.e_invoices.status_update; then read ei_status (sent, accepted, rejected, discarded, no_response)."
+        trigger: { kind: webhook, source: Fatture in Cloud webhooks }
+      - id: payments
+        label: Payment tracking
+        runtime: workers
+        description: Daily match of bank movements to open invoices; marks payments_list items paid and updates the HubSpot deal.
+        trigger: { kind: cron, schedule: "0 8 * * 1-5", source: Cloud Scheduler }
+        evals:
+          - { name: DSO days (illustrative), value: 52, target: 60, higher_is_better: false }
+      - id: dunning
+        agent: dunning
+        label: Payment follow-up
+        description: "Friendly reminder at +3 days, firm at +15, then AR manager. Statutory late interest (D.Lgs. 231/2002) only on a person's decision."
+      - id: ar_manager
+        type: human
+        label: AR manager
+        runtime: slack
+        description: Decides on formal notice, late interest or a call from the account owner.
+        approval: { by: accounts receivable manager, via: "Slack #billing", actions: [approve, edit, reject, snooze], timeout: 72h, on_timeout: wait }
+      - id: invoicing_fic
+        type: output
+        label: invoicing-fic preset
+        runtime: workers
+        status: planned
+        description: Full workflow (credit notes, SDI rejections, reconciliation, accountant export) in examples/invoicing-fic.
+    edges:
+      - billing_plan -> map
+      - map -> finance
+      - "finance -> map [return]: fix"
+      - { from: finance, to: fic, kind: call, protocol: http, label: "create, verify, send" }
+      - { from: fic, to: sdi_status, kind: data, protocol: webhook, label: status_update }
+      - "sdi_status -> map [return]: rejected, fix and resend"
+      - "fic -> payments [data]: open invoices"
+      - "payments -> dunning: overdue"
+      - "dunning -> ar_manager: + 15 days"
+      - "fic -> invoicing_fic [handoff]: full workflow"
+
+  # 8 ───────────────────────────────────────────────────────────────
+  - id: analytics
+    title: Analytics & Learning
+    description: >-
+      One pipeline mart for every number. A weekly digest, a monthly win/loss review that feeds
+      the ICP and the sequences, and the guardrails that cover all agents.
+    nodes:
+      - id: mart
+        type: memory
+        label: Pipeline mart
+        runtime: workers
+        description: "Daily HubSpot export (deals, stages, activities), Instantly stats, FIC invoices and payments. BigQuery, EU region."
+        data: { sensitivity: confidential, region: eu, retention: 1095d }
+      - id: analyst
+        agent: analyst
+        label: Weekly digest
+        trigger: { kind: cron, schedule: "0 7 * * 1", source: Cloud Scheduler }
+        files: [samples/pipeline-digest-2026-w41.md]
+        evals:
+          - { name: meetings per 100 prospects (illustrative), value: 3.1, target: 3 }
+          - { name: win rate % (illustrative), value: 27, target: 25 }
+          - { name: sales cycle days (illustrative), value: 64, target: 75, higher_is_better: false }
+          - { name: pipeline velocity EUR/day (illustrative), value: 7420, target: 7000 }
+      - id: winloss
+        agent: analyst
+        label: Win/loss review
+        description: Monthly. Reads call notes and lost reasons; proposes ICP, scoring and sequence changes with evidence.
+        trigger: { kind: cron, schedule: "0 8 1 * *" }
+      - id: data_quality
+        type: guard
+        label: CRM data quality
+        runtime: workers
+        description: Required fields per stage, stale next steps, duplicate companies; failures go to the owner's task list, not into the digest.
+      - id: llm_budget
+        type: guard
+        label: LLM budget
+        runtime: workers
+        description: 600 USD per month across agents; at the cap, Opus roles drop to Sonnet and the Head of Sales is told.
+        budget: { usd: 600, on_exceed: downgrade }
+      - id: audit
+        type: memory
+        label: Audit log
+        runtime: workers
+        description: Append-only record of approvals, lawful-basis decisions, opt-outs, sends and invoice submissions.
+        resources:
+          - { kind: log, label: Outreach run log, path: logs/outreach-run.log }
+        data: { sensitivity: confidential, region: eu, retention: 1825d }
+    edges:
+      - "mart -> data_quality [data]"
+      - "data_quality -> analyst: clean data"
+      - "mart -> winloss [data]: closed deals"
+
+links:
+  - "targeting.target_list -> prospecting.pull [data]: account filters"
+  - "targeting.sources -> prospecting.basis [data]: channel rules"
+  - "prospecting.tier -> outreach.sequencer [spawn]: tier A"
+  - "outreach.route -> qualification.prep [handoff]: interested"
+  - "outreach.route -> qualification.booking: booking link sent"
+  - { from: qualification.crm, to: proposal.scoping, kind: handoff, protocol: mcp, label: qualified deal }
+  - "proposal.proposal_out -> contract.assemble [handoff]: verbal yes"
+  - "contract.won -> invoicing.billing_plan [handoff]: billing schedule"
+  - "invoicing.payments -> analytics.mart [data]: payments"
+  - "qualification.crm -> analytics.mart [data]: deals + activities"
+  - "outreach.instantly -> analytics.mart [data]: send + reply stats"
+  - "analytics.winloss -> targeting.icp [return]: ICP feedback"
+  - "analytics.winloss -> outreach.sequencer [return]: messaging feedback"
+  - "outreach.optout -> analytics.audit [data]: suppression events"
+  - "prospecting.basis -> analytics.audit [data]: basis decisions"
+  - "analytics.llm_budget -> proposal.scoping: over budget, downgrade"

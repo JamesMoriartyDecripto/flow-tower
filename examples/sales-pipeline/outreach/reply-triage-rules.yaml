@@ -1,0 +1,41 @@
+# Labels the triage agent may return, with the action code performs. The agent never replies.
+# Precedence: if a reply matches several labels, the first in this list wins.
+version: 3
+
+labels:
+  - id: unsubscribe
+    examples: ["stop", "remove me", "non scrivetemi più", "désinscrire", "how did you get my email"]
+    action: suppress in Instantly + HubSpot, stop sequence, log; answer data-source questions by the rep within 30 days
+    sla: 24h
+  - id: objection_to_processing
+    examples: ["delete my data", "cancellate i miei dati", "GDPR request"]
+    action: suppress, open DPO ticket (Art. 21 objection / Art. 17 erasure), stop sequence
+    sla: 24h
+  - id: bounce
+    action: mark invalid, never retry; 2 % hard bounces in a day pauses the mailbox
+  - id: out_of_office
+    action: pause until return_date + 2 business days; do not contact the named substitute automatically
+  - id: wrong_person
+    action: stop; if a colleague is named, create a task for the rep (the colleague needs their own basis check)
+  - id: interested
+    examples: ["sure, send times", "ci sentiamo giovedì", "what would it cost?"]
+    action: notify owner, draft booking reply for the rep, create deal "Meeting requested"
+    sla: 4h
+  - id: objection
+    subtypes: [no_budget, timing, has_vendor, do_it_in_house, security, price]
+    action: objection drafter prepares a reply; rep edits and sends
+    sla: 1d
+  - id: not_now
+    action: stop sequence; re-check in 90 days only if the reply invited it
+  - id: not_interested
+    action: stop sequence; closed-lost reason "no interest"; no further contact for 12 months
+
+output_schema:
+  label: one of the ids above
+  subtype: optional
+  return_date: ISO date for out_of_office
+  confidence: 0..1
+  quote: the words that justify the label
+low_confidence:
+  below: 0.7
+  action: rep labels it; the pair is added to the triage eval set
