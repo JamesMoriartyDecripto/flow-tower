@@ -1,0 +1,184 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Media internals
+description: >-
+  How one lesson becomes a short narrated video: script and narration pass, slides and diagrams
+  with alt text, synthetic voice with a pronunciation lexicon, captions from the script, and a
+  Remotion render checked against media QC before it goes to the review board.
+root: ..
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Studio orchestrator
+    host: ecs:syllabus-forge/orchestrator
+    provider: aws
+    region: eu-west-1
+  elevenlabs:
+    kind: saas
+    label: ElevenLabs TTS
+    provider: elevenlabs
+    url: https://api.elevenlabs.io
+  remotion:
+    kind: serverless
+    label: Remotion Lambda
+    provider: aws
+    region: us-east-1
+
+prompts:
+  narration: { file: prompts/narration.md, description: Turns a script into TTS-ready narration with SSML breaks. }
+
+agents:
+  media:
+    from: .claude/agents/media-producer.md
+    runtime: orchestrator
+  script-writer:
+    from: .claude/agents/script-writer.md
+    runtime: orchestrator
+
+layers:
+  - id: script
+    title: Script
+    description: Conversational, second person, 130-150 words per minute, one segment per idea.
+    nodes:
+      - id: lesson
+        type: entry
+        label: Lesson text
+        description: Approved lesson markdown plus the segment plan from the module writer.
+        runtime: orchestrator
+        files: [samples/lesson-m3-l2.md]
+      - id: writer
+        agent: script-writer
+        label: Script writer
+      - id: narration
+        label: Narration pass
+        prompt: narration
+        description: Expands abbreviations, adds SSML breaks, marks emphasis. No new content.
+        runtime: orchestrator
+        files: [prompts/narration.md]
+      - id: timing
+        type: decision
+        label: Under 6 min?
+        description: Word count / 140 wpm. Longer segments are split, never sped up.
+        runtime: orchestrator
+        files: [config/quality-gates.yaml]
+    edges:
+      - "lesson -> writer [data]: segments"
+      - "writer -> narration [data]: script"
+      - narration -> timing
+      - "timing -> writer [return]: split"
+
+  - id: visuals
+    title: Visuals
+    description: Graphics carry the idea, narration explains it. No paragraph of on-screen text read aloud (redundancy).
+    nodes:
+      - id: storyboard
+        label: Storyboard
+        description: One visual per 15-30 s of narration, with the cue word that triggers it (temporal contiguity).
+        runtime: orchestrator
+        files: [.claude/agents/script-writer.md]
+      - id: slides
+        label: Marp slides
+        description: Course theme, 24 px minimum text, 20 words max, highlight on the element being discussed.
+        runtime: orchestrator
+        files: [src/tools/media.ts]
+      - id: diagrams
+        label: Mermaid diagrams
+        description: Flowcharts and sequence diagrams rendered to SVG.
+        runtime: orchestrator
+        files: [src/tools/media.ts]
+      - id: alt
+        label: Alt text
+        description: Short alt for every image; long description in the transcript for data-bearing figures. Decorative images marked as such.
+        runtime: orchestrator
+        files: [.claude/agents/accessibility-auditor.md]
+      - id: contrast
+        type: guard
+        label: Contrast 4.5:1
+        description: Theme tokens checked for WCAG 1.4.3 contrast; colour is never the only signal (1.4.1).
+        runtime: orchestrator
+        files: [config/style-guide.md]
+    edges:
+      - "storyboard -> slides: cues"
+      - "storyboard -> diagrams: figures"
+      - "diagrams -> alt [data]: SVG"
+      - "slides -> contrast: theme check"
+
+  - id: audio
+    title: Audio & Captions
+    description: Synthetic voice, disclosed in the course intro. Captions come from the script, so they are exact.
+    nodes:
+      - id: lexicon
+        type: memory
+        label: Lexicon
+        description: Pronunciations for product names and acronyms (Claude, LLM, RAG, JSON).
+        runtime: orchestrator
+        files: [memory/pronunciations.md]
+      - id: tts
+        type: tool
+        label: synthesize_voice
+        description: ElevenLabs multilingual model, fixed voice per course, cached by text hash.
+        runtime: elevenlabs
+        files: [src/tools/tts.ts]
+      - id: loudness
+        label: Loudness norm
+        description: ffmpeg loudnorm to -16 LUFS integrated, -1 dBTP.
+        runtime: orchestrator
+        files: [src/tools/media.ts]
+      - id: captions
+        label: WebVTT captions
+        description: Aligned to TTS timestamps, 42 chars per line, 2 lines, no orphan words.
+        runtime: orchestrator
+        files: [src/tools/media.ts]
+      - id: transcript
+        label: Transcript
+        description: Full text transcript with figure long descriptions (WCAG 1.2.3 media alternative).
+        runtime: orchestrator
+        files: [src/hooks/a11y-gate.ts]
+    edges:
+      - "lexicon -> tts [data]: pronunciations"
+      - "tts -> loudness [data]: mp3 + timestamps"
+      - "tts -> captions [data]: timestamps"
+      - "captions -> transcript [data]: text"
+
+  - id: render
+    title: Render & QC
+    description: Deterministic composition; the media producer only decides what to fix.
+    nodes:
+      - id: compose
+        type: tool
+        label: render_media
+        description: Remotion Lambda composition at 1080p30, H.264, burned-in nothing (captions stay a separate track).
+        runtime: remotion
+        files: [src/tools/media.ts]
+        resources:
+          - { kind: log, label: Render log, path: logs/render.log }
+      - id: producer
+        agent: media
+        label: Media producer
+      - id: qc
+        type: decision
+        label: QC pass?
+        description: Duration, caption drift under 200 ms, loudness, contrast, alt coverage.
+        runtime: orchestrator
+        files: [config/quality-gates.yaml]
+      - id: bundle
+        type: output
+        label: Media bundle
+        description: mp4 + vtt + transcript + slide PDF per segment, with a manifest for the packager.
+        runtime: orchestrator
+        files: [src/tools/media.ts]
+    edges:
+      - "compose -> producer [data]: preview"
+      - "producer -> qc: checks"
+      - "qc -> bundle: pass"
+      - "qc -> compose [return]: re-render"
+
+links:
+  - "script.timing -> visuals.storyboard: ok"
+  - "script.narration -> audio.tts [call]: SSML"
+  - "visuals.alt -> render.compose [data]: figures"
+  - "visuals.contrast -> render.compose [data]: slides"
+  - "audio.loudness -> render.compose [data]: audio"
+  - "audio.transcript -> render.bundle [data]: transcript"
+  - "render.qc -> script.writer [return]: script fix"

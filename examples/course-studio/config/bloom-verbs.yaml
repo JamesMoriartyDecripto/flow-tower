@@ -1,0 +1,37 @@
+# Bloom's revised taxonomy (Anderson & Krathwohl, 2001): cognitive process dimension.
+# Objectives use ONE verb from this list. Each objective also names a knowledge type.
+
+knowledge_types: [factual, conceptual, procedural, metacognitive]
+
+levels:
+  remember:
+    verbs: [list, recall, recognize, identify, name, define]
+    item_formats: [short_mcq]
+  understand:
+    verbs: [explain, summarize, classify, compare, paraphrase, interpret, give an example of]
+    item_formats: [short_mcq, scenario_mcq]
+  apply:
+    verbs: [use, apply, implement, execute, demonstrate, write, construct]
+    item_formats: [scenario_mcq, practice_task]
+  analyze:
+    verbs: [differentiate, diagnose, distinguish, organize, attribute, debug]
+    item_formats: [scenario_mcq, case_analysis]
+  evaluate:
+    verbs: [critique, judge, justify, select, assess, prioritize, defend]
+    item_formats: [case_analysis, rubric_task]
+  create:
+    verbs: [design, plan, produce, compose, formulate, develop]
+    item_formats: [rubric_task]
+
+banned: [understand, know, learn, appreciate, be aware of, be familiar with, grasp]
+
+# Sample: "Intro to Prompt Engineering for Product Managers"
+examples:
+  - level: apply
+    objective: Given a vague feature request, write a prompt spec with role, task, constraints and two examples.
+  - level: analyze
+    objective: Diagnose why a prompt produces inconsistent output from five sample responses.
+  - level: evaluate
+    objective: Justify a model choice (cost, latency, quality) for a feature using an eval table.
+  - level: create
+    objective: Design an evaluation plan with at least 20 test cases and pass criteria for an AI feature.

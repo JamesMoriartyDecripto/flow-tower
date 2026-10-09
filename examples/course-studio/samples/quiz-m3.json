@@ -1,0 +1,41 @@
+{
+  "quiz": "m3-check",
+  "module": 3,
+  "type": "formative",
+  "mastery_score": 0.8,
+  "attempts": "unlimited",
+  "items": [
+    {
+      "id": "m3-q1",
+      "objective": "O4",
+      "bloom": "apply",
+      "lesson_ref": "m3-l2#three-rules-for-useful-examples",
+      "stem": "Mateo's prompt turns support tickets into bug titles. All three examples are about login errors, and now most titles mention login. What should he change first?",
+      "options": [
+        { "id": "a", "text": "Replace two examples with tickets about other features, keeping the same title format.", "correct": true, "feedback": "Right. The examples share a topic the real inputs do not, so the model copies it. Vary the inputs, keep the format." },
+        { "id": "b", "text": "Add an instruction telling the model not to mention login unless needed.", "correct": false, "feedback": "Instructions help, but the examples still teach 'login' more strongly than one sentence can undo. Fix the examples first." },
+        { "id": "c", "text": "Remove the examples so the model is not biased by them.", "correct": false, "feedback": "Without examples the format becomes inconsistent. The problem is the narrow set, not having examples." }
+      ],
+      "difficulty_estimate": "medium",
+      "rationale": "Targets the misconception that instructions override example bias.",
+      "misconceptions": ["instructions override examples", "examples are always harmful bias"],
+      "calibration": { "simulated_attempts": 30, "p": 0.63, "discrimination": 0.41 }
+    },
+    {
+      "id": "m3-q2",
+      "objective": "O4",
+      "bloom": "analyze",
+      "lesson_ref": "m3-l2#what-an-example-does",
+      "stem": "Ama compares two prompts. Prompt A has three examples in slightly different formats. Prompt B has three examples in an identical format, wrapped in <example> tags. Outputs from A vary in structure; outputs from B do not. What best explains the difference?",
+      "options": [
+        { "id": "a", "text": "Prompt B's examples are longer, so the model pays more attention to them.", "correct": false, "feedback": "Length is not the difference here. Both prompts have three examples." },
+        { "id": "b", "text": "The model copies the format the examples share; in A they share no single format.", "correct": true, "feedback": "Correct. Examples teach format strongly. Consistent formats and clear tags give consistent outputs." },
+        { "id": "c", "text": "XML tags make the model follow instructions more strictly in general.", "correct": false, "feedback": "Tags help the model tell examples apart from instructions, but the consistent format is what fixed the output." }
+      ],
+      "difficulty_estimate": "medium",
+      "rationale": "Separates the effect of tags from the effect of a consistent format.",
+      "misconceptions": ["tags are magic", "longer examples get more weight"],
+      "calibration": { "simulated_attempts": 30, "p": 0.57, "discrimination": 0.38 }
+    }
+  ]
+}

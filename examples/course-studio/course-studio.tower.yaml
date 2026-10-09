@@ -1,0 +1,1091 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Syllabus Forge
+description: >-
+  An autonomous course creation studio on the Claude Agent SDK. It turns a topic + audience
+  brief into a published, accessible, assessed online course. Backward design drives the
+  plan, module writers and media run in parallel, a four-reviewer board gates quality in an
+  evaluator-optimizer loop (max 3 rounds), simulated learners pilot the course, and humans
+  sign off on the outline, the SME content review and the final publish. Sample run:
+  "Intro to Prompt Engineering for Product Managers", 6 modules, SCORM 2004 on Moodle.
+tags: [courses, education, instructional-design, e-learning, scorm, multi-agent, evaluator-optimizer, claude-agent-sdk]
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Studio orchestrator
+    description: Node 22 container running the pipeline, every SDK query(), the hooks and the in-process studio MCP server.
+    host: ecs:syllabus-forge/orchestrator
+    provider: aws
+    region: eu-west-1
+    meta: { cpu: 2 vCPU, memory: 8 GiB, max_task_hours: 6 }
+  laptop:
+    kind: local
+    label: Lead ID workstation
+    description: Interactive Claude Code sessions for learning design, pairing live with the SME. Same .claude/ config as the server.
+    host: lead-id-macbook
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  edge:
+    kind: edge
+    label: Cloudflare edge
+    description: Brief intake form (Worker) and the static landing page (Pages).
+    provider: cloudflare
+    url: https://learn.example.com
+  notion:
+    kind: saas
+    label: Notion workspace
+    description: Production board, sign-off tasks and the daily digest. Reached through the remote Notion MCP.
+    provider: notion
+    url: https://notion.example.com/acme-learning/syllabus-forge
+  remote-mcp:
+    kind: saas
+    label: Remote MCP servers
+    description: Context7 over streamable HTTP. Stateless, read-only.
+    provider: upstash
+    url: https://mcp.context7.com/mcp
+  elevenlabs:
+    kind: saas
+    label: ElevenLabs TTS
+    provider: elevenlabs
+    url: https://api.elevenlabs.io
+  remotion:
+    kind: serverless
+    label: Remotion Lambda
+    description: Parallel video rendering, one Lambda chunk per 20 s of video.
+    provider: aws
+    region: us-east-1
+    meta: { memory_mb: 3009, concurrency: 50 }
+  ci:
+    kind: ci
+    label: GitHub Actions
+    description: Deterministic packaging, manifest schema validation and the SCORM Cloud conformance job.
+    provider: github-actions
+    url: https://github.com/example-org/syllabus-forge/actions
+  scorm-cloud:
+    kind: saas
+    label: SCORM Cloud sandbox
+    description: Rustici conformance sandbox. Courses are imported, launched by the pilot and deleted after 7 days.
+    provider: rustici
+    url: https://cloud.scorm.com
+  moodle:
+    kind: saas
+    label: Moodle (production LMS)
+    description: Hosted Moodle 4.5 with web services enabled for a scoped service user.
+    provider: moodlecloud
+    url: https://lms.example.com
+  analytics:
+    kind: cloud
+    label: PostHog EU
+    description: Landing-page funnel, enrollment events and xAPI-derived course analytics.
+    provider: posthog
+    region: eu-central-1
+    url: https://eu.posthog.com
+  browser:
+    kind: browser
+    label: Headless Chromium
+    description: Playwright MCP sidecar with an isolated profile per session.
+    host: orchestrator sidecar
+
+prompts:
+  intake: { file: prompts/intake.md, description: "Haiku router. Brief -> route, audience, scope, risk flags as JSON." }
+  program-director: { file: prompts/program-director.md, description: "Opus orchestrator. Milestones, parallel dispatch, gates, checkpoints." }
+  review-round: { file: prompts/review-round.md, description: Per-round evaluator prompt shared by every reviewer (rubric + prior findings). }
+  revise-round: { file: prompts/revise-round.md, description: Optimizer prompt. Writers fix blocking findings only. }
+  consolidator: { file: prompts/consolidator.md, description: Merges four reviewer reports into one verdict and revision brief. }
+  learner-persona: { file: prompts/learner-persona.md, description: Simulated learner persona for the pilot (think-aloud + quiz attempts). }
+
+agents:
+  intake:
+    name: Intake router
+    description: Tool-less classifier with a JSON schema output; deterministic policy overrides for regulated topics.
+    model: claude-haiku-5-5
+    prompt: intake
+    tools: []
+    runtime: orchestrator
+    harness: { max_turns: 2, budget_usd: 0.05, output: json_schema, setting_sources: [] }
+    files: [src/intake.ts]
+    meta: { pattern: routing }
+  director:
+    name: Program director
+    description: Owns the production plan and dispatches every specialist. Cannot write course content itself.
+    model: claude-opus-5-5
+    prompt: program-director
+    tools: [Agent, Read, Glob, TodoWrite, mcp__studio__request_signoff, mcp__notion__notion-update-page]
+    runtime: orchestrator
+    harness: { max_turns: 120, budget_usd: 40, effort: high, fallback_model: claude-sonnet-5-5, max_subagent_depth: 1, max_concurrent_subagents: 6 }
+    files: [src/orchestrator.ts, src/agents.ts, CLAUDE.md]
+    resources:
+      - { kind: log, label: Director log, path: logs/director.log }
+      - { kind: dashboard, label: Run history, url: https://forge.example.com/runs }
+    meta: { pattern: orchestrator-workers }
+  librarian:
+    from: .claude/agents/research-librarian.md
+    runtime: orchestrator
+    harness: { max_turns: 30, context: isolated }
+    resources:
+      - { kind: log, label: Research log, path: logs/research.log }
+    meta: { pattern: parallelization }
+  architect:
+    from: .claude/agents/curriculum-architect.md
+    runtime: laptop
+    harness: { max_turns: 40, effort: high, interactive: true }
+  writer:
+    from: .claude/agents/module-writer.md
+    tower: towers/module-writer.tower.yaml
+    runtime: orchestrator
+    harness: { permission_mode: acceptEdits, max_attempts: 3, concurrency: 3 }
+    files: [src/pipelines/modules.ts]
+  localizer:
+    from: .claude/agents/localizer.md
+    runtime: orchestrator
+  script-writer:
+    from: .claude/agents/script-writer.md
+    runtime: orchestrator
+  media:
+    from: .claude/agents/media-producer.md
+    tower: towers/media.tower.yaml
+    runtime: orchestrator
+  assessor:
+    from: .claude/agents/assessment-designer.md
+    tower: towers/assessment.tower.yaml
+    runtime: orchestrator
+  pedagogy:
+    from: .claude/agents/pedagogy-reviewer.md
+    runtime: orchestrator
+    harness: { fresh_session_each_round: true }
+    files: [src/loop/review-board.ts]
+    meta: { pattern: evaluator-optimizer, role: evaluator }
+  fact-checker:
+    from: .claude/agents/fact-checker.md
+    runtime: orchestrator
+    harness: { fresh_session_each_round: true }
+    files: [src/loop/review-board.ts]
+  a11y:
+    from: .claude/agents/accessibility-auditor.md
+    runtime: orchestrator
+    harness: { fresh_session_each_round: true, blocks_on: [A, AA] }
+    files: [src/loop/review-board.ts]
+  rights:
+    from: .claude/agents/rights-reviewer.md
+    runtime: orchestrator
+    harness: { fresh_session_each_round: true }
+    files: [src/loop/review-board.ts]
+  consolidator:
+    name: Review consolidator
+    description: Dedupes the four reports, assigns severity and writes one revision brief per owner.
+    model: claude-opus-5-5
+    prompt: consolidator
+    tools: [Read]
+    runtime: orchestrator
+    harness: { max_turns: 8, budget_usd: 1 }
+    files: [src/loop/review-board.ts]
+  simulator:
+    from: .claude/agents/learner-simulator.md
+    prompt: learner-persona
+    runtime: orchestrator
+    files: [src/loop/pilot.ts]
+    resources:
+      - { kind: log, label: Pilot log, path: logs/pilot.log }
+  packager:
+    from: .claude/agents/course-packager.md
+    runtime: ci
+    files: [src/pipelines/publish.ts]
+  marketer:
+    from: .claude/agents/marketing-writer.md
+    runtime: orchestrator
+  tagger:
+    from: .claude/agents/metadata-tagger.md
+    runtime: orchestrator
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: brief
+    title: Brief & Direction
+    description: Routing, then orchestrator-workers. A Haiku call sizes the request; the Opus director plans and dispatches.
+    nodes:
+      - id: brief
+        type: entry
+        label: Course brief
+        description: Topic, audience, outcomes, constraints, locale(s), deadline, budget and the named SME. Validated with Zod.
+        runtime: edge
+        files: [samples/brief.yaml, src/main.ts]
+        resources:
+          - { kind: endpoint, label: Brief intake form, url: https://forge.example.com/api/briefs }
+      - id: intake
+        agent: intake
+      - id: route
+        type: decision
+        label: Route?
+        description: new | refresh | needs_info | decline. Regulated topics (medical, legal, financial advice) need an accredited SME or are declined.
+        runtime: orchestrator
+        files: [src/intake.ts]
+      - id: clarify
+        type: output
+        label: Ask sponsor
+        description: Posts the clarifying questions to the sponsor and stops. Nothing is produced without a named SME.
+        runtime: notion
+        files: [src/pipeline.ts]
+      - id: director
+        agent: director
+      - id: plan
+        label: Production plan
+        description: Milestones, module list, owners, budget per stage and the three human checkpoints. Written to the tracker.
+        runtime: orchestrator
+        files: [prompts/program-director.md, templates/course-outline.md]
+      - id: tracker
+        type: memory
+        label: Notion tracker
+        description: Production board (one card per module and asset) via the remote Notion MCP. Humans watch progress here.
+        runtime: notion
+        files: [.mcp.json, src/orchestrator.ts]
+        resources:
+          - { kind: dashboard, label: Production board, url: https://notion.example.com/acme-learning/syllabus-forge/production }
+      - id: dispatch
+        label: Dispatch
+        description: Fans out research, then design, then content, media and assessment in parallel once the outline is signed off.
+        runtime: orchestrator
+        files: [src/pipeline.ts, prompts/program-director.md]
+      - id: integrate
+        label: Integrate
+        description: Collects stage reports (status, artifacts, cost) and decides the next stage. Only summaries return to the director.
+        runtime: orchestrator
+        files: [src/orchestrator.ts, src/pipeline.ts]
+    edges:
+      - "brief -> intake [call]: brief JSON"
+      - "intake -> route [data]: IntakeSchema"
+      - "route -> clarify: needs_info"
+      - "route -> director [handoff]: new | refresh"
+      - "director -> plan [data]: milestones"
+      - "plan -> tracker [data]: cards"
+      - plan -> dispatch
+      - "integrate -> director [return]: stage report"
+      - "integrate -> tracker [data]: digest"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: research
+    title: Research & Sources
+    description: Parallel librarians build a cited, licence-checked source pack. The SME interview grounds it in practice.
+    nodes:
+      - id: questions
+        label: Research questions
+        description: What learners must do on the job, common misconceptions, current tooling, and what changed in the last 12 months.
+        runtime: orchestrator
+        files: [prompts/program-director.md]
+      - id: librarian
+        agent: librarian
+        label: Research librarian
+      - id: license
+        type: guard
+        label: License check
+        description: PreToolUse on writes to sources/. Unknown or NC/ND licences are denied for reuse; facts may still be cited.
+        runtime: orchestrator
+        files: [src/hooks/source-license.ts, config/quality-gates.yaml]
+        resources:
+          - { kind: log, label: Hook decisions, path: logs/hooks.log }
+      - id: registry
+        type: memory
+        label: Source registry
+        description: sources/registry.json. id, url, title, author, published, accessed, licence, reuse mode, quoted spans.
+        runtime: orchestrator
+        files: [samples/source-registry.json]
+        resources:
+          - { kind: database, label: Registry (sample run), path: samples/source-registry.json }
+      - id: coverage
+        type: decision
+        label: Coverage ok?
+        description: Every research question has 2+ independent sources, at least one primary, none older than the freshness window.
+        runtime: orchestrator
+        files: [config/quality-gates.yaml]
+      - id: sme_interview
+        type: human
+        label: SME interview
+        description: Five async questions to the named SME (war stories, mistakes novices make, what to skip). Answers are quotable.
+        runtime: notion
+        files: [src/tools/request-signoff.ts]
+      - id: pack
+        label: Research pack
+        description: One cited brief per module, claims tagged [S#] to the registry. The only research text writers may rely on.
+        runtime: orchestrator
+        files: [.claude/agents/research-librarian.md]
+    edges:
+      - "questions -> librarian [spawn]: per topic"
+      - "librarian -> license [call]: each source"
+      - "license -> registry [data]: allowed"
+      - "registry -> coverage [data]: counts"
+      - "coverage -> librarian [return]: gaps"
+      - "coverage -> pack: covered"
+      - "sme_interview -> pack [data]: SME notes"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: design
+    title: Learning Design
+    description: >-
+      Backward design (Understanding by Design): desired results, then acceptable evidence, then
+      learning experiences. Objectives use Bloom's revised taxonomy; lessons follow Gagné's nine events.
+    nodes:
+      - id: analysis
+        label: Learner analysis
+        description: Personas, prior knowledge, job tasks and constraints (PMs, 20 min/day, no coding). Feeds design and the pilot.
+        runtime: laptop
+        files: [samples/brief.yaml]
+      - id: architect
+        agent: architect
+        label: Course architect
+      - id: objectives
+        label: Objectives
+        description: ABCD-format objectives with one observable verb each. "Understand" and "know" are rejected.
+        runtime: laptop
+        files: [config/bloom-verbs.yaml]
+      - id: bloom
+        label: Bloom matrix
+        description: Objective x cognitive process x knowledge type. At most 30% at Remember/Understand for a practitioner course.
+        runtime: laptop
+        files: [config/bloom-verbs.yaml, config/quality-gates.yaml]
+      - id: evidence
+        label: Evidence plan
+        description: "Stage 2: what learners produce to prove each objective (knowledge check, scenario item, capstone criterion)."
+        runtime: laptop
+        files: [templates/rubric.md]
+      - id: outline
+        label: Course outline
+        description: "Stage 3: 6 modules, 3-4 lessons each, Gagné events mapped per lesson, time budget per segment."
+        runtime: laptop
+        files: [templates/course-outline.md]
+      - id: aligned
+        type: decision
+        label: Aligned?
+        description: Every objective has evidence AND a lesson; no lesson without an objective; Bloom distribution within target.
+        runtime: laptop
+        files: [.claude/agents/curriculum-architect.md]
+      - id: sme_signoff
+        type: human
+        label: SME sign-off 1
+        description: Checkpoint 1. The SME approves the outline and objectives or returns comments. No content is written before this.
+        runtime: notion
+        files: [src/tools/request-signoff.ts]
+        resources:
+          - { kind: dashboard, label: Sign-off queue, url: https://notion.example.com/acme-learning/syllabus-forge/signoffs }
+    edges:
+      - "analysis -> architect [data]: personas"
+      - "architect -> objectives [data]: ABCD"
+      - "objectives -> bloom [data]: verbs"
+      - "bloom -> evidence: stage 2"
+      - "evidence -> outline: stage 3"
+      - outline -> aligned
+      - "aligned -> architect [return]: gaps"
+      - "aligned -> sme_signoff [handoff]: yes"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: content
+    title: Content Production
+    description: Parallelization. One module writer per module (concurrency 3), each in an isolated context with its research pack.
+    nodes:
+      - id: fanout
+        label: Module fan-out
+        description: Promise.all over modules with a concurrency limit of 3. A blocked module is re-dispatched once, then escalated.
+        runtime: orchestrator
+        files: [src/pipelines/modules.ts]
+        resources:
+          - { kind: log, label: Module runs, path: logs/modules.log }
+          - { kind: queue, label: Module queue, url: https://forge.example.com/queues/modules }
+      - id: writer
+        agent: writer
+        label: Module writer
+      - id: glossary
+        type: memory
+        label: Course glossary
+        description: Locked terms and definitions. Writers and the localizer must use these exact terms.
+        runtime: orchestrator
+        files: [memory/glossary.md]
+      - id: reading
+        type: guard
+        label: Reading level
+        description: PreToolUse on lesson writes. Flesch-Kincaid grade above target + 1 is denied with the three hardest sentences.
+        runtime: orchestrator
+        files: [src/hooks/reading-level.ts, config/reading-levels.yaml]
+        resources:
+          - { kind: config, label: Reading targets, path: config/reading-levels.yaml }
+      - id: legacy_lint
+        label: Batch readability
+        status: deprecated
+        description: Old nightly script that scored finished lessons after the fact. Replaced by the PreToolUse reading-level gate; removal after course 12.
+        runtime: ci
+        files: [scripts/readability.sh]
+        resources:
+          - { kind: script, label: readability.sh, path: scripts/readability.sh }
+      - id: pii
+        type: guard
+        label: PII scan
+        description: Denies lesson text with emails, phone numbers or real customer names. Examples use fictional companies.
+        runtime: orchestrator
+        files: [src/hooks/pii-scan.ts]
+        resources:
+          - { kind: log, label: Hook decisions, path: logs/hooks.log }
+      - id: assemble
+        label: Assemble lessons
+        description: Lesson markdown with front matter (objectives, duration, sources). One file per lesson.
+        runtime: orchestrator
+        files: [templates/lesson.md, samples/lesson-m3-l2.md]
+      - id: drafts_ok
+        type: decision
+        label: All drafts in?
+        description: Every module returned STATUS done with all objectives covered and every claim cited.
+        runtime: orchestrator
+        files: [src/pipelines/modules.ts]
+      - id: localizer
+        agent: localizer
+        label: Localizer
+        status: experimental
+        description: In trial for es-ES and de-DE only. Output is reviewed by a human translator before it can ship.
+    edges:
+      - "fanout -> writer [spawn]: module N"
+      - "glossary -> writer [data]: locked terms"
+      - "writer -> reading: on write"
+      - "reading -> pii: pass"
+      - "pii -> assemble [data]: lesson.md"
+      - assemble -> drafts_ok
+      - "assemble -> legacy_lint: nightly (legacy)"
+      - "drafts_ok -> fanout [return]: blocked"
+      - "drafts_ok -> localizer [spawn]: locales"
+      - "glossary -> localizer [data]: term map"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: media
+    title: Media Production
+    description: Mayer's principles in practice. Narration plus visuals, no duplicated on-screen text, short segments, captions from the script.
+    nodes:
+      - id: media
+        agent: media
+        label: Media producer
+      - id: script
+        agent: script-writer
+        label: Script writer
+      - id: slides
+        label: Slide deck
+        description: Marp markdown rendered to PNG/PDF. One idea per slide, signaling cues, max 20 words of on-screen text.
+        runtime: orchestrator
+        files: [src/tools/media.ts, config/style-guide.md]
+      - id: diagrams
+        label: Diagrams
+        description: Mermaid -> SVG. Every figure ships with alt text and a long description when it carries data.
+        runtime: orchestrator
+        files: [src/tools/media.ts]
+      - id: voice
+        label: Voiceover
+        description: TTS narration with a pronunciation lexicon; SSML pauses at segment breaks. Disclosed as synthetic voice.
+        runtime: elevenlabs
+        files: [src/tools/tts.ts, memory/pronunciations.md]
+        resources:
+          - { kind: doc, label: TTS API reference, url: https://elevenlabs.io/docs/api-reference/text-to-speech }
+      - id: dubbing
+        label: Localized dubbing
+        status: experimental
+        description: Re-voices approved localized scripts with the same voice. Trial on module 1 only; captions stay the source of truth.
+        runtime: elevenlabs
+        files: [src/tools/tts.ts]
+      - id: captions
+        label: Captions
+        description: WebVTT built from the approved script (not ASR), 42 chars per line, 2 lines max, speaker cues.
+        runtime: orchestrator
+        files: [src/tools/media.ts]
+      - id: render
+        label: Video render
+        description: Remotion composition of slides + audio + captions. 1080p, under 6 minutes per segment.
+        runtime: remotion
+        files: [src/tools/media.ts]
+        resources:
+          - { kind: log, label: Render log, path: logs/render.log }
+          - { kind: dashboard, label: Lambda renders, url: https://render.example.com/remotion/renders }
+      - id: media_qc
+        type: decision
+        label: Media QC?
+        description: Duration, caption drift under 200 ms, loudness -16 LUFS +/- 1, no text below 24 px.
+        runtime: orchestrator
+        files: [config/quality-gates.yaml]
+    edges:
+      - "media -> script [spawn]: lesson scripts"
+      - "media -> diagrams: figure specs"
+      - "script -> slides [data]: slide cues"
+      - "script -> voice [data]: narration"
+      - "script -> captions [data]: VTT"
+      - "voice -> dubbing: locales (trial)"
+      - "diagrams -> slides [data]: SVG"
+      - "slides -> render [data]: frames"
+      - "voice -> render [data]: audio"
+      - "captions -> render [data]: track"
+      - render -> media_qc
+      - "media_qc -> media [return]: fix list"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: assessment
+    title: Assessment Design
+    description: Alignment first. A blueprint maps every objective to formative checks and a summative capstone with a rubric.
+    nodes:
+      - id: assessor
+        agent: assessor
+        label: Assessment author
+      - id: blueprint
+        label: Test blueprint
+        description: Table of specifications. Objective x Bloom level x item count x weight.
+        runtime: orchestrator
+        files: [templates/rubric.md]
+      - id: checks
+        label: Knowledge checks
+        description: Formative, 2-3 per lesson, scenario-based, feedback on every option. Unlimited attempts, no grade.
+        runtime: orchestrator
+        files: [samples/quiz-m3.json]
+      - id: capstone
+        label: Capstone project
+        description: "Summative performance task: write a prompt spec and an eval plan for a real product feature."
+        runtime: orchestrator
+        files: [templates/rubric.md]
+      - id: bank
+        type: memory
+        label: Item bank
+        description: Items with objective id, Bloom level, difficulty estimate, rationale and per-option feedback.
+        runtime: orchestrator
+        files: [samples/quiz-m3.json]
+        resources:
+          - { kind: database, label: Module 3 items, path: samples/quiz-m3.json }
+      - id: rubric
+        label: Rubric
+        description: Analytic rubric, 4 criteria x 4 levels, observable descriptors, anchor samples per level.
+        runtime: orchestrator
+        files: [templates/rubric.md]
+      - id: align
+        type: decision
+        label: Aligned?
+        description: Each objective is measured by 2+ items at its Bloom level or by a rubric criterion. No orphan items.
+        runtime: orchestrator
+        files: [.claude/agents/assessment-designer.md]
+      - id: answer_key
+        type: guard
+        label: Key leak guard
+        description: Answer keys and rationales live in assessment/keys/ and never in learner-visible lesson files.
+        runtime: orchestrator
+        files: [src/hooks/index.ts]
+      - id: adaptive
+        label: Adaptive retake
+        status: planned
+        description: "Planned: retakes draw unseen items for the objectives a learner missed, using cmi.interactions history."
+        runtime: moodle
+        files: [samples/quiz-m3.json]
+    edges:
+      - "assessor -> blueprint [data]: specs"
+      - "blueprint -> checks: formative"
+      - "blueprint -> capstone: summative"
+      - "checks -> bank [data]: items"
+      - "capstone -> rubric: criteria"
+      - "bank -> align [data]: coverage"
+      - "rubric -> align [data]: criteria"
+      - "align -> assessor [return]: gaps"
+      - "align -> answer_key: aligned"
+      - "bank -> adaptive [data]: unseen items"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: review
+    title: Review Gates
+    description: >-
+      Evaluator-optimizer, max 3 rounds. Four reviewers grade in parallel fresh sessions; a consolidator
+      merges findings; the SME signs off the content (checkpoint 2).
+    nodes:
+      - id: board
+        label: Review board
+        description: Promise.all over four fresh query() sessions. No reviewer sees another's report or the writer's reasoning.
+        tower: towers/review-board.tower.yaml
+        prompt: review-round
+        runtime: orchestrator
+        files: [src/loop/review-board.ts, prompts/review-round.md]
+        resources:
+          - { kind: log, label: Review rounds, path: logs/review-board.log }
+      - id: pedagogy
+        agent: pedagogy
+        label: Pedagogy reviewer
+      - id: fact
+        agent: fact-checker
+        label: Fact-checker
+      - id: a11y
+        agent: a11y
+        label: A11y auditor
+      - id: rights
+        agent: rights
+        label: Rights reviewer
+      - id: consolidate
+        agent: consolidator
+        label: Consolidate
+      - id: verdict
+        type: decision
+        label: All pass?
+        description: Zero blocking findings across all four reports. Non-blocking findings become backlog items.
+        runtime: orchestrator
+        files: [src/loop/review-board.ts, config/quality-gates.yaml]
+        resources:
+          - { kind: config, label: Quality gates, path: config/quality-gates.yaml }
+      - id: round_cap
+        type: decision
+        label: Round < 3?
+        description: Hard iteration cap. Round 3 revisions run on Opus; after round 3 the loop stops and escalates.
+        prompt: revise-round
+        runtime: orchestrator
+        files: [src/config.ts, prompts/revise-round.md]
+      - id: escalate
+        type: human
+        label: Escalate
+        description: The loop did not converge. Open findings go to the SME and program owner with a recommendation.
+        runtime: notion
+        files: [src/tools/request-signoff.ts]
+      - id: sme_review
+        type: human
+        label: SME sign-off 2
+        description: Checkpoint 2. The SME reads the full course with the fact-check report attached and approves or returns comments.
+        runtime: notion
+        files: [src/tools/request-signoff.ts]
+    edges:
+      - "board -> pedagogy [spawn]: rubric"
+      - "board -> fact [spawn]: claims"
+      - "board -> a11y [spawn]: WCAG 2.2 AA"
+      - "board -> rights [spawn]: licences"
+      - "pedagogy -> consolidate [return]: findings"
+      - "fact -> consolidate [return]: verdicts"
+      - "a11y -> consolidate [return]: violations"
+      - "rights -> consolidate [return]: clearances"
+      - "consolidate -> verdict [data]: merged report"
+      - "verdict -> round_cap: blocking"
+      - "verdict -> sme_review [handoff]: pass"
+      - "round_cap -> escalate [handoff]: cap hit"
+      - "escalate -> sme_review: resolved"
+
+  # 8 ───────────────────────────────────────────────────────────────
+  - id: pilot
+    title: Pilot & Learner Simulation
+    description: >-
+      Persona-driven simulated learners take the course in the SCORM Cloud sandbox. It finds friction and broken
+      items cheaply; it does not replace a human beta, and its scores are never reported as learner outcomes.
+    nodes:
+      - id: cohort
+        label: Persona cohort
+        description: Three personas from the learner analysis, each run in parallel with its own session and seed.
+        runtime: orchestrator
+        files: [src/loop/pilot.ts, prompts/learner-persona.md]
+      - id: p_novice
+        label: Novice PM
+        description: Has used ChatGPT, never an API. Skims long text, takes every knowledge check.
+        runtime: orchestrator
+        files: [prompts/learner-persona.md]
+      - id: p_esl
+        label: ESL learner
+        description: CEFR B2 English. Flags idioms, unexplained jargon and dense sentences.
+        runtime: orchestrator
+        files: [prompts/learner-persona.md, config/reading-levels.yaml]
+      - id: p_sr
+        label: Screen-reader user
+        status: experimental
+        description: Navigates only through the accessibility tree. Useful for focus traps and unlabeled controls; never a substitute for testing with disabled users.
+        runtime: browser
+        files: [prompts/learner-persona.md]
+      - id: simulator
+        agent: simulator
+        label: Learner simulator
+      - id: item_stats
+        label: Item analysis
+        description: Difficulty (p) and discrimination from simulated attempts. Flags items everyone or no one gets right.
+        runtime: orchestrator
+        files: [src/loop/pilot.ts]
+        resources:
+          - { kind: dashboard, label: xAPI statements, url: https://lrs.example.com/statements?activity=pe4pm }
+      - id: friction
+        label: Friction report
+        description: Think-aloud log clustered into confusion points with lesson and timestamp.
+        runtime: orchestrator
+        files: [src/loop/pilot.ts]
+      - id: pilot_ok
+        type: decision
+        label: Pilot ok?
+        description: No critical friction, no unusable items, completion recorded for every persona.
+        runtime: orchestrator
+        files: [config/quality-gates.yaml]
+    edges:
+      - "p_novice -> cohort [data]: persona"
+      - "p_esl -> cohort [data]: persona"
+      - "p_sr -> cohort [data]: persona"
+      - "cohort -> simulator [spawn]: parallel runs"
+      - "simulator -> item_stats [data]: attempts"
+      - "simulator -> friction [data]: think-aloud"
+      - item_stats -> pilot_ok
+      - friction -> pilot_ok
+
+  # 9 ───────────────────────────────────────────────────────────────
+  - id: publish
+    title: Packaging, Publishing & Launch
+    description: SCORM 2004 4th Ed. (cmi5 optional), conformance smoke test, human publish approval, then the launch kit.
+    nodes:
+      - id: packager
+        agent: packager
+        label: Course packager
+      - id: a11y_gate
+        type: guard
+        label: A11y gate
+        description: PreToolUse on scorm_package. Denies when any image lacks alt text, any video lacks captions or a transcript.
+        runtime: ci
+        files: [src/hooks/a11y-gate.ts]
+      - id: package
+        label: SCORM package
+        description: imsmanifest.xml + SCO launch pages + LOM metadata, zipped. cmi5.xml when the target LRS supports it.
+        runtime: ci
+        files: [src/tools/scorm-packager.ts, samples/imsmanifest.xml]
+        resources:
+          - { kind: script, label: package.sh, path: scripts/package.sh }
+          - { kind: repo, label: Studio repo, url: https://github.com/example-org/syllabus-forge }
+      - id: smoke
+        label: Conformance test
+        description: Upload to the SCORM Cloud sandbox, launch, complete, and assert completion, success and score are reported.
+        runtime: scorm-cloud
+        files: [src/pipelines/publish.ts, src/tools/lms-upload.ts]
+        resources:
+          - { kind: script, label: smoke-test.sh, path: scripts/smoke-test.sh }
+          - { kind: log, label: Publish log, path: logs/publish.log }
+      - id: approval
+        type: human
+        label: Publish approval
+        description: Checkpoint 3. The program owner reviews the sandbox link, review report, pilot report and launch kit.
+        runtime: notion
+        files: [src/tools/request-signoff.ts]
+        resources:
+          - { kind: dashboard, label: Sign-off queue, url: https://notion.example.com/acme-learning/syllabus-forge/signoffs }
+      - id: lms
+        label: LMS publish
+        description: Moodle course created hidden, SCORM activity added, made visible on approval. Canvas via Common Cartridge.
+        runtime: moodle
+        files: [src/tools/lms-upload.ts]
+        resources:
+          - { kind: endpoint, label: Moodle web services, url: https://lms.example.com/webservice/rest/server.php }
+      - id: live
+        type: output
+        label: Course live
+        description: Enrollment open. The run is recorded in the session log with cost, rounds and open backlog items.
+        runtime: moodle
+        files: [memory/session-log.md]
+        resources:
+          - { kind: endpoint, label: Course page, url: https://lms.example.com/course/view.php?id=412 }
+      - id: marketer
+        agent: marketer
+        label: Marketing writer
+      - id: landing
+        label: Landing page
+        description: Outcomes (from the objectives), syllabus, time commitment, prerequisites, instructor and SME credits.
+        runtime: edge
+        files: [.claude/agents/marketing-writer.md]
+        resources:
+          - { kind: endpoint, label: Live landing page, url: https://learn.example.com/prompt-engineering-for-pms }
+      - id: emails
+        label: Email sequence
+        description: Five emails (announce, syllabus, sample lesson, last call, welcome) with plain-text versions.
+        runtime: orchestrator
+        files: [.claude/agents/marketing-writer.md]
+      - id: claims
+        type: guard
+        label: Claims guard
+        description: No guaranteed outcomes, salary claims, fake scarcity, invented testimonials or "certified" without an accreditor.
+        runtime: orchestrator
+        files: [src/hooks/index.ts, config/quality-gates.yaml]
+    edges:
+      - "packager -> a11y_gate [call]: scorm_package"
+      - "a11y_gate -> package: allowed"
+      - "package -> smoke [data]: zip"
+      - "smoke -> approval [handoff]: green"
+      - "approval -> lms: approved"
+      - lms -> live
+      - "marketer -> landing [data]: copy"
+      - "marketer -> emails [data]: sequence"
+      - "landing -> claims: lint"
+      - "emails -> claims: lint"
+      - "claims -> approval [data]: launch kit"
+
+  # 10 ──────────────────────────────────────────────────────────────
+  - id: tools
+    title: Tools & MCP
+    description: Built-in tools, an in-process SDK MCP server for studio actions, and four external MCP servers (plus Notion on the tracker).
+    nodes:
+      - id: builtin
+        type: tool
+        label: Built-in tools
+        description: Read, Write, Edit, Grep, Glob, WebSearch, WebFetch, TodoWrite, Agent. Granted per agent, never all.
+        tools: [Read, Write, Edit, Grep, Glob, WebSearch, WebFetch, TodoWrite, Agent]
+        runtime: orchestrator
+        files: [.claude/settings.json]
+      - id: studio
+        type: tool
+        label: studio MCP
+        description: createSdkMcpServer in-process. Tools surface as mcp__studio__<name>.
+        runtime: orchestrator
+        files: [src/tools/index.ts]
+      - id: lms_upload
+        type: tool
+        label: lms_upload
+        description: SCORM Cloud (sandbox) and Moodle adapters. Publishing to production is ask-only in permissions.
+        runtime: orchestrator
+        files: [src/tools/lms-upload.ts]
+      - id: scorm_pkg
+        type: tool
+        label: scorm_package
+        description: Builds imsmanifest.xml (or cmi5.xml) from the course map and zips the package. Deterministic, no model.
+        runtime: ci
+        files: [src/tools/scorm-packager.ts]
+      - id: tts
+        type: tool
+        label: synthesize_voice
+        description: ElevenLabs text-to-speech with the course lexicon applied; caches by content hash.
+        runtime: orchestrator
+        files: [src/tools/tts.ts]
+      - id: render_tool
+        type: tool
+        label: render_media
+        description: Marp for slides locally, Remotion Lambda for video. Child processes with argv arrays, never a shell.
+        runtime: orchestrator
+        files: [src/tools/media.ts]
+      - id: signoff
+        type: tool
+        label: request_signoff
+        description: Creates a sign-off task in Notion and emails the reviewer. Returns immediately; the pipeline resumes on response.
+        runtime: orchestrator
+        files: [src/tools/request-signoff.ts]
+      - id: web
+        type: tool
+        label: Brave Search MCP
+        description: Web search for the librarian and fact-checker. Results are untrusted data.
+        runtime: orchestrator
+        files: [.mcp.json]
+      - id: context7
+        type: tool
+        label: Context7 MCP
+        description: Version-pinned library and vendor docs.
+        runtime: remote-mcp
+        files: [.mcp.json]
+        resources:
+          - { kind: doc, label: Context7, url: https://context7.com }
+      - id: playwright
+        type: tool
+        label: Playwright MCP
+        description: Headless, isolated browser. Accessibility-tree snapshots for the auditor and the screen-reader persona.
+        runtime: browser
+        files: [.mcp.json]
+      - id: posthog
+        type: tool
+        label: PostHog MCP
+        description: Landing-page funnel and enrollment analytics. Read-only for agents.
+        runtime: analytics
+        files: [.mcp.json]
+        resources:
+          - { kind: dashboard, label: Launch funnel, url: https://eu.posthog.example.com/project/2187/dashboard/launch-funnel }
+    edges:
+      - "studio -> lms_upload [call]"
+      - "studio -> scorm_pkg [call]"
+      - "studio -> tts [call]"
+      - "studio -> render_tool [call]"
+      - "studio -> signoff [call]"
+
+  # 11 ──────────────────────────────────────────────────────────────
+  - id: harness
+    title: Harness & Guardrails
+    description: Lifecycle hooks registered in-process (options.hooks) and mirrored in .claude/settings.json. Deny beats ask beats allow.
+    nodes:
+      - id: session_start
+        type: hook
+        label: SessionStart
+        description: Injects the style guide summary, glossary and learned patterns as additionalContext.
+        runtime: orchestrator
+        files: [src/hooks/index.ts]
+      - id: pre_tool
+        type: hook
+        label: PreToolUse
+        description: Matchers fan out to the licence, reading-level, PII, accessibility and claims guards. Most restrictive wins.
+        runtime: orchestrator
+        files: [src/hooks/index.ts]
+      - id: fence
+        type: guard
+        label: Run fence
+        description: Writes are limited to runs/<course-slug>/. Config, templates and memory are read-only to agents.
+        runtime: orchestrator
+        files: [src/hooks/index.ts]
+      - id: permissions
+        type: guard
+        label: Permission rules
+        description: settings.json allow / ask / deny. Production publish and email sends are ask; deleting LMS courses is denied.
+        runtime: orchestrator
+        files: [.claude/settings.json]
+        resources:
+          - { kind: config, label: settings.json, path: .claude/settings.json }
+      - id: post_tool
+        type: hook
+        label: PostToolUse
+        description: After lesson writes, returns readability stats and markdownlint issues as additionalContext.
+        runtime: orchestrator
+        files: [src/hooks/reading-level.ts]
+      - id: subagent_stop
+        type: hook
+        label: SubagentStop
+        description: Records each specialist's status, artifacts and cost on its tracker card.
+        runtime: orchestrator
+        files: [src/hooks/index.ts]
+      - id: stop
+        type: hook
+        label: Stop
+        description: Blocks the director from finishing while a quality gate is pending; appends the session log.
+        runtime: orchestrator
+        files: [src/hooks/index.ts, src/memory/session-log.ts]
+        resources:
+          - { kind: log, label: Hook decisions, path: logs/hooks.log }
+      - id: budget
+        type: guard
+        label: Turn & $ caps
+        description: maxTurns and maxBudgetUsd per query, $60 per course, subagent depth 1, concurrency 6.
+        runtime: orchestrator
+        files: [src/config.ts]
+    edges:
+      - session_start -> pre_tool
+      - "pre_tool -> fence [call]: Write|Edit"
+      - "fence -> permissions: allow"
+      - "permissions -> post_tool: executed"
+      - post_tool -> subagent_stop
+      - subagent_stop -> stop
+      - "budget -> stop: limit hit"
+
+  # 12 ──────────────────────────────────────────────────────────────
+  - id: memory
+    title: Memory, Config & Models
+    description: Plain files reviewed in PRs. Right-size every call - Opus where judgment compounds, Sonnet for production, Haiku for routing and tags.
+    nodes:
+      - id: claude_md
+        type: memory
+        label: CLAUDE.md
+        description: Project memory loaded by settingSources ['project'] into every session and subagent.
+        runtime: orchestrator
+        files: [CLAUDE.md]
+      - id: style_guide
+        type: memory
+        label: Style guide
+        description: Voice, tone, inclusive language, example conventions, citation format.
+        runtime: orchestrator
+        files: [config/style-guide.md]
+      - id: gates
+        type: memory
+        label: Quality gates
+        description: Thresholds every gate reads (reading level, Bloom mix, coverage, media QC, review rounds).
+        runtime: orchestrator
+        files: [config/quality-gates.yaml, config/reading-levels.yaml, config/bloom-verbs.yaml]
+        resources:
+          - { kind: config, label: quality-gates.yaml, path: config/quality-gates.yaml }
+      - id: patterns
+        type: memory
+        label: patterns.md
+        description: DO/DON'T rules promoted from findings that recurred across 2+ courses.
+        runtime: orchestrator
+        files: [memory/patterns.md]
+      - id: session_log
+        type: memory
+        label: Session log
+        description: Append-only run journal. Cost, rounds, open findings, pilot results per course.
+        runtime: orchestrator
+        files: [memory/session-log.md, src/memory/session-log.ts]
+      - id: tagger
+        agent: tagger
+        label: Metadata tagger
+      - id: policy
+        label: Model policy
+        description: ROLE_MODEL map plus escalation to Opus on the last revision round.
+        runtime: orchestrator
+        files: [src/config.ts]
+      - id: opus
+        type: model
+        label: Opus 5.5
+        model: claude-opus-5-5
+        runtime: anthropic
+        description: Director, curriculum architect, pedagogy and rights reviewers, consolidator.
+      - id: sonnet
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        runtime: anthropic
+        description: Librarian, writers, media, assessment, fact-check, accessibility, simulator, packager, marketing.
+      - id: haiku
+        type: model
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        runtime: anthropic
+        description: Intake routing, metadata tags, claim extraction, digests.
+    edges:
+      - "session_log -> patterns [data]: seen twice"
+      - "policy -> opus: direct, judge"
+      - "policy -> sonnet: produce"
+      - "policy -> haiku: route, tag"
+      - "tagger -> haiku [call]: tags"
+
+links:
+  # direction -> research -> design
+  - "brief.dispatch -> research.questions [spawn]: research"
+  - "research.pack -> design.architect [data]: cited pack"
+  - "brief.director -> design.architect [spawn]: design"
+  - "design.sme_signoff -> brief.integrate [return]: approved outline"
+  # design -> production (parallel)
+  - "brief.dispatch -> content.fanout [spawn]: modules 1-6"
+  - "brief.dispatch -> media.media [spawn]: media"
+  - "brief.dispatch -> assessment.assessor [spawn]: assessments"
+  - "design.outline -> content.fanout [data]: lesson specs"
+  - "design.evidence -> assessment.blueprint [data]: evidence plan"
+  - "content.assemble -> media.script [data]: lesson text"
+  # production -> review
+  - "content.drafts_ok -> review.board [handoff]: drafts"
+  - "media.media_qc -> review.board [handoff]: media"
+  - "assessment.answer_key -> review.board [handoff]: items"
+  - "review.round_cap -> content.fanout [return]: revision brief"
+  - "review.escalate -> memory.session_log [data]: open findings"
+  # review -> pilot -> publish
+  - "review.sme_review -> pilot.cohort [handoff]: SME approved"
+  - "design.analysis -> pilot.cohort [data]: personas"
+  - "pilot.pilot_ok -> publish.packager [handoff]: go"
+  - "pilot.pilot_ok -> assessment.assessor [return]: weak items"
+  - "pilot.friction -> brief.integrate [return]: friction report"
+  - "brief.dispatch -> publish.marketer [spawn]: launch kit"
+  - "publish.live -> memory.session_log [data]: outcome"
+  # tools
+  - "research.librarian -> tools.web [call]: search"
+  - "research.librarian -> tools.context7 [call]: vendor docs"
+  - "review.fact -> tools.web [call]: evidence"
+  - "review.a11y -> tools.playwright [call]: a11y tree"
+  - "pilot.simulator -> tools.playwright [call]: take course"
+  - "content.writer -> tools.builtin [call]: Read, Write"
+  - "media.voice -> tools.tts [call]: narration"
+  - "media.slides -> tools.render_tool [call]: marp"
+  - "media.render -> tools.render_tool [call]: remotion"
+  - "publish.package -> tools.scorm_pkg [call]: build zip"
+  - "publish.smoke -> tools.lms_upload [call]: scorm-cloud"
+  - "publish.lms -> tools.lms_upload [call]: moodle"
+  - "publish.landing -> tools.posthog [call]: funnel events"
+  - "brief.director -> tools.signoff [call]: checkpoints"
+  - "tools.signoff -> research.sme_interview [handoff]: questions"
+  - "tools.signoff -> design.sme_signoff [handoff]: outline"
+  - "tools.signoff -> publish.approval [handoff]: publish"
+  # harness
+  - "tools.builtin -> harness.pre_tool: every call"
+  - "harness.pre_tool -> research.license [call]: Write sources/"
+  - "harness.pre_tool -> content.reading [call]: Write lessons/"
+  - "harness.pre_tool -> content.pii [call]: Write"
+  - "harness.pre_tool -> assessment.answer_key [call]: Write lessons/"
+  - "harness.pre_tool -> publish.a11y_gate [call]: scorm_package"
+  - "harness.pre_tool -> publish.claims [call]: Write marketing/"
+  - "harness.subagent_stop -> brief.tracker [data]: status + cost"
+  - "harness.stop -> memory.session_log [data]: append"
+  # memory + models
+  - "memory.style_guide -> harness.session_start [data]: inject"
+  - "memory.patterns -> harness.session_start [data]: inject"
+  - "memory.gates -> content.reading [data]: thresholds"
+  - "memory.gates -> review.verdict [data]: gates"
+  - "memory.claude_md -> brief.director [data]: context"
+  - "content.assemble -> memory.tagger [spawn]: tag lessons"
+  - "memory.tagger -> publish.package [data]: LOM keywords"
+  - "brief.director -> memory.policy [call]: role"
+  - "brief.intake -> memory.haiku [call]: classify"
