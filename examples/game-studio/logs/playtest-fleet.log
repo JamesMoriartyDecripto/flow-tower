@@ -1,0 +1,12 @@
+2026-10-06T13:20:01Z fleet=playtest-spot region=eu-central-1 instances=8 type=g5.xlarge build=m2-0412-dev
+2026-10-06T13:20:44Z bot=explorer-1 seed=4127 persona=explorer started
+2026-10-06T13:20:45Z bot=speedrun-1 seed=9001 persona=speedrunner started
+2026-10-06T13:20:45Z bot=chaos-1 seed=1337 persona=chaos started
+2026-10-06T13:20:46Z bot=coop-host-1 seed=2718 persona=coop_host followers=3 started
+2026-10-06T13:31:12Z bot=chaos-1 event=crash type=AccessViolation module=Emberwake-Win64-Development frame=UBeaconComponent::OnRep_Lit
+2026-10-06T13:38:02Z bot=speedrun-1 objective=3/3 beacons time=17m17s deaths=1
+2026-10-06T13:41:55Z bot=explorer-1 stuck x=-18240 y=6612 z=2210 island=7 duration=31s
+2026-10-06T13:47:30Z bot=coop-host-1 event=host_leave during=rekindle clients_desynced=3
+2026-10-06T13:52:10Z bot=explorer-1 objective=3/3 beacons time=31m50s pois_visited=41/44
+2026-10-06T13:52:40Z fleet summary runs=40 crashes=1 crash_rate=2.5% fps_p95_ms=15.8 cost_usd=0.96
+2026-10-06T13:52:41Z fleet scaled to 0
