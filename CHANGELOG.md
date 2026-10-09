@@ -59,6 +59,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Focused layer gets a near-opaque plate and the other layers dim further, so the focused flow reads cleanly.
 
 ### Fixed
+- Camera framing respects the HUD (#30): the projection is centered on the free area between panels (setViewOffset), framings fit that area, opening the inspector or the live feed slides the scene instead of covering it, and a node selected under a panel is brought into view with the smallest camera move. When panels open or close, the camera zooms out only as much as needed for the visible nodes to fit, and returns to the previous distance when they fit again.
 - vitest only runs `tests/`: sample `*.spec.ts` files inside examples are content, not project tests.
 - Library: project descriptions are no longer cut; up to 4 lines, longer ones scroll inside the card.
 - Schema docs: labeled edge shorthand (`a -> b: label`) must be quoted in YAML.
