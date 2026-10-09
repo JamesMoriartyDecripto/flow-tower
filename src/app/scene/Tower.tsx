@@ -27,8 +27,11 @@ export function TowerScene() {
 }
 
 function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTower>>; layout: TowerLayout }) {
-  const { explode, focusedLayer, hoveredLayer, selected, hovered, search, hiddenTypes, runtimeFocus, autoRotate, viewNonce, quality, animations, view } = useStore();
+  const { explode, focusedLayer: wanted, hoveredLayer, selected, hovered, search, hiddenTypes, runtimeFocus, autoRotate, viewNonce, quality, animations, view } = useStore();
   const deco = decorative(quality, animations);
+  // While the next tower's layout computes, this (previous) stack is still on screen: ignore a focus
+  // index that belongs to the next tower.
+  const focusedLayer = wanted !== undefined && wanted < tower.layers.length ? wanted : undefined;
   const show = usePrefs((s) => s.show);
   const spacing = useRef(0.02); // starts collapsed: the tower "assembles" on mount
   const lens = useMemo(() => createLens(tower.layers.length), [tower]);

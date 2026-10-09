@@ -9,6 +9,28 @@ import { COLORS, FONTS, GLOW, HOT, NODE_STYLE, type Glyph } from '../theme';
 import { commit, fadeTo, GLYPHS, scaled, setInstance, toSegments, UNIT_BOX, WIRE_GLYPHS } from './batch';
 import { TextBatch, type TextItem } from './TextBatch';
 
+// Average glyph advance of the node fonts, in ems (measured on screen; the clipRect is the safety net).
+const LABEL_EM = 0.5;
+const TAG_EM = 0.66;
+
+/** Truncates to the characters that fit `width` (with an ellipsis). */
+function fit(text: string, width: number, charW: number) {
+  const max = Math.floor(width / charW);
+  return text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
+}
+
+/** Joins subtitle parts in priority order, keeping only whole parts that fit. */
+function fitParts(parts: (string | false | undefined)[], width: number, charW: number) {
+  let out = '';
+  for (const p of parts) {
+    if (!p) continue;
+    const next = out ? `${out}  ·  ${p}` : p;
+    if (next.length * charW > width) return out || fit(p, width, charW);
+    out = next;
+  }
+  return out;
+}
+
 export interface NodeView {
   node: ResolvedNode;
   box: NodeBox;
@@ -20,7 +42,6 @@ export interface NodeView {
 const TOP = 0.16;
 const PANEL = new Color('#0c2650');
 const PANEL_ACTIVE = new Color('#1a4680');
-const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const rect = (b: NodeBox, y: number) => {
   const [x0, x1, z0, z1] = [b.x - b.w / 2, b.x + b.w / 2, b.z - b.d / 2, b.z + b.d / 2];
   return [[x0, z0], [x1, z0], [x1, z1], [x0, z1], [x0, z0]].map(([x, z]) => new Vector3(x, y, z));
@@ -54,18 +75,21 @@ export function LayerNodes({ views, layer, layerFade, interactive, detail, tags:
   const active = views.filter((v) => v.selected || v.hovered);
 
   const labels = useMemo<TextItem[]>(() => views.map(({ node, box, fade }) => ({
-    text: short(node.label, 21), position: [box.x - box.w / 2 + 0.95, TOP + 0.01, box.z - 0.13], fontSize: 0.4,
+    // Clipped at the node border (and before the sub-tower badge): long labels never spill out.
+    text: fit(node.label, box.w - 0.95 - (node.tower ? 1.05 : 0.2), 0.4 * LABEL_EM), position: [box.x - box.w / 2 + 0.95, TOP + 0.01, box.z - 0.13], fontSize: 0.4,
+    clip: box.w - 0.95 - (node.tower ? 1.05 : 0.2),
     color: COLORS.white, opacity: fade * layerFade * (node.status === 'deprecated' ? 0.55 : 1),
   })), [views, layerFade]);
   const tags = useMemo<TextItem[]>(() => views.map(({ node, box, fade }) => ({
-    text: [
+    text: fitParts([
       node.tower && '⇣ SUB',
       node.status !== 'active' && node.status.toUpperCase(),
       NODE_STYLE[node.type].tag,
       node.model?.replace(/^claude-/, ''),
-      node.runtime && `@${short(node.runtime.id, 14)}`,
-    ].filter(Boolean).join('  ·  '),
+      node.runtime && `@${node.runtime.id}`,
+    ], box.w - 0.95 - 0.2, 0.2 * TAG_EM),
     position: [box.x - box.w / 2 + 0.95, TOP + 0.01, box.z + 0.34], fontSize: 0.2, letterSpacing: 0.06,
+    clip: box.w - 0.95 - 0.2,
     color: COLORS.amber, opacity: 0.85 * fade * layerFade,
   })), [views, layerFade]);
 

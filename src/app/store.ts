@@ -114,7 +114,17 @@ export const useStore = create<State>()((set, get) => ({
   },
   showLibrary: (library) => set({ library }),
   goTo(depth) {
-    set({ stack: get().stack.slice(0, depth + 1), selected: undefined, focusedLayer: undefined, hoveredLayer: undefined, file: undefined });
+    const { stack, workspace } = get();
+    // Coming back up: land on the node that opens the tower we leave, so the user is where they left.
+    const child = stack[depth + 1];
+    const parent = workspace?.towers[stack[depth]];
+    let selected: string | undefined;
+    let focusedLayer: number | undefined;
+    parent?.layers.forEach((l, i) => {
+      const n = !selected && l.nodes.find((x) => x.tower === child);
+      if (n) { selected = n.key; focusedLayer = i; }
+    });
+    set({ stack: stack.slice(0, depth + 1), selected, focusedLayer, hoveredLayer: undefined, file: undefined });
   },
   set: (patch) => set(patch),
   toggleType(type) {

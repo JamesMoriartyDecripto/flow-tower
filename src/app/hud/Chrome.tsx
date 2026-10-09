@@ -148,8 +148,7 @@ function SubTowers() {
       <div className="title">Sub-towers · {subs.length}</div>
       {subs.map(({ n, l }) => (
         <div key={n.key} className="sub">
-          <button onClick={() => pick(l.index, n.key)} title={`Select ${n.label} (layer ${l.index + 1}) — it opens "${ws?.towers[n.tower!]?.name ?? n.tower}"`}
-            style={{ display: 'contents' }}>
+          <button onClick={() => pick(l.index, n.key)} title={`Select ${n.label} (layer ${l.index + 1}) — it opens "${ws?.towers[n.tower!]?.name ?? n.tower}"`} className="sub-pick">
             <span className="idx">L{String(l.index + 1).padStart(2, '0')}</span>
             <span className="name">{n.label}</span>
           </button>
