@@ -1,10 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { CameraControls } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3, type Group } from 'three';
 import { matches, related } from '../graph';
 import { useLayout, type TowerLayout } from '../layout';
 import { publishCamera, publishLayout } from '../keynav';
+import { fitScale, useHudFrame } from './hudFrame';
 import { useStore, useTower } from '../store';
 import { LAYER_GAP, PLATE_PAD } from '../theme';
 import { Ambient, Base, Scanner } from './Environment';
@@ -38,6 +39,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
   const group = useRef<Group>(null);
   const pillars = useRef<Group>(null);
   const controls = useRef<CameraControls>(null);
+  const size = useThree((st) => st.size);
 
   const n = tower.layers.length;
   const width = layout.width + PLATE_PAD * 2;
@@ -82,22 +84,21 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
       const t = focusedLayer === undefined ? { x: 0, z: 0 } : lensTarget(focusedLayer, 1, undefined, 'map', n, width, depth);
       const overview = focusedLayer === undefined;
       const extent = overview ? Math.max(grid.depth * 1.3, (grid.width * 1.3) / 1.6) : Math.max(depth * 1.3, width / 1.4);
-      const d = extent / (2 * tan);
-      // Shift the overview so the grid clears the left HUD column (layers panel).
-      const x = overview ? t.x - grid.width * 0.07 : t.x;
-      c.setLookAt(x, d * 0.95, t.z + d * 0.3, x, 0, t.z, true);
+      // The projection is centered on the free area between panels (useHudFrame): fit to that area.
+      const d = (extent / (2 * tan)) * fitScale(size.width, size.height);
+      c.setLookAt(t.x, d * 0.95, t.z + d * 0.3, t.x, 0, t.z, true);
       keepAlive(1500);
     } else if (focusedLayer === undefined) {
       // Fit the taller of (tower height, plate width) inside the vertical field of view.
       const fit = Math.max(height + 10, width * 0.75, depth) / (2 * tan);
-      const dir = new Vector3(0.5, 0.32, 0.85).normalize().multiplyScalar(fit * 1.3);
+      const dir = new Vector3(0.5, 0.32, 0.85).normalize().multiplyScalar(fit * 1.3 * fitScale(size.width, size.height));
       c.setLookAt(dir.x, dir.y, dir.z, 0, 0, 0, true);
       keepAlive(1500);
     } else {
       const y = layerY(focusedLayer);
       // Fit the focused layer's own flowchart, not the (wider) shared plate.
       const own = layout.layers[focusedLayer];
-      const r = Math.max((own.width + 4) * 0.82, (own.depth + 4) * 1.5, 10);
+      const r = Math.max((own.width + 4) * 0.82, (own.depth + 4) * 1.5, 10) * fitScale(size.width, size.height);
       c.setLookAt(0, y + r * 0.92, r * 0.5, 0, y, 0, true);
       keepAlive(1500);
     }
@@ -107,6 +108,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
   useShiftPan(controls);
   useFollow();
   const layerIds = useMemo(() => tower.layers.map((l) => l.id), [tower]);
+  useHudFrame(controls, layout, layerIds);
   useChipProjector(layout, layerIds);
   const live = useSceneLive();
   const feedOpen = useLive((s) => s.feedOpen);
