@@ -1,0 +1,21 @@
+# Output of the intake agent for the sample project (fictional client).
+client: Nordlicht Coffee Roasters
+contact: { name: Ida Sørensen, role: Founder, approver: true }
+type: ecommerce
+why_now: Shopify theme is slow on mobile (LCP 4.8 s) and cannot show wholesale pricing.
+goals:
+  - { metric: online orders, target: "+30% in 6 months" }
+  - { metric: wholesale enquiries, target: "20 per month" }
+audience:
+  - Home brewers in DK, SE and DE (subscriptions, single-origin beans)
+  - Cafés and offices (wholesale enquiry, samples)
+languages: [en, da, de]
+pages_must_have: [home, shop, product, subscriptions, wholesale, about, journal, contact, faq]
+integrations: { payments: stripe, email: resend, analytics: plausible, newsletter: none }
+content_editors: 2 (founder, marketing assistant)
+brand: { figma_library: "Nordlicht Brand 2024", voice: [warm, precise, unpretentious] }
+budget_eur: { min: 38000, max: 45000 }
+launch: 2026-11-30 (before the Christmas gift season)
+legal: [cookie consent, European Accessibility Act, imprint, terms of sale]
+missing: []
+route: ready

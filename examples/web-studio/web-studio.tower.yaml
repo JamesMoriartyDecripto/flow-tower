@@ -1,0 +1,707 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Website & Web Design Studio
+description: >-
+  An agency pipeline that takes a client brief to a launched, monitored website. A Claude Agent
+  SDK studio lead runs discovery, information architecture, Figma design (through the Figma MCP
+  server) and copy, with a client sign-off closing each phase. Build splits into two parallel
+  lanes, frontend (Next.js App Router, design-system package, typed API client) and backend
+  (OpenAPI contract, Payload CMS on Neon Postgres, Stripe, Resend, Vercel Functions). The lanes
+  join on a Vercel preview with a seeded Neon branch, where security, API tests, e2e,
+  accessibility, Lighthouse and visual-regression gates run before the client reviews the same
+  URL. Launch is a Vercel rolling release. Sample client: "Nordlicht Coffee Roasters", a
+  specialty coffee shop selling in DK, SE and DE.
+tags: [web-design, agency, nextjs, payload-cms, figma-mcp, playwright, accessibility, lighthouse, stripe, vercel, human-in-the-loop, claude-agent-sdk]
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Studio orchestrator
+    description: Node 22 container running the studio lead and its specialists (Agent SDK), the hooks and the studio MCP server.
+    host: fly:studio-orchestrator
+    provider: fly.io
+    region: ams
+  laptop:
+    kind: local
+    label: Lead dev workstations
+    description: The frontend and backend leads run in Claude Code with the same .mcp.json and CLAUDE.md as the orchestrator.
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  figma:
+    kind: saas
+    label: Figma (remote MCP)
+    description: Design files, variables and Code Connect. Agents read and write the canvas through the remote MCP server.
+    provider: figma
+    url: https://mcp.figma.com/mcp
+  github:
+    kind: saas
+    label: GitHub
+    description: Client monorepo, PRs and reviews.
+    provider: github
+    url: https://github.com/example-studio/nordlicht-web
+  gha:
+    kind: ci
+    label: GitHub Actions
+    description: Security scans, API integration tests, Playwright suites and Lighthouse CI on each preview.
+    provider: github-actions
+    url: https://github.com/example-studio/nordlicht-web/actions
+  vercel-fn:
+    kind: serverless
+    label: Vercel Functions
+    description: Server-rendered pages (RSC), Payload CMS and the API route handlers. Node.js runtime.
+    provider: vercel
+    region: fra1
+  vercel-edge:
+    kind: edge
+    label: Vercel Edge
+    description: Routing Middleware (locale, redirects, preview protection) and the CDN.
+    provider: vercel
+  visitor:
+    kind: browser
+    label: Visitor browser
+    description: Hydrated client components only (cart, menu, forms, Turnstile widget).
+  headless:
+    kind: browser
+    label: Headless Chromium
+    description: Playwright, both as the MCP server agents drive and as the CI test runner.
+  neon:
+    kind: cloud
+    label: Neon Postgres
+    description: Main branch for production; one branch per Vercel preview (preview/<git-branch>), created by the Vercel integration.
+    provider: neon
+    region: aws-eu-central-1
+    url: https://console.neon.tech
+  stripe:
+    kind: saas
+    label: Stripe
+    description: Checkout and subscriptions. Test mode (sandbox) until the launch checklist.
+    provider: stripe
+    url: https://dashboard.stripe.com
+  resend:
+    kind: saas
+    label: Resend
+    description: Transactional email for enquiries and order notifications.
+    provider: resend
+    url: https://resend.com
+  slack:
+    kind: saas
+    label: Slack Connect
+    description: Shared channel with the client for sign-offs, round comments and launch approvals.
+    provider: slack
+  linear:
+    kind: saas
+    label: Linear
+    description: Project tracker, one issue per template, component and endpoint.
+    provider: linear
+    url: https://linear.app
+  tally:
+    kind: saas
+    label: Tally form
+    description: Public brief form on the studio site; posts submissions by webhook.
+    provider: tally
+    url: https://tally.so
+  dataforseo:
+    kind: saas
+    label: DataForSEO
+    description: Keyword volumes, SERP and competitor domains, through its MCP server.
+    provider: dataforseo
+    url: https://dataforseo.com
+  plausible:
+    kind: saas
+    label: Plausible (EU)
+    description: Cookieless analytics hosted in the EU; Vercel Speed Insights for field Core Web Vitals.
+    provider: plausible
+    url: https://plausible.io
+
+prompts:
+  intake: { file: prompts/intake.md, description: "Haiku. Form submission -> brief.yaml, missing fields, route." }
+  studio-lead: { file: prompts/studio-lead.md, description: "Opus. Phases, client rounds, scope control, dispatch." }
+  researcher: { file: prompts/researcher.md, description: Competitor audit with Playwright screenshots. }
+  ia-architect: { file: prompts/ia-architect.md, description: "Sitemap, content model, user flows (FigJam)." }
+  designer: { file: prompts/designer.md, description: "Figma MCP design rules: tokens only, WCAG 2.2 targets, three breakpoints." }
+  copywriter: { file: prompts/copywriter.md, description: "Per-page copy, meta, alt text and JSON-LD into Payload drafts." }
+  frontend-lead: { file: prompts/frontend-lead.md, description: "Next.js lane: Figma -> components -> RSC pages, typed client only." }
+  backend-lead: { file: prompts/backend-lead.md, description: "Contract first, Payload collections and migrations, handlers, tests." }
+  qa-auditor: { file: prompts/qa-auditor.md, description: "What automation misses: keyboard, names, alt relevance, forms, SEO." }
+  monitor: { file: prompts/monitor.md, description: "Weekly CWV, traffic, Search Console and API health digest." }
+
+agents:
+  intake:
+    name: Brief intake
+    model: claude-haiku-5-5
+    prompt: intake
+    tools: []
+    runtime: orchestrator
+    harness: { max_turns: 2, output: json_schema }
+  lead:
+    name: Studio lead
+    model: claude-opus-5-5
+    prompt: studio-lead
+    tools: [Agent, Read, TodoWrite, mcp__studio__request_signoff, mcp__linear__save_issue]
+    runtime: orchestrator
+    files: [src/orchestrator.ts, src/tools/request-signoff.ts, CLAUDE.md]
+    harness: { max_turns: 80, effort: high, fallback_model: claude-sonnet-5-5 }
+    budget: { usd: 30, on_exceed: pause }
+  researcher:
+    name: Competitor researcher
+    model: claude-sonnet-5-5
+    prompt: researcher
+    tools: [mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_snapshot, WebSearch]
+    runtime: orchestrator
+    fanout: { min: 3, max: 6, by: competitors named in the brief }
+    limits: { timeout: 15m, ttl: 30m, retries: 1 }
+    sandbox: { network: open, filesystem: workspace }
+  seo:
+    name: SEO researcher
+    model: claude-sonnet-5-5
+    tools: [mcp__dataforseo__keywords_data_google_ads_search_volume, mcp__dataforseo__serp_organic_live_advanced, WebSearch]
+    prompt: { text: "Build a keyword map for {{client}} in {{markets}}: one primary keyword per planned page, volume, difficulty, intent, and the three ranking competitors." }
+    runtime: orchestrator
+    budget: { usd: 5, on_exceed: stop }
+  ia:
+    name: Information architect
+    model: claude-opus-5-5
+    prompt: ia-architect
+    tools: [Read, Write, mcp__figma__generate_diagram]
+    runtime: orchestrator
+    files: [samples/sitemap.yaml]
+  designer:
+    name: Visual designer
+    model: claude-sonnet-5-5
+    prompt: designer
+    tools: [mcp__figma__get_metadata, mcp__figma__get_screenshot, mcp__figma__get_variable_defs, mcp__figma__search_design_system, mcp__figma__use_figma]
+    runtime: orchestrator
+    credentials: user
+  ds:
+    name: Design-system designer
+    model: claude-opus-5-5
+    prompt: designer
+    tools: [mcp__figma__use_figma, mcp__figma__get_variable_defs, mcp__figma__get_code_connect_map, mcp__figma__add_code_connect_map]
+    runtime: orchestrator
+    credentials: user
+  copywriter:
+    name: Copywriter
+    model: claude-sonnet-5-5
+    prompt: copywriter
+    tools: [Read, mcp__studio__save_copy]
+    runtime: orchestrator
+    files: [src/tools/index.ts]
+    fanout: { min: 10, max: 30, by: pages x locales }
+    budget: { usd: 12, on_exceed: pause }
+  fe-lead:
+    name: Frontend lead
+    model: claude-opus-5-5
+    prompt: frontend-lead
+    tools: [Read, Edit, Write, Bash, mcp__figma__get_design_context, mcp__figma__get_screenshot, mcp__figma__get_code_connect_map, mcp__playwright__browser_take_screenshot]
+    runtime: laptop
+    tower: towers/frontend.tower.yaml
+    harness: { permission_mode: acceptEdits, max_turns: 150 }
+    budget: { usd: 60, on_exceed: escalate }
+    sandbox: { network: allowlist, allow: [registry.npmjs.org, mcp.figma.com, api.github.com, "*.vercel.app"], filesystem: workspace }
+  be-lead:
+    name: Backend lead
+    model: claude-opus-5-5
+    prompt: backend-lead
+    tools: [Read, Edit, Write, Bash, mcp__github__create_pull_request]
+    runtime: laptop
+    tower: towers/backend.tower.yaml
+    harness: { permission_mode: acceptEdits, max_turns: 150 }
+    budget: { usd: 45, on_exceed: escalate }
+    sandbox: { network: allowlist, allow: [registry.npmjs.org, api.stripe.com, console.neon.tech, api.github.com], filesystem: workspace }
+  qa:
+    name: QA auditor
+    model: claude-sonnet-5-5
+    prompt: qa-auditor
+    tools: [Read, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_press_key, mcp__playwright__browser_evaluate]
+    runtime: orchestrator
+    limits: { timeout: 30m, ttl: 45m }
+    sandbox: { network: allowlist, allow: ["*.vercel.app", checkout.stripe.com], filesystem: read-only }
+  monitor:
+    name: Site monitor
+    model: claude-haiku-5-5
+    prompt: monitor
+    tools: [mcp__vercel__get_deployment_build_logs, mcp__linear__save_issue, WebFetch]
+    runtime: orchestrator
+    trigger: { kind: cron, schedule: "0 7 * * 1", source: orchestrator scheduler }
+    budget: { usd: 1, on_exceed: stop }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: brief
+    title: Brief & Kickoff
+    description: Routing, then orchestrator-workers. A Haiku call structures the brief; the Opus studio lead plans and owns the client checkpoints.
+    nodes:
+      - id: form
+        type: entry
+        label: Brief form
+        description: Tally form on the studio site, following templates/brief-template.md.
+        runtime: tally
+        trigger: { kind: webhook, source: Tally form submission }
+        files: [templates/brief-template.md]
+      - id: intake
+        agent: intake
+      - id: route
+        type: decision
+        label: Route?
+        description: ready | needs_info | decline (custom web apps are not our offer).
+        runtime: orchestrator
+      - id: clarify
+        type: output
+        label: Ask the client
+        description: The missing fields as a short list of questions. Nothing is estimated on a vague brief.
+        runtime: slack
+      - id: lead
+        agent: lead
+      - id: kickoff
+        type: human
+        label: Proposal signed
+        description: Scope, sitemap draft, three included design rounds, budget and timeline. Work starts on signature.
+        runtime: slack
+        files: [samples/brief.yaml]
+        approval: { by: client decision-maker, via: signed proposal, actions: [approve, edit, reject], timeout: 7d, on_timeout: escalate }
+      - id: tracker
+        type: memory
+        label: Linear project
+        description: One issue per template, component and endpoint; client-visible milestones.
+        runtime: linear
+    edges:
+      - { from: form, to: intake, label: submission, protocol: webhook }
+      - "intake -> route [data]: brief.yaml"
+      - "route -> clarify: needs_info"
+      - "route -> lead [handoff]: ready"
+      - "lead -> kickoff: proposal"
+      - { from: lead, to: tracker, kind: data, label: issues, protocol: mcp }
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: discovery
+    title: Research & Information Architecture
+    description: Parallel competitor audits and keyword research feed a strategy brief, then the sitemap and content model (client sign-off 1).
+    nodes:
+      - id: researcher
+        agent: researcher
+        label: Competitor audit
+      - id: seo
+        agent: seo
+        label: Keyword research
+      - id: strategy
+        label: Strategy brief
+        description: Positioning, audiences and their top tasks, conversion paths, what to borrow and avoid.
+        runtime: orchestrator
+        files: [prompts/studio-lead.md]
+      - id: ia
+        agent: ia
+        label: Sitemap & model
+      - id: sitemap_ok
+        type: human
+        label: Sitemap sign-off
+        description: Client sign-off 1 on sitemap, content model and user flows (FigJam). Backend work can start after it.
+        runtime: slack
+        files: [samples/sitemap.yaml, logs/client-review.log]
+        approval: { by: client decision-maker, via: Slack Connect, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
+        limits: { max_iterations: 2 }
+    edges:
+      - "researcher -> strategy [data]: audits"
+      - "seo -> strategy [data]: keyword map"
+      - strategy -> ia
+      - "ia -> sitemap_ok: sitemap + flows"
+      - "sitemap_ok -> ia [return]: comments, max 2 rounds"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: design
+    title: UX, Visual Design & Copy
+    description: Wireframes, then design system and high-fidelity templates in Figma, with copy written into CMS drafts in parallel (client sign-offs 2 and 3).
+    nodes:
+      - id: wireframes
+        agent: designer
+        label: Wireframes
+        description: Low-fidelity frames per template in Figma at 390 and 1440 px, real headings, no styling.
+      - id: wf_ok
+        type: human
+        label: Wireframe sign-off
+        runtime: slack
+        approval: { by: client decision-maker, via: Figma comments + Slack Connect, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
+        limits: { max_iterations: 2 }
+      - id: ds
+        agent: ds
+        label: Design system
+        description: Figma variables (color, type, spacing), components with variants, Code Connect mappings to packages/ui.
+      - id: tokens
+        label: Tokens export
+        description: Figma variables -> design/tokens.json (W3C format) -> Tailwind v4 theme.css.
+        runtime: orchestrator
+        files: [design/tokens.json, scripts/figma-tokens.ts]
+      - id: visual
+        agent: designer
+        label: Visual design
+        description: High-fidelity templates, three breakpoints, components only from the library.
+        fanout: { min: 4, max: 8, by: page templates }
+      - id: copy
+        agent: copywriter
+      - id: voice
+        type: guard
+        label: Voice & claims
+        description: Banned words, reading level, meta lengths, and any unsourced claim ("best", awards, certifications) flagged for the client.
+        runtime: orchestrator
+        files: [prompts/copywriter.md]
+      - id: design_ok
+        type: human
+        label: Design sign-off
+        description: Client sign-off 3 on high-fidelity templates with real copy. Three rounds included; a fourth is a change request.
+        runtime: slack
+        approval: { by: client decision-maker, via: Figma prototype + Slack Connect, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
+        limits: { max_iterations: 3 }
+        evals:
+          - { name: rounds used, value: 2, target: 3, higher_is_better: false }
+    edges:
+      - wireframes -> wf_ok
+      - "wf_ok -> wireframes [return]: comments, max 2"
+      - "wf_ok -> visual: approved"
+      - "ds -> tokens [data]: variables"
+      - "ds -> visual [data]: components"
+      - "copy -> voice: drafts"
+      - "voice -> design_ok: clean copy"
+      - "visual -> design_ok: frames"
+      - "design_ok -> visual [return]: round comments, max 3"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: frontend
+    title: "Build: Frontend lane"
+    description: >-
+      Runs in parallel with the backend lane. Next.js App Router: components from Figma via Code
+      Connect, server-rendered pages on Vercel Functions, small client islands in the browser,
+      routing at the edge. Only the generated client talks to the API.
+    nodes:
+      - id: fe_lead
+        agent: fe-lead
+      - id: ui_pkg
+        type: memory
+        label: packages/ui
+        description: Design-system components with Storybook stories, themed only by tokens.
+        runtime: github
+        files: [design/tokens.json]
+      - id: api_client
+        label: Typed API client
+        description: openapi-typescript from the contract plus Payload generated types. CI fails if it is stale.
+        runtime: gha
+        files: [scripts/gen-api-client.sh, api/openapi.yaml]
+      - id: pages
+        label: Pages (RSC)
+        description: Server Components reading content through the Payload Local API; ISR on product and journal pages; generateMetadata per page.
+        runtime: vercel-fn
+      - id: islands
+        label: Client islands
+        description: Cart, mobile menu, forms with the Turnstile widget. Hydrated in the visitor's browser; everything else ships as HTML.
+        runtime: visitor
+      - id: middleware
+        label: Edge middleware
+        description: Locale routing (en, da, de), 301s from the old Shopify URLs, preview password protection.
+        runtime: vercel-edge
+    edges:
+      - "api_client -> fe_lead [data]: typed client"
+      - "fe_lead -> ui_pkg [data]: components"
+      - "fe_lead -> pages: templates"
+      - "pages -> islands: hydrate"
+      - "middleware -> pages: rewrite"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: backend
+    title: "Build: Backend lane"
+    description: >-
+      Starts after the sitemap sign-off. Contract first (OpenAPI 3.1), then Payload collections and
+      migrations on Neon, then route handlers for checkout, Stripe webhooks and enquiries on Vercel Functions.
+    nodes:
+      - id: be_lead
+        agent: be-lead
+      - id: contract
+        label: API contract
+        description: api/openapi.yaml, versioned. Any frontend need starts here; the frontend lead approves the diff.
+        runtime: github
+        files: [api/openapi.yaml]
+        version: 1.3.0
+        approval: { by: frontend lead, via: PR review, actions: [approve, edit], timeout: 1d, on_timeout: escalate }
+      - id: payload
+        type: tool
+        label: Payload CMS
+        description: Admin panel, auth for editors, field-level access control, drafts and localization, Local API for pages.
+        runtime: vercel-fn
+        files: [backend/collections.ts]
+      - id: migrations
+        label: Migrations
+        description: payload migrate:create, reviewed SQL; run in every preview build and once in the production build.
+        runtime: gha
+        files: [backend/seed.ts]
+      - id: db
+        type: memory
+        label: Neon Postgres
+        description: Products, posts, orders and enquiries. Orders are kept 5 years (Danish Bookkeeping Act).
+        runtime: neon
+        data: { sensitivity: pii, region: eu, retention: 1825d, description: "Names, emails and shipping addresses of customers and enquirers." }
+      - id: api
+        label: Route handlers
+        description: /api/checkout, /api/enquiries, /api/stripe/webhook. zod validation, rate limits, Turnstile, signature checks, idempotency.
+        runtime: vercel-fn
+        files: [backend/checkout-route.ts, backend/enquiries-route.ts, backend/stripe-webhook.ts]
+        limits: { timeout: 15s, retries: 0 }
+        data: { sensitivity: pii, region: eu }
+        credentials: service
+      - id: stripe
+        type: tool
+        label: Stripe Checkout
+        description: Hosted Checkout (card data never touches our servers), subscriptions, test mode until launch.
+        runtime: stripe
+        data: { sensitivity: pci, description: Card data stays in Stripe-hosted Checkout. }
+      - id: resend
+        type: tool
+        label: Resend email
+        runtime: resend
+    edges:
+      - "be_lead -> contract [data]: contract first"
+      - "be_lead -> payload: collections"
+      - "be_lead -> migrations: migrate:create"
+      - "migrations -> db [data]: schema"
+      - "payload -> db [data]: Postgres adapter"
+      - "be_lead -> api: handlers"
+      - "api -> payload [call]: Local API"
+      - { from: api, to: stripe, kind: call, label: Checkout Session, protocol: http }
+      - { from: stripe, to: api, kind: return, label: checkout.session.completed, protocol: webhook }
+      - { from: api, to: resend, kind: call, label: notify team, protocol: http }
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: qa
+    title: Integration & QA
+    description: >-
+      Where the lanes meet. Every PR gets a Vercel preview backed by its own seeded Neon branch;
+      the gates run in CI against that URL, then an agent audits what automation misses.
+    nodes:
+      - id: preview
+        label: Preview + DB branch
+        description: Vercel preview per PR; Neon creates preview/<git-branch>, the build runs payload migrate and the seed script.
+        runtime: vercel-fn
+        files: [backend/seed.ts]
+        trigger: { kind: event, source: Vercel deployment_status }
+        resources:
+          - { kind: log, label: QA run log, path: logs/qa.log }
+      - id: security
+        type: guard
+        label: Semgrep + secrets
+        description: Semgrep (OWASP Top 10, Next.js, secrets rulesets) and Gitleaks; any blocking finding fails the gate.
+        runtime: gha
+        files: [.github/workflows/preview-qa.yml]
+        evals:
+          - { name: blocking findings, value: 0, target: 0, higher_is_better: false }
+      - id: api_tests
+        label: API tests
+        description: Vitest integration tests against the seeded branch; Stripe CLI triggers webhook events, duplicates must be ignored.
+        runtime: gha
+        files: [.github/workflows/preview-qa.yml]
+      - id: e2e
+        label: E2E checkout
+        description: Cart -> Checkout with test card 4242 -> webhook -> order; enquiry API rejects a missing Turnstile token.
+        runtime: headless
+        files: [qa/checkout.spec.ts, qa/playwright.config.ts]
+        resources:
+          - { kind: recording, label: Playwright traces, url: https://github.com/example-studio/nordlicht-web/actions/workflows/preview-qa.yml }
+      - id: a11y
+        label: axe (WCAG 2.2)
+        description: axe-core via @axe-core/playwright with wcag2a/aa, wcag21a/aa and wcag22aa tags on every template, plus a keyboard test.
+        runtime: headless
+        files: [qa/a11y.spec.ts]
+        evals:
+          - { name: axe violations, value: 0, target: 0, higher_is_better: false, url: https://www.w3.org/TR/WCAG22/ }
+      - id: lighthouse
+        label: Lighthouse CI
+        description: Mobile, 3 runs per URL, asserts category scores and lab metrics. INP needs field data, so TBT is the lab proxy.
+        runtime: gha
+        files: [qa/lighthouserc.json]
+        evals:
+          - { name: performance (mobile min), value: 0.93, target: 0.9 }
+          - { name: accessibility, value: 1, target: 1 }
+          - { name: SEO, value: 1, target: 0.95 }
+          - { name: LCP lab max (s), value: 2.1, target: 2.5, higher_is_better: false, url: https://web.dev/articles/vitals }
+          - { name: CLS max, value: 0.03, target: 0.1, higher_is_better: false }
+          - { name: TBT max (ms), value: 120, target: 200, higher_is_better: false }
+      - id: visual
+        label: Visual regression
+        description: Playwright toHaveScreenshot per template and viewport against baselines approved at the last sign-off.
+        runtime: headless
+        files: [qa/visual.spec.ts]
+        evals:
+          - { name: max pixel diff (%), value: 0.4, target: 1, higher_is_better: false }
+      - id: gate
+        type: decision
+        label: All green?
+        description: Failures are routed to the owning lane. Three fix rounds, then the studio lead re-plans.
+        runtime: gha
+        limits: { max_iterations: 3 }
+      - id: auditor
+        agent: qa
+    edges:
+      - "preview -> security"
+      - "preview -> api_tests"
+      - "preview -> e2e"
+      - "preview -> a11y"
+      - "preview -> lighthouse"
+      - "preview -> visual"
+      - "security -> gate [data]"
+      - "api_tests -> gate [data]"
+      - "e2e -> gate [data]"
+      - "a11y -> gate [data]"
+      - "lighthouse -> gate [data]"
+      - "visual -> gate [data]"
+      - "gate -> auditor: green"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: launch
+    title: Client Review, Launch & Monitoring
+    description: The client reviews the same preview URL; out-of-scope requests become change requests; production ships as a rolling release.
+    nodes:
+      - id: client_review
+        type: human
+        label: Client review
+        description: Comments on the preview (Vercel toolbar) consolidated into one list per round. Three rounds included.
+        runtime: slack
+        approval: { by: client decision-maker, via: Vercel preview comments + Slack Connect, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
+        limits: { max_iterations: 3 }
+        resources:
+          - { kind: log, label: Sign-off history, path: logs/client-review.log }
+      - id: in_scope
+        type: decision
+        label: In scope?
+        description: Against the signed sitemap and proposal.
+        runtime: orchestrator
+      - id: change_request
+        type: output
+        label: Change request
+        description: Estimate and impact on the launch date, sent to the client to accept or defer.
+        runtime: linear
+      - id: release
+        label: Rolling release
+        description: Production deploy, then Vercel Rolling Release at 25% with manual advancement; Stripe switches to live keys at 100%.
+        runtime: vercel-edge
+        version: v2.0.0
+        rollout: { strategy: canary, percent: 25, previous: v1.7.2 }
+        approval: { by: studio lead, via: Slack, actions: [approve, reject], timeout: 4h, on_timeout: reject }
+        resources:
+          - { kind: log, label: Deploy log, path: logs/deploy.log }
+      - id: analytics
+        type: tool
+        label: Analytics
+        description: Plausible (cookieless), Vercel Speed Insights (field CWV), Google Search Console.
+        runtime: plausible
+        data: { sensitivity: internal, description: No personal data; no cookie banner needed for analytics. }
+      - id: monitor
+        agent: monitor
+        evals:
+          - { name: field LCP p75 (s), value: 1.9, target: 2.5, higher_is_better: false }
+          - { name: field INP p75 (ms), value: 140, target: 200, higher_is_better: false }
+          - { name: field CLS p75, value: 0.02, target: 0.1, higher_is_better: false }
+          - { name: checkout conversion (%), value: 2.8, target: 2.5 }
+      - id: report
+        type: output
+        label: Monthly report
+        description: CWV, traffic, conversions and open issues for the client retainer.
+        runtime: slack
+    edges:
+      - "client_review -> in_scope: comments"
+      - "in_scope -> change_request: no"
+      - "client_review -> release: approved"
+      - "release -> monitor: live"
+      - "analytics -> monitor [data]: weekly metrics"
+      - monitor -> report
+
+  # 8 ───────────────────────────────────────────────────────────────
+  - id: platform
+    title: Tools, Models & Guardrails
+    description: MCP servers shared by every session, the deploy guard, studio memory and the three Claude models.
+    nodes:
+      - id: figma
+        type: tool
+        label: Figma MCP
+        description: get_design_context, get_variable_defs, get_screenshot, get_code_connect_map, use_figma, generate_diagram.
+        runtime: figma
+        files: [.mcp.json]
+        credentials: user
+      - id: playwright
+        type: tool
+        label: Playwright MCP
+        description: "@playwright/mcp, headless and isolated: navigate, snapshot (accessibility tree), screenshot, evaluate."
+        runtime: headless
+        files: [.mcp.json]
+        limits: { ttl: 30m }
+      - id: github
+        type: tool
+        label: GitHub MCP
+        description: PRs, reviews and issues for the client repo, with the studio bot account.
+        runtime: github
+        files: [.mcp.json]
+        credentials: service
+      - id: vercel_mcp
+        type: tool
+        label: Vercel MCP
+        description: Projects, deployments and build logs over OAuth. Production actions go through the deploy guard.
+        runtime: vercel-edge
+        files: [.mcp.json]
+        credentials: user
+      - id: deploy_guard
+        type: guard
+        label: Deploy guard
+        description: PreToolUse. Previews are free; production deploys, promotes, rolling-release steps and production migrations ask the studio lead; destructive commands are denied.
+        runtime: orchestrator
+        files: [src/hooks/deploy-guard.ts]
+      - id: memory
+        type: memory
+        label: Studio memory
+        description: CLAUDE.md conventions, the client's brand book and the definition of done, loaded by every session.
+        runtime: github
+        files: [CLAUDE.md]
+      - id: opus
+        type: model
+        label: Opus 5.5
+        model: claude-opus-5-5
+        runtime: anthropic
+      - id: sonnet
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        runtime: anthropic
+      - id: haiku
+        type: model
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        runtime: anthropic
+    edges:
+      - "memory -> deploy_guard [data]: definition of done"
+
+links:
+  - "brief.kickoff -> discovery.researcher [spawn]: signed scope"
+  - "brief.kickoff -> discovery.seo [spawn]"
+  - "discovery.sitemap_ok -> design.wireframes [handoff]: signed sitemap"
+  - "discovery.sitemap_ok -> design.copy [data]: pages + keywords"
+  - "discovery.sitemap_ok -> backend.be_lead [handoff]: content model"
+  - "design.design_ok -> frontend.fe_lead [handoff]: signed design"
+  - "design.tokens -> frontend.ui_pkg [data]: theme.css"
+  - "design.copy -> backend.payload [data]: drafts"
+  - "backend.contract -> frontend.api_client [data]: openapi.yaml"
+  - "frontend.fe_lead -> qa.preview: PR"
+  - "backend.be_lead -> qa.preview: PR"
+  - "backend.db -> qa.preview [data]: Neon branch"
+  - "qa.gate -> frontend.fe_lead [return]: UI, a11y, perf findings"
+  - "qa.gate -> backend.be_lead [return]: API, security findings"
+  - "qa.auditor -> launch.client_review: preview URL"
+  - "launch.in_scope -> frontend.fe_lead [return]: round fixes"
+  - "launch.in_scope -> backend.be_lead [return]: round fixes"
+  - "launch.release -> platform.deploy_guard [call]: ask"
+  - { from: design.wireframes, to: platform.figma, kind: call, protocol: mcp }
+  - { from: design.ds, to: platform.figma, kind: call, label: variables + Code Connect, protocol: mcp }
+  - { from: frontend.fe_lead, to: platform.figma, kind: call, label: get_design_context, protocol: mcp }
+  - { from: discovery.researcher, to: platform.playwright, kind: call, protocol: mcp }
+  - { from: qa.auditor, to: platform.playwright, kind: call, protocol: mcp }
+  - { from: backend.be_lead, to: platform.github, kind: call, label: PR, protocol: mcp }
+  - { from: launch.monitor, to: platform.vercel_mcp, kind: call, label: deploy logs, protocol: mcp }
+  - { from: brief.lead, to: platform.opus, kind: call, protocol: http }
+  - { from: design.visual, to: platform.sonnet, kind: call, protocol: http }
+  - { from: brief.intake, to: platform.haiku, kind: call, protocol: http }
+  - "platform.memory -> brief.lead [data]: CLAUDE.md"

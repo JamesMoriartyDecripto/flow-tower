@@ -1,0 +1,155 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Financial analyst internals
+description: >-
+  How one financial-analyst run answers a budget question: read the company snapshot and
+  the CSVs, run the deterministic scripts instead of doing math in tokens, check the
+  12-month runway floor, and return an executive-style recommendation.
+root: ..
+
+runtimes:
+  worker:
+    kind: container
+    label: "Ambient worker"
+    description: "Background service: Cloud Run container running the Claude Agent SDK."
+    provider: "google-cloud"
+    region: "us-central1"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    provider: "anthropic"
+    url: "https://console.anthropic.com"
+
+agents:
+  financial-analyst:
+    runtime: worker
+    from: .claude/agents/financial-analyst.md
+    harness: { context: isolated, invoked_by: Task }
+    data: { sensitivity: confidential, region: us }
+    sandbox: { network: allowlist, allow: [api.anthropic.com], filesystem: read-only }
+
+layers:
+  - id: inputs
+    title: Inputs
+    description: High-level numbers come from CLAUDE.md; the CSVs are read only when the question needs detail.
+    nodes:
+      - id: brief
+        runtime: worker
+        type: entry
+        label: Task brief
+        description: "From the Chief of Staff (Task tool) or a slash command: /budget-impact, /strategic-brief, /daily-brief."
+        files: [.claude/commands/budget-impact.md, .claude/commands/strategic-brief.md]
+      - id: snapshot
+        runtime: worker
+        type: memory
+        label: CLAUDE.md
+        description: "Burn ~$500K/month, runway 20 months, ARR $2.4M, cash $10M, upcoming decisions."
+        files: [CLAUDE.md]
+      - id: burn
+        runtime: worker
+        type: memory
+        label: burn_rate.csv
+        files: [financial_data/burn_rate.csv]
+      - id: hiring_costs
+        runtime: worker
+        type: memory
+        label: hiring_costs.csv
+        files: [financial_data/hiring_costs.csv]
+      - id: revenue
+        runtime: worker
+        type: memory
+        label: revenue_forecast.json
+        files: [financial_data/revenue_forecast.json]
+    edges:
+      - "brief -> snapshot [data]: context"
+
+  - id: analysis
+    title: Analysis
+    description: Scripts do the arithmetic; the model chooses inputs and explains the result.
+    nodes:
+      - id: analyst
+        agent: financial-analyst
+        label: Financial analyst
+      - id: kind
+        runtime: worker
+        type: decision
+        label: Question type?
+        description: "Hiring -> hiring_impact.py (always). Cash or growth -> forecast. Choice between options -> matrix."
+      - id: hiring_impact
+        runtime: worker
+        type: tool
+        label: hiring_impact.py
+        description: "Loaded cost 1.3x, new runway, velocity estimate, PROCEED / CAUTION / DO NOT."
+        files: [scripts/hiring_impact.py]
+      - id: forecast
+        runtime: worker
+        type: tool
+        label: financial_forecast.py
+        description: "12-month MRR, net burn and cash; base, conservative and aggressive growth."
+        files: [scripts/financial_forecast.py]
+      - id: matrix
+        runtime: worker
+        type: tool
+        label: decision_matrix.py
+        description: "Weighted scores; flags close calls (margin < 0.5) for the CEO."
+        files: [scripts/decision_matrix.py]
+      - id: floor
+        runtime: worker
+        type: guard
+        label: Runway >= 12m?
+        description: "Hard rule from the analyst prompt: never recommend a plan that drops runway under 12 months."
+        files: [.claude/agents/financial-analyst.md]
+      - id: logger
+        runtime: worker
+        type: hook
+        label: script-usage-logger
+        description: "PostToolUse on Bash: every scripts/*.py run lands in audit/script_usage_log.json."
+        files: [.claude/hooks/script-usage-logger.py, audit/script_usage_log.json]
+    edges:
+      - analyst -> kind
+      - "kind -> hiring_impact [call]: hiring"
+      - "kind -> forecast [call]: cash, growth"
+      - "kind -> matrix [call]: options"
+      - "hiring_impact -> floor [data]: new runway"
+      - "forecast -> floor [data]: cash curve"
+      - "hiring_impact -> logger: PostToolUse"
+      - "forecast -> logger: PostToolUse"
+
+  - id: output
+    title: Recommendation
+    description: Lead with the decision, show the numbers, flag risks; close calls go back to the CEO.
+    nodes:
+      - id: model
+        runtime: anthropic
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+      - id: style
+        runtime: worker
+        label: Executive style
+        description: "RECOMMENDATION / KEY METRICS / RATIONALE / NEXT STEPS / RISKS."
+        files: [.claude/output-styles/executive.md]
+      - id: recommend
+        runtime: worker
+        type: output
+        label: Recommendation
+        description: "Returned to the Chief of Staff; saved under output_reports/ when it is a brief."
+        files: [output_reports/hiring_decision.md]
+      - id: ceo_call
+        runtime: worker
+        type: output
+        label: Needs CEO call
+        description: "Below the runway floor or a close call: returned as a decision for a review card."
+    edges:
+      - "style -> recommend: format"
+
+links:
+  - "inputs.burn -> analysis.forecast [data]"
+  - "inputs.revenue -> analysis.forecast [data]"
+  - "inputs.hiring_costs -> analysis.hiring_impact [data]: salary bands"
+  - "inputs.snapshot -> analysis.analyst [data]"
+  - "inputs.brief -> analysis.analyst [spawn]"
+  - "analysis.floor -> output.style: pass"
+  - "analysis.floor -> output.ceo_call: below floor"
+  - "analysis.matrix -> output.ceo_call: close call"
+  - "analysis.analyst -> output.model [call]"

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "gdrive": {
+      "type": "http",
+      "url": "https://mcp.research.example.com/gdrive/mcp",
+      "description": "Google Drive and Docs search over the requesting user's OAuth grant (read-only scopes)."
+    },
+    "confluence": {
+      "type": "http",
+      "url": "https://mcp.research.example.com/confluence/mcp",
+      "description": "Internal wiki search; spaces filtered to the user's permissions."
+    }
+  }
+}

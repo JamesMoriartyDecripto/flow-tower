@@ -1,0 +1,30 @@
+2026-10-08T07:42:13.104Z INFO  portal.intake    received wi_20261008_4f21 type=? policy=MTR-0048813-02 attempt=1
+2026-10-08T07:42:13.388Z INFO  portal.intake    idempotency key new: MTR-0048813-02:add_driver:2026-10-15:B072RRE2I55
+2026-10-08T07:42:14.021Z INFO  portal.classify  route={"type":"add_driver","mode":"single","missing":[],"risk":"normal"} model=claude-haiku-5-5 in=612 out=38
+2026-10-08T07:42:15.640Z INFO  portal.session   session 01K7AZ3M9QX4 started ttl=900s viewport=1456x819 recording=s3://acme-ins-browser-recordings-eu/portal-worker/
+2026-10-08T07:42:18.902Z INFO  portal.login     logged in as svc-ops-bot (no MFA challenge)
+2026-10-08T07:42:19.117Z INFO  portal.worker    step=1  screenshot
+2026-10-08T07:42:23.480Z INFO  portal.worker    step=2  left_click [118,244] "Policy Search"
+2026-10-08T07:42:27.011Z INFO  portal.worker    step=3  left_click [612,188] -> type "MTR-0048813-02" -> key enter
+2026-10-08T07:42:31.774Z INFO  portal.worker    step=4  zoom [520,240,1180,300] holder="J. Albrecht" matches policyholder
+2026-10-08T07:42:36.236Z INFO  portal.worker    step=5  left_click [140,412] "Endorsements" -> "Named Drivers" -> "Add"
+2026-10-08T07:42:58.903Z INFO  portal.worker    step=11 type date_of_birth "27/03/1994"
+2026-10-08T07:43:04.550Z INFO  portal.worker    step=12 zoom [700,480,1100,520] reads "27/03/1994" after typing
+2026-10-08T07:43:19.330Z INFO  portal.worker    step=16 left_click [902,566] "Attach" -> licence.pdf green tick
+2026-10-08T07:43:21.004Z INFO  portal.worker    ready_to_submit entered=[date_of_birth,first_name,last_name,licence_number,relationship] steps=17 cost_usd=0.41
+2026-10-08T07:43:27.618Z INFO  portal.verify    verifier=claude-opus-5-5 verdict=pass fields=4/4 page_warnings=0
+2026-10-08T07:43:27.620Z INFO  portal.guard     guard pass type=add_driver fields=[date_of_birth, first_name, last_name, licence_number]
+2026-10-08T07:43:31.912Z INFO  portal.guard     submitted ref=END-2026-118402
+2026-10-08T07:43:32.300Z INFO  portal.writeback PolicyCenter activity updated wi_20261008_4f21 ref=END-2026-118402
+2026-10-08T07:43:32.871Z INFO  portal.session   session 01K7AZ3M9QX4 stopped after 77s
+2026-10-08T07:51:02.447Z INFO  portal.intake    received wi_20261008_4f40 type=? policy=HOM-0102274-01 attempt=1
+2026-10-08T07:51:03.190Z INFO  portal.classify  route={"type":"address_change","mode":"single","missing":[],"risk":"normal"}
+2026-10-08T07:51:04.870Z INFO  portal.session   session 01K7AZK1R0B2 started ttl=900s
+2026-10-08T07:51:52.031Z INFO  portal.worker    report status=exception detail="Banner: 'Postcode change affects premium - refer to underwriter'"
+2026-10-08T07:51:52.402Z INFO  portal.review    queued for human review wi_20261008_4f40 reason=exception sla=24h
+2026-10-08T07:51:52.950Z INFO  portal.session   session 01K7AZK1R0B2 stopped after 48s
+2026-10-08T08:03:40.118Z INFO  portal.intake    received wi_20261008_4f52 type=? policy=CLM-77310 attempt=2
+2026-10-08T08:03:43.665Z INFO  portal.session   session 01K7B0A7HZ5C started ttl=900s
+2026-10-08T08:05:12.220Z WARN  portal.worker    report status=stuck detail="Upload dialog did not close after 3 attempts" steps=31
+2026-10-08T08:05:12.221Z WARN  portal.handler   worker stuck, retry (attempt 2/3, visibility timeout 120s)
+2026-10-08T08:05:12.700Z INFO  portal.session   session 01K7B0A7HZ5C stopped after 89s

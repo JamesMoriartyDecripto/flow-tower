@@ -1,0 +1,445 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Deep Research Team
+tags: [research, analyst, multi-agent, claude-api, orchestrator-workers]
+description: >-
+  An analyst-grade deep research system on the Claude API. A request is clarified and
+  turned into a brief; an Opus lead researcher plans, saves the plan to memory and fans
+  out parallel Sonnet search subagents (effort scaled to query complexity); findings are
+  compressed, written up, attributed by a CitationAgent and checked by a fresh verifier.
+  Modeled on Anthropic's multi-agent research system, LangChain's open_deep_research
+  and the OpenAI Agents SDK financial research example.
+
+runtimes:
+  chat:
+    kind: browser
+    label: "Chat UI"
+    description: "Web chat where analysts ask questions and answer clarifying questions."
+    url: "https://research.example.com"
+  app:
+    kind: container
+    label: "Research service"
+    description: "Python async workers (one run per request) behind the chat backend; rainbow-deployed."
+    host: "research-svc"
+    provider: "aws"
+    region: "us-east-1"
+  store:
+    kind: cloud
+    label: "Run store"
+    description: "Plans, artifacts and checkpoints on an encrypted volume, keyed by run id."
+    provider: "aws"
+    region: "us-east-1"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "Opus, Sonnet and Haiku 5.5 plus server-side web search and web fetch."
+    provider: "anthropic"
+    url: "https://console.anthropic.com"
+  gdrive:
+    kind: saas
+    label: "Google Workspace"
+    description: "Drive and Docs reached through an MCP server with the user's OAuth grant."
+    provider: "google"
+    url: "https://workspace.google.com"
+  confluence:
+    kind: saas
+    label: "Confluence"
+    description: "Internal wiki over MCP, filtered to the user's space permissions."
+    provider: "atlassian"
+    url: "https://example.atlassian.net/wiki"
+  tracing:
+    kind: saas
+    label: "Tracing"
+    description: "Production traces of every run: decisions, tool calls, tokens. No conversation content."
+    url: "https://traces.example.com/projects/deep-research"
+
+prompts:
+  clarify: { file: prompts/clarify.md, description: Decides whether to ask one clarifying question. }
+  brief: { file: prompts/research-brief.md, description: "Conversation -> research brief + complexity class." }
+  lead: { file: prompts/lead-researcher.md, description: "Plan, save plan, scale effort, delegate, reflect." }
+  searcher: { file: prompts/searcher.md, description: "Wide-then-narrow search with source-quality heuristics." }
+  compress: { file: prompts/compress.md, description: Lossless cleanup of one searcher's history. }
+  writer: { file: prompts/writer.md, description: Executive summary + sections + open questions. }
+  citations: { file: prompts/citation-agent.md, description: Attribution only; never rewrites content. }
+  verifier: { file: prompts/verifier.md, description: Fresh-context audit with blocking / minor issues. }
+  judge: { file: prompts/judge.md, description: "LLM-as-judge rubric, 0.0-1.0 per criterion." }
+
+agents:
+  clarifier:
+    name: Clarifier
+    description: One cheap call. Asks at most one question, only when the answer would change the sources.
+    model: claude-sonnet-5-5
+    prompt: clarify
+    tools: []
+    runtime: app
+    files: [src/research_pipeline.py]
+  briefer:
+    name: Brief writer
+    description: Rewrites the thread as a first-person brief and classifies it simple / comparison / complex.
+    model: claude-sonnet-5-5
+    prompt: brief
+    tools: []
+    runtime: app
+    files: [src/research_pipeline.py]
+  lead:
+    name: Lead researcher
+    description: Plans, saves the plan, spawns searchers in parallel, reflects between rounds, decides when done.
+    model: claude-opus-5-5
+    prompt: lead
+    tools: [conduct_research, research_complete, think, memory]
+    harness: { effort: high, output: json, max_tokens: 16000 }
+    runtime: app
+    files: [src/lead.py, src/config.py]
+    budget: { usd: 12, on_exceed: stop }
+    limits: { timeout: 45m, max_iterations: 6, concurrency: 5 }
+    resources:
+      - { kind: log, label: "Lead log", path: "logs/lead.log" }
+  searcher:
+    name: Search subagent
+    description: Own context window, 3+ tools in parallel, interleaved thinking, returns compressed findings and artifact refs.
+    model: claude-sonnet-5-5
+    prompt: searcher
+    tools: [web_search, web_fetch, save_artifact, mcp__gdrive__search, mcp__confluence__search]
+    harness: { effort: medium, context: isolated }
+    runtime: app
+    files: [src/searcher.py, src/client_tools.py]
+    tower: towers/searcher.tower.yaml
+    budget: { usd: 1.5, turns: 15, on_exceed: stop }
+    limits: { timeout: 10m, retries: 2, backoff: "exponential 2s..60s", max_iterations: 10 }
+    credentials: user
+    sandbox: { network: allowlist, allow: [mcp.research.example.com], filesystem: none }
+    resources:
+      - { kind: log, label: "Searcher log", path: "logs/searchers.log" }
+  summarizer:
+    name: Page summarizer
+    description: Condenses fetched pages over 50k chars before they enter a searcher's context.
+    model: claude-haiku-5-5
+    runtime: app
+    harness: { effort: low }
+    files: [src/config.py]
+  compressor:
+    name: Compressor
+    description: Rewrites one searcher's tool history into cited findings; trims oldest turns on context overflow, 3 attempts.
+    model: claude-sonnet-5-5
+    prompt: compress
+    runtime: app
+    files: [src/compress.py]
+    limits: { retries: 3 }
+  writer:
+    name: Report writer
+    description: Writes the report from compressed findings only; on revision fixes exactly the verifier's blocking issues.
+    model: claude-opus-5-5
+    prompt: writer
+    runtime: app
+    harness: { effort: high, max_tokens: 32000 }
+    files: [src/research_pipeline.py, src/verify_loop.py]
+  citation:
+    name: CitationAgent
+    description: Maps every claim to a source passage using document blocks with citations enabled.
+    model: claude-sonnet-5-5
+    prompt: citations
+    runtime: app
+    files: [src/cite.py]
+  verifier:
+    name: Verifier
+    description: Fresh-context auditor for consistency, unsupported claims, weak sources and brief coverage.
+    model: claude-sonnet-5-5
+    prompt: verifier
+    runtime: app
+    harness: { context: fresh }
+    files: [src/verify_loop.py]
+  judge:
+    name: LLM judge
+    description: Offline grader. One call per run returns five 0.0-1.0 scores and pass/fail.
+    model: claude-opus-5-5
+    prompt: judge
+    runtime: app
+    files: [src/evals/judge.py, evals/queries.jsonl]
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: intake
+    title: Intake & Clarify
+    description: Ask only when needed, then pin the task down as a brief with a complexity class.
+    nodes:
+      - id: question
+        type: entry
+        runtime: chat
+        label: Analyst question
+        description: A research question in chat. One request starts one run.
+        trigger: { kind: chat, source: research.example.com }
+        data: { sensitivity: confidential, retention: 30d, description: "Questions and Drive results can contain internal material." }
+        files: [src/research_pipeline.py]
+      - id: clarify
+        agent: clarifier
+      - id: need_input
+        type: decision
+        runtime: app
+        label: Ambiguous?
+        description: need_clarification from the clarifier JSON. Skipped entirely when allow_clarification is false.
+        files: [src/config.py]
+      - id: ask_user
+        type: human
+        runtime: chat
+        label: Clarifying Q
+        description: One question back to the analyst. The run ends; the reply starts a new run with the full thread.
+        approval: { by: requester, via: chat, actions: [respond], timeout: 30m, on_timeout: wait }
+      - id: brief
+        agent: briefer
+      - id: effort
+        type: decision
+        runtime: app
+        label: Query class?
+        description: "Effort scaling: simple = 1 searcher x 3-10 calls; comparison = 2-4 x 10-15; complex = 5-10+ with divided responsibilities."
+        files: [src/config.py, prompts/research-brief.md]
+    edges:
+      - question -> clarify
+      - "clarify -> need_input [data]: JSON"
+      - "need_input -> ask_user [handoff]: yes"
+      - "need_input -> brief: no"
+      - "ask_user -> clarify [return]: answer"
+      - "brief -> effort [data]: complexity"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: lead
+    title: Lead Researcher
+    description: Orchestrator-worker. The Opus lead plans, saves the plan, delegates in rounds and reflects.
+    nodes:
+      - id: lead
+        agent: lead
+      - id: plan
+        type: memory
+        runtime: store
+        label: Plan memory
+        description: Plan saved before delegation; a truncated or fresh lead reloads it to continue.
+        files: [src/plan_store.py, memory/plan-example.json]
+      - id: dispatch
+        runtime: app
+        label: conduct_research
+        description: One call per task in the same turn; asyncio.gather under a semaphore of 5. Extra tasks wait.
+        files: [src/lead.py]
+        limits: { concurrency: 5 }
+      - id: think
+        type: tool
+        runtime: anthropic
+        label: think
+        description: Reflection between rounds — what is answered, what conflicts, what is missing.
+      - id: more
+        type: decision
+        runtime: app
+        label: Gaps left?
+        description: Another round only for real gaps; hard stop at 6 rounds or on research_complete.
+        files: [src/lead.py, src/config.py]
+      - id: checkpoint
+        type: memory
+        runtime: store
+        label: Checkpoints
+        description: State after every round and phase. A crash resumes from the failed step, not from zero.
+        files: [src/plan_store.py]
+      - id: budget
+        type: guard
+        runtime: app
+        label: Run budget
+        description: "$12 and 45 minutes per run, 5 concurrent searchers. Multi-agent runs use ~15x chat tokens; spend only where the question is worth it."
+        files: [src/config.py]
+    edges:
+      - "lead -> plan [data]: save plan"
+      - "plan -> lead [return]: resume"
+      - "lead -> dispatch [call]: tasks"
+      - "lead -> think [call]: reflect"
+      - think -> more
+      - "more -> dispatch: gaps"
+      - "dispatch -> checkpoint [data]: round state"
+      - "budget -> more: cap hit"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: search
+    title: Search Subagents
+    description: Parallel Sonnet searchers with isolated contexts; findings compressed, long content left in the store.
+    nodes:
+      - id: searcher
+        agent: searcher
+        label: Searcher
+        fanout: { min: 1, max: 10, by: query complexity }
+        evals:
+          - { name: "tool calls per task", value: 11, target: 15, higher_is_better: false, description: "Illustrative target." }
+          - { name: "p95 latency (s)", value: 312, target: 600, higher_is_better: false, description: "Illustrative target." }
+      - id: web_search
+        type: tool
+        runtime: anthropic
+        label: Web search
+        description: "Server tool web_search_20260209 (dynamic filtering); max_uses = the searcher's call budget."
+        tools: [web_search]
+        files: [src/config.py]
+      - id: web_fetch
+        type: tool
+        runtime: anthropic
+        label: Web fetch
+        description: Fetches full pages for URLs already found; primary sources over blogs.
+        tools: [web_fetch]
+      - id: gdrive
+        type: tool
+        runtime: gdrive
+        label: Google Drive MCP
+        description: Internal docs under the requesting user's own OAuth grant, read-only.
+        tools: [mcp__gdrive__search, mcp__gdrive__read]
+        credentials: user
+        files: [config/mcp.json, src/client_tools.py]
+      - id: confluence
+        type: tool
+        runtime: confluence
+        label: Confluence MCP
+        description: Wiki search, filtered to spaces the user can read.
+        tools: [mcp__confluence__search]
+        credentials: user
+        files: [config/mcp.json]
+      - id: summarize
+        agent: summarizer
+        label: Page summarizer
+      - id: artifacts
+        type: memory
+        runtime: store
+        label: Artifact store
+        description: Long excerpts saved by searchers; only short refs travel back through the lead.
+        data: { sensitivity: confidential, retention: 30d }
+        files: [src/plan_store.py]
+      - id: compress
+        agent: compressor
+        label: Compress
+    edges:
+      - "searcher -> web_search [call]: queries"
+      - "searcher -> web_fetch [call]: URLs"
+      - { from: searcher, to: gdrive, kind: call, label: internal docs, protocol: mcp }
+      - { from: searcher, to: confluence, kind: call, label: wiki, protocol: mcp }
+      - "web_fetch -> summarize [call]: > 50k chars"
+      - "searcher -> artifacts [data]: save_artifact"
+      - "searcher -> compress [handoff]: history"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: synthesis
+    title: Write, Cite & Verify
+    description: The report is written from findings only, attributed claim by claim, then audited with a fresh context.
+    nodes:
+      - id: writer
+        agent: writer
+      - id: citation
+        agent: citation
+        evals:
+          - { name: "claims cited", value: 0.95, target: 0.95, description: "Share of factual claims with a supporting source. Illustrative target." }
+      - id: verifier
+        agent: verifier
+      - id: verified
+        type: decision
+        runtime: app
+        label: Blocking issues?
+        description: verified == true, or only minor issues.
+        files: [src/verify_loop.py]
+      - id: round_cap
+        type: decision
+        runtime: app
+        label: Round < 2?
+        description: At most 2 revise rounds; then the report ships with open issues listed.
+        limits: { max_iterations: 2 }
+        files: [src/config.py]
+      - id: final
+        type: output
+        runtime: chat
+        label: Cited report
+        description: Executive summary, sections, comparison tables, open questions and a numbered source list.
+      - id: feedback
+        type: human
+        runtime: chat
+        label: Analyst rating
+        description: Thumbs up / down with a reason; sampled into the human review queue.
+    edges:
+      - "writer -> citation [handoff]: draft"
+      - "citation -> verifier [handoff]: cited draft"
+      - "verifier -> verified [data]: issues JSON"
+      - "verified -> final: clean"
+      - "verified -> round_cap: blocking"
+      - "round_cap -> writer [return]: fix list"
+      - "round_cap -> final: cap hit, issues listed"
+      - final -> feedback
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: ops
+    title: Evals & Operations
+    description: Small evals early, an LLM judge, human review for what judges miss, tracing and rainbow deploys.
+    nodes:
+      - id: judge
+        agent: judge
+        label: LLM judge
+        evals:
+          - { name: overall, value: 0.84, target: 0.8, description: "Illustrative target, 10-20 real queries." }
+          - { name: factual accuracy, value: 0.88, target: 0.85, description: "Illustrative target." }
+          - { name: citation accuracy, value: 0.93, target: 0.9, description: "Illustrative target." }
+          - { name: source quality, value: 0.79, target: 0.8, description: "Illustrative target." }
+          - { name: tool efficiency, value: 0.71, target: 0.75, description: "Illustrative target." }
+      - id: bench
+        runtime: app
+        label: Deep Research Bench
+        description: >-
+          100 PhD-level tasks (50 EN, 50 ZH) scored by RACE against expert reports. open_deep_research
+          reported 0.4344 (Aug 2025); the values here are illustrative targets for this system.
+        evals:
+          - { name: RACE score, value: 0.47, target: 0.45, description: "Illustrative target.", url: "https://github.com/langchain-ai/open_deep_research" }
+          - { name: cost per 100 tasks ($), value: 96, target: 120, higher_is_better: false, description: "Illustrative target." }
+        files: [evals/queries.jsonl]
+      - id: human_review
+        type: human
+        runtime: chat
+        label: Human review
+        description: Weekly sample of runs; catches what judges miss (content farms over authoritative sources).
+        sla: 7d
+        approval: { by: research lead, via: review queue, actions: [approve, edit, reject], timeout: 7d, on_timeout: wait }
+      - id: tracing
+        type: hook
+        runtime: tracing
+        label: Tracing
+        description: Spans for every model and tool call, decision patterns and interaction structure, without conversation text.
+        resources:
+          - { kind: dashboard, label: "Runs dashboard", url: "https://traces.example.com/projects/deep-research" }
+      - id: rollout
+        runtime: app
+        label: Rainbow deploy
+        description: New runs go to the new color; in-flight runs finish on the old one, which drains at zero active runs.
+        version: v13
+        rollout: { strategy: rainbow, percent: 10, previous: v12 }
+        resources:
+          - { kind: config, label: "Rainbow config", path: "deploy/rainbow.yaml" }
+        files: [deploy/rainbow.yaml]
+      - id: opus
+        type: model
+        runtime: anthropic
+        label: Opus 5.5
+        model: claude-opus-5-5
+        description: Lead, writer, judge.
+      - id: sonnet
+        type: model
+        runtime: anthropic
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        description: Clarifier, brief, searchers, compressor, CitationAgent, verifier.
+      - id: haiku
+        type: model
+        runtime: anthropic
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        description: Page summarizer.
+    edges:
+      - "judge -> bench [data]: scores"
+      - "human_review -> judge [data]: calibration"
+      - "bench -> rollout: promotion gate"
+
+links:
+  - "intake.effort -> lead.lead [handoff]: brief + class"
+  - "lead.dispatch -> search.searcher [spawn]: task x N"
+  - "search.compress -> lead.lead [return]: findings + refs"
+  - "lead.more -> synthesis.writer [handoff]: research_complete"
+  - "search.artifacts -> synthesis.citation [data]: source docs"
+  - "synthesis.feedback -> ops.human_review [data]: rated runs"
+  - "synthesis.final -> ops.judge [data]: sampled runs"
+  - "lead.lead -> ops.opus [call]"
+  - "search.searcher -> ops.sonnet [call]"
+  - "search.summarize -> ops.haiku [call]"
+  - "lead.lead -> ops.tracing [data]: spans"

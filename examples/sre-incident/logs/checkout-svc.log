@@ -1,0 +1,10 @@
+2026-10-07T14:01:58.204Z INFO  deploy  rollout started image=ghcr.io/example-org/checkout-svc:2026.10.07-a1b9f3e replicas=3
+2026-10-07T14:02:31.877Z INFO  checkout-svc-7c9d5b-x2kq  boot  loading price catalog entries=412883 cache=in-memory
+2026-10-07T14:02:44.019Z WARN  checkout-svc-7c9d5b-x2kq  runtime  heap_used=118Mi limit=128Mi gc_pause_ms=412
+2026-10-07T14:02:47.660Z ERROR kubelet  checkout-svc-7c9d5b-x2kq  container checkout terminated reason=OOMKilled exitCode=137
+2026-10-07T14:02:48.112Z INFO  kubelet  checkout-svc-7c9d5b-x2kq  back-off restarting failed container restarts=1
+2026-10-07T14:03:19.405Z ERROR kubelet  checkout-svc-7c9d5b-m81p  container checkout terminated reason=OOMKilled exitCode=137
+2026-10-07T14:04:02.993Z WARN  ingress  upstream=checkout-svc status=503 path=/api/checkout latency_ms=5001
+2026-10-07T14:05:40.318Z ERROR kubelet  checkout-svc-7c9d5b-x2kq  CrashLoopBackOff restarts=4 backoff=80s
+2026-10-07T14:07:12.551Z WARN  ingress  upstream=checkout-svc 5xx_ratio=0.18 window=5m
+2026-10-07T14:09:12.418Z INFO  pagerduty  incident.triggered id=Q2K7XJ4PL9WZ1R number=4127 urgency=high

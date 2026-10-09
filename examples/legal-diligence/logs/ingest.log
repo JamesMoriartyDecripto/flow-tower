@@ -1,0 +1,10 @@
+2026-10-05T07:02:11Z INFO  webhook datasite project=lindwurm event=documents.published count=1184 folder=4_Commercial
+2026-10-05T07:02:12Z INFO  ingest  queue=dd-ingest-eu matter=M-2026-0412 batch=1/5 docs=250
+2026-10-05T07:04:48Z INFO  ingest  sha256 dedupe: 37 duplicates skipped (same file in 4.2 and 9.1)
+2026-10-05T07:11:03Z INFO  textract region=eu-central-1 jobs=1147 pages=21904 failed=3
+2026-10-05T07:11:03Z WARN  textract VDR 4.7.112 password-protected PDF -> associate queue
+2026-10-05T07:19:40Z INFO  classify model=claude-haiku-5-5 docs=1144 batches=5 fanout=5 cost_usd=3.12
+2026-10-05T07:19:40Z INFO  classify confidence<0.8: 61 docs -> classification queue
+2026-10-05T07:19:41Z INFO  privilege flagged=14 (counsel_advice=11, litigation_strategy=3) excluded from extraction
+2026-10-05T07:19:41Z INFO  amendments linked=96 side_letters=12 orphans=4 (parent not in VDR -> RFI)
+2026-10-05T09:42:17Z INFO  checkpoint classification approved by=a.keller edits=23 (reclassified 19, unflagged 4)

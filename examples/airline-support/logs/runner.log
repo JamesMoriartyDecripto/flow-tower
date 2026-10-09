@@ -1,0 +1,27 @@
+2026-10-08T14:02:11.204Z thread=thr_7c1e  user      "I'm flying Paris to Austin via New York and my first leg is delayed."
+2026-10-08T14:02:11.206Z thread=thr_7c1e  run       agent="Triage Agent" (resumed: current_agent_name) model=gpt-5.2
+2026-10-08T14:02:11.207Z thread=thr_7c1e  guardrail "Relevance Guardrail" model=gpt-4.1-mini started
+2026-10-08T14:02:11.207Z thread=thr_7c1e  guardrail "Jailbreak Guardrail" model=gpt-4.1-mini started
+2026-10-08T14:02:11.981Z thread=thr_7c1e  guardrail "Relevance Guardrail" passed  reasoning="Flight delay and connection question."
+2026-10-08T14:02:12.034Z thread=thr_7c1e  guardrail "Jailbreak Guardrail" passed  reasoning="Ordinary travel request."
+2026-10-08T14:02:12.410Z thread=thr_7c1e  tool_call  agent="Triage Agent" get_trip_details {"message":"Paris to Austin via New York..."}
+2026-10-08T14:02:12.412Z thread=thr_7c1e  context    flight_number=PA441 confirmation_number=IR-D204 origin="Paris (CDG)" destination="Austin (AUS)"
+2026-10-08T14:02:12.880Z thread=thr_7c1e  handoff    "Triage Agent" -> "Flight Information Agent"
+2026-10-08T14:02:13.301Z thread=thr_7c1e  tool_call  agent="Flight Information Agent" flight_status_tool {"flight_number":"PA441"}
+2026-10-08T14:02:13.305Z thread=thr_7c1e  tool_output "Flight PA441 | Status: Delayed 5 hours due to weather, expected departure 19:55 | Gate: B18"
+2026-10-08T14:02:13.790Z thread=thr_7c1e  tool_call  agent="Flight Information Agent" get_matching_flights {"origin":"New York","destination":"Austin"}
+2026-10-08T14:02:13.792Z thread=thr_7c1e  tool_output "Matching flights: NY950 ... dep 2024-12-10 09:45; NY982 ... dep 2024-12-10 13:20"
+2026-10-08T14:02:14.240Z thread=thr_7c1e  handoff    "Flight Information Agent" -> "Booking and Cancellation Agent"
+2026-10-08T14:02:14.241Z thread=thr_7c1e  on_handoff on_booking_handoff (context hydrated)
+2026-10-08T14:02:14.902Z thread=thr_7c1e  tool_call  agent="Booking and Cancellation Agent" book_new_flight {"flight_number":"NY950"}
+2026-10-08T14:02:14.905Z thread=thr_7c1e  context    flight_number=NY950 seat_number="2A (front row)"
+2026-10-08T14:02:15.611Z thread=thr_7c1e  message    agent="Booking and Cancellation Agent" "You're rebooked on NY950 tomorrow at 09:45, seat 2A..."
+2026-10-08T14:02:15.612Z thread=thr_7c1e  done       last_agent="Booking and Cancellation Agent" turns=6
+2026-10-08T14:03:40.118Z thread=thr_7c1e  user      "This overnight delay is a mess. What do I get for it?"
+2026-10-08T14:03:40.119Z thread=thr_7c1e  run       agent="Booking and Cancellation Agent" (resumed: current_agent_name)
+2026-10-08T14:03:41.022Z thread=thr_7c1e  handoff    "Booking and Cancellation Agent" -> "Refunds and Compensation Agent"
+2026-10-08T14:03:41.530Z thread=thr_7c1e  tool_call  agent="Refunds and Compensation Agent" faq_lookup_tool {"question":"compensation for delays"}
+2026-10-08T14:03:42.101Z thread=thr_7c1e  tool_call  agent="Refunds and Compensation Agent" issue_compensation {"reason":"Delay causing missed connection"}
+2026-10-08T14:03:42.102Z thread=thr_7c1e  approval   needs_approval=false total_usd=280 threshold_usd=500
+2026-10-08T14:03:42.110Z thread=thr_7c1e  context    vouchers=3 (hotel $180, meal $60, ground $40)
+2026-10-08T14:03:42.733Z thread=thr_7c1e  done       last_agent="Refunds and Compensation Agent" turns=4

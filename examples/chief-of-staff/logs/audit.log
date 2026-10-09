@@ -1,0 +1,5 @@
+{"ts": "2026-10-08T13:58:09+00:00", "session": "a71c09e2", "tool": "mcp__inbox__notify", "thread": "18f2c1a0", "review_id": "", "to": "", "body_sha1": "", "ok": true}
+{"ts": "2026-10-08T13:58:27+00:00", "session": "b3e5d410", "tool": "mcp__inbox__request_review", "thread": "18f2c1c9", "review_id": "", "to": "", "body_sha1": "5c2e19a0b7d4", "ok": true}
+{"ts": "2026-10-08T14:02:15+00:00", "session": "c90f2a17", "tool": "mcp__inbox__notify", "thread": "", "review_id": "", "to": "", "body_sha1": "", "ok": true}
+{"ts": "2026-10-08T15:14:42+00:00", "session": "b3e5d410", "tool": "mcp__workspace__get_thread", "thread": "18f2c1c9", "review_id": "", "to": "", "body_sha1": "", "ok": true}
+{"ts": "2026-10-08T15:14:45+00:00", "session": "b3e5d410", "tool": "mcp__workspace__send_email", "thread": "", "review_id": "review-4f2a91c0", "to": "assistant@jpark.example.com", "body_sha1": "e81f6c03a9b2", "ok": true}

@@ -1,0 +1,22 @@
+2026-10-07 12:04:51,118 INFO  purchasing_agent  before_agent_callback: resolving 2 agent cards
+2026-10-07 12:04:51,402 INFO  httpx             GET https://burger-agent-480913327416.us-central1.run.app/.well-known/agent.json "HTTP/1.1 200 OK"
+2026-10-07 12:04:51,655 INFO  httpx             GET https://pizza-agent-480913327416.us-central1.run.app/.well-known/agent.json "HTTP/1.1 200 OK"
+2026-10-07 12:04:51,656 INFO  purchasing_agent  cards: burger_seller_agent (create_burger_order), pizza_seller_agent (create_pizza_order)
+2026-10-07 12:04:52,930 INFO  adk               user: "what do you have on the menus?"
+2026-10-07 12:04:53,211 INFO  adk               function_call send_task(agent_name="burger_seller_agent", task="List the burger menu with prices")
+2026-10-07 12:04:55,874 INFO  a2a.client        message/send -> burger_seller_agent task=7d0e... state=completed artifacts=1
+2026-10-07 12:04:56,120 INFO  adk               function_call send_task(agent_name="pizza_seller_agent", task="List the pizza menu with prices")
+2026-10-07 12:04:58,302 INFO  a2a.client        message/send -> pizza_seller_agent task=a91c... state=completed artifacts=1
+2026-10-07 12:05:31,447 INFO  adk               user: "2 classic cheeseburgers and 1 spicy chicken burger please"
+2026-10-07 12:05:31,690 INFO  adk               function_call send_task(agent_name="burger_seller_agent", task="Order 2 Classic Cheeseburger, 1 Spicy Chicken Burger")
+2026-10-07 12:05:34,915 INFO  a2a.client        message/send -> burger_seller_agent state=completed text="2 x Classic Cheeseburger (170K) + 1 x Spicy Chicken Burger (80K) = IDR 250K. Do you confirm this order?"
+2026-10-07 12:05:35,102 INFO  adk               relaying seller confirmation question to user (no prior confirmation in session)
+2026-10-07 12:05:49,630 INFO  adk               user: "yes, confirm"
+2026-10-07 12:05:49,881 INFO  adk               function_call send_task(agent_name="burger_seller_agent", task="User confirmed: 2 Classic Cheeseburger, 1 Spicy Chicken Burger, total IDR 250K. Create the order.")
+2026-10-07 12:05:53,227 INFO  a2a.client        message/send -> burger_seller_agent contextId=c3f2... state=completed text="Order 5c1f9e0a-... created. Total IDR 250K."
+2026-10-07 12:06:20,019 INFO  adk               user: "also a pepperoni pizza, same confirmation is fine"
+2026-10-07 12:06:20,370 INFO  adk               showing pizza total IDR 140K to user before sending (prompt rule: explicit yes per order)
+2026-10-07 12:06:27,580 INFO  adk               user: "yes"
+2026-10-07 12:06:27,812 INFO  adk               function_call send_task(agent_name="pizza_seller_agent", task="User confirmed 1 Pepperoni Pizza, total IDR 140K. Create the order.")
+2026-10-07 12:06:30,944 INFO  a2a.client        message/send -> pizza_seller_agent state=completed text="Order 0b77d2c4-... created. Total IDR 140K."
+2026-10-07 12:06:31,101 INFO  adk               turn done: 2 orders, 6 A2A calls, gemini-2.5-flash tokens in=9,812 out=744

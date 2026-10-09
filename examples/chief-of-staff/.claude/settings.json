@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "mcp__inbox__notify",
+      "mcp__inbox__ask_question",
+      "mcp__inbox__request_review",
+      "mcp__workspace__get_thread",
+      "mcp__workspace__free_busy",
+      "Bash(python scripts/*)"
+    ],
+    "ask": [],
+    "deny": ["Bash(curl *)", "Bash(rm *)", "Read(~/.config/chief-of-staff/**)"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__workspace__send_email|mcp__workspace__send_invite",
+        "hooks": [{ "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/send-gate.py" }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/script-usage-logger.py" }]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [{ "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/report-tracker.py" }]
+      },
+      {
+        "matcher": "mcp__workspace__.*|mcp__inbox__.*",
+        "hooks": [{ "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/action-audit.py" }]
+      }
+    ]
+  }
+}

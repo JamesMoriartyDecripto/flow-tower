@@ -1,0 +1,449 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Fraud Review Desk
+tags: [fintech, fraud, claude-managed-agents, mongodb-atlas, human-in-the-loop]
+description: >-
+  Pending payments are reviewed by a Claude Managed Agent whose every data access is a
+  host-side custom tool over MongoDB Atlas. A hard AP2 mandate gate rejects first; then
+  hybrid vector + BM25 precedent search and a $graphLookup fraud-ring check feed a decision
+  with fixed escalation thresholds. Escalated cases wait for a human analyst. Every case
+  ends with exactly one record_decision, written to an append-only audit store.
+
+runtimes:
+  host:
+    kind: container
+    label: "Review host"
+    description: "Batch scheduler, gate loop and every tool handler (pymongo). Holds the only DB credential."
+    host: "fraud-desk-worker"
+    provider: "aws-ecs"
+    region: "us-east-1"
+  sandbox:
+    kind: cloud
+    label: "Managed Agents sandbox"
+    description: "fraud-review-env: cloud, limited networking. The agent loop runs here; it never touches the DB."
+    provider: "anthropic"
+    url: "https://platform.claude.com"
+  atlas:
+    kind: cloud
+    label: "MongoDB Atlas"
+    description: "M30 cluster, MongoDB 8.0 ($rankFusion), Atlas Vector Search and Atlas Search."
+    provider: "mongodb-atlas"
+    region: "us-east-1"
+    url: "https://cloud.mongodb.com"
+  voyage:
+    kind: saas
+    label: "Voyage AI"
+    description: "Embeddings for new transactions (seed data ships precomputed vectors)."
+    provider: "mongodb"
+    url: "https://www.voyageai.com"
+  casemgmt:
+    kind: browser
+    label: "Analyst console"
+    description: "Internal case management UI over the analyst_cases collection."
+    url: "https://fraud-desk.example.com/cases"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "Managed Agents (beta), Messages API for case packets, Console traces."
+    provider: "anthropic"
+    url: "https://platform.claude.com"
+
+prompts:
+  reviewer: { file: prompts/reviewer.md, description: "System prompt: workflow, hard gate, escalation thresholds, terminal rule." }
+  packet: { file: prompts/case-packet.md, description: Analyst case packet from the escalate call and the evidence. }
+
+agents:
+  reviewer:
+    name: Fraud reviewer
+    description: Custom tools only (no agent toolset, no MCP). Ends every transaction with exactly one record_decision.
+    model: claude-haiku-5-5
+    prompt: reviewer
+    runtime: sandbox
+    tools: [verify_mandates, get_transaction, hybrid_search_similar_frauds, detect_fraud_ring, escalate, record_decision]
+    harness: { tools: custom_only, session: one per batch, path: "A (host-side custom tools)" }
+    files: [src/setup.py, src/tools.py]
+    budget: { usd: 0.5, turns: 80, on_exceed: pause }
+    limits: { timeout: 30m, ttl: 48h }
+    sandbox: { network: none, filesystem: none }
+    credentials: service
+    data: { sensitivity: pii, region: us, retention: 1826d, description: "Account numbers and payment details; 5-year BSA record retention." }
+    version: v4
+    rollout: { strategy: shadow, previous: v3 }
+    evals:
+      - { name: decision agreement with analysts, value: 0.96, target: 0.95 }
+      - { name: threshold escalation recall, value: 1.0, target: 1.0, description: "Every case inside a threshold band must escalate (config/thresholds.yaml)." }
+      - { name: exactly-one-terminal rate, value: 0.998, target: 1.0 }
+      - { name: cost per case (USD), value: 0.04, target: 0.1, higher_is_better: false }
+    match: ["agent:MongoDB Atlas fraud reviewer"]
+  packet:
+    name: Case packet writer
+    description: One Messages API call per escalation; no tools. Masks account numbers to the last 4 digits.
+    model: claude-sonnet-5-5
+    prompt: packet
+    runtime: host
+    tools: []
+    files: [src/resolver.py]
+    budget: { usd: 0.03, turns: 1, on_exceed: stop }
+    data: { sensitivity: pii, region: us }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: intake
+    title: Case Intake
+    description: Pending transactions are batched; one session reviews one batch. Every tool call round-trips through the host.
+    nodes:
+      - id: pending
+        runtime: atlas
+        type: entry
+        label: Pending txns
+        description: "transactions with status: pending, oldest first."
+        trigger: { kind: cron, schedule: "*/5 * * * *", source: review host scheduler }
+        files: [data/pending_sample.jsonl]
+        resources:
+          - { kind: database, label: "fraud_review_demo.transactions", url: "https://cloud.mongodb.com/v2#/clusters/detail/fraud-desk/collections" }
+      - id: batch
+        runtime: host
+        label: Batch of 20
+        description: Up to BATCH_SIZE pending ids per session; one batch in flight at a time.
+        files: [src/setup.py, src/config.py]
+        limits: { concurrency: 1 }
+      - id: session
+        runtime: anthropic
+        label: sessions.create
+        description: One session per batch; kickoff user.message lists the transaction ids.
+        files: [src/setup.py]
+        limits: { ttl: 48h }
+      - id: gate_loop
+        runtime: host
+        label: Gate loop
+        description: Each agent.custom_tool_use idles the session with requires_action; the host runs the handler and posts user.custom_tool_result.
+        files: [src/gate_loop.py]
+        resources:
+          - { kind: log, label: "Gate loop log", path: logs/gate-loop.log }
+      - id: route
+        runtime: host
+        type: decision
+        label: Which tool?
+        description: Data tools go to HANDLERS; escalate goes to the human resolver; a second terminal call is refused.
+        files: [src/gate_loop.py, src/tools.py]
+      - id: done
+        runtime: host
+        type: output
+        label: Batch closed
+        description: end_turn with one terminal call per id; session archived.
+        files: [src/setup.py]
+    edges:
+      - "pending -> batch [data]: status pending"
+      - "batch -> session [call]: ids"
+      - { from: session, to: gate_loop, kind: flow, protocol: event, label: events stream }
+      - "gate_loop -> route: requires_action"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: review
+    title: Agent Review
+    description: >-
+      Hard gate first, evidence second, thresholds last. The agent proposes; the thresholds
+      decide whether a human must confirm. Exactly one terminal call per transaction.
+    nodes:
+      - id: reviewer
+        agent: reviewer
+      - id: verify_mandates
+        runtime: host
+        type: tool
+        label: verify_mandates
+        description: AP2 checkout + payment mandates (ES256), constraints, double spend via mandate_receipts.
+        files: [src/handlers.py, src/ap2_mandates.py]
+      - id: mandate_ok
+        runtime: sandbox
+        type: decision
+        label: Mandates valid?
+        description: valid AND constraints_satisfied AND NOT double_spend_detected. Anything else is an immediate reject.
+      - id: get_transaction
+        runtime: host
+        type: tool
+        label: get_transaction
+        description: One document, embedding and raw JWT projected out.
+        files: [src/handlers.py]
+      - id: hybrid
+        runtime: host
+        type: tool
+        label: hybrid search
+        description: hybrid_search_similar_frauds(k=5) - $vectorSearch + Atlas Search BM25 fused by $rankFusion; decided cases only.
+        files: [src/handlers.py, src/pipelines.py]
+      - id: ring
+        runtime: host
+        type: tool
+        label: detect_fraud_ring
+        description: $graphLookup money flow from the sender, depth 4, summarized to circular_flow / layering / network_size.
+        files: [src/handlers.py, src/pipelines.py]
+      - id: thresholds
+        runtime: sandbox
+        type: decision
+        label: Escalate?
+        description: The four escalation rules from the system prompt, mirrored in config/thresholds.yaml.
+        files: [config/thresholds.yaml, prompts/reviewer.md]
+      - id: escalate
+        runtime: host
+        type: tool
+        label: escalate
+        description: Not terminal. Routed to the resolver; returns {human_decision}.
+        files: [src/tools.py, src/resolver.py]
+      - id: record
+        runtime: host
+        type: tool
+        label: record_decision
+        description: TERMINAL. Writes transaction_decisions, flips status, appends audit_events, stores a mandate receipt on approve.
+        files: [src/handlers.py]
+      - id: terminal_guard
+        runtime: host
+        type: guard
+        label: One terminal call
+        description: Host counts record_decision per id. A second call returns already_decided; a missing one gets a nudge before the batch can close.
+        files: [src/gate_loop.py]
+      - id: nudge
+        runtime: host
+        label: Nudge missing
+        description: user.message listing ids without a decision; the agent resumes.
+        files: [src/gate_loop.py]
+    edges:
+      - "reviewer -> verify_mandates [call]: first, always"
+      - verify_mandates -> mandate_ok
+      - { from: mandate_ok, to: record, kind: call, label: hard reject, condition: "!valid || !constraints_satisfied || double_spend_detected" }
+      - "mandate_ok -> get_transaction [call]: pass"
+      - "get_transaction -> hybrid [call]: k=5"
+      - "hybrid -> ring [call]: sender account"
+      - "ring -> thresholds: evidence"
+      - { from: thresholds, to: escalate, kind: call, label: structuring, condition: "4900 <= amount <= 4999" }
+      - { from: thresholds, to: escalate, kind: call, label: high value, condition: "amount >= 50000 && would_approve" }
+      - { from: thresholds, to: escalate, kind: call, label: medium confidence, condition: "75 <= confidence <= 85" }
+      - { from: thresholds, to: escalate, kind: call, label: ring hit, condition: "ring.suspicious_patterns" }
+      - "thresholds -> record [call]: clear-cut"
+      - "escalate -> record [call]: escalated=true"
+      - "record -> terminal_guard: count"
+      - "terminal_guard -> nudge: ids missing"
+      - "nudge -> reviewer [return]: resume"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: desk
+    title: Analyst Desk
+    description: The session stays paused until a person decides. The host never invents a verdict.
+    nodes:
+      - id: packet
+        agent: packet
+        label: Case packet
+      - id: queue
+        runtime: atlas
+        type: memory
+        label: analyst_cases
+        description: Open cases with packet, escalation input and queue (analyst / senior).
+        files: [src/resolver.py]
+        resources:
+          - { kind: queue, label: "Analyst queue", url: "https://fraud-desk.example.com/cases?queue=analyst" }
+      - id: analyst
+        runtime: casemgmt
+        type: human
+        label: Fraud analyst
+        description: Reads the packet, decides approve or reject. Disagreeing with the agent is an override.
+        approval: { by: fraud analyst, via: case management console, actions: [approve, reject], timeout: 4h, on_timeout: escalate }
+        files: [src/resolver.py]
+      - id: senior
+        runtime: casemgmt
+        type: human
+        label: Senior analyst
+        description: Cases the first line did not close in 4h. No decision in 24h declines the payment.
+        approval: { by: senior fraud analyst, via: case management console, actions: [approve, reject], timeout: 24h, on_timeout: reject }
+        sla: 24h
+      - id: human_decision
+        runtime: host
+        label: human_decision
+        description: Posted as the escalate tool result; the agent then records with escalated=true and its recommended_decision.
+        files: [src/gate_loop.py]
+      - id: override
+        runtime: host
+        type: decision
+        label: Override?
+        description: Human decision differs from recommended_decision.
+      - id: labels
+        runtime: atlas
+        type: memory
+        label: Override labels
+        description: Overrides become labeled examples for the nightly eval and future precedent search.
+        status: experimental
+      - id: sar
+        runtime: casemgmt
+        type: human
+        label: SAR referral
+        description: Structuring and ring rejections go to BSA/AML for a Suspicious Activity Report decision.
+        sla: 30d
+        data: { sensitivity: confidential, region: us, retention: 1826d }
+    edges:
+      - "packet -> queue [data]: packet"
+      - "queue -> analyst [handoff]: open case"
+      - "analyst -> senior [handoff]: 4h timeout"
+      - "analyst -> human_decision [return]: approve / reject"
+      - "senior -> human_decision [return]: approve / reject / declined"
+      - human_decision -> override
+      - "override -> labels [data]: yes"
+      - "human_decision -> sar: structuring or ring reject"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: data
+    title: MongoDB Atlas
+    description: One cluster for operational data, vectors, full text, graph traversal and the audit trail.
+    nodes:
+      - id: transactions
+        runtime: atlas
+        type: memory
+        label: transactions
+        description: transaction_id, text, amount, sender/recipient, lane, status, embedding, mandate fields.
+        files: [data/pending_sample.jsonl, config/indexes.json]
+        data: { sensitivity: pii, region: us, retention: 1826d }
+      - id: embed
+        runtime: voyage
+        type: model
+        label: voyage-3.5
+        description: 1024-dim embeddings for new transactions; seed data ships precomputed.
+        model: voyage-3.5
+        files: [src/config.py]
+      - id: vector_index
+        runtime: atlas
+        type: tool
+        label: $vectorSearch
+        description: transactions_vector, cosine, status as a filter field; numCandidates = max(50, 10k).
+        files: [config/indexes.json, src/pipelines.py]
+      - id: search_index
+        runtime: atlas
+        type: tool
+        label: $search BM25
+        description: transactions_text over text, memo, merchant.name (lucene.english).
+        files: [config/indexes.json, src/pipelines.py]
+      - id: rank_fusion
+        runtime: atlas
+        label: $rankFusion
+        description: Reciprocal rank fusion of the vector and lexical pipelines, max(4k, 20) per branch, uniform weights.
+        files: [src/pipelines.py]
+      - id: rerank
+        runtime: atlas
+        status: experimental
+        label: Rerank
+        description: ENABLE_RERANK=1 reranks k x 5 candidates by relevance_score.
+        files: [src/config.py]
+      - id: graph
+        runtime: atlas
+        label: $graphLookup
+        description: recipient -> sender chains from the seed account, maxDepth 4, depthField depth.
+        files: [src/pipelines.py]
+      - id: ring_summary
+        runtime: host
+        label: summarize_ring
+        description: circular_flow, layering (>= 5 transfers under $1,000), network_size >= 3.
+        files: [src/pipelines.py]
+      - id: decisions
+        runtime: atlas
+        type: memory
+        label: transaction_decisions
+        description: decision_id, decision, confidence_score, reviewed_by (agent / human), created_at.
+        files: [src/handlers.py]
+      - id: audit
+        runtime: atlas
+        type: memory
+        label: audit_events
+        description: Append-only. decision_stored / escalated_to_human with severity and event_data. The host role cannot update or delete.
+        files: [src/handlers.py, config/audit-role.json]
+        data: { sensitivity: confidential, region: us, retention: 1826d }
+      - id: receipts
+        runtime: atlas
+        type: memory
+        label: mandate_receipts
+        description: One per approved mandate (agent_pk, JWT SHA-256). The double-spend check reads it.
+        files: [src/handlers.py, src/ap2_mandates.py]
+    edges:
+      - "embed -> transactions [data]: embedding"
+      - "transactions -> vector_index [data]"
+      - "transactions -> search_index [data]"
+      - "vector_index -> rank_fusion: vector"
+      - "search_index -> rank_fusion: lexical"
+      - "rank_fusion -> rerank: optional"
+      - "transactions -> graph [data]"
+      - "graph -> ring_summary [return]: chain"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: platform
+    title: Harness & Models
+    description: Credentials stay on the host, the audit trail is append-only by privilege, every session is traced.
+    nodes:
+      - id: env
+        runtime: anthropic
+        type: guard
+        label: Limited network
+        description: fraud-review-env, cloud, networking limited. The agent has no path to the database except custom tools.
+        files: [src/setup.py]
+      - id: secrets
+        runtime: host
+        type: guard
+        label: Host-side secrets
+        description: MONGO_URI, VOYAGE_API_KEY and the AP2 Trusted Surface key never enter the agent context or sandbox.
+        credentials: service
+        data: { sensitivity: secret }
+        files: [src/config.py, src/ap2_mandates.py]
+      - id: audit_role
+        runtime: atlas
+        type: guard
+        label: Append-only role
+        description: fraud-desk-host custom role. INSERT + FIND on audit_events, no UPDATE or REMOVE.
+        files: [config/audit-role.json]
+      - id: budget
+        runtime: host
+        type: guard
+        label: Budget per batch
+        description: $0.50 and 80 turns per batch session; over budget pauses the session for an operator.
+        budget: { usd: 0.5, turns: 80, on_exceed: pause }
+        files: [src/config.py]
+      - id: trace
+        runtime: anthropic
+        type: memory
+        label: Console trace
+        description: Every tool call, escalation and decision of the batch session.
+        resources:
+          - { kind: recording, label: "Batch session sesn_011D4fRq8XaZ2nPm7kYt3VwL", url: "https://platform.claude.com/workspaces/default/sessions/sesn_011D4fRq8XaZ2nPm7kYt3VwL" }
+      - id: haiku
+        runtime: anthropic
+        type: model
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        description: The reviewer. Cheap enough to run every pending payment; COOKBOOK_MODEL overrides it.
+      - id: sonnet
+        runtime: anthropic
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        description: Analyst case packets.
+    edges:
+      - "secrets -> env: no DB credential in sandbox"
+      - "audit_role -> trace: same decisions, two records"
+
+links:
+  # intake -> review
+  - "intake.session -> review.reviewer [spawn]: batch ids"
+  - "intake.route -> review.verify_mandates [return]: handler result"
+  - "review.terminal_guard -> intake.done: all ids decided"
+  # review -> desk
+  - "review.escalate -> desk.packet [handoff]: escalation input"
+  - "desk.human_decision -> review.escalate [return]: human_decision"
+  # tools -> data
+  - "review.verify_mandates -> data.receipts [data]: double spend"
+  - "review.get_transaction -> data.transactions [data]: find_one"
+  - "review.hybrid -> data.rank_fusion [call]: aggregate"
+  - "review.ring -> data.graph [call]: aggregate"
+  - "data.ring_summary -> review.ring [return]: summary"
+  - "review.record -> data.decisions [data]: insert"
+  - "review.record -> data.audit [data]: append"
+  - "review.record -> data.receipts [data]: on approve"
+  - "desk.queue -> data.transactions [data]: case context"
+  # platform
+  - "platform.audit_role -> data.audit: insert only"
+  - "platform.secrets -> intake.gate_loop [data]: MONGO_URI"
+  - "review.reviewer -> platform.haiku [call]"
+  - "desk.packet -> platform.sonnet [call]"
+  - "intake.gate_loop -> platform.trace [data]: events"
+  - "platform.budget -> intake.session: over budget, pause"

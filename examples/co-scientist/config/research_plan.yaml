@@ -1,0 +1,27 @@
+# Research plan configuration parsed from the scientist's goal, then reviewed
+# and edited by the scientist before the supervisor starts. Example modeled on
+# the paper's drug-repurposing setting (closed space of approved drugs).
+goal: >-
+  Propose approved drugs that could be repurposed for acute myeloid leukemia (AML),
+  with a mechanism and an in vitro experiment for each.
+domain: oncology / hematology
+space: closed
+candidate_source: FDA-approved small molecules (about 2,300 drugs)
+preferences:
+  - Testable in AML cell lines (KG-1, MOLM-13, HL-60) within three months
+  - Prefer drugs with known safety at clinically relevant concentrations
+constraints:
+  - No compounds requiring BSL-3 handling
+  - Exclude drugs already in AML trials (ClinicalTrials.gov, last 5 years)
+criteria:
+  novelty: 0.25
+  correctness: 0.25
+  testability: 0.25
+  safety: 0.10
+  impact: 0.15
+filters:
+  min_review_score: 4         # out of 5, from Reflection
+  min_depmap_score: 0.99      # gene dependency evidence for the proposed target
+output_format: nih_specific_aims
+open_questions: []
+approved_by: scientist        # set by the approval step; the supervisor refuses to start without it

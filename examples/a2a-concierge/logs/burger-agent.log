@@ -1,0 +1,14 @@
+2026-10-07T12:00:02.114Z INFO  uvicorn  Started server process [1]
+2026-10-07T12:00:02.118Z INFO  uvicorn  Uvicorn running on http://0.0.0.0:8080
+2026-10-07T12:04:51.399Z INFO  a2a      GET /.well-known/agent.json 200
+2026-10-07T12:04:53.402Z INFO  a2a      POST / jsonrpc method=message/send contextId=c3f2a6d1 taskId=7d0e44b2
+2026-10-07T12:04:55.870Z INFO  crewai   Crew kickoff done (1 task, 0 tool calls) model=vertex_ai/gemini-2.5-flash-lite
+2026-10-07T12:04:55.872Z INFO  a2a      task 7d0e44b2 -> completed artifact=burger_7d0e44b2
+2026-10-07T12:05:31.902Z INFO  a2a      POST / jsonrpc method=message/send contextId=c3f2a6d1 taskId=19b85c07
+2026-10-07T12:05:34.911Z INFO  crewai   status=input_required (asked for confirmation, total IDR 250K)
+2026-10-07T12:05:34.912Z INFO  a2a      task 19b85c07 -> completed (confirmation question returned as artifact text)
+2026-10-07T12:05:50.088Z INFO  a2a      POST / jsonrpc method=message/send contextId=c3f2a6d1 taskId=e2a0d6f1
+2026-10-07T12:05:53.101Z INFO  crewai   tool create_order(order_items=[Classic Cheeseburger x2 @85000, Spicy Chicken Burger x1 @80000])
+2026-10-07T12:05:53.104Z INFO  crewai   Order {'order_id': '5c1f9e0a-3b0e-4f39-9a51-1c8d5e7d2a10', 'status': 'created', ...} has been created
+2026-10-07T12:05:53.224Z INFO  a2a      task e2a0d6f1 -> completed artifact=burger_e2a0d6f1
+2026-10-07T12:17:40.551Z WARN  a2a      POST / jsonrpc method=tasks/cancel -> UnsupportedOperationError (-32004)

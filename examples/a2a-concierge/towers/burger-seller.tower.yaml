@@ -1,0 +1,112 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Burger seller internals
+description: >-
+  The burger seller on Cloud Run: an a2a-sdk Starlette server in front of a one-agent CrewAI
+  crew. A new crew is built per request; the confirmation round trip relies on the concierge
+  sending the user's "yes" back in the same A2A context.
+root: ..
+
+runtimes:
+  burger_run:
+    kind: serverless
+    label: "Cloud Run: burger-agent"
+    description: "Port 8080, --min 1, HOST_OVERRIDE = service URL."
+    provider: "google-cloud"
+    region: "us-central1"
+    url: "https://burger-agent-480913327416.us-central1.run.app"
+  vertex:
+    kind: cloud
+    label: "Vertex AI Gemini"
+    provider: "google-cloud"
+    region: "us-central1"
+
+agents:
+  seller:
+    name: Burger Seller Agent
+    description: "role 'Burger Seller Agent'; goal: explain the menu and prices, handle order creation."
+    runtime: burger_run
+    model: gemini-2.5-flash-lite
+    prompt: { file: prompts/burger-seller.md }
+    tools: [create_order]
+    harness: { framework: crewai, process: sequential, allow_delegation: false }
+    files: [remote_seller_agents/burger_agent/agent.py]
+
+layers:
+  - id: server
+    title: A2A Server
+    description: Starlette app from a2a-sdk 0.2.16. JSON-RPC on /, agent card on /.well-known/agent.json.
+    nodes:
+      - id: request
+        runtime: burger_run
+        type: entry
+        label: message/send
+        description: "JSON-RPC request from the concierge's A2AClient, carrying messageId and contextId."
+        trigger: { kind: webhook, source: A2A JSON-RPC (concierge) }
+        files: [remote_seller_agents/burger_agent/a2a_server.py]
+        resources:
+          - { kind: log, label: "burger-agent log", path: "logs/burger-agent.log" }
+      - id: card
+        runtime: burger_run
+        type: memory
+        label: Agent card
+        description: "AgentCard built in code (skill create_burger_order) and served for discovery."
+        files: [remote_seller_agents/burger_agent/.well-known/agent.json, remote_seller_agents/burger_agent/a2a_server.py]
+      - id: executor
+        runtime: burger_run
+        label: AgentExecutor
+        description: "BurgerSellerAgentExecutor.execute: get_user_input(), run the crew, enqueue completed_task. cancel is unsupported."
+        files: [remote_seller_agents/burger_agent/a2a_server.py]
+      - id: task_store
+        runtime: burger_run
+        type: memory
+        label: InMemoryTaskStore
+        description: "Tasks live in the instance; Cloud Run --min 1 keeps one warm instance."
+        files: [remote_seller_agents/burger_agent/a2a_server.py]
+      - id: done
+        runtime: burger_run
+        type: output
+        label: Completed task
+        description: "Task state completed with one artifact burger_<task_id>: the question or the order summary."
+        files: [remote_seller_agents/burger_agent/a2a_server.py]
+    edges:
+      - "card -> request [data]: advertises url + skill"
+      - "request -> executor"
+      - "executor -> task_store [data]: task"
+      - "executor -> done [return]: artifact"
+
+  - id: crew
+    title: CrewAI Crew
+    description: One agent, one task, Process.sequential. The task prompt enforces confirm-then-create.
+    nodes:
+      - id: seller
+        agent: seller
+        label: Burger Seller Agent
+      - id: confirmed
+        runtime: burger_run
+        type: decision
+        label: Confirmed in query?
+        description: "Items and total confirmed in the incoming text? If not, answer with the total and a confirmation question."
+        files: [prompts/burger-seller.md]
+        approval: { by: customer (relayed by the concierge), via: A2A follow-up message, actions: [approve, reject], on_timeout: wait }
+      - id: create_order
+        runtime: burger_run
+        type: tool
+        label: create_order
+        description: "@tool('create_order') create_burger_order(order_items): validates OrderItem list, returns the Order dump."
+        files: [remote_seller_agents/burger_agent/agent.py]
+      - id: model
+        runtime: vertex
+        type: model
+        label: gemini-2.5-flash-lite
+        model: gemini-2.5-flash-lite
+        description: "LLM('vertex_ai/gemini-2.5-flash-lite') through LiteLLM."
+    edges:
+      - "seller -> confirmed"
+      - "confirmed -> create_order [call]: yes"
+      - "seller -> model [call]"
+
+links:
+  - "server.executor -> crew.seller [spawn]: crew.kickoff()"
+  - "crew.confirmed -> server.done [return]: no, ask to confirm"
+  - "crew.create_order -> server.done [return]: order ID"

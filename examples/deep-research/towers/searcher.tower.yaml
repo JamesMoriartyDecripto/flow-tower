@@ -1,0 +1,138 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Searcher internals
+description: >-
+  One search subagent: read the task, scan the tools, search wide then narrow with
+  parallel calls, judge source quality with interleaved thinking, stop on budget or
+  diminishing returns, then hand the history to the compressor.
+root: ..
+
+runtimes:
+  app:
+    kind: container
+    label: "Research service"
+    description: "Python async workers (one run per request) behind the chat backend."
+    provider: "aws"
+    region: "us-east-1"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "Sonnet 5.5 plus server-side web search and web fetch."
+    provider: "anthropic"
+    url: "https://console.anthropic.com"
+  store:
+    kind: cloud
+    label: "Run store"
+    description: "Artifacts keyed by run id."
+    provider: "aws"
+    region: "us-east-1"
+
+agents:
+  searcher:
+    name: Search subagent
+    model: claude-sonnet-5-5
+    prompt: { file: prompts/searcher.md }
+    tools: [web_search, web_fetch, save_artifact, mcp__gdrive__search, mcp__confluence__search]
+    runtime: app
+    files: [src/searcher.py]
+    limits: { timeout: 10m, max_iterations: 10 }
+
+layers:
+  - id: plan
+    title: Read & Plan
+    description: Understand the boundaries set by the lead before the first call.
+    nodes:
+      - id: task
+        type: entry
+        runtime: app
+        label: Task from lead
+        description: Objective, expected output, preferred tools and sources, and what NOT to cover.
+        files: [memory/plan-example.json]
+      - id: scan
+        agent: searcher
+        label: Scan tools
+        description: Look at every tool first; specialised tools (Drive, wiki) beat generic search for internal topics.
+      - id: internal
+        type: decision
+        runtime: app
+        label: Internal topic?
+        description: Task mentions internal docs, teams or projects.
+      - id: broad
+        agent: searcher
+        label: Broad queries
+        description: Short, wide queries to map the landscape before narrowing.
+    edges:
+      - task -> scan
+      - scan -> internal
+      - "internal -> broad: yes = Drive + wiki first"
+
+  - id: loop
+    title: Search Loop
+    description: "ReAct loop, max 10 iterations; 3+ independent calls per turn run in parallel."
+    nodes:
+      - id: parallel
+        runtime: anthropic
+        label: Parallel calls
+        description: web_search, web_fetch and MCP calls issued in the same turn.
+        fanout: { min: 3, max: 5, by: independent queries }
+        files: [src/searcher.py]
+      - id: evaluate
+        agent: searcher
+        label: Interleaved think
+        description: After each batch — is the source primary, dated, on task? What is still missing?
+      - id: quality
+        type: guard
+        runtime: app
+        label: Source quality
+        description: Primary sources and filings over news over blogs; SEO listicles are marked unverified.
+        files: [prompts/searcher.md]
+      - id: enough
+        type: decision
+        runtime: app
+        label: Done?
+        description: Task answered, two empty rounds in a row, or call budget used.
+        files: [src/config.py]
+      - id: narrow
+        agent: searcher
+        label: Narrow queries
+        description: Targeted follow-ups for the gaps just identified.
+    edges:
+      - "parallel -> evaluate [return]: results"
+      - evaluate -> quality
+      - quality -> enough
+      - "enough -> narrow: gaps"
+      - "narrow -> parallel [return]: next batch"
+
+  - id: deliver
+    title: Store & Return
+    description: Long content stays in the store; only compressed findings and refs go back.
+    nodes:
+      - id: save
+        type: memory
+        runtime: store
+        label: save_artifact
+        description: Page excerpts saved under a short ref (art:3f9a1c).
+        files: [src/plan_store.py, src/client_tools.py]
+      - id: compress
+        runtime: app
+        label: Compress
+        description: History rewritten into cited findings by the compressor (3 attempts, trims on overflow).
+        files: [src/compress.py, prompts/compress.md]
+      - id: findings
+        type: output
+        runtime: app
+        label: Findings + refs
+        description: Bullet findings with [n] markers, numbered sources, and what could not be found.
+      - id: model
+        type: model
+        runtime: anthropic
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+    edges:
+      - "save -> compress [data]: refs"
+      - compress -> findings
+
+links:
+  - "plan.broad -> loop.parallel [call]: first batch"
+  - "loop.enough -> deliver.save [data]: done"
+  - "loop.evaluate -> deliver.model [call]: reasoning"
