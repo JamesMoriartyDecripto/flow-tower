@@ -34,6 +34,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Pull request template.
 
 ### Fixed
+- Claude Code live events (#44, verified with a real `claude -p` session with background and foreground subagents):
+  - turns Claude Code injects (subagent reports, task notifications, system reminders, cross-session messages) are logs, not user prompts;
+  - background subagents stay lit until `SubagentStop` instead of ending when they are launched;
+  - every subagent event carries the `role` (the `description` of the `Agent` call), so several subagents of the same type map to different nodes;
+  - `SendMessage` to a finished subagent starts it again;
+  - the main session is always `agent: main`, and an empty `agent_type` no longer produces `agent: ""`;
+  - a foreground subagent ends once and reports its tokens and duration as a `usage` event.
+- `match:` rules support negation: `!field:pattern`.
 - Live feed: when the initial load of recent events finished after a newer pushed event, older events were added again (duplicate rows, React key warnings); the initial load now only fills in ids not applied yet, and keeps the feed in order.
 - Half-screen windows: the export buttons made the bottom bar run over the legend; below 760 px the layer-spacing slider moves out of the bar (it is still in Settings).
 

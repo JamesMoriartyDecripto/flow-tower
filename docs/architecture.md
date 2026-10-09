@@ -23,7 +23,7 @@ The server only reads files under the tower roots. Workspace changes and live ev
 | `src/core/resolve.ts` | Prompts, `from:` agent files, operational fields (`pickOps`) |
 | `src/core/edges.ts` | Edge shorthand parsing |
 | `src/core/otlp.ts` | OTLP/HTTP JSON logs → `usage` / `error` events (Claude Code, Codex telemetry) |
-| `src/core/events.ts`, `adapters.ts` | Live event shape, matching, per-harness adapters (Claude Code, Agent SDK, Codex, Pi, Hermes) |
+| `src/core/events.ts`, `adapters.ts`, `claudeCode.ts` | Live event shape, matching (with `!` negation), per-harness adapters (Codex, Pi, Hermes); `claudeCode.ts` maps Claude Code / Agent SDK hooks and remembers subagent roles |
 | `src/core/types.ts` | Resolved model sent to the browser |
 
 ## Server and CLI
