@@ -1,0 +1,51 @@
+# Q4 2026 media budget plan. Approved by CMO + FP&A on 2026-10-07.
+# All amounts EUR. Illustrative numbers for the fictional company Tallymoor.
+quarter: 2026-Q4
+currency: EUR
+monthly_cap: 120000          # hard cap; spend guard pauses all campaigns at 100 %
+alert_at_pct: [80, 95]       # Slack alerts to Head of Growth
+test_reserve_pct: 10         # share of each channel's monthly earmarked for experiments (inside the cap)
+# Daily budgets x 30.4 (Google's monthly charging limit) ~= each channel's monthly figure.
+
+channels:
+  google_ads:
+    monthly: 50000
+    min: 40000
+    max: 60000
+    campaigns:
+      - { id: g-search-nonbrand-de, daily: 900, bid: maximize_conversions, target_cpa: 380 }
+      - { id: g-search-nonbrand-nl, daily: 360, bid: maximize_conversions, target_cpa: 400 }
+      - { id: g-search-nonbrand-fr, daily: 300, bid: maximize_conversions, target_cpa: 420 }
+      - { id: g-search-brand, daily: 90, bid: target_impression_share }
+  linkedin_ads:
+    monthly: 38000
+    min: 30000
+    max: 45000
+    campaigns:
+      - { id: li-c1-ap-leads, daily: 620, objective: LEAD_GENERATION }
+      - { id: li-c2-einvoicing-docs, daily: 400, objective: ENGAGEMENT }
+      - { id: li-c3-cfo-tla, daily: 230, objective: BRAND_AWARENESS }
+  meta_ads:
+    monthly: 24000
+    min: 15000
+    max: 28000
+    campaigns:
+      - { id: m-retargeting-30d, daily: 420 }
+      - { id: m-cfo-lookalike, daily: 370 }
+  tiktok_ads:
+    monthly: 8000
+    min: 0
+    max: 8000
+    status: experimental     # kill criterion: no assisted pipeline by 2026-12-04
+    campaigns:
+      - { id: t-cfo-awareness, daily: 260 }
+
+pacing:
+  tolerance_pct: 10          # outside +-10 % month-to-date vs plan the optimizer is invoked
+  method: linear             # B2B weekday weighting applied in scripts/pacing_check.py
+  weekday_weight: { mon: 1.15, tue: 1.15, wed: 1.15, thu: 1.1, fri: 0.95, sat: 0.25, sun: 0.25 }
+
+kpi_targets:                  # illustrative
+  blended_cac_eur: 4500
+  cost_per_mql_eur: 420
+  pipeline_roas: 3.0

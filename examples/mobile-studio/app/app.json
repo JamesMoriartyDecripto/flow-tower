@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "Leafwise",
+    "slug": "leafwise",
+    "scheme": "leafwise",
+    "version": "2.4.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "runtimeVersion": { "policy": "fingerprint" },
+    "updates": {
+      "url": "https://u.expo.dev/00000000-0000-0000-0000-000000000000",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "ios": {
+      "bundleIdentifier": "com.example.leafwise",
+      "appleTeamId": "TEAMID0000",
+      "supportsTablet": true,
+      "usesAppleSignIn": true,
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.com.example.leafwise"]
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "Leafwise uses the camera when you take a photo of a plant to identify it or track its growth.",
+        "NSPhotoLibraryUsageDescription": "Leafwise lets you pick an existing plant photo from your library.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ]
+      }
+    },
+    "android": {
+      "package": "com.example.leafwise",
+      "predictiveBackGestureEnabled": true,
+      "permissions": ["android.permission.POST_NOTIFICATIONS", "android.permission.CAMERA"],
+      "blockedPermissions": ["android.permission.ACCESS_FINE_LOCATION", "com.google.android.gms.permission.AD_ID"],
+      "googleServicesFile": "./google-services.json"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-apple-authentication",
+      ["expo-camera", { "cameraPermission": "Leafwise uses the camera when you take a photo of a plant to identify it or track its growth." }],
+      ["expo-notifications", { "color": "#2F8F46" }],
+      "@react-native-firebase/app",
+      "@react-native-firebase/crashlytics",
+      "@bacons/apple-targets",
+      ["expo-build-properties", { "ios": { "useFrameworks": "static" }, "android": { "enableMinifyInReleaseBuilds": true } }]
+    ],
+    "extra": {
+      "eas": { "projectId": "00000000-0000-0000-0000-000000000000" },
+      "supabaseUrl": "https://example-project.supabase.co"
+    }
+  }
+}

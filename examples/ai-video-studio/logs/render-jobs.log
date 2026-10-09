@@ -1,0 +1,23 @@
+{"ts":"2026-10-14T16:31:02Z","step":"dispatch","video":"KTC-2026-041","shots":8,"estimate_usd":214.6,"budget_usd":1200,"concurrency":{"veo":4,"heygen":2,"elevenlabs":4}}
+{"ts":"2026-10-14T16:31:05Z","shot":"S01","vendor":"veo","model":"veo-3.1-generate-preview","job":"models/veo-3.1-generate-preview/operations/8c1f2a0d","aspect":"9:16","res":"1080p","secs":8,"status":"submitted","charge_usd":3.20}
+{"ts":"2026-10-14T16:31:05Z","shot":"S03","vendor":"veo","model":"veo-3.1-fast-generate-preview","job":"models/veo-3.1-fast-generate-preview/operations/1d77b9e4","aspect":"16:9","res":"1080p","secs":8,"status":"submitted","charge_usd":0.96}
+{"ts":"2026-10-14T16:31:06Z","shot":"S04","vendor":"veo","model":"veo-3.1-generate-preview","job":"models/veo-3.1-generate-preview/operations/5a90c3b1","aspect":"9:16","res":"1080p","secs":8,"status":"submitted","charge_usd":3.20}
+{"ts":"2026-10-14T16:31:06Z","shot":"S05","vendor":"gemini","model":"gemini-3.1-flash-image","kind":"keyframe","res":"1K","status":"done","charge_usd":0.067}
+{"ts":"2026-10-14T16:31:09Z","shot":"S02","vendor":"heygen","job":"vid_3f8a1c","consent_id":"CR-2026-007","consent_check":"pass","status":"submitted","callback":"/hooks/heygen"}
+{"ts":"2026-10-14T16:31:10Z","step":"voice","vendor":"elevenlabs","voice":"pvc_mara_v2","lines":31,"chars":7392,"consent_check":"pass","status":"done","charge_usd":0.16}
+{"ts":"2026-10-14T16:32:18Z","shot":"S03","vendor":"veo","job":"models/veo-3.1-fast-generate-preview/operations/1d77b9e4","status":"done","secs":73}
+{"ts":"2026-10-14T16:32:51Z","shot":"S03","check":"probe","ok":true,"size":"1920x1080","fps":24,"duration":8.0}
+{"ts":"2026-10-14T16:33:04Z","shot":"S03","check":"vision","score":8,"notes":"start arch clean, no text; slight crowd morph at 0:06","decision":"keep"}
+{"ts":"2026-10-14T16:34:40Z","shot":"S01","vendor":"veo","job":"models/veo-3.1-generate-preview/operations/8c1f2a0d","status":"done","secs":215}
+{"ts":"2026-10-14T16:34:58Z","shot":"S01","check":"vision","score":6,"notes":"runner's left hand fused with rock edge at 0:05","decision":"retake","take":2}
+{"ts":"2026-10-14T16:35:00Z","shot":"S01","vendor":"veo","model":"veo-3.1-generate-preview","job":"models/veo-3.1-generate-preview/operations/b2e41f77","aspect":"9:16","res":"1080p","secs":8,"status":"submitted","charge_usd":3.20,"prompt_delta":"hands resting on knees, clear of the rock"}
+{"ts":"2026-10-14T16:36:12Z","shot":"S04","vendor":"veo","job":"models/veo-3.1-generate-preview/operations/5a90c3b1","status":"error","error":"blocked: no sample returned","charge_usd":0}
+{"ts":"2026-10-14T16:36:13Z","shot":"S04","action":"rephrase","removed":"'passes a runner' -> 'two runners on a switchback, one hiking, one jogging'"}
+{"ts":"2026-10-14T16:38:30Z","shot":"S01","vendor":"veo","job":"models/veo-3.1-generate-preview/operations/b2e41f77","status":"done","secs":210}
+{"ts":"2026-10-14T16:38:49Z","shot":"S01","check":"vision","score":8,"decision":"keep","take":2,"shot_spend_usd":6.40,"budget_note":"over $6 per-shot default, approved as hero shot"}
+{"ts":"2026-10-14T16:44:02Z","shot":"S02","vendor":"heygen","job":"vid_3f8a1c","status":"completed","via":"webhook+GET verify","secs":773}
+{"ts":"2026-10-14T16:47:11Z","shot":"S06","vendor":"veo","job":"models/veo-3.1-fast-generate-preview/operations/9e03aa12","status":"timeout","after_s":600,"retry":1,"backoff_s":10}
+{"ts":"2026-10-14T16:55:27Z","shot":"S06","vendor":"runway","model":"gen4.5","job":"task_6b1d0e","status":"done","secs":96,"charge_usd":0.72,"reason":"fallback after 2 Veo timeouts"}
+{"ts":"2026-10-14T17:02:40Z","step":"music","vendor":"elevenlabs","model":"music_v2_5","candidates":3,"minutes":2.4,"status":"done","charge_usd":0.36,"licence":"ELM-2026-10-0417"}
+{"ts":"2026-10-14T17:20:05Z","step":"render","vendor":"remotion-lambda","cut":"short-916","renderId":"r_0x7k2m","lambdas":12,"status":"success","secs":64,"charge_usd":0.03}
+{"ts":"2026-10-14T17:20:06Z","step":"ledger","video":"KTC-2026-041","spent_usd":58.91,"estimate_usd":214.6,"pct_of_budget":4.9}

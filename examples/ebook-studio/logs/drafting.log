@@ -1,0 +1,18 @@
+2026-07-01T08:00:02Z INFO  [dispatch] outline v3 locked (signed 2026-06-26) chapters=12 concurrency=4
+2026-07-01T08:00:04Z INFO  [dispatch] ch01 ch02 ch03 ch04 -> writer sessions (claude-sonnet-5-5, network=none)
+2026-07-01T08:17:40Z INFO  [ch02] round 1 draft 3,410 words; self-review 9/10 items; continuity 0 conflicts -> handoff
+2026-07-01T08:21:12Z INFO  [lint] ch03 Vale errors=2 (Balcony.Terms: "wicking pot" -> "self-watering container") -> returned
+2026-07-01T08:26:55Z INFO  [ch03] round 2 draft 4,780 words; self-review 10/10; continuity 1 bible change request ("air pot") -> author
+2026-07-01T08:31:09Z WARN  [ch04] self-review: claim "peat-free mixes hold less water" has no [S#] -> blocking
+2026-07-01T08:38:47Z INFO  [ch04] round 2 claim removed, [AUTHOR STORY] slot left for memo-018 -> handoff
+2026-07-01T09:02:13Z INFO  [dispatch] ch05 ch06 ch07 ch08 -> writer sessions
+2026-07-01T09:24:30Z INFO  [ch06] round 1 draft 4,690 words; continuity 2 conflicts ("wind barrier", "Beaufort" unit missing) -> revise
+2026-07-01T09:31:02Z INFO  [ch06] round 2 conflicts 0; author-verbatim block 6.1 untouched -> handoff
+2026-07-01T09:44:51Z WARN  [ch08] round 3 still blocking: word budget +17% (5,620 / 4,800)
+2026-07-01T09:44:52Z WARN  [ch08] escalate -> publishing lead: split salads vs greens? author asked to cut
+2026-07-01T10:05:10Z INFO  [dispatch] ch09 ch10 ch11 ch12 -> writer sessions
+2026-07-01T10:52:36Z INFO  [ch12] draft built from diary entries only (no new claims) -> handoff
+2026-07-01T10:52:40Z INFO  [dispatch] done: 11 handoffs, 1 escalation; spend $31.80 (budget $48 for drafting)
+2026-07-02T07:30:00Z INFO  [ledger] provenance entries written for 84 sections
+2026-08-14T16:12:09Z INFO  [author_pass] all 12 chapters approved by the author; ch08 rewritten by the author from scratch
+2026-08-14T16:12:10Z INFO  [assemble] manuscript v1 50,960 words, 28 figures, tag ms-v1

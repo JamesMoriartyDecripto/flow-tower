@@ -1,0 +1,54 @@
+{
+  "_note": "Prepared by the metadata editor, checked by the disclosure guard, entered by hand in each dashboard. Names and identifiers are fictional.",
+  "title": "The Balcony Harvest",
+  "subtitle": "Growing Food in Small Spaces in Cool, Windy Climates",
+  "contributors": [{ "role": "author", "name": "Ines Halvorsen" }],
+  "publisher": "Larchwood Press",
+  "edition": "1.0",
+  "language": "en-GB",
+  "identifiers": {
+    "isbn13_epub": "9781917654036",
+    "isbn13_paperback": "9781917654043"
+  },
+  "release_date": "2026-11-24",
+  "preorder_from": "2026-09-25",
+  "territories": "world",
+  "price": { "USD": 8.99, "GBP": 6.99, "EUR": 7.99, "CAD": 11.99, "AUD": 12.99 },
+  "description_html": "<p><b>Your balcony is windier, shadier and smaller than the gardening books assume. This one starts there.</b></p><p>Ines Halvorsen has grown salads, beans and strawberries on a west-facing seventh-floor balcony in Bergen for twelve years. In <i>The Balcony Harvest</i> she shows you how to:</p><ul><li>read your balcony's sun, wind and shelter in one weekend</li><li>check lease rules and load limits before you buy a single container</li><li>build a windbreak that protects plants without turning your balcony into a wind tunnel</li><li>harvest salad every week from April to October</li><li>grow two or three summer crops that cope with cool nights</li></ul><p>With 28 diagrams and photos, three real balconies followed through the year, and a month-by-month plan for cool climates from Montreal to Bergen.</p>",
+  "kdp": {
+    "keywords": [
+      "balcony vegetable garden small space",
+      "container gardening for beginners apartment",
+      "grow salad greens in pots",
+      "windy balcony plants",
+      "cool climate vegetable growing",
+      "urban gardening renters",
+      "small terrace food garden"
+    ],
+    "categories_note": "Up to 3 categories per format and marketplace (amazon.com shown); names are illustrative, pick them in the KDP category picker.",
+    "categories": [
+      "Kindle Store > Kindle eBooks > Crafts, Hobbies & Home > Gardening & Horticulture > Container Gardening",
+      "Kindle Store > Kindle eBooks > Crafts, Hobbies & Home > Gardening & Horticulture > Vegetables",
+      "Kindle Store > Kindle eBooks > Crafts, Hobbies & Home > Gardening & Horticulture > Urban"
+    ],
+    "ai_content": { "text": true, "images": false, "translations": false },
+    "drm": false,
+    "kdp_select": false
+  },
+  "apple": { "ai_generated_by_role": "Anthropic Claude", "description_ai_line": "Parts of the text were drafted with AI from the author's notes and rewritten by the author." },
+  "bisac": [
+    "GARDENING / Garden Types / Container & Raised Bed",
+    "GARDENING / Garden Types / Urban, Community & Small Space",
+    "GARDENING / Edible & Medicinal / Vegetables"
+  ],
+  "bisac_edition": "BISG 2025 (codes looked up in the licensed list at upload time)",
+  "accessibility": {
+    "conforms_to": "EPUB Accessibility 1.1 - WCAG 2.2 Level AA",
+    "certified_by": "Larchwood Press",
+    "summary": "Reflowable ebook. All images have text alternatives; navigation by headings and table of contents. No page list.",
+    "hazards": "none"
+  },
+  "series": null,
+  "audience": "adult general",
+  "kdp_select_note": "Wide distribution: the ebook stays out of KDP Select because Select requires ebook exclusivity on Amazon."
+}

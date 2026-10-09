@@ -1,0 +1,39 @@
+appId: com.example.leafwise
+name: Onboarding to first reminder
+tags:
+  - release
+  - smoke
+env:
+  PLANT: Monstera
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Add your first plant"
+- takeScreenshot: screenshots/01-empty
+- tapOn: "Add your first plant"
+- tapOn:
+    id: "plant-name"
+- inputText: ${PLANT}
+- tapOn: "Medium pot"
+- tapOn: "Bright light"
+- tapOn: "Save"
+# Notification permission is asked here, after first value, not on launch.
+- assertVisible: "Get a reminder when it's time to water"
+- tapOn: "Turn on reminders"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: "Allow"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Allow"
+- assertVisible: ${PLANT}
+- assertVisible:
+    id: "next-watering"
+- takeScreenshot: screenshots/02-first-plant
+- tapOn:
+    id: "water-${PLANT}"
+- assertVisible: "Watered today"

@@ -1,0 +1,17 @@
+2026-09-29T10:02:44Z [po] release sign-off approved (approval id appr_2410_po) version 2.4.0
+2026-09-29T10:15:03Z [submit] ios 2.4.0 (413) submitted for review; phased release on; manual release
+2026-09-29T10:16:20Z [submit] android 2040013 -> production inProgress userFraction=0.01; managed publishing on
+2026-09-30T02:47:51Z [app-review] ios 2.4.0 REJECTED
+  Guideline 3.1.2 - Business - Payments - Subscriptions
+  "The app's binary does not include a functional link to the Terms of Use (EULA) on the subscription purchase screen."
+2026-09-30T03:05:10Z [rejection-responder] class=metadata+code path=fix
+  - add Terms of Use (standard Apple EULA link) and Privacy Policy links under the buy button (paywall)
+  - add the Terms of Use link to the App Store description (metadata)
+  - lesson added to CLAUDE.md "Store rules learned"
+2026-09-30T03:06:00Z [studio-lead] approved fix plan (approval id appr_2410_rej1); issue #95 -> app lead
+2026-09-30T05:40:18Z [app-lead] PR #96 merged; paywall links; JS-only but binary under review, so new build 414
+2026-09-30T06:30:41Z [eas] build production ios 2.4.0 (414) finished; submitted with reply in Resolution Center
+2026-09-30T15:12:09Z [play-review] android 2040013 approved; held by managed publishing until iOS approval
+2026-10-01T09:58:33Z [app-review] ios 2.4.0 (414) APPROVED (review time 27h)
+2026-10-01T10:05:00Z [po] publish approved (approval id appr_2410_pub)
+2026-10-01T10:06:12Z [release] iOS manual release with phased release (day 1 = 1%); Play changes published (1%)

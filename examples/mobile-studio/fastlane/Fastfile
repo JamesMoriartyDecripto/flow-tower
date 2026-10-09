@@ -1,0 +1,58 @@
+# Metadata and screenshots only: binaries are built and submitted by EAS (eas build / eas submit).
+# Credentials come from files outside the repo, referenced by environment variable name.
+default_platform(:ios)
+
+LOCALES = %w[en-US de-DE it-IT es-ES].freeze
+
+platform :ios do
+  desc "Upload listing text and Maestro screenshots for every locale; no binary, no submission"
+  lane :metadata do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: ENV.fetch("ASC_API_KEY_PATH") # .p8 stays in the CI secret store
+    )
+    deliver(
+      api_key: api_key,
+      app_identifier: "com.example.leafwise",
+      skip_binary_upload: true,
+      submit_for_review: false,
+      metadata_path: "./fastlane/metadata",       # generated from store/listing.<locale>.yaml
+      screenshots_path: "./fastlane/screenshots", # from the Maestro run
+      overwrite_screenshots: true,
+      phased_release: true,                        # 7-day phased release once approved
+      automatic_release: false,                    # release manually after the PO sign-off
+      precheck_include_in_app_purchases: false,
+      force: true                                  # skip the HTML preview in CI
+    )
+  end
+end
+
+platform :android do
+  desc "Upload Play listing text and screenshots for every locale; no AAB"
+  lane :metadata do
+    upload_to_play_store(
+      package_name: "com.example.leafwise",
+      json_key: ENV.fetch("GOOGLE_SERVICE_ACCOUNT_KEY_PATH"),
+      skip_upload_apk: true,
+      skip_upload_aab: true,
+      skip_upload_changelogs: false,
+      metadata_path: "./fastlane/metadata/android"
+    )
+  end
+
+  desc "Move the production staged rollout to a new fraction (0 < fraction <= 1)"
+  lane :rollout do |options|
+    upload_to_play_store(
+      package_name: "com.example.leafwise",
+      json_key: ENV.fetch("GOOGLE_SERVICE_ACCOUNT_KEY_PATH"),
+      track: "production",
+      rollout: options.fetch(:fraction).to_s,
+      skip_upload_apk: true,
+      skip_upload_aab: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+end

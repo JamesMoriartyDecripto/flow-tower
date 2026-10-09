@@ -1,0 +1,641 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Ebook Studio
+description: >-
+  A small press's agentic pipeline that takes a nonfiction book from proposal to a launched,
+  accessible, wide-distributed ebook. A Claude Agent SDK publishing lead validates the market,
+  an outliner fixes the chapter plan, the style sheet and the book bible, and one writer session
+  per chapter drafts from the author's own notes in parallel (nested chapter loop). The author
+  rewrites every chapter; developmental, line and copy edits, per-chapter fact-checks, an
+  originality scan and a rights check gate the text. Pandoc builds EPUB 3 and the print PDF,
+  EPUBCheck and Ace by DAISY must pass, an AI-disclosure guard reads the provenance ledger
+  before KDP, Apple Books, Kobo, Google Play and Draft2Digital, and launch runs a cover A/B
+  test, ARC readers and weekly sales analysis. Sample book: "The Balcony Harvest", 12 chapters.
+tags: [ebooks, publishing, epub, accessibility, kdp, ai-disclosure, human-in-the-loop, fan-out, claude-agent-sdk]
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Studio orchestrator
+    description: Node 22 container running the publishing lead, every Agent SDK session, the hooks and the in-process studio MCP server (sign-off requests).
+    host: larchwood-studio-01
+    provider: hetzner
+    region: fsn1
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  author:
+    kind: local
+    label: Author workstation
+    description: The author reviews and rewrites chapters in Google Docs suggestion mode and records voice-memo notes. Nothing runs here without the author.
+  desk:
+    kind: local
+    label: Production desk
+    description: Production manager's Mac with Kindle Previewer 4, Apple Books and the Kobo app for device proofs, and the store dashboards (manual uploads).
+  gha:
+    kind: ci
+    label: GitHub Actions
+    description: Deterministic build and validation (Pandoc, EPUBCheck, Ace) on every tagged manuscript version.
+    provider: github-actions
+  slack:
+    kind: saas
+    label: Slack
+    description: Sign-off requests for the publisher, the managing editor and the author.
+    provider: slack
+  copyleaks:
+    kind: saas
+    label: Copyleaks
+    description: Originality scan of the edited manuscript; async, results by webhook.
+    provider: copyleaks
+    url: https://docs.copyleaks.com/
+  kdp:
+    kind: saas
+    label: Amazon KDP
+    provider: amazon
+    url: https://kdp.amazon.com
+  apple:
+    kind: saas
+    label: Apple Books
+    provider: apple
+  kobo:
+    kind: saas
+    label: Kobo Writing Life
+    provider: rakuten-kobo
+    url: https://www.kobo.com/writinglife
+  gplay:
+    kind: saas
+    label: Google Play Books
+    provider: google
+    url: https://play.google.com/books/publish
+  d2d:
+    kind: saas
+    label: Draft2Digital
+    description: Aggregator for the stores and library platforms the press does not upload to directly.
+    provider: draft2digital
+    url: https://draft2digital.com
+  web:
+    kind: edge
+    label: Book site
+    description: Static landing page with the pre-order links and the newsletter form (Cloudflare Pages).
+    provider: cloudflare
+  mailer:
+    kind: saas
+    label: Newsletter ESP
+    description: The author's own newsletter list (MailerLite), EU data region.
+    provider: mailerlite
+
+prompts:
+  intake: { file: prompts/intake.md, description: "Haiku. Proposal email -> book-brief.yaml, missing fields." }
+  market: { file: prompts/market-analyst.md, description: "Comparable titles: price, length, reviews, gaps." }
+  lead: { file: prompts/publishing-lead.md, description: "Opus. Positioning, dispatch, sign-offs, budget." }
+  outliner: { file: prompts/outliner.md, description: "Reader promise, chapter plan, style sheet, book bible." }
+  librarian: { file: prompts/librarian.md, description: "Per-chapter source pack with [S#] ids." }
+  writer: { file: prompts/chapter-writer.md, description: "Draft one chapter from the author's notes only." }
+  dev-editor: { file: prompts/dev-editor.md, description: "Editorial letter: structure, promise, gaps." }
+  line-editor: { file: prompts/line-editor.md, description: "Sentence-level clarity and rhythm in the author's voice." }
+  copy-editor: { file: prompts/copy-editor.md, description: "CMOS 18 + house style sheet; author query list." }
+  fact-checker: { file: prompts/fact-checker.md, description: "Per-claim verdicts against the source registry." }
+  alt-text: { file: prompts/alt-text.md, description: "Alt text and long descriptions for every figure." }
+  metadata: { file: prompts/metadata.md, description: "Description, 7 keywords, 3 categories, BISAC, a11y summary." }
+  analyst: { file: prompts/sales-analyst.md, description: "Weekly sales, page reads, reviews and A/B results." }
+
+agents:
+  intake:
+    name: Proposal intake
+    model: claude-haiku-5-5
+    prompt: intake
+    tools: [Read, Write]
+    runtime: orchestrator
+    harness: { max_turns: 3, output: json_schema }
+  lead:
+    name: Publishing lead
+    model: claude-opus-5-5
+    prompt: lead
+    tools: [Agent, Read, Write, TodoWrite, mcp__studio__request_signoff]
+    runtime: orchestrator
+    files: [CLAUDE.md, samples/book-brief.yaml]
+    harness: { max_turns: 120, effort: high, fallback_model: claude-sonnet-5-5 }
+    budget: { usd: 140, on_exceed: pause }
+  market:
+    name: Market analyst
+    model: claude-sonnet-5-5
+    prompt: market
+    tools: [WebSearch, WebFetch, Write]
+    runtime: orchestrator
+    fanout: { min: 5, max: 8, by: comparable titles }
+    limits: { timeout: 15m, retries: 1 }
+    sandbox: { network: open, filesystem: workspace }
+  keywords:
+    name: Keyword & shelf researcher
+    model: claude-sonnet-5-5
+    prompt: { text: "For {{working_title}} aimed at {{reader}}: propose 7 KDP keyword phrases (reader search language, no competitor names or titles), 3 Amazon categories for the {{marketplace}} store, and 2-3 BISAC headings from the BISG {{bisac_edition}} list. Give the evidence for each choice." }
+    tools: [WebSearch, WebFetch]
+    runtime: orchestrator
+    budget: { usd: 3, on_exceed: stop }
+    sandbox: { network: open, filesystem: workspace }
+  outliner:
+    name: Outliner
+    model: claude-opus-5-5
+    prompt: outliner
+    tools: [Read, Write, mcp__studio__request_signoff]
+    runtime: orchestrator
+    files: [samples/outline.md]
+  librarian:
+    name: Research librarian
+    model: claude-sonnet-5-5
+    prompt: librarian
+    tools: [WebSearch, WebFetch, Read, Write]
+    runtime: orchestrator
+    fanout: { min: 10, max: 14, by: chapter }
+    limits: { timeout: 20m, retries: 1 }
+    sandbox: { network: open, filesystem: workspace }
+  writer:
+    name: Chapter writer
+    model: claude-sonnet-5-5
+    prompt: writer
+    tools: [Read, Write, Edit]
+    runtime: orchestrator
+    tower: towers/chapter.tower.yaml
+    fanout: { min: 10, max: 14, by: chapter }
+    budget: { usd: 4, turns: 60, on_exceed: pause }
+    limits: { timeout: 25m, retries: 1, max_iterations: 3 }
+    data: { sensitivity: confidential, retention: 365d, description: "Unpublished manuscript under contract. Sent only to the Claude API and the contracted originality vendor." }
+    sandbox: { network: none, filesystem: workspace }
+  dev-editor:
+    name: Developmental editor
+    model: claude-opus-5-5
+    prompt: dev-editor
+    tools: [Read, Write]
+    runtime: orchestrator
+    budget: { usd: 12, on_exceed: pause }
+    data: { sensitivity: confidential }
+  line-editor:
+    name: Line editor
+    model: claude-sonnet-5-5
+    prompt: line-editor
+    tools: [Read, Edit]
+    runtime: orchestrator
+    fanout: { min: 10, max: 14, by: chapter }
+    data: { sensitivity: confidential }
+  copy-editor:
+    name: Copy editor
+    model: claude-sonnet-5-5
+    prompt: copy-editor
+    tools: [Read, Edit, Bash]
+    runtime: orchestrator
+    files: [memory/style-sheet.md, config/vale.ini]
+    data: { sensitivity: confidential }
+  fact-checker:
+    name: Fact-checker
+    model: claude-sonnet-5-5
+    prompt: fact-checker
+    tools: [Read, WebSearch, WebFetch]
+    runtime: orchestrator
+    fanout: { min: 10, max: 14, by: chapter }
+    budget: { usd: 2.5, on_exceed: escalate }
+    sandbox: { network: open, filesystem: read-only }
+  alt-text:
+    name: Alt-text writer
+    model: claude-sonnet-5-5
+    prompt: alt-text
+    tools: [Read, Write]
+    runtime: orchestrator
+    fanout: { min: 20, max: 40, by: figures }
+  metadata:
+    name: Metadata editor
+    model: claude-sonnet-5-5
+    prompt: metadata
+    tools: [Read, Write]
+    runtime: orchestrator
+    files: [samples/store-listing.json]
+  analyst:
+    name: Sales analyst
+    model: claude-haiku-5-5
+    prompt: analyst
+    tools: [Read, Write, mcp__studio__post_digest]
+    runtime: orchestrator
+    trigger: { kind: file, source: KDP and D2D report exports dropped in reports/ every Monday }
+    budget: { usd: 1, on_exceed: stop }
+    data: { sensitivity: internal, description: "Royalty and sales figures; no reader personal data." }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: market
+    title: Market & Concept
+    description: Is there a book here, for whom, and next to which books on the shelf? Parallel comp analysis and keyword research feed a positioning brief the publisher and the author sign.
+    nodes:
+      - id: pitch
+        type: entry
+        label: Book proposal
+        description: Author proposal (premise, reader, sample pages, platform) sent to the acquisitions inbox.
+        runtime: orchestrator
+        trigger: { kind: email, source: acquisitions inbox }
+        data: { sensitivity: confidential }
+      - id: intake
+        agent: intake
+      - id: comps
+        agent: market
+        label: Comparable titles
+        description: "One session per comp title in the brief or found in the store: price, length, publication date, review themes, what readers say is missing."
+      - id: keywords
+        agent: keywords
+        label: Keywords & shelves
+      - id: lead
+        agent: lead
+        description: Writes the positioning brief (reader promise, comps, price band, formats, launch window) and owns every later sign-off and the book budget.
+      - id: greenlight
+        type: human
+        label: Greenlight
+        description: Publisher and author sign the positioning brief and the release date. Work starts on signature.
+        runtime: slack
+        files: [samples/book-brief.yaml]
+        approval: { by: publisher + author, via: Slack + contract addendum, actions: [approve, edit, reject], timeout: 7d, on_timeout: escalate }
+        limits: { max_iterations: 2 }
+    edges:
+      - "pitch -> intake: proposal"
+      - "intake -> lead [data]: book-brief.yaml"
+      - "lead -> comps [spawn]: comp list"
+      - "lead -> keywords [spawn]"
+      - "comps -> lead [return]: comp table"
+      - "keywords -> lead [return]: keywords + shelves"
+      - { from: lead, to: greenlight, label: positioning brief, protocol: mcp }
+      - "greenlight -> lead [return]: edits, max 2"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: outline
+    title: Outline & Style
+    description: The contract between all parallel writers. One outline, one style sheet, one book bible and one source registry; nothing downstream invents its own.
+    nodes:
+      - id: outliner
+        agent: outliner
+        description: Reader promise per chapter, section beats, word budget (52k total), which author notes feed which section.
+      - id: librarian
+        agent: librarian
+        description: One session per chapter collects primary and authoritative sources for the chapter's claims and registers them with [S#] ids.
+      - id: sources
+        type: memory
+        label: Source registry
+        description: Every citable source with publisher, date, locator and licence notes. Writers and fact-checkers cite only from here.
+        runtime: orchestrator
+        files: [samples/source-registry.json]
+      - id: style
+        type: memory
+        label: Style sheet
+        description: Voice rules distilled from the author's sample pages, CMOS 18 deviations, spelling and number style, enforced as Vale rules.
+        runtime: orchestrator
+        files: [memory/style-sheet.md, config/vale.ini, config/vale/Balcony/Terms.yml]
+      - id: bible
+        type: memory
+        label: Book bible
+        description: Locked terms, the three recurring example balconies, plant names (common + botanical), units and regional names. Only the author approves changes.
+        runtime: orchestrator
+        files: [memory/book-bible.md]
+      - id: outline_ok
+        type: human
+        label: Outline sign-off
+        description: The author approves the outline and the style sheet. Drafting cannot start without it.
+        runtime: slack
+        files: [samples/outline.md]
+        approval: { by: author, via: Google Docs + Slack, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
+        limits: { max_iterations: 2 }
+    edges:
+      - "outliner -> librarian [spawn]: chapter questions"
+      - "librarian -> sources [data]: registry"
+      - "outliner -> style [data]: voice rules"
+      - "outliner -> bible [data]: terms + examples"
+      - "outliner -> outline_ok: outline"
+      - "outline_ok -> outliner [return]: author edits, max 2"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: drafting
+    title: Drafting
+    description: >-
+      Fan-out per chapter. Each writer session is isolated, has no network and writes only from
+      the author's notes, the source pack, the style sheet and the book bible (sub-tower
+      towers/chapter.tower.yaml). The author then rewrites every chapter in their own voice.
+    nodes:
+      - id: dispatch
+        label: Chapter dispatch
+        description: Builds one chapter brief per outline entry and starts the writers four at a time to stay under rate limits.
+        runtime: orchestrator
+        limits: { concurrency: 4 }
+        resources:
+          - { kind: log, label: Drafting log, path: logs/drafting.log }
+      - id: writer
+        agent: writer
+        evals:
+          - { name: chapters within word budget (±10%), value: 11, target: 12 }
+          - { name: continuity issues left per chapter, value: 0.4, target: 1, higher_is_better: false }
+      - id: lint
+        type: hook
+        label: Style lint
+        description: PostToolUse on Write/Edit. Runs Vale with the house rules; errors go back to the writer, warnings to the copy editor.
+        runtime: orchestrator
+        files: [config/vale.ini, config/vale/Balcony/Terms.yml]
+        evals:
+          - { name: Vale errors per 1k words, value: 0.3, target: 1, higher_is_better: false }
+      - id: ledger
+        type: memory
+        label: Provenance ledger
+        description: Per chapter and section, who produced the text (author, AI draft, AI draft rewritten by the author) and with which model. Source of truth for disclosure.
+        runtime: orchestrator
+        files: [memory/provenance.json]
+      - id: author_pass
+        type: human
+        label: Author rewrite
+        description: The author rewrites each draft, adds their own stories and photos, and cuts what is not theirs. Human authorship is the point of the book.
+        runtime: author
+        approval: { by: author, via: Google Docs suggestion mode, actions: [approve, edit, reject], timeout: 10d, on_timeout: wait }
+        sla: 42d
+        data: { sensitivity: confidential }
+      - id: assemble
+        label: Assemble manuscript
+        description: Joins approved chapters into manuscript v1, resolves cross-references and figure ids, tags the version in git.
+        runtime: orchestrator
+    edges:
+      - "dispatch -> writer [spawn]: chapter brief"
+      - "writer -> lint [call]: PostToolUse"
+      - "lint -> writer [return]: errors"
+      - "writer -> ledger [data]: provenance"
+      - "writer -> author_pass: chapter draft"
+      - "author_pass -> ledger [data]: rewrite share"
+      - "author_pass -> assemble: approved chapter"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: editing
+    title: Editing & Fact-check
+    description: Big to small. Structure first with the author, then sentences, then consistency; facts, originality and permissions are checked on the copyedited text.
+    nodes:
+      - id: dev_edit
+        agent: dev-editor
+        label: Developmental edit
+        description: "Editorial letter on the whole manuscript: does each chapter keep the reader promise, order, gaps, repetition, pacing."
+      - id: author_round
+        type: human
+        label: Author response
+        description: The author accepts, rejects or answers each letter point and revises. Two rounds, then structure is locked.
+        runtime: author
+        approval: { by: author, via: editorial letter + Google Docs, actions: [approve, edit, respond], timeout: 14d, on_timeout: escalate }
+        limits: { max_iterations: 2 }
+      - id: line_edit
+        agent: line-editor
+        label: Line edit
+      - id: copy_edit
+        agent: copy-editor
+        label: Copyedit
+        description: Style sheet and CMOS 18 conformance, consistency with the book bible, a query list for the author instead of silent changes.
+      - id: fact_check
+        agent: fact-checker
+        evals:
+          - { name: claims supported on first pass, value: 0.96, target: 0.95 }
+          - { name: misattributed quotes or citations, value: 0, target: 0, higher_is_better: false }
+      - id: originality
+        type: tool
+        label: Originality scan
+        description: Copyleaks scan of the edited manuscript against the web and publications. Matches above 40 words are reviewed by the editor.
+        runtime: copyleaks
+        credentials: service
+        data: { sensitivity: confidential, description: "Manuscript leaves the studio only under the vendor DPA." }
+        evals:
+          - { name: overall similarity (%), value: 2.1, target: 5, higher_is_better: false }
+      - id: rights
+        type: guard
+        label: Rights & permissions
+        description: Every quote, epigraph, photo and diagram needs a source and a licence line in the permissions log. Song lyrics and poems always need written permission.
+        runtime: orchestrator
+        files: [checklists/permissions-log.md]
+      - id: editor_ok
+        type: human
+        label: Editor sign-off
+        description: Managing editor clears fact-check blockers, originality matches and the permissions log. Three fix rounds, then the lead re-plans.
+        runtime: slack
+        approval: { by: managing editor, via: Slack, actions: [approve, reject], timeout: 3d, on_timeout: escalate }
+        limits: { max_iterations: 3 }
+    edges:
+      - "dev_edit -> author_round: editorial letter"
+      - "author_round -> dev_edit [return]: revised draft, max 2"
+      - "author_round -> line_edit: structure locked"
+      - line_edit -> copy_edit
+      - "copy_edit -> fact_check [spawn]: claims per chapter"
+      - { from: copy_edit, to: originality, kind: call, label: submit scan, protocol: http }
+      - "copy_edit -> rights: quotes + images"
+      - "fact_check -> editor_ok [data]: verdicts"
+      - { from: originality, to: editor_ok, kind: return, label: scan completed, protocol: webhook }
+      - "rights -> editor_ok [data]: permissions log"
+      - "editor_ok -> copy_edit [return]: fixes, max 3"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: production
+    title: Design & Production
+    description: One source, two outputs. Markdown chapters become EPUB 3 (EPUB Accessibility 1.1, WCAG 2.2 AA) and a 6 x 9 in print PDF; nothing ships until EPUBCheck and Ace are clean and the proofs are approved.
+    nodes:
+      - id: cover
+        type: human
+        label: Cover design
+        description: Contracted designer. Image models are used for mood boards only, so no AI-generated image ships. Two finalists go to the A/B test. 2560 x 1600 px JPEG, RGB.
+        runtime: desk
+        approval: { by: publisher + author, via: Slack, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
+      - id: figures
+        label: Diagrams & photos
+        description: Planting plans and sun-hour charts drawn as SVG from data; the author's own photos. Every figure gets an id, a caption and a source line.
+        runtime: orchestrator
+      - id: alt_text
+        agent: alt-text
+        evals:
+          - { name: figures with alt text, value: 1, target: 1 }
+      - id: matter
+        label: Front & back matter
+        description: Title page, copyright page (edition, ISBN, AI statement), dedication, nav TOC, index from author-tagged terms, about the author, newsletter page.
+        runtime: orchestrator
+        files: [build/front-matter.md]
+      - id: build
+        label: Pandoc build
+        description: Pandoc 3.12 -> EPUB 3 with accessibility metadata, conformance properties added to the OPF, then the print PDF through Typst.
+        runtime: gha
+        files: [scripts/build-ebook.sh, build/pandoc-epub.yaml, build/metadata.yaml, build/epub.css]
+        version: v1.0.0
+        limits: { timeout: 10m, retries: 1 }
+        resources:
+          - { kind: log, label: Build + validation log, path: logs/build.log }
+      - id: epubcheck
+        type: guard
+        label: EPUBCheck 5.4
+        description: W3C conformance checker. Any error or warning fails the build.
+        runtime: gha
+        evals:
+          - { name: EPUBCheck errors, value: 0, target: 0, higher_is_better: false }
+          - { name: EPUBCheck warnings, value: 0, target: 0, higher_is_better: false }
+      - id: ace
+        type: guard
+        label: Ace by DAISY
+        description: Accessibility checks (axe rules per content document, EPUB metadata, page list). Serious or critical violations fail the build; the rest go to the proof list.
+        runtime: gha
+        evals:
+          - { name: serious + critical violations, value: 0, target: 0, higher_is_better: false, url: https://www.w3.org/TR/epub-a11y-11/ }
+          - { name: moderate violations, value: 2, target: 5, higher_is_better: false }
+      - id: previewer
+        type: tool
+        label: Kindle Previewer
+        description: Device proofs (e-ink, tablet, phone) with Enhanced Typesetting, plus Apple Books and the Kobo app on the same desk.
+        runtime: desk
+      - id: proof_ok
+        type: human
+        label: Proof approval
+        description: Author and editor read the device proofs and the print PDF. Three rounds, then the release date is reviewed.
+        runtime: slack
+        approval: { by: author + managing editor, via: Slack, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
+        limits: { max_iterations: 3 }
+    edges:
+      - "cover -> build [data]: cover.jpg"
+      - "figures -> alt_text [spawn]: per figure"
+      - "alt_text -> build [data]: figures + alt"
+      - "matter -> build [data]: front/back matter"
+      - build -> epubcheck
+      - build -> ace
+      - "build -> previewer: EPUB"
+      - "epubcheck -> proof_ok [data]: report"
+      - "ace -> proof_ok [data]: report"
+      - "previewer -> proof_ok: proofs"
+      - "proof_ok -> build [return]: fixes, max 3"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: publishing
+    title: Publishing & Metadata
+    description: Metadata sells the book; disclosure keeps it on sale. Uploads are manual in each dashboard (KDP has no public publishing API), after the publisher's go.
+    nodes:
+      - id: isbn
+        label: ISBN assignment
+        description: One ISBN per format from the press's own block. Optional for a KDP ebook, but one identifier across stores keeps reports and libraries clean.
+        runtime: orchestrator
+      - id: metadata
+        agent: metadata
+        label: Store metadata
+      - id: disclosure
+        type: guard
+        label: AI disclosure
+        description: Reads the provenance ledger and fills the disclosure checklist per store. AI-drafted text counts as AI-generated on KDP even after substantial edits.
+        runtime: orchestrator
+        files: [hooks/disclosure-guard.ts, checklists/kdp-ai-disclosure.md]
+      - id: publish_ok
+        type: human
+        label: Publisher go
+        description: Publisher checks price, territories, release date, disclosure answers and the final files.
+        runtime: slack
+        approval: { by: publisher, via: Slack, actions: [approve, reject], timeout: 48h, on_timeout: reject }
+      - id: kdp
+        type: tool
+        label: Amazon KDP
+        description: Pre-order (release date up to 18 months ahead); EPUB checked in Kindle Previewer; 7 keywords, 3 categories, AI questions answered per content type.
+        runtime: kdp
+        credentials: service
+        sla: 72h
+      - id: apple
+        type: tool
+        label: Apple Books
+        description: Direct. Guideline 1.13 needs the "AI Generated by" artist role and a description line only for AI-generated content; AI-assisted needs no label.
+        runtime: apple
+        credentials: service
+      - id: kobo
+        type: tool
+        label: Kobo Writing Life
+        description: Direct. Kobo declines wholly or partially AI-generated books that lack human effort; the editorial record is kept on file.
+        runtime: kobo
+        credentials: service
+      - id: gplay
+        type: tool
+        label: Google Play Books
+        description: Partner Center, EPUB upload. Also the route for the planned auto-narrated audiobook.
+        runtime: gplay
+        credentials: service
+      - id: d2d
+        type: tool
+        label: Draft2Digital
+        description: Wide distribution to the remaining stores and library platforms. Accepts AI-assisted work and AI drafts with extensive human editing.
+        runtime: d2d
+        credentials: service
+    edges:
+      - "isbn -> metadata [data]: ISBN"
+      - "metadata -> disclosure: listing"
+      - "disclosure -> publish_ok: answers per store"
+      - "publish_ok -> kdp: go"
+      - "publish_ok -> apple: go"
+      - "publish_ok -> kobo: go"
+      - "publish_ok -> gplay: go"
+      - "publish_ok -> d2d: go"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: launch
+    title: Launch & Analytics
+    description: Pre-order to launch week and after. A cover A/B test on the book site, the author's newsletter, ARC readers for early reviews, weekly analysis and the update or new-edition decision.
+    nodes:
+      - id: landing
+        label: Book site
+        description: Landing page with store links. The two cover finalists are split 50/50 for pre-order clicks before the KDP cover is final.
+        runtime: web
+        version: cover-b
+        rollout: { strategy: ab, percent: 50, previous: cover-a }
+        evals:
+          - { name: pre-order CTR uplift B vs A (%), value: 14, target: 10 }
+        resources:
+          - { kind: log, label: Launch log, path: logs/launch.log }
+      - id: newsletter
+        type: tool
+        label: Author newsletter
+        description: Sign-ups from the site, pre-order announcement, launch-day email, ARC invitations.
+        runtime: mailer
+        credentials: author
+        data: { sensitivity: pii, region: eu, retention: 730d, description: Subscriber names and emails; double opt-in. }
+      - id: arc
+        type: human
+        label: ARC readers
+        description: Free advance copies three weeks before launch. No payment and no conditions on rating; readers say they received a free copy.
+        runtime: mailer
+        fanout: { min: 30, max: 60, by: ARC sign-ups }
+        sla: 21d
+      - id: analyst
+        agent: analyst
+        description: Weekly digest from KDP and D2D exports, Kindle page reads, review themes and the A/B result; flags errata reported by readers.
+        evals:
+          - { name: pre-orders in first 14 days, value: 212, target: 150 }
+      - id: next
+        type: decision
+        label: Update or edition?
+        description: "Errata -> corrected upload (v1.0.x, same ISBN); new or rewritten chapters -> new edition, new ISBN, full edit loop."
+        runtime: orchestrator
+      - id: audiobook
+        label: AI audiobook
+        status: planned
+        description: "Option under review: KDP Virtual Voice (invite-only beta, US store) or Google Play auto-narration (Beta, labelled synthesised voice). Needs the narration rights check first."
+        runtime: gplay
+    edges:
+      - "landing -> newsletter [data]: sign-ups"
+      - "newsletter -> arc: ARC invite"
+      - "arc -> analyst [data]: reviews"
+      - "analyst -> next: weekly digest"
+      - "next -> audiobook: when stable"
+
+links:
+  - "market.greenlight -> outline.outliner [handoff]: signed positioning"
+  - "market.keywords -> publishing.metadata [data]: keywords + shelves"
+  - "outline.outline_ok -> drafting.dispatch [handoff]: locked outline"
+  - "outline.style -> drafting.writer [data]: style sheet"
+  - "outline.bible -> drafting.writer [data]: book bible"
+  - "outline.sources -> drafting.writer [data]: source pack"
+  - "outline.style -> drafting.lint [data]: Vale rules"
+  - "drafting.assemble -> editing.dev_edit: manuscript v1"
+  - "outline.sources -> editing.fact_check [data]: registry"
+  - "outline.bible -> editing.copy_edit [data]: locked terms"
+  - "editing.editor_ok -> production.matter: final text"
+  - "editing.editor_ok -> production.figures: figure list"
+  - "editing.rights -> production.figures [data]: cleared images"
+  - "publishing.isbn -> production.matter [data]: ISBN for copyright page"
+  - "production.proof_ok -> publishing.metadata [handoff]: approved files"
+  - "drafting.ledger -> publishing.disclosure [data]: provenance"
+  - "production.cover -> launch.landing [data]: cover finalists"
+  - "publishing.kdp -> launch.landing: pre-order live"
+  - "publishing.kdp -> launch.analyst [data]: KDP reports"
+  - "publishing.d2d -> launch.analyst [data]: D2D reports"
+  - "launch.next -> editing.copy_edit [return]: errata"
+  - "drafting.writer -> market.lead [return]: escalations after round 3"

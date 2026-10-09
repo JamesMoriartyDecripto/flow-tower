@@ -1,0 +1,26 @@
+{
+  "video_id": "KTC-2026-041",
+  "locked_at": "2026-10-14T16:20:00+02:00",
+  "shots": [
+    { "id": "S01", "beat": 1, "kind": "t2v", "duration_s": 8, "aspect": ["9:16", "16:9"], "resolution": "1080p", "tier": "standard",
+      "refs": ["brand:palette"], "prompt_notes": "Runner seated on granite at a ridge, head down, sunset, slow push-in, wind audio",
+      "continuity": "ember vest, grey shorts, face not visible" },
+    { "id": "S02", "beat": 2, "kind": "avatar", "duration_s": 5, "aspect": ["9:16", "16:9"], "consent_id": "CR-2026-007",
+      "refs": ["avatar:mara-trailhead-look"], "prompt_notes": "Line 2 of script", "continuity": "slate jacket" },
+    { "id": "G01", "beat": 3, "kind": "graphic", "duration_s": 6, "aspect": ["9:16", "16:9"], "refs": ["brand:fonts"] },
+    { "id": "S03", "beat": 4, "kind": "t2v", "duration_s": 8, "aspect": ["16:9"], "resolution": "1080p", "tier": "fast",
+      "refs": [], "prompt_notes": "Drone pulling back over ~40 runners leaving a plain start arch at dawn, no logos or text",
+      "continuity": "morning light" },
+    { "id": "S04", "beat": 5, "kind": "t2v", "duration_s": 8, "aspect": ["9:16", "16:9"], "resolution": "1080p", "tier": "standard",
+      "refs": ["brand:palette"], "prompt_notes": "Low side tracking, runner power-hiking with hands on knees passes a jogging runner on steep switchback, gravel sound",
+      "continuity": "ember vest" },
+    { "id": "S05", "beat": 6, "kind": "i2v", "duration_s": 6, "aspect": ["16:9"], "resolution": "720p", "tier": "fast",
+      "refs": ["packshot:ridgeline-12l-ember-front.png"], "prompt_notes": "Macro, hand pulls an energy gel from the front pocket, shallow depth of field",
+      "continuity": "ember colourway" },
+    { "id": "S06", "beat": 9, "kind": "i2v", "duration_s": 6, "aspect": ["16:9"], "resolution": "720p", "tier": "fast",
+      "refs": ["packshot:ridgeline-12l-slate-back.png"], "prompt_notes": "Follow from behind on a rocky descent, vest stays still on the back",
+      "continuity": "slate colourway" },
+    { "id": "S07", "beat": 24, "kind": "avatar", "duration_s": 6, "aspect": ["9:16", "16:9"], "consent_id": "CR-2026-007",
+      "refs": ["avatar:mara-trailhead-look"], "prompt_notes": "CTA line", "continuity": "same as S02" }
+  ]
+}

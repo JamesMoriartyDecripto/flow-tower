@@ -1,0 +1,12 @@
+{"at":"2026-10-01T10:06:12Z","event":"start","ios":"phased day 1 (1%)","android":{"versionCode":"2040013","userFraction":0.01}}
+{"at":"2026-10-02T10:30:00Z","monitor":"advance","ios_crash_free":99.78,"android_crash_free":99.69,"crashRate":0.31,"anrRate":0.16,"sessions_new":5210}
+{"at":"2026-10-02T10:41:20Z","action":"0.05","versionCode":"2040013","approvalId":"appr_2410_r05"}
+{"at":"2026-10-03T10:30:00Z","monitor":"advance","ios_crash_free":99.74,"android_crash_free":99.66,"crashRate":0.35,"anrRate":0.17,"sessions_new":24890}
+{"at":"2026-10-03T10:52:08Z","action":"0.2","versionCode":"2040013","approvalId":"appr_2410_r20"}
+{"at":"2026-10-04T16:30:02Z","guard":"halt","ios":{"sessions":61204,"crash_free":99.71},"android":{"sessions":88310,"crash_free":99.31},"crashRate":1.14,"anrRate":0.21,"reasons":["Android crash-free 99.31%","user-perceived crash rate 1.14%"]}
+{"at":"2026-10-04T16:30:05Z","event":"play rollout halted at 0.2; iOS phased release paused (day 4)"}
+{"at":"2026-10-04T16:44:51Z","event":"kill switch","flag":"paywall_v2_enabled","value":false,"approval":"on_timeout approve (15m)"}
+{"at":"2026-10-04T17:20:10Z","monitor":"root cause","issue":"crashlytics 8e1f...: NullPointerException in CareWidget.provideGlance on Samsung One UI 6 (stale SharedPreferences JSON)","fix":"native","path":"new binary 2040014"}
+{"at":"2026-10-05T09:12:44Z","event":"2.4.1 (2040014) approved by Play; staged rollout 0.05 with approval appr_2411_r05; 2.4.0 remains halted"}
+{"at":"2026-10-05T09:15:00Z","event":"iOS phased release resumed (approval appr_2410_resume); iOS was not affected"}
+{"at":"2026-10-07T10:30:00Z","monitor":"advance","android_crash_free":99.82,"crashRate":0.24,"anrRate":0.15,"version":"2.4.1"}

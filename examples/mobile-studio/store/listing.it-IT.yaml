@@ -1,0 +1,30 @@
+# Leafwise 2.4 listing, it-IT. Written natively from the it-IT keyword map, not translated.
+app_store:
+  name: "Leafwise: Cura delle piante"           # 27 [30]
+  subtitle: "Promemoria piante e annaffiare"     # 30 [30]
+  keywords: "fiori,interno,widget,giardino,succulente,diario,acqua,calendario,vaso" # 69 [100]
+  promotional_text: "Novità: promemoria che seguono le stagioni e un widget per segnare le piante annaffiate." # 88 [170]
+  whats_new: |
+    Promemoria stagionali: l'intervallo si adatta al mese e alla dimensione del vaso.
+    Widget per la schermata Home: vedi cosa annaffiare oggi e segnalo con un tocco.
+google_play:
+  title: "Leafwise: promemoria piante"          # 27 [30]
+  short_description: "Promemoria per annaffiare che seguono le stagioni, più un comodo widget." # 72 [80]
+  release_notes: "Promemoria stagionali e un widget per segnare le piante come annaffiate." # 72 [500]
+description: |
+  Leafwise ricorda quando ogni pianta ha bisogno d'acqua.
+
+  - Promemoria che seguono le stagioni: in inverno si annaffia meno, i vasi grandi più di rado.
+  - Widget per la schermata Home: le piante di oggi, segnate con un tocco.
+  - Un diario con foto per ogni pianta.
+  - Funziona offline e sincronizza dopo.
+
+  Leafwise Premium sblocca il riconoscimento delle piante e piante illimitate. Abbonamento annuale con 7 giorni di prova gratuita o mensile. Il pagamento è addebitato sull'account dello store; l'abbonamento si rinnova automaticamente se non viene disdetto almeno 24 ore prima della scadenza.
+
+  Privacy: nessun tracciamento tra app e siti; puoi eliminare l'account dall'app.
+screenshot_captions:
+  - "Cosa annaffiare oggi"
+  - "Promemoria per ogni stagione"
+  - "Annaffia dal widget"
+  - "Un diario per ogni pianta"
+  - "Riconosci piante con Premium"
