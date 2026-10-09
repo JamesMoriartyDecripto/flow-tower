@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Realtime: `POST /api/events` ingest with adapters for Claude Code hooks, Claude Agent SDK, Pi and Hermes Agent; node matching by agent/tool names or `match:` rules; live node beams/halos, error flashes, Live feed panel, per-node live info in the inspector.
+- `flow-tower emit` command (stdin payloads from hooks, or flags for scripts) and `integrations/` configs.
+- `npm run simulate` replays a plausible multi-walker run against any tower.
+
 - Layer lens: hovering a layer (or its entry in the Layers panel) magnifies it and its neighbours, spreads the stack around it and dims the rest; clicking an empty plate focuses the layer. Cross-layer links follow the animation.
 - 3D tower renderer (three.js / react-three-fiber): stacked glass layers, left-to-right flowcharts laid out with ELK, animated flow particles, bloom, scanner and arc-reactor base.
 - YAML tower format (`*.tower.yaml`) validated with zod, plus generated JSON Schema for editor autocomplete.
@@ -25,3 +29,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `scripts/gen-stress.ts` synthetic tower generator for performance testing.
 - `examples/course-studio`: course creation studio (12 layers, 109 nodes, 5 nested towers) with researched references.
 - Search results ranked by relevance (label > id > model/tools/runtime > description).
+
+### Fixed
+- Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.

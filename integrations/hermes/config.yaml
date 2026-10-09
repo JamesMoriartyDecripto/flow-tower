@@ -1,0 +1,8 @@
+# Merge into ~/.hermes/config.yaml — observe-only: never use fail_closed with flow-tower.
+hooks:
+  outbound:
+    - name: flow-tower
+      url: http://127.0.0.1:5317/api/events?source=hermes
+      events: [on_session_start, on_session_finalize, pre_tool_call, post_tool_call,
+               subagent_start, subagent_stop, post_api_request, api_request_error]
+      timeout: 2
