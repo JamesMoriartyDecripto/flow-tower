@@ -3,6 +3,8 @@ import { EDGE_KINDS, NODE_TYPES } from '../../core/schema';
 import { search as rank } from '../graph';
 import { useLive } from '../live';
 import { chooseView, usePrefs } from '../settings';
+import { useDemo } from '../demo';
+import { STATIC } from '../staticData';
 import { useCurrentTowerLive } from '../liveHooks';
 import { useStore, useTower } from '../store';
 import { EDGE_STYLE, NODE_STYLE, RUNTIME_ICON } from '../theme';
@@ -80,9 +82,22 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
         <span className={`chip ${errors ? 'err' : ''}`}>{errors} ERR</span>
         <span className={`chip ${warnings ? 'warn' : ''}`}>{warnings} WARN</span>
       </button>
+      <DemoChip />
       <LiveButton flash={flash} />
       <button className="btn gear" onClick={() => usePrefs.getState().set({ open: true })} title="Settings (,)">⚙</button>
     </header>
+  );
+}
+
+/** Static demo only: the live events are simulated in the browser; click to pause or resume them. */
+function DemoChip() {
+  const { on, toggle } = useDemo();
+  if (!STATIC) return null;
+  return (
+    <button className={`btn demo-chip ${on ? 'on' : ''}`} onClick={toggle}
+      title={on ? 'Demo: live events are simulated in your browser. Click to pause them.' : 'Demo: simulated live events are paused. Click to resume.'}>
+      DEMO · SIM {on ? 'ON' : 'OFF'}
+    </button>
   );
 }
 

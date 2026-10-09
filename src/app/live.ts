@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { splitTarget, type FlowEvent } from '../core/events';
 import type { Workspace } from '../core/types';
 import { keepAlive } from './scene/frameBudget';
+import { STATIC } from './staticData';
 
 /** Live activity of one node ("tower#layer.node"). Read every frame by the scene, so keep it flat. */
 export interface NodeLive {
@@ -189,6 +190,7 @@ export function useTowerLive(towerId: string | undefined, nested: Map<string, st
 /** Loads recent events, then follows the server push channel. */
 export function useLiveSync() {
   useEffect(() => {
+    if (STATIC) return; // the demo has no server: see demo.ts
     fetch('/api/events')
       .then((r) => (r.ok ? r.json() : []))
       .then((events: FlowEvent[]) => useLive.getState().apply(events))

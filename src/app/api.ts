@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { Workspace } from '../core/types';
+import { STATIC, staticFile, staticWorkspace } from './staticData';
 import { useStore } from './store';
 
 export interface FilePayload { path: string; ext: string; content: string }
@@ -11,14 +12,15 @@ async function getJson<T>(url: string): Promise<T> {
   return body as T;
 }
 
-export const fetchFile = (tower: string, path: string) =>
-  getJson<FilePayload>(`/api/file?tower=${encodeURIComponent(tower)}&path=${encodeURIComponent(path)}`);
+export const fetchFile = (tower: string, path: string) => STATIC
+  ? staticFile(tower, path)
+  : getJson<FilePayload>(`/api/file?tower=${encodeURIComponent(tower)}&path=${encodeURIComponent(path)}`);
 
 /** Loads the workspace and re-fetches it whenever the server reports a change on disk. */
 export function useWorkspaceSync() {
   useEffect(() => {
     const load = () =>
-      getJson<Workspace>('/api/workspace')
+      (STATIC ? staticWorkspace<Workspace>() : getJson<Workspace>('/api/workspace'))
         .then((ws) => useStore.getState().setWorkspace(ws))
         .catch((e: Error) => useStore.getState().setError(e.message));
     load();

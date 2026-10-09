@@ -6,6 +6,8 @@
 
 <sub>Full video (27 s, higher quality): [docs/demo.mp4](docs/demo.mp4). Recorded with the live simulator running.</sub>
 
+**[Try the live demo →](https://jamesmoriartydecripto.github.io/flow-tower/)** All 26 example projects in your browser, with simulated live events. Nothing to install. Press `?` for the keyboard shortcuts.
+
 - **One YAML file per system.** It is easy to write and review, and it lives in the same repo as the agent.
 - **Tower of layers.** Stack layers like intake, orchestration, specialists, tools, guardrails, memory and models. Cross-layer links show who calls whom.
 - **Nested towers.** An agent can contain its own tower. Double-click it to dive in, as deep as you need.

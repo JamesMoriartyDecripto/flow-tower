@@ -10,6 +10,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Commit history rewritten to the GitHub noreply address before going public.
 
 ### Added
+- Live demo on GitHub Pages (https://jamesmoriartydecripto.github.io/flow-tower/): `npm run build:demo` freezes the example library and every referenced file into a static site (same sandbox rules as `/api/file`, no local paths), and an in-browser simulator plays live events on the tower on screen (DEMO chip to pause). Deployed by `.github/workflows/pages.yml` with pinned actions.
 - Pull request template.
 
 ## [0.1.0] - 2026-10-09

@@ -32,7 +32,8 @@
     "check": "npm run typecheck && npm test",
     "stress": "node --experimental-strip-types scripts/gen-stress.ts",
     "simulate": "node --experimental-strip-types scripts/simulate.ts",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "build:demo": "node --experimental-strip-types scripts/build-demo.ts"
   },
   "files": [
     "bin",
