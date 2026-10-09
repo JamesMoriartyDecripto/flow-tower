@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+# Three layers: trigger, review, outcome. Runs entirely in GitHub Actions.
+name: PR Review Bot
+description: Reviews every pull request with Claude next to the linter, then comments, approves or asks a human.
+tags: [starter, ci, code-review]
+
+runtimes:
+  gha: { kind: ci, provider: github-actions, label: GitHub Actions }
+
+agents:
+  reviewer:
+    name: Reviewer
+    model: claude-sonnet-5-5
+    prompt: { file: prompts/reviewer.md }
+    tools: [Read, Grep, Glob]
+    runtime: gha
+    files: [review.py]
+
+layers:
+  - id: trigger
+    title: Trigger
+    nodes:
+      - { id: pr, type: entry, label: PR opened / updated, files: [.github/workflows/review.yml] }
+      - { id: diff, type: process, label: Fetch diff, runtime: gha }
+    edges:
+      - pr -> diff
+
+  - id: review
+    title: Review
+    nodes:
+      - { id: lint, type: tool, label: ruff + mypy, runtime: gha }
+      - { id: reviewer, agent: reviewer, label: Claude review }
+      - { id: verdict, type: decision, label: Blocking issues? }
+    edges:
+      - "lint -> reviewer [data]: lint report"
+      - reviewer -> verdict
+
+  - id: outcome
+    title: Outcome
+    nodes:
+      - id: comment
+        type: output
+        label: Request changes
+        runtime: gha
+        resources:
+          - { kind: log, label: Last run, path: logs/review-run.log }
+      - { id: approve, type: output, label: Approve, runtime: gha }
+      - { id: human, type: human, label: Maintainer decides }
+    edges:
+      - comment -> human
+      - "approve -> human: merge"
+
+links:
+  - trigger.diff -> review.lint
+  - "trigger.diff -> review.reviewer: diff"
+  - "review.verdict -> outcome.comment: yes"
+  - "review.verdict -> outcome.approve: no"

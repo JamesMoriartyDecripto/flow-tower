@@ -125,9 +125,9 @@ Shorthand string or object:
 ```yaml
 edges:
   - triage -> planner
-  - triage -> quickfix: trivial
+  - "triage -> quickfix: trivial"            # quote it: with ": label" YAML would read a map
   - lead -> coder [spawn]
-  - lead -> coder [spawn]: implement step
+  - "lead -> coder [spawn]: implement step"
   - { from: review, to: coder, kind: return, label: changes requested, condition: "score < 8" }
 ```
 
