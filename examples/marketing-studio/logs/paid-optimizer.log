@@ -1,0 +1,39 @@
+2026-10-08T06:00:02+02:00 INFO  run=po-20261008 trigger=cron schedule="0 6 * * *"
+2026-10-08T06:00:03+02:00 INFO  pull platform=google_ads query=GAQL:campaign_metrics_yesterday rows=4 ops_used=1
+2026-10-08T06:00:04+02:00 INFO  pull platform=meta_ads api=v25.0 level=campaign rows=2
+2026-10-08T06:00:05+02:00 WARN  pull platform=linkedin_ads version=202609 status=429 retry=1 backoff=4s
+2026-10-08T06:00:10+02:00 INFO  pull platform=linkedin_ads version=202609 rows=3 retry=1
+2026-10-08T06:00:11+02:00 INFO  pull platform=tiktok_ads rows=1
+2026-10-08T06:00:13+02:00 INFO  ledger upsert table=marketing_mart.spend_daily date=2026-10-07 rows=10 spend_eur=4031.62
+2026-10-08T06:00:15+02:00 INFO  pacing month_share=0.243 spend_mtd=28904 projected_month=118947 cap=120000 cap_breach_projected=false
+2026-10-08T06:00:15+02:00 INFO  pacing flag campaign=li-c1-ap-leads pacing=1.17 direction=over
+2026-10-08T06:00:15+02:00 INFO  pacing flag campaign=g-search-nonbrand-fr pacing=0.81 direction=under
+2026-10-08T06:00:16+02:00 INFO  anomaly campaign=m-retargeting-30d metric=cpa z=1.4 flag=false
+2026-10-08T06:00:16+02:00 INFO  decision off_plan=true flagged=2 -> optimizer
+2026-10-08T06:00:16+02:00 INFO  optimizer start model=claude-sonnet-5-5 max_turns=30
+2026-10-08T06:01:41+02:00 INFO  optimizer done turns=11 usd=0.38 changes=3
+2026-10-08T06:01:41+02:00 INFO  changeset id=cs-20261008-01
+  - linkedin_ads li-c1-ap-leads daily_budget 620 -> 540 reason="over-pacing 17 %, CPL +22 % vs 28d, frequency 4.1"
+  - google_ads g-search-nonbrand-fr daily_budget 300 -> 360 reason="under-pacing, lost IS (budget) 31 %, CPA 312 < target 420"
+  - google_ads g-search-nonbrand-fr target_cpa 420 -> 400 reason="headroom vs target; re-check 2026-10-15"
+2026-10-08T06:01:42+02:00 INFO  guard check=learning_phase ok
+2026-10-08T06:01:42+02:00 INFO  guard check=weekly_edit_limit ok
+2026-10-08T06:01:42+02:00 INFO  guard check=monthly_cap projected_after=118947+(-20*23)=118487 ok
+2026-10-08T06:01:42+02:00 INFO  guard decision=auto_apply delta_eur_day=140 delta_pct=0.15
+2026-10-08T06:01:44+02:00 INFO  apply platform=google_ads service=CampaignBudgetService partial_failure=true ops=1 request_id=gads-7f3c1e
+2026-10-08T06:01:45+02:00 INFO  apply platform=google_ads service=CampaignService field=target_cpa ops=1 request_id=gads-7f3c22
+2026-10-08T06:01:46+02:00 INFO  apply platform=linkedin_ads endpoint=/rest/adCampaigns partial_update status=204
+2026-10-08T06:01:49+02:00 INFO  verify readback=3/3 match
+2026-10-08T06:01:49+02:00 INFO  slack channel=#growth-approvals thread=cs-20261008-01 posted=applied
+2026-10-08T11:24:07+02:00 WARN  intraday event=spend_spike campaign=m-cfo-lookalike spend_today=611 plan_daily=370 ratio=1.65
+2026-10-08T11:24:09+02:00 INFO  pull platform=meta_ads scope=today rows=1
+2026-10-08T11:24:52+02:00 INFO  optimizer done turns=6 usd=0.19 changes=1
+  - meta_ads m-cfo-lookalike daily_budget 370 -> 0 status=PAUSED reason="spend 1.65x plan by 11:00, CTR 0.21 % vs 0.9 % baseline, placement report: 72 % Audience Network"
+2026-10-08T11:24:53+02:00 INFO  guard decision=needs_growth reasons="pauses_top5_campaign"
+2026-10-08T11:24:54+02:00 INFO  approval requested by=Head of Growth via=Slack timeout=4h
+2026-10-08T11:41:30+02:00 INFO  approval edit by=Head of Growth note="Don't pause, exclude Audience Network and keep 370"
+2026-10-08T11:42:12+02:00 INFO  optimizer revised changes=1 iteration=2/3
+  - meta_ads m-cfo-lookalike placements exclude=audience_network daily_budget 370 (unchanged)
+2026-10-08T11:42:13+02:00 INFO  guard decision=auto_apply delta_eur_day=0
+2026-10-08T11:42:15+02:00 INFO  apply platform=meta_ads adset update status=200
+2026-10-08T11:42:17+02:00 INFO  verify readback=1/1 match

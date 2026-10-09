@@ -1,0 +1,16 @@
+cluster,keyword,locale,intent,monthly_volume,kd,current_rank,target_page,status
+invoice-capture,invoice capture software,en-NL,commercial,320,41,14,/invoice-capture,refresh
+invoice-capture,eingangsrechnung automatisieren,de-DE,commercial,880,38,9,/de/rechnungseingang-automatisieren,refresh
+invoice-capture,rechnungserfassung software,de-DE,commercial,590,35,,/de/rechnungserfassung,new
+invoice-capture,factures fournisseurs automatisation,fr-FR,commercial,260,29,22,/fr/automatisation-factures-fournisseurs,new
+ap-automation,accounts payable automation,en-NL,commercial,1300,62,31,/ap-automation,hold
+ap-automation,kreditorenbuchhaltung automatisieren,de-DE,commercial,720,33,7,/de/kreditorenbuchhaltung,refresh
+approvals,invoice approval workflow,en-NL,informational,480,27,12,/blog/invoice-approval-workflow,refresh
+approvals,rechnungsfreigabe workflow,de-DE,commercial,390,24,,/de/rechnungsfreigabe,new
+e-invoicing,xrechnung empfangen,de-DE,informational,1900,31,18,/de/xrechnung-empfangen,new
+e-invoicing,zugferd vs xrechnung,de-DE,informational,1600,22,6,/de/blog/zugferd-xrechnung,keep
+e-invoicing,peppol e-invoicing netherlands,en-NL,informational,210,19,,/blog/peppol-netherlands,new
+e-invoicing,facture electronique obligation entreprise,fr-FR,informational,6600,47,,/fr/facture-electronique,new
+erp-integration,sap invoice automation,en-NL,commercial,390,44,27,/integrations/sap,programmatic
+erp-integration,dynamics 365 invoice capture,en-NL,commercial,170,26,,/integrations/dynamics-365,programmatic
+erp-integration,exact online inkoopfacturen,nl-NL,commercial,140,18,,/nl/integraties/exact-online,programmatic

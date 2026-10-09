@@ -1,0 +1,82 @@
+name: mobile-ci
+
+on:
+  pull_request:
+    paths: ["app/**", "backend/**", "qa/**"]
+
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: app/package-lock.json }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --ci
+      - run: npx expo-doctor
+      # Native changes cannot ship over the air: label the PR so the release manager plans a binary.
+      - name: Fingerprint diff
+        id: fp
+        run: |
+          npx @expo/fingerprint . > /tmp/head.json
+          git show origin/main:app/fingerprint.json > /tmp/main.json 2>/dev/null || echo '{}' > /tmp/main.json
+          if [ "$(jq -r .hash /tmp/head.json)" != "$(jq -r .hash /tmp/main.json)" ]; then
+            echo "native=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.fp.outputs.native == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.addLabels({ ...context.repo, issue_number: context.issue.number, labels: ['native-change'] })
+
+  preview:
+    needs: checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      # Signing credentials are managed by EAS; nothing secret is checked out or printed here.
+      # Device builds for the lab, simulator builds for Maestro Cloud.
+      - run: eas build --profile preview --platform all --non-interactive --no-wait
+      - run: eas build --profile preview-simulator --platform all --non-interactive --json > ../builds.json
+      - uses: actions/upload-artifact@v4
+        with: { name: eas-builds, path: builds.json }
+
+  maestro:
+    needs: preview
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [android, ios]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: eas-builds }
+      - name: Install Maestro CLI
+        run: curl -fsSL "https://get.maestro.mobile.dev" | bash
+      - name: Download ${{ matrix.platform }} build
+        run: curl -fsSL -o app.bin "$(jq -r '.[] | select(.platform=="${{ matrix.platform == 'ios' && 'IOS' || 'ANDROID' }}") | .artifacts.buildUrl' builds.json)"
+      # Device and OS pairs per platform are listed in qa/device-matrix.yaml.
+      - name: Run flows on Maestro Cloud
+        run: |
+          [ "${{ matrix.platform }}" = ios ] && { tar -xzf app.bin; APP=$(ls -d *.app); } || { mv app.bin app.apk; APP=app.apk; }
+          "$HOME/.maestro/bin/maestro" cloud --api-key "${{ secrets.MAESTRO_CLOUD_API_KEY }}" --app-file "$APP" --include-tags release qa/maestro

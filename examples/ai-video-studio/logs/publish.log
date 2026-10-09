@@ -1,0 +1,6 @@
+{"ts":"2026-10-16T15:02:11Z","step":"publish","platform":"tiktok","publish_id":"v_pub_url~v2-1.7563","is_aigc":true,"privacy":"PUBLIC_TO_EVERYONE"}
+{"ts":"2026-10-16T15:04:40Z","step":"publish","platform":"instagram","container":"17932455102","status_code":"IN_PROGRESS","poll":1}
+{"ts":"2026-10-16T15:05:41Z","step":"publish","platform":"instagram","container":"17932455102","status_code":"FINISHED","poll":2}
+{"ts":"2026-10-16T15:05:44Z","step":"publish","platform":"instagram","media_id":"18054120771","ai_info_label":"set in app by producer"}
+{"ts":"2026-10-16T15:06:20Z","step":"publish","platform":"youtube","videoId":"aB3dEf9GhIj","kind":"short","containsSyntheticMedia":true,"publishAt":"2026-10-16T17:00:00Z"}
+{"ts":"2026-10-16T15:09:57Z","step":"publish","platform":"youtube","videoId":"kL5mNo7PqRs","kind":"long","containsSyntheticMedia":true,"publishAt":"2026-10-21T15:00:00Z","captions":"en","thumbnail":"A (control)"}

@@ -1,0 +1,39 @@
+appId: com.example.leafwise
+name: Paywall after third plant (sandbox purchase)
+tags:
+  - release
+  - billing
+---
+# Seeds two plants through a debug deep link available only in preview builds.
+- launchApp:
+    clearState: true
+- openLink: leafwise://debug/seed?plants=2
+- tapOn: "Add plant"
+- assertVisible: "Leafwise Premium"
+# Review guideline 3.1.2: price, period and trial terms visible before the buy button.
+- assertVisible: "7-day free trial, then billed yearly"
+- assertVisible: "Restore purchases"
+- assertVisible:
+    id: "paywall-close"
+- takeScreenshot: screenshots/03-paywall
+# Cancel path returns to the trigger without nagging.
+- tapOn:
+    id: "paywall-close"
+- assertVisible: "Your plants"
+- tapOn: "Add plant"
+- tapOn: "Start free trial"
+# Sandbox store sheet (StoreKit test environment / Play license tester).
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Subscribe"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: "Subscribe"
+- extendedWaitUntil:
+    visible: "Premium is active"
+    timeout: 20000
+- takeScreenshot: screenshots/04-premium

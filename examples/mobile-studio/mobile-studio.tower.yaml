@@ -1,0 +1,834 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Mobile App Studio
+description: >-
+  A studio pipeline that takes a mobile app idea to both stores and keeps it healthy after
+  launch. A Claude Agent SDK studio lead runs App Store and Play research (competitors, review
+  mining, ASO keywords), a product spec, Figma design checked against Apple's Human Interface
+  Guidelines and Material 3, and an architecture decision (Expo / React Native with native
+  targets). Supabase, RevenueCat and Firebase form the backend. The build splits into a shared
+  TypeScript app plus an iOS lane and an Android lane (sub-towers) run by Claude Code on a Mac
+  with Xcode and Android tooling over MCP. QA runs Maestro flows on a device matrix and a
+  device-lab agent; release goes through TestFlight and Play closed testing, a product-owner
+  sign-off, store review with a rejection loop, then an App Store phased release and a Play
+  staged rollout guarded by a crash-rate check, a Remote Config kill switch and EAS Update for
+  JavaScript-only hotfixes. Sample app: "Leafwise", a plant-care app with reminders, plant ID
+  and a subscription, in en-US, de-DE, it-IT and es-ES.
+tags: [mobile, ios, android, expo, react-native, app-store, google-play, aso, testflight, phased-release, crashlytics, revenuecat, supabase, maestro, human-in-the-loop, claude-agent-sdk]
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Studio orchestrator
+    description: Node 22 container running the studio lead and its specialists (Agent SDK), the release hooks and the cron jobs.
+    host: fly:mobile-studio
+    provider: fly.io
+    region: fra
+  mac:
+    kind: local
+    label: Mac Studio (Xcode 26.4)
+    description: Claude Code sessions for the app, iOS and Android lanes. Xcode 26.4 (mcpbridge), Android Studio + Android CLI, simulators and emulators.
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  github:
+    kind: saas
+    label: GitHub
+    description: App monorepo, PRs, issues (the iteration backlog).
+    provider: github
+    url: https://github.com/example-studio/leafwise
+  gha:
+    kind: ci
+    label: GitHub Actions
+    description: PR checks (lint, types, Jest, expo-doctor, fingerprint diff) and the Maestro Cloud trigger.
+    provider: github-actions
+    url: https://github.com/example-studio/leafwise/actions
+  eas:
+    kind: cloud
+    label: EAS (Build, Submit, Update)
+    description: Cloud macOS and Linux builders with managed signing credentials; store submission; over-the-air JS updates.
+    provider: expo
+    url: https://expo.dev
+  maestro-cloud:
+    kind: saas
+    label: Maestro Cloud
+    description: Device and OS matrix for the Maestro flows (iOS simulators and Android emulators in the cloud).
+    provider: maestro
+    url: https://maestro.dev
+  device-lab:
+    kind: device
+    label: In-house device lab
+    description: iPhone SE (3rd gen), iPhone 16 Pro, iPad (A16), Pixel 9, Galaxy A15 and a Pixel 6a on the Mac's USB hub. Real-device checks the simulators miss.
+  testers:
+    kind: device
+    label: Beta testers' phones
+    description: TestFlight internal and external groups; Play closed testing track.
+  users:
+    kind: device
+    label: User devices
+    description: Production installs on iOS 16.4+ and Android 7+ (Expo SDK 57 minimums).
+  asc:
+    kind: saas
+    label: App Store Connect
+    description: TestFlight, App Review, phased release, app privacy details, customer reviews. Driven through the App Store Connect API with a team key.
+    provider: apple
+    url: https://appstoreconnect.apple.com
+  play:
+    kind: saas
+    label: Google Play Console
+    description: Testing tracks, review, staged rollout, Data safety form, Android vitals, reviews. Driven through the Play Developer API with a service account.
+    provider: google
+    url: https://play.google.com/console
+  supabase:
+    kind: cloud
+    label: Supabase (EU)
+    description: Auth, Postgres with row-level security, Storage for plant photos, Edge Functions.
+    provider: supabase
+    region: eu-central-1
+    url: https://supabase.com/dashboard
+  firebase:
+    kind: saas
+    label: Firebase
+    description: Cloud Messaging (APNs and FCM), Crashlytics, Analytics, Remote Config (feature flags and kill switch).
+    provider: google
+    url: https://console.firebase.google.com
+  revenuecat:
+    kind: saas
+    label: RevenueCat
+    description: Subscriptions on top of StoreKit 2 and Play Billing Library 8; entitlements, paywalls, webhooks.
+    provider: revenuecat
+    url: https://app.revenuecat.com
+  figma:
+    kind: saas
+    label: Figma (remote MCP)
+    provider: figma
+    url: https://mcp.figma.com/mcp
+  appfigures:
+    kind: saas
+    label: Appfigures
+    description: Store intelligence (ranks, keywords, reviews of any app) through its CLI in MCP mode.
+    provider: appfigures
+    url: https://appfigures.com
+  slack:
+    kind: saas
+    label: Slack
+    description: "#leafwise-studio: requests, sign-offs, release and incident threads."
+    provider: slack
+
+prompts:
+  studio-lead: { file: prompts/studio-lead.md, description: "Opus. Phases, gates, dispatch, budget, next-version planning." }
+  market: { file: prompts/market-researcher.md, description: "Competitor teardown from store data: features, pricing, ranks, release cadence." }
+  review-miner: { file: prompts/review-miner.md, description: "Haiku. Cluster 1-3 star reviews of one competitor into pains and wishes." }
+  aso: { file: prompts/aso-strategist.md, description: "Keyword map per locale under the 30/30/100 App Store limits." }
+  product: { file: prompts/product-lead.md, description: "Spec, user flows, acceptance criteria, analytics events." }
+  designer: { file: prompts/designer.md, description: "Figma MCP rules: tokens only, HIG and Material 3 variants, Dynamic Type." }
+  architect: { file: prompts/architect.md, description: "ADR with options, trade-offs and a reversible default." }
+  backend: { file: prompts/backend-lead.md, description: "Schema + RLS first, account deletion, webhooks, no service key in the app." }
+  app-lead: { file: prompts/app-lead.md, description: "Shared Expo app: screens, state, purchases, flags. Native work goes to the lanes." }
+  reviewer: { file: prompts/code-reviewer.md, description: "Mobile review checklist: permissions, secrets, offline, a11y, store rules." }
+  qa: { file: prompts/qa-agent.md, description: "Exploratory QA on real devices with VoiceOver and TalkBack." }
+  release: { file: prompts/release-manager.md, description: "Builds, submissions, review notes, phased release and staged rollout steps." }
+  store-copy: { file: prompts/store-copywriter.md, description: "Listing copy per locale, What's New, screenshot captions." }
+  rejection: { file: prompts/rejection-responder.md, description: "Map a rejection to its guideline, then fix, reply or appeal." }
+  monitor: { file: prompts/rollout-monitor.md, description: "Hourly health check during rollout; recommend advance, hold or halt." }
+  triage: { file: prompts/review-triage.md, description: "Haiku. Classify store reviews, draft replies, open issues for bugs." }
+
+agents:
+  lead:
+    name: Studio lead
+    model: claude-opus-5-5
+    prompt: studio-lead
+    tools: [Agent, Read, TodoWrite, mcp__studio__request_approval, mcp__github__issue_write]
+    runtime: orchestrator
+    files: [src/orchestrator.ts, CLAUDE.md]
+    harness: { max_turns: 80, effort: high, fallback_model: claude-sonnet-5-5 }
+    budget: { usd: 40, on_exceed: pause }
+  market:
+    name: Market researcher
+    model: claude-sonnet-5-5
+    prompt: market
+    tools: [mcp__appfigures__*, WebSearch, WebFetch]
+    runtime: orchestrator
+    fanout: { min: 4, max: 8, by: competitor apps }
+    limits: { timeout: 15m, retries: 1 }
+    sandbox: { network: allowlist, allow: [api.appfigures.com, apps.apple.com, play.google.com], filesystem: workspace }
+  review-miner:
+    name: Review miner
+    model: claude-haiku-5-5
+    prompt: review-miner
+    tools: [mcp__appfigures__*]
+    runtime: orchestrator
+    fanout: { min: 8, max: 16, by: competitor x store }
+    budget: { usd: 3, on_exceed: stop }
+  aso:
+    name: ASO strategist
+    model: claude-sonnet-5-5
+    prompt: aso
+    tools: [mcp__appfigures__*, Read, Write]
+    runtime: orchestrator
+    fanout: { min: 4, max: 4, by: locales }
+  product:
+    name: Product lead
+    model: claude-opus-5-5
+    prompt: product
+    tools: [Read, Write, mcp__figma__generate_diagram]
+    runtime: orchestrator
+    files: [specs/product-spec.md, specs/user-flows.md]
+  designer:
+    name: Product designer
+    model: claude-sonnet-5-5
+    prompt: designer
+    tools: [mcp__figma__get_design_context, mcp__figma__get_variable_defs, mcp__figma__get_screenshot, mcp__figma__search_design_system, mcp__figma__use_figma]
+    runtime: orchestrator
+    credentials: user
+  architect:
+    name: Architect
+    model: claude-opus-5-5
+    prompt: architect
+    tools: [Read, Write, WebFetch, mcp__expo__search_documentation]
+    runtime: orchestrator
+    files: [specs/adr-001-stack.md]
+  backend:
+    name: Backend lead
+    model: claude-opus-5-5
+    prompt: backend
+    tools: [Read, Edit, Write, Bash, mcp__supabase__apply_migration, mcp__supabase__list_tables, mcp__supabase__get_advisors, mcp__supabase__generate_typescript_types, mcp__supabase__deploy_edge_function, mcp__revenuecat__*]
+    runtime: mac
+    files: [backend/schema.sql, backend/functions/delete-account.ts, backend/functions/revenuecat-webhook.ts]
+    harness: { permission_mode: acceptEdits, max_turns: 120 }
+    budget: { usd: 30, on_exceed: escalate }
+    credentials: user
+    sandbox: { network: allowlist, allow: [mcp.supabase.com, mcp.revenuecat.ai, registry.npmjs.org, api.github.com], filesystem: workspace }
+  app-lead:
+    name: App lead (Expo)
+    model: claude-opus-5-5
+    prompt: app-lead
+    tools: [Read, Edit, Write, Bash, mcp__expo__search_documentation, mcp__expo__automation_take_screenshot, mcp__figma__get_design_context]
+    runtime: mac
+    files: [app/app.json, app/package.json, app/src/lib/purchases.ts, app/src/lib/flags.ts]
+    harness: { permission_mode: acceptEdits, max_turns: 150 }
+    budget: { usd: 50, on_exceed: escalate }
+    sandbox: { network: allowlist, allow: [registry.npmjs.org, mcp.expo.dev, mcp.figma.com, api.github.com], filesystem: workspace }
+  ios:
+    name: iOS lane lead
+    model: claude-opus-5-5
+    prompt: { file: prompts/ios-lead.md }
+    tools: [Read, Edit, Write, Bash, mcp__xcode__BuildProject, mcp__xcode__RenderPreview, mcp__xcode__DocumentationSearch, mcp__mobilebuildmcp__*]
+    runtime: mac
+    tower: towers/ios.tower.yaml
+    harness: { permission_mode: acceptEdits, max_turns: 120 }
+    budget: { usd: 35, on_exceed: escalate }
+    sandbox: { network: allowlist, allow: [registry.npmjs.org, cdn.cocoapods.org, mcp.figma.com, api.github.com], filesystem: workspace }
+  android:
+    name: Android lane lead
+    model: claude-opus-5-5
+    prompt: { file: prompts/android-lead.md }
+    tools: [Read, Edit, Write, Bash, mcp__mobile-mcp__mobile_take_screenshot, mcp__mobile-mcp__mobile_list_elements_on_screen]
+    runtime: mac
+    tower: towers/android.tower.yaml
+    harness: { permission_mode: acceptEdits, max_turns: 120 }
+    budget: { usd: 35, on_exceed: escalate }
+    sandbox: { network: allowlist, allow: [registry.npmjs.org, dl.google.com, maven.google.com, repo.maven.apache.org, api.github.com], filesystem: workspace }
+  reviewer:
+    name: Code reviewer
+    model: claude-sonnet-5-5
+    prompt: reviewer
+    tools: [Read, Grep, mcp__github__pull_request_review_write]
+    runtime: orchestrator
+    limits: { max_iterations: 3 }
+  qa:
+    name: Device QA agent
+    model: claude-sonnet-5-5
+    prompt: qa
+    tools: [mcp__mobile-mcp__mobile_launch_app, mcp__mobile-mcp__mobile_list_elements_on_screen, mcp__mobile-mcp__mobile_take_screenshot, mcp__mobile-mcp__mobile_get_device_logs, mcp__maestro__inspect_screen, mcp__maestro__run]
+    runtime: device-lab
+    limits: { timeout: 45m, ttl: 1h }
+    sandbox: { network: allowlist, allow: [api.leafwise.example, "*.supabase.co"], filesystem: read-only }
+  release:
+    name: Release manager
+    model: claude-sonnet-5-5
+    prompt: release
+    tools: [mcp__expo__build_run, mcp__expo__build_info, mcp__expo__build_submit, mcp__expo__testflight_feedback, mcp__expo__testflight_crashes, Bash, mcp__studio__request_approval]
+    runtime: orchestrator
+    files: [fastlane/Fastfile, app/eas.json, release/release-checklist.md]
+    credentials: service
+    budget: { usd: 8, on_exceed: pause }
+  store-copy:
+    name: Store copywriter
+    model: claude-sonnet-5-5
+    prompt: store-copy
+    tools: [Read, Write]
+    runtime: orchestrator
+    fanout: { min: 4, max: 4, by: locales }
+  rejection:
+    name: Rejection responder
+    model: claude-opus-5-5
+    prompt: rejection
+    tools: [Read, WebFetch, mcp__studio__request_approval]
+    runtime: orchestrator
+    limits: { max_iterations: 3 }
+  monitor:
+    name: Release monitor
+    model: claude-haiku-5-5
+    prompt: monitor
+    tools: [mcp__firebase__crashlytics_get_report, mcp__firebase__crashlytics_get_issue, mcp__firebase__crashlytics_list_events, mcp__firebase__crashlytics_create_note, mcp__expo__testflight_crashes]
+    runtime: orchestrator
+    trigger: { kind: cron, schedule: "0 * * * *", source: orchestrator scheduler (during rollout) }
+    budget: { usd: 1, on_exceed: stop }
+  triage:
+    name: Review triage
+    model: claude-haiku-5-5
+    prompt: triage
+    tools: [mcp__appfigures__*, mcp__github__issue_write]
+    runtime: orchestrator
+    trigger: { kind: cron, schedule: "0 8 * * *", source: orchestrator scheduler }
+    fanout: { min: 2, max: 8, by: store x locale with new reviews }
+    budget: { usd: 2, on_exceed: stop }
+    data: { sensitivity: pii, retention: 90d, description: Review text with reviewer nicknames; drafts never quote names back. }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: discovery
+    title: Discovery & ASO
+    description: Orchestrator-workers. Parallel store research (competitors, review mining, keywords per locale) feeds an opportunity brief and a go / no-go.
+    nodes:
+      - id: idea
+        type: entry
+        label: App idea
+        description: One-paragraph idea and target markets posted in Slack; the studio lead turns it into a research plan.
+        runtime: slack
+        trigger: { kind: chat, source: "#leafwise-studio" }
+      - id: lead
+        agent: lead
+      - id: market
+        agent: market
+        label: Competitor scan
+        description: Top apps for the job in each store; features, paywall model, price points, ranks, update cadence, ratings.
+      - id: reviews
+        agent: review-miner
+        label: Review mining
+        description: Last 12 months of 1-3 star reviews per competitor and store, clustered into pains and feature requests with counts.
+        data: { sensitivity: internal, retention: 90d, description: Public reviews; nicknames dropped before clustering. }
+      - id: aso
+        agent: aso
+        label: ASO keywords
+        description: "Keyword map per locale: volume, difficulty, current top apps. Feeds the name, subtitle and 100-character keyword field."
+        files: [samples/aso-keywords.csv]
+      - id: go
+        type: human
+        label: Go / no-go
+        description: Product owner reads the opportunity brief (target user, top 3 pains, differentiator, keyword gap, pricing) and decides.
+        runtime: slack
+        files: [samples/opportunity-brief.md]
+        approval: { by: product owner, via: Slack, actions: [approve, edit, reject], timeout: 3d, on_timeout: escalate }
+        limits: { max_iterations: 2 }
+    edges:
+      - idea -> lead
+      - "lead -> market [spawn]: competitors"
+      - "lead -> reviews [spawn]: competitor x store"
+      - "lead -> aso [spawn]: locales"
+      - "market -> go [data]: teardown"
+      - "reviews -> go [data]: pain clusters"
+      - "aso -> go [data]: keyword gap"
+      - "go -> lead [return]: pivot, max 2"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: product
+    title: Product & Design
+    description: Spec and user flows, then Figma design with iOS and Android variants, checked against the platform guidelines and accessibility before the product owner signs off.
+    nodes:
+      - id: spec
+        agent: product
+        label: Spec & flows
+        description: MVP scope from the pain clusters, user flows (onboarding, add plant, reminder, paywall, account deletion), acceptance criteria and analytics events.
+      - id: designer
+        agent: designer
+        label: Figma design
+        description: Shared components, then per-platform variants (tab bar and sheets on iOS, navigation bar and predictive back on Android).
+        fanout: { min: 2, max: 2, by: "platform (HIG, Material 3)" }
+      - id: tokens
+        label: Tokens export
+        description: Figma variables to design/tokens.json; the app theme and both native targets read the generated file.
+        runtime: orchestrator
+        files: [design/tokens.json]
+      - id: guidelines
+        type: guard
+        label: HIG / M3 + a11y
+        description: "Touch targets 44 pt (iOS) and 48 dp (Android), Dynamic Type and font scale 200%, contrast 4.5:1, no custom back gesture, system permission timing."
+        runtime: orchestrator
+        files: [prompts/designer.md]
+        evals:
+          - { name: contrast failures, value: 0, target: 0, higher_is_better: false }
+          - { name: targets under minimum, value: 2, target: 0, higher_is_better: false, description: Illustrative; two icon buttons sent back to design. }
+      - id: design_ok
+        type: human
+        label: Design sign-off
+        description: Product owner approves the clickable prototype per platform; three rounds included.
+        runtime: slack
+        approval: { by: product owner, via: Figma prototype + Slack, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
+        limits: { max_iterations: 3 }
+    edges:
+      - "spec -> designer: flows + screens"
+      - "designer -> tokens [data]: variables"
+      - "designer -> guidelines: frames"
+      - "guidelines -> design_ok: clean"
+      - "guidelines -> designer [return]: violations"
+      - "design_ok -> designer [return]: round comments, max 3"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: architecture
+    title: Architecture & Backend
+    description: One reviewed decision on the stack, then a backend built schema-first. Store billing, push and flags are services, not code we own.
+    nodes:
+      - id: architect
+        agent: architect
+        label: Architecture ADR
+        description: Native (SwiftUI + Compose) vs Expo / React Native vs Flutter vs Kotlin Multiplatform, scored on team skills, shared code, native surface (widgets), OTA needs and cost.
+      - id: stack
+        type: decision
+        label: Stack?
+        description: "Chosen: Expo SDK 57 (React Native 0.86) for the app, with native targets per platform for widgets. Revisit if more than 30% of screens need native UI."
+        runtime: orchestrator
+        files: [specs/adr-001-stack.md]
+        approval: { by: tech lead, via: GitHub PR review, actions: [approve, edit, reject], timeout: 2d, on_timeout: escalate }
+      - id: backend
+        agent: backend
+      - id: db
+        type: memory
+        label: Postgres + RLS
+        description: Profiles, plants, care events, photo paths. Row-level security on every table; advisors must be clean before release.
+        runtime: supabase
+        files: [backend/schema.sql]
+        data: { sensitivity: pii, region: eu, retention: 30d, description: "Email and plant photos; deleted 30 days after account deletion (backups roll over)." }
+      - id: auth
+        type: tool
+        label: Auth + deletion
+        description: Sign in with Apple, Google and email. In-app account deletion (App Store 5.1.1(v)) through an Edge Function that also deletes Storage objects and the RevenueCat customer.
+        runtime: supabase
+        files: [backend/functions/delete-account.ts]
+        data: { sensitivity: pii, region: eu }
+        credentials: service
+      - id: push
+        type: tool
+        label: Push (FCM/APNs)
+        description: Care reminders scheduled server-side, delivered through Firebase Cloud Messaging (APNs auth key on iOS). Opt-in asked after the first plant is added.
+        runtime: firebase
+      - id: iap
+        type: tool
+        label: RevenueCat IAP
+        description: "One entitlement (premium), monthly and annual products on StoreKit 2 and Play Billing 8; paywall configured remotely; webhooks to the backend."
+        runtime: revenuecat
+        files: [backend/functions/revenuecat-webhook.ts, app/src/lib/purchases.ts]
+        data: { sensitivity: confidential, description: Purchase history keyed by the Supabase user id; card data stays with Apple and Google. }
+      - id: flags
+        type: memory
+        label: Remote Config
+        description: Feature flags, minimum supported version and the kill switch for risky features (new paywall, plant ID).
+        runtime: firebase
+        files: [app/src/lib/flags.ts]
+    edges:
+      - "architect -> stack: options + scores"
+      - "stack -> backend [handoff]: approved ADR"
+      - { from: backend, to: db, kind: data, label: migrations, protocol: mcp }
+      - "backend -> auth: providers + deletion"
+      - "auth -> db [data]: user rows"
+      - "backend -> push: reminder jobs"
+      - { from: iap, to: backend, kind: data, label: subscription events, protocol: webhook }
+      - "backend -> flags [data]: defaults"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: build
+    title: "Build: shared app + platform lanes"
+    description: >-
+      The Expo app holds screens, state, purchases and flags in TypeScript. Native work that React
+      Native cannot do well (home-screen widgets, platform billing quirks, UI tests) lives in two
+      lanes, each a Claude Code session with its platform's tooling. Everything merges through review.
+    nodes:
+      - id: contract
+        type: memory
+        label: Shared contract
+        description: Generated Supabase types, entitlement and product ids, deep-link routes and analytics event names. Both lanes build against it.
+        runtime: github
+        files: [app/src/types/supabase.ts]
+      - id: app_lead
+        agent: app-lead
+        label: Shared app (Expo)
+      - id: ios
+        agent: ios
+        label: iOS lane
+      - id: android
+        agent: android
+        label: Android lane
+      - id: reviewer
+        agent: reviewer
+      - id: pr_gate
+        type: decision
+        label: Review passed?
+        description: Blocking findings return to the owning lane. Three rounds, then the studio lead re-plans the task.
+        runtime: orchestrator
+        limits: { max_iterations: 3 }
+    edges:
+      - "contract -> app_lead [data]: types + ids"
+      - "app_lead -> ios [spawn]: widget, UI tests"
+      - "app_lead -> android [spawn]: widget, UI tests"
+      - "app_lead -> reviewer: PR"
+      - "ios -> reviewer: PR"
+      - "android -> reviewer: PR"
+      - reviewer -> pr_gate
+      - "pr_gate -> app_lead [return]: changes requested, max 3"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: qa
+    title: QA & Devices
+    description: >-
+      Fast checks on every PR, then preview builds on a simulator / emulator matrix and on real
+      devices in the lab. Accessibility and performance are gates, not reports.
+    nodes:
+      - id: ci
+        label: PR checks
+        description: ESLint, tsc, Jest, expo-doctor, and a fingerprint diff that flags native changes (those cannot ship over the air).
+        runtime: gha
+        trigger: { kind: event, source: GitHub pull_request }
+        files: [.github/workflows/mobile-ci.yml]
+      - id: preview
+        label: Preview builds
+        description: "eas build --profile preview for both platforms (internal distribution); the QA agents install the same artifacts."
+        runtime: eas
+        files: [app/eas.json]
+        limits: { timeout: 45m, retries: 1 }
+        resources:
+          - { kind: log, label: Build log, path: logs/build.log }
+      - id: maestro
+        label: Maestro matrix
+        description: Onboarding, add-plant, reminder and paywall (sandbox purchase) flows, plus store screenshots per locale.
+        runtime: maestro-cloud
+        files: [qa/maestro/onboarding.yaml, qa/maestro/paywall.yaml, qa/device-matrix.yaml]
+        fanout: { min: 6, max: 10, by: device x OS version }
+        limits: { timeout: 30m, retries: 1 }
+        evals:
+          - { name: flow pass rate, value: 0.98, target: 1 }
+      - id: lab
+        agent: qa
+        label: Device lab QA
+        description: Exploratory pass on real phones with VoiceOver and TalkBack on, low battery mode, airplane mode mid-sync, denied permissions.
+        evals:
+          - { name: unlabeled controls, value: 0, target: 0, higher_is_better: false }
+          - { name: blocking defects, value: 1, target: 0, higher_is_better: false }
+      - id: perf
+        label: Performance
+        description: Cold start, memory and frame drops on the low-end Android (Galaxy A15) and iPhone SE, five runs each.
+        runtime: device-lab
+        evals:
+          - { name: cold start p50 Android low-end (ms), value: 1450, target: 2000, higher_is_better: false }
+          - { name: cold start p50 iPhone SE (ms), value: 820, target: 1000, higher_is_better: false }
+          - { name: download size iOS (MB), value: 38, target: 50, higher_is_better: false }
+      - id: qa_gate
+        type: decision
+        label: Release-ready?
+        description: All gates green and no open P1. Failures go back to the owning lane; three rounds.
+        runtime: orchestrator
+        limits: { max_iterations: 3 }
+    edges:
+      - ci -> preview
+      - "preview -> maestro: artifacts"
+      - "preview -> lab: install"
+      - "preview -> perf: install"
+      - "maestro -> qa_gate [data]"
+      - "lab -> qa_gate [data]"
+      - "perf -> qa_gate [data]"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: release
+    title: Release & Store Review
+    description: >-
+      Signed store builds, beta, listings per locale and privacy forms, a product-owner sign-off,
+      then both store reviews. Rejections are mapped to a guideline and fixed, answered or appealed.
+    nodes:
+      - id: signing
+        type: guard
+        label: Code signing
+        description: "EAS-managed iOS distribution certificate and profile; Android upload key (Play App Signing holds the app signing key). Nothing secret lives in the repo; CI reads them by name."
+        runtime: eas
+        files: [credentials/README.md]
+        data: { sensitivity: secret, description: "Distribution certificate, upload keystore, ASC .p8 key and Play service-account JSON. Placeholders only in this example." }
+        credentials: service
+      - id: store_build
+        label: Store builds
+        description: "eas build --profile production (autoIncrement build numbers), version 2.4.0, both platforms."
+        runtime: eas
+        version: 2.4.0
+        limits: { timeout: 60m, retries: 1 }
+        files: [app/eas.json]
+      - id: beta
+        label: TestFlight + Play beta
+        description: TestFlight external group (beta review on first build) and Play closed testing. The release manager summarizes feedback and crashes from TestFlight.
+        runtime: testers
+        sla: 5d
+        fanout: { min: 2, max: 2, by: store }
+        resources:
+          - { kind: log, label: Build and beta log, path: logs/build.log }
+      - id: listing
+        agent: store-copy
+        label: Listings x locale
+        description: Name (30), subtitle (30), keywords (100), description, What's New and screenshot captions per locale; screenshots come from the Maestro run.
+        files: [store/listing.en-US.yaml, store/listing.de-DE.yaml, store/listing.it-IT.yaml, store/listing.es-ES.yaml, fastlane/Fastfile]
+      - id: privacy
+        type: guard
+        label: Privacy forms
+        description: SDK inventory vs App Privacy details, the iOS privacy manifest and the Play Data safety form; no tracking, so no ATT prompt. Reviewed by the privacy lead.
+        runtime: orchestrator
+        files: [privacy/data-safety-checklist.md]
+        approval: { by: privacy lead, via: Slack, actions: [approve, edit, reject], timeout: 2d, on_timeout: escalate }
+      - id: po_ok
+        type: human
+        label: Release sign-off
+        description: Product owner approves version, What's New, rollout plan and the beta digest. No answer means no release.
+        runtime: slack
+        files: [release/release-checklist.md]
+        approval: { by: product owner, via: Slack, actions: [approve, reject], timeout: 2d, on_timeout: reject }
+      - id: submit
+        agent: release
+        label: Submit for review
+        description: "eas submit to App Store Connect and the Play production track (status inProgress, rollout 0.01); review notes with a demo account."
+      - id: apple_review
+        label: App Review
+        description: Apple reviews 90% of submissions in under 48 hours; after 4 days the lead asks whether to request an expedited review.
+        runtime: asc
+        sla: 48h
+        limits: { timeout: 4d }
+        resources:
+          - { kind: log, label: Store review log, path: logs/store-review.log }
+      - id: play_review
+        label: Play review
+        description: Managed publishing on, so an approved release waits for the studio to publish it.
+        runtime: play
+        sla: 72h
+        limits: { timeout: 7d }
+      - id: verdict
+        type: decision
+        label: Approved?
+        description: Both stores approved, or one rejected. Three resubmissions, then the studio lead escalates (appeal or scope change).
+        runtime: orchestrator
+        limits: { max_iterations: 3 }
+      - id: resolve
+        agent: rejection
+        label: Rejection fix
+        description: "Reads the Resolution Center or Policy status message, cites the guideline (2.1 completeness, 3.1.1 IAP, 5.1.1 privacy...), and proposes a code fix, a metadata fix, a reply or an appeal."
+        files: [logs/store-review.log]
+    edges:
+      - "signing -> store_build [call]: credentials"
+      - "store_build -> beta: upload"
+      - "beta -> po_ok [data]: beta digest"
+      - "listing -> po_ok [data]: metadata"
+      - "privacy -> po_ok: forms filed"
+      - "po_ok -> submit: approved"
+      - { from: submit, to: apple_review, label: App Store Connect API, protocol: http }
+      - { from: submit, to: play_review, label: Play Developer API, protocol: http }
+      - "apple_review -> verdict"
+      - "play_review -> verdict"
+      - "verdict -> resolve: rejected"
+      - "resolve -> submit [return]: resubmit, max 3"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: rollout
+    title: Rollout, Monitoring & Iteration
+    description: >-
+      Gradual release on both stores, a crash-rate guard that halts it, a kill switch for risky
+      features, OTA for JavaScript-only fixes, review triage, and a backlog that starts the next version.
+    nodes:
+      - id: phased
+        label: iOS phased release
+        description: "7-day phased release (1, 2, 5, 10, 20, 50, 100%); pausable for up to 30 days in total."
+        runtime: asc
+        version: 2.4.0
+        rollout: { strategy: canary, percent: 5, previous: 2.3.2 }
+      - id: staged
+        label: Play staged rollout
+        description: "userFraction 0.01, 0.05, 0.2, 0.5, then completed; each step needs 24 h of healthy data."
+        runtime: play
+        version: 2.4.0
+        rollout: { strategy: canary, percent: 5, previous: 2.3.2 }
+        files: [scripts/play-rollout.ts]
+        resources:
+          - { kind: log, label: Rollout log, path: logs/rollout.log }
+      - id: devices
+        label: Installed base
+        description: Crashlytics on every install; Analytics only after consent in the EU.
+        runtime: users
+      - id: crashlytics
+        type: tool
+        label: Crashlytics
+        description: Crash-free users and sessions per version, issues and velocity alerts.
+        runtime: firebase
+        data: { sensitivity: internal, retention: 90d, description: Stack traces and device model; no user content. }
+      - id: analytics
+        type: tool
+        label: Analytics
+        description: Funnel and retention events defined in the spec; pseudonymous app instance id, consent-gated.
+        runtime: firebase
+        data: { sensitivity: pii, retention: 60d, description: "Pseudonymous identifiers count as personal data under GDPR; event retention set to 2 months." }
+      - id: guard
+        type: guard
+        label: Crash-rate guard
+        description: "Every 30 minutes: crash-free sessions below 99.5% or Play user-perceived crash rate above 1.09% halts the Play rollout and pauses the phased release, then pages on-call."
+        runtime: orchestrator
+        trigger: { kind: cron, schedule: "*/30 * * * *", source: orchestrator scheduler }
+        files: [scripts/crash-guard.ts]
+        evals:
+          - { name: crash-free sessions (%), value: 99.71, target: 99.5, description: Illustrative studio target. }
+          - { name: user-perceived crash rate (%), value: 0.42, target: 1.09, higher_is_better: false, url: https://developer.android.com/topic/performance/vitals }
+          - { name: user-perceived ANR rate (%), value: 0.18, target: 0.47, higher_is_better: false }
+      - id: killswitch
+        type: human
+        label: Kill switch
+        description: On-call flips the Remote Config flag for the suspect feature. If nobody answers in 15 minutes the flag is flipped anyway.
+        runtime: firebase
+        approval: { by: on-call mobile engineer, via: Slack, actions: [approve, reject], timeout: 15m, on_timeout: approve }
+      - id: monitor
+        agent: monitor
+        evals:
+          - { name: crash-free users (%), value: 99.83, target: 99.7 }
+          - { name: cold start p90 (ms), value: 2100, target: 2500, higher_is_better: false }
+          - { name: store rating (30d), value: 4.6, target: 4.5 }
+      - id: hotfix
+        type: decision
+        label: Fix path?
+        description: JavaScript-only and same fingerprint goes over the air; anything native needs a new binary and store review.
+        runtime: orchestrator
+      - id: ota
+        label: EAS Update
+        description: "eas update --channel production --rollout-percentage=10, then eas update:edit; revert with eas update:revert-update-rollout. Bug fixes only, never new features."
+        runtime: eas
+        version: 2.4.0-ota.1
+        rollout: { strategy: canary, percent: 10, previous: 2.4.0 }
+      - id: triage
+        agent: triage
+        label: Review triage
+        description: "Classifies new reviews (bug, feature, billing, praise, abuse), drafts replies under 350 characters, opens issues for bugs with version and device."
+        evals:
+          - { name: median reply time (h), value: 18, target: 24, higher_is_better: false }
+      - id: reply_ok
+        type: human
+        label: Reply approval
+        description: Support lead approves or edits drafts before they are posted; billing complaints are always answered by a person.
+        runtime: slack
+        approval: { by: support lead, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: wait }
+        files: [samples/review-digest.md]
+      - id: backlog
+        type: memory
+        label: Next-version backlog
+        description: GitHub issues from crashes, reviews and funnel drops, ranked by the studio lead each sprint.
+        runtime: github
+        files: [samples/crash-digest.md]
+    edges:
+      - "devices -> crashlytics [data]: crashes"
+      - "devices -> analytics [data]: consented events"
+      - "crashlytics -> guard [data]: crash-free %"
+      - "guard -> phased [return]: pause"
+      - "guard -> staged [return]: halt"
+      - "guard -> killswitch: page on-call"
+      - "crashlytics -> monitor [data]"
+      - "analytics -> monitor [data]"
+      - "monitor -> hotfix: regression"
+      - "hotfix -> ota: JS only"
+      - "monitor -> staged: advance"
+      - "triage -> reply_ok: drafts"
+      - "triage -> backlog [data]: bug issues"
+      - "monitor -> backlog [data]: crash digest"
+
+  # 8 ───────────────────────────────────────────────────────────────
+  - id: platform
+    title: Tools, Models & Guardrails
+    description: MCP servers shared by the sessions, the release guard hook, studio memory and the three Claude models.
+    nodes:
+      - id: expo_mcp
+        type: tool
+        label: Expo MCP
+        description: "Remote server (mcp.expo.dev): builds, submissions, workflows, TestFlight crashes and feedback; local simulator screenshots via expo-mcp."
+        runtime: eas
+        files: [.mcp.json]
+        credentials: user
+      - id: figma
+        type: tool
+        label: Figma MCP
+        description: get_design_context, get_variable_defs, get_screenshot, use_figma; Code Connect can map SwiftUI components too.
+        runtime: figma
+        files: [.mcp.json]
+        credentials: user
+      - id: device_mcp
+        type: tool
+        label: Device MCPs
+        description: "mobile-mcp (iOS and Android, simulators and real devices via WebDriverAgent / adb) and Maestro MCP (inspect_screen, run, run_on_cloud)."
+        runtime: mac
+        files: [.mcp.json]
+      - id: firebase_mcp
+        type: tool
+        label: Firebase MCP
+        description: firebase-tools MCP with the Crashlytics tools (get_report, get_issue, list_events, notes, update_issue).
+        runtime: firebase
+        files: [.mcp.json]
+        credentials: service
+      - id: release_guard
+        type: guard
+        label: Release guard
+        description: PreToolUse hook. Builds and internal submissions pass; production submit, rollout changes and review replies need an approval id; reads of credentials/ are denied.
+        runtime: orchestrator
+        files: [src/hooks/release-guard.ts]
+      - id: memory
+        type: memory
+        label: Studio memory
+        description: CLAUDE.md conventions, definition of done and store rules learned from past rejections.
+        runtime: github
+        files: [CLAUDE.md]
+      - id: opus
+        type: model
+        label: Opus 5.5
+        model: claude-opus-5-5
+        runtime: anthropic
+      - id: sonnet
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        runtime: anthropic
+      - id: haiku
+        type: model
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        runtime: anthropic
+    edges:
+      - "memory -> release_guard [data]: definition of done"
+
+links:
+  - "discovery.go -> product.spec [handoff]: approved brief"
+  - "discovery.aso -> release.listing [data]: keyword map"
+  - "product.design_ok -> architecture.architect [handoff]: signed design"
+  - "product.tokens -> build.contract [data]: tokens.json"
+  - "product.design_ok -> build.app_lead [data]: Figma frames"
+  - "architecture.backend -> build.contract [data]: generated types"
+  - "architecture.flags -> build.app_lead [data]: flag keys"
+  - "build.pr_gate -> qa.ci: merged PRs"
+  - "qa.qa_gate -> build.app_lead [return]: shared defects"
+  - "qa.qa_gate -> build.ios [return]: iOS defects"
+  - "qa.qa_gate -> build.android [return]: Android defects"
+  - "qa.qa_gate -> release.store_build: release candidate"
+  - "qa.maestro -> release.listing [data]: screenshots"
+  - "release.resolve -> build.app_lead [return]: code fix"
+  - "release.verdict -> rollout.phased: approved (iOS)"
+  - "release.verdict -> rollout.staged: approved (Android)"
+  - "rollout.hotfix -> release.store_build: native fix"
+  - "rollout.killswitch -> architecture.flags [data]: flag off"
+  - "rollout.backlog -> discovery.lead [return]: next version"
+  - "release.submit -> platform.release_guard [call]: ask"
+  - "rollout.staged -> platform.release_guard [call]: ask"
+  - "rollout.reply_ok -> platform.release_guard [call]: approval id"
+  - { from: product.designer, to: platform.figma, kind: call, protocol: mcp }
+  - { from: build.app_lead, to: platform.expo_mcp, kind: call, label: docs + screenshots, protocol: mcp }
+  - { from: release.submit, to: platform.expo_mcp, kind: call, label: build_submit, protocol: mcp }
+  - { from: qa.lab, to: platform.device_mcp, kind: call, protocol: mcp }
+  - { from: rollout.monitor, to: platform.firebase_mcp, kind: call, label: crashlytics_get_report, protocol: mcp }
+  - { from: discovery.lead, to: platform.opus, kind: call, protocol: http }
+  - { from: product.designer, to: platform.sonnet, kind: call, protocol: http }
+  - { from: rollout.triage, to: platform.haiku, kind: call, protocol: http }
+  - "platform.memory -> discovery.lead [data]: CLAUDE.md"

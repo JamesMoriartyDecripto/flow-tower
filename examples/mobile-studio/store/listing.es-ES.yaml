@@ -1,0 +1,30 @@
+# Leafwise 2.4 listing, es-ES. Written natively from the es-ES keyword map, not translated.
+app_store:
+  name: "Leafwise: Cuidado de plantas"          # 28 [30]
+  subtitle: "Recordatorio de riego"             # 21 [30]
+  keywords: "flores,interior,widget,jardín,suculentas,diario,regar,agua,calendario,maceta" # 76 [100]
+  promotional_text: "Novedad: recordatorios que siguen las estaciones y un widget para marcar el riego." # 82 [170]
+  whats_new: |
+    Recordatorios por estación: el intervalo se adapta al mes y al tamaño de la maceta.
+    Widget en la pantalla de inicio: ve qué toca hoy y márcalo como regado con un toque.
+google_play:
+  title: "Leafwise: riego de plantas"           # 26 [30]
+  short_description: "Recordatorios de riego según la estación y un widget para tus plantas." # 70 [80]
+  release_notes: "Recordatorios por estación y un widget para marcar plantas como regadas." # 72 [500]
+description: |
+  Leafwise recuerda cuándo necesita agua cada una de tus plantas.
+
+  - Recordatorios según la estación: en invierno se riega menos y las macetas grandes, con menos frecuencia.
+  - Widget para la pantalla de inicio: las plantas de hoy, marcadas con un toque.
+  - Un diario con fotos para cada planta.
+  - Funciona sin conexión y sincroniza después.
+
+  Leafwise Premium desbloquea la identificación de plantas y plantas ilimitadas. Plan anual con 7 días de prueba gratis o mensual. El pago se carga en tu cuenta de la tienda; la suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes del final del periodo.
+
+  Privacidad: no te rastreamos entre apps y webs, y puedes eliminar tu cuenta desde la app.
+screenshot_captions:
+  - "Lo que toca regar hoy"
+  - "Riego según la estación"
+  - "Riega desde el widget"
+  - "Un diario para cada planta"
+  - "Identifica plantas con Premium"

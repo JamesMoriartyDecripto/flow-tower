@@ -384,3 +384,17 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .eval .val.pass { color: var(--live-done); }
 .eval .val.fail { color: var(--live-error); }
 .conn .proto { font: 9px var(--mono); color: var(--live-run); border: 1px solid color-mix(in srgb, var(--live-run) 45%, transparent); padding: 0 4px; }
+
+/* Panels that scroll themselves: absolute ::before/::after corners would scroll with the content.
+   Draw the corners as the panel's own background instead (backgrounds stay fixed to the box). */
+.layernav, .legend, .issues, .shortcuts {
+  --corner: color-mix(in srgb, var(--white) 85%, transparent);
+  background:
+    linear-gradient(var(--corner), var(--corner)) top 3px right 3px / 14px 2px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) top 3px right 3px / 2px 14px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom 3px left 3px / 14px 2px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom 3px left 3px / 2px 14px no-repeat,
+    var(--panel);
+}
+.layernav::before, .layernav::after, .legend::before, .legend::after,
+.issues::before, .issues::after, .shortcuts::before, .shortcuts::after { content: none; }

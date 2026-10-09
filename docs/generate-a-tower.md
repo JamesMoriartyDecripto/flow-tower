@@ -52,6 +52,7 @@ Pick layers top to bottom from [reference.md](../skills/flow-tower/reference.md)
 - `runtimes:` come from deploy config (Dockerfile, compose, k8s, CI workflows, serverless config, README). Reference them with `runtime:` on agents and nodes.
 - `resources:` point to real log files, scripts and dashboard URLs found in the repo. Never invent URLs.
 - `status: planned | experimental | deprecated` only when the code or docs say so (TODOs, feature flags, deprecation notes).
+- Operational fields ([schema § Operations](schema.md#operations)) only when the code or config shows them: `trigger` (cron schedules, webhooks, queues), `approval` (human gates, their timeouts), `budget` / `limits` (max_turns, budget_usd, timeouts, retries, loop caps), `fanout` (parallel subagents), `data` (PII, region, retention), `sandbox`, `credentials`, `evals` (only real measured values, or targets the repo states). Wire protocols on edges (`protocol: mcp | a2a | http | webhook | queue`) when the transport is explicit.
 - Labels have at most 18 characters. Details go in `description`. If something is inferred rather than explicit, say so: `(inferred from …)`.
 
 ### 4. Write the YAML

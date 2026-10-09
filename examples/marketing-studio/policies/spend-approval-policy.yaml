@@ -1,0 +1,42 @@
+# Spend approval policy. Read by the planner, scripts/spend_guard.py and both towers.
+# Changing this file requires CMO approval (CODEOWNERS).
+version: 3
+effective: 2026-10-01
+currency: EUR
+
+hard_limits:                       # enforced by code, no human can approve past them
+  monthly_media_cap: 120000
+  max_change_pct_per_entity: 0.5   # a single change set may not move a budget by more than 50 %
+  forbidden_changes: [new_geo, new_audience, new_campaign, account_settings, billing]
+  learning_phase_freeze: true      # no budget/bid edits on entities in learning
+  max_budget_edits_per_entity_per_week: 2
+
+auto_apply:                        # below these, the guard applies without a person
+  max_delta_eur_per_day: 500       # sum of absolute daily-budget deltas in the set
+  max_delta_pct: 0.20
+  may_pause: ads_and_ad_sets       # never a whole campaign in the top 5 by spend
+
+approvals:
+  - name: Head of Growth
+    when: "delta_eur_day > 500 or delta_pct > 0.20 or pauses_top5_campaign"
+    via: Slack #growth-approvals
+    timeout: 4h
+    on_timeout: reject             # nothing changes; the next daily run re-proposes
+  - name: CMO + FP&A
+    when: "cross_channel_eur_month > 5000 or quarterly_plan"
+    via: Slack #growth-approvals
+    timeout: 48h
+    on_timeout: reject
+  - name: Legal
+    when: "any new quantified, comparative or compliance claim"
+    via: Slack #legal-review
+    timeout: 72h
+    on_timeout: reject
+
+llm_spend:
+  monthly_usd: 900
+  on_exceed: downgrade             # Opus roles fall back to Sonnet, owner pinged
+
+audit:
+  log: append-only, 3 years
+  record: [who, when, change_set_id, before, after, reason, approver, platform_request_id]

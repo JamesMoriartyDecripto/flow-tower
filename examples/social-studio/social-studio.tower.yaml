@@ -1,0 +1,595 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Social Media Studio
+description: >-
+  An agentic social media operation for one brand on eight networks. Every Monday an Opus
+  strategist turns last week's report, the idea backlog and the brand pillars into a content
+  calendar that the social manager approves. Sonnet copywriters write one hero asset per brief;
+  a visual director generates stills (Nano Banana 2), 8-second vertical clips (Veo 3.1 Fast) and
+  Canva carousels; a repurposer fans each asset out per platform. Nothing ships without the
+  brand guard, the AI-label check (Meta, TikTok and YouTube flags, EU AI Act Art. 50) and a human
+  approval that rejects on timeout. A publisher worker (sub-tower) posts through the official
+  APIs within each platform's quota; TikTok goes to the creator's inbox and is finished by hand.
+  Webhooks feed a Haiku triage agent that hides spam, drafts replies for human approval and
+  escalates crises; a weekly analyst report feeds the next plan. Sample brand: "Halden Bikes",
+  a fictional Amsterdam e-cargo-bike maker selling in NL, BE and DE.
+tags: [social-media, marketing, content-calendar, community-management, human-in-the-loop, ai-disclosure, eu-ai-act, meta-graph-api, tiktok, linkedin, youtube, bluesky, claude-agent-sdk]
+
+runtimes:
+  studio:
+    kind: container
+    label: Studio workers
+    description: Node 22 container running the Agent SDK agents, the webhook receiver, the publisher worker (BullMQ) and the cron scheduler.
+    host: social-01.example.com
+    provider: hetzner
+    region: fsn1
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  gemini:
+    kind: cloud
+    label: Gemini API
+    description: "Nano Banana 2 (gemini-3.1-flash-image) and Veo 3.1 Fast. Outputs carry a SynthID watermark; Veo files are deleted after 2 days."
+    provider: google
+    url: https://ai.google.dev
+  canva:
+    kind: saas
+    label: Canva Connect
+    description: Brand templates + Autofill API (Canva Pro, Teams or Enterprise, MFA on) for carousels and cover frames.
+    provider: canva
+    url: https://www.canva.dev/docs/connect/
+  r2:
+    kind: cloud
+    label: Media bucket
+    description: "Cloudflare R2 (EU jurisdiction) behind cdn.haldenbikes.example: the verified domain TikTok and Meta pull media from."
+    provider: cloudflare
+    region: eu
+  postgres:
+    kind: cloud
+    label: Postgres
+    description: Calendar, approvals, publish jobs, inbox items and daily metrics.
+    provider: neon
+    region: aws-eu-central-1
+  slack:
+    kind: saas
+    label: Slack
+    description: "#social-approvals, #social-inbox and #social-crisis; interactive approve / edit / reject buttons."
+    provider: slack
+  phone:
+    kind: device
+    label: Manager's phone
+    description: The TikTok app, where inbox drafts are finished and posted by a person.
+  meta:
+    kind: saas
+    label: Meta Graph API
+    description: Instagram, Facebook Pages and Threads publishing, comments, mentions and messaging webhooks.
+    provider: meta
+    url: https://developers.facebook.com/docs/instagram-platform
+  meta-ads:
+    kind: saas
+    label: Meta Ads MCP
+    description: "Meta's official remote MCP server (open beta since 2026-04-29). New campaigns are created PAUSED."
+    provider: meta
+    url: https://mcp.facebook.com/ads
+  zendesk:
+    kind: saas
+    label: Zendesk
+    description: Helpdesk for order, warranty and service tickets that arrive as DMs.
+    provider: zendesk
+    url: https://www.zendesk.com
+
+prompts:
+  strategist: { file: prompts/strategist.md, description: "Opus. Weekly plan: pillars, mix, slots, experiments, from last week's report." }
+  trend-scout: { file: prompts/trend-scout.md, description: "Daily trends, competitor posts and news hooks worth reacting to." }
+  copywriter: { file: prompts/copywriter.md, description: "One hero asset per brief: hook, body, CTA, script, alt text." }
+  visual-director: { file: prompts/visual-director.md, description: "Shot list, image and video prompts, Canva template choice." }
+  repurposer: { file: prompts/repurposer.md, description: "One asset to one native post per platform, within its specs." }
+  brand-guard: { file: prompts/brand-guard.md, description: "Haiku judge: voice score, claims, sensitive topics." }
+  triage: { file: prompts/triage.md, description: "Haiku: intent, sentiment, urgency, PII, route." }
+  reply-drafter: { file: prompts/reply-drafter.md, description: "Reply drafts in the brand voice, never promising what support must decide." }
+  analyst: { file: prompts/analyst.md, description: "Weekly report: what worked, what to stop, three experiments." }
+  boost-advisor: { file: prompts/boost-advisor.md, description: "Which organic winners to boost, audience and budget proposal." }
+
+agents:
+  strategist:
+    name: Content strategist
+    model: claude-opus-5-5
+    prompt: strategist
+    tools: [Read, Write, WebSearch, mcp__studio__request_approval]
+    runtime: studio
+    files: [brand/voice-guide.md, calendar/2026-w41.yaml, src/tools/request-approval.ts]
+    harness: { max_turns: 30, effort: high }
+    trigger: { kind: cron, schedule: "0 7 * * 1", source: studio scheduler (Europe/Amsterdam) }
+    budget: { usd: 4, on_exceed: pause }
+  scout:
+    name: Trend scout
+    model: claude-sonnet-5-5
+    prompt: trend-scout
+    tools: [WebSearch, WebFetch, mcp__studio__search_mentions]
+    runtime: studio
+    limits: { timeout: 10m, retries: 1 }
+    budget: { usd: 1.5, on_exceed: stop }
+  sentiment:
+    name: Sentiment tagger
+    model: claude-haiku-5-5
+    prompt: { text: "Label each mention of {{brand}}: sentiment (pos/neu/neg), topic, is_customer, needs_reply. JSON lines only." }
+    tools: []
+    runtime: studio
+    harness: { max_turns: 1, output: json_schema, batch: 50 }
+  copywriter:
+    name: Copywriter
+    model: claude-sonnet-5-5
+    prompt: copywriter
+    tools: [Read, mcp__studio__save_draft]
+    runtime: studio
+    fanout: { min: 8, max: 14, by: briefs in the approved week }
+    budget: { usd: 0.6, on_exceed: stop }
+  visual:
+    name: Visual director
+    model: claude-sonnet-5-5
+    prompt: visual-director
+    tools: [mcp__studio__generate_image, mcp__studio__generate_video, mcp__studio__canva_autofill]
+    runtime: studio
+    files: [config/generation.yaml]
+  repurposer:
+    name: Repurposer
+    model: claude-sonnet-5-5
+    prompt: repurposer
+    tools: [Read, mcp__studio__save_variant]
+    runtime: studio
+    files: [config/platforms.yaml]
+    fanout: { min: 4, max: 8, by: platforms in the brief }
+  brand-guard:
+    name: Brand guard
+    model: claude-haiku-5-5
+    prompt: brand-guard
+    tools: []
+    runtime: studio
+    files: [brand/voice-guide.md, brand/banned-claims.yaml]
+    harness: { max_turns: 1, output: json_schema }
+  triage:
+    name: Inbox triage
+    model: claude-haiku-5-5
+    prompt: triage
+    tools: [mcp__studio__hide_comment, mcp__studio__route_item]
+    runtime: studio
+    files: [config/triage-rules.yaml]
+    data: { sensitivity: pii, region: eu, retention: 90d, description: "Handles, names, order numbers and addresses in DMs." }
+    credentials: service
+  drafter:
+    name: Reply drafter
+    model: claude-sonnet-5-5
+    prompt: reply-drafter
+    tools: [Read, mcp__studio__lookup_order, mcp__studio__request_approval]
+    runtime: studio
+    data: { sensitivity: pii, region: eu, retention: 90d }
+    limits: { timeout: 2m, retries: 1 }
+  analyst:
+    name: Weekly analyst
+    model: claude-sonnet-5-5
+    prompt: analyst
+    tools: [Read, Write, mcp__studio__query_metrics]
+    runtime: studio
+    trigger: { kind: cron, schedule: "0 16 * * 5", source: studio scheduler (Europe/Amsterdam) }
+    budget: { usd: 2, on_exceed: stop }
+  boost:
+    name: Boost advisor
+    model: claude-sonnet-5-5
+    prompt: boost-advisor
+    tools: [mcp__studio__query_metrics, mcp__meta_ads]
+    runtime: studio
+    files: [.mcp.json]
+    credentials: user
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: strategy
+    title: Strategy & Calendar
+    description: Monday planning. Last week's report, the idea backlog and the brand pillars become a calendar of briefs the social manager signs off.
+    nodes:
+      - id: monday
+        type: entry
+        label: Monday 07:00
+        description: Cron in the studio scheduler, Europe/Amsterdam.
+        runtime: studio
+        trigger: { kind: cron, schedule: "0 7 * * 1", source: studio scheduler }
+      - id: brand
+        type: memory
+        label: Brand memory
+        description: Voice guide, four content pillars, audiences per platform, banned claims and topics to stay out of.
+        runtime: studio
+        files: [brand/voice-guide.md, brand/banned-claims.yaml]
+      - id: strategist
+        agent: strategist
+      - id: calendar
+        type: memory
+        label: Content calendar
+        description: One row per slot (date, platform set, pillar, format, brief). Mirrored to Postgres for the publisher.
+        runtime: postgres
+        files: [calendar/2026-w41.yaml]
+      - id: plan_ok
+        type: human
+        label: Plan sign-off
+        description: The social manager approves the week's mix in Slack. Edits go back to the strategist, at most twice.
+        runtime: slack
+        files: [config/approval-policy.yaml]
+        approval: { by: social manager, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: escalate }
+        limits: { max_iterations: 2 }
+        resources:
+          - { kind: log, label: Approval log, path: logs/approvals.log }
+      - id: briefs
+        label: Brief splitter
+        description: One brief per approved slot (pillar, angle, CTA, platforms, asset type, due date) queued for creation.
+        runtime: studio
+    edges:
+      - monday -> strategist
+      - "brand -> strategist [data]: pillars + voice"
+      - "strategist -> calendar [data]: slots"
+      - "strategist -> plan_ok: week plan"
+      - "plan_ok -> strategist [return]: edits, max 2"
+      - "plan_ok -> briefs: approved"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: listening
+    title: Listening & Ideas
+    description: A daily sweep of mentions, keywords, competitors and news. Sentiment spikes trigger the crisis path before they reach the calendar.
+    nodes:
+      - id: daily
+        type: entry
+        label: Daily 06:30
+        runtime: studio
+        trigger: { kind: cron, schedule: "30 6 * * *", source: studio scheduler }
+      - id: mentions
+        type: tool
+        label: Mentions search
+        description: >-
+          Instagram mentioned_media and tags, Bluesky app.bsky.feed.searchPosts, X recent search
+          (pay-per-use, $0.005 per post read, capped at 2,000 reads a day here), YouTube comments.
+          TikTok trends and sounds come from the Creative Center by hand: there is no API for them.
+        runtime: studio
+        files: [config/platforms.yaml]
+        budget: { usd: 10, on_exceed: stop }
+        resources:
+          - { kind: log, label: Listening log, path: logs/listening.log }
+      - id: scout
+        agent: scout
+      - id: sentiment
+        agent: sentiment
+        evals:
+          - { name: agreement with human labels (illustrative), value: 0.88, target: 0.85 }
+      - id: spike
+        type: decision
+        label: Spike or crisis?
+        description: "Negative share over 35% on 30+ mentions in 2h, any safety claim (fire, brakes, injury), or press pickup."
+        runtime: studio
+        files: [config/triage-rules.yaml]
+      - id: ideas
+        type: memory
+        label: Idea backlog
+        description: Scored ideas (fit to pillar, timeliness, effort) with the source link. The strategist pulls from it on Monday.
+        runtime: postgres
+    edges:
+      - daily -> mentions
+      - daily -> scout
+      - "mentions -> sentiment [data]: mentions"
+      - sentiment -> spike
+      - "spike -> ideas [data]: normal, topics"
+      - "scout -> ideas [data]: trends + hooks"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: creation
+    title: Creation & Repurposing
+    description: One hero asset per brief, then one native variant per platform. Generation spend is capped per week and downgrades before it stops.
+    nodes:
+      - id: copywriter
+        agent: copywriter
+      - id: visual
+        agent: visual
+      - id: image
+        type: tool
+        label: Nano Banana 2
+        description: "gemini-3.1-flash-image via the Gemini API. Product shots are real photos; generated images are for backgrounds and concepts only."
+        runtime: gemini
+        model: gemini-3.1-flash-image
+        files: [config/generation.yaml]
+        budget: { usd: 15, on_exceed: stop }
+      - id: video
+        type: tool
+        label: Veo 3.1 Fast
+        description: "veo-3.1-fast-generate-preview, 9:16, 8 s, 720p for b-roll and hooks. Downgrades to Veo 3.1 Lite when the weekly cap is near."
+        runtime: gemini
+        model: veo-3.1-fast-generate-preview
+        files: [config/generation.yaml]
+        limits: { timeout: 6m, retries: 1 }
+        budget: { usd: 25, on_exceed: downgrade }
+      - id: canva
+        type: tool
+        label: Canva Autofill
+        description: Brand-template carousels and cover frames filled from the copy (Connect API autofill job, then export job).
+        runtime: canva
+        files: [scripts/canva-autofill.ts]
+        limits: { timeout: 3m, retries: 2 }
+        credentials: author
+      - id: assets
+        type: memory
+        label: Asset library
+        description: Originals, renders and per-platform crops on the verified media domain, with the prompt and model kept beside each file.
+        runtime: r2
+        data: { sensitivity: internal, region: eu, retention: 365d }
+      - id: repurpose
+        agent: repurposer
+      - id: fit
+        label: Spec fitter
+        description: "Character limits, aspect ratios, JPEG for Instagram, carousel caps (IG 10, Threads 20), captions burned in for sound-off video."
+        runtime: studio
+        files: [config/platforms.yaml]
+    edges:
+      - "copywriter -> visual: shot list"
+      - "copywriter -> repurpose [spawn]: hero copy"
+      - { from: visual, to: image, kind: call, label: stills, protocol: http }
+      - { from: visual, to: video, kind: call, label: b-roll, protocol: http }
+      - { from: visual, to: canva, kind: call, label: autofill, protocol: http }
+      - "image -> assets [data]"
+      - "video -> assets [data]"
+      - "canva -> assets [data]: exports"
+      - "assets -> repurpose [data]: media"
+      - "repurpose -> fit: variants"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: review
+    title: Review & Compliance
+    description: >-
+      Automated checks first, a person always last. Risky posts also go to legal. An unanswered
+      approval rejects: nothing is published by default.
+    nodes:
+      - id: brand_guard
+        agent: brand-guard
+        type: guard
+        evals:
+          - { name: voice score mean (illustrative), value: 0.86, target: 0.8 }
+          - { name: claims caught vs human audit (illustrative), value: 0.94, target: 0.95 }
+      - id: ai_label
+        type: guard
+        label: AI-label check
+        description: >-
+          Sets is_ai_generated (Instagram), is_aigc (TikTok) and status.containsSyntheticMedia (YouTube)
+          for realistic synthetic media, adds Meta's AI label for photorealistic video or realistic audio,
+          and a visible "AI-generated" line where EU AI Act Art. 50(4) applies (deepfakes).
+        runtime: studio
+        files: [scripts/ai-label.ts]
+      - id: rights
+        type: guard
+        label: Rights & disclosure
+        description: "Written permission for every UGC repost, licensed music only, paid-partnership flags for creator content, no promo watermark on TikTok."
+        runtime: studio
+        files: [config/approval-policy.yaml]
+      - id: risk
+        type: decision
+        label: Risk tier?
+        description: "standard | high (claims, safety, prices, people, news-adjacent, paid). From config/approval-policy.yaml."
+        runtime: studio
+        files: [config/approval-policy.yaml]
+      - id: legal
+        type: human
+        label: Legal review
+        runtime: slack
+        approval: { by: legal counsel, via: Slack, actions: [approve, edit, reject], timeout: 48h, on_timeout: reject }
+      - id: approve
+        type: human
+        label: Post approval
+        description: Preview of every platform variant with its AI label, slot and spend. Edits return to the repurposer, at most twice.
+        runtime: slack
+        files: [src/tools/request-approval.ts]
+        approval: { by: social manager, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: reject }
+        limits: { max_iterations: 2 }
+        sla: 24h
+        evals:
+          - { name: first-pass approval rate (illustrative), value: 0.71, target: 0.7 }
+        resources:
+          - { kind: log, label: Approval log, path: logs/approvals.log }
+      - id: gate
+        type: hook
+        label: Publish gate
+        description: PreToolUse hook. Agents can never call a publish tool; the worker only takes jobs that carry an approval id.
+        runtime: studio
+        files: [src/hooks/publish-gate.ts]
+    edges:
+      - brand_guard -> ai_label
+      - ai_label -> rights
+      - rights -> risk
+      - "risk -> approve: standard"
+      - "risk -> legal: high"
+      - "legal -> approve: cleared"
+      - "approve -> gate: approved"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: publishing
+    title: Publishing
+    description: Approved posts wait for their slot, pass the quota guard and go out through the official APIs. A crisis pauses the whole queue.
+    nodes:
+      - id: queue
+        type: memory
+        label: Schedule queue
+        description: BullMQ delayed jobs on Redis, one job per platform post, keyed by approval id.
+        runtime: studio
+        resources:
+          - { kind: queue, label: publish queue, url: "https://social-01.example.com/admin/queues" }
+      - id: slots
+        label: Slot picker
+        description: Best hour per platform from the last 8 weeks of metrics; keeps a 2-hour gap between posts on one network.
+        runtime: studio
+      - id: pause
+        type: guard
+        label: Crisis pause
+        description: Holds every scheduled job when the crisis path opens; resumed by the comms lead only.
+        runtime: studio
+      - id: quota
+        type: guard
+        label: Quota guard
+        description: "Live checks before each job: IG content_publishing_limit (100/24h), threads_publishing_limit (250/24h), TikTok 5 pending inbox shares/24h, YouTube 100 uploads/day, Bluesky 5,000 points/h, X spend cap."
+        runtime: studio
+        files: [scripts/check-publish-quota.ts, config/platforms.yaml]
+      - id: publisher
+        label: Publisher
+        description: Per-platform adapters with token refresh, upload, status polling and retries. Sub-tower.
+        runtime: studio
+        tower: towers/publisher.tower.yaml
+        fanout: { min: 4, max: 8, by: platforms per post }
+        limits: { timeout: 15m, retries: 3, backoff: "exponential 30s..15m", concurrency: 4 }
+        credentials: service
+        resources:
+          - { kind: log, label: Publisher log, path: logs/publisher.log }
+      - id: tiktok_finish
+        type: human
+        label: Finish on TikTok
+        description: TikTok posts arrive as inbox drafts; the manager picks privacy, sound and disclosure toggles in the app and posts.
+        runtime: phone
+        approval: { by: social manager, via: TikTok app inbox, actions: [approve, edit, reject], timeout: 24h, on_timeout: wait }
+      - id: live
+        type: output
+        label: Published
+        description: Permalinks written back to the calendar row and posted to #social-approvals.
+        runtime: postgres
+    edges:
+      - "queue -> slots: due jobs"
+      - slots -> pause
+      - "pause -> quota: not paused"
+      - "quota -> publisher: within quota"
+      - "quota -> queue [return]: over quota, reschedule"
+      - "publisher -> tiktok_finish: inbox draft"
+      - "publisher -> live: permalinks"
+      - "tiktok_finish -> live: posted"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: community
+    title: Community & Analytics
+    description: >-
+      Comments, mentions and DMs are triaged in seconds and answered by people with drafted
+      replies; only templated FAQ answers go out alone. Daily metrics roll up into the weekly
+      report that opens next Monday's plan.
+    nodes:
+      - id: events
+        type: entry
+        label: Comments / DMs
+        description: Meta webhooks (comments, mentions, messages) with X-Hub-Signature-256 checks; LinkedIn, YouTube, Bluesky and X polled every 10 minutes.
+        runtime: studio
+        files: [src/webhooks/meta-webhook.ts]
+        trigger: { kind: webhook, source: "Meta webhooks (Instagram, Facebook, Threads)" }
+        data: { sensitivity: pii, region: eu, retention: 90d }
+      - id: triage
+        agent: triage
+        evals:
+          - { name: routing accuracy (illustrative), value: 0.91, target: 0.9 }
+      - id: route
+        type: decision
+        label: Route
+        description: "spam -> hide | faq -> template | question, complaint -> draft | order issue -> helpdesk | crisis -> comms lead."
+        runtime: studio
+        files: [config/triage-rules.yaml]
+      - id: policy
+        type: guard
+        label: Reply policy
+        description: >-
+          Auto-send only approved FAQ templates on Instagram, Facebook, Threads and YouTube. Never on X
+          (AI replies need X's approval). Instagram DMs only inside the 24h window; one private reply per
+          comment within 7 days.
+        runtime: studio
+        files: [config/triage-rules.yaml]
+      - id: drafter
+        agent: drafter
+      - id: reply_ok
+        type: human
+        label: Reply approval
+        description: Community lead approves, edits or answers in Slack; drafts expire with the platform's reply window.
+        runtime: slack
+        approval: { by: community lead, via: Slack, actions: [approve, edit, reject, respond], timeout: 2h, on_timeout: escalate }
+        sla: 4h
+        evals:
+          - { name: median first response in min (illustrative), value: 38, target: 60, higher_is_better: false }
+          - { name: replies within SLA (illustrative), value: 0.93, target: 0.95 }
+        resources:
+          - { kind: log, label: Community log, path: logs/community.log }
+      - id: crisis
+        type: human
+        label: Crisis lead
+        description: Comms lead takes over in #social-crisis, pauses the queue, approves a holding statement. Agents only summarize.
+        runtime: slack
+        approval: { by: comms lead, via: "Slack + phone call", actions: [approve, edit, respond], timeout: 15m, on_timeout: escalate }
+        sla: 1h
+      - id: helpdesk
+        type: tool
+        label: Zendesk ticket
+        description: Order, warranty and service issues leave social for the helpdesk; the public reply only points to the DM.
+        runtime: zendesk
+        data: { sensitivity: pii, region: eu, retention: 730d }
+      - id: insights
+        label: Insights collector
+        description: Daily pull of post and account metrics per platform into Postgres.
+        runtime: studio
+        files: [scripts/collect-insights.ts]
+        trigger: { kind: cron, schedule: "0 5 * * *", source: studio scheduler }
+        limits: { timeout: 20m, retries: 2 }
+      - id: metrics
+        type: memory
+        label: Metrics DB
+        description: One row per post per day; engagement rate is engagements / reach.
+        runtime: postgres
+        data: { sensitivity: internal, region: eu, retention: 730d }
+      - id: analyst
+        agent: analyst
+        evals:
+          - { name: engagement rate on reach % (illustrative), value: 4.1, target: 3.5 }
+          - { name: posts shipped vs planned (illustrative), value: 0.92, target: 0.9 }
+      - id: boost
+        agent: boost
+        label: Boost advisor
+      - id: boost_ok
+        type: human
+        label: Boost approval
+        description: "Marketing lead turns the PAUSED campaign on in Ads Manager. Weekly paid cap: EUR 300."
+        runtime: slack
+        approval: { by: marketing lead, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: reject }
+      - id: meta_ads
+        type: tool
+        label: Meta Ads MCP
+        description: Official remote MCP server, Business OAuth with the read/write scope (no financial scope).
+        runtime: meta-ads
+        files: [.mcp.json]
+        credentials: user
+      - id: report
+        type: output
+        label: Weekly report
+        description: Friday 16:00 in #social; the strategist reads it on Monday.
+        runtime: slack
+        files: [reports/2026-w40-weekly.md]
+    edges:
+      - "events -> triage [data]: item"
+      - triage -> route
+      - "route -> policy: faq"
+      - "route -> drafter: question, complaint"
+      - "route -> helpdesk: order issue"
+      - "route -> crisis [handoff]: crisis"
+      - "drafter -> reply_ok: draft"
+      - "insights -> metrics [data]"
+      - "metrics -> analyst [data]"
+      - "analyst -> report"
+      - "analyst -> boost: winners"
+      - { from: boost, to: meta_ads, kind: call, label: PAUSED campaign, protocol: mcp }
+      - "meta_ads -> boost_ok: review"
+
+links:
+  - "strategy.briefs -> creation.copywriter [spawn]: briefs"
+  - "creation.fit -> review.brand_guard: variants"
+  - "review.approve -> creation.repurpose [return]: edits, max 2"
+  - "review.gate -> publishing.queue [data]: approved jobs"
+  - "listening.ideas -> strategy.strategist [data]: backlog"
+  - "listening.spike -> community.crisis [handoff]: crisis"
+  - "community.crisis -> publishing.pause [call]: pause queue"
+  - "publishing.live -> community.insights [data]: post ids"
+  - "community.report -> strategy.strategist [data]: next week"
+  - "community.metrics -> publishing.slots [data]: best hours"
+  - { from: community.policy, to: publishing.publisher, kind: call, label: FAQ reply, protocol: http }
+  - { from: community.reply_ok, to: publishing.publisher, kind: call, label: approved reply, protocol: http }
+  - { from: review.approve, to: strategy.calendar, kind: data, label: status }

@@ -1,0 +1,35 @@
+# Pandoc defaults file: pandoc --defaults build/pandoc-epub.yaml
+# Pandoc 3.12. Chapters are assembled from chapters/NN-*.md; [S#] markers have already been
+# turned into footnotes by the assemble step, so the EPUB gets linked endnotes per chapter.
+from: markdown+smart+fenced_divs+header_attributes
+to: epub3
+output-file: out/the-balcony-harvest.epub
+
+input-files:
+  - build/front-matter.md
+  - chapters/01-reading-your-balcony.md
+  - chapters/02-rules-neighbours-load.md
+  - chapters/03-containers.md
+  - chapters/04-soil-compost-feeding.md
+  - chapters/05-water.md
+  - chapters/06-wind.md
+  - chapters/07-seeds-short-season.md
+  - chapters/08-salads-greens.md
+  - chapters/09-tomatoes-beans-climbers.md
+  - chapters/10-herbs-fruit.md
+  - chapters/11-pests-problems.md
+  - chapters/12-the-year.md
+  - build/back-matter.md
+
+metadata-files:
+  - build/metadata.yaml
+
+css:
+  - build/epub.css
+
+epub-cover-image: art/cover.jpg   # 1600 x 2560 px JPEG RGB, same file as the KDP marketing cover
+epub-title-page: false            # our own title page (epub:type=titlepage) in front-matter.md
+table-of-contents: true
+toc-depth: 2
+split-level: 1                    # one XHTML file per chapter keeps reading systems fast
+resource-path: [".", "art"]

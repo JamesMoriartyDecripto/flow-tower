@@ -1,0 +1,16 @@
+{
+  "client": "Kestrel Trail Co. (fictional)",
+  "palette": { "slate": "#2F3A40", "ember": "#E2582B", "chalk": "#F2EFEA", "moss": "#5B6B4A" },
+  "grading": "warm late-afternoon, lifted blacks, light grain, no teal-orange push",
+  "fonts": { "display": "Archivo Black", "body": "Inter", "captions": "Inter SemiBold" },
+  "logo": { "file": "gs://reelwright-assets/kestrel/brand/logo-chalk.svg", "min_height_px_1080": 64, "safe_zone": "top-left, 6% inset", "never_on": ["faces", "product"] },
+  "captions": { "max_lines": 2, "max_chars_per_line": 32, "highlight_current_word": "ember", "background": "slate 70%" },
+  "voice": {
+    "person": "second person, coach to athlete",
+    "tone": "calm, direct, dry humour",
+    "banned_words": ["crush", "insane", "game-changer", "guaranteed", "hack", "beast mode"],
+    "spokesperson": { "name": "Mara Lindqvist", "consent_id": "CR-2026-007", "elevenlabs_voice": "pvc_mara_v2", "heygen_avatar_group": "ag_mara_trailhead" }
+  },
+  "end_card": { "duration_s": 3, "cta": "kestrel.example/first-ultra", "ai_line": "Includes AI-generated footage and an AI voice of Coach Mara, used with her consent." },
+  "music": { "mood": "warm acoustic-electronic, 92-100 bpm, no vocals", "never": ["artist names", "song titles", "lyrics"] }
+}

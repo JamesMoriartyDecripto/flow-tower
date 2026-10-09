@@ -1,0 +1,12 @@
+{"id":"v-0007","source":"call_transcript","quote":"We still re-key every PDF into SAP, line by line, and month end is two weeks of overtime.","type":"pain","persona_hint":"AP lead","company_size_band":"500-1000","intensity":3}
+{"id":"v-0021","source":"review","quote":"Approvals sit in someone's inbox for two weeks and nobody knows who has the invoice.","type":"pain","persona_hint":"AP lead","intensity":3}
+{"id":"v-0042","source":"call_transcript","quote":"Two people left the AP team and we are not allowed to replace them.","type":"trigger_event","persona_hint":"controller","intensity":3}
+{"id":"v-0058","source":"ticket","quote":"I can't see which invoices are stuck and with whom.","type":"desired_outcome","persona_hint":"AP lead","intensity":2}
+{"id":"v-0090","source":"call_transcript","quote":"Accruals are a guess because invoices arrive late and sit in approval.","type":"pain","persona_hint":"controller","intensity":2}
+{"id":"v-0113","source":"win_loss","quote":"The auditors flagged approvals without a second signature, that's what started this project.","type":"trigger_event","persona_hint":"controller","intensity":3}
+{"id":"v-0131","source":"call_transcript","quote":"We hired two people last year just to keep up with invoice volume.","type":"pain","persona_hint":"CFO","company_size_band":"1000-2000","intensity":3}
+{"id":"v-0144","source":"review","quote_original":"Wir drucken die XRechnung aus und tippen sie ab.","quote":"We print the XRechnung and type it in.","type":"pain","persona_hint":"AP lead","intensity":2}
+{"id":"v-0151","source":"ticket","quote_original":"Der Lieferant schickt beides, PDF und XML, und wir buchen manchmal doppelt.","quote":"The supplier sends both, PDF and XML, and sometimes we post twice.","type":"pain","persona_hint":"AP lead","intensity":3}
+{"id":"v-0187","source":"win_loss","quote":"We went with [COMPETITOR] because they already had the Dynamics connector live.","type":"competitor_mention","persona_hint":"ERP owner","intensity":2,"note":"lost deal, connector gap"}
+{"id":"v-0203","source":"call_transcript","quote":"We are moving to S/4HANA next year, I don't want to build this twice.","type":"objection","persona_hint":"ERP owner","intensity":2}
+{"id":"v-0229","source":"review","quote":"Another tool my team has to learn is the last thing I need.","type":"objection","persona_hint":"AP lead","intensity":1}

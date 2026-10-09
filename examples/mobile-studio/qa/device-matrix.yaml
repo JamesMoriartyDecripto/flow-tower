@@ -1,0 +1,23 @@
+# Device matrix for Leafwise 2.4. Cloud rows run the Maestro flows (tag: release);
+# lab rows are the real devices the QA agent drives through mobile-mcp.
+# Coverage rule: oldest supported OS, current OS, smallest screen, a tablet, a low-end Android.
+cloud:
+  ios:
+    - { device: iPhone 16 Pro, os: "26" }
+    - { device: iPhone SE (3rd generation), os: "18" }
+    - { device: iPad (A16), os: "26" }
+  android:
+    - { device: Pixel 9, api: 36 }
+    - { device: Pixel 6a, api: 34 }
+    - { device: small phone (720x1280), api: 29 }
+    - { device: tablet 10in, api: 35 }
+lab:
+  - { device: iPhone SE (3rd generation), os: "26", why: "smallest screen, 4 GB RAM" }
+  - { device: iPhone 16 Pro, os: "26", why: "ProMotion, Dynamic Island" }
+  - { device: Galaxy A15, api: 35, why: "low-end Android, OEM battery restrictions" }
+  - { device: Pixel 9, api: 36, why: "reference Android, predictive back" }
+locales_for_screenshots: [en-US, de-DE, it-IT, es-ES]
+accessibility_passes:
+  - VoiceOver on iPhone SE
+  - TalkBack on Galaxy A15
+  - largest text size on both

@@ -1,0 +1,23 @@
+{
+  "consent_id": "CR-2026-007",
+  "person": { "name": "Mara Lindqvist", "role": "Head coach, Kestrel Trail Co. (fictional)", "adult": true },
+  "signed_at": "2026-05-12",
+  "expires_at": "2027-06-30",
+  "revoked": false,
+  "scope": {
+    "likeness": true,
+    "voice_clone": true,
+    "uses": ["organic coaching content", "product mentions"],
+    "excluded_uses": ["paid ads", "medical advice", "political content", "third-party brands"],
+    "channels": ["youtube", "tiktok", "instagram"],
+    "territories": ["EU", "UK", "US"],
+    "script_approval_required": true
+  },
+  "vendor_verification": {
+    "elevenlabs": { "voice_id": "pvc_mara_v2", "type": "professional_voice_clone", "verified": "voice captcha", "verified_at": "2026-05-14" },
+    "heygen": { "avatar_group_id": "ag_mara_trailhead", "consent_status": "approved", "checked_at": "2026-05-15" }
+  },
+  "compensation": "per agreement KTC-TAL-2026-03",
+  "documents": ["gs://reelwright-legal/consent/CR-2026-007/release-signed.pdf"],
+  "data_protection": { "basis": "explicit consent", "retention": "3 years after expiry", "contact": "privacy@kestrel.example" }
+}

@@ -1,0 +1,51 @@
+# Claims register. Copy, ads and emails may only use claims with status: approved.
+# Every claim has evidence, an owner and an expiry. Expired claims are blocked by the policy guard.
+claims:
+  - id: C-001
+    text: "Reads header and line items from supplier PDFs with 97 % field accuracy"
+    status: approved
+    evidence: "Q3 2026 accuracy benchmark, 12,400 invoices across 41 customers (internal doc QA-2026-07)"
+    qualifier: "measured on header + line-item fields; varies by supplier layout"
+    approved_by: legal
+    expires: 2027-01-31
+  - id: C-002
+    text: "Customers cut median approval time from 9 days to 3 days"
+    status: approved
+    evidence: "Before/after cohort, 18 customers live > 6 months, product analytics"
+    qualifier: "median across cohort; individual results vary"
+    approved_by: legal
+    expires: 2027-03-31
+  - id: C-003
+    text: "AP teams handle 2x the invoices per person after 6 months"
+    status: proposed
+    evidence: "Customer survey n=22, self-reported"
+    note: "Self-reported. Legal asked for product data before approval."
+  - id: C-004
+    text: "Receives XRechnung, ZUGFeRD, Factur-X and Peppol BIS invoices"
+    status: approved
+    evidence: "Product docs, format support matrix v4.2"
+    approved_by: product + legal
+    expires: 2026-12-31
+  - id: C-005
+    text: "Typical payback in under 9 months"
+    status: approved
+    evidence: "ROI model v3 reviewed by finance; inputs from 18-customer cohort"
+    qualifier: "must link to the ROI method page"
+    approved_by: legal + finance
+    expires: 2027-03-31
+  - id: C-006
+    text: "Full approval audit trail exportable for auditors"
+    status: approved
+    evidence: "Product feature; external auditor letter 2026-05"
+    approved_by: legal
+    expires: 2027-06-30
+  - id: C-007
+    text: "The fastest AP automation in Europe"
+    status: rejected
+    note: "Superlative without a comparative test. Do not use."
+  - id: C-008
+    text: "Customer data hosted in the EU only"
+    status: approved
+    evidence: "Infrastructure register; DPA Annex 3 sub-processors"
+    approved_by: legal + security
+    expires: 2027-06-30

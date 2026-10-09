@@ -1,0 +1,12 @@
+2026-10-06T08:14:02+02:00 item=ig:c_9912 type=comment cat=faq template=opening-hours route=auto_send platform=instagram sent=08:14:09
+2026-10-06T08:31:44+02:00 item=ig:c_9920 type=comment cat=spam action=hide
+2026-10-06T09:02:10+02:00 item=ig:dm_4410 type=dm cat=order pii=[order number] route=helpdesk ticket=ZD-55120 public_reply=none window_until=2026-10-07T09:02
+2026-10-06T10:47:31+02:00 item=th:r_771 type=reply cat=question route=draft approver=@joost decision=edit sent=11:05:12 first_response_min=18
+2026-10-06T13:20:05+02:00 item=bsky:m_301 type=mention cat=praise route=draft decision=approve sent=13:41:50
+2026-10-07T07:58:12+02:00 item=yt:c_220 type=comment cat=complaint sentiment=neg route=draft approver=@joost decision=approve sent=08:46:00 first_response_min=48
+2026-10-07T19:12:40+02:00 item=x:m_88 type=mention cat=question route=draft auto_send=never(x) decision=respond sent=19:55:03 by=@joost
+2026-10-08T11:03:27+02:00 item=fb:c_5121 type=comment cat=crisis trigger="battery smoke" route=comms_lead sla=1h ack=11:09 by=@eva queue=paused
+2026-10-08T11:31:10+02:00 item=fb:c_5121 holding_statement=approved by=@eva sent=11:31 dm_opened=true ticket=ZD-55188
+2026-10-08T14:00:00+02:00 crisis=fb:c_5121 resolved="charger, not battery; customer safe" queue=resumed by=@eva
+2026-10-08T16:20:51+02:00 item=li:c_44 type=comment cat=sales cc=#b2b-leads route=draft decision=approve sent=16:52:30
+2026-10-09T09:15:00+02:00 item=ig:c_10044 type=comment cat=question route=draft deadline=11:15 timeout -> escalate @marit sent=11:38:20 first_response_min=143 sla=met(4h) reply_ok_timeout=2h

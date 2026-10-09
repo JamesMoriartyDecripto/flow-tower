@@ -1,0 +1,67 @@
+# Week 41 (2026-10-05 .. 2026-10-11), approved by MV on 2026-10-05 08:12 (round 2).
+# Written by the strategist, mirrored to Postgres for the publisher. Times are Europe/Amsterdam.
+week: 2026-W41
+theme: "Riding into the dark months"
+experiments:
+  - id: EXP-17
+    hypothesis: "Face-to-camera how-to Reels beat voice-over Reels on saves"
+    metric: saves per 1k reach
+  - id: EXP-18
+    hypothesis: "Bluesky question posts get more replies than link posts"
+    metric: replies per post
+
+slots:
+  - id: W41-01
+    date: 2026-10-05T18:00
+    pillar: how-to
+    format: reel
+    platforms: [instagram, facebook, tiktok, youtube]
+    brief: "Lights check in 30 seconds: front, rear, the cargo-box reflector people forget."
+    assets: { video: filmed, ai_generated: false }
+  - id: W41-02
+    date: 2026-10-06T12:00
+    pillar: behind-the-workshop
+    format: post
+    platforms: [linkedin]
+    brief: "We hired two mechanics for the winter rush; what our service queue looks like in numbers."
+  - id: W41-03
+    date: 2026-10-06T19:30
+    pillar: city-cycling
+    format: text
+    platforms: [threads, bluesky]
+    brief: "Ask: which junction in your city needs better winter lighting?"
+  - id: W41-04
+    date: 2026-10-07T18:00
+    pillar: real-riders
+    format: carousel
+    platforms: [instagram, facebook, linkedin]
+    brief: "Sanne's bakery deliveries: 6 photos from her (written permission UGC-0412), 1 quote card."
+    assets: { photos: ugc, canva_template: quote-card-v3 }
+  - id: W41-05
+    date: 2026-10-08T07:45
+    pillar: how-to
+    format: short
+    platforms: [youtube, tiktok]
+    brief: "Battery in the cold: store indoors, charge at room temperature, what range loss to expect."
+    assets: { video: filmed, broll: veo, ai_generated: true }
+    risk: high
+    note: "Range figure needs the test reference (flag in banned-claims)."
+  - id: W41-06
+    date: 2026-10-08T12:30
+    pillar: city-cycling
+    format: post
+    platforms: [x, bluesky]
+    brief: "Service notice: workshop open Saturday 10-16 through November."
+  - id: W41-07
+    date: 2026-10-09T18:00
+    pillar: real-riders
+    format: reel
+    platforms: [instagram, facebook, tiktok]
+    brief: "Reply-video to the most-asked comment of the week."
+  - id: W41-08
+    date: 2026-10-10T10:00
+    pillar: behind-the-workshop
+    format: carousel
+    platforms: [instagram, threads]
+    brief: "Test rig: 5,000 km on the frame tester before a model ships."
+    assets: { photos: workshop, background: nano-banana, ai_generated: true }

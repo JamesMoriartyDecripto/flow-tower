@@ -1,0 +1,36 @@
+# Structured by the intake agent from a Slack /brief submission (fictional client).
+id: KTC-2026-041
+title: Your First Ultra - 3 mistakes that end it at mile 20
+client: Kestrel Trail Co.
+objective: Drive visits to the "First Ultra" training plan page (UTM tracked); target 4,000 visits in 14 days.
+audience: Road runners with a marathon done, planning a first 50K trail race in the next 6 months.
+key_message: Most first ultras are lost to pacing, fuelling and kit you never tested, not fitness.
+formats:
+  - { id: short-916, aspect: "9:16", max_s: 50, platforms: [youtube_shorts, tiktok, instagram_reels] }
+  - { id: long-169, aspect: "16:9", target_min: 7, platforms: [youtube] }
+  - { id: paid-11, aspect: "1:1", max_s: 30, platforms: [instagram_feed] }
+deadline: 2026-10-23T17:00:00+02:00
+budget_usd: 1200
+spokesperson:
+  name: Mara Lindqvist
+  role: Kestrel head coach (fictional)
+  consent_id: CR-2026-007
+product:
+  sku: KTC-VEST-12L
+  name: Ridgeline 12L running vest
+  colours: [slate, ember]
+  packshots: gs://reelwright-assets/kestrel/packshots/ridgeline-12l/
+must_include:
+  - CTA to kestrel.example/first-ultra
+  - "Fuelling guideline with source: 60-90 g carbohydrate per hour for efforts over 2.5 h"
+must_avoid: [competitor brands, injury or medical advice, "guaranteed" results]
+references:
+  - https://www.youtube.com/@example-trail-channel  # liked: calm talking head, real trail b-roll
+paid_partnership: false
+approvers:
+  direction: Jonas Berg, Head of Marketing
+  script: Jonas Berg
+  final: Jonas Berg
+  legal: Elin Sand, Legal Counsel (likeness + claims)
+missing: []
+route: ready

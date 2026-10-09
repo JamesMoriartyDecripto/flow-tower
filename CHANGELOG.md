@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Social Media Studio preset (per-platform API quotas, approval gates, comment/DM triage, publisher sub-tower).
+- AI Video Studio, Ebook Studio, Mobile App Studio and Marketing Studio presets, each researched online with sources in its README.
+- Docs for context engineering: `docs/architecture.md` (which file owns what, read on demand), `examples/README.md` (examples indexed by pattern), load-on-demand maps in CLAUDE.md and AGENTS.md; the skill and the generation guide cover operational fields.
 - Ten researched presets for different professions and shapes: SRE incident responder, fraud review desk, deep research team, AI co-scientist, airline customer service, ambient chief of staff, legacy-portal browser worker, A2A purchasing concierge, legal due diligence, website & web design studio (frontend and backend sub-towers), plus a Jev decision-layer harness. Each has real files, sources in its README and uses the operational fields.
 - Schema: operational fields on agents and nodes (inherited by nodes): `trigger`, `approval`, `budget`, `limits`, `fanout`, `data`, `evals`, `version`, `rollout`, `sla`, `credentials`, `sandbox`; edge `protocol` (mcp, a2a, http, grpc, webhook, queue, event, stdio); `recording` resource kind. Shown as node markers (×N, PII, WEBHOOK, ≤15m, $2), ghost outlines for fan-out, protocol on edge labels, and Operations / Data / Evals sections in the node panel. Search matches triggers, sensitivity, region and version.
 - Settings → Text: interface size (80–160%, scales panels and text together, capped automatically so panels still fit the window), text font (HUD / system) and title font (Orbitron / same as text).
@@ -55,10 +58,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Search results ranked by relevance (label > id > model/tools/runtime > description).
 
 ### Changed
+- README trimmed: examples summarized with a link to the full index; NEXT.md and CONTRIBUTING.md refreshed.
 - Glow only where it matters: static structure stays below the bloom threshold; selection, hover, focused layer and live activity glow. Cheaper bloom.
 - Focused layer gets a near-opaque plate and the other layers dim further, so the focused flow reads cleanly.
 
 ### Fixed
+- HUD corner brackets no longer scroll with the content of scrolling panels (legend, layers, issues, shortcuts).
 - Camera framing respects the HUD (#30): the projection is centered on the free area between panels (setViewOffset), framings fit that area, opening the inspector or the live feed slides the scene instead of covering it, and a node selected under a panel is brought into view with the smallest camera move. When panels open or close, the camera zooms out only as much as needed for the visible nodes to fit, and returns to the previous distance when they fit again.
 - vitest only runs `tests/`: sample `*.spec.ts` files inside examples are content, not project tests.
 - Library: project descriptions are no longer cut; up to 4 lines, longer ones scroll inside the card.
