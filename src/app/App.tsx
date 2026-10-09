@@ -10,7 +10,7 @@ import { LiveChips } from './hud/LiveChips';
 import { Settings } from './hud/Settings';
 import { Tooltip } from './hud/Tooltip';
 import { usePrefs, viewFor } from './settings';
-import { useLiveSync } from './live';
+import { useLive, useLiveSync } from './live';
 import { Effects } from './scene/Effects';
 import { TowerScene } from './scene/Tower';
 import { FrameDriver } from './scene/frameBudget';
@@ -26,6 +26,7 @@ export function App() {
   const quality = useStore((s) => s.quality);
   const themeRev = usePrefs((s) => s.themeRev);
   const hints = usePrefs((s) => s.hints);
+  const feedOpen = useLive((s) => s.feedOpen);
   useDefaultView();
   const [showIssues, setShowIssues] = useState(false);
   const broken = tower && tower.layers.length === 0;
@@ -53,7 +54,7 @@ export function App() {
         <LayerNav />
         <Legend />
         <Controls />
-        {!selected && hints && (
+        {!selected && hints && !feedOpen && (
           <div className="hint">DRAG rotate · SHIFT+DRAG / RIGHT-DRAG pan · SCROLL zoom · SHIFT+SCROLL pan · CLICK inspect · DBL-CLICK enter · 1-9 layers · M map · ESC back</div>
         )}
         <Inspector />

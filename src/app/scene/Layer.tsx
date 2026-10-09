@@ -62,6 +62,8 @@ export const Layer = memo(function Layer({ tower, layer, layout, width, depth, l
   const deco = useStore((s) => decorative(s.quality, s.animations));
   const focusLayer = useStore((s) => s.focusLayer);
   const glass = usePrefs((s) => s.plateOpacity);
+  const flow = usePrefs((s) => s.flowNodes);
+  const show = usePrefs((s) => s.show);
   const hoverLayer = useStore((s) => s.hoverLayer);
 
   // Plates are see-through: a node visible behind a plate wins, and only the nearest plate reacts.
@@ -125,7 +127,7 @@ export const Layer = memo(function Layer({ tower, layer, layout, width, depth, l
         <boxGeometry args={[width, 0.06, depth]} />
         <meshBasicMaterial color={focused ? COLORS.bg : COLORS.plate} transparent opacity={focused ? Math.max(0.9, glass) : glass * fade} depthWrite={false} />
       </mesh>
-      <lineSegments geometry={grid}>
+      <lineSegments geometry={grid} visible={show.grid}>
         <lineBasicMaterial color={COLORS.dim} transparent opacity={(focused ? 0.06 : 0.09) * fade} depthWrite={false} />
       </lineSegments>
       <Line points={outline} color={layerLive === 'error' ? GLOW.error : layerLive === 'run' ? GLOW.run : focused ? HOT.orange : GLOW.orange}
@@ -150,9 +152,9 @@ export const Layer = memo(function Layer({ tower, layer, layout, width, depth, l
         </group>
       </Billboard>
 
-      <LayerEdges views={edgeViews} layerFade={fade} detail={detail && fade > 0.5} />
-      <LayerNodes views={nodeViews} layer={layer.index} layerFade={fade} interactive={interactive} detail={detail && fade > 0.5} />
-      {particles && deco && fade > 0.5 && <Particles paths={paths} />}
+      <LayerEdges views={edgeViews} layerFade={fade} detail={detail && fade > 0.5} labels={show.edgeLabels} />
+      <LayerNodes views={nodeViews} layer={layer.index} layerFade={fade} interactive={interactive} detail={detail && fade > 0.5} tags={show.nodeTags} />
+      {particles && deco && flow.on && fade > 0.5 && <Particles paths={paths} look={flow} />}
       <LiveOverlay tower={tower} views={nodeViews} fade={fade} subtrees={subtrees} muted={!interactive} />
     </group>
   );

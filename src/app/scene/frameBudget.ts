@@ -36,7 +36,10 @@ export function FrameDriver() {
       timer = window.setTimeout(loop, 1000 / (focused ? FPS[quality] : BACKGROUND_FPS));
     };
     loop();
-    return () => clearTimeout(timer);
+    // A resize clears the canvas: make sure it gets redrawn even when nothing else moves.
+    const onResize = () => { keepAlive(600); invalidate(); };
+    window.addEventListener('resize', onResize);
+    return () => { clearTimeout(timer); window.removeEventListener('resize', onResize); };
   }, [invalidate, quality, animations]);
   return null;
 }

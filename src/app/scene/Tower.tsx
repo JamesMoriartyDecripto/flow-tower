@@ -12,6 +12,7 @@ import { createLens, lensTarget, mapGrid, stepLens } from './lens';
 import { Links } from './Links';
 import { useShiftPan } from './shiftPan';
 import { decorative, keepAlive } from './frameBudget';
+import { usePrefs } from '../settings';
 import { useChipProjector } from './chips';
 import { useFollow, useSceneLive } from '../liveHooks';
 import { useLive } from '../live';
@@ -27,6 +28,7 @@ export function TowerScene() {
 function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTower>>; layout: TowerLayout }) {
   const { explode, focusedLayer, hoveredLayer, selected, hovered, search, hiddenTypes, runtimeFocus, autoRotate, viewNonce, quality, animations, view } = useStore();
   const deco = decorative(quality, animations);
+  const show = usePrefs((s) => s.show);
   const spacing = useRef(0.02); // starts collapsed: the tower "assembles" on mount
   const lens = useMemo(() => createLens(tower.layers.length), [tower]);
   const group = useRef<Group>(null);
@@ -51,7 +53,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
     if (group.current) group.current.position.y = centerY.current;
     if (pillars.current) {
       pillars.current.scale.y = Math.max(spacing.current, 1e-3);
-      pillars.current.visible = view === 'tower';
+      pillars.current.visible = view === 'tower' && usePrefs.getState().show.pillars;
     }
     // The lens only applies in overview: in focus mode the camera already isolates one layer.
     const hoverLens = focusedLayer === undefined ? hoveredLayer : undefined;
@@ -137,7 +139,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
 
   return (
     <>
-      <Ambient w={width * 1.4} h={height + 12} d={depth * 2} sparkles={deco} />
+      <Ambient w={width * 1.4} h={height + 12} d={depth * 2} sparkles={deco && show.sparkles} />
       <CameraControls ref={controls} makeDefault minDistance={4} maxDistance={400} dollySpeed={0.6} smoothTime={0.35} />
       <group ref={group}>
         {tower.layers.map((l, i) => (
@@ -164,8 +166,8 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
           <Pillars width={width} depth={depth} bottom={-(n - 1) * LAYER_GAP} />
         </group>
       </group>
-      {deco && view === 'tower' && focusedLayer === undefined && <Scanner width={width} depth={depth} top={height / 2 + 1} bottom={-height / 2 - 1} />}
-      <Base radius={view === 'map' ? Math.max(grid.width, grid.depth) * 0.6 : Math.max(width, depth) * 0.62} y={view === 'map' ? -3 : -height / 2 - 5} dim={focusedLayer !== undefined || view === 'map'} spin={deco} />
+      {deco && show.scanner && view === 'tower' && focusedLayer === undefined && <Scanner width={width} depth={depth} top={height / 2 + 1} bottom={-height / 2 - 1} />}
+      {show.base && <Base radius={view === 'map' ? Math.max(grid.width, grid.depth) * 0.6 : Math.max(width, depth) * 0.62} y={view === 'map' ? -3 : -height / 2 - 5} dim={focusedLayer !== undefined || view === 'map'} spin={deco} />}
     </>
   );
 }

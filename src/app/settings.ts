@@ -2,8 +2,30 @@ import { create } from 'zustand';
 import { useLive } from './live';
 import { useStore, type Quality } from './store';
 import { applyTheme, themeById } from './themes';
+import type { FlowLook } from './scene/Particles';
 
 export type DefaultView = 'tower' | 'map' | 'auto';
+
+/** Animated flow along edges inside a layer (nodes) or along links between layers. */
+export interface Flow extends FlowLook { on: boolean }
+
+/** What is drawn by default; everything can still be toggled from Settings. */
+export interface Visibility {
+  edgeLabels: boolean;
+  nodeTags: boolean;
+  links: boolean;
+  grid: boolean;
+  base: boolean;
+  scanner: boolean;
+  sparkles: boolean;
+  pillars: boolean;
+}
+
+export const DEFAULT_FLOW_NODES: Flow = { on: true, style: 'dots', size: 1, speed: 1, density: 1 };
+export const DEFAULT_FLOW_LAYERS: Flow = { on: true, style: 'comets', size: 1, speed: 0.8, density: 1 };
+export const DEFAULT_VISIBILITY: Visibility = {
+  edgeLabels: true, nodeTags: true, links: true, grid: true, base: true, scanner: true, sparkles: true, pillars: true,
+};
 
 /** Viewer preferences that only live in this browser (settings page). */
 interface Prefs {
@@ -12,6 +34,9 @@ interface Prefs {
   bloom: number;
   /** Opacity of the layer glass plates (0.1 = see-through, 0.95 = solid). */
   plateOpacity: number;
+  flowNodes: Flow;
+  flowLayers: Flow;
+  show: Visibility;
   chips: boolean;
   hints: boolean;
   defaultView: DefaultView;
@@ -25,7 +50,7 @@ interface Prefs {
 const KEY = 'flow-tower:prefs';
 
 interface Saved {
-  theme?: string; bloom?: number; plateOpacity?: number; chips?: boolean; hints?: boolean; defaultView?: DefaultView;
+  theme?: string; bloom?: number; plateOpacity?: number; flowNodes?: Partial<Flow>; flowLayers?: Partial<Flow>; show?: Partial<Visibility>; chips?: boolean; hints?: boolean; defaultView?: DefaultView;
   quality?: Quality; animations?: boolean; particles?: boolean; explode?: number; spotlight?: boolean; follow?: boolean;
 }
 
@@ -39,6 +64,9 @@ export const usePrefs = create<Prefs>()((set, get) => ({
   theme: saved.theme ?? 'mark',
   bloom: saved.bloom ?? 1,
   plateOpacity: saved.plateOpacity ?? 0.42,
+  flowNodes: { ...DEFAULT_FLOW_NODES, ...saved.flowNodes },
+  flowLayers: { ...DEFAULT_FLOW_LAYERS, ...saved.flowLayers },
+  show: { ...DEFAULT_VISIBILITY, ...saved.show },
   chips: saved.chips ?? true,
   hints: saved.hints ?? true,
   defaultView: saved.defaultView ?? 'auto',
@@ -77,7 +105,7 @@ export function initPrefs() {
     const ui = useStore.getState();
     const live = useLive.getState();
     const data: Saved = {
-      theme: p.theme, bloom: p.bloom, plateOpacity: p.plateOpacity, chips: p.chips, hints: p.hints, defaultView: p.defaultView,
+      theme: p.theme, bloom: p.bloom, plateOpacity: p.plateOpacity, flowNodes: p.flowNodes, flowLayers: p.flowLayers, show: p.show, chips: p.chips, hints: p.hints, defaultView: p.defaultView,
       quality: ui.quality, animations: ui.animations, particles: ui.particles, explode: ui.explode,
       spotlight: live.spotlight, follow: live.follow,
     };

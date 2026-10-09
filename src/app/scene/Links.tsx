@@ -6,6 +6,7 @@ import type { LineSegments2 } from 'three-stdlib';
 import type { ResolvedEdge } from '../../core/types';
 import type { TowerLayout } from '../layout';
 import { useStore } from '../store';
+import { usePrefs } from '../settings';
 import { decorative } from './frameBudget';
 import { EDGE_STYLE, GLOW, HOT } from '../theme';
 import { scaled, toSegments } from './batch';
@@ -72,6 +73,8 @@ function flatten(points: Vector3[]): Float32Array {
 /** Cross-layer edges, batched into solid / dashed / highlighted lines that follow the layer lens. */
 export function Links({ links, layout, layerIndex, visual, layerFade, lens, quiet }: Props) {
   const particles = useStore((s) => s.particles);
+  const flow = usePrefs((s) => s.flowLayers);
+  const visible = usePrefs((s) => s.show.links);
   const deco = useStore((s) => decorative(s.quality, s.animations));
 
   const curves = useMemo(() => links.flatMap((l): Curve[] => {
@@ -118,7 +121,7 @@ export function Links({ links, layout, layerIndex, visual, layerFade, lens, quie
   );
 
   return (
-    <group>
+    <group visible={visible}>
       {batches.solid.points.length > 0 && (
         <Line ref={refs.solid} points={batches.solid.points} vertexColors={batches.solid.colors} segments lineWidth={1} toneMapped={false} />
       )}
@@ -128,7 +131,7 @@ export function Links({ links, layout, layerIndex, visual, layerFade, lens, quie
       {batches.hot.points.length > 0 && (
         <Line ref={refs.hot} points={batches.hot.points} vertexColors={batches.hot.colors} segments lineWidth={2.2} toneMapped={false} />
       )}
-      {particles && deco && <Particles paths={paths} size={0.06} />}
+      {particles && deco && flow.on && <Particles paths={paths} size={0.06} look={flow} />}
     </group>
   );
 }

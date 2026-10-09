@@ -27,8 +27,8 @@ const rect = (b: NodeBox, y: number) => {
 };
 
 /** Every node of one layer, batched: a handful of draw calls regardless of node count. */
-export function LayerNodes({ views, layer, layerFade, interactive, detail }: {
-  views: NodeView[]; layer: number; layerFade: number; interactive: boolean; detail: boolean;
+export function LayerNodes({ views, layer, layerFade, interactive, detail, tags: showTags }: {
+  views: NodeView[]; layer: number; layerFade: number; interactive: boolean; detail: boolean; tags: boolean;
 }) {
   const panels = useRef<InstancedMesh>(null);
   const accents = useRef<InstancedMesh>(null);
@@ -59,6 +59,7 @@ export function LayerNodes({ views, layer, layerFade, interactive, detail }: {
   })), [views, layerFade]);
   const tags = useMemo<TextItem[]>(() => views.map(({ node, box, fade }) => ({
     text: [
+      node.tower && '⇣ SUB',
       node.status !== 'active' && node.status.toUpperCase(),
       NODE_STYLE[node.type].tag,
       node.model?.replace(/^claude-/, ''),
@@ -121,7 +122,7 @@ export function LayerNodes({ views, layer, layerFade, interactive, detail }: {
 
       <group visible={detail}>
         <TextBatch items={labels} font={FONTS.ui} />
-        <TextBatch items={tags} font={FONTS.mono} />
+        {showTags && <TextBatch items={tags} font={FONTS.mono} />}
       </group>
     </group>
   );
@@ -171,7 +172,8 @@ function Badges({ items, layerFade }: { items: NodeView[]; layerFade: number }) 
     if (!mesh) return;
     items.forEach(({ box, fade }, i) => {
       for (let k = 0; k < 3; k++) {
-        setInstance(mesh, i * 3 + k, [box.x + box.w / 2 - 0.4, TOP + 0.08 + k * 0.11, box.z - box.d / 2 + 0.38], [0.42 - k * 0.08, 0.035, 0.32 - k * 0.06]);
+        // Bigger than before: the stacked plates are THE sign that a node opens its own tower.
+        setInstance(mesh, i * 3 + k, [box.x + box.w / 2 - 0.5, TOP + 0.1 + k * 0.16, box.z - box.d / 2 + 0.45], [0.62 - k * 0.12, 0.05, 0.46 - k * 0.09]);
         mesh.setColorAt(i * 3 + k, scaled(GLOW.amber, fade * (0.9 - k * 0.2)));
       }
     });

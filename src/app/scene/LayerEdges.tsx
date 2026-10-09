@@ -13,7 +13,7 @@ const Y = 0.05;
 const UP = new Vector3(0, 1, 0);
 
 /** All edges of one layer: one line batch per edge kind, instanced arrowheads, batched labels. */
-export function LayerEdges({ views, layerFade, detail }: { views: EdgeView[]; layerFade: number; detail: boolean }) {
+export function LayerEdges({ views, layerFade, detail, labels: showLabels }: { views: EdgeView[]; layerFade: number; detail: boolean; labels: boolean }) {
   const lines = useMemo(() => views.map((v) => ({ ...v, points: v.edge.points.map(([x, z]) => new Vector3(x, Y, z)) })), [views]);
 
   const byKind = useMemo(() => EDGE_KINDS.map((kind) => {
@@ -74,7 +74,7 @@ export function LayerEdges({ views, layerFade, detail }: { views: EdgeView[]; la
           <meshBasicMaterial transparent opacity={layerFade} toneMapped={false} />
         </instancedMesh>
       )}
-      {detail && labels.length > 0 && <TextBatch items={labels} font={FONTS.mono} outline={COLORS.bg} />}
+      {detail && showLabels && labels.length > 0 && <TextBatch items={labels} font={FONTS.mono} outline={COLORS.bg} />}
     </group>
   );
 }
