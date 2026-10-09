@@ -1,0 +1,11 @@
+2026-10-02T18:02:14.300Z INFO  [tts] m3-l2-s1 voice=course-narrator chars=4120 hash=9c2e41ab07d1 -> ok 3m41s
+2026-10-02T18:02:16.912Z INFO  [captions] m3-l2-s1.vtt cues=58 max_line=42 lines<=2
+2026-10-02T18:02:31.507Z INFO  [marp] m3-l2-s1.slides.md -> 14 png, 1 pdf
+2026-10-02T18:02:44.080Z INFO  [mermaid] m3-l2-fig1.mmd -> svg (alt + longdesc present)
+2026-10-02T18:03:02.665Z INFO  [remotion] render forge-lesson/Lesson m3-l2-s1 lambdas=12 region=us-east-1
+2026-10-02T18:04:19.214Z INFO  [remotion] done m3-l2-s1.mp4 1080p30 3:41 cost=$0.09
+2026-10-02T18:04:21.008Z INFO  [qc] m3-l2-s1 duration=221s drift_max=84ms loudness=-16.3 LUFS min_text=28px PASS
+2026-10-02T18:05:40.733Z INFO  [tts] m3-l2-s2 cached hash=1fa09d33c5e0
+2026-10-02T18:07:02.118Z WARN  [qc] m4-l1-s2 duration=402s > 360s FAIL -> split
+2026-10-02T18:12:47.551Z INFO  [qc] m4-l1-s2a 188s PASS, m4-l1-s2b 214s PASS
+2026-10-02T18:30:09.004Z INFO  [render] module 3 bundle: 7 segments, 24m12s, tts=$1.38 render=$0.61

@@ -1,0 +1,12 @@
+2026-10-08T07:41:05Z [triage] issue=#482 kind=bug complexity=3 risk=medium areas=[billing, api] route=full cost_usd=0.01
+2026-10-08T07:41:09Z [pipeline] worktree /tmp/dev-squad/worktrees/482 branch=squad/482-invoice-rounding
+2026-10-08T07:41:12Z [lead] -> architect: plan
+2026-10-08T07:43:50Z [lead] <- architect steps=4 questions=2 risk=medium
+2026-10-08T07:43:51Z [lead] -> researcher: "Decimal.js rounding modes vs Intl.NumberFormat for EUR"
+2026-10-08T07:43:51Z [lead] -> researcher: "Stripe invoice line item rounding rules"
+2026-10-08T07:46:20Z [lead] <- researcher x2 cited=9
+2026-10-08T07:46:22Z [lead] -> coder: step 1 "centralise rounding in money.ts"
+2026-10-08T07:52:05Z [lead] <- coder STATUS=done TESTS=41/41 affected
+2026-10-08T08:05:47Z [lead] <- coder step 4 STATUS=done TESTS=58/58 affected
+2026-10-08T08:05:48Z [lead] -> tester || doc-writer (parallel)
+2026-10-08T08:09:31Z [lead] report status=ready_for_review tests=green cost_usd=3.42 turns=37/80

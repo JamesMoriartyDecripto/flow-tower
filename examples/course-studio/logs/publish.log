@@ -1,0 +1,12 @@
+2026-10-06T08:30:12.004Z INFO  [ci] job package run_id=11873402291 ref=runs/intro-to-prompt-engineering-for-product-managers
+2026-10-06T08:30:20.551Z INFO  [hook:a11y-gate] lessons=23 images=41 videos=29 -> allow
+2026-10-06T08:30:44.902Z INFO  [scorm_package] pe4pm-scorm2004-4th.zip 412.6 MB sha256 5d0c9e1f7a2b...
+2026-10-06T08:30:47.118Z INFO  [ci] manifest schema validation (SCORM 2004 4th Ed. XSD) ok
+2026-10-06T08:31:02.663Z INFO  [lms_upload] scorm-cloud import job=2a9e0f4c status=RUNNING
+2026-10-06T08:33:19.440Z INFO  [lms_upload] scorm-cloud import COMPLETE courseId=pe4pm version=3
+2026-10-06T08:35:51.207Z INFO  [smoke] launch=ok completion_status=completed success_status=passed score.scaled=0.875
+2026-10-06T08:36:30.088Z INFO  [lms_upload] moodle hidden course created id=412 shortname=pe4pm
+2026-10-06T08:36:31.004Z INFO  [signoff] checkpoint=publish -> programs@example.com
+2026-10-08T07:58:12.341Z INFO  [signoff] publish approved by programs@example.com
+2026-10-08T07:58:13.112Z INFO  [publish] core_course_update_courses id=412 visible=1
+2026-10-08T07:58:13.400Z INFO  [publish] LIVE https://lms.example.com/course/view.php?id=412
