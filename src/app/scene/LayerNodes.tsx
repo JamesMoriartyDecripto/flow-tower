@@ -27,7 +27,9 @@ const rect = (b: NodeBox, y: number) => {
 };
 
 /** Every node of one layer, batched: a handful of draw calls regardless of node count. */
-export function LayerNodes({ views, layerFade, interactive, detail }: { views: NodeView[]; layerFade: number; interactive: boolean; detail: boolean }) {
+export function LayerNodes({ views, layer, layerFade, interactive, detail }: {
+  views: NodeView[]; layer: number; layerFade: number; interactive: boolean; detail: boolean;
+}) {
   const panels = useRef<InstancedMesh>(null);
   const accents = useRef<InstancedMesh>(null);
 
@@ -84,7 +86,7 @@ export function LayerNodes({ views, layerFade, interactive, detail }: { views: N
     e.stopPropagation();
     fn(n);
   };
-  const { hover, select, enterTower } = useStore.getState();
+  const { hover, hoverLayer, select, enterTower } = useStore.getState();
 
   return (
     <group>
@@ -92,8 +94,9 @@ export function LayerNodes({ views, layerFade, interactive, detail }: { views: N
         key={`p${views.length}`}
         ref={panels}
         args={[UNIT_BOX, undefined, views.length]}
-        onPointerMove={guard((n) => useStore.getState().hovered !== n.key && hover(n.key))}
-        onPointerOut={() => interactive && hover(undefined)}
+        userData={{ nodes: true }}
+        onPointerMove={guard((n) => { hoverLayer(layer); if (useStore.getState().hovered !== n.key) hover(n.key); })}
+        onPointerOut={() => { if (interactive) { hover(undefined); hoverLayer(undefined); } }}
         onClick={guard((n) => select(n.key))}
         onDoubleClick={guard((n) => n.tower && enterTower(n.tower))}
       >

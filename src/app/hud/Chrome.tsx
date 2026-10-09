@@ -78,7 +78,7 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
 
 export function LayerNav() {
   const tower = useTower();
-  const { focusedLayer, focusLayer, resetView } = useStore();
+  const { focusedLayer, hoveredLayer, focusLayer, hoverLayer, resetView } = useStore();
   if (!tower) return null;
   return (
     <nav className="panel layernav">
@@ -87,7 +87,14 @@ export function LayerNav() {
         <span className="idx">◈</span><span className="name">Tower overview</span><span className="count">{tower.layers.length}L</span>
       </button>
       {tower.layers.map((l) => (
-        <button key={l.id} className={focusedLayer === l.index ? 'on' : ''} onClick={() => focusLayer(l.index)} title={l.description}>
+        <button
+          key={l.id}
+          className={`${focusedLayer === l.index ? 'on' : ''} ${hoveredLayer === l.index ? 'hot' : ''}`}
+          onClick={() => focusLayer(l.index)}
+          onMouseEnter={() => hoverLayer(l.index)}
+          onMouseLeave={() => hoverLayer(undefined)}
+          title={l.description}
+        >
           <span className="idx">L{String(l.index + 1).padStart(2, '0')}</span>
           <span className="name">{l.title}</span>
           <span className="count">{l.nodes.length}</span>
