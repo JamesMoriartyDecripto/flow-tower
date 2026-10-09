@@ -1,40 +1,40 @@
-# npm run e2e: passed, 39 tests, 0 not passed (2026-10-09T18:52Z)
-passed      0.6s  the file API refuses paths outside the tower root
+# npm run e2e: passed, 39 tests, 0 not passed (2026-10-09T19:17Z)
+passed      0.7s  the file API refuses paths outside the tower root
 passed      1.0s  events endpoint rejects malformed bodies without crashing
-passed      6.8s  every referenced file is served by /api/file
-passed     14.0s  tower: Docs Q&A Bot
-passed     14.1s  tower: Research Helper
-passed     14.3s  layout 1440x900 at 1.3x
-passed     14.4s  layout 1024x640 at 1x
-passed     14.6s  layout 720x900 at 1x
-passed     14.9s  live feed: mapped, error and unmapped events
-passed     15.1s  tower: Pocket Voice Assistant
-passed     15.2s  tower: Website & Web Design Studio
-passed     15.7s  tower: PR Review Bot
-passed     17.1s  layout 2560x1440 at 1.6x
-passed     17.8s  layout 1920x1080 at 1.15x
-passed     18.5s  tower: Fraud Review Desk
-passed     18.5s  tower: Jev Agent
-passed     19.0s  layout 1440x900 at 1x
-passed     19.3s  zoom is kept when moving to the next node of the same layer
-passed     20.0s  tower: A2A Purchasing Concierge
-passed     20.7s  tower: Airline Customer Service
-passed     21.5s  tower: Release Auditor
-passed     21.6s  tower: Legacy Portal Browser Worker
-passed     21.8s  layout 1280x720 at 1x
-passed     22.4s  tower: Deep Research Team
-passed     23.3s  tower: SRE Incident Responder
-passed     23.6s  tower: AI Co-Scientist
-passed     23.7s  tower: Ebook Studio
-passed     24.1s  tower: Invoicing with Fatture in Cloud
-passed     24.3s  tower: Ambient Chief of Staff
-passed     24.8s  tower: Social Media Studio
-passed     24.9s  tower: Sales Pipeline: prospect to invoice
-passed     25.9s  tower: Dev Squad
-passed     26.1s  tower: AI Video Studio
-passed     27.3s  tower: Mobile App Studio
-passed     27.8s  tower: Legal Due Diligence
-passed     28.0s  tower: Marketing Studio
-passed     34.6s  accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)
-passed     41.2s  tower: Syllabus Forge
-passed     58.3s  tower: Forge Studio
+passed      9.6s  every referenced file is served by /api/file
+passed     15.1s  layout 1024x640 at 1x
+passed     15.1s  tower: Website & Web Design Studio
+passed     15.2s  tower: Research Helper
+passed     15.4s  layout 720x900 at 1x
+passed     15.8s  layout 1920x1080 at 1.15x
+passed     16.2s  layout 1280x720 at 1x
+passed     16.5s  tower: Docs Q&A Bot
+passed     16.6s  layout 1440x900 at 1.3x
+passed     16.6s  tower: Pocket Voice Assistant
+passed     17.6s  live feed: mapped, error and unmapped events
+passed     17.6s  tower: PR Review Bot
+passed     18.2s  layout 2560x1440 at 1.6x
+passed     18.4s  tower: Legacy Portal Browser Worker
+passed     18.9s  tower: Fraud Review Desk
+passed     20.4s  tower: Airline Customer Service
+passed     22.2s  tower: Deep Research Team
+passed     22.4s  layout 1440x900 at 1x
+passed     22.4s  tower: A2A Purchasing Concierge
+passed     22.9s  tower: AI Co-Scientist
+passed     23.0s  tower: Jev Agent
+passed     23.7s  zoom is kept when moving to the next node of the same layer
+passed     23.9s  tower: Ambient Chief of Staff
+passed     25.0s  tower: AI Video Studio
+passed     25.6s  tower: Social Media Studio
+passed     26.7s  tower: Dev Squad
+passed     26.7s  tower: Release Auditor
+passed     26.7s  tower: SRE Incident Responder
+passed     27.9s  tower: Invoicing with Fatture in Cloud
+passed     28.4s  tower: Ebook Studio
+passed     30.3s  tower: Legal Due Diligence
+passed     30.4s  tower: Sales Pipeline: prospect to invoice
+passed     31.8s  tower: Marketing Studio
+passed     32.4s  tower: Mobile App Studio
+passed     38.7s  accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)
+passed     43.5s  tower: Syllabus Forge
+passed     66.5s  tower: Forge Studio

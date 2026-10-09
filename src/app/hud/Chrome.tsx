@@ -208,7 +208,7 @@ export function Legend() {
       {tab === 'edges' && (
         <div className="grid">
           {EDGE_KINDS.map((k) => (
-            <span key={k} className="edge" title={EDGE_STYLE[k].hint}>
+            <span key={k} className="edge" tabIndex={0} title={EDGE_STYLE[k].hint}>
               <span className="swatch" style={{
                 borderTopStyle: EDGE_STYLE[k].dashed ? 'dashed' : 'solid',
                 borderTopWidth: Math.max(1, EDGE_STYLE[k].width),
@@ -217,7 +217,7 @@ export function Legend() {
               {k}
             </span>
           ))}
-          <span className="edge" title="Node status other than active"><span className="swatch" style={{ borderTopStyle: 'dashed', borderTopColor: 'var(--amber)' }} />planned / exp.</span>
+          <span className="edge" tabIndex={0} title="Node status other than active"><span className="swatch" style={{ borderTopStyle: 'dashed', borderTopColor: 'var(--amber)' }} />planned / exp.</span>
         </div>
       )}
       {tab === 'runtimes' && (

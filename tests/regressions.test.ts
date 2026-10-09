@@ -115,6 +115,23 @@ describe('navigation state', () => {
   });
 });
 
+describe('live reload', () => {
+  it('keeps unchanged towers as the same objects, so their layout is not recomputed', async () => {
+    vi.stubGlobal('location', { search: '' });
+    const { useStore } = await import('../src/app/store');
+    const d = dir();
+    writeFileSync(join(d, 'a.tower.yaml'), `name: A\n${layer('[{ id: n }]')}`);
+    writeFileSync(join(d, 'b.tower.yaml'), `name: B\n${layer('[{ id: n }]')}`);
+    const first = (await loadLibrary([d])).workspace;
+    useStore.getState().setWorkspace(first);
+    writeFileSync(join(d, 'b.tower.yaml'), `name: B2\n${layer('[{ id: n }]')}`);
+    useStore.getState().setWorkspace((await loadLibrary([d])).workspace);
+    const now = useStore.getState().workspace!;
+    expect(now.towers['a.tower.yaml']).toBe(first.towers['a.tower.yaml']);
+    expect(now.towers['b.tower.yaml'].name).toBe('B2');
+  });
+});
+
 describe('live targets', () => {
   it('split on the last #, since tower ids are paths and may contain one', () => {
     expect(splitTarget('c#-agents/x.tower.yaml#core.step')).toEqual(['c#-agents/x.tower.yaml', 'core.step']);
