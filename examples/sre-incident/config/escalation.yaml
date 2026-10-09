@@ -1,0 +1,22 @@
+# Escalation and budget policy for the SRE responder (read by src/escalation.py).
+approval:
+  approvers: payments-oncall          # PagerDuty schedule synced to a Slack user group
+  channel: "#payments-oncall"
+  timeout_seconds: 900                # 15m, then escalate (never auto-approve)
+  on_timeout: escalate
+escalation:
+  pagerduty_policy: PXQ2W1E           # "Payments on-call": primary -> secondary -> incident commander
+  reassign_to_level: 2
+  session_result: '{"decision": "escalated"}'   # unblocks the agent; the remediator stops and reports
+budget:
+  per_session_usd: 6
+  investigator_turns: 60
+  remediator_turns: 40
+  on_exceed: escalate                 # page a human, keep the trace
+sessions:
+  ttl_hours: 24
+  archive_after_resolve: true
+statuspage:
+  page_id: kctbh9vrtdwd
+  component: Checkout
+  update_every_minutes: 30

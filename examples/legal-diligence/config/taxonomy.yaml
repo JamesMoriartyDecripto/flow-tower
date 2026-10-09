@@ -1,0 +1,10 @@
+# Document taxonomy for classification. Leaves only are valid doc_type values.
+corporate: [articles, shareholder_agreement, register_extract, board_minutes]
+commercial: [customer_agreement, supply_agreement, distribution_agreement, framework_agreement, nda, side_letter, amendment]
+ip: [license_in, license_out, ip_assignment, rd_collaboration]
+employment: [managing_director_service_agreement, works_council_agreement, bonus_plan]
+real_estate: [lease, sublease]
+financing: [facility_agreement, guarantee, security_agreement]
+litigation: [claim, settlement]
+privileged: [counsel_advice, litigation_strategy]
+other: [unclassified]

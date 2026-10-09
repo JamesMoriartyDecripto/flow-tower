@@ -1,0 +1,22 @@
+{
+  "name": "burger_seller_agent",
+  "description": "Helps with creating burger orders",
+  "url": "https://burger-agent-480913327416.us-central1.run.app",
+  "version": "1.0.0",
+  "protocolVersion": "0.2.6",
+  "preferredTransport": "JSONRPC",
+  "capabilities": {
+    "streaming": true
+  },
+  "defaultInputModes": ["text", "text/plain"],
+  "defaultOutputModes": ["text", "text/plain"],
+  "skills": [
+    {
+      "id": "create_burger_order",
+      "name": "Burger Order Creation Tool",
+      "description": "Helps with creating burger orders",
+      "tags": ["burger order creation"],
+      "examples": ["I want to order 2 classic cheeseburgers"]
+    }
+  ]
+}

@@ -12,7 +12,7 @@ layers:
   - id: ingest
     title: Ingest (nightly)
     nodes:
-      - { id: docs, type: entry, label: docs/*.md, runtime: laptop }
+      - { id: docs, type: entry, label: docs/*.md, runtime: laptop, trigger: { kind: cron, schedule: "0 2 * * *" } }
       - { id: chunk, type: process, label: Chunk by heading, files: [ingest.py], runtime: laptop }
       - { id: embed, type: model, label: Embed chunks, model: voyage-3.5, runtime: voyage }
       - { id: store, type: memory, label: Vector index, description: SQLite + sqlite-vec file on disk., runtime: laptop }
@@ -24,14 +24,14 @@ layers:
   - id: answer
     title: Answer
     nodes:
-      - { id: question, type: entry, label: Question }
+      - { id: question, type: entry, label: Question, trigger: { kind: chat, source: Slack /ask } }
       - { id: retrieve, type: process, label: Top-5 retrieval, files: [answer.py] }
       - id: writer
         type: agent
         label: Answer writer
         model: claude-haiku-5-5
         prompt: { file: prompts/answer.md }
-      - { id: cited, type: guard, label: Every claim cited? }
+      - { id: cited, type: guard, label: Every claim cited?, limits: { max_iterations: 2 } }
       - { id: reply, type: output, label: Reply }
     edges:
       - question -> retrieve

@@ -39,14 +39,15 @@ export function LayerEdges({ views, layerFade, detail, labels: showLabels }: { v
   }, [lines]);
 
   const labels = useMemo<TextItem[]>(() => lines.flatMap((l) => {
-    if (!l.edge.label) return [];
+    const text = [l.edge.protocol?.toUpperCase(), l.edge.label].filter(Boolean).join(' · ');
+    if (!text) return [];
     let best = 0;
     let at = l.points[0];
     for (let i = 1; i < l.points.length; i++) {
       const len = l.points[i].distanceTo(l.points[i - 1]);
       if (len > best) { best = len; at = l.points[i].clone().add(l.points[i - 1]).multiplyScalar(0.5); }
     }
-    return [{ text: l.edge.label, position: [at.x, Y + 0.02, at.z - 0.2], fontSize: 0.22, anchorX: 'center', color: COLORS.amber, opacity: l.fade * layerFade }];
+    return [{ text, position: [at.x, Y + 0.02, at.z - 0.2], fontSize: 0.22, anchorX: 'center', color: COLORS.amber, opacity: l.fade * layerFade }];
   }), [lines, layerFade]);
 
   return (

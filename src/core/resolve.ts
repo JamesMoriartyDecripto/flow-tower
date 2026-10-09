@@ -1,5 +1,5 @@
 import { parse as parseYaml } from 'yaml';
-import type { AgentDef, PromptDef, PromptRef } from './schema.ts';
+import { OPS_KEYS, type AgentDef, type OpsDef, type PromptDef, type PromptRef } from './schema.ts';
 import type { Issue, ResolvedAgent, ResolvedPrompt } from './types.ts';
 
 /** Minimal file access so resolution stays testable without touching disk. */
@@ -56,6 +56,11 @@ export async function resolvePromptRef(
   return found;
 }
 
+/** Operational fields present on a definition (agent or node), without undefined keys. */
+export function pickOps(def: OpsDef): OpsDef {
+  return Object.fromEntries(OPS_KEYS.filter((k) => def[k] !== undefined).map((k) => [k, def[k]])) as OpsDef;
+}
+
 export async function resolveAgent(
   id: string, def: AgentDef, prompts: Record<string, ResolvedPrompt>, fs: FileReader, issues: Issue[],
 ): Promise<ResolvedAgent> {
@@ -89,6 +94,7 @@ export async function resolveAgent(
     runtime: def.runtime,
     resources: def.resources ?? [],
     match: def.match,
+    ops: pickOps(def),
     meta: { ...rest, ...def.meta },
   };
 }

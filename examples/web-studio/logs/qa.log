@@ -1,0 +1,15 @@
+2026-10-06T14:02:11Z INFO  vercel  preview ready pr=#48 url=https://nordlicht-git-feat-shop-studio.vercel.app neon_branch=preview/feat-shop
+2026-10-06T14:02:40Z INFO  build   payload migrate: 2 pending -> applied (20261006_orders_event_id, 20261006_enquiries)
+2026-10-06T14:02:52Z INFO  seed    seeded 3 products on feat-shop
+2026-10-06T14:04:05Z INFO  semgrep p/owasp-top-ten p/nextjs p/secrets findings=1 (blocking=1)
+2026-10-06T14:04:05Z ERROR semgrep app/api/enquiries/route.ts:31 missing server-side Turnstile verification -> backend lane
+2026-10-06T14:05:31Z INFO  vitest  project=api tests=24 passed=24 (stripe trigger checkout.session.completed x2: duplicate ignored)
+2026-10-06T14:09:12Z INFO  axe     pages=7 tags=wcag2a,wcag2aa,wcag21a,wcag21aa,wcag22aa violations=2
+2026-10-06T14:09:12Z ERROR axe     /shop color-contrast .badge--sale 3.9:1 (needs 4.5:1) -> frontend lane
+2026-10-06T14:09:12Z ERROR axe     /contact target-size .social-icon 20x20 (WCAG 2.5.8) -> frontend lane
+2026-10-06T14:11:47Z INFO  visual  templates=6 x 2 projects diff>1%: product@mobile 2.7% (gallery thumbnails wrap)
+2026-10-06T14:15:20Z INFO  lhci    / perf=0.96 a11y=0.97 seo=1.00 LCP=1.8s CLS=0.02 TBT=90ms
+2026-10-06T14:15:20Z INFO  lhci    /shop/ethiopia-guji-hambela perf=0.88 LCP=2.9s (hero image not priority) -> frontend lane
+2026-10-06T14:15:21Z WARN  gate    round 1/3 FAIL: 1 security, 2 a11y, 1 visual, 1 perf -> fix lanes
+2026-10-07T09:40:02Z INFO  gate    round 2/3 PASS: semgrep 0, axe 0, visual max 0.4%, perf min 0.93, LCP max 2.1s
+2026-10-07T09:52:18Z INFO  qa-auditor findings=3 (major=1 focus hidden under sticky header on /faq, minor=2) -> fixed in #49

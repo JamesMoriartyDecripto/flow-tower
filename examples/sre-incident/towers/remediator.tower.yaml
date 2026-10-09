@@ -1,0 +1,156 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Remediator internals
+description: >-
+  How one remediator session turns findings into a merged fix: minimal edit and diff in the
+  sandbox, PR through CI, then a parked request_approval that only a human can resume.
+root: ..
+
+runtimes:
+  sandbox:
+    kind: cloud
+    label: "Managed Agents sandbox"
+    description: "Per-session cloud container, limited networking, infra repo mounted at infra/."
+    provider: "anthropic"
+  app:
+    kind: container
+    label: "Responder service"
+    description: "FastAPI webhook, event loop and custom tool handlers."
+    host: "sre-responder.internal"
+    provider: "aws-ecs"
+    region: "us-east-1"
+  github:
+    kind: saas
+    label: "GitHub"
+    provider: "github"
+    url: "https://github.com/example-org/infra"
+  slack:
+    kind: saas
+    label: "Slack"
+    provider: "slack"
+    url: "https://example.slack.com"
+
+agents:
+  remediator:
+    name: Remediator
+    model: claude-opus-5-5
+    prompt: { file: prompts/remediator.md }
+    runtime: sandbox
+    tools: [bash, read, edit, grep, open_pull_request, request_approval, merge_pull_request]
+    files: [src/setup.py]
+
+layers:
+  - id: edit
+    title: Minimal Edit
+    description: The diff is the deliverable. The approver reviews it, not the agent's reasoning.
+    nodes:
+      - id: findings
+        runtime: app
+        type: entry
+        label: Findings block
+        description: The investigator's YAML block, sent as the first user.message.
+        files: [prompts/investigator.md]
+      - id: runbook
+        runtime: sandbox
+        type: memory
+        label: Runbook section
+        description: The remediate section of the runbook named in the findings.
+        files: [runbooks/oom.md, runbooks/5xx.md]
+      - id: plan
+        agent: remediator
+        label: Plan the fix
+        description: Raise limits, revert the image, or stop. One file whenever possible.
+      - id: copy
+        runtime: sandbox
+        type: tool
+        label: cp original
+        description: "`cp k8s/checkout-deploy.yaml /tmp/orig.yaml` so the diff has a base."
+        tools: [bash]
+      - id: edit_file
+        runtime: sandbox
+        type: tool
+        label: edit in place
+        description: Built-in edit tool on the mounted repo. No other file is touched.
+        tools: [edit]
+        files: [infra/k8s/checkout-deploy.yaml]
+      - id: diff
+        runtime: sandbox
+        type: tool
+        label: diff -u
+        description: Unified diff passed verbatim to open_pull_request.
+        tools: [bash]
+      - id: scope
+        runtime: sandbox
+        type: decision
+        label: Diff minimal?
+        description: "Self-check: only the fields the runbook names, no unrelated reformatting."
+    edges:
+      - "findings -> plan: signature + files"
+      - "runbook -> plan [data]: remediate steps"
+      - "plan -> copy [call]"
+      - copy -> edit_file
+      - edit_file -> diff
+      - diff -> scope
+      - "scope -> plan [return]: too broad"
+
+  - id: ship
+    title: PR, Approval & Merge
+    description: Open, validate, park for a human, merge only on "approved".
+    nodes:
+      - id: open_pr
+        runtime: app
+        type: tool
+        label: open_pull_request
+        description: git apply --check, branch incident/<slug>, POST /pulls.
+        files: [src/github_pr.py, src/tools.py]
+      - id: ci
+        runtime: github
+        type: guard
+        label: infra-validate
+        description: kubeconform, conftest policies and the 2-file scope check. Required status.
+        files: [ci/infra-validate.yml]
+      - id: request
+        runtime: app
+        type: tool
+        label: request_approval
+        description: Session goes idle with requires_action; Block Kit message with Approve and Reject.
+        files: [src/slack_approval.py, src/event_loop.py]
+      - id: oncall
+        runtime: slack
+        type: human
+        label: On-call SRE
+        description: Only members of the synced on-call group can click, once.
+        approval: { by: on-call SRE, via: Slack, actions: [approve, reject], timeout: 15m, on_timeout: escalate }
+      - id: result
+        runtime: sandbox
+        type: decision
+        label: Result?
+        description: The custom tool result is approved, rejected or escalated.
+      - id: merge
+        runtime: app
+        type: tool
+        label: merge_pull_request
+        description: Squash merge. Called only after "approved".
+        files: [src/tools.py]
+      - id: stop
+        runtime: sandbox
+        type: output
+        label: Stop and report
+        description: PR left open with the reason; the incident commander takes over.
+      - id: merged
+        runtime: github
+        type: output
+        label: Merged
+        description: Argo CD picks up main; the rollout watcher takes over.
+    edges:
+      - "open_pr -> ci [call]: required check"
+      - "ci -> request: green"
+      - "request -> oncall [handoff]: Slack"
+      - "oncall -> result [return]: custom_tool_result"
+      - "result -> merge [call]: approved"
+      - "result -> stop: rejected / escalated"
+      - merge -> merged
+
+links:
+  - "edit.scope -> ship.open_pr [call]: minimal"
+  - "ship.ci -> edit.plan [return]: red"

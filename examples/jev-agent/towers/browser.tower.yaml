@@ -1,0 +1,150 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Browser worker
+description: >-
+  One browser subtask, after browser-use/jev-ultrafast. Each observation becomes an indexed
+  element table; one Jev request picks the operation and, speculatively, a target for every
+  operation that needs one; code validates and executes; a small LLM writes text only for
+  TYPE_TEXT. Model output never becomes a selector, a coordinate or JavaScript.
+root: ..
+
+runtimes:
+  devbox:
+    kind: container
+    label: "Agent devbox"
+    description: "Harness process, repo worktree and sandboxed shell."
+    host: "devbox-01"
+  chrome:
+    kind: browser
+    label: "Chrome (CDP)"
+    description: "A dedicated Chrome profile driven over the DevTools Protocol. No saved logins."
+  jev:
+    kind: saas
+    label: "TypeSafe API"
+    description: "Jev via POST /v1/systemone."
+    provider: "typesafe"
+    url: "https://api.typesafe.ai"
+  openrouter:
+    kind: saas
+    label: "OpenRouter"
+    description: "Mercury 2.5 as the text helper."
+    provider: "openrouter"
+    url: "https://openrouter.ai"
+
+prompts:
+  browser-text:
+    file: prompts/browser-text.md
+    description: 'Text helper for TYPE_TEXT only. Returns {"text": "..."}.'
+
+layers:
+  - id: observe
+    title: Observe
+    description: One browser call per snapshot; only visible controls and visible text reach the state.
+    nodes:
+      - id: goal
+        runtime: devbox
+        type: entry
+        label: Goal + URL
+        description: From the coding LLM's browse(url, goal) call, or from the router's browser route.
+        files: [src/browser.ts]
+      - id: snapshot
+        runtime: chrome
+        label: DOM snapshot
+        description: "Atomic read of controls (role, name, value), visible text and a page version. Keeps references to the real DOM nodes."
+        files: [src/browser.ts]
+        resources:
+          - { kind: log, label: "Browser trace", path: "logs/browser.log" }
+      - id: table
+        runtime: devbox
+        type: memory
+        label: Element table
+        description: "Indexed rows like `[3] combobox Where to? · empty`. Rebuilt on every observation, so the action space is dynamic."
+        files: [src/browser.ts]
+    edges:
+      - "goal -> snapshot [call]: open url"
+      - "snapshot -> table [data]: controls + text"
+
+  - id: decide
+    title: Decide
+    description: Two decisions, one network round trip. Only supported operations and compatible targets are offered.
+    nodes:
+      - id: jev_step
+        runtime: jev
+        type: decision
+        label: "Jev: op + target"
+        model: jev-1.13.0
+        description: >-
+          Choice operation over CLICK, TYPE_TEXT, SELECT, SCROLL_UP, SCROLL_DOWN, WAIT, DONE,
+          BLOCKED, plus speculative heads click_target (clickable rows) and type_text_target
+          (editable rows) in the same request. Only the head matching the operation is used.
+        files: [src/browser.ts, config/decisions.yaml]
+        limits: { timeout: 2s }
+        evals:
+          - { name: "flight search (s)", value: 7.1, target: 10, higher_is_better: false, description: "Reported by Browser Use (jev-ultrafast README): Zürich→London on Google Flights, 7,073 ms.", url: "https://github.com/browser-use/jev-ultrafast" }
+          - { name: "cost per task ($)", value: 0.004, target: 0.01, higher_is_better: false, description: "Reported in the Made with Jev directory for the Browser Use flight search.", url: "https://madewithjev.com/builds/browser-use-flights" }
+      - id: op_policy
+        runtime: devbox
+        type: guard
+        label: Step policy
+        description: >-
+          Operation confidence under 0.5 re-observes once, then returns BLOCKED (illustrative).
+          40 steps max. DONE is never trusted without the independent check.
+        files: [src/browser.ts, config/policy.yaml]
+        limits: { max_iterations: 40 }
+    edges:
+      - "jev_step -> op_policy [data]: operation + targets"
+
+  - id: act
+    title: Act & Verify
+    description: Code executes the chosen element; the LLM only fills text; the outcome is checked, not claimed.
+    nodes:
+      - id: validate
+        runtime: chrome
+        type: guard
+        label: Fresh + visible?
+        description: Re-checks page version, current geometry and occlusion of the chosen node before input. Stale pages re-observe.
+        files: [src/browser.ts]
+      - id: text
+        runtime: openrouter
+        type: agent
+        label: Text helper
+        model: inception/mercury-2.5
+        prompt: browser-text
+        description: 'Writes the value for one field from facts in the goal. Output must parse as {"text": ...} and be at most 200 chars.'
+        files: [src/browser.ts, prompts/browser-text.md]
+      - id: execute
+        runtime: chrome
+        type: tool
+        label: CDP input
+        description: Click, select, scroll, type. After typing into a combobox, waits up to 200 ms for suggestions.
+        files: [src/browser.ts]
+      - id: verify
+        runtime: chrome
+        label: Verify goal
+        description: Independent code check of the page state for DONE (e.g. the route, date and results are visible).
+        files: [src/browser.ts]
+      - id: done
+        runtime: devbox
+        type: output
+        label: DONE + trace
+        description: Returned to the act loop as the browse() tool result.
+      - id: blocked
+        runtime: devbox
+        type: output
+        label: BLOCKED
+        description: Login, captcha, missing data or step cap. The worker has no credentials by design.
+    edges:
+      - "validate -> execute: fresh"
+      - "validate -> text [call]: TYPE_TEXT"
+      - "text -> execute [data]: text"
+      - "verify -> done: check passed"
+      - "verify -> blocked: check failed"
+
+links:
+  - "observe.table -> decide.jev_step [call]: state"
+  - "decide.op_policy -> act.validate: CLICK / TYPE_TEXT / SELECT / SCROLL"
+  - "decide.op_policy -> act.verify: DONE"
+  - "decide.op_policy -> act.blocked: BLOCKED or unsure twice"
+  - "decide.op_policy -> observe.snapshot [return]: WAIT or unsure once"
+  - "act.execute -> observe.snapshot [return]: next observation"
+  - "act.validate -> observe.snapshot [return]: stale"

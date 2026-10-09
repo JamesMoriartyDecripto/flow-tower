@@ -1,0 +1,23 @@
+# Cloud Scheduler jobs -> POST https://cos-worker.example.com/cron/<job>
+# Time zone is the user's; jobs carry an OIDC token for the worker's invoker account.
+jobs:
+  - name: daily-brief
+    schedule: "0 7 * * 1-5"
+    time_zone: America/Los_Angeles
+    target: /cron/daily-brief
+    retry: { max_attempts: 2, min_backoff: 60s }
+  - name: sweep
+    schedule: "*/10 * * * *"
+    time_zone: America/Los_Angeles
+    target: /cron/sweep
+    description: Catch dropped pushes; resume threads the user answered in the inbox.
+  - name: renew-watches
+    schedule: "15 3 * * *"
+    time_zone: America/Los_Angeles
+    target: /cron/renew-watches
+    description: Gmail users.watch expires after 7 days; Calendar channels expire too.
+pubsub:
+  topic: projects/cos-prod/topics/gmail-inbox
+  subscription: gmail-inbox-push
+  push_endpoint: https://cos-worker.example.com/push/gmail
+  ack_deadline: 10s

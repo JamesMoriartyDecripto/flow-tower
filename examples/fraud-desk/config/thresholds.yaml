@@ -1,0 +1,18 @@
+# Escalation thresholds, mirrored in prompts/reviewer.md (the agent applies them;
+# the nightly eval checks every decision against this file).
+hard_gate:
+  reject_if: [mandate_invalid, constraints_unsatisfied, double_spend]
+escalate_if:
+  structuring_band_usd: [4900, 4999]
+  high_value_usd: 50000           # only when the agent would otherwise approve
+  confidence_band: [75, 85]
+  ring: suspicious_patterns        # circular_flow OR layering (>= 5 transfers < $1,000) OR network_size >= 3
+ring:
+  max_depth: 4
+  small_transfer_usd: 1000
+analyst:
+  queue_timeout: 4h                # then senior analyst
+  senior_timeout: 24h              # then decline
+sar_referral:
+  triggers: [structuring_band_usd, ring]
+  filing_deadline: 30d             # FinCEN SAR, 30 calendar days from detection

@@ -1,0 +1,18 @@
+{
+  "_comment": "Atlas custom database role for the host process. audit_events is append-only by privilege: insert + find, no update, no remove.",
+  "roleName": "fraud-desk-host",
+  "actions": [
+    { "action": "FIND", "resources": [{ "db": "fraud_review_demo", "collection": "transactions" }] },
+    { "action": "UPDATE", "resources": [{ "db": "fraud_review_demo", "collection": "transactions" }] },
+    { "action": "FIND", "resources": [{ "db": "fraud_review_demo", "collection": "transaction_decisions" }] },
+    { "action": "INSERT", "resources": [{ "db": "fraud_review_demo", "collection": "transaction_decisions" }] },
+    { "action": "FIND", "resources": [{ "db": "fraud_review_demo", "collection": "audit_events" }] },
+    { "action": "INSERT", "resources": [{ "db": "fraud_review_demo", "collection": "audit_events" }] },
+    { "action": "FIND", "resources": [{ "db": "fraud_review_demo", "collection": "mandate_receipts" }] },
+    { "action": "INSERT", "resources": [{ "db": "fraud_review_demo", "collection": "mandate_receipts" }] },
+    { "action": "FIND", "resources": [{ "db": "fraud_review_demo", "collection": "analyst_cases" }] },
+    { "action": "INSERT", "resources": [{ "db": "fraud_review_demo", "collection": "analyst_cases" }] },
+    { "action": "UPDATE", "resources": [{ "db": "fraud_review_demo", "collection": "analyst_cases" }] }
+  ],
+  "inheritedRoles": []
+}

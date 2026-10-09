@@ -51,7 +51,7 @@ resources:
   - { kind: dashboard, label: Grafana, url: https://grafana.example.com/d/abc }   # opens in a new tab
 ```
 
-`kind`: `log` `script` `dashboard` `endpoint` `config` `doc` `queue` `database` `repo` `other`. Exactly one of `path` or `url`. **Never put secrets here**: reference them by name in `meta` if needed.
+`kind`: `log` `script` `dashboard` `endpoint` `config` `doc` `queue` `database` `repo` `recording` `other`. Exactly one of `path` or `url`. **Never put secrets here**: reference them by name in `meta` if needed.
 
 ## Prompt
 
@@ -90,6 +90,49 @@ agents:
 
 `from:` reads the YAML frontmatter (`name`, `description`, `model`, `tools`, anything else goes to `meta`) and uses the Markdown body as the system prompt. Explicit keys override imported ones.
 
+## Operations
+
+Optional fields on agents and nodes that describe **how a step runs in production**. Nodes inherit them from their agent; a field set on the node replaces the agent's. The node subtitle shows short markers (`×3–5`, `PII`, `WEBHOOK`, `≤15m`, `$2`), fan-out nodes get stacked ghost outlines, and the inspector lists everything under **Operations**, **Data** and **Evals**.
+
+```yaml
+- id: alert
+  type: entry
+  trigger: { kind: webhook, source: PagerDuty }
+- id: searcher
+  agent: searcher
+  fanout: { min: 3, max: 5, by: query complexity }
+  budget: { usd: 2, turns: 30, on_exceed: pause }
+  limits: { timeout: 10m, retries: 2, backoff: "exponential 2s..60s", max_iterations: 3 }
+  data: { sensitivity: pii, region: eu, retention: 30d }
+  evals:
+    - { name: citation accuracy, value: 0.93, target: 0.9 }
+    - { name: p95 latency (s), value: 41, target: 60, higher_is_better: false }
+  version: v4
+  rollout: { strategy: canary, percent: 10, previous: v3 }
+  credentials: service
+  sandbox: { network: allowlist, allow: [api.github.com], filesystem: workspace }
+- id: oncall
+  type: human
+  approval: { by: on-call SRE, via: Slack, actions: [approve, reject], timeout: 15m, on_timeout: escalate }
+  sla: 72h
+```
+
+| Key | Values |
+|---|---|
+| `trigger` | `kind`: `manual` `cron` `webhook` `event` `queue` `chat` `email` `file`; `schedule` (cron expression), `source`, `description` |
+| `approval` | `by`, `via`, `actions` (`approve` `edit` `reject` `respond` `snooze`), `timeout`, `on_timeout` (`approve` `reject` `escalate` `wait`) |
+| `budget` | `usd`, `tokens`, `turns`, `on_exceed` (`pause` `stop` `escalate` `downgrade`) |
+| `limits` | `timeout`, `ttl` (session / sandbox lifetime), `retries`, `backoff`, `max_iterations` (loop bound), `concurrency` |
+| `fanout` | a number ≥ 2, or `{ min, max, by }`: parallel copies of the node |
+| `data` | `sensitivity` (`public` `internal` `confidential` `pii` `phi` `pci` `secret`), `region`, `retention`, `description` |
+| `evals` | list of `{ name, value, target, higher_is_better, description, url }`; value vs target is colored |
+| `version`, `rollout` | `rollout.strategy`: `all` `canary` `ab` `shadow` `blue-green` `rainbow`; `percent`, `previous` |
+| `sla` | deadline to complete, e.g. `72h` |
+| `credentials` | whose credentials tools use: `service`, `author` or `user` |
+| `sandbox` | `network` (`none` `allowlist` `open`), `allow` (hosts), `filesystem` (`none` `read-only` `workspace` `full`) |
+
+Durations are a number plus `ms` `s` `m` `h` `d` `w` (`90s`, `15m`, `72h`). Edges can also carry a wire **`protocol`**: `mcp` `a2a` `http` `grpc` `webhook` `queue` `event` `stdio` (object form only), shown next to the edge label. Resources gain the `recording` kind (session recordings, browser replays).
+
 ## Layer
 
 ```yaml
@@ -115,6 +158,7 @@ layers:
 | `resources` | See [Resources](#resources). |
 | `match` | Live event rules (`"agent:coder"`, `"source:ci&tool:deploy*"`). Inherited from the agent. See [realtime](realtime.md). |
 | `model`, `prompt`, `tools`, `files`, `tower`, `meta` | Override or set directly. |
+| `trigger`, `approval`, `budget`, `limits`, `fanout`, `data`, `evals`, `version`, `rollout`, `sla`, `credentials`, `sandbox` | See [Operations](#operations). Inherited from the agent. |
 
 Every path in `files` opens in the file viewer. Missing files are reported as warnings.
 

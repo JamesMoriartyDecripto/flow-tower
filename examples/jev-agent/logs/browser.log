@@ -1,0 +1,19 @@
+2026-10-08T13:40:11.020Z browse start url=https://status.example-vendor.com goal="Find whether the payments API had an incident on 2026-10-07 and copy its title"
+2026-10-08T13:40:11.188Z snapshot v=1 elements=23 visible_text=1840ch
+2026-10-08T13:40:11.391Z jev operation=SCROLL_DOWN conf=0.71 p={SCROLL_DOWN:0.74,CLICK:0.19,DONE:0.02} latency=203ms
+2026-10-08T13:40:11.452Z act SCROLL_DOWN
+2026-10-08T13:40:11.590Z snapshot v=2 elements=31 visible_text=2210ch
+2026-10-08T13:40:11.776Z jev operation=CLICK conf=0.88 p={CLICK:0.9,SCROLL_DOWN:0.06} click_target=[17] p[17]=0.83 "link · Incident history" latency=186ms
+2026-10-08T13:40:11.802Z act CLICK [17] fresh=true occluded=false
+2026-10-08T13:40:12.410Z snapshot v=3 elements=44 visible_text=3960ch
+2026-10-08T13:40:12.598Z jev operation=TYPE_TEXT conf=0.63 p={TYPE_TEXT:0.66,CLICK:0.28} type_text_target=[4] p[4]=0.91 "searchbox · Filter incidents · empty" latency=188ms
+2026-10-08T13:40:12.981Z text-helper model=inception/mercury-2.5 out={"text":"payments API"} latency=371ms
+2026-10-08T13:40:13.040Z act TYPE_TEXT [4] "payments API" wait_suggestions=164ms
+2026-10-08T13:40:13.262Z snapshot v=4 elements=12 visible_text=980ch
+2026-10-08T13:40:13.441Z jev operation=DONE conf=0.84 p={DONE:0.86,CLICK:0.1} latency=179ms
+2026-10-08T13:40:13.502Z verify goal: incident row dated 2026-10-07 visible=true title="Elevated payment API error rates"
+2026-10-08T13:40:13.503Z browse DONE steps=4 elapsed=2483ms jev_requests=5 jev_input_tokens=9120 text_requests=1
+2026-10-08T14:05:52.330Z browse start url=https://dashboard.example-cloud.com/billing goal="Download the September invoice PDF"
+2026-10-08T14:05:52.611Z snapshot v=1 elements=6 visible_text=310ch
+2026-10-08T14:05:52.790Z jev operation=BLOCKED conf=0.92 p={BLOCKED:0.93,TYPE_TEXT:0.05} latency=179ms
+2026-10-08T14:05:52.791Z browse BLOCKED steps=0 reason="sign-in form; the worker has no credentials by design"

@@ -1,0 +1,317 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: A2A Purchasing Concierge
+tags: [e-commerce, a2a, google-adk, crewai, langgraph, vertex-ai, multi-framework]
+description: >-
+  Google's A2A purchasing concierge codelab as a tower. An ADK concierge on Vertex AI Agent
+  Engine discovers remote seller agents through their A2A agent cards and delegates orders over
+  JSON-RPC message/send. The burger seller is a CrewAI crew on Cloud Run that asks for order
+  confirmation; the pizza seller is a LangGraph ReAct agent on Cloud Run. The user confirms
+  every order in the chat before it is created. Payment is not automated yet (planned).
+
+runtimes:
+  laptop:
+    kind: local
+    label: "Gradio UI"
+    description: "purchasing_concierge_ui.py on port 8080 (Cloud Shell or a laptop). One shared session in the codelab."
+    host: "0.0.0.0:8080"
+  agent_engine:
+    kind: cloud
+    label: "Vertex AI Agent Engine"
+    description: "Managed runtime for the ADK app (AdkApp), with managed sessions; deployed by deploy_to_agent_engine.py."
+    provider: "google-cloud"
+    region: "us-central1"
+  burger_run:
+    kind: serverless
+    label: "Cloud Run: burger-agent"
+    description: "A2A server, port 8080, --min 1 so the in-memory task store and crew stay warm."
+    provider: "google-cloud"
+    region: "us-central1"
+    url: "https://burger-agent-480913327416.us-central1.run.app"
+  pizza_run:
+    kind: serverless
+    label: "Cloud Run: pizza-agent"
+    description: "A2A server, port 8080, --min 1 so the LangGraph MemorySaver keeps each thread."
+    provider: "google-cloud"
+    region: "us-central1"
+    url: "https://pizza-agent-480913327416.us-central1.run.app"
+  vertex:
+    kind: cloud
+    label: "Vertex AI Gemini"
+    description: "gemini-2.5-flash for the concierge, gemini-2.5-flash-lite for both sellers."
+    provider: "google-cloud"
+    region: "us-central1"
+
+prompts:
+  concierge: { file: prompts/concierge.md, description: "root_instruction: delegate, never invent, relay seller confirmation questions." }
+  burger: { file: prompts/burger-seller.md, description: "CrewAI task: menu, confirm the total, create_order." }
+  pizza: { file: prompts/pizza-seller.md, description: "LangGraph system prompt: menu, confirmed orders only." }
+
+agents:
+  concierge:
+    name: Purchasing concierge
+    description: "ADK Agent `purchasing_agent`. The only agent the user talks to; one tool, send_task."
+    runtime: agent_engine
+    model: gemini-2.5-flash
+    prompt: concierge
+    tools: [send_task]
+    harness: { framework: google-adk 1.15.1, a2a_sdk: 0.2.16, app: AdkApp }
+    files: [purchasing_concierge/purchasing_agent.py, purchasing_concierge/agent.py, deploy_to_agent_engine.py]
+    resources:
+      - { kind: log, label: "Concierge log", path: "logs/concierge.log" }
+      - { kind: dashboard, label: "Agent Engine (console)", url: "https://console.cloud.google.com/vertex-ai/agents/agent-engines?project=purchasing-concierge-demo" }
+    limits: { timeout: 30s }   # httpx.AsyncClient(timeout=30) for every card fetch and A2A call
+    credentials: service
+    data: { sensitivity: internal, region: us-central1, description: "Order lines and totals; no customer identity in the codelab" }
+  burger:
+    name: Burger seller
+    description: "CrewAI crew behind an A2A server. Asks the user to confirm items and total before create_order."
+    runtime: burger_run
+    model: gemini-2.5-flash-lite
+    prompt: burger
+    tools: [create_order]
+    tower: towers/burger-seller.tower.yaml
+    files: [remote_seller_agents/burger_agent/agent.py, remote_seller_agents/burger_agent/a2a_server.py]
+    resources:
+      - { kind: log, label: "burger-agent log", path: "logs/burger-agent.log" }
+      - { kind: endpoint, label: "Agent card", url: "https://burger-agent-480913327416.us-central1.run.app/.well-known/agent.json" }
+    version: "1.0.0"
+    credentials: service
+  pizza:
+    name: Pizza seller
+    description: "LangGraph create_react_agent behind an A2A server. Creates the order directly when the query carries the confirmation."
+    runtime: pizza_run
+    model: gemini-2.5-flash-lite
+    prompt: pizza
+    tools: [create_pizza_order]
+    tower: towers/pizza-seller.tower.yaml
+    files: [remote_seller_agents/pizza_agent/agent.py, remote_seller_agents/pizza_agent/a2a_server.py]
+    resources:
+      - { kind: endpoint, label: "Agent card", url: "https://pizza-agent-480913327416.us-central1.run.app/.well-known/agent.json" }
+    version: "1.0.0"
+    credentials: service
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: customer
+    title: Customer Channel
+    description: The user chats with one concierge. Every order is confirmed here, never by an agent on the user's behalf.
+    nodes:
+      - id: chat
+        runtime: laptop
+        type: entry
+        label: Gradio chat
+        description: "gr.ChatInterface; stream_query(user_id, session_id, message) against the deployed AdkApp."
+        trigger: { kind: chat, source: Gradio ChatInterface }
+        files: [purchasing_concierge_ui.py]
+      - id: session
+        runtime: agent_engine
+        type: memory
+        label: Session state
+        description: "Agent Engine managed session: session_id, session_active, active_agent, and the A2A context_id."
+        files: [purchasing_concierge/purchasing_agent.py]
+        data: { sensitivity: internal }
+      - id: confirm
+        runtime: laptop
+        type: human
+        label: Confirm order
+        description: "Items, price breakdown and total shown in chat; the user answers yes, changes items, or cancels."
+        files: [prompts/concierge.md, logs/concierge.log]
+        approval: { by: customer, via: Gradio chat, actions: [approve, edit, reject], on_timeout: wait }
+      - id: payment
+        runtime: agent_engine
+        status: planned
+        label: Payment
+        description: >-
+          Planned, not in the codelab: orders are created with status "created" and paid on delivery.
+          The candidate is an AP2 (Agent Payments Protocol) mandate signed by the user, as an A2A extension.
+        files: [prompts/concierge.md]
+        data: { sensitivity: pci }
+      - id: receipt
+        runtime: laptop
+        type: output
+        label: Order summary
+        description: "Order IDs, items and totals per seller, relayed from the seller's task artifact."
+        files: [purchasing_concierge_ui.py]
+    edges:
+      - "chat -> session [data]: user_id, session_id"
+      - "confirm -> payment: yes (planned)"
+      - "payment -> receipt"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: concierge
+    title: Concierge Agent
+    description: >-
+      ADK on Agent Engine. A before_agent_callback resolves the agent cards once; the dynamic
+      root_instruction lists the sellers; one tool, send_task, speaks A2A.
+    nodes:
+      - id: before_agent
+        runtime: agent_engine
+        type: hook
+        label: before_agent_callback
+        description: "First turn only: fetch every card in BURGER_SELLER_AGENT_URL / PIZZA_SELLER_AGENT_URL; skip unreachable sellers."
+        files: [purchasing_concierge/purchasing_agent.py]
+      - id: instruction
+        runtime: agent_engine
+        label: root_instruction
+        description: "Instruction provider: the prompt plus the list of cards (name: description) and the active seller."
+        prompt: concierge
+        files: [purchasing_concierge/purchasing_agent.py, prompts/concierge.md]
+      - id: concierge
+        agent: concierge
+        label: Concierge (ADK)
+      - id: route
+        runtime: agent_engine
+        type: decision
+        label: Which seller?
+        description: "The model picks a seller by card description; mixed baskets are split, one seller at a time."
+      - id: confirmed
+        runtime: agent_engine
+        type: decision
+        label: Confirmed already?
+        description: "If the user confirmed these items and this total earlier in the session, the concierge may confirm for them."
+        files: [prompts/concierge.md]
+      - id: send_task
+        runtime: agent_engine
+        type: tool
+        label: send_task
+        description: "Sets state.active_agent, builds a user Message with messageId and contextId, calls message/send."
+        files: [purchasing_concierge/purchasing_agent.py]
+    edges:
+      - "before_agent -> instruction [data]: cards"
+      - "instruction -> concierge [data]: system prompt"
+      - "concierge -> route"
+      - "route -> send_task [call]: burger | pizza"
+      - "confirmed -> send_task [call]: yes, create"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: a2a
+    title: A2A Discovery & Transport
+    description: >-
+      Discovery by well-known URI, then JSON-RPC over HTTPS. a2a-sdk 0.2.16 serves the card at
+      /.well-known/agent.json (A2A 1.0 renamed it agent-card.json).
+    nodes:
+      - id: resolver
+        runtime: agent_engine
+        label: A2ACardResolver
+        description: "GET {base_url}/.well-known/agent.json and parse into an AgentCard; httpx.ConnectError skips the seller."
+        files: [purchasing_concierge/purchasing_agent.py]
+      - id: burger_card
+        runtime: burger_run
+        type: memory
+        label: burger agent card
+        description: "name burger_seller_agent, skill create_burger_order, streaming true, text/plain in and out, protocolVersion 0.2.6."
+        files: [remote_seller_agents/burger_agent/.well-known/agent.json]
+      - id: pizza_card
+        runtime: pizza_run
+        type: memory
+        label: pizza agent card
+        description: "name pizza_seller_agent, skill create_pizza_order, url from HOST_OVERRIDE (the Cloud Run URL)."
+        files: [remote_seller_agents/pizza_agent/.well-known/agent.json]
+      - id: client
+        runtime: agent_engine
+        type: tool
+        label: A2AClient
+        description: "One client per card, keyed by card.name. message/send with SendMessageRequest(MessageSendParams)."
+        files: [purchasing_concierge/purchasing_agent.py]
+      - id: result
+        runtime: agent_engine
+        type: decision
+        label: Task result?
+        description: >-
+          Both sellers return a completed Task with one text artifact. A confirmation question is
+          therefore read from the artifact text, not from an input-required state.
+        files: [logs/concierge.log]
+      - id: context
+        runtime: agent_engine
+        type: memory
+        label: contextId
+        description: "Same contextId on every follow-up, so the seller keeps its conversation (CrewAI prompt, LangGraph thread_id)."
+        files: [purchasing_concierge/purchasing_agent.py]
+    edges:
+      - { from: resolver, to: burger_card, kind: call, label: GET agent.json, protocol: http }
+      - { from: resolver, to: pizza_card, kind: call, label: GET agent.json, protocol: http }
+      - "burger_card -> client [data]: url, skills"
+      - "pizza_card -> client [data]: url, skills"
+      - "context -> client [data]: contextId"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: sellers
+    title: Remote Seller Agents
+    description: Two frameworks, two Cloud Run services, one protocol. Each seller's internals are a sub-tower.
+    nodes:
+      - id: burger
+        agent: burger
+        label: Burger seller (CrewAI)
+      - id: pizza
+        agent: pizza
+        label: Pizza seller (LangGraph)
+      - id: orders
+        type: memory
+        runtime: burger_run
+        label: Orders (in memory)
+        description: "create_*_order builds an Order(order_id uuid4, status created) and logs it; no database in the codelab."
+        files: [remote_seller_agents/burger_agent/agent.py, remote_seller_agents/pizza_agent/agent.py]
+      - id: auth
+        runtime: burger_run
+        type: guard
+        label: Cloud Run IAM
+        status: planned
+        description: >-
+          Codelab deploys with --allow-unauthenticated ("not recommended for production"). Planned:
+          roles/run.invoker for the Agent Engine service account and an ID token on every A2A call.
+        files: [scripts/deploy_sellers.sh]
+        credentials: service
+    edges:
+      - "burger -> orders [data]: create_order"
+      - "pizza -> orders [data]: create_pizza_order"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: platform
+    title: Models & Deploy
+    description: Gemini on Vertex AI for every agent; two deploy paths (Agent Engine and Cloud Run).
+    nodes:
+      - id: flash
+        runtime: vertex
+        type: model
+        label: gemini-2.5-flash
+        model: gemini-2.5-flash
+        description: Concierge model (purchasing_agent.py).
+      - id: flash_lite
+        runtime: vertex
+        type: model
+        label: gemini-2.5-flash-lite
+        model: gemini-2.5-flash-lite
+        description: "Both sellers: vertex_ai/gemini-2.5-flash-lite via LiteLLM in CrewAI, ChatVertexAI in LangGraph."
+      - id: deploy_engine
+        runtime: agent_engine
+        label: Agent Engine deploy
+        description: "agent_engines.create(AdkApp, requirements google-adk==1.15.1, a2a-sdk==0.2.16, env seller URLs)."
+        files: [deploy_to_agent_engine.py]
+      - id: deploy_run
+        runtime: burger_run
+        label: Cloud Run deploy
+        description: "gcloud run deploy --source per seller, --port 8080 --min 1, then HOST_OVERRIDE = service URL."
+        files: [scripts/deploy_sellers.sh]
+        resources:
+          - { kind: script, label: "deploy_sellers.sh", path: "scripts/deploy_sellers.sh" }
+    edges:
+      - "deploy_run -> deploy_engine [data]: seller URLs"
+
+links:
+  - { from: customer.chat, to: concierge.before_agent, kind: flow, label: stream_query, protocol: http }
+  - "customer.session -> concierge.instruction [data]: active_agent"
+  - "concierge.before_agent -> a2a.resolver [call]: first turn"
+  - "concierge.send_task -> a2a.client [call]: agent_name, task"
+  - { from: a2a.client, to: sellers.burger, kind: call, label: message/send, protocol: a2a }
+  - { from: a2a.client, to: sellers.pizza, kind: call, label: message/send, protocol: a2a }
+  - { from: sellers.burger, to: a2a.result, kind: return, label: "Task + artifact", protocol: a2a }
+  - { from: sellers.pizza, to: a2a.result, kind: return, label: "Task + artifact", protocol: a2a }
+  - "a2a.result -> concierge.confirmed: seller asks to confirm"
+  - "concierge.confirmed -> customer.confirm [handoff]: no, relay question"
+  - "customer.confirm -> concierge.concierge [return]: yes / changes"
+  - "a2a.result -> customer.receipt: order created"
+  - "concierge.concierge -> platform.flash [call]"
+  - "sellers.burger -> platform.flash_lite [call]"
+  - "sellers.pizza -> platform.flash_lite [call]"
+  - "platform.deploy_run -> sellers.auth: --allow-unauthenticated"

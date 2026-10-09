@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ResolvedNode, ResolvedPrompt, ResolvedTower } from '../../core/types';
 import { Connections } from './Connections';
+import { OpsInfo } from './OpsInfo';
 import { findNode, useStore, useTower } from '../store';
 import { NODE_STYLE } from '../theme';
 import { NodeLiveInfo } from './LiveFeed';
@@ -121,6 +122,7 @@ function Overview({ node, tower }: { node: ResolvedNode; tower: ResolvedTower })
           'sub-tower': node.tower,
         }} />
       </Section>
+      <OpsInfo node={node} />
       <Connections node={node} tower={tower} />
       {node.runtime && (
         <Section title={`Runtime · ${node.runtime.kind}`}>

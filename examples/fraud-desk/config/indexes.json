@@ -1,0 +1,36 @@
+{
+  "database": "fraud_review_demo",
+  "collection": "transactions",
+  "indexes": [
+    {
+      "name": "transactions_vector",
+      "type": "vectorSearch",
+      "definition": {
+        "fields": [
+          { "type": "vector", "path": "embedding", "numDimensions": 1024, "similarity": "cosine" },
+          { "type": "filter", "path": "status" }
+        ]
+      }
+    },
+    {
+      "name": "transactions_text",
+      "type": "search",
+      "definition": {
+        "mappings": {
+          "dynamic": false,
+          "fields": {
+            "text": { "type": "string", "analyzer": "lucene.english" },
+            "memo": { "type": "string", "analyzer": "lucene.english" },
+            "merchant": { "type": "document", "fields": { "name": { "type": "string" } } },
+            "status": { "type": "token" }
+          }
+        }
+      }
+    }
+  ],
+  "btree": [
+    { "keys": { "transaction_id": 1 }, "unique": true },
+    { "keys": { "sender.account_number": 1 } },
+    { "keys": { "status": 1, "created_at": 1 } }
+  ]
+}

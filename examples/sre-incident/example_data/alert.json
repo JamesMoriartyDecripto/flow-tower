@@ -1,0 +1,24 @@
+{
+  "event": {
+    "id": "01F8ZK3QW7X2B5V9N4M6T1R0YA",
+    "event_type": "incident.triggered",
+    "resource_type": "incident",
+    "occurred_at": "2026-10-07T14:09:12.418Z",
+    "agent": { "id": "PLH1HKV", "type": "service_reference" },
+    "data": {
+      "id": "Q2K7XJ4PL9WZ1R",
+      "type": "incident",
+      "self": "https://api.pagerduty.com/incidents/Q2K7XJ4PL9WZ1R",
+      "html_url": "https://example.pagerduty.com/incidents/Q2K7XJ4PL9WZ1R",
+      "number": 4127,
+      "status": "triggered",
+      "incident_key": "checkout-svc/crashloop",
+      "title": "checkout-svc pods in CrashLoopBackOff, 5xx 18%",
+      "urgency": "high",
+      "priority": { "id": "P1ABCD", "type": "priority_reference", "summary": "P1" },
+      "service": { "id": "PLH1HKV", "type": "service_reference", "summary": "checkout-svc" },
+      "escalation_policy": { "id": "PXQ2W1E", "type": "escalation_policy_reference", "summary": "Payments on-call" },
+      "created_at": "2026-10-07T14:09:12Z"
+    }
+  }
+}

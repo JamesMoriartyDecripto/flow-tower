@@ -15,12 +15,19 @@ agents:
     tools: [Read, Grep, Glob]
     runtime: gha
     files: [review.py]
+    limits: { timeout: 10m }
+    credentials: service
+    sandbox: { network: allowlist, allow: [api.anthropic.com, api.github.com], filesystem: read-only }
 
 layers:
   - id: trigger
     title: Trigger
     nodes:
-      - { id: pr, type: entry, label: PR opened / updated, files: [.github/workflows/review.yml] }
+      - id: pr
+        type: entry
+        label: PR opened / updated
+        files: [.github/workflows/review.yml]
+        trigger: { kind: webhook, source: "GitHub pull_request (opened, synchronize)" }
       - { id: diff, type: process, label: Fetch diff, runtime: gha }
     edges:
       - pr -> diff
@@ -45,7 +52,10 @@ layers:
         resources:
           - { kind: log, label: Last run, path: logs/review-run.log }
       - { id: approve, type: output, label: Approve, runtime: gha }
-      - { id: human, type: human, label: Maintainer decides }
+      - id: human
+        type: human
+        label: Maintainer decides
+        approval: { by: maintainer, via: PR review, actions: [approve, reject] }
     edges:
       - comment -> human
       - "approve -> human: merge"
