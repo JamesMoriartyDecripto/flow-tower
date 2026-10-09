@@ -189,3 +189,19 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .status-deprecated { color: var(--dim); text-decoration: line-through; }
 .layernav button.hot { background: rgba(255, 138, 31, 0.16); border-left-color: var(--amber); }
 .layernav button.hot .name { color: var(--amber); }
+
+/* Layout fixes: nothing in the HUD may overlap text. */
+.inspector header { padding-right: 52px; }
+.inspector h2 { overflow-wrap: anywhere; }
+.tabbody { padding-bottom: 30px; scrollbar-gutter: stable; }
+.kv { grid-template-columns: fit-content(42%) minmax(0, 1fr); }
+.kv dt, .kv dd { overflow-wrap: anywhere; min-width: 0; }
+.conn { flex-wrap: wrap; row-gap: 2px; }
+.conn > span { min-width: 0; overflow-wrap: anywhere; }
+.prompt { overflow-wrap: anywhere; }
+.filelist button, .reslist a, .reslist button { overflow-wrap: anywhere; }
+.enter { flex-shrink: 0; }
+.issues.shifted { right: 448px; }
+.layernav { max-height: calc(100vh - 80px - 290px); }
+.legend { max-height: 260px; }
+.panel::before, .panel::after { z-index: 1; }

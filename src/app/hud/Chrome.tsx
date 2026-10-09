@@ -182,9 +182,10 @@ export function Controls() {
 
 export function Issues({ onClose }: { onClose(): void }) {
   const tower = useTower();
+  const inspecting = useStore((s) => !!s.selected);
   const issues = [...(tower?.issues ?? [])].sort((a, b) => ['error', 'warning', 'info'].indexOf(a.level) - ['error', 'warning', 'info'].indexOf(b.level));
   return (
-    <aside className="panel issues">
+    <aside className={`panel issues ${inspecting ? 'shifted' : ''}`}>
       <button className="close" style={{ position: 'absolute', top: 10, right: 18 }} onClick={onClose}>✕</button>
       <div className="title" style={{ marginBottom: 10 }}>Validation · {issues.length}</div>
       {issues.length === 0 && <p className="mono dim">All systems nominal.</p>}

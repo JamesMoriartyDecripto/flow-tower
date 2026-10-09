@@ -62,6 +62,7 @@ export const AgentSchema = z.strictObject({
   tower: z.string().optional().describe('Path to a nested .tower.yaml describing this agent internals.'),
   runtime: z.string().optional().describe('Reference to an entry of the `runtimes` registry.'),
   resources: z.array(ResourceSchema).optional(),
+  match: z.array(z.string()).optional().describe('Live event rules, e.g. "agent:coder", "tool:mcp__github__*", "source:hermes&tool:shell".'),
   meta: meta.optional(),
 });
 
@@ -79,6 +80,7 @@ export const NodeSchema = z.strictObject({
   runtime: z.string().optional().describe('Reference to `runtimes`. Inherited from the agent when omitted.'),
   status: z.enum(STATUSES).optional().describe('Defaults to `active`.'),
   resources: z.array(ResourceSchema).optional().describe('Logs, scripts, dashboards, endpoints... related to this node.'),
+  match: z.array(z.string()).optional().describe('Live event rules; inherited from the agent. Default: match by id, label, agent and tool names.'),
   meta: meta.optional(),
 });
 
