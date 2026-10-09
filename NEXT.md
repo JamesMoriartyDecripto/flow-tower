@@ -1,6 +1,6 @@
 # Next session: handoff
 
-Status on 2026-10-09 (evening): everything through PR #34 is merged into `main` (live UX, on-demand rendering, map view, settings, keyboard navigation, operational schema fields, HUD-aware camera, 4 starters and 21 researched presets, demo GIF and screenshots). Next: first release, bug sweep, public repo with a static demo on GitHub Pages.
+Status on 2026-10-09 (night): **v0.1.0 released** after the pre-release audit (PR #36, report in `examples/release-auditor/reports/v0.1.0.md`; E2E suite `npm run e2e`). Next: history secret scan done (gitleaks clean), make the repo public (maintainer's call), static demo on GitHub Pages (#15), then the update notice (#35).
 
 Source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**. Where code lives: [docs/architecture.md](docs/architecture.md).
 
