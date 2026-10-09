@@ -43,7 +43,7 @@ export function App() {
         gl={{ antialias: quality === 'eco', powerPreference: 'high-performance' }}
         frameloop="demand"
         onPointerMissed={() => useStore.getState().select(undefined)}
-        onCreated={(state) => { if (import.meta.env.DEV) Object.assign(window, { __flowTower: state }); }}
+        onCreated={(state) => { if (import.meta.env.DEV) Object.assign(window, { __flowTower: { store: useStore, three: state } }); }}
       >
         <Suspense fallback={null}>
           <TowerScene key={themeRev} />
@@ -99,20 +99,24 @@ const ARROWS: Record<string, Dir> = { ArrowLeft: 'left', ArrowRight: 'right', Ar
 function libraryKey(e: KeyboardEvent) {
   const cards = [...document.querySelectorAll<HTMLElement>('[data-card]')];
   const active = document.activeElement as HTMLElement | null;
-  const i = active ? cards.indexOf(active) : -1;
+  // Focus may be on any control inside a card (title, description, Tower / Map).
+  const i = active ? cards.findIndex((c) => c.contains(active)) : -1;
+  const focusCard = (c?: HTMLElement) => c?.querySelector<HTMLElement>('.lib-main')?.focus();
+  // A focused description scrolls with ↑ ↓; ← → still move between cards.
+  if (active?.matches('.lib-desc') && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) return;
   if (e.key in ARROWS) {
     e.preventDefault();
-    if (i < 0) return (document.querySelector<HTMLElement>('.lib-card.current') ?? cards[0])?.focus();
+    if (i < 0) return focusCard(document.querySelector<HTMLElement>('.lib-card.current') ?? cards[0]);
     const cols = cards.filter((c) => c.offsetTop === cards[0].offsetTop).length || 1;
     const step = { left: -1, right: 1, up: -cols, down: cols }[ARROWS[e.key]];
     // ← → wrap around the ends; ↑ ↓ stop at the first / last row.
     const next = Math.abs(step) === 1 ? (i + step + cards.length) % cards.length : Math.min(cards.length - 1, Math.max(0, i + step));
-    cards[next]?.focus();
+    focusCard(cards[next]);
   } else if (e.key === '/') {
     e.preventDefault();
     document.querySelector<HTMLInputElement>('.lib-head input')?.focus();
   } else if (i >= 0 && (e.key === 't' || e.key === 'm')) {
-    active!.querySelectorAll<HTMLElement>('.lib-open .btn')[e.key === 't' ? 0 : 1]?.click();
+    cards[i].querySelectorAll<HTMLElement>('.lib-open .btn')[e.key === 't' ? 0 : 1]?.click();
   }
 }
 

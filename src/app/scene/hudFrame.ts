@@ -83,8 +83,10 @@ export function useHudFrame(controls: React.RefObject<CameraControls | null>, la
   const focusedLayer = useStore((st) => st.focusedLayer);
   const viewNonce = useStore((st) => st.viewNonce);
   const view = useStore((st) => st.view);
-  useEffect(() => { autoBase.current = undefined; }, [focusedLayer, viewNonce, view]);
+  useEffect(() => { autoBase.current = undefined; lastRect.current = ''; }, [focusedLayer, viewNonce, view]);
   const cur = useRef({ x: 0, y: 0 });
+  // Panels and window size at the last fit: selecting another node with the same panels open must not zoom.
+  const lastRect = useRef('');
 
   // Panels open, close or resize: aim the projection center at the middle of the free area.
   useEffect(() => {
@@ -95,7 +97,13 @@ export function useHudFrame(controls: React.RefObject<CameraControls | null>, la
       // free area. Zoom out only when it no longer fits, and come back to the user's distance when it
       // fits again. Angle and target stay as the user left them. Only once panels finished sliding in.
       const ctl = controls.current;
-      const ext = settled && ctl ? contentExtent(camera, size, layout, layerIds) : undefined;
+      // Only a panel opening or closing (or a resize) re-fits the zoom: moving between nodes keeps the
+      // distance the user zoomed to. Keyed on which panels are open, not on their measured boxes, which
+      // are still moving while a panel slides in.
+      const key = `${size.width}x${size.height}@${scale}|${selected ? 'inspector' : ''}|${feedOpen ? 'feed' : ''}`;
+      const changed = settled && key !== lastRect.current;
+      if (settled) lastRect.current = key;
+      const ext = changed && ctl ? contentExtent(camera, size, layout, layerIds) : undefined;
       if (ctl && ext) {
         const need = Math.max(ext.w / (r.w * 0.94), ext.h / (r.h * 0.94));
         if (need > 1.03) {

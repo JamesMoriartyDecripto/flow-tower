@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" font-family="sans-serif" font-size="12">
+  <title>Figure 6.2: solid screen versus semi-permeable screen</title>
+  <rect width="480" height="320" fill="#fff"/>
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#2a6f97"/></marker></defs>
+  <line x1="10" y1="140" x2="470" y2="140" stroke="#555"/>
+  <rect x="160" y="60" width="12" height="80" fill="#8a5a2b"/>
+  <g stroke="#2a6f97" stroke-width="2" fill="none" marker-end="url(#a)">
+    <path d="M20,80 L140,80 C160,40 190,40 215,70 C240,110 205,125 230,105"/>
+    <path d="M20,115 L140,115"/>
+    <path d="M190,40 C260,30 330,40 450,50"/>
+  </g>
+  <text x="250" y="120" fill="#c0392b">turbulence</text>
+  <text x="10" y="20" fill="#333">Solid screen</text>
+  <line x1="10" y1="300" x2="470" y2="300" stroke="#555"/>
+  <g fill="#8a5a2b"><rect x="160" y="220" width="12" height="12"/><rect x="160" y="244" width="12" height="12"/><rect x="160" y="268" width="12" height="12"/><rect x="160" y="290" width="12" height="10"/></g>
+  <g stroke="#2a6f97" stroke-width="2" fill="none" marker-end="url(#a)">
+    <path d="M20,238 L150,238 M180,238 L440,238" stroke-width="2"/>
+    <path d="M20,262 L150,262 M180,262 L400,262" stroke-width="1.5"/>
+  </g>
+  <text x="230" y="285" fill="#2e7d32">sheltered zone</text>
+  <text x="10" y="190" fill="#333">Slatted screen, about half open</text>
+</svg>

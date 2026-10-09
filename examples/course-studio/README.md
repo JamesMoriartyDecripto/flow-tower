@@ -12,7 +12,7 @@ Sample run: **Intro to Prompt Engineering for Product Managers**, 6 modules, SCO
 ## Open it
 
 ```bash
-npx flow-tower examples/course-studio/course-studio.tower.yaml
+node bin/flow-tower.js examples/course-studio/course-studio.tower.yaml
 ```
 
 12 layers, 109 nodes. Drill into **Module writer**, **Media producer**, **Assessment designer**

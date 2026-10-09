@@ -11,16 +11,16 @@ fit:                                   # from enrichment + form
     "2001-5000": 10
     "<100": 0
   country:
-    [DE, NL, FR]: 10
-    [AT, BE, CH]: 6
+    "DE, NL, FR": 10
+    "AT, BE, CH": 6
     other_eu: 2
   erp:
-    [sap_s4hana, dynamics_365, exact]: 15
-    [netsuite, datev]: 8
+    "sap_s4hana, dynamics_365, exact": 15
+    "netsuite, datev": 8
     none: -10
   job_function:
-    [accounts_payable, accounting, finance]: 5
-    [it, erp]: 3
+    "accounts_payable, accounting, finance": 5
+    "it, erp": 3
   grades: { A: ">= 40", B: "30-39", C: "15-29", D: "< 15" }
 
 intent:

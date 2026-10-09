@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { splitTarget } from '../core/events';
 import { descendants, useLive, useLivePoll, useTowerLive, type LiveState } from './live';
 import { useStore, useTower } from './store';
 
@@ -61,7 +62,7 @@ export function useFollow() {
     if (!s.follow || !tower || s.lastEvent === prev.lastEvent || !s.lastEvent) return;
     const target = s.lastEvent.targets.find((t) => t.startsWith(`${tower.id}#`));
     if (!target || Date.now() - lastMove.current < FOLLOW_EVERY_MS) return;
-    const layerId = target.split('#')[1].split('.')[0];
+    const layerId = splitTarget(target)[1].split('.')[0];
     const index = tower.layers.findIndex((l) => l.id === layerId);
     const ui = useStore.getState();
     if (index < 0 || ui.focusedLayer === index || ui.selected) return;

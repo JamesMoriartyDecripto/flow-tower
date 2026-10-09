@@ -16,7 +16,7 @@ steps:
       {{relevance | default: "Molte ci chiamano quando la chiusura mensile richiede troppe giornate."}}
       È un tema per voi? Se preferisce, le mando una scheda di una pagina via email: posso?
     on_yes_to_email: record consent (text, date, rep) in HubSpot, then step 3
-    on_no: mark "not interested", stop; on "non chiamate più": suppress
+    on_no: 'mark "not interested", stop; on "non chiamate più": suppress'
     info_notice: "Say where the number comes from (Atoka / registro imprese) and offer the privacy notice."
   - n: 2
     channel: linkedin_manual

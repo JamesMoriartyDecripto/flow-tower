@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
-import { Line } from '@react-three/drei';
+import { BatchLine } from './BatchLine';
 import { useFrame } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import type { LineSegments2 } from 'three-stdlib';
@@ -123,13 +123,13 @@ export function Links({ links, layout, layerIndex, visual, layerFade, lens, quie
   return (
     <group visible={visible}>
       {batches.solid.points.length > 0 && (
-        <Line ref={refs.solid} points={batches.solid.points} vertexColors={batches.solid.colors} segments lineWidth={1} toneMapped={false} />
+        <BatchLine ref={refs.solid} points={batches.solid.points} vertexColors={batches.solid.colors} lineWidth={1} toneMapped={false} />
       )}
       {batches.dashed.points.length > 0 && (
-        <Line ref={refs.dashed} points={batches.dashed.points} vertexColors={batches.dashed.colors} segments dashed dashSize={0.4} gapSize={0.25} lineWidth={1} toneMapped={false} />
+        <BatchLine ref={refs.dashed} points={batches.dashed.points} vertexColors={batches.dashed.colors} dashed dashSize={0.4} gapSize={0.25} lineWidth={1} toneMapped={false} />
       )}
       {batches.hot.points.length > 0 && (
-        <Line ref={refs.hot} points={batches.hot.points} vertexColors={batches.hot.colors} segments lineWidth={2.2} toneMapped={false} />
+        <BatchLine ref={refs.hot} points={batches.hot.points} vertexColors={batches.hot.colors} lineWidth={2.2} toneMapped={false} />
       )}
       {particles && deco && flow.on && <Particles paths={paths} size={0.06} look={flow} />}
     </group>

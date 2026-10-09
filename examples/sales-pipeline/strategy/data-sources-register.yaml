@@ -1,7 +1,7 @@
 # Data sources the prospecting layer may use. Reviewed by the DPO each quarter.
 # A source missing from this file is not allowed. "uses" lists what the data may be used for.
 version: 2026-10-06
-owner: DPO (external, fictional: Studio Privacy Emilia)
+owner: "DPO (external, fictional: Studio Privacy Emilia)"
 
 sources:
   - id: atoka

@@ -12,10 +12,10 @@ for running. The project inside is **Emberwake**, a co-op survival-crafting rogu
 ## Open it
 
 ```bash
-npx flow-tower examples/game-studio/game-studio.tower.yaml
+node bin/flow-tower.js examples/game-studio/game-studio.tower.yaml
 ```
 
-14 layers, ~130 nodes. Six nodes drill into nested towers (art pipeline, Unreal integration,
+14 layers, 141 nodes. Six nodes drill into nested towers (art pipeline, Unreal integration,
 world gen, engineering, QA, marketing); two of those go one level deeper (material bake,
 playtest bot).
 

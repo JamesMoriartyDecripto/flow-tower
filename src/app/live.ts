@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
-import type { FlowEvent } from '../core/events';
+import { splitTarget, type FlowEvent } from '../core/events';
 import type { Workspace } from '../core/types';
 import { keepAlive } from './scene/frameBudget';
 
@@ -59,7 +59,9 @@ export const useLive = create<LiveStore>()((set, get) => ({
     const restarted = batch.length > 0 && batch[batch.length - 1].id < get().lastId;
     const fresh = batch.filter((e) => e.id > (restarted ? 0 : get().lastId));
     if (!fresh.length) return;
-    keepAlive(1700); // let the flash/ripple animations play
+    // Let the flash/ripple animations play, but only for events that land somewhere: an agent busy in
+    // another project must not keep the tower on screen rendering.
+    if (fresh.some((e) => e.targets.length)) keepAlive(1700);
     // Copy-on-write: selectors (useLive(s => s.nodes.get(k)?.last)) must never see a value change
     // without a store update, or useSyncExternalStore tears and re-renders in a loop.
     const nodes = new Map(get().nodes);
@@ -128,7 +130,7 @@ export function descendants(ws: Workspace): Map<string, Set<string>> {
 /** Aggregated live state of a whole tower subtree (the tower itself + its nested towers). */
 export function subtreeState(towers: Set<string>, nodes: Map<string, NodeLive>, now: number) {
   const states = [];
-  for (const [key, n] of nodes) if (towers.has(key.slice(0, key.indexOf('#')))) states.push(liveState(n, now));
+  for (const [key, n] of nodes) if (towers.has(splitTarget(key)[0])) states.push(liveState(n, now));
   return strongest(states);
 }
 
@@ -159,14 +161,19 @@ export function useLivePoll<T>(
   const [snapshot, setSnapshot] = useState<{ sig: string; value: T }>({ sig: '', value: initial });
   useEffect(() => {
     if (!towerId) return;
+    let t: ReturnType<typeof setInterval> | undefined;
     const tick = () => {
-      const value = reduce(computeStates(towerId, nested, desc, useLive.getState().nodes, Date.now()));
+      const states = computeStates(towerId, nested, desc, useLive.getState().nodes, Date.now());
+      const value = reduce(states);
       const next = sig(value);
       setSnapshot((prev) => (prev.sig === next ? prev : { sig: next, value }));
+      // Everything idle: stop waking up 4 times a second until the next event arrives.
+      if (!states.size && t) { clearInterval(t); t = undefined; }
     };
-    tick();
-    const t = setInterval(tick, 250);
-    return () => clearInterval(t);
+    const start = () => { t ??= setInterval(tick, 250); tick(); };
+    start();
+    const unsubscribe = useLive.subscribe((s, prev) => { if (s.nodes !== prev.nodes) start(); });
+    return () => { clearInterval(t); unsubscribe(); };
   }, [towerId, nested, desc]); // eslint-disable-line react-hooks/exhaustive-deps
   return snapshot.value;
 }

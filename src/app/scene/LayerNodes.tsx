@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
-import { Line } from '@react-three/drei';
+import { BatchLine } from './BatchLine';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Color, Quaternion, Vector3, type InstancedMesh } from 'three';
 import type { ResolvedNode } from '../../core/types';
@@ -79,7 +79,9 @@ export function LayerNodes({ views, layer, layerFade, interactive, detail, tags:
   }))), [views]);
   const pending = useMemo(() => toSegments(views.filter((v) => v.node.status !== 'active')
     .map((v) => ({ points: rect(v.box, TOP), color: scaled(v.node.status === 'deprecated' ? GLOW.white : GLOW.amber, v.fade * 0.8) }))), [views]);
-  const active = views.filter((v) => v.selected || v.hovered);
+  const outlineOf = (pick: (v: NodeView) => boolean) => toSegments(views.filter(pick).map((v) => ({ points: rect(v.box, TOP + 0.005), color: HOT.white }))).points;
+  const selectedOutline = useMemo(() => outlineOf((v) => v.selected), [views]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hoveredOutline = useMemo(() => outlineOf((v) => v.hovered && !v.selected), [views]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const labels = useMemo<TextItem[]>(() => views.map(({ node, box, fade }) => ({
     // Clipped at the node border (and before the sub-tower badge): long labels never spill out.
@@ -140,17 +142,17 @@ export function LayerNodes({ views, layer, layerFade, interactive, detail, tags:
       </instancedMesh>
 
       {outline.points.length > 0 && (
-        <Line points={outline.points} vertexColors={outline.colors} segments lineWidth={1.2} transparent opacity={layerFade} toneMapped={false} />
+        <BatchLine points={outline.points} vertexColors={outline.colors} lineWidth={1.2} transparent opacity={layerFade} toneMapped={false} />
       )}
       {ghosts.points.length > 0 && (
-        <Line points={ghosts.points} vertexColors={ghosts.colors} segments lineWidth={1} transparent opacity={layerFade} toneMapped={false} />
+        <BatchLine points={ghosts.points} vertexColors={ghosts.colors} lineWidth={1} transparent opacity={layerFade} toneMapped={false} />
       )}
       {pending.points.length > 0 && (
-        <Line points={pending.points} vertexColors={pending.colors} segments dashed dashSize={0.25} gapSize={0.18} lineWidth={1.4} transparent opacity={layerFade} toneMapped={false} />
+        <BatchLine points={pending.points} vertexColors={pending.colors} dashed dashSize={0.25} gapSize={0.18} lineWidth={1.4} transparent opacity={layerFade} toneMapped={false} />
       )}
-      {active.map((v) => (
-        <Line key={v.node.key} points={rect(v.box, TOP + 0.005)} color={v.selected ? HOT.white : HOT.amber} lineWidth={v.selected ? 2.8 : 2.2} transparent opacity={layerFade} toneMapped={false} />
-      ))}
+      {/* Always mounted (possibly empty): mounting a line per hover recompiled its shader every time. */}
+      <BatchLine points={selectedOutline} color={HOT.white} lineWidth={2.8} transparent opacity={layerFade} toneMapped={false} />
+      <BatchLine points={hoveredOutline} color={HOT.amber} lineWidth={2.2} transparent opacity={layerFade} toneMapped={false} />
 
       {glyphs.map(([kind, items]) => <GlyphBatch key={kind} kind={kind} items={items} layerFade={layerFade} />)}
       {badges.length > 0 && <Badges items={badges} layerFade={layerFade} />}

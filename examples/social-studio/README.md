@@ -3,7 +3,7 @@
 An agentic social media operation for one brand on eight networks: weekly planning, listening, creation and repurposing, compliance review, publishing through the official APIs, community management and a weekly report that feeds the next plan. Agents draft; people approve; only a worker publishes. Sample brand: **Halden Bikes** (fictional), an Amsterdam e-cargo-bike maker selling in NL, BE and DE.
 
 ```bash
-npx flow-tower examples/social-studio
+node bin/flow-tower.js examples/social-studio
 ```
 
 ## Layers

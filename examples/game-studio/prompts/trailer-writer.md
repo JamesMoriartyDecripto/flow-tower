@@ -25,4 +25,5 @@ Pillars: {{pillars}}
 ## Output (Markdown table)
 | # | Time | Shot | Camera | Action | Assets | Audio | Type |
 |---|------|------|--------|--------|--------|-------|------|
+
 Followed by the 15-second cutdown as a list of shot numbers.

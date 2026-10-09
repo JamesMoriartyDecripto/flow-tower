@@ -13,19 +13,25 @@ export function Tooltip() {
   const anchor = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    const show = (e: MouseEvent) => {
+    const show = (e: Event) => {
       const el = (e.target as Element | null)?.closest?.('[title],[data-tip]') as HTMLElement | null;
       if (!el || el.matches(':disabled')) return;
+      // Keyboard users get the tip too, but only for keyboard focus (not after a click).
+      if (e.type === 'focusin' && !el.matches(':focus-visible')) return;
       const title = el.getAttribute('title');
       if (title) {
         el.dataset.tip = title;
         el.removeAttribute('title');
+        // The title was also the accessible name or description: keep it for screen readers.
+        if (!el.getAttribute('aria-label') && !el.textContent?.trim()) el.setAttribute('aria-label', title);
+        else if (!el.getAttribute('aria-description')) el.setAttribute('aria-description', title);
       }
       const text = el.dataset.tip;
       if (!text) return;
       clearTimeout(timer.current);
       timer.current = window.setTimeout(() => {
         anchor.current = el;
+        watchdog ??= window.setInterval(check, 250);
         const r = el.getBoundingClientRect();
         const above = r.bottom + 60 > window.innerHeight;
         // The tip is zoomed with the HUD (--ui-scale): its left/top are in zoomed pixels.
@@ -41,13 +47,22 @@ export function Tooltip() {
       clearTimeout(timer.current);
       setTip(undefined);
     };
-    const reset = () => { clearTimeout(timer.current); anchor.current = null; setTip(undefined); };
+    let watchdog: number | undefined;
+    const reset = () => {
+      clearTimeout(timer.current);
+      clearInterval(watchdog);
+      watchdog = undefined;
+      anchor.current = null;
+      setTip(undefined);
+    };
     // Panels can close under the pointer (Esc, re-render): then no mouseout ever arrives.
-    const watchdog = window.setInterval(() => {
+    // Runs only while a tip is up: no idle wake-ups.
+    const check = () => {
       const el = anchor.current;
-      if (el && (!el.isConnected || !el.matches(':hover'))) reset();
-    }, 250);
+      if (!el || !el.isConnected || (!el.matches(':hover') && el !== document.activeElement)) reset();
+    };
     document.addEventListener('mouseover', show);
+    document.addEventListener('focusin', show);
     document.addEventListener('mouseout', hide);
     document.addEventListener('mousedown', reset);
     window.addEventListener('blur', reset);
@@ -56,6 +71,7 @@ export function Tooltip() {
       clearInterval(watchdog);
       window.removeEventListener('keydown', reset);
       document.removeEventListener('mouseover', show);
+      document.removeEventListener('focusin', show);
       document.removeEventListener('mouseout', hide);
       document.removeEventListener('mousedown', reset);
       window.removeEventListener('blur', reset);

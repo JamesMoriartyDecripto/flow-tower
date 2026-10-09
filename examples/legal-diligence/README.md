@@ -3,7 +3,7 @@
 An M&A red-flag diligence desk for a law firm: data room in, cited red flag report out, a lawyer approving every step. Built on the Claude Agent SDK with Claude on Amazon Bedrock in `eu-central-1`, so confidential client documents are processed in-region.
 
 ```bash
-npx flow-tower examples/legal-diligence
+node bin/flow-tower.js examples/legal-diligence
 ```
 
 ## Layers

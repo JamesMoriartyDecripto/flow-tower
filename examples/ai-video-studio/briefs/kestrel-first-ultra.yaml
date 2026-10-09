@@ -23,7 +23,7 @@ product:
 must_include:
   - CTA to kestrel.example/first-ultra
   - "Fuelling guideline with source: 60-90 g carbohydrate per hour for efforts over 2.5 h"
-must_avoid: [competitor brands, injury or medical advice, "guaranteed" results]
+must_avoid: [competitor brands, injury or medical advice, '"guaranteed" results']
 references:
   - https://www.youtube.com/@example-trail-channel  # liked: calm talking head, real trail b-roll
 paid_partnership: false

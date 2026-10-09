@@ -13,7 +13,7 @@ pages; the Python under `src/` is a short **reconstruction** of the same design 
 the `google-genai` SDK, meant to be read, not run.
 
 ```bash
-npx flow-tower examples/co-scientist/co-scientist.tower.yaml
+node bin/flow-tower.js examples/co-scientist/co-scientist.tower.yaml
 ```
 
 The **Elo tournament** node drills down into `towers/tournament.tower.yaml`.

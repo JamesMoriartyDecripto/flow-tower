@@ -6,7 +6,7 @@ loop runs on Anthropic's side, and every query runs in the host process with `py
 so the database credential never enters the agent context or the sandbox.
 
 ```bash
-npx flow-tower examples/fraud-desk/fraud-desk.tower.yaml
+node bin/flow-tower.js examples/fraud-desk/fraud-desk.tower.yaml
 ```
 
 ## Layers
