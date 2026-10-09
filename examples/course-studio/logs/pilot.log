@@ -1,0 +1,10 @@
+2026-10-05T10:00:03.551Z INFO  [pilot] SIMULATED pilot (not learner outcomes) personas=novice-pm,esl-pm,sr-pm sandbox=cloud.scorm.com
+2026-10-05T10:00:04.020Z INFO  [pilot-novice-pm] launch registration=pe4pm-smoke-1759658403
+2026-10-05T10:00:04.031Z INFO  [pilot-esl-pm] launch registration=pe4pm-smoke-1759658404
+2026-10-05T10:00:04.040Z INFO  [pilot-sr-pm] launch registration=pe4pm-smoke-1759658405 mode=accessibility-tree-only
+2026-10-05T10:41:22.716Z WARN  [pilot-esl-pm] friction major m2-l1 "'ballpark' and 'rule of thumb' unclear"
+2026-10-05T10:52:09.330Z WARN  [pilot-sr-pm] friction critical m5 quiz "Submit button has no accessible name"
+2026-10-05T11:07:45.104Z WARN  [pilot-novice-pm] friction minor m4-l3 "video too long, skipped"
+2026-10-05T11:20:31.888Z INFO  [pilot] completed=3/3 items=38 weak=[m5-q3 p=0.97]
+2026-10-05T11:20:31.890Z INFO  [pilot] FAIL critical_friction=1 weak_items=1 -> director pilot_fixes
+2026-10-05T13:02:17.440Z INFO  [pilot] rerun completed=3/3 weak=[] critical_friction=0 PASS cost=$4.20

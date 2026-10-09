@@ -1,0 +1,9 @@
+2026-10-06T09:05:31Z PreToolUse tool=mcp__blender__execute_blender_code agent=blender-modeler hook=asset-budget decision=allow tris_est=5900/6000
+2026-10-06T09:44:12Z PreToolUse tool=mcp__forge__register_asset agent=asset-tagger hook=asset-budget decision=deny reason="SK_CinderWisp texture 4096 > prop max 2048"
+2026-10-06T10:02:47Z PreToolUse tool=WebFetch agent=web-researcher hook=license-check decision=deny reason="CC BY-NC 4.0 (non-commercial) reference pack"
+2026-10-06T10:02:59Z PreToolUse tool=mcp__forge__check_license agent=audio-designer hook=license-check decision=allow license=CC0-1.0
+2026-10-06T10:40:03Z UserPromptSubmit hook=secret-scan decision=block reason="PostHog personal API key in pasted feedback"
+2026-10-06T11:12:19Z PreToolUse tool=Bash agent=tools-engineer rule=deny pattern="Bash(git push --force:*)"
+2026-10-07T16:02:12Z PreToolUse tool=mcp__forge__package_build agent=release-engineer hook=build-gate decision=allow
+2026-10-07T16:40:55Z PreToolUse tool=Bash agent=release-engineer rule=deny pattern="Bash(steamcmd:*)"
+2026-10-07T18:00:00Z Stop hook=cost-ledger department=marketing studio_total=$626.58 budget=$1200
