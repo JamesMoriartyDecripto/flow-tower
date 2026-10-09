@@ -114,19 +114,26 @@ export function Library() {
         </div>
         <label className="search">
           <span className="dim">⌕</span>
-          <input autoFocus value={filter} placeholder="Filter projects" onChange={(e) => setFilter(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+          <input autoFocus value={filter} placeholder="Filter projects" onChange={(e) => setFilter(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              // The filter has focus while the library is open: Esc clears it first, then closes.
+              if (e.key !== 'Escape') return;
+              if (filter) setFilter('');
+              else if (stack.length) showLibrary(false);
+            }} />
         </label>
-        {stack.length > 0 && <button className="btn" onClick={() => showLibrary(false)}>Back to tower ✕</button>}
+        {stack.length > 0 && <button className="btn" onClick={() => showLibrary(false)} title="Close the library and return to the tower you were viewing (Esc)">Back to tower ✕</button>}
       </header>
       {tags.length > 0 && (
         <div className="chips lib-tags">
-          <button className={`chip clickable ${!tag ? 'on' : ''}`} onClick={() => setTag(undefined)}>ALL</button>
-          {tags.map((t) => <button key={t} className={`chip clickable ${tag === t ? 'on' : ''}`} onClick={() => setTag(tag === t ? undefined : t)}>{t}</button>)}
+          <button className={`chip clickable ${!tag ? 'on' : ''}`} onClick={() => setTag(undefined)} title="Show every project">ALL</button>
+          {tags.map((t) => <button key={t} className={`chip clickable ${tag === t ? 'on' : ''}`} onClick={() => setTag(tag === t ? undefined : t)} title={`Only show projects tagged "${t}" (click again to clear)`}>{t}</button>)}
         </div>
       )}
       <div className="lib-grid">
         {shown.map(({ id, tower, stats }) => (
-          <button key={id} className={`panel lib-card ${stack[0] === id ? 'current' : ''}`} onClick={() => openProject(id)}>
+          <button key={id} className={`panel lib-card ${stack[0] === id ? 'current' : ''}`} onClick={() => openProject(id)} title={`Open ${tower.name}`}>
             <MiniTower tower={tower} />
             <div className="lib-body">
               <h3>{tower.name}{live[id] && live[id] !== 'idle' && <span className={`live-dot ${live[id]}`} title={`live: ${live[id]}`} />}</h3>

@@ -38,10 +38,10 @@ export function FileViewer() {
   return (
     <div className="overlay" onClick={() => openFile(undefined)}>
       <div className="panel viewer" onClick={(e) => e.stopPropagation()}>
-        <button className="close" style={{ position: 'absolute', top: 10, right: 20, fontSize: 18, zIndex: 1 }} onClick={() => openFile(undefined)}>✕</button>
+        <button className="close" title="Close the file viewer (Esc)" style={{ position: 'absolute', top: 10, right: 20, fontSize: 18, zIndex: 1 }} onClick={() => openFile(undefined)}>✕</button>
         <nav className="files">
           {file.files.map((f, i) => (
-            <button key={f} className={i === file.index ? 'on' : ''} onClick={() => openFile({ ...file, index: i })}>
+            <button key={f} className={i === file.index ? 'on' : ''} onClick={() => openFile({ ...file, index: i })} title={`Show ${f}`}>
               {f.split('/').pop()}
             </button>
           ))}

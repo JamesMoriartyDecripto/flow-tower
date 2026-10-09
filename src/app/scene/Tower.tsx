@@ -153,6 +153,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
             interactive={focusedLayer === undefined || i === focusedLayer}
             focused={focusedLayer === i}
             mapView={view === 'map'}
+            layerCount={n}
             visual={visual}
             liveTint={live.tints[l.id]}
             subtrees={live.subtrees}

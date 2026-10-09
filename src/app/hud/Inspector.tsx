@@ -7,6 +7,13 @@ import { NodeLiveInfo } from './LiveFeed';
 
 type Tab = 'overview' | 'prompt' | 'tools' | 'files';
 
+const TAB_HINT: Record<Tab, string> = {
+  overview: 'Description, model, runtime, harness, live state and connections',
+  prompt: 'System prompt with its template variables',
+  tools: 'Tools this node can use (click one to jump to its node)',
+  files: 'Source files, logs, scripts and dashboards',
+};
+
 /** Right-hand panel with everything known about the selected node. */
 export function Inspector() {
   const tower = useTower();
@@ -39,7 +46,7 @@ export function Inspector() {
       </header>
       <nav className="tabs">
         {tabs.map(([id, label, count]) => (
-          <button key={id} className={tab === id ? 'on' : ''} disabled={count === 0} onClick={() => setTab(id)}>
+          <button key={id} className={tab === id ? 'on' : ''} disabled={count === 0} onClick={() => setTab(id)} title={count === 0 ? `This node has no ${label.toLowerCase()}` : TAB_HINT[id]}>
             {label}{count ? ` ${count}` : ''}
           </button>
         ))}
@@ -51,7 +58,7 @@ export function Inspector() {
         {tab === 'files' && <Files node={node} tower={tower.id} />}
       </div>
       {node.tower && (
-        <button className="btn primary enter" onClick={() => enterTower(node.tower!)}>
+        <button className="btn primary enter" onClick={() => enterTower(node.tower!)} title="Open the tower inside this node (Enter or double-click the node)">
           ⇣ Enter sub-tower
         </button>
       )}
@@ -124,7 +131,7 @@ function Conn({ edge, other, tower, arrow }: { edge: ResolvedEdge; other: string
     if (s.focusedLayer !== undefined && target) s.focusLayer(tower.layers.findIndex((l) => l.id === target.layer));
   };
   return (
-    <button className="conn" onClick={go}>
+    <button className="conn" onClick={go} title={`Select ${target?.label ?? other}`}>
       <span className="k">{edge.kind.toUpperCase()}</span>
       <span>{arrow} {target?.label ?? other}</span>
       {edge.label && <span className="dim mono">· {edge.label}</span>}
@@ -141,7 +148,7 @@ function Prompt({ prompt, tower }: { prompt: ResolvedPrompt; tower: string }) {
           <span className="chip">~{prompt.tokens.toLocaleString()} tokens</span>
           {prompt.id && <span className="chip">registry: {prompt.id}</span>}
           {prompt.source && (
-            <button className="chip clickable" onClick={() => useStore.getState().openFile({ tower, files: [prompt.source!], index: 0 })}>
+            <button className="chip clickable" onClick={() => useStore.getState().openFile({ tower, files: [prompt.source!], index: 0 })} title="Open the prompt file">
               ⧉ {prompt.source}
             </button>
           )}
@@ -187,7 +194,7 @@ function Files({ node, tower }: { node: ResolvedNode; tower: string }) {
         <Section title="Related files">
           <div className="filelist">
             {files.map((f, i) => (
-              <button key={f} onClick={() => open(files, i)}>
+              <button key={f} onClick={() => open(files, i)} title={`Open ${f}`}>
                 <span className="ext">{(f.split('.').pop() ?? '').toUpperCase().slice(0, 4)}</span>
                 {f}
               </button>

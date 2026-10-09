@@ -5,6 +5,7 @@ import { BufferGeometry, Float32BufferAttribute, Vector3, type Group, type Persp
 import type { ResolvedLayer } from '../../core/types';
 import type { LayerLayout } from '../layout';
 import { useStore } from '../store';
+import { usePrefs } from '../settings';
 import { decorative } from './frameBudget';
 import { COLORS, EDGE_STYLE, FONTS, GLOW, HOT } from '../theme';
 import type { LensState } from './lens';
@@ -36,12 +37,22 @@ interface Props {
   focused: boolean;
   /** Map view: bigger titles above each section's corner, readable from high above. */
   mapView: boolean;
+  layerCount: number;
   subtrees: Map<string, Set<string>>;
 }
 
 /** A glass plate holding one left-to-right flowchart. Height and scale follow the animated lens. */
-export const Layer = memo(function Layer({ tower, layer, layout, width, depth, lens, fade, interactive, visual, liveTint, subtrees, focused, mapView }: Props) {
+export const Layer = memo(function Layer({ tower, layer, layout, width, depth, lens, fade, interactive, visual, liveTint, subtrees, focused, mapView, layerCount }: Props) {
   const ref = useRef<Group>(null);
+  // Draw order follows the stack (bottom layers first, each plate before its own content), so a
+  // plate covers what lies below it in proportion to its opacity. Re-applied as children mount.
+  const order = (layerCount - layer.index) * 10;
+  const ordered = useRef(0);
+  useFrame(() => {
+    const g = ref.current;
+    if (!g || ordered.current++ % 30) return;
+    g.traverse((o) => { o.renderOrder = o.name === 'plate' ? order : order + 1; });
+  });
   useEffect(() => {
     const g = ref.current;
     if (g) layerGroups.set(layer.id, g);
@@ -50,6 +61,7 @@ export const Layer = memo(function Layer({ tower, layer, layout, width, depth, l
   const particles = useStore((s) => s.particles);
   const deco = useStore((s) => decorative(s.quality, s.animations));
   const focusLayer = useStore((s) => s.focusLayer);
+  const glass = usePrefs((s) => s.plateOpacity);
   const hoverLayer = useStore((s) => s.hoverLayer);
 
   // Plates are see-through: a node visible behind a plate wins, and only the nearest plate reacts.
@@ -99,7 +111,7 @@ export const Layer = memo(function Layer({ tower, layer, layout, width, depth, l
     <group ref={ref} visible={fade > 0.05}>
       <mesh
         position-y={-0.04}
-        renderOrder={-1}
+        name="plate"
         userData={{ plate: layer.index }}
         onPointerMove={(e) => ownsEvent(e) && hoverLayer(layer.index)}
         onPointerOut={() => hoverLayer(undefined)}
@@ -111,7 +123,7 @@ export const Layer = memo(function Layer({ tower, layer, layout, width, depth, l
         }}
       >
         <boxGeometry args={[width, 0.06, depth]} />
-        <meshBasicMaterial color={focused ? COLORS.bg : COLORS.plate} transparent opacity={focused ? 0.9 : 0.42 * fade} depthWrite={false} />
+        <meshBasicMaterial color={focused ? COLORS.bg : COLORS.plate} transparent opacity={focused ? Math.max(0.9, glass) : glass * fade} depthWrite={false} />
       </mesh>
       <lineSegments geometry={grid}>
         <lineBasicMaterial color={COLORS.dim} transparent opacity={(focused ? 0.06 : 0.09) * fade} depthWrite={false} />

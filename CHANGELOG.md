@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Layer transparency slider in Settings (the focused layer always stays nearly opaque).
+- A description on every button, shown in a HUD-styled tooltip.
 - Settings page (⚙ or `,`): themes (Mark, Arc reactor, Stealth, Ember, Verdant, each with a matching live palette), quality, ambient animations, particles, glow strength, default view (auto = map above 10 layers), layer spacing, auto-orbit, spotlight, follow, live chips, controls hint; saved per browser.
 - Map view: layers laid out side by side and seen from above (Tower / Map switch, `M`, `?view=map`).
 - `flow-tower emit` streams JSONL from stdin live (batches every 250 ms), so `codex exec --json` and `pi --mode json` show up in real time.
@@ -46,6 +48,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Focused layer gets a near-opaque plate and the other layers dim further, so the focused flow reads cleanly.
 
 ### Fixed
+- Plates now occlude the layers below in proportion to their opacity (stack-aware draw order).
+- Esc did nothing in the library (focus in the filter) and with a slider focused; pressing L typed an "l" into the library filter.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
