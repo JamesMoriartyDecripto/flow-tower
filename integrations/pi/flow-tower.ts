@@ -10,6 +10,8 @@ export default function (pi: { on(event: string, handler: (e: object, ctx: any) 
   for (const type of EVENTS) {
     pi.on(type, (e, ctx) => {
       const session = ctx?.sessionManager?.getSessionId?.() ?? ctx?.sessionManager?.getSessionFile?.();
+      // Loopback only (127.0.0.1): plain HTTP never leaves the machine, TLS adds nothing here.
+      // nosemgrep: typescript.react.security.react-insecure-request.react-insecure-request
       fetch(URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
