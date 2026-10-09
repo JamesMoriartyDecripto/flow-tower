@@ -1,6 +1,6 @@
 # Next session: handoff
 
-Status on 2026-10-09: MVP, layer lens, realtime and skill are done and pushed. Live integrations still need to be tested against real Claude Code, Pi and Hermes, which are installed on the other machine.
+Status on 2026-10-09: MVP, layer lens, realtime and skill are merged into `main` (PRs #1, #2, #3, #18; semgrep clean). Live integrations still need to be tested against real Claude Code, Pi and Hermes, which are installed on the other machine.
 
 Source of truth for the remaining work: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**. Start with the P1 ones.
 
@@ -9,7 +9,6 @@ Source of truth for the remaining work: **[GitHub issues](https://github.com/Jam
 ```bash
 git clone https://github.com/JamesMoriartyDecripto/flow-tower.git
 cd flow-tower
-git checkout feat/skill            # top of the PR stack: contains everything
 npm install                        # Node >= 22.12
 npm run check                      # typecheck + tests (expect 39 passing)
 npm run dev                        # library of the examples at http://127.0.0.1:5317
@@ -29,6 +28,5 @@ For every mismatch, fix the adapter in `src/core/adapters.ts` and add a test wit
 
 ## Then
 
-- #8: review and merge the PR stack #1 → #2 → #3 → skill PR, and run semgrep first.
 - #9: OTLP ingest for tokens and cost.
 - UX backlog: #10–#17.
