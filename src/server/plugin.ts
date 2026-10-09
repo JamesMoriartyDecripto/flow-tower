@@ -1,13 +1,12 @@
-import { open, readFile, realpath, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { dirname, extname, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { env } from 'node:process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin, ViteDevServer } from 'vite';
-import { loadLibrary, safeJoin, type LoadResult } from '../core/loader.ts';
+import { loadLibrary, type LoadResult } from '../core/loader.ts';
+import { readTowerFile } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
 
-const MAX_FILE_BYTES = 1_000_000;
 export const UPDATE_EVENT = 'flow-tower:update';
 
 /** Serves the resolved library + referenced files, and pushes live updates on change. */
@@ -79,36 +78,8 @@ async function serveFile(req: IncomingMessage, res: ServerResponse, state?: Load
   const path = url.searchParams.get('path') ?? '';
   const root = state?.roots.get(tower);
   if (!root || !path) return send(res, 400, { error: 'missing or unknown tower/path' });
-
-  try {
-    // realpath on both sides so symlinks cannot escape the tower root
-    const realRoot = await realpath(root);
-    const candidate = safeJoin(realRoot, path);
-    const abs = candidate && await realpath(candidate);
-    if (!abs || !safeJoin(realRoot, abs)) return send(res, 403, { error: 'path outside tower root' });
-    const { size } = await stat(abs);
-    const isLog = /\.(log|jsonl|out|txt)$/.test(abs);
-    if (size > MAX_FILE_BYTES && !isLog) return send(res, 413, { error: 'file too large to preview' });
-    // Logs grow forever: show their tail instead of refusing them.
-    const content = size > MAX_FILE_BYTES ? await readTail(abs, MAX_FILE_BYTES) : await readFile(abs, 'utf8');
-    if (content.includes('\u0000')) return send(res, 415, { error: 'binary file' });
-    send(res, 200, { path, ext: extname(abs).slice(1), content });
-  } catch {
-    send(res, 404, { error: `file not found: ${path}` });
-  }
-}
-
-async function readTail(path: string, bytes: number): Promise<string> {
-  const fh = await open(path, 'r');
-  try {
-    const { size } = await fh.stat();
-    const buf = Buffer.alloc(bytes);
-    await fh.read(buf, 0, bytes, size - bytes);
-    const text = buf.toString('utf8');
-    return `… (showing last ${Math.round(bytes / 1024)} KB)\n${text.slice(text.indexOf('\n') + 1)}`;
-  } finally {
-    await fh.close();
-  }
+  const { status, body } = await readTowerFile(root, path);
+  send(res, status, body);
 }
 
 function send(res: ServerResponse, status: number, body: unknown) {

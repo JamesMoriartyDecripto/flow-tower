@@ -10,3 +10,4 @@ playwright-report/
 .stress/
 # Example logs are fixtures referenced by the towers: keep them in git.
 !examples/**/*.log
+dist-demo/

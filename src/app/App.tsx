@@ -14,6 +14,7 @@ import { focusInspector, panelKey, panelOf } from './hud/focusNav';
 import { Tooltip } from './hud/Tooltip';
 import { chooseView, usePrefs, viewFor } from './settings';
 import { useLive, useLiveSync } from './live';
+import { useDemoSimulator } from './demo';
 import { navigate, nextSubTower, nudgeCamera, stepLayer, type Dir } from './keynav';
 import { Effects } from './scene/Effects';
 import { TowerScene } from './scene/Tower';
@@ -23,6 +24,7 @@ import { findNode, useStore, useTower } from './store';
 export function App() {
   useWorkspaceSync();
   useLiveSync();
+  useDemoSimulator();
   useKeyboard();
   const tower = useTower();
   const error = useStore((s) => s.error);

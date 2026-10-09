@@ -42,4 +42,4 @@
 
 ## Commands
 
-`npm run dev` · `npm run check` · `npm run e2e` (Playwright, installed Chrome; reuses a running dev server) · `npm run simulate -- <project>` · `npm run stress -- <layers> <nodes>` · `node bin/flow-tower.js validate <path> --json`
+`npm run dev` · `npm run check` · `npm run build:demo` (static demo in `dist-demo/`, deployed to GitHub Pages by `.github/workflows/pages.yml` on every push to main) · `npm run e2e` (Playwright, installed Chrome; reuses a running dev server) · `npm run simulate -- <project>` · `npm run stress -- <layers> <nodes>` · `node bin/flow-tower.js validate <path> --json`

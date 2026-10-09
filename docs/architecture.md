@@ -31,6 +31,8 @@ The server only reads files under the tower roots. Workspace changes and live ev
 |---|---|
 | `src/server/plugin.ts` | API routes, file sandbox, live reload |
 | `src/server/events.ts` | Event hub (ring buffer, 204 empty responses for Claude Code hooks) |
+| `src/server/files.ts` | Reading one referenced file inside its tower root (shared by `/api/file` and the demo build) |
+| `scripts/build-demo.ts` | Static demo for GitHub Pages: freezes the workspace and referenced files into `data/`, then builds the app in `demo` mode |
 | `bin/flow-tower.js` | CLI commands: serve, init, validate, emit, guide, install-skill |
 | `src/cli/validate.ts` | `validate --json` output |
 
@@ -45,6 +47,7 @@ The server only reads files under the tower roots. Workspace changes and live ev
 | `src/app/layout.ts` | ELK layout of a layer (left to right) |
 | `src/app/ops.ts` | Operational markers and inspector rows |
 | `src/app/api.ts` | Fetching the workspace and refetching on server push |
+| `src/app/staticData.ts`, `demo.ts` | Static demo mode (Vite mode `demo`): data from `data/`, in-browser live simulator, DEMO chip |
 | `src/app/theme.ts`, `themes.ts` | Node / edge styles and bloom colors; theme switching (shared colors mutated in place, scene remounted) |
 | `src/app/graph.ts` | Neighbours, related nodes, search, breadcrumb paths |
 

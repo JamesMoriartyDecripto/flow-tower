@@ -417,3 +417,5 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+.demo-chip { padding: 4px 10px; font-size: 10px; color: var(--live-run); border-color: color-mix(in srgb, var(--live-run) 50%, transparent); }
+.demo-chip:not(.on) { color: var(--dim); }
