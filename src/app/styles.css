@@ -1,4 +1,7 @@
 :root {
+  /* Viewport units for zoomed HUD elements (zoom does not rescale vh / vw). */
+  --vh: calc(1vh / var(--ui-scale, 1));
+  --vw: calc(1vw / var(--ui-scale, 1));
   --bg: #030a18;
   --plate: #0a1f3f;
   --panel: color-mix(in srgb, var(--plate) 66%, transparent);
@@ -101,7 +104,7 @@ input { font: inherit; color: inherit; }
 input[type=range] { accent-color: var(--orange); width: 110px; }
 
 /* Controls hint: right-aligned above the controls bar, so it never runs into the legend. */
-.hint { position: absolute; bottom: 80px; right: 18px; max-width: min(760px, calc(100vw - 300px)); text-align: right; font: 11px/1.5 var(--mono); color: var(--dim); letter-spacing: .03em; pointer-events: none; }
+.hint { position: absolute; bottom: 80px; right: 18px; max-width: min(760px, calc(calc(100 * var(--vw)) - 300px)); text-align: right; font: 11px/1.5 var(--mono); color: var(--dim); letter-spacing: .03em; pointer-events: none; }
 
 /* Inspector */
 .inspector { top: 80px; right: 14px; bottom: 76px; width: 420px; display: flex; flex-direction: column; animation: slidein .25s ease-out; }
@@ -134,7 +137,7 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 /* File viewer */
 .overlay { position: fixed; inset: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 60%, transparent); display: grid; place-items: center; animation: fade .2s; }
 @keyframes fade { from { opacity: 0; } }
-.viewer { position: relative; width: min(1100px, 92vw); height: min(780px, 86vh); display: flex; flex-direction: column; background: var(--panel-solid); animation: zoomin .22s ease-out; }
+.viewer { position: relative; width: min(1100px, calc(92 * var(--vw))); height: min(780px, calc(86 * var(--vh))); display: flex; flex-direction: column; background: var(--panel-solid); animation: zoomin .22s ease-out; }
 @keyframes zoomin { from { opacity: 0; transform: scale(.96); } }
 .viewer .files { display: flex; overflow-x: auto; border-bottom: 1px solid var(--line-soft); padding: 0 50px 0 14px; }
 .viewer .files button { padding: 12px 14px; font: 12px var(--mono); color: var(--dim); border-bottom: 2px solid transparent; white-space: nowrap; }
@@ -145,7 +148,7 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .viewer footer { display: flex; justify-content: space-between; padding: 8px 18px; border-top: 1px solid var(--line-soft); font: 11px var(--mono); color: var(--dim); }
 
 /* Issues */
-.issues { top: 80px; right: 14px; width: 460px; max-height: 60vh; overflow: auto; padding: 14px; z-index: 3; }
+.issues { top: 80px; right: 14px; width: 460px; max-height: calc(60 * var(--vh)); overflow: auto; padding: 14px; z-index: 3; }
 .issue { display: grid; grid-template-columns: 64px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line-soft); font: 12px var(--mono); }
 .issue .lvl-error { color: var(--error); }
 .issue .lvl-warning { color: var(--warn); }
@@ -227,12 +230,12 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .filelist button, .reslist a, .reslist button { overflow-wrap: anywhere; }
 .enter { flex-shrink: 0; }
 .issues.shifted { right: 448px; }
-.layernav { max-height: calc(100vh - 80px - 290px); }
+.layernav { max-height: calc(calc(100 * var(--vh)) - 80px - 290px); }
 .legend { max-height: 260px; }
 .panel::before, .panel::after { z-index: 1; }
 
 /* Live feed */
-.livefeed { right: 14px; bottom: 76px; width: 440px; max-height: 46vh; display: flex; flex-direction: column; padding: 12px 14px; z-index: 3; animation: slidein .25s ease-out; }
+.livefeed { right: 14px; bottom: 76px; width: 440px; max-height: calc(46 * var(--vh)); display: flex; flex-direction: column; padding: 12px 14px; z-index: 3; animation: slidein .25s ease-out; }
 .livefeed.shifted { right: 448px; }
 .livefeed header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; padding-right: 10px; }
 .feed-sources { font-size: 10px; margin-bottom: 6px; }
@@ -256,7 +259,7 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .live.on { color: var(--orange); }
 
 /* Live: feed tools, legend, chips and badges */
-.livefeed { width: 460px; max-height: 42vh; }
+.livefeed { width: 460px; max-height: calc(42 * var(--vh)); }
 .livefeed .title em.err-count { color: var(--live-error); font-style: normal; }
 .feed-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
 .feed-tools .chip.on { border-color: var(--live-run); color: var(--live-run); background: color-mix(in srgb, var(--live-run) 10%, transparent); }
@@ -297,7 +300,7 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .btn:disabled { opacity: .35; cursor: default; }
 
 /* Settings */
-.settings { position: relative; width: min(760px, 94vw); max-height: 86vh; display: flex; flex-direction: column; background: var(--panel-solid); animation: zoomin .2s ease-out; }
+.settings { position: relative; width: min(760px, calc(94 * var(--vw))); max-height: calc(86 * var(--vh)); display: flex; flex-direction: column; background: var(--panel-solid); animation: zoomin .2s ease-out; }
 .settings header { display: flex; align-items: center; justify-content: space-between; padding: 16px 22px; border-bottom: 1px solid var(--line-soft); }
 .settings .close { font: 18px var(--mono); color: var(--dim); }
 .settings .close:hover { color: var(--orange); }
@@ -348,7 +351,7 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 
 /* Keyboard */
 :where(button, [role="button"], a, input, [tabindex]):focus-visible { outline: 1px solid var(--orange); outline-offset: 2px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange) 25%, transparent); }
-.shortcuts { width: min(1040px, calc(100vw - 32px)); max-height: calc(100vh - 80px); overflow: auto; padding: 18px 22px; }
+.shortcuts { width: min(1040px, calc(calc(100 * var(--vw)) - 32px)); max-height: calc(calc(100 * var(--vh)) - 80px); overflow: auto; padding: 18px 22px; }
 .shortcuts header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .shortcuts .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px 26px; }
 .shortcuts h3 { margin: 0 0 8px; font: 600 11px var(--display); letter-spacing: .16em; text-transform: uppercase; color: var(--orange); }
@@ -363,3 +366,6 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .conn .name { flex: 1; min-width: 0; }
 .conn .lay { font: 10px var(--mono); color: var(--orange); border: 1px solid var(--line); padding: 0 4px; }
 .conn-back { width: 100%; margin: 4px 0 10px; text-align: left; }
+
+/* Interface size (Settings): the whole HUD scales, text and panels together, so layouts never break. */
+.hud, .overlay, .library, .hud-tip { zoom: var(--ui-scale, 1); }

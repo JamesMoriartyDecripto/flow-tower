@@ -28,7 +28,10 @@ export function Tooltip() {
         anchor.current = el;
         const r = el.getBoundingClientRect();
         const above = r.bottom + 60 > window.innerHeight;
-        setTip({ text, x: Math.min(Math.max(r.left + r.width / 2, 160), window.innerWidth - 160), y: above ? r.top - 8 : r.bottom + 8, above });
+        // The tip is zoomed with the HUD (--ui-scale): its left/top are in zoomed pixels.
+        const k = Number(getComputedStyle(document.documentElement).getPropertyValue('--ui-scale')) || 1;
+        const x = Math.min(Math.max(r.left + r.width / 2, 160), window.innerWidth - 160);
+        setTip({ text, x: x / k, y: (above ? r.top - 8 : r.bottom + 8) / k, above });
       }, DELAY_MS);
     };
     const hide = (e: MouseEvent) => {
