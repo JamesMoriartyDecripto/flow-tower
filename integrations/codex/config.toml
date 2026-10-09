@@ -1,0 +1,8 @@
+# Merge into ~/.codex/config.toml. Prefer hooks.json (richer: tools, subagents); use `notify` only
+# where hooks are unavailable, or turn ends are counted twice.
+# Codex appends the notify JSON as the LAST argument (not stdin): sh forwards "$1" to emit's stdin.
+# Replace the path with your checkout, or use `flow-tower` once the CLI is linked (`npm link`).
+notify = ["sh", "-c", 'printf "%s" "$1" | node /path/to/flow-tower/bin/flow-tower.js emit --source codex', "codex-notify"]
+
+# One-off runs: pipe the JSONL stream of `codex exec --json` (lines are sent as one batch when it ends).
+#   codex exec --json "fix the failing test" | flow-tower emit --source codex

@@ -125,9 +125,9 @@ Shorthand string or object:
 ```yaml
 edges:
   - triage -> planner
-  - triage -> quickfix: trivial
+  - "triage -> quickfix: trivial"            # quote it: with ": label" YAML would read a map
   - lead -> coder [spawn]
-  - lead -> coder [spawn]: implement step
+  - "lead -> coder [spawn]: implement step"
   - { from: review, to: coder, kind: return, label: changes requested, condition: "score < 8" }
 ```
 
@@ -142,7 +142,7 @@ edges:
 
 ## Nested towers
 
-Any agent or node with `tower:` gets a stacked-plates badge. Double-click it (or press **Enter** while it is selected) to dive in; use the breadcrumb, **Esc** or **Backspace** to go back up. Nested towers are separate files with their own `root`, prompts and agents, and they can nest further.
+Any agent or node with `tower:` is marked as a sub-tower: a stacked-plates badge on the node, `⇣ SUB` in its subtitle, a **SUB-TOWER** chip in the inspector, and an entry in the **Sub-towers** list at the bottom of the Layers panel (click to select, ⇣ to enter). Double-click it (or press **Enter** while it is selected) to dive in; use the breadcrumb, **Esc** or **Backspace** to go back up. Nested towers are separate files with their own `root`, prompts and agents, and they can nest further.
 
 ## Library
 

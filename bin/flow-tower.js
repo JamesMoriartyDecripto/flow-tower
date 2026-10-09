@@ -12,10 +12,12 @@ const HELP = `flow-tower — 3D tower visualizer for agentic systems
 Usage
   flow-tower <file.tower.yaml | dir> [more files or dirs...] [--port 5317] [--no-open]
   flow-tower init [file.tower.yaml]
-  flow-tower emit --source <claude-code|pi|hermes>      < payload.json   (from agent hooks)
+  flow-tower emit --source <claude-code|codex|pi|hermes> < payload.json  (hooks; JSONL streams live)
   flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [-m text]
   flow-tower validate <file.tower.yaml | dir>... [--json]
-  flow-tower install-skill [--project]                  Claude Code skill: generate towers from a codebase
+  flow-tower guide                                      print the procedure to generate a tower from a codebase
+  flow-tower install-skill [--target <t>] [--project]   install it as an Agent Skill for your coding agent
+                                                        <t>: claude (default), codex, pi, hermes, cursor, agents
 
   Directories are scanned recursively for *.tower.yaml. Several projects open as a library.
   Live events: POST JSON to http://127.0.0.1:<port>/api/events (see docs/realtime.md).
@@ -54,6 +56,25 @@ links:
   - flow.agent -> tools.search [call]
 `;
 
+// Agent Skills folders (SKILL.md standard, agentskills.io), verified against each harness's docs.
+// user = under $HOME, project = under the current directory.
+const SKILL_TARGETS = {
+  claude: { user: ['.claude', 'skills'], project: ['.claude', 'skills'], note: 'ask Claude Code: "map this agent system into a flow tower"' },
+  codex: { user: ['.agents', 'skills'], project: ['.agents', 'skills'], note: 'restart Codex, then ask "map this agent system into a flow tower" or mention $flow-tower' },
+  pi: { user: ['.pi', 'agent', 'skills'], project: ['.pi', 'skills'], note: 'restart Pi (project skills load once the project is trusted), then ask "map this agent system into a flow tower"' },
+  hermes: { user: ['.hermes', 'skills'], project: ['.hermes', 'skills'], note: 'project skills need a git repo and "hermes skills trust"; then ask Hermes "map this agent system into a flow tower" or use /flow-tower' },
+  cursor: { user: ['.cursor', 'skills'], project: ['.cursor', 'skills'], note: 'ask the Cursor agent: "map this agent system into a flow tower"' },
+  agents: { user: ['.agents', 'skills'], project: ['.agents', 'skills'], note: 'shared .agents/skills folder, read by Codex, Pi, Cursor and other Agent Skills clients (Hermes: project only)' },
+};
+
+/** docs/generate-a-tower.md with the checkout path filled in and relative links made absolute. */
+function procedure() {
+  const docs = join(pkgRoot, 'docs');
+  return readFileSync(join(docs, 'generate-a-tower.md'), 'utf8')
+    .replaceAll('<flow-tower>/', `${pkgRoot}/`)
+    .replace(/\]\((?!https?:|#|\/)([^)\s]+)\)/g, (_, rel) => `](${resolve(docs, rel)})`);
+}
+
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
@@ -72,6 +93,7 @@ const { values, positionals } = parseArgs({
     message: { type: 'string', short: 'm' },
     json: { type: 'boolean', default: false },
     project: { type: 'boolean', default: false },
+    target: { type: 'string', default: 'claude' },
   },
 });
 
@@ -95,16 +117,33 @@ if (positionals[0] === 'validate') {
   process.exit(r.status ?? 1);
 }
 
+if (positionals[0] === 'guide') {
+  console.log(procedure());
+  process.exit(0);
+}
+
 if (positionals[0] === 'install-skill') {
-  const target = process.argv.includes('--project')
-    ? resolve('.claude', 'skills', 'flow-tower')
-    : join(homedir(), '.claude', 'skills', 'flow-tower');
+  const spec = SKILL_TARGETS[values.target];
+  if (!spec) {
+    console.error(`unknown target "${values.target}". Verified targets: ${Object.keys(SKILL_TARGETS).join(', ')}.
+Other agents: use --target agents if they read .agents/skills (Agent Skills standard),
+or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follow the procedure.`);
+    process.exit(1);
+  }
+  const target = join(values.project ? resolve('.') : homedir(), ...(values.project ? spec.project : spec.user), 'flow-tower');
   mkdirSync(dirname(target), { recursive: true });
   cpSync(join(pkgRoot, 'skills', 'flow-tower'), target, { recursive: true });
-  // The package is not on npm: bake the absolute CLI path into the installed skill.
+  // The package is not on npm: bake the absolute CLI path into the installed skill,
+  // and ship the procedure next to it so its links work outside the repo.
   const skillFile = join(target, 'SKILL.md');
-  writeFileSync(skillFile, readFileSync(skillFile, 'utf8').replaceAll('{{FLOW_TOWER_CLI}}', `node ${join(pkgRoot, 'bin', 'flow-tower.js')}`));
-  console.log(`installed the flow-tower skill in ${target}\nask Claude Code: "map this agent system into a flow tower"`);
+  writeFileSync(
+    skillFile,
+    readFileSync(skillFile, 'utf8')
+      .replaceAll('{{FLOW_TOWER_CLI}}', `node ${join(pkgRoot, 'bin', 'flow-tower.js')}`)
+      .replaceAll('](../../docs/generate-a-tower.md)', '](procedure.md)'),
+  );
+  writeFileSync(join(target, 'procedure.md'), procedure().replaceAll(`](${join(pkgRoot, 'skills', 'flow-tower', 'reference.md')})`, '](reference.md)'));
+  console.log(`installed the flow-tower skill for ${values.target} in ${target}\n${spec.note}`);
   process.exit(0);
 }
 
@@ -113,23 +152,55 @@ if (positionals[0] === 'install-skill') {
  * Never fails and never blocks for long: observability must not break the agent it observes.
  */
 async function emit() {
-  let body;
-  if (values.kind) {
-    const { kind, source = 'custom', agent, tool, node, tower, status, message } = values;
-    body = JSON.stringify({ kind, source, agent, tool, node, tower, status, message });
-  } else if (!process.stdin.isTTY) {
-    const chunks = [];
-    for await (const c of process.stdin) chunks.push(c);
-    body = Buffer.concat(chunks).toString('utf8').trim();
-  }
-  if (!body) return;
   const query = values.source ? `?source=${encodeURIComponent(values.source)}` : '';
   const headers = { 'content-type': 'application/json' };
   if (env.FLOW_TOWER_TOKEN) headers['x-flow-tower-token'] = env.FLOW_TOWER_TOKEN;
-  // Line-delimited streams (pi --mode json) are sent as one array.
-  const payload = body.startsWith('{') && body.includes('\n{') ? `[${body.split('\n').filter(Boolean).join(',')}]` : body;
-  await fetch(`${values.url}/api/events${query}`, { method: 'POST', headers, body: payload, signal: AbortSignal.timeout(1500) })
-    .catch(() => {});
+  const post = (events) => fetch(`${values.url}/api/events${query}`, {
+    method: 'POST', headers, body: JSON.stringify(events), signal: AbortSignal.timeout(1500),
+  }).catch(() => {});
+
+  if (values.kind) {
+    const { kind, source = 'custom', agent, tool, node, tower, status, message } = values;
+    await post([{ kind, source, agent, tool, node, tower, status, message }]);
+  } else if (!process.stdin.isTTY) {
+    await streamStdin(post);
+  }
+}
+
+/**
+ * Reads events from stdin. JSONL streams (codex exec --json, pi --mode json) are forwarded live,
+ * in small batches every 250 ms; a single (possibly pretty-printed) JSON document is sent at the end.
+ */
+async function streamStdin(post) {
+  let buffer = '';
+  let mode; // 'lines' once a line parses on its own, 'whole' for a multi-line document
+  let pending = [];
+  const flush = async () => {
+    if (!pending.length) return;
+    const batch = pending;
+    pending = [];
+    await post(batch);
+  };
+  const timer = setInterval(() => void flush(), 250);
+  for await (const chunk of process.stdin) {
+    buffer += chunk.toString('utf8');
+    if (mode === 'whole') continue;
+    let nl;
+    while ((nl = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      let event;
+      try { event = line ? JSON.parse(line) : undefined; } catch { event = null; }
+      if (event === null && mode !== 'lines') { mode = 'whole'; break; }
+      buffer = buffer.slice(nl + 1);
+      if (event) { mode = 'lines'; pending.push(event); }
+    }
+  }
+  clearInterval(timer);
+  try {
+    const tail = buffer.trim() ? JSON.parse(buffer.trim()) : [];
+    pending.push(...(Array.isArray(tail) ? tail : [tail]));
+  } catch { /* not JSON: ignore, never fail the caller */ }
+  await flush();
 }
 
 if (positionals[0] === 'init') {

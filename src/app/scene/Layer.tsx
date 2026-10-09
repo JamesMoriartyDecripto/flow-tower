@@ -1,15 +1,18 @@
-import { useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Billboard, Line, Text } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { BufferGeometry, Float32BufferAttribute, Vector3, type Group, type PerspectiveCamera } from 'three';
 import type { ResolvedLayer } from '../../core/types';
 import type { LayerLayout } from '../layout';
 import { useStore } from '../store';
-import { COLORS, EDGE_STYLE, FONTS, GLOW } from '../theme';
+import { usePrefs } from '../settings';
+import { decorative } from './frameBudget';
+import { COLORS, EDGE_STYLE, FONTS, GLOW, HOT } from '../theme';
 import type { LensState } from './lens';
 import { LayerEdges, type EdgeView } from './LayerEdges';
 import { LayerNodes, type NodeView } from './LayerNodes';
 import { LiveOverlay } from './LiveOverlay';
+import { layerGroups } from './chips';
 import { Particles, type ParticlePath } from './Particles';
 
 export interface Visual {
@@ -29,13 +32,38 @@ interface Props {
   fade: number;
   interactive: boolean;
   visual: Visual;
+  liveTint?: 'run' | 'error';
+  /** The focused layer: near-opaque plate so whatever lies below stops competing for attention. */
+  focused: boolean;
+  /** Map view: bigger titles above each section's corner, readable from high above. */
+  mapView: boolean;
+  layerCount: number;
+  subtrees: Map<string, Set<string>>;
 }
 
 /** A glass plate holding one left-to-right flowchart. Height and scale follow the animated lens. */
-export function Layer({ tower, layer, layout, width, depth, lens, fade, interactive, visual }: Props) {
+export const Layer = memo(function Layer({ tower, layer, layout, width, depth, lens, fade, interactive, visual, liveTint, subtrees, focused, mapView, layerCount }: Props) {
   const ref = useRef<Group>(null);
+  // Draw order follows the stack (bottom layers first, each plate before its own content), so a
+  // plate covers what lies below it in proportion to its opacity. Re-applied as children mount.
+  const order = (layerCount - layer.index) * 10;
+  const ordered = useRef(0);
+  useFrame(() => {
+    const g = ref.current;
+    if (!g || ordered.current++ % 30) return;
+    g.traverse((o) => { o.renderOrder = o.name === 'plate' ? order : order + 1; });
+  });
+  useEffect(() => {
+    const g = ref.current;
+    if (g) layerGroups.set(layer.id, g);
+    return () => { if (layerGroups.get(layer.id) === g) layerGroups.delete(layer.id); };
+  }, [layer.id]);
   const particles = useStore((s) => s.particles);
+  const deco = useStore((s) => decorative(s.quality, s.animations));
   const focusLayer = useStore((s) => s.focusLayer);
+  const glass = usePrefs((s) => s.plateOpacity);
+  const flow = usePrefs((s) => s.flowNodes);
+  const show = usePrefs((s) => s.show);
   const hoverLayer = useStore((s) => s.hoverLayer);
 
   // Plates are see-through: a node visible behind a plate wins, and only the nearest plate reacts.
@@ -49,7 +77,7 @@ export function Layer({ tower, layer, layout, width, depth, lens, fade, interact
   const center = useMemo(() => new Vector3(), []);
   useFrame(({ camera, size }) => {
     if (!ref.current) return;
-    ref.current.position.y = lens.y[layer.index];
+    ref.current.position.set(lens.x[layer.index], lens.y[layer.index], lens.z[layer.index]);
     ref.current.scale.setScalar(lens.s[layer.index]);
     ref.current.getWorldPosition(center);
     const fov = ((camera as PerspectiveCamera).fov ?? 42) * (Math.PI / 180);
@@ -72,6 +100,7 @@ export function Layer({ tower, layer, layout, width, depth, lens, fade, interact
   })), [layout.edges]);
 
   const idx = String(layer.index + 1).padStart(2, '0');
+  const layerLive = liveTint;
   const { nodeFade, edgeHighlight, selected, hovered } = visual;
   const nodeViews = useMemo<NodeView[]>(() => layer.nodes.filter((n) => layout.nodes[n.key]).map((n) => ({
     node: n, box: layout.nodes[n.key], fade: nodeFade(n.key), selected: selected === n.key, hovered: hovered === n.key,
@@ -84,7 +113,7 @@ export function Layer({ tower, layer, layout, width, depth, lens, fade, interact
     <group ref={ref} visible={fade > 0.05}>
       <mesh
         position-y={-0.04}
-        renderOrder={-1}
+        name="plate"
         userData={{ plate: layer.index }}
         onPointerMove={(e) => ownsEvent(e) && hoverLayer(layer.index)}
         onPointerOut={() => hoverLayer(undefined)}
@@ -96,15 +125,16 @@ export function Layer({ tower, layer, layout, width, depth, lens, fade, interact
         }}
       >
         <boxGeometry args={[width, 0.06, depth]} />
-        <meshBasicMaterial color={COLORS.plate} transparent opacity={0.42 * fade} depthWrite={false} />
+        <meshBasicMaterial color={focused ? COLORS.bg : COLORS.plate} transparent opacity={focused ? Math.max(0.9, glass) : glass * fade} depthWrite={false} />
       </mesh>
-      <lineSegments geometry={grid}>
-        <lineBasicMaterial color={COLORS.dim} transparent opacity={0.09 * fade} depthWrite={false} />
+      <lineSegments geometry={grid} visible={show.grid}>
+        <lineBasicMaterial color={COLORS.dim} transparent opacity={(focused ? 0.06 : 0.09) * fade} depthWrite={false} />
       </lineSegments>
-      <Line points={outline} color={GLOW.orange} lineWidth={1} transparent opacity={0.55 * fade} toneMapped={false} />
+      <Line points={outline} color={layerLive === 'error' ? GLOW.error : layerLive === 'run' ? GLOW.run : focused ? HOT.orange : GLOW.orange}
+        lineWidth={layerLive || focused ? 2 : 1} transparent opacity={(layerLive || focused ? 0.9 : 0.55) * fade} toneMapped={false} />
       <Line points={brackets} segments color={GLOW.white} lineWidth={2.2} transparent opacity={0.9 * fade} toneMapped={false} />
 
-      <Billboard position={[-width / 2 - 0.6, 0.6, depth / 2]}>
+      <Billboard position={mapView ? [-width / 2, 1.2, -depth / 2 - 1.6] : [-width / 2 - 0.6, 0.6, depth / 2]} scale={mapView ? 3 : 1}>
         <group
           onClick={(e) => { if (!interactive) return; e.stopPropagation(); focusLayer(layer.index); }}
           onPointerOver={(e) => { if (interactive) { e.stopPropagation(); document.body.style.cursor = 'pointer'; } }}
@@ -122,13 +152,13 @@ export function Layer({ tower, layer, layout, width, depth, lens, fade, interact
         </group>
       </Billboard>
 
-      <LayerEdges views={edgeViews} layerFade={fade} detail={detail && fade > 0.5} />
-      <LayerNodes views={nodeViews} layer={layer.index} layerFade={fade} interactive={interactive} detail={detail && fade > 0.5} />
-      {particles && fade > 0.5 && <Particles paths={paths} />}
-      <LiveOverlay tower={tower} views={nodeViews} fade={fade} />
+      <LayerEdges views={edgeViews} layerFade={fade} detail={detail && fade > 0.5} labels={show.edgeLabels} />
+      <LayerNodes views={nodeViews} layer={layer.index} layerFade={fade} interactive={interactive} detail={detail && fade > 0.5} tags={show.nodeTags} />
+      {particles && deco && flow.on && fade > 0.5 && <Particles paths={paths} look={flow} />}
+      <LiveOverlay tower={tower} views={nodeViews} fade={fade} subtrees={subtrees} muted={!interactive} />
     </group>
   );
-}
+});
 
 function gridGeometry(w: number, d: number, step: number) {
   const pts: number[] = [];

@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { EDGE_KINDS, NODE_TYPES } from '../../core/schema';
 import { search as rank } from '../graph';
 import { useLive } from '../live';
+import { chooseView, usePrefs } from '../settings';
+import { useCurrentTowerLive } from '../liveHooks';
 import { useStore, useTower } from '../store';
-import { EDGE_STYLE, NODE_STYLE } from '../theme';
+import { EDGE_STYLE, NODE_STYLE, RUNTIME_ICON } from '../theme';
 
 /** Logo, breadcrumb through nested towers, search, validation badge and live-reload indicator. */
 export function TopBar({ onIssues }: { onIssues(): void }) {
@@ -49,7 +51,7 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
         {stack.map((id, i) => (
           <span key={id} style={{ display: 'contents' }}>
             {i > 0 && <span className="sep">›</span>}
-            <button onClick={() => goTo(i)}>{workspace?.towers[id]?.name ?? id}</button>
+            <button onClick={() => goTo(i)} title={i === stack.length - 1 ? 'Current tower' : 'Go back up to this tower (Backspace)'}>{workspace?.towers[id]?.name ?? id}</button>
           </span>
         ))}
       </nav>
@@ -73,6 +75,7 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
         <span className={`chip ${warnings ? 'warn' : ''}`}>{warnings} WARN</span>
       </button>
       <LiveButton flash={flash} />
+      <button className="btn gear" onClick={() => usePrefs.getState().set({ open: true })} title="Settings (,)">⚙</button>
     </header>
   );
 }
@@ -81,18 +84,12 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
 function LiveButton({ flash }: { flash: boolean }) {
   const { events, feedOpen, toggleFeed } = useLive();
   const perMin = events.filter((e) => e.ts > Date.now() - 60_000).length;
-  const [ping, setPing] = useState(false);
   const last = events[events.length - 1]?.id;
-  useEffect(() => {
-    if (last === undefined) return;
-    setPing(true);
-    const t = setTimeout(() => setPing(false), 600);
-    return () => clearTimeout(t);
-  }, [last]);
+  // Re-keying the dot restarts its CSS ping animation on every event: no React state, no effect.
   return (
-    <button className={`live ${flash || ping ? 'flash' : ''} ${feedOpen ? 'on' : ''}`} onClick={() => toggleFeed()}
+    <button className={`live ${flash ? 'flash' : ''} ${feedOpen ? 'on' : ''}`} onClick={() => toggleFeed()}
       title="Live: file reloads + agent events. Click for the live feed.">
-      <i />LIVE{perMin ? ` ${perMin}/min` : ''}
+      <i key={last} className={last ? 'ping' : ''} />LIVE{perMin ? ` ${perMin}/min` : ''}
     </button>
   );
 }
@@ -100,11 +97,19 @@ function LiveButton({ flash }: { flash: boolean }) {
 export function LayerNav() {
   const tower = useTower();
   const { focusedLayer, hoveredLayer, focusLayer, hoverLayer, resetView } = useStore();
+  const { states } = useCurrentTowerLive();
   if (!tower) return null;
+  // Per layer: how many nodes are running, and whether any failed recently.
+  const liveOf = (layerId: string) => {
+    let run = 0;
+    let error = false;
+    for (const [key, st] of states) if (key.startsWith(`${layerId}.`)) { if (st === 'run') run++; if (st === 'error') error = true; }
+    return { run, error };
+  };
   return (
     <nav className="panel layernav">
       <div className="title">Layers</div>
-      <button className={focusedLayer === undefined ? 'on' : ''} onClick={resetView}>
+      <button className={focusedLayer === undefined ? 'on' : ''} onClick={resetView} title="Show the whole tower (0)">
         <span className="idx">◈</span><span className="name">Tower overview</span><span className="count">{tower.layers.length}L</span>
       </button>
       {tower.layers.map((l) => (
@@ -114,20 +119,51 @@ export function LayerNav() {
           onClick={() => focusLayer(l.index)}
           onMouseEnter={() => hoverLayer(l.index)}
           onMouseLeave={() => hoverLayer(undefined)}
-          title={l.description}
+          title={`Focus this layer (${l.index < 9 ? l.index + 1 : 'click'})${l.description ? ` — ${l.description}` : ''}`}
         >
           <span className="idx">L{String(l.index + 1).padStart(2, '0')}</span>
           <span className="name">{l.title}</span>
-          <span className="count">{l.nodes.length}</span>
+          <LiveCount {...liveOf(l.id)} total={l.nodes.length} />
         </button>
       ))}
+      <SubTowers />
     </nav>
   );
 }
 
-const RUNTIME_ICON: Record<string, string> = {
-  local: '⌂', server: '▤', cloud: '☁', container: '▣', serverless: 'λ', saas: '◎', edge: '◇', ci: '⟳', browser: '◫', device: '▯',
-};
+
+/** Every node of the current tower that opens its own tower: click selects it, ⇣ dives in. */
+function SubTowers() {
+  const tower = useTower();
+  const ws = useStore((s) => s.workspace);
+  const subs = (tower?.layers ?? []).flatMap((l) => l.nodes.filter((n) => n.tower).map((n) => ({ n, l })));
+  if (!tower || !subs.length) return null;
+  const pick = (layer: number, key: string) => {
+    const s = useStore.getState();
+    s.select(key);
+    s.focusLayer(layer);
+  };
+  return (
+    <div className="subtowers">
+      <div className="title">Sub-towers · {subs.length}</div>
+      {subs.map(({ n, l }) => (
+        <div key={n.key} className="sub">
+          <button onClick={() => pick(l.index, n.key)} title={`Select ${n.label} (layer ${l.index + 1}) — it opens "${ws?.towers[n.tower!]?.name ?? n.tower}"`} className="sub-pick">
+            <span className="idx">L{String(l.index + 1).padStart(2, '0')}</span>
+            <span className="name">{n.label}</span>
+          </button>
+          <button className="enter-btn" onClick={() => useStore.getState().enterTower(n.tower!)} title={`Enter "${ws?.towers[n.tower!]?.name ?? n.tower}"`}>⇣</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Node count, or a pulsing live badge when agents on the layer are working (red if one failed). */
+function LiveCount({ run, error, total }: { run: number; error: boolean; total: number }) {
+  if (!run && !error) return <span className="count">{total}</span>;
+  return <span className={`count live-badge ${error ? 'error' : 'run'}`} title={`${run} running${error ? ', recent error' : ''}`}>● {run || '!'}</span>;
+}
 
 /** Bottom-left key: node types (click to hide), edge kinds, and runtimes (click to spotlight). */
 export function Legend() {
@@ -141,20 +177,25 @@ export function Legend() {
   return (
     <aside className="panel legend">
       <nav className="legend-tabs">
-        <button className={tab === 'types' ? 'on' : ''} onClick={() => setTab('types')}>Types</button>
-        <button className={tab === 'edges' ? 'on' : ''} onClick={() => setTab('edges')}>Edges</button>
-        <button className={tab === 'runtimes' ? 'on' : ''} disabled={!runtimes.length} onClick={() => setTab('runtimes')}>
+        <button className={tab === 'types' ? 'on' : ''} onClick={() => setTab('types')} title="Node types: click a type to hide or show it">Types</button>
+        <button className={tab === 'edges' ? 'on' : ''} onClick={() => setTab('edges')} title="What each edge style means">Edges</button>
+        <button className={tab === 'runtimes' ? 'on' : ''} disabled={!runtimes.length} onClick={() => setTab('runtimes')} title={runtimes.length ? 'Where things run: click one to spotlight its nodes' : 'This tower declares no runtimes'}>
           Runtimes{runtimes.length ? ` ${runtimes.length}` : ''}
         </button>
       </nav>
       {tab === 'types' && (
-        <div className="grid">
-          {NODE_TYPES.map((t) => (
-            <button key={t} className={hiddenTypes.has(t) ? 'off' : ''} onClick={() => toggleType(t)} title={NODE_STYLE[t].hint}>
-              <span className="tag">{NODE_STYLE[t].tag}</span>{t}
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="grid">
+            {NODE_TYPES.map((t) => (
+              <button key={t} className={hiddenTypes.has(t) ? 'off' : ''} onClick={() => toggleType(t)} title={NODE_STYLE[t].hint}>
+                <span className="tag">{NODE_STYLE[t].tag}</span>{t}
+              </button>
+            ))}
+          </div>
+          <div className="sub-key" title="Nodes with stacked plates (and ⇣ SUB in their subtitle) contain their own tower. Double-click, press Enter, or use ⇣ in the Layers panel.">
+            <span>▤ ⇣ SUB</span><span className="dim">sub-tower · double-click to enter</span>
+          </div>
+        </>
       )}
       {tab === 'edges' && (
         <div className="grid">
@@ -175,7 +216,7 @@ export function Legend() {
         <div className="runtimes">
           {runtimes.map((r) => (
             <button key={r.id} className={runtimeFocus === r.id ? 'on' : ''} onClick={() => set({ runtimeFocus: runtimeFocus === r.id ? undefined : r.id })}
-              title={[r.description, r.host, r.provider, r.region].filter(Boolean).join(' · ')}>
+              title={`Spotlight nodes running here (click again to clear)${[r.description, r.host, r.provider, r.region].some(Boolean) ? ` — ${[r.description, r.host, r.provider, r.region].filter(Boolean).join(' · ')}` : ''}`}>
               <span className="tag">{RUNTIME_ICON[r.kind]} {r.kind.toUpperCase()}</span>
               <span className="name">{r.label ?? r.id}</span>
               <span className="count">{counts.get(r.id) ?? 0}</span>
@@ -188,15 +229,19 @@ export function Legend() {
 }
 
 export function Controls() {
-  const { explode, autoRotate, particles, quality, set, resetView } = useStore();
-  const next = { high: 'balanced', balanced: 'low', low: 'high' } as const;
+  const { explode, autoRotate, particles, quality, view, set, resetView } = useStore();
+  const next = { high: 'eco', balanced: 'high', eco: 'balanced' } as const;
   return (
     <div className="panel controls">
-      <label>EXPLODE<input type="range" min={0.4} max={2.5} step={0.05} value={explode} onChange={(e) => set({ explode: Number(e.target.value) })} /></label>
-      <button className={`btn ${autoRotate ? 'on' : ''}`} onClick={() => set({ autoRotate: !autoRotate })}>Orbit</button>
-      <button className={`btn ${particles ? 'on' : ''}`} onClick={() => set({ particles: !particles })}>Flow</button>
-      <button className="btn" onClick={() => set({ quality: next[quality] })} title="Rendering quality: high / balanced / low">FX {quality}</button>
-      <button className="btn" onClick={resetView}>Reset</button>
+      <label title={view === 'map' ? 'Layer spacing applies to tower view only' : 'Vertical spacing between layers'}>EXPLODE<input type="range" min={0.4} max={2.5} step={0.05} value={explode} disabled={view === 'map'} onChange={(e) => set({ explode: Number(e.target.value) })} /></label>
+      <div className="seg view-seg" title="Tower: stacked layers. Map: side by side, seen from above (M)">
+        <button className={view === 'tower' ? 'on' : ''} onClick={() => chooseView('tower')} title="Tower view: layers stacked vertically (M to switch)">Tower</button>
+        <button className={view === 'map' ? 'on' : ''} onClick={() => chooseView('map')} title="Map view: layers side by side, seen from above (M to switch)">Map</button>
+      </div>
+      <button className={`btn ${autoRotate ? 'on' : ''}`} onClick={() => set({ autoRotate: !autoRotate })} disabled={view === 'map'} title={view === 'map' ? 'Orbit is only available in tower view' : 'Slowly rotate the camera around the tower'}>Orbit</button>
+      <button className={`btn ${particles ? 'on' : ''}`} onClick={() => set({ particles: !particles })} title="Show or hide the dots travelling along the edges (needs ambient animations)">Flow</button>
+      <button className="btn" onClick={() => set({ quality: next[quality] })} title="Rendering: eco (20 fps cap, no post-processing) / balanced (30 fps) / high (60 fps, full effects)">FX {quality}</button>
+      <button className="btn" onClick={resetView} title="Reset the camera to the overview (0)">Reset</button>
     </div>
   );
 }
@@ -207,7 +252,7 @@ export function Issues({ onClose }: { onClose(): void }) {
   const issues = [...(tower?.issues ?? [])].sort((a, b) => ['error', 'warning', 'info'].indexOf(a.level) - ['error', 'warning', 'info'].indexOf(b.level));
   return (
     <aside className={`panel issues ${inspecting ? 'shifted' : ''}`}>
-      <button className="close" style={{ position: 'absolute', top: 10, right: 18 }} onClick={onClose}>✕</button>
+      <button className="close" style={{ position: 'absolute', top: 10, right: 18 }} onClick={onClose} title="Close the validation panel">✕</button>
       <div className="title" style={{ marginBottom: 10 }}>Validation · {issues.length}</div>
       {issues.length === 0 && <p className="mono dim">All systems nominal.</p>}
       {issues.map((i, k) => (

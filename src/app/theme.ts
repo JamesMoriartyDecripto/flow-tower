@@ -16,10 +16,30 @@ export const COLORS = {
 };
 
 /** Colors pushed above 1.0 so the bloom pass picks them up. */
+/** Live states use their own hues, complementary to the orange structure, so activity always pops. */
+export const LIVE = {
+  run: '#3ee6ff',
+  done: '#5cff9d',
+  error: '#ff4d5e',
+};
+
+/**
+ * Static structure stays just under the bloom threshold (luminance < 0.9): crisp, no halo.
+ * Only HOT colors (selection, hover, focus) and live states bloom. Glow where and when it matters.
+ */
 export const GLOW = {
-  orange: new Color(COLORS.orange).multiplyScalar(2.2),
-  amber: new Color(COLORS.amber).multiplyScalar(1.6),
-  white: new Color(COLORS.white).multiplyScalar(1.6),
+  orange: new Color(COLORS.orange).multiplyScalar(1.25),
+  amber: new Color(COLORS.amber).multiplyScalar(1.05),
+  white: new Color(COLORS.white).multiplyScalar(0.8),
+  run: new Color(LIVE.run).multiplyScalar(2.4),
+  done: new Color(LIVE.done).multiplyScalar(2),
+  error: new Color(LIVE.error).multiplyScalar(3.6),
+};
+
+export const HOT = {
+  orange: new Color(COLORS.orange).multiplyScalar(2.6),
+  amber: new Color(COLORS.amber).multiplyScalar(2.2),
+  white: new Color(COLORS.white).multiplyScalar(1.7),
 };
 
 /** World units per ELK pixel, and node footprint in ELK pixels. */
@@ -52,4 +72,9 @@ export const EDGE_STYLE: Record<EdgeKind, { color: Color; width: number; dashed:
   handoff: { color: GLOW.orange, width: 3.0, dashed: false, hint: 'Transfers control' },
   return:  { color: GLOW.white,  width: 1.2, dashed: true,  hint: 'Returns a result' },
   data:    { color: GLOW.white,  width: 0.9, dashed: true,  hint: 'Reads / writes data' },
+};
+
+/** One glyph per runtime kind (legend, library). */
+export const RUNTIME_ICON: Record<string, string> = {
+  local: '⌂', server: '▤', cloud: '☁', container: '▣', serverless: 'λ', saas: '◎', edge: '◇', ci: '⟳', browser: '◫', device: '▯',
 };

@@ -10,7 +10,7 @@ export const EVENT_KINDS = [
 /** The normalized live event. Unknown fields from a source travel in `data`. */
 export const FlowEventSchema = z.looseObject({
   kind: z.enum(EVENT_KINDS),
-  source: z.string().default('custom').describe('claude-code, agent-sdk, pi, hermes, otel, custom...'),
+  source: z.string().default('custom').describe('claude-code, agent-sdk, codex, pi, hermes, otel, custom...'),
   ts: z.number().optional().describe('Epoch milliseconds; filled in by the server when missing.'),
   session: z.string().optional(),
   agent: z.string().optional().describe('Agent or subagent name/type.'),

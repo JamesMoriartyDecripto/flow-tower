@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+# A personal voice assistant: hearing and speaking stay on the device, only the text goes to Claude.
+name: Pocket Voice Assistant
+description: Wake word, local speech-to-text, a small Claude agent with a few home tools, local text-to-speech.
+tags: [starter, voice, personal]
+
+runtimes:
+  pi: { kind: device, label: Raspberry Pi 5, description: Mic + speaker on the desk. Audio never leaves it. }
+  claude: { kind: saas, label: Claude API, url: https://docs.anthropic.com }
+
+layers:
+  - id: listen
+    title: Listen
+    nodes:
+      - { id: mic, type: entry, label: Microphone, runtime: pi }
+      - { id: wake, type: hook, label: Wake word, description: 'openWakeWord "hey jarvis" model on 80 ms frames.', runtime: pi }
+      - { id: stt, type: model, label: Speech to text, model: faster-whisper small, runtime: pi, files: [assistant.py] }
+    edges:
+      - mic -> wake
+      - "wake -> stt: until silence"
+
+  - id: think
+    title: Think
+    nodes:
+      - id: assistant
+        type: agent
+        label: Assistant
+        model: claude-haiku-5-5
+        runtime: claude
+        prompt: { file: prompts/system.md }
+        tools: [get_time, set_timer, add_note]
+        files: [assistant.py]
+      - { id: tools, type: tool, label: Home tools, runtime: pi, description: "Clock, timers and notes run locally." }
+      - { id: notes, type: memory, label: Notes, runtime: pi, files: [memory/notes.md] }
+    edges:
+      - assistant -> tools [call]
+      - "tools -> assistant [return]: result"
+      - tools -> notes [data]
+
+  - id: speak
+    title: Speak
+    nodes:
+      - { id: tts, type: model, label: Text to speech, model: piper en_US-lessac-medium, runtime: pi }
+      - { id: speaker, type: output, label: Speaker, runtime: pi }
+    edges:
+      - tts -> speaker
+
+links:
+  - "listen.stt -> think.assistant: transcript"
+  - "think.assistant -> speak.tts: reply"

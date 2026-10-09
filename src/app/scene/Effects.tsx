@@ -1,27 +1,33 @@
 import { Bloom, ChromaticAberration, EffectComposer, Noise, Vignette } from '@react-three/postprocessing';
 import { Vector2 } from 'three';
 import { useStore } from '../store';
+import { usePrefs } from '../settings';
 
-const ABERRATION = new Vector2(0.0005, 0.0005);
+const ABERRATION = new Vector2(0.0004, 0.0004);
 
-/** Holographic look. `high`: full stack; `balanced`: bloom + vignette; `low`: no post-processing. */
+/**
+ * Post-processing per quality. Bloom only catches colors above the threshold: static structure is
+ * kept below it on purpose (see GLOW vs HOT in theme.ts), so only selection, focus and live activity
+ * glow. `eco` skips post-processing entirely (the cheapest path for busy machines).
+ */
 export function Effects() {
   const quality = useStore((s) => s.quality);
-  if (quality === 'low') return null;
+  const bloom = usePrefs((s) => s.bloom);
+  if (quality === 'eco') return null;
   if (quality === 'balanced') {
     return (
       <EffectComposer multisampling={0}>
-        <Bloom mipmapBlur intensity={0.8} luminanceThreshold={0.6} luminanceSmoothing={0.2} radius={0.6} levels={5} />
-        <Vignette offset={0.25} darkness={0.7} />
+        <Bloom mipmapBlur intensity={0.6 * bloom} luminanceThreshold={0.9} luminanceSmoothing={0.15} radius={0.55} levels={4} />
+        <Vignette offset={0.25} darkness={0.65} />
       </EffectComposer>
     );
   }
   return (
     <EffectComposer multisampling={4}>
-      <Bloom mipmapBlur intensity={0.85} luminanceThreshold={0.6} luminanceSmoothing={0.2} radius={0.7} />
+      <Bloom mipmapBlur intensity={0.75 * bloom} luminanceThreshold={0.9} luminanceSmoothing={0.15} radius={0.65} />
       <ChromaticAberration offset={ABERRATION} />
-      <Noise opacity={0.025} />
-      <Vignette offset={0.25} darkness={0.75} />
+      <Noise opacity={0.02} />
+      <Vignette offset={0.25} darkness={0.7} />
     </EffectComposer>
   );
 }
