@@ -89,9 +89,10 @@ layers:
       - id: keyframe
         type: tool
         label: Keyframe image
-        description: "Nano Banana 2 (gemini-3.1-flash-image) start frame at 1K from the packshot; about $0.067 per image."
+        description: "Nano Banana 2 (gemini-3.1-flash-image) start frame at 1K from the packshot."
         runtime: gemini
         limits: { timeout: 60s, retries: 2 }
+        budget: { rate: "0.067 USD/image", for: media }
     edges:
       - "row -> compose"
       - "refs -> compose [data]"
@@ -105,10 +106,13 @@ layers:
       - id: veo
         type: tool
         label: Veo 3.1
-        description: "predictLongRunning on veo-3.1-fast-generate-preview for b-roll, veo-3.1-generate-preview for hero shots. 4/6/8 s, 24 fps, native audio, SynthID. 1080p needs 8 s."
+        description: "predictLongRunning on veo-3.1-fast-generate-preview for b-roll, veo-3.1-generate-preview for hero shots. 4/6/8 s, 24 fps, native audio. 1080p needs 8 s."
         runtime: gemini
         version: veo-3.1-fast-generate-preview
         limits: { timeout: 10m, retries: 2, backoff: "exponential 10s..2m", concurrency: 4 }
+        budget: { rate: "0.10-0.40 USD/s", for: media, description: "Fast 0.10-0.12, standard 0.40 per second at up to 1080p (config/model-rates.yaml)." }
+        async: { mode: poll, interval: 10s, timeout: 10m, description: Latency 11 s to 6 min. }
+        data: { retention: 2d, disclosure: [SynthID watermark], description: Google keeps generated files 2 days. }
         credentials: service
       - id: runway
         type: tool
@@ -116,17 +120,20 @@ layers:
         description: "gen4.5 (12 credits/s) when Veo blocks or times out twice; gen4_turbo (5 credits/s) for drafts."
         runtime: runway
         limits: { timeout: 10m, retries: 1 }
+        budget: { rate: "0.12 USD/s", for: media, description: "gen4.5 at $0.01 per credit; gen4_turbo 0.05 USD/s." }
+        async: { mode: poll }
         credentials: service
       - id: luma
         type: tool
         label: Luma Ray 3.2
-        description: Trial on product macro shots. Luma suggests the first poll after about 30 s and a hard timeout around 10 min.
+        description: Trial on product macro shots.
         runtime: luma
         status: experimental
         limits: { timeout: 10m, retries: 1 }
+        async: { mode: poll, timeout: 10m, description: Luma suggests the first poll after about 30 s. }
       - id: poller
         label: Job poller
-        description: "Polls operations every 10 s (Veo latency is 11 s to 6 min), downloads within the 2-day retention window, records cost per second generated."
+        description: "Polls every job with backoff, downloads within the 2-day retention window, records cost per second generated."
         runtime: orchestrator
         files: [pipeline/veo-poller.ts]
         resources:
@@ -137,11 +144,11 @@ layers:
         description: "Each take is charged before submit. Over $6 for the shot -> downgrade (Fast -> Lite, 1080p -> 720p), then stop."
         runtime: orchestrator
         files: [config/model-rates.yaml]
-        budget: { usd: 6, on_exceed: downgrade }
+        budget: { usd: 6, per: item, for: media, on_exceed: downgrade }
     edges:
-      - { from: spend, to: veo, kind: call, label: submit, protocol: http }
-      - { from: spend, to: runway, kind: call, label: "fallback: blocked or 2 timeouts", protocol: http }
-      - { from: spend, to: luma, kind: call, label: experiment, protocol: http }
+      - { from: spend, to: veo, kind: call, label: submit, protocol: http, group: model }
+      - { from: spend, to: runway, kind: call, label: "fallback: blocked or 2 timeouts", protocol: http, group: model }
+      - { from: spend, to: luma, kind: call, label: experiment, protocol: http, group: model }
       - { from: veo, to: poller, kind: return, label: operation name, protocol: http }
       - { from: runway, to: poller, kind: return, label: task id, protocol: http }
       - { from: luma, to: poller, kind: return, label: generation id, protocol: http }
@@ -161,12 +168,13 @@ layers:
         label: Vision check
         description: Six sampled frames plus the previous shot's last frame. Anatomy, garbled text, product shape and colour, continuity, flicker. Score 1-10.
         evals:
-          - { name: first-take acceptance, value: 0.58, target: 0.5, description: Illustrative. }
+          - { name: first-take acceptance, value: 0.58, target: 0.5, illustrative: true }
       - id: good
         type: decision
         label: Score >= 7?
         description: Below 7 -> new take with the critique added to the prompt.
         runtime: orchestrator
+        decision: { output: score, threshold: ">= 7" }
         limits: { max_iterations: 3 }
       - id: keep
         type: memory

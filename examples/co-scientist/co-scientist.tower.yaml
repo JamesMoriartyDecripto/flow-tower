@@ -10,6 +10,10 @@ description: >-
   hours to days, improves itself through meta-review feedback, and keeps the
   scientist in the loop. Available in Gemini Enterprise (allowlisted access).
 
+# One research session, across every agent (illustrative numbers, see README).
+budget: { tokens: 400000000, per: session, on_exceed: pause }
+limits: { ttl: 72h, max_iterations: 400, concurrency: 32, description: "400 supervisor cycles, 32 parallel workers per session." }
+
 runtimes:
   enterprise:
     kind: saas
@@ -66,8 +70,6 @@ agents:
     prompt: supervisor
     runtime: backend
     files: [src/supervisor_loop.py, config/agent_weights.yaml]
-    budget: { tokens: 400000000, on_exceed: pause }
-    limits: { ttl: 72h, max_iterations: 400, concurrency: 32, timeout: 15m }
     resources:
       - { kind: log, label: "Supervisor log", path: "logs/supervisor.log" }
   generation:
@@ -211,7 +213,12 @@ layers:
         runtime: backend
         label: Worker pool
         description: Each worker pulls one task and runs one specialised agent. A failed task is logged, never fatal.
-        fanout: { min: 8, max: 32, by: supervisor weights and budget }
+        fanout:
+          min: 8
+          max: 32
+          by: supervisor weights and budget
+          from: [generation, reflection, ranking, evolution, proximity, meta]
+          pick: "weighted by the supervisor (agent_weights.yaml); scientist input first"
         limits: { concurrency: 32, timeout: 15m, retries: 1 }
         files: [src/supervisor_loop.py]
       - id: terminal
@@ -260,7 +267,8 @@ layers:
         type: decision
         runtime: backend
         label: Passes?
-        description: reject drops the hypothesis; pass and revise enter the pool at 1200 Elo.
+        description: pass and revise enter the pool at 1200 Elo; reject drops the hypothesis.
+        decision: { output: choice, candidates: [pass, revise, reject] }
         files: [src/specialists.py]
       - id: deep_review
         agent: reflection
@@ -305,7 +313,7 @@ layers:
         label: Elo tournament
         evals:
           - { name: GPQA diamond top-1 (top Elo), value: 0.784, target: 0.75, description: "Value reported in the paper for the top-Elo answer per question; target illustrative." }
-          - { name: top hypothesis Elo, value: 1512, target: 1450, description: "Illustrative, from logs/tournament.log; Elo is an auto-evaluation, not ground truth." }
+          - { name: top hypothesis Elo, value: 1512, unit: Elo, illustrative: true, description: "From logs/tournament.log; Elo is a relative auto-evaluation, not ground truth." }
       - id: elo
         type: memory
         runtime: backend
@@ -317,9 +325,9 @@ layers:
       - id: meta
         agent: meta
         evals:
-          - { name: expert preference rank, value: 2.36, target: 2.5, higher_is_better: false, description: "Paper: average rank across 11 goals (1 best, 4 worst); target illustrative." }
-          - { name: "novelty (expert, 1-5)", value: 3.64, target: 3.5, description: "Paper value; target illustrative." }
-          - { name: "impact (expert, 1-5)", value: 3.09, target: 3.0, description: "Paper value; target illustrative." }
+          - { name: expert preference rank, value: 2.36, unit: rank, higher_is_better: false, description: "Paper: average rank across 11 goals against other systems (1 best, 4 worst)." }
+          - { name: novelty (expert), value: 3.64, target: 3.5, unit: "/5", description: "Paper value; target illustrative." }
+          - { name: impact (expert), value: 3.09, target: 3.0, unit: "/5", description: "Paper value; target illustrative." }
       - id: feedback
         type: memory
         runtime: backend
@@ -391,7 +399,7 @@ layers:
         runtime: enterprise
         label: Wet-lab validation
         description: Scientists test top hypotheses (e.g. AML repurposing candidates in cell lines). Results can seed a new session.
-        sla: 12w
+        sla: { within: 12w, external: true, description: "Illustrative: lab time, outside the system." }
     edges:
       - "overview -> lab [handoff]: top hypotheses"
 

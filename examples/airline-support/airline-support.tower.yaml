@@ -62,7 +62,7 @@ agents:
     runtime: backend
     files: [python-backend/airline/agents.py]
     credentials: service
-    data: { sensitivity: pii, retention: 1d, description: "Reads passenger name and confirmation from the shared context." }
+    data: { sensitivity: pii, retention: none, description: "Reads passenger name and confirmation from the shared context." }
     meta: { handoffs: "flight-info, booking, seats, faq, refunds", input_guardrails: "relevance, jailbreak" }
   flight-info:
     name: Flight Information Agent
@@ -73,7 +73,7 @@ agents:
     runtime: backend
     files: [python-backend/airline/agents.py]
     credentials: service
-    data: { sensitivity: pii, retention: 1d }
+    data: { sensitivity: pii, retention: none }
   booking:
     name: Booking and Cancellation Agent
     description: "Handles new bookings, rebookings after delays, and cancellations."
@@ -83,7 +83,7 @@ agents:
     runtime: backend
     files: [python-backend/airline/agents.py, python-backend/airline/tools.py]
     credentials: service
-    data: { sensitivity: pii, retention: 1d }
+    data: { sensitivity: pii, retention: none }
   seats:
     name: Seat and Special Services Agent
     description: "Updates seats and handles medical or special service seating."
@@ -93,7 +93,7 @@ agents:
     runtime: backend
     files: [python-backend/airline/agents.py, python-backend/airline/services.py]
     credentials: service
-    data: { sensitivity: pii, retention: 1d, description: "special_service_note may describe a medical need." }
+    data: { sensitivity: pii, retention: none, description: "special_service_note may describe a medical need." }
   faq:
     name: FAQ Agent
     description: "Answers common questions about policies, baggage, seats, and compensation."
@@ -112,7 +112,7 @@ agents:
     runtime: backend
     files: [python-backend/airline/agents.py, python-backend/airline/services.py]
     credentials: service
-    data: { sensitivity: pii, retention: 1d }
+    data: { sensitivity: pii, retention: none }
   relevance:
     name: Relevance Guardrail
     description: "Structured output RelevanceOutput { reasoning, is_relevant }. Tripwire when not relevant."
@@ -212,9 +212,9 @@ layers:
         status: planned
         type: human
         label: Payout approval
-        description: "Duty manager approves, edits or rejects a paused issue_compensation call; rejection text goes back to the model."
+        description: "needs_approval pauses the run (result.interruptions) before issue_compensation; the duty manager approves, edits or rejects it and rejection text goes back to the model."
         files: [python-backend/airline/approvals.py]
-        approval: { by: "Duty manager", via: "Human-agent console", actions: [approve, edit, reject], timeout: 30m, on_timeout: escalate }
+        approval: { by: "Duty manager", when: "payout > 500 USD or any cash refund", via: "Human-agent console", actions: [approve, edit, reject], timeout: 30m, on_timeout: escalate }
     edges:
       - "seat_picker -> chat: chosen seat"
       - "agent_console -> reply: human reply"
@@ -326,6 +326,7 @@ layers:
         type: decision
         label: Wants a person?
         description: "Production extension: explicit request for a human, or the same guardrail tripped twice."
+        decision: { output: binary }
         files: [python-backend/airline/approvals.py]
       - id: ticket
         runtime: contact_center
@@ -407,7 +408,7 @@ layers:
         label: special_service_seat
         description: "assign_special_service_seat: front row 1A/2A for medical needs; writes special_service_note."
         files: [python-backend/airline/services.py]
-        data: { sensitivity: phi, retention: 1d, description: "Free-text medical reason." }
+        data: { sensitivity: phi, retention: none, description: "Free-text medical reason, kept in the in-memory context." }
       - id: seat_map
         runtime: backend
         type: tool
@@ -420,13 +421,6 @@ layers:
         label: faq_lookup_tool
         description: "Keyword lookup: bags, compensation/delay, seats/plane, wifi."
         files: [python-backend/airline/tools.py, python-backend/airline/demo_data.py]
-      - id: payout_gate
-        runtime: backend
-        status: planned
-        type: decision
-        label: Over $500?
-        description: "needs_approval callable: payouts over $500 or any cash refund pause the run (result.interruptions)."
-        files: [python-backend/airline/approvals.py]
       - id: issue_compensation
         runtime: backend
         type: tool
@@ -446,7 +440,6 @@ layers:
       - "flight_status -> matching_flights: delayed"
       - "matching_flights -> book_new_flight: NY950"
       - "update_seat -> special_seat: medical"
-      - "payout_gate -> issue_compensation: within limit"
       - "faq_lookup -> issue_compensation: policy checked"
 
   # 5 ───────────────────────────────────────────────────────────────
@@ -462,20 +455,21 @@ layers:
         label: ConversationState
         description: "input_items, current_agent_name, events and guardrail checks per thread."
         files: [python-backend/airline_server.py]
-        data: { sensitivity: pii, retention: 1d, description: "Process memory; lost on restart." }
+        data: { sensitivity: pii, retention: none, description: "Process memory; lost on restart." }
       - id: airline_ctx
         runtime: backend
         type: memory
         label: AirlineAgentContext
         description: "passenger_name, confirmation, flight, seat, account_number, itinerary, vouchers, case id."
         files: [python-backend/airline/context.py]
-        data: { sensitivity: pii, retention: 1d }
+        data: { sensitivity: pii, retention: none }
       - id: thread_store
         runtime: backend
         type: memory
         label: MemoryStore
         description: "ChatKit Store: threads, items and attachments in dicts. Swap for a database in production."
         files: [python-backend/memory_store.py]
+        data: { sensitivity: pii, retention: none }
       - id: mock_data
         runtime: backend
         type: memory
@@ -535,8 +529,8 @@ links:
   - { from: api.state_stream, to: ui.agents_list, kind: data, label: current agent, protocol: http }
   - { from: tools.seat_map, to: ui.seat_picker, kind: return, label: DISPLAY_SEAT_MAP, protocol: http }
   - { from: agents.ticket, to: ui.agent_console, kind: handoff, label: escalated chat, protocol: webhook }
-  - { from: tools.payout_gate, to: ui.duty_manager, kind: handoff, label: "over limit: interruption", protocol: http }
-  - { from: ui.duty_manager, to: tools.issue_compensation, label: "RunState.approve", protocol: http }
+  - { from: tools.issue_compensation, to: ui.duty_manager, kind: handoff, label: "needs_approval: interruption", protocol: http }
+  - { from: ui.duty_manager, to: tools.issue_compensation, kind: return, label: "RunState.approve / reject", protocol: http }
   # backend: runner -> agents
   - "api.runner -> agents.resume: current agent"
   - "api.tripwire -> agents.wants_human: tripped twice"
@@ -550,7 +544,7 @@ links:
   - "agents.seats -> tools.update_seat [call]"
   - "agents.faq -> tools.faq_lookup [call]"
   - "agents.refunds -> tools.faq_lookup [call]: policy"
-  - "agents.refunds -> tools.payout_gate [call]: issue_compensation"
+  - "agents.refunds -> tools.issue_compensation [call]"
   - "agents.baggage -> tools.baggage_tool [call]"
   # hooks and tools -> context
   - "agents.on_booking -> state.airline_ctx [data]: hydrate"

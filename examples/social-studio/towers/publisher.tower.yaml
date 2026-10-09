@@ -69,6 +69,7 @@ layers:
         description: "{ approvalId, platform, variantId, mediaUrls, publishAt, aiFlags } from the schedule queue."
         runtime: studio
         trigger: { kind: queue, source: BullMQ publish queue }
+        exactly_once: true
       - id: once
         type: guard
         label: Idempotency
@@ -96,22 +97,23 @@ layers:
       - id: instagram
         type: tool
         label: Instagram
-        description: "Create container (image_url JPEG, REELS, carousel up to 10, is_ai_generated), poll status_code once a minute up to 5 min, then media_publish. Containers expire after 24h."
+        description: "Create container (image_url JPEG, REELS, carousel up to 10, is_ai_generated), poll status_code, then media_publish. Containers expire after 24h."
         runtime: meta
         files: [src/adapters/instagram.ts]
-        limits: { timeout: 6m, retries: 3, backoff: "exponential 30s..10m" }
+        limits: { timeout: 6m, retries: 3, backoff: "exponential 30s..10m", rate: "100/24h", description: "Platform limit; our own cap is 3 posts a day." }
+        async: { mode: poll, interval: 1m, timeout: 5m }
       - id: facebook
         type: tool
         label: Facebook Page
         description: "POST /{page-id}/feed or /photos; native scheduling with published=false + scheduled_publish_time (10 min to 30 days ahead)."
         runtime: meta
-        limits: { timeout: 2m, retries: 3 }
+        limits: { timeout: 2m, retries: 3, rate: "2/d", description: Our own cap. }
       - id: threads
         type: tool
         label: Threads
-        description: "Container then threads_publish. 500 characters, carousels 2-20 items, 250 posts and 1,000 replies per 24h."
+        description: "Container then threads_publish. 500 characters, carousels 2-20 items."
         runtime: meta
-        limits: { timeout: 6m, retries: 3 }
+        limits: { timeout: 6m, retries: 3, rate: ["250/24h", "1000/24h"], description: Posts and replies. }
       - id: linkedin
         type: tool
         label: LinkedIn Page
@@ -121,30 +123,30 @@ layers:
       - id: tiktok
         type: tool
         label: TikTok inbox
-        description: "POST /v2/post/publish/inbox/video/init (video.upload scope) with PULL_FROM_URL from the verified domain. Lands as a draft; 6 init calls/min per token; max 5 pending shares per 24h."
+        description: "POST /v2/post/publish/inbox/video/init (video.upload scope) with PULL_FROM_URL from the verified domain. Lands as a draft."
         runtime: tiktok
         files: [src/adapters/tiktok-inbox.ts]
-        limits: { timeout: 15m, retries: 2 }
+        limits: { timeout: 15m, retries: 2, rate: ["6/m", "5/24h"], description: "Init calls per user token; pending inbox shares." }
       - id: youtube
         type: tool
         label: YouTube Shorts
-        description: "Resumable videos.insert with status.publishAt and status.containsSyntheticMedia. Uploads have their own bucket of 100 calls a day."
+        description: "Resumable videos.insert with status.publishAt and status.containsSyntheticMedia."
         runtime: youtube
-        limits: { timeout: 15m, retries: 3 }
+        limits: { timeout: 15m, retries: 3, rate: "100/d", description: "Uploads have their own bucket; 10,000 quota units a day for everything else." }
       - id: x
         type: tool
         label: X post
-        description: "POST /2/tweets on pay-per-use: $0.015 per post, $0.20 when the post contains a URL, so links go in the profile or the reply thread. Weekly spend cap in config."
+        description: "POST /2/tweets on pay-per-use: $0.20 when the post contains a URL, so links go in the profile or the reply thread."
         runtime: x
-        budget: { usd: 5, on_exceed: stop }
+        budget: { usd: 5, per: week, rate: "0.015 USD/post", on_exceed: stop }
         limits: { timeout: 1m, retries: 2 }
       - id: bluesky
         type: tool
         label: Bluesky
-        description: "uploadBlob then com.atproto.repo.createRecord (app.bsky.feed.post). 3 points per create; 5,000 points per hour, 35,000 per day per account."
+        description: "uploadBlob then com.atproto.repo.createRecord (app.bsky.feed.post). 3 points per create."
         runtime: bluesky
         files: [src/adapters/bluesky.ts]
-        limits: { timeout: 1m, retries: 3 }
+        limits: { timeout: 1m, retries: 3, rate: ["5000/h", "35000/d"], description: Write points per account. }
     edges: []
 
   - id: confirm
@@ -155,6 +157,7 @@ layers:
         label: Status poll
         description: Container / upload status until FINISHED, PUBLISHED or an error code.
         runtime: studio
+        async: { mode: poll }
       - id: ok
         type: decision
         label: Live?

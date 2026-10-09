@@ -10,6 +10,10 @@ description: >-
   Modeled on Anthropic's multi-agent research system, LangChain's open_deep_research
   and the OpenAI Agents SDK financial research example.
 
+# One run = one request, across lead, searchers, writer and verifier (src/config.py).
+budget: { usd: 12, per: run, on_exceed: stop }
+limits: { timeout: 45m, description: "Multi-agent runs use ~15x chat tokens; spend only where the question is worth it." }
+
 runtimes:
   chat:
     kind: browser
@@ -90,8 +94,7 @@ agents:
     harness: { effort: high, output: json, max_tokens: 16000 }
     runtime: app
     files: [src/lead.py, src/config.py]
-    budget: { usd: 12, on_exceed: stop }
-    limits: { timeout: 45m, max_iterations: 6, concurrency: 5 }
+    limits: { max_iterations: 6, concurrency: 5 }
     resources:
       - { kind: log, label: "Lead log", path: "logs/lead.log" }
   searcher:
@@ -177,6 +180,7 @@ layers:
         runtime: app
         label: Ambiguous?
         description: need_clarification from the clarifier JSON. Skipped entirely when allow_clarification is false.
+        decision: { output: binary }
         files: [src/config.py]
       - id: ask_user
         type: human
@@ -191,6 +195,7 @@ layers:
         runtime: app
         label: Query class?
         description: "Effort scaling: simple = 1 searcher x 3-10 calls; comparison = 2-4 x 10-15; complex = 5-10+ with divided responsibilities."
+        decision: { output: choice, candidates: [simple, comparison, complex] }
         files: [src/config.py, prompts/research-brief.md]
     edges:
       - question -> clarify
@@ -240,7 +245,7 @@ layers:
         type: guard
         runtime: app
         label: Run budget
-        description: "$12 and 45 minutes per run, 5 concurrent searchers. Multi-agent runs use ~15x chat tokens; spend only where the question is worth it."
+        description: Enforces the run-wide budget and timeout (top level) and the 5-searcher cap; when hit, no new round starts.
         files: [src/config.py]
     edges:
       - "lead -> plan [data]: save plan"
@@ -262,8 +267,8 @@ layers:
         label: Searcher
         fanout: { min: 1, max: 10, by: query complexity }
         evals:
-          - { name: "tool calls per task", value: 11, target: 15, higher_is_better: false, description: "Illustrative target." }
-          - { name: "p95 latency (s)", value: 312, target: 600, higher_is_better: false, description: "Illustrative target." }
+          - { name: tool calls per task, value: 11, target: 15, higher_is_better: false, illustrative: true }
+          - { name: p95 latency, value: 312, target: 600, unit: s, higher_is_better: false, illustrative: true }
       - id: web_search
         type: tool
         runtime: anthropic
@@ -325,7 +330,7 @@ layers:
       - id: citation
         agent: citation
         evals:
-          - { name: "claims cited", value: 0.95, target: 0.95, description: "Share of factual claims with a supporting source. Illustrative target." }
+          - { name: claims cited, value: 0.95, target: 0.95, illustrative: true, description: "Share of factual claims with a supporting source." }
       - id: verifier
         agent: verifier
       - id: verified
@@ -333,6 +338,7 @@ layers:
         runtime: app
         label: Blocking issues?
         description: verified == true, or only minor issues.
+        decision: { output: binary, candidates: [clean, blocking] }
         files: [src/verify_loop.py]
       - id: round_cap
         type: decision
@@ -370,11 +376,11 @@ layers:
         agent: judge
         label: LLM judge
         evals:
-          - { name: overall, value: 0.84, target: 0.8, description: "Illustrative target, 10-20 real queries." }
-          - { name: factual accuracy, value: 0.88, target: 0.85, description: "Illustrative target." }
-          - { name: citation accuracy, value: 0.93, target: 0.9, description: "Illustrative target." }
-          - { name: source quality, value: 0.79, target: 0.8, description: "Illustrative target." }
-          - { name: tool efficiency, value: 0.71, target: 0.75, description: "Illustrative target." }
+          - { name: overall, value: 0.84, target: 0.8, illustrative: true, description: "10-20 real queries." }
+          - { name: factual accuracy, value: 0.88, target: 0.85, illustrative: true }
+          - { name: citation accuracy, value: 0.93, target: 0.9, illustrative: true }
+          - { name: source quality, value: 0.79, target: 0.8, illustrative: true }
+          - { name: tool efficiency, value: 0.71, target: 0.75, illustrative: true }
       - id: bench
         runtime: app
         label: Deep Research Bench
@@ -382,8 +388,8 @@ layers:
           100 PhD-level tasks (50 EN, 50 ZH) scored by RACE against expert reports. open_deep_research
           reported 0.4344 (Aug 2025); the values here are illustrative targets for this system.
         evals:
-          - { name: RACE score, value: 0.47, target: 0.45, description: "Illustrative target.", url: "https://github.com/langchain-ai/open_deep_research" }
-          - { name: cost per 100 tasks ($), value: 96, target: 120, higher_is_better: false, description: "Illustrative target." }
+          - { name: RACE score, value: 0.47, target: 0.45, illustrative: true, url: "https://github.com/langchain-ai/open_deep_research" }
+          - { name: cost per 100 tasks, value: 96, target: 120, unit: USD, higher_is_better: false, illustrative: true }
         files: [evals/queries.jsonl]
       - id: human_review
         type: human
@@ -404,7 +410,13 @@ layers:
         label: Rainbow deploy
         description: New runs go to the new color; in-flight runs finish on the old one, which drains at zero active runs.
         version: v13
-        rollout: { strategy: rainbow, percent: 10, previous: v12 }
+        rollout:
+          strategy: rainbow
+          percent: 10
+          steps: [10, 50, 100]
+          metric: "judge overall >= 0.80, citation accuracy >= 0.90"
+          guard: "error rate > 2%"
+          previous: v12
         resources:
           - { kind: config, label: "Rainbow config", path: "deploy/rainbow.yaml" }
         files: [deploy/rainbow.yaml]

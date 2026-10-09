@@ -122,7 +122,7 @@ layers:
         runtime: simulator
         files: [app/native-tests/ios/LeafwiseSmokeUITests.swift]
         evals:
-          - { name: smoke pass rate, value: 1, target: 1 }
+          - { name: smoke pass rate, value: 1, target: 1, illustrative: true }
       - id: device
         label: Real-device check
         description: Widget refresh budget, push after reboot, VoiceOver labels on the widget.

@@ -78,10 +78,11 @@ layers:
           BLOCKED, plus speculative heads click_target (clickable rows) and type_text_target
           (editable rows) in the same request. Only the head matching the operation is used.
         files: [src/browser.ts, config/decisions.yaml]
+        decision: { output: choice, candidates: [CLICK, TYPE_TEXT, SELECT, SCROLL_UP, SCROLL_DOWN, WAIT, DONE, BLOCKED], confidence: true, threshold: 0.5, model: jev-1.13.0 }
         limits: { timeout: 2s }
         evals:
-          - { name: "flight search (s)", value: 7.1, target: 10, higher_is_better: false, description: "Reported by Browser Use (jev-ultrafast README): Zürich→London on Google Flights, 7,073 ms.", url: "https://github.com/browser-use/jev-ultrafast" }
-          - { name: "cost per task ($)", value: 0.004, target: 0.01, higher_is_better: false, description: "Reported in the Made with Jev directory for the Browser Use flight search.", url: "https://madewithjev.com/builds/browser-use-flights" }
+          - { name: "flight search", value: 7.1, target: 10, unit: s, higher_is_better: false, description: "Reported by Browser Use (jev-ultrafast README): Zürich→London on Google Flights, 7,073 ms.", url: "https://github.com/browser-use/jev-ultrafast" }
+          - { name: "cost per task", value: 0.004, target: 0.01, unit: USD, higher_is_better: false, description: "Reported in the Made with Jev directory for the Browser Use flight search.", url: "https://madewithjev.com/builds/browser-use-flights" }
       - id: op_policy
         runtime: devbox
         type: guard
@@ -137,8 +138,8 @@ layers:
       - "validate -> execute: fresh"
       - "validate -> text [call]: TYPE_TEXT"
       - "text -> execute [data]: text"
-      - "verify -> done: check passed"
-      - "verify -> blocked: check failed"
+      - { from: verify, to: done, label: check passed, group: verify }
+      - { from: verify, to: blocked, label: check failed, group: verify }
 
 links:
   - "observe.table -> decide.jev_step [call]: state"

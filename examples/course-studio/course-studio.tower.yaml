@@ -9,6 +9,8 @@ description: >-
   sign off on the outline, the SME content review and the final publish. Sample run:
   "Intro to Prompt Engineering for Product Managers", 6 modules, SCORM 2004 on Moodle.
 tags: [courses, education, instructional-design, e-learning, scorm, multi-agent, evaluator-optimizer, claude-agent-sdk]
+budget: { usd: 60, per: run, on_exceed: stop, description: "Per course (LIMITS.courseUsd); alert at 80%." }
+limits: { concurrency: 6, description: "At most 6 concurrent subagents, spawn depth 1." }
 
 runtimes:
   orchestrator:
@@ -106,7 +108,8 @@ agents:
     prompt: intake
     tools: []
     runtime: orchestrator
-    harness: { max_turns: 2, budget_usd: 0.05, output: json_schema, setting_sources: [] }
+    harness: { max_turns: 2, output: json_schema, setting_sources: [] }
+    budget: { usd: 0.05, on_exceed: stop }
     files: [src/intake.ts]
     meta: { pattern: routing }
   director:
@@ -116,7 +119,8 @@ agents:
     prompt: program-director
     tools: [Agent, Read, Glob, TodoWrite, mcp__studio__request_signoff, mcp__notion__notion-update-page]
     runtime: orchestrator
-    harness: { max_turns: 120, budget_usd: 40, effort: high, fallback_model: claude-sonnet-5-5, max_subagent_depth: 1, max_concurrent_subagents: 6 }
+    harness: { max_turns: 120, effort: high, fallback_model: claude-sonnet-5-5, max_subagent_depth: 1, max_concurrent_subagents: 6 }
+    budget: { usd: 40, on_exceed: stop }
     files: [src/orchestrator.ts, src/agents.ts, CLAUDE.md]
     resources:
       - { kind: log, label: Director log, path: logs/director.log }
@@ -137,7 +141,8 @@ agents:
     from: .claude/agents/module-writer.md
     tower: towers/module-writer.tower.yaml
     runtime: orchestrator
-    harness: { permission_mode: acceptEdits, max_attempts: 3, concurrency: 3 }
+    harness: { permission_mode: acceptEdits, max_attempts: 3 }
+    limits: { concurrency: 3 }
     files: [src/pipelines/modules.ts]
   localizer:
     from: .claude/agents/localizer.md
@@ -181,7 +186,8 @@ agents:
     prompt: consolidator
     tools: [Read]
     runtime: orchestrator
-    harness: { max_turns: 8, budget_usd: 1 }
+    harness: { max_turns: 8 }
+    budget: { usd: 1, on_exceed: stop }
     files: [src/loop/review-board.ts]
   simulator:
     from: .claude/agents/learner-simulator.md
@@ -220,7 +226,8 @@ layers:
       - id: route
         type: decision
         label: Route?
-        description: new | refresh | needs_info | decline. Regulated topics (medical, legal, financial advice) need an accredited SME or are declined.
+        description: Regulated topics (medical, legal, financial advice) need an accredited SME or are declined.
+        decision: { output: choice, candidates: [new, refresh, needs_info, decline] }
         runtime: orchestrator
         files: [src/intake.ts]
       - id: clarify
@@ -305,6 +312,7 @@ layers:
         label: SME interview
         description: Five async questions to the named SME (war stories, mistakes novices make, what to skip). Answers are quotable.
         runtime: notion
+        approval: { by: named SME, via: [Notion, email], actions: [respond] }
         files: [src/tools/request-signoff.ts]
       - id: pack
         label: Research pack
@@ -366,6 +374,7 @@ layers:
         label: SME sign-off 1
         description: Checkpoint 1. The SME approves the outline and objectives or returns comments. No content is written before this.
         runtime: notion
+        approval: { by: SME, via: [Notion, email], actions: [approve, reject] }
         files: [src/tools/request-signoff.ts]
         resources:
           - { kind: dashboard, label: Sign-off queue, url: https://notion.example.com/acme-learning/syllabus-forge/signoffs }
@@ -386,8 +395,9 @@ layers:
     nodes:
       - id: fanout
         label: Module fan-out
-        description: Promise.all over modules with a concurrency limit of 3. A blocked module is re-dispatched once, then escalated.
+        description: Promise.all over modules. A blocked module is re-dispatched once, then escalated.
         runtime: orchestrator
+        limits: { concurrency: 3, retries: 1 }
         files: [src/pipelines/modules.ts]
         resources:
           - { kind: log, label: Module runs, path: logs/modules.log }
@@ -476,8 +486,9 @@ layers:
         files: [src/tools/media.ts]
       - id: voice
         label: Voiceover
-        description: TTS narration with a pronunciation lexicon; SSML pauses at segment breaks. Disclosed as synthetic voice.
+        description: TTS narration with a pronunciation lexicon; SSML pauses at segment breaks.
         runtime: elevenlabs
+        data: { disclosure: [synthetic voice, stated in module 1] }
         files: [src/tools/tts.ts, memory/pronunciations.md]
         resources:
           - { kind: doc, label: TTS API reference, url: https://elevenlabs.io/docs/api-reference/text-to-speech }
@@ -629,6 +640,7 @@ layers:
         type: decision
         label: Round < 3?
         description: Hard iteration cap. Round 3 revisions run on Opus; after round 3 the loop stops and escalates.
+        limits: { max_iterations: 3 }
         prompt: revise-round
         runtime: orchestrator
         files: [src/config.ts, prompts/revise-round.md]
@@ -637,12 +649,14 @@ layers:
         label: Escalate
         description: The loop did not converge. Open findings go to the SME and program owner with a recommendation.
         runtime: notion
+        approval: { by: SME and program owner, via: [Notion, email], per: finding }
         files: [src/tools/request-signoff.ts]
       - id: sme_review
         type: human
         label: SME sign-off 2
         description: Checkpoint 2. The SME reads the full course with the fact-check report attached and approves or returns comments.
         runtime: notion
+        approval: { by: SME, via: [Notion, email], actions: [approve, reject] }
         files: [src/tools/request-signoff.ts]
     edges:
       - "board -> pedagogy [spawn]: rubric"
@@ -753,6 +767,7 @@ layers:
         label: Publish approval
         description: Checkpoint 3. The program owner reviews the sandbox link, review report, pilot report and launch kit.
         runtime: notion
+        approval: { by: program owner, via: [Notion, email], actions: [approve, reject] }
         files: [src/tools/request-signoff.ts]
         resources:
           - { kind: dashboard, label: Sign-off queue, url: https://notion.example.com/acme-learning/syllabus-forge/signoffs }
@@ -768,6 +783,7 @@ layers:
         label: Course live
         description: Enrollment open. The run is recorded in the session log with cost, rounds and open backlog items.
         runtime: moodle
+        data: { disclosure: ["Produced with AI assistance. Content reviewed and approved by <SME name>."] }
         files: [memory/session-log.md]
         resources:
           - { kind: endpoint, label: Course page, url: https://lms.example.com/course/view.php?id=412 }
@@ -852,6 +868,7 @@ layers:
         label: request_signoff
         description: Creates a sign-off task in Notion and emails the reviewer. Returns immediately; the pipeline resumes on response.
         runtime: orchestrator
+        async: { mode: poll, interval: 10m, description: "The pipeline polls the Notion task Status (Approved / Changes requested); days, not seconds." }
         files: [src/tools/request-signoff.ts]
       - id: web
         type: tool
@@ -942,7 +959,7 @@ layers:
       - id: budget
         type: guard
         label: Turn & $ caps
-        description: maxTurns and maxBudgetUsd per query, $60 per course, subagent depth 1, concurrency 6.
+        description: Enforces maxTurns and maxBudgetUsd per query (agent budgets) and the run budget and limits ($60 per course, subagent depth 1, concurrency 6).
         runtime: orchestrator
         files: [src/config.ts]
     edges:

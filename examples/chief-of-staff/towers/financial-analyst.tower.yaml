@@ -75,6 +75,7 @@ layers:
         type: decision
         label: Question type?
         description: "Hiring -> hiring_impact.py (always). Cash or growth -> forecast. Choice between options -> matrix."
+        decision: { output: choice, candidates: [hiring, cash or growth, options] }
       - id: hiring_impact
         runtime: worker
         type: tool

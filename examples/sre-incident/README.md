@@ -26,9 +26,13 @@ node bin/flow-tower.js examples/sre-incident/sre-incident.tower.yaml
 
 ## Operational fields used
 
-`trigger` (webhook), `approval` (on-call, Slack, 15m, `on_timeout: escalate`; postmortem review 72h),
-`budget` (per agent and $6 per incident), `limits` (timeouts, session `ttl` 24h, concurrency),
-`sandbox` (read-only investigator, no-network remediator), `credentials`, `data`, `evals`,
+Top-level `budget` ($6 and 100 turns per incident run), agent `skills` (`incident-runbooks`) and
+`disabled_tools` (edit/write/web on the investigator, web on the remediator), `trigger` (webhook),
+`approval` (on-call, Slack, 15m, `on_timeout: escalate`, `escalate_to` secondary then incident commander;
+postmortem review 72h), `budget` (per agent), `limits` (timeouts, session `ttl` 24h, concurrency),
+`exactly_once` (one session per incident), `decision` (typed outputs: new incident, signature with
+confidence, approval result, recovery threshold), `async` (event loop polls every 1s), `sandbox`
+(read-only investigator, no-network remediator), `credentials`, `data` (retention), `evals`,
 `version` + `rollout` (remediator v2 canary 20%), `sla`, edge `protocol: webhook`, a `recording` resource.
 
 ## Deviations from the cookbook

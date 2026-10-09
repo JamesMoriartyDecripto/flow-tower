@@ -12,6 +12,9 @@ description: >-
   tests. The daily paid-media loop is a nested tower. Sample company: "Tallymoor"
   (fictional), accounts-payable automation for mid-market finance teams in DE, NL and FR.
 tags: [marketing, growth, performance-marketing, lifecycle, seo, google-ads, meta-ads, linkedin-ads, ga4, hubspot, customer-io, growthbook, mmm, gdpr, human-in-the-loop, claude-agent-sdk]
+budget:
+  - { amount: 120000, currency: EUR, per: month, for: media, on_exceed: pause, description: "Hard cap across all ad platforms (policies/spend-approval-policy.yaml)." }
+  - { usd: 900, per: month, for: model, on_exceed: downgrade, description: "LLM spend across all agents: Opus roles fall back to Sonnet and the owner is pinged." }
 
 runtimes:
   orchestrator:
@@ -202,7 +205,7 @@ agents:
     runtime: orchestrator
     tools: [mcp__customerio, mcp__hubspot, Read, Write]
     budget: { usd: 3, turns: 30, on_exceed: pause }
-    data: { sensitivity: pii, region: eu, retention: 730d }
+    data: { sensitivity: pii, region: eu, retention: 2y }
     credentials: service
   scorer:
     name: Lead scorer
@@ -213,7 +216,7 @@ agents:
     files: [sales/lead-scoring-rules.yaml]
     budget: { usd: 0.05, turns: 4, on_exceed: stop }
     limits: { timeout: 90s, retries: 2 }
-    data: { sensitivity: pii, region: eu, retention: 730d }
+    data: { sensitivity: pii, region: eu, retention: 2y }
     credentials: service
   analyst:
     name: Measurement analyst
@@ -237,7 +240,7 @@ layers:
         label: Quarterly kickoff
         runtime: orchestrator
         description: First working day of the quarter, or manually after a launch or pricing change.
-        trigger: { kind: cron, schedule: "0 7 1 1,4,7,10 *", source: Cloud Scheduler, description: "Europe/Berlin" }
+        trigger: { kind: cron, schedule: "0 7 1 1,4,7,10 *", timezone: Europe/Berlin, source: Cloud Scheduler }
       - id: sources
         type: memory
         label: VoC sources
@@ -304,15 +307,15 @@ layers:
         type: guard
         label: Monthly spend cap
         runtime: orchestrator
-        description: "Media cap 120,000 EUR per month (budget.usd holds the USD equivalent). At 100 % every campaign is paused, not just slowed."
-        budget: { usd: 140000, on_exceed: pause }
+        description: "At 100 % every campaign is paused, not just slowed; Slack alerts at 80 % and 95 %."
+        budget: { amount: 120000, currency: EUR, per: month, for: media, on_exceed: pause }
         files: [policies/spend-approval-policy.yaml]
       - id: finance
         type: human
         label: CMO + Finance
         runtime: slack
-        description: Quarterly budget and any cross-channel move above 5,000 EUR per month.
-        approval: { by: CMO and FP&A partner, via: Slack, actions: [approve, edit, reject], timeout: 72h, on_timeout: reject }
+        description: Signs the quarterly budget plan.
+        approval: { by: CMO and FP&A partner, via: Slack, actions: [approve, edit, reject], timeout: 72h, on_timeout: reject, when: "quarterly plan, or a cross-channel move > 5,000 EUR/month" }
         files: [policies/spend-approval-policy.yaml]
       - id: brief
         type: output
@@ -340,9 +343,9 @@ layers:
         type: tool
         label: Semrush MCP
         runtime: semrush
-        description: Keyword overview, related keywords, SERP features, competitor gaps. API units are capped per month.
+        description: Keyword overview, related keywords, SERP features, competitor gaps. API units are shared with the SEO team.
         limits: { concurrency: 2, retries: 2 }
-        budget: { usd: 150, on_exceed: pause }
+        budget: { usd: 150, per: month, for: api, on_exceed: pause, description: Alert at 80 % of the monthly units. }
       - id: gsc
         type: tool
         label: Search Console API
@@ -359,7 +362,7 @@ layers:
         runtime: orchestrator
         status: experimental
         description: Monthly prompt panel (40 buyer questions) across AI assistants; logs whether Tallymoor is cited. Directional only.
-        trigger: { kind: cron, schedule: "0 8 2 * *" }
+        trigger: { kind: cron, schedule: "0 8 2 * *", timezone: Europe/Berlin }
       - id: writer
         agent: writer
         label: Write drafts
@@ -374,7 +377,7 @@ layers:
         label: Editor + SME
         runtime: hubspot
         description: Fact check, voice, claims against the register, human editorial responsibility (EU AI Act Art. 50 text exemption).
-        approval: { by: content editor, via: HubSpot draft review, actions: [approve, edit, reject], timeout: 3d, on_timeout: wait }
+        approval: { by: content editor, via: HubSpot draft review, actions: [approve, edit, reject], timeout: 3d, on_timeout: wait, rounds: 2 }
       - id: cms
         type: tool
         label: HubSpot CMS
@@ -393,7 +396,7 @@ layers:
       - "seo -> programmatic: template + data"
       - "writer -> editor: draft"
       - "programmatic -> editor: sample of 10"
-      - "editor -> writer [return]: edits, max 2"
+      - "editor -> writer [return]: edits"
       - { from: editor, to: cms, kind: call, protocol: http, label: publish }
       - "cms -> social [handoff]: published URL"
 
@@ -408,32 +411,32 @@ layers:
         agent: paid
         label: Paid media lead
         evals:
-          - { name: pipeline ROAS (illustrative), value: 3.4, target: 3.0, description: "Qualified pipeline EUR / media EUR, trailing 90 days." }
-          - { name: budget pacing error (%), value: 3.1, target: 5, higher_is_better: false }
+          - { name: pipeline ROAS, value: 3.4, target: 3.0, illustrative: true, description: "Qualified pipeline EUR / media EUR, trailing 90 days." }
+          - { name: budget pacing error, value: 3.1, target: 5, higher_is_better: false, unit: "%", illustrative: true }
       - id: creative
         agent: creative
         label: Creative variants
-        fanout: { min: 3, max: 6, by: message pillar x format }
+        fanout: { min: 3, max: 6, by: [message pillar, format] }
         evals:
-          - { name: LinkedIn CTR % (illustrative), value: 0.71, target: 0.6 }
-          - { name: Meta CTR % (illustrative), value: 0.94, target: 1.0 }
+          - { name: LinkedIn CTR, value: 0.71, target: 0.6, unit: "%", illustrative: true }
+          - { name: Meta CTR, value: 0.94, target: 1.0, unit: "%", illustrative: true }
       - id: policy
         type: guard
         label: Policy + disclosure
         runtime: orchestrator
-        description: Ad-policy checklist per platform, brand safety exclusions, AI-generated imagery labelled (EU AI Act Art. 50), claims only from the register.
+        description: Ad-policy checklist per platform, brand safety exclusions, AI-generated imagery labelled, claims only from the register.
         files: [ads/ad-policy-checklist.md, strategy/claims-register.yaml]
+        data: { disclosure: [EU AI Act Art. 50 label on AI-generated imagery] }
       - id: legal
         type: human
         label: Claims review
         runtime: slack
-        description: Any variant with a number, a comparison or a compliance statement.
-        approval: { by: legal counsel, via: Slack, actions: [approve, edit, reject], timeout: 72h, on_timeout: reject }
+        approval: { by: legal counsel, via: Slack, actions: [approve, edit, reject], timeout: 72h, on_timeout: reject, when: "a new quantified, comparative or compliance claim", per: variant }
       - id: audiences
         label: Consented audiences
         runtime: gcp
         description: HubSpot lists with marketing consent only, normalized and SHA-256 hashed, to Customer Match / Meta custom audiences / LinkedIn matched audiences.
-        data: { sensitivity: pii, region: eu, retention: 540d }
+        data: { sensitivity: pii, region: eu, retention: 540d, lawful_basis: consent }
       - id: launch
         label: Launch paused
         runtime: orchestrator
@@ -463,14 +466,15 @@ layers:
         label: TikTok Ads API
         runtime: tiktok
         status: experimental
-        description: 8,000 EUR/month awareness test for the finance-ops persona; kill if no assisted pipeline by week 8.
+        description: Awareness test for the finance-ops persona; kill if no assisted pipeline by week 8.
         credentials: service
+        budget: { amount: 8000, currency: EUR, per: month, for: ads }
     edges:
       - "paid -> creative [spawn]: brief + pillars"
       - "creative -> policy: variants"
-      - "policy -> legal: has a claim"
+      - { from: policy, to: legal, label: has a claim, group: claims }
       - "legal -> creative [return]: rejected"
-      - "policy -> launch: clean"
+      - { from: policy, to: launch, label: clean, group: claims }
       - "legal -> launch: approved"
       - "audiences -> launch [data]: hashed lists"
       - { from: launch, to: google_ads, kind: call, protocol: http, label: mutate }
@@ -503,8 +507,9 @@ layers:
         type: guard
         label: Consent + opt-out
         runtime: orchestrator
-        description: Marketing consent recorded per contact (double opt-in in DE), one-click unsubscribe, opt-outs honoured within 2 days (CAN-SPAM allows 10 business days).
+        description: Marketing consent recorded per contact (double opt-in in DE), one-click unsubscribe.
         files: [lifecycle/deliverability.md]
+        sla: { within: 2d, after: opt-out, description: "CAN-SPAM allows 10 business days." }
       - id: deliverability
         type: guard
         label: Deliverability
@@ -512,9 +517,9 @@ layers:
         description: SPF + DKIM + aligned DMARC, Postmaster spam rate under 0.1 % (hard stop at 0.3 %), warm-up for new sending domains.
         files: [lifecycle/deliverability.md]
         evals:
-          - { name: Gmail spam rate (%), value: 0.04, target: 0.1, higher_is_better: false }
-          - { name: inbox placement % (seed test), value: 96, target: 95 }
-          - { name: trial-to-paid % (illustrative), value: 11.8, target: 12 }
+          - { name: Gmail spam rate, value: 0.04, target: 0.1, higher_is_better: false, unit: "%", illustrative: true }
+          - { name: inbox placement (seed test), value: 96, target: 95, unit: "%", illustrative: true }
+          - { name: trial-to-paid, value: 11.8, target: 12, unit: "%", illustrative: true }
       - id: lc_ok
         type: human
         label: Lifecycle owner
@@ -526,7 +531,7 @@ layers:
         label: Customer.io MCP
         runtime: customerio
         description: read + write scopes only. write:live (sending, live segments) stays off; activation happens in the UI after approval.
-        data: { sensitivity: pii, region: eu, retention: 730d }
+        data: { sensitivity: pii, region: eu, retention: 2y }
     edges:
       - "events -> segments [data]: track"
       - segments -> journeys
@@ -550,14 +555,15 @@ layers:
         description: One page per campaign x persona; variants written by the content writer, built from approved components.
         files: [cro/ab-test-plan-demo-page.md]
         evals:
-          - { name: demo-page conversion % (illustrative), value: 4.1, target: 4.5 }
+          - { name: demo-page conversion, value: 4.1, target: 4.5, unit: "%", illustrative: true }
       - id: growthbook
         type: tool
         label: GrowthBook
         runtime: growthbook
-        description: "Experiment exp-demo-form-short: 50/50 split, CUPED, guardrail on lead quality (MQL rate)."
+        description: "Experiment exp-demo-form-short, CUPED, 4 full weeks; ships v2 if the primary metric improves with p < 0.05."
         version: v2-short-form
-        rollout: { strategy: ab, percent: 50, previous: v1-long-form }
+        rollout: { strategy: ab, percent: 50, arms: [v1-long-form, v2-short-form], metric: demo submissions per visitor (fit A/B), guard: "MQL rate drops more than 5 points", sample: 17600, previous: v1-long-form }
+        sla: { by: "2026-11-03" }
         files: [cro/ab-test-plan-demo-page.md]
       - id: form
         type: entry
@@ -565,7 +571,7 @@ layers:
         runtime: site
         description: Demo request and trial sign-up; consent checkboxes are unticked by default.
         trigger: { kind: webhook, source: HubSpot form submission }
-        data: { sensitivity: pii, region: eu, retention: 730d }
+        data: { sensitivity: pii, region: eu, retention: 2y }
       - id: enrich
         label: Enrich + dedupe
         runtime: orchestrator
@@ -580,6 +586,7 @@ layers:
         runtime: orchestrator
         description: Fit A/B and score >= 65, or any demo request from fit A.
         files: [sales/lead-scoring-rules.yaml]
+        decision: { output: binary, candidates: [MQL, nurture], threshold: ">= 65", model: lead scoring rules v5 }
       - id: hubspot
         type: tool
         label: HubSpot MCP
@@ -589,11 +596,11 @@ layers:
         type: human
         label: SDR first touch
         runtime: hubspot
-        description: Round-robin by country; reassigned to the team lead if untouched.
+        description: Round-robin by country.
         sla: 1h
-        approval: { by: SDR on rotation, via: HubSpot task, actions: [respond, snooze], timeout: 1h, on_timeout: escalate }
+        approval: { by: SDR on rotation, via: HubSpot task, actions: [respond, snooze], timeout: 1h, on_timeout: escalate, escalate_to: SDR team lead }
         evals:
-          - { name: lead response p90 (min), value: 42, target: 60, higher_is_better: false }
+          - { name: lead response p90, value: 42, target: 60, higher_is_better: false, unit: min, illustrative: true }
       - id: offline
         label: Offline conversions
         runtime: gcp
@@ -635,26 +642,26 @@ layers:
         type: tool
         label: GA4 Data API
         runtime: ga4
-        description: runReport for daily KPIs (quota 200k tokens/property/day); analytics-mcp (read-only) for ad-hoc questions.
+        description: runReport for daily KPIs; analytics-mcp (read-only) for ad-hoc questions.
         files: [scripts/ga4_pull.py]
-        limits: { concurrency: 4, retries: 3, backoff: "exponential 2s..2m" }
+        limits: { concurrency: 4, retries: 3, backoff: "exponential 2s..2m", rate: "200000/d", description: Data API tokens per property. }
       - id: mart
         type: memory
         label: Marketing mart
         runtime: gcp
         description: "BigQuery: GA4 export, spend ledger (all platforms), HubSpot pipeline, experiments. Single source for every number in the digest."
-        data: { sensitivity: confidential, region: eu, retention: 1095d }
+        data: { sensitivity: confidential, region: eu, retention: 3y }
       - id: attribution
         label: Attribution
         runtime: gcp
         description: GA4 data-driven attribution for the web journey, HubSpot first/last-touch for pipeline. Used for in-week steering only.
         evals:
-          - { name: blended CAC EUR (illustrative), value: 4180, target: 4500, higher_is_better: false }
+          - { name: blended CAC, value: 4180, target: 4500, higher_is_better: false, unit: EUR, illustrative: true }
       - id: mmm
         label: Meridian MMM
         runtime: gcp
         description: Monthly refresh on 104 weeks of spend and pipeline; ROI priors calibrated with lift results; outputs response curves.
-        trigger: { kind: cron, schedule: "0 5 3 * *" }
+        trigger: { kind: cron, schedule: "0 5 3 * *", timezone: Europe/Berlin }
         files: [measurement/measurement-plan.md]
       - id: lift
         label: Lift tests
@@ -664,7 +671,7 @@ layers:
       - id: analyst
         agent: analyst
         label: Weekly digest
-        trigger: { kind: cron, schedule: "0 7 * * 1", source: Cloud Scheduler }
+        trigger: { kind: cron, schedule: "0 7 * * 1", timezone: Europe/Berlin, source: Cloud Scheduler }
         files: [samples/weekly-digest-2026-w40.md]
       - id: realloc
         type: human
@@ -700,8 +707,8 @@ layers:
         type: guard
         label: LLM budget
         runtime: orchestrator
-        description: 900 USD per month across all agents; at the cap, Opus roles downgrade to Sonnet and a human is pinged.
-        budget: { usd: 900, on_exceed: downgrade }
+        description: Enforces the run-wide LLM budget (top level); at the cap, Opus roles downgrade to Sonnet and a human is pinged.
+        budget: { usd: 900, per: month, for: model, on_exceed: downgrade }
       - id: changelog
         type: memory
         label: Change + approval log
@@ -709,7 +716,7 @@ layers:
         description: Append-only log of every platform mutation and approval (who, what, before, after, reason).
         resources:
           - { kind: log, label: Paid optimizer log, path: logs/paid-optimizer.log }
-        data: { sensitivity: confidential, region: eu, retention: 1095d }
+        data: { sensitivity: confidential, region: eu, retention: 3y }
       - id: opus
         type: model
         label: Opus 5.5

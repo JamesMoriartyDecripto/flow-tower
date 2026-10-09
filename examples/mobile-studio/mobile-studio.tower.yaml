@@ -160,7 +160,7 @@ agents:
     prompt: review-miner
     tools: [mcp__appfigures__*]
     runtime: orchestrator
-    fanout: { min: 8, max: 16, by: competitor x store }
+    fanout: { min: 8, max: 16, by: [competitor, store] }
     budget: { usd: 3, on_exceed: stop }
   aso:
     name: ASO strategist
@@ -284,7 +284,7 @@ agents:
     tools: [mcp__appfigures__*, mcp__github__issue_write]
     runtime: orchestrator
     trigger: { kind: cron, schedule: "0 8 * * *", source: orchestrator scheduler }
-    fanout: { min: 2, max: 8, by: store x locale with new reviews }
+    fanout: { min: 2, max: 8, by: [store, locale with new reviews] }
     budget: { usd: 2, on_exceed: stop }
     data: { sensitivity: pii, retention: 90d, description: Review text with reviewer nicknames; drafts never quote names back. }
 
@@ -322,8 +322,7 @@ layers:
         description: Product owner reads the opportunity brief (target user, top 3 pains, differentiator, keyword gap, pricing) and decides.
         runtime: slack
         files: [samples/opportunity-brief.md]
-        approval: { by: product owner, via: Slack, actions: [approve, edit, reject], timeout: 3d, on_timeout: escalate }
-        limits: { max_iterations: 2 }
+        approval: { by: product owner, via: Slack, actions: [approve, edit, reject], timeout: 3d, on_timeout: escalate, rounds: 2 }
     edges:
       - idea -> lead
       - "lead -> market [spawn]: competitors"
@@ -360,15 +359,14 @@ layers:
         runtime: orchestrator
         files: [prompts/designer.md]
         evals:
-          - { name: contrast failures, value: 0, target: 0, higher_is_better: false }
-          - { name: targets under minimum, value: 2, target: 0, higher_is_better: false, description: Illustrative; two icon buttons sent back to design. }
+          - { name: contrast failures, value: 0, target: 0, higher_is_better: false, illustrative: true }
+          - { name: targets under minimum, value: 2, target: 0, higher_is_better: false, illustrative: true, description: Two icon buttons sent back to design. }
       - id: design_ok
         type: human
         label: Design sign-off
-        description: Product owner approves the clickable prototype per platform; three rounds included.
+        description: Product owner approves the clickable prototype per platform.
         runtime: slack
-        approval: { by: product owner, via: Figma prototype + Slack, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
-        limits: { max_iterations: 3 }
+        approval: { by: product owner, via: [Figma prototype, Slack], actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate, rounds: 3 }
     edges:
       - "spec -> designer: flows + screens"
       - "designer -> tokens [data]: variables"
@@ -392,6 +390,7 @@ layers:
         description: "Chosen: Expo SDK 57 (React Native 0.86) for the app, with native targets per platform for widgets. Revisit if more than 30% of screens need native UI."
         runtime: orchestrator
         files: [specs/adr-001-stack.md]
+        decision: { output: choice, candidates: [native, Expo / React Native, Flutter, Kotlin Multiplatform] }
         approval: { by: tech lead, via: GitHub PR review, actions: [approve, edit, reject], timeout: 2d, on_timeout: escalate }
       - id: backend
         agent: backend
@@ -401,7 +400,7 @@ layers:
         description: Profiles, plants, care events, photo paths. Row-level security on every table; advisors must be clean before release.
         runtime: supabase
         files: [backend/schema.sql]
-        data: { sensitivity: pii, region: eu, retention: 30d, description: "Email and plant photos; deleted 30 days after account deletion (backups roll over)." }
+        data: { sensitivity: pii, region: eu, retention: 30d, retention_after: account deletion, description: "Email and plant photos; backups roll over in the same window." }
       - id: auth
         type: tool
         label: Auth + deletion
@@ -505,25 +504,25 @@ layers:
         description: Onboarding, add-plant, reminder and paywall (sandbox purchase) flows, plus store screenshots per locale.
         runtime: maestro-cloud
         files: [qa/maestro/onboarding.yaml, qa/maestro/paywall.yaml, qa/device-matrix.yaml]
-        fanout: { min: 6, max: 10, by: device x OS version }
+        fanout: { min: 6, max: 10, by: [device, OS version] }
         limits: { timeout: 30m, retries: 1 }
         evals:
-          - { name: flow pass rate, value: 0.98, target: 1 }
+          - { name: flow pass rate, value: 0.98, target: 1, illustrative: true }
       - id: lab
         agent: qa
         label: Device lab QA
         description: Exploratory pass on real phones with VoiceOver and TalkBack on, low battery mode, airplane mode mid-sync, denied permissions.
         evals:
-          - { name: unlabeled controls, value: 0, target: 0, higher_is_better: false }
-          - { name: blocking defects, value: 1, target: 0, higher_is_better: false }
+          - { name: unlabeled controls, value: 0, target: 0, higher_is_better: false, illustrative: true }
+          - { name: blocking defects, value: 1, target: 0, higher_is_better: false, illustrative: true }
       - id: perf
         label: Performance
         description: Cold start, memory and frame drops on the low-end Android (Galaxy A15) and iPhone SE, five runs each.
         runtime: device-lab
         evals:
-          - { name: cold start p50 Android low-end (ms), value: 1450, target: 2000, higher_is_better: false }
-          - { name: cold start p50 iPhone SE (ms), value: 820, target: 1000, higher_is_better: false }
-          - { name: download size iOS (MB), value: 38, target: 50, higher_is_better: false }
+          - { name: cold start p50 Android low-end, value: 1450, target: 2000, higher_is_better: false, unit: ms, illustrative: true }
+          - { name: cold start p50 iPhone SE, value: 820, target: 1000, higher_is_better: false, unit: ms, illustrative: true }
+          - { name: download size iOS, value: 38, target: 50, higher_is_better: false, unit: MB, illustrative: true }
       - id: qa_gate
         type: decision
         label: Release-ready?
@@ -596,7 +595,7 @@ layers:
         label: App Review
         description: Apple reviews 90% of submissions in under 48 hours; after 4 days the lead asks whether to request an expedited review.
         runtime: asc
-        sla: 48h
+        sla: { within: 48h, after: submission, external: true }
         limits: { timeout: 4d }
         resources:
           - { kind: log, label: Store review log, path: logs/store-review.log }
@@ -604,7 +603,7 @@ layers:
         label: Play review
         description: Managed publishing on, so an approved release waits for the studio to publish it.
         runtime: play
-        sla: 72h
+        sla: { within: 72h, after: submission, external: true }
         limits: { timeout: 7d }
       - id: verdict
         type: decision
@@ -612,6 +611,7 @@ layers:
         description: Both stores approved, or one rejected. Three resubmissions, then the studio lead escalates (appeal or scope change).
         runtime: orchestrator
         limits: { max_iterations: 3 }
+        decision: { output: binary, candidates: [approved, rejected] }
       - id: resolve
         agent: rejection
         label: Rejection fix
@@ -640,16 +640,16 @@ layers:
     nodes:
       - id: phased
         label: iOS phased release
-        description: "7-day phased release (1, 2, 5, 10, 20, 50, 100%); pausable for up to 30 days in total."
+        description: "One step a day over 7 days; pausable for up to 30 days in total."
         runtime: asc
         version: 2.4.0
-        rollout: { strategy: canary, percent: 5, previous: 2.3.2 }
+        rollout: { strategy: staged, percent: 5, steps: [1, 2, 5, 10, 20, 50, 100], metric: crash-free sessions, guard: "crash-free sessions < 99.5%", previous: 2.3.2 }
       - id: staged
         label: Play staged rollout
-        description: "userFraction 0.01, 0.05, 0.2, 0.5, then completed; each step needs 24 h of healthy data."
+        description: "userFraction per step, then completed; each step needs 24 h of healthy data."
         runtime: play
         version: 2.4.0
-        rollout: { strategy: canary, percent: 5, previous: 2.3.2 }
+        rollout: { strategy: staged, percent: 5, steps: [1, 5, 20, 50, 100], metric: crash-free sessions, guard: "crash-free sessions < 99.5% or user-perceived crash rate > 1.09%", previous: 2.3.2 }
         files: [scripts/play-rollout.ts]
         resources:
           - { kind: log, label: Rollout log, path: logs/rollout.log }
@@ -668,7 +668,7 @@ layers:
         label: Analytics
         description: Funnel and retention events defined in the spec; pseudonymous app instance id, consent-gated.
         runtime: firebase
-        data: { sensitivity: pii, retention: 60d, description: "Pseudonymous identifiers count as personal data under GDPR; event retention set to 2 months." }
+        data: { sensitivity: pii, retention: 60d, lawful_basis: consent, description: "Pseudonymous identifiers count as personal data under GDPR; event retention set to 2 months, collected only after consent in the EU." }
       - id: guard
         type: guard
         label: Crash-rate guard
@@ -677,9 +677,9 @@ layers:
         trigger: { kind: cron, schedule: "*/30 * * * *", source: orchestrator scheduler }
         files: [scripts/crash-guard.ts]
         evals:
-          - { name: crash-free sessions (%), value: 99.71, target: 99.5, description: Illustrative studio target. }
-          - { name: user-perceived crash rate (%), value: 0.42, target: 1.09, higher_is_better: false, url: https://developer.android.com/topic/performance/vitals }
-          - { name: user-perceived ANR rate (%), value: 0.18, target: 0.47, higher_is_better: false }
+          - { name: crash-free sessions, value: 99.71, target: 99.5, unit: "%", illustrative: true, description: The target is a studio choice. }
+          - { name: user-perceived crash rate, value: 0.42, target: 1.09, higher_is_better: false, unit: "%", illustrative: true, description: Android vitals bad-behavior threshold., url: https://developer.android.com/topic/performance/vitals }
+          - { name: user-perceived ANR rate, value: 0.18, target: 0.47, higher_is_better: false, unit: "%", illustrative: true, description: Android vitals bad-behavior threshold. }
       - id: killswitch
         type: human
         label: Kill switch
@@ -689,14 +689,15 @@ layers:
       - id: monitor
         agent: monitor
         evals:
-          - { name: crash-free users (%), value: 99.83, target: 99.7 }
-          - { name: cold start p90 (ms), value: 2100, target: 2500, higher_is_better: false }
-          - { name: store rating (30d), value: 4.6, target: 4.5 }
+          - { name: crash-free users, value: 99.83, target: 99.7, unit: "%", illustrative: true }
+          - { name: cold start p90, value: 2100, target: 2500, higher_is_better: false, unit: ms, illustrative: true }
+          - { name: store rating (30d), value: 4.6, target: 4.5, illustrative: true }
       - id: hotfix
         type: decision
         label: Fix path?
         description: JavaScript-only and same fingerprint goes over the air; anything native needs a new binary and store review.
         runtime: orchestrator
+        decision: { output: choice, candidates: [OTA update, store build] }
       - id: ota
         label: EAS Update
         description: "eas update --channel production --rollout-percentage=10, then eas update:edit; revert with eas update:revert-update-rollout. Bug fixes only, never new features."
@@ -708,13 +709,13 @@ layers:
         label: Review triage
         description: "Classifies new reviews (bug, feature, billing, praise, abuse), drafts replies under 350 characters, opens issues for bugs with version and device."
         evals:
-          - { name: median reply time (h), value: 18, target: 24, higher_is_better: false }
+          - { name: median reply time, value: 18, target: 24, higher_is_better: false, unit: h, illustrative: true }
       - id: reply_ok
         type: human
         label: Reply approval
         description: Support lead approves or edits drafts before they are posted; billing complaints are always answered by a person.
         runtime: slack
-        approval: { by: support lead, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: wait }
+        approval: { by: support lead, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: wait, per: reply }
         files: [samples/review-digest.md]
       - id: backlog
         type: memory

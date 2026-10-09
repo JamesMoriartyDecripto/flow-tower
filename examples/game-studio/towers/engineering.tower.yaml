@@ -203,11 +203,13 @@ layers:
         runtime: studio-cluster
         type: decision
         label: Approved?
-        description: Score >= 8, no blocking findings (correctness, replication, GC safety, tick cost).
+        description: No blocking findings (correctness, replication, GC safety, tick cost).
+        decision: { output: score, threshold: ">= 8" }
       - id: cap
         runtime: studio-cluster
         type: decision
         label: Round < 3?
+        limits: { max_iterations: 3 }
         prompt: fix-round
         files: [config/quality-gates.yaml, src/loop/review-gate.ts]
       - id: opus_fix

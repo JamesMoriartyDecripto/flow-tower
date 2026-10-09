@@ -52,10 +52,10 @@ agents:
     limits: { timeout: 10m, max_iterations: 3 }
     sandbox: { network: allowlist, allow: [api-v2.fattureincloud.it], filesystem: read-only }
     credentials: service
-    data: { sensitivity: pii, region: eu, retention: 3650d }
+    data: { sensitivity: pii, region: eu, retention: 10y }
     evals:
-      - { name: proposed patch accepted as-is (%), value: 84, target: 80 }
-      - { name: second scarto after fix (%), value: 3, target: 5, higher_is_better: false }
+      - { name: proposed patch accepted as-is, value: 84, target: 80, unit: "%", illustrative: true }
+      - { name: second scarto after fix, value: 3, target: 5, unit: "%", higher_is_better: false, illustrative: true }
 
 layers:
   # 1 ───────────────────────────────────────────────────────────────
@@ -86,11 +86,13 @@ layers:
         type: tool
         label: Send to SDI
         runtime: fic
-        description: "POST /c/{company_id}/issued_documents/{document_id}/e_invoice/send. One send per document id; a retry after a timeout first reads ei_status."
+        description: "POST /c/{company_id}/issued_documents/{document_id}/e_invoice/send. A retry after a timeout first reads ei_status."
         files: [scripts/send_and_poll.py, config/oauth-scopes.yaml]
         limits: { timeout: 60s, retries: 1, concurrency: 2 }
+        exactly_once: true
+        async: { mode: both, interval: 30m, timeout: 5d, description: "Outcome arrives as ei_status: status_update webhook first, the 30-minute sweep for documents stuck over 2h." }
         credentials: service
-        data: { sensitivity: pii, region: eu, retention: 3650d }
+        data: { sensitivity: pii, region: eu, retention: 10y, lawful_basis: legal_obligation }
       - id: attempt
         type: decision
         label: Still attempt?
@@ -114,6 +116,7 @@ layers:
         runtime: fic
         description: get_issued_document with fields=ei_status (the field is not returned without fields or the detailed fieldset).
         files: [scripts/send_and_poll.py]
+        sla: { within: 5d, external: true, description: "SDI processing: minutes, up to 5 days under heavy load." }
       - id: outcome
         type: decision
         label: Outcome?
@@ -145,18 +148,13 @@ layers:
       - id: fixer
         agent: fixer
         label: Scarto fixer
-      - id: kind
-        type: decision
-        label: Fix type?
-        runtime: workers
-        description: "master_data (codice destinatario, PEC, address, CF) or fiscal (VAT, natura, totals, ritenuta, bollo, dates)."
-        files: [rules/sdi-outcomes.md]
       - id: controller
         type: human
         label: Finance controller
         runtime: slack
-        description: Approves fiscal patches. Timeout escalates to the CFO in the main tower.
-        approval: { by: finance controller, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: escalate }
+        description: "Approves fiscal patches (VAT, natura, totals, ritenuta, bollo, dates). Master-data fixes (codice destinatario, PEC, address, CF) pass straight to the patch, as mapped in rules/sdi-outcomes.md."
+        files: [rules/sdi-outcomes.md]
+        approval: { by: finance controller, via: Slack, actions: [approve, edit, reject], when: fiscal fix, per: document, timeout: 24h, on_timeout: escalate, escalate_to: CFO }
       - id: modify
         type: tool
         label: Patch document
@@ -169,7 +167,7 @@ layers:
         runtime: workers
         description: "Days since the scarto date and resend count. Max 3 resends; at day 4 or on a third scarto the loop stops and pages the accountant."
         limits: { max_iterations: 3 }
-        sla: 5d
+        sla: { within: 5d, after: scarto notice }
       - id: accountant
         type: human
         label: Commercialista
@@ -178,10 +176,8 @@ layers:
         approval: { by: external accountant, via: Slack shared channel, actions: [approve, respond], timeout: 24h, on_timeout: escalate }
     edges:
       - "reason -> fixer: code + reason"
-      - "fixer -> kind: patch proposal"
-      - "kind -> modify: master_data"
-      - "kind -> controller: fiscal"
-      - "controller -> modify: approved"
+      - "fixer -> controller: patch proposal"
+      - "controller -> modify: approved or master data"
       - modify -> clock
       - "clock -> accountant [handoff]: day 4 or 3rd scarto"
 

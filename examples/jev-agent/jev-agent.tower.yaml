@@ -113,9 +113,10 @@ layers:
           change with tests), opus (architecture, no-repro bug), browser (needs a live site),
           ask_user (ambiguous). Returns choice, a probability per candidate and confidence.
         files: [config/decisions.yaml, src/route.ts, src/jev.ts]
+        decision: { output: choice, candidates: [haiku, sonnet, opus, browser, ask_user], confidence: true, threshold: 0.6, model: jev-1.13.0, fail: open }
         limits: { timeout: 2s, retries: 2, backoff: "exponential 200ms..800ms" }
         evals:
-          - { name: "route kept by user", value: 0.91, target: 0.9, description: "Illustrative. Share of runs where the user did not re-route." }
+          - { name: "route kept by user", value: 0.91, target: 0.9, illustrative: true, description: "Share of runs where the user did not re-route." }
       - id: route_policy
         runtime: devbox
         type: guard
@@ -130,7 +131,7 @@ layers:
         type: human
         label: Ask user
         description: One clarifying question; the answer is appended to the request and routing runs again.
-        approval: { by: requester, via: terminal, actions: [respond], timeout: 30m, on_timeout: wait }
+        approval: { by: requester, via: terminal, actions: [respond], when: "route confidence < 0.6 or ask_user", timeout: 30m, on_timeout: wait }
         files: [src/main.ts]
     edges:
       - task -> state
@@ -166,11 +167,12 @@ layers:
           One request, three nouls over the same state (request, plan, call, git status):
           irreversible, leaks_secret, off_task. Mutating calls only.
         files: [config/decisions.yaml, src/risk-gate.ts]
+        decision: { output: binary, confidence: true, threshold: 0.9, model: jev-1.13.0, fail: closed }
         limits: { timeout: 2s, retries: 1 }
         evals:
           - { name: "held per 1k calls", value: 3, target: 5, higher_is_better: false, description: "Reported by pi-warden (repo description, real sessions). Not measured here.", url: "https://github.com/DevMortimer/pi-warden" }
           - { name: "holds re-planned safely", value: 0.71, target: 0.6, description: "Reported by pi-warden: 79 of 111 held actions, agent found a safer way (2026-09-16..10-01).", url: "https://github.com/DevMortimer/pi-warden" }
-          - { name: "Brier, irreversible", value: 0.07, target: 0.1, higher_is_better: false, description: "Illustrative. From scripts/calibrate.ts on labelled holds." }
+          - { name: "Brier, irreversible", value: 0.07, target: 0.1, higher_is_better: false, illustrative: true, description: "From scripts/calibrate.ts on labelled holds." }
       - id: risk_policy
         runtime: devbox
         type: guard
@@ -185,7 +187,7 @@ layers:
         type: human
         label: Hold review
         description: The developer sees the exact call and the reason. The answer is also the calibration label.
-        approval: { by: developer, via: terminal, actions: [approve, reject], timeout: 10m, on_timeout: reject }
+        approval: { by: developer, via: terminal, actions: [approve, reject], when: "p(irreversible) >= 0.9, a destructive pattern, or a Jev error", per: tool call, timeout: 10m, on_timeout: reject }
         files: [src/tools.ts]
       - id: tools
         runtime: devbox
@@ -207,6 +209,7 @@ layers:
           After every tool batch. Choice over continue, run_check, new_hypothesis, finish,
           escalate, judged on the request, the plan, the last 3 results and the failure streak.
         files: [config/decisions.yaml, src/loop.ts]
+        decision: { output: choice, candidates: [continue, run_check, new_hypothesis, finish, escalate], confidence: true, model: jev-1.13.0 }
       - id: loop_policy
         runtime: devbox
         type: guard
@@ -222,25 +225,25 @@ layers:
         type: human
         label: Escalate
         description: The agent needs a decision, access or a credential it does not have. Transcript kept.
-        approval: { by: developer, via: terminal, actions: [respond, reject], timeout: 4h, on_timeout: wait }
+        approval: { by: developer, via: terminal, actions: [respond, reject], when: "p(escalate) >= 0.5 or the 60-iteration cap", timeout: 4h, on_timeout: wait }
         files: [src/main.ts]
     edges:
       - "coder -> ask_gate: tool_use"
-      - "ask_gate -> tools: read-only"
-      - "ask_gate -> risk [call]: mutating"
-      - "ask_gate -> review [handoff]: destructive pattern"
+      - { from: ask_gate, to: tools, label: read-only, group: gate }
+      - { from: ask_gate, to: risk, kind: call, label: mutating, group: gate }
+      - { from: ask_gate, to: review, kind: handoff, label: destructive pattern, group: gate }
       - "risk -> risk_policy [data]: 3 nouls"
-      - "risk_policy -> tools: p(irreversible) < 0.9"
-      - "risk_policy -> review [handoff]: p(irreversible) ≥ 0.9"
-      - "risk_policy -> coder [return]: block if p(leaks_secret) ≥ 0.5"
+      - { from: risk_policy, to: tools, label: "p(irreversible) < 0.9", group: verdict }
+      - { from: risk_policy, to: review, kind: handoff, label: "p(irreversible) ≥ 0.9", group: verdict }
+      - { from: risk_policy, to: coder, kind: return, label: "block if p(leaks_secret) ≥ 0.5", group: verdict }
       - "review -> tools: approved"
       - "review -> coder [return]: rejected + reason"
       - "coder -> browser [spawn]: browse(url, goal)"
       - "browser -> next [return]: DONE / BLOCKED + trace"
       - "tools -> next [data]: results"
       - "next -> loop_policy [data]: choice + probabilities"
-      - "loop_policy -> coder [return]: continue / check / new hypothesis"
-      - "loop_policy -> escalate [handoff]: p(escalate) ≥ 0.5 or cap"
+      - { from: loop_policy, to: coder, kind: return, label: continue / check / new hypothesis, group: next }
+      - { from: loop_policy, to: escalate, kind: handoff, label: "p(escalate) ≥ 0.5 or cap", group: next }
 
   # 3 ───────────────────────────────────────────────────────────────
   - id: context
@@ -277,6 +280,7 @@ layers:
           with results replaced by size notes, fitted under 25k tokens; batches stay under 30k
           and run concurrently (fast-jev-compaction defaults).
         files: [src/compact.ts, config/decisions.yaml]
+        decision: { output: binary, confidence: true, threshold: 0.5, model: jev-1.13.0 }
         fanout: { min: 1, max: 8, by: "calls per 30k-token request" }
         limits: { timeout: 10s, retries: 1 }
       - id: prune
@@ -287,8 +291,8 @@ layers:
           chars of the result; else both go. A result never outlives its call.
         files: [src/compact.ts]
         evals:
-          - { name: "compaction time (s)", value: 0.5, target: 2, higher_is_better: false, description: "Reported by jev-compaction-plus (a fast-jev-compaction fork): ~0.5 s vs ~35 s for the built-in summary.", url: "https://github.com/cth9191/jev-compaction-plus" }
-          - { name: "context freed", value: 0.58, target: 0.25, description: "Illustrative, from logs/judgments.log. Below 0.25 the LLM summary runs instead." }
+          - { name: "compaction time", value: 0.5, target: 2, unit: s, higher_is_better: false, description: "Reported by jev-compaction-plus (a fast-jev-compaction fork): ~0.5 s vs ~35 s for the built-in summary.", url: "https://github.com/cth9191/jev-compaction-plus" }
+          - { name: "context freed", value: 0.58, target: 0.25, illustrative: true, description: "From logs/judgments.log. Below 0.25 the LLM summary runs instead." }
       - id: fallback
         runtime: anthropic
         type: agent
@@ -332,6 +336,7 @@ layers:
           Nouls no_action, broken_promise, unverified_done, plus one per "Done means" rule
           ("the transcript shows evidence that this rule is satisfied").
         files: [config/decisions.yaml, src/hooks/stop.ts, AGENTS.md]
+        decision: { output: binary, confidence: true, threshold: 0.7, model: jev-1.13.0, fail: open }
         evals:
           - { name: "fake done turned into a check", value: 0.76, target: 0.7, description: "Reported by pi-warden's done-check: 94 of 124 nudges led to a check. Analogue, not measured here.", url: "https://github.com/DevMortimer/pi-warden" }
       - id: pref_check
@@ -341,6 +346,7 @@ layers:
         model: jev-1.13.0
         description: One noul per (hunk, preference) pair, asked in the same request as the done check.
         files: [src/hooks/stop.ts, AGENTS.md]
+        decision: { output: binary, confidence: true, threshold: 0.7, model: jev-1.13.0, fail: open }
         evals:
           - { name: "rule precision at 0.7", value: 0.97, target: 0.9, description: "Reported by pi-warden's rules bench (161 cases): precision 0.970, recall 0.865. Same technique, not this repo.", url: "https://github.com/DevMortimer/pi-warden" }
       - id: stop_policy
@@ -383,8 +389,8 @@ layers:
           (2–10 levels). TypeSafe lists $42 per billion input tokens; output is not billed.
         version: jev-1.13.0
         evals:
-          - { name: "p95 latency (ms)", value: 420, target: 500, higher_is_better: false, description: "Illustrative target. Vendor and secondary sources report ~70–500 ms per request." }
-          - { name: "Jev share of task cost", value: 0.02, target: 0.1, higher_is_better: false, description: "Illustrative. Writers dominate cost; decisions are cheap." }
+          - { name: "p95 latency", value: 420, target: 500, unit: ms, higher_is_better: false, illustrative: true, description: "Vendor and secondary sources report ~70–500 ms per request." }
+          - { name: "Jev share of task cost", value: 0.02, target: 0.1, higher_is_better: false, illustrative: true, description: "Writers dominate cost; decisions are cheap." }
       - id: sonnet
         runtime: anthropic
         type: model
@@ -432,8 +438,8 @@ layers:
         files: [scripts/calibrate.ts]
         trigger: { kind: cron, schedule: "0 3 * * *" }
         evals:
-          - { name: "cost per task ($)", value: 0.42, target: 1, higher_is_better: false, description: "Illustrative. All models, per completed task." }
-          - { name: "labelled judgments", value: 1240, target: 1000, description: "Illustrative. Below ~1000 labels, keep the reported defaults." }
+          - { name: "cost per task", value: 0.42, target: 1, unit: USD, higher_is_better: false, illustrative: true, description: "All models, per completed task." }
+          - { name: "labelled judgments", value: 1240, target: 1000, illustrative: true, description: "Below ~1000 labels, keep the reported defaults." }
       - id: thresholds
         runtime: devbox
         type: memory

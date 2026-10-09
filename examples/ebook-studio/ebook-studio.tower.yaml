@@ -12,6 +12,7 @@ description: >-
   before KDP, Apple Books, Kobo, Google Play and Draft2Digital, and launch runs a cover A/B
   test, ARC readers and weekly sales analysis. Sample book: "The Balcony Harvest", 12 chapters.
 tags: [ebooks, publishing, epub, accessibility, kdp, ai-disclosure, human-in-the-loop, fan-out, claude-agent-sdk]
+budget: { usd: 140, per: run, for: model, on_exceed: pause, description: "Model spend per book, owned by the publishing lead: it pauses and asks above it." }
 
 runtimes:
   orchestrator:
@@ -117,7 +118,6 @@ agents:
     runtime: orchestrator
     files: [CLAUDE.md, samples/book-brief.yaml]
     harness: { max_turns: 120, effort: high, fallback_model: claude-sonnet-5-5 }
-    budget: { usd: 140, on_exceed: pause }
   market:
     name: Market analyst
     model: claude-sonnet-5-5
@@ -159,9 +159,9 @@ agents:
     runtime: orchestrator
     tower: towers/chapter.tower.yaml
     fanout: { min: 10, max: 14, by: chapter }
-    budget: { usd: 4, turns: 60, on_exceed: pause }
+    budget: { usd: 4, turns: 60, per: copy, on_exceed: pause }
     limits: { timeout: 25m, retries: 1, max_iterations: 3 }
-    data: { sensitivity: confidential, retention: 365d, description: "Unpublished manuscript under contract. Sent only to the Claude API and the contracted originality vendor." }
+    data: { sensitivity: confidential, retention: 1y, description: "Unpublished manuscript under contract. Sent only to the Claude API and the contracted originality vendor." }
     sandbox: { network: none, filesystem: workspace }
   dev-editor:
     name: Developmental editor
@@ -194,7 +194,7 @@ agents:
     tools: [Read, WebSearch, WebFetch]
     runtime: orchestrator
     fanout: { min: 10, max: 14, by: chapter }
-    budget: { usd: 2.5, on_exceed: escalate }
+    budget: { usd: 2.5, per: copy, on_exceed: escalate }
     sandbox: { network: open, filesystem: read-only }
   alt-text:
     name: Alt-text writer
@@ -251,8 +251,7 @@ layers:
         description: Publisher and author sign the positioning brief and the release date. Work starts on signature.
         runtime: slack
         files: [samples/book-brief.yaml]
-        approval: { by: publisher + author, via: Slack + contract addendum, actions: [approve, edit, reject], timeout: 7d, on_timeout: escalate }
-        limits: { max_iterations: 2 }
+        approval: { by: publisher + author, via: [Slack, contract addendum], actions: [approve, edit, reject], timeout: 7d, on_timeout: escalate, rounds: 2 }
     edges:
       - "pitch -> intake: proposal"
       - "intake -> lead [data]: book-brief.yaml"
@@ -298,8 +297,7 @@ layers:
         description: The author approves the outline and the style sheet. Drafting cannot start without it.
         runtime: slack
         files: [samples/outline.md]
-        approval: { by: author, via: Google Docs + Slack, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
-        limits: { max_iterations: 2 }
+        approval: { by: author, via: [Google Docs, Slack], actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate, rounds: 2 }
     edges:
       - "outliner -> librarian [spawn]: chapter questions"
       - "librarian -> sources [data]: registry"
@@ -326,8 +324,8 @@ layers:
       - id: writer
         agent: writer
         evals:
-          - { name: chapters within word budget (±10%), value: 11, target: 12 }
-          - { name: continuity issues left per chapter, value: 0.4, target: 1, higher_is_better: false }
+          - { name: chapters within word budget (±10%), value: 11, target: 12, illustrative: true }
+          - { name: continuity issues left per chapter, value: 0.4, target: 1, higher_is_better: false, illustrative: true }
       - id: lint
         type: hook
         label: Style lint
@@ -335,7 +333,7 @@ layers:
         runtime: orchestrator
         files: [config/vale.ini, config/vale/Balcony/Terms.yml]
         evals:
-          - { name: Vale errors per 1k words, value: 0.3, target: 1, higher_is_better: false }
+          - { name: Vale errors per 1k words, value: 0.3, target: 1, higher_is_better: false, illustrative: true }
       - id: ledger
         type: memory
         label: Provenance ledger
@@ -347,7 +345,7 @@ layers:
         label: Author rewrite
         description: The author rewrites each draft, adds their own stories and photos, and cuts what is not theirs. Human authorship is the point of the book.
         runtime: author
-        approval: { by: author, via: Google Docs suggestion mode, actions: [approve, edit, reject], timeout: 10d, on_timeout: wait }
+        approval: { by: author, via: Google Docs suggestion mode, actions: [approve, edit, reject], timeout: 10d, on_timeout: wait, per: chapter }
         sla: 42d
         data: { sensitivity: confidential }
       - id: assemble
@@ -375,10 +373,9 @@ layers:
       - id: author_round
         type: human
         label: Author response
-        description: The author accepts, rejects or answers each letter point and revises. Two rounds, then structure is locked.
+        description: The author accepts, rejects or answers each letter point and revises; then structure is locked.
         runtime: author
-        approval: { by: author, via: editorial letter + Google Docs, actions: [approve, edit, respond], timeout: 14d, on_timeout: escalate }
-        limits: { max_iterations: 2 }
+        approval: { by: author, via: [editorial letter, Google Docs], actions: [approve, edit, respond], timeout: 14d, on_timeout: escalate, rounds: 2 }
       - id: line_edit
         agent: line-editor
         label: Line edit
@@ -389,17 +386,18 @@ layers:
       - id: fact_check
         agent: fact-checker
         evals:
-          - { name: claims supported on first pass, value: 0.96, target: 0.95 }
-          - { name: misattributed quotes or citations, value: 0, target: 0, higher_is_better: false }
+          - { name: claims supported on first pass, value: 0.96, target: 0.95, illustrative: true }
+          - { name: misattributed quotes or citations, value: 0, target: 0, higher_is_better: false, illustrative: true }
       - id: originality
         type: tool
         label: Originality scan
         description: Copyleaks scan of the edited manuscript against the web and publications. Matches above 40 words are reviewed by the editor.
         runtime: copyleaks
         credentials: service
+        async: { mode: callback, description: Results arrive by webhook. }
         data: { sensitivity: confidential, description: "Manuscript leaves the studio only under the vendor DPA." }
         evals:
-          - { name: overall similarity (%), value: 2.1, target: 5, higher_is_better: false }
+          - { name: overall similarity, value: 2.1, target: 5, higher_is_better: false, unit: "%", illustrative: true }
       - id: rights
         type: guard
         label: Rights & permissions
@@ -409,10 +407,9 @@ layers:
       - id: editor_ok
         type: human
         label: Editor sign-off
-        description: Managing editor clears fact-check blockers, originality matches and the permissions log. Three fix rounds, then the lead re-plans.
+        description: Managing editor clears fact-check blockers, originality matches and the permissions log. After the last fix round the lead re-plans.
         runtime: slack
-        approval: { by: managing editor, via: Slack, actions: [approve, reject], timeout: 3d, on_timeout: escalate }
-        limits: { max_iterations: 3 }
+        approval: { by: managing editor, via: Slack, actions: [approve, reject], timeout: 3d, on_timeout: escalate, rounds: 3 }
     edges:
       - "dev_edit -> author_round: editorial letter"
       - "author_round -> dev_edit [return]: revised draft, max 2"
@@ -437,6 +434,7 @@ layers:
         description: Contracted designer. Image models are used for mood boards only, so no AI-generated image ships. Two finalists go to the A/B test. 2560 x 1600 px JPEG, RGB.
         runtime: desk
         approval: { by: publisher + author, via: Slack, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
+        budget: { amount: 1200, currency: GBP, per: run, for: designer fee }
       - id: figures
         label: Diagrams & photos
         description: Planting plans and sun-hour charts drawn as SVG from data; the author's own photos. Every figure gets an id, a caption and a source line.
@@ -444,12 +442,13 @@ layers:
       - id: alt_text
         agent: alt-text
         evals:
-          - { name: figures with alt text, value: 1, target: 1 }
+          - { name: figures with alt text, value: 1, target: 1, illustrative: true }
       - id: matter
         label: Front & back matter
         description: Title page, copyright page (edition, ISBN, AI statement), dedication, nav TOC, index from author-tagged terms, about the author, newsletter page.
         runtime: orchestrator
         files: [build/front-matter.md]
+        data: { disclosure: [AI statement on the copyright page] }
       - id: build
         label: Pandoc build
         description: Pandoc 3.12 -> EPUB 3 with accessibility metadata, conformance properties added to the OPF, then the print PDF through Typst.
@@ -465,16 +464,16 @@ layers:
         description: W3C conformance checker. Any error or warning fails the build.
         runtime: gha
         evals:
-          - { name: EPUBCheck errors, value: 0, target: 0, higher_is_better: false }
-          - { name: EPUBCheck warnings, value: 0, target: 0, higher_is_better: false }
+          - { name: EPUBCheck errors, value: 0, target: 0, higher_is_better: false, illustrative: true }
+          - { name: EPUBCheck warnings, value: 0, target: 0, higher_is_better: false, illustrative: true }
       - id: ace
         type: guard
         label: Ace by DAISY
         description: Accessibility checks (axe rules per content document, EPUB metadata, page list). Serious or critical violations fail the build; the rest go to the proof list.
         runtime: gha
         evals:
-          - { name: serious + critical violations, value: 0, target: 0, higher_is_better: false, url: https://www.w3.org/TR/epub-a11y-11/ }
-          - { name: moderate violations, value: 2, target: 5, higher_is_better: false }
+          - { name: serious + critical violations, value: 0, target: 0, higher_is_better: false, url: https://www.w3.org/TR/epub-a11y-11/, illustrative: true }
+          - { name: moderate violations, value: 2, target: 5, higher_is_better: false, illustrative: true }
       - id: previewer
         type: tool
         label: Kindle Previewer
@@ -483,10 +482,9 @@ layers:
       - id: proof_ok
         type: human
         label: Proof approval
-        description: Author and editor read the device proofs and the print PDF. Three rounds, then the release date is reviewed.
+        description: Author and editor read the device proofs and the print PDF. After the last round the release date is reviewed.
         runtime: slack
-        approval: { by: author + managing editor, via: Slack, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
-        limits: { max_iterations: 3 }
+        approval: { by: author + managing editor, via: Slack, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate, rounds: 3 }
     edges:
       - "cover -> build [data]: cover.jpg"
       - "figures -> alt_text [spawn]: per figure"
@@ -518,6 +516,7 @@ layers:
         description: Reads the provenance ledger and fills the disclosure checklist per store. AI-drafted text counts as AI-generated on KDP even after substantial edits.
         runtime: orchestrator
         files: [hooks/disclosure-guard.ts, checklists/kdp-ai-disclosure.md]
+        data: { disclosure: [KDP AI-content answers, Apple Books "AI Generated by" role (AI-generated only)] }
       - id: publish_ok
         type: human
         label: Publisher go
@@ -530,7 +529,8 @@ layers:
         description: Pre-order (release date up to 18 months ahead); EPUB checked in Kindle Previewer; 7 keywords, 3 categories, AI questions answered per content type.
         runtime: kdp
         credentials: service
-        sla: 72h
+        limits: { rate: "3/d", description: KDP cap on new titles per account (2023). }
+        sla: { within: 72h, before: release, description: Final file uploaded at least 72h before the release date. }
       - id: apple
         type: tool
         label: Apple Books
@@ -559,11 +559,11 @@ layers:
       - "isbn -> metadata [data]: ISBN"
       - "metadata -> disclosure: listing"
       - "disclosure -> publish_ok: answers per store"
-      - "publish_ok -> kdp: go"
-      - "publish_ok -> apple: go"
-      - "publish_ok -> kobo: go"
-      - "publish_ok -> gplay: go"
-      - "publish_ok -> d2d: go"
+      - { from: publish_ok, to: kdp, label: go, protocol: manual }
+      - { from: publish_ok, to: apple, label: go, protocol: manual }
+      - { from: publish_ok, to: kobo, label: go, protocol: manual }
+      - { from: publish_ok, to: gplay, label: go, protocol: manual }
+      - { from: publish_ok, to: d2d, label: go, protocol: manual }
 
   # 7 ───────────────────────────────────────────────────────────────
   - id: launch
@@ -575,9 +575,9 @@ layers:
         description: Landing page with store links. The two cover finalists are split 50/50 for pre-order clicks before the KDP cover is final.
         runtime: web
         version: cover-b
-        rollout: { strategy: ab, percent: 50, previous: cover-a }
+        rollout: { strategy: ab, percent: 50, arms: [cover-a, cover-b], metric: pre-order clicks, previous: cover-a }
         evals:
-          - { name: pre-order CTR uplift B vs A (%), value: 14, target: 10 }
+          - { name: pre-order CTR uplift B vs A, value: 14, target: 10, unit: "%", illustrative: true }
         resources:
           - { kind: log, label: Launch log, path: logs/launch.log }
       - id: newsletter
@@ -586,24 +586,25 @@ layers:
         description: Sign-ups from the site, pre-order announcement, launch-day email, ARC invitations.
         runtime: mailer
         credentials: author
-        data: { sensitivity: pii, region: eu, retention: 730d, description: Subscriber names and emails; double opt-in. }
+        data: { sensitivity: pii, region: eu, retention: 2y, lawful_basis: consent, description: Subscriber names and emails; double opt-in. }
       - id: arc
         type: human
         label: ARC readers
-        description: Free advance copies three weeks before launch. No payment and no conditions on rating; readers say they received a free copy.
+        description: Free advance copies. No payment and no conditions on rating; readers say they received a free copy.
         runtime: mailer
         fanout: { min: 30, max: 60, by: ARC sign-ups }
-        sla: 21d
+        sla: { within: 21d, before: launch, description: Copies go out three weeks before launch. }
       - id: analyst
         agent: analyst
         description: Weekly digest from KDP and D2D exports, Kindle page reads, review themes and the A/B result; flags errata reported by readers.
         evals:
-          - { name: pre-orders in first 14 days, value: 212, target: 150 }
+          - { name: pre-orders in first 14 days, value: 212, target: 150, illustrative: true }
       - id: next
         type: decision
         label: Update or edition?
         description: "Errata -> corrected upload (v1.0.x, same ISBN); new or rewritten chapters -> new edition, new ISBN, full edit loop."
         runtime: orchestrator
+        decision: { output: choice, candidates: [corrected upload, new edition] }
       - id: audiobook
         label: AI audiobook
         status: planned

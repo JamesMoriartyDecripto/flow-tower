@@ -117,7 +117,7 @@ layers:
         label: Confirm order
         description: "Items, price breakdown and total shown in chat; the user answers yes, changes items, or cancels."
         files: [prompts/concierge.md, logs/concierge.log]
-        approval: { by: customer, via: Gradio chat, actions: [approve, edit, reject], on_timeout: wait }
+        approval: { by: customer, per: order, relayed_by: concierge, via: Gradio chat, actions: [approve, edit, reject], on_timeout: wait }
       - id: payment
         runtime: agent_engine
         status: planned
@@ -165,11 +165,13 @@ layers:
         type: decision
         label: Which seller?
         description: "The model picks a seller by card description; mixed baskets are split, one seller at a time."
+        decision: { output: choice, candidates: [burger_seller_agent, pizza_seller_agent] }
       - id: confirmed
         runtime: agent_engine
         type: decision
         label: Confirmed already?
         description: "If the user confirmed these items and this total earlier in the session, the concierge may confirm for them."
+        decision: { output: binary }
         files: [prompts/concierge.md]
       - id: send_task
         runtime: agent_engine
@@ -221,6 +223,7 @@ layers:
         description: >-
           Both sellers return a completed Task with one text artifact. A confirmation question is
           therefore read from the artifact text, not from an input-required state.
+        decision: { output: choice, candidates: [confirmation question, order created] }
         files: [logs/concierge.log]
       - id: context
         runtime: agent_engine
@@ -252,6 +255,7 @@ layers:
         label: Orders (in memory)
         description: "create_*_order builds an Order(order_id uuid4, status created) and logs it; no database in the codelab."
         files: [remote_seller_agents/burger_agent/agent.py, remote_seller_agents/pizza_agent/agent.py]
+        data: { sensitivity: internal, retention: none }
       - id: auth
         runtime: burger_run
         type: guard
@@ -303,10 +307,10 @@ links:
   - "customer.session -> concierge.instruction [data]: active_agent"
   - "concierge.before_agent -> a2a.resolver [call]: first turn"
   - "concierge.send_task -> a2a.client [call]: agent_name, task"
-  - { from: a2a.client, to: sellers.burger, kind: call, label: message/send, protocol: a2a }
-  - { from: a2a.client, to: sellers.pizza, kind: call, label: message/send, protocol: a2a }
-  - { from: sellers.burger, to: a2a.result, kind: return, label: "Task + artifact", protocol: a2a }
-  - { from: sellers.pizza, to: a2a.result, kind: return, label: "Task + artifact", protocol: a2a }
+  - { from: a2a.client, to: sellers.burger, kind: call, label: message/send, protocol: a2a, version: "0.2.6", card: "https://burger-agent-480913327416.us-central1.run.app/.well-known/agent.json" }
+  - { from: a2a.client, to: sellers.pizza, kind: call, label: message/send, protocol: a2a, version: "0.2.6", card: "https://pizza-agent-480913327416.us-central1.run.app/.well-known/agent.json" }
+  - { from: sellers.burger, to: a2a.result, kind: return, label: "Task + artifact", protocol: a2a, version: "0.2.6" }
+  - { from: sellers.pizza, to: a2a.result, kind: return, label: "Task + artifact", protocol: a2a, version: "0.2.6" }
   - "a2a.result -> concierge.confirmed: seller asks to confirm"
   - "concierge.confirmed -> customer.confirm [handoff]: no, relay question"
   - "customer.confirm -> concierge.concierge [return]: yes / changes"

@@ -60,6 +60,14 @@ and **Review board**; inside the review board, **Fact-check** opens a third leve
 | Least-privilege subagents | `.claude/agents/*.md` |
 | Custom MCP tools | `src/tools/` (`scorm_package`, `lms_upload`, `synthesize_voice`, `render_media`, `request_signoff`) |
 
+## Operational fields used
+
+Top-level `budget` ($60 per course run) and `limits` (6 concurrent subagents), agent `budget`
+(`maxBudgetUsd` per query), `limits` (3 module writers in parallel with one re-dispatch, 3 review
+rounds), `approval` on every human checkpoint (SME / program owner via Notion + email; escalations
+`per: finding`), `async: poll` every 10m on `request_signoff`, `data.disclosure` (synthetic voice,
+AI-assistance credit on the live course) and typed `decision` outputs (route, fact-check verdict).
+
 ## Deployment (runtimes in the tower)
 The orchestrator runs in a container (ECS); curriculum design runs interactively in Claude Code on
 the lead instructional designer's laptop; TTS (ElevenLabs), SCORM Cloud, Moodle and Notion are SaaS;

@@ -14,6 +14,7 @@ description: >-
   escalates crises; a weekly analyst report feeds the next plan. Sample brand: "Halden Bikes",
   a fictional Amsterdam e-cargo-bike maker selling in NL, BE and DE.
 tags: [social-media, marketing, content-calendar, community-management, human-in-the-loop, ai-disclosure, eu-ai-act, meta-graph-api, tiktok, linkedin, youtube, bluesky, claude-agent-sdk]
+budget: { usd: 35, per: week, for: model, description: "Text models across all agents (config/generation.yaml); image and video caps sit on their nodes." }
 
 runtimes:
   studio:
@@ -101,7 +102,7 @@ agents:
     runtime: studio
     files: [brand/voice-guide.md, calendar/2026-w41.yaml, src/tools/request-approval.ts]
     harness: { max_turns: 30, effort: high }
-    trigger: { kind: cron, schedule: "0 7 * * 1", source: studio scheduler (Europe/Amsterdam) }
+    trigger: { kind: cron, schedule: "0 7 * * 1", timezone: Europe/Amsterdam, source: studio scheduler }
     budget: { usd: 4, on_exceed: pause }
   scout:
     name: Trend scout
@@ -172,7 +173,7 @@ agents:
     prompt: analyst
     tools: [Read, Write, mcp__studio__query_metrics]
     runtime: studio
-    trigger: { kind: cron, schedule: "0 16 * * 5", source: studio scheduler (Europe/Amsterdam) }
+    trigger: { kind: cron, schedule: "0 16 * * 5", timezone: Europe/Amsterdam, source: studio scheduler }
     budget: { usd: 2, on_exceed: stop }
   boost:
     name: Boost advisor
@@ -192,9 +193,8 @@ layers:
       - id: monday
         type: entry
         label: Monday 07:00
-        description: Cron in the studio scheduler, Europe/Amsterdam.
         runtime: studio
-        trigger: { kind: cron, schedule: "0 7 * * 1", source: studio scheduler }
+        trigger: { kind: cron, schedule: "0 7 * * 1", timezone: Europe/Amsterdam, source: studio scheduler }
       - id: brand
         type: memory
         label: Brand memory
@@ -212,11 +212,10 @@ layers:
       - id: plan_ok
         type: human
         label: Plan sign-off
-        description: The social manager approves the week's mix in Slack. Edits go back to the strategist, at most twice.
+        description: The social manager approves the week's mix in Slack; edits go back to the strategist.
         runtime: slack
         files: [config/approval-policy.yaml]
-        approval: { by: social manager, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: escalate }
-        limits: { max_iterations: 2 }
+        approval: { by: social manager, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: escalate, escalate_to: marketing lead, rounds: 2 }
         resources:
           - { kind: log, label: Approval log, path: logs/approvals.log }
       - id: briefs
@@ -240,17 +239,18 @@ layers:
         type: entry
         label: Daily 06:30
         runtime: studio
-        trigger: { kind: cron, schedule: "30 6 * * *", source: studio scheduler }
+        trigger: { kind: cron, schedule: "30 6 * * *", timezone: Europe/Amsterdam, source: studio scheduler }
       - id: mentions
         type: tool
         label: Mentions search
         description: >-
           Instagram mentioned_media and tags, Bluesky app.bsky.feed.searchPosts, X recent search
-          (pay-per-use, $0.005 per post read, capped at 2,000 reads a day here), YouTube comments.
-          TikTok trends and sounds come from the Creative Center by hand: there is no API for them.
+          (pay-per-use), YouTube comments. TikTok trends and sounds come from the Creative Center
+          by hand: there is no API for them.
         runtime: studio
         files: [config/platforms.yaml]
-        budget: { usd: 10, on_exceed: stop }
+        budget: { usd: 10, per: day, rate: "0.005 USD/post read", on_exceed: stop, description: X reads only. }
+        limits: { rate: "2000/d", description: X post reads (own cap). }
         resources:
           - { kind: log, label: Listening log, path: logs/listening.log }
       - id: scout
@@ -258,13 +258,14 @@ layers:
       - id: sentiment
         agent: sentiment
         evals:
-          - { name: agreement with human labels (illustrative), value: 0.88, target: 0.85 }
+          - { name: agreement with human labels, value: 0.88, target: 0.85, illustrative: true }
       - id: spike
         type: decision
         label: Spike or crisis?
         description: "Negative share over 35% on 30+ mentions in 2h, any safety claim (fire, brakes, injury), or press pickup."
         runtime: studio
         files: [config/triage-rules.yaml]
+        decision: { output: binary, candidates: [normal, crisis] }
       - id: ideas
         type: memory
         label: Idea backlog
@@ -281,7 +282,7 @@ layers:
   # 3 ───────────────────────────────────────────────────────────────
   - id: creation
     title: Creation & Repurposing
-    description: One hero asset per brief, then one native variant per platform. Generation spend is capped per week and downgrades before it stops.
+    description: One hero asset per brief, then one native variant per platform. Generation spend is capped per week; video downgrades before it stops.
     nodes:
       - id: copywriter
         agent: copywriter
@@ -294,7 +295,8 @@ layers:
         runtime: gemini
         model: gemini-3.1-flash-image
         files: [config/generation.yaml]
-        budget: { usd: 15, on_exceed: stop }
+        budget: { usd: 15, per: week, for: media, on_exceed: stop }
+        data: { disclosure: [SynthID watermark] }
       - id: video
         type: tool
         label: Veo 3.1 Fast
@@ -303,7 +305,9 @@ layers:
         model: veo-3.1-fast-generate-preview
         files: [config/generation.yaml]
         limits: { timeout: 6m, retries: 1 }
-        budget: { usd: 25, on_exceed: downgrade }
+        budget: { usd: 25, per: week, for: media, on_exceed: downgrade, description: Stops at 120% of the cap. }
+        async: { mode: poll, description: Long-running operation polled until the clip is ready. }
+        data: { retention: 2d, disclosure: [SynthID watermark], description: "Google deletes Veo files after 2 days: copied to R2 at once." }
       - id: canva
         type: tool
         label: Canva Autofill
@@ -311,13 +315,14 @@ layers:
         runtime: canva
         files: [scripts/canva-autofill.ts]
         limits: { timeout: 3m, retries: 2 }
+        async: { mode: poll, description: Autofill and export are jobs polled by id. }
         credentials: author
       - id: assets
         type: memory
         label: Asset library
         description: Originals, renders and per-platform crops on the verified media domain, with the prompt and model kept beside each file.
         runtime: r2
-        data: { sensitivity: internal, region: eu, retention: 365d }
+        data: { sensitivity: internal, region: eu, retention: 1y }
       - id: repurpose
         agent: repurposer
       - id: fit
@@ -348,8 +353,8 @@ layers:
         agent: brand-guard
         type: guard
         evals:
-          - { name: voice score mean (illustrative), value: 0.86, target: 0.8 }
-          - { name: claims caught vs human audit (illustrative), value: 0.94, target: 0.95 }
+          - { name: voice score mean, value: 0.86, target: 0.8, illustrative: true }
+          - { name: claims caught vs human audit, value: 0.94, target: 0.95, illustrative: true }
       - id: ai_label
         type: guard
         label: AI-label check
@@ -359,6 +364,7 @@ layers:
           and a visible "AI-generated" line where EU AI Act Art. 50(4) applies (deepfakes).
         runtime: studio
         files: [scripts/ai-label.ts]
+        data: { disclosure: [Instagram is_ai_generated, TikTok is_aigc, YouTube containsSyntheticMedia, Meta AI label, EU AI Act Art. 50 label] }
       - id: rights
         type: guard
         label: Rights & disclosure
@@ -368,25 +374,25 @@ layers:
       - id: risk
         type: decision
         label: Risk tier?
-        description: "standard | high (claims, safety, prices, people, news-adjacent, paid). From config/approval-policy.yaml."
+        description: "High: claims, safety, prices, people, news-adjacent, paid. From config/approval-policy.yaml."
         runtime: studio
         files: [config/approval-policy.yaml]
+        decision: { output: choice, candidates: [standard, high] }
       - id: legal
         type: human
         label: Legal review
         runtime: slack
-        approval: { by: legal counsel, via: Slack, actions: [approve, edit, reject], timeout: 48h, on_timeout: reject }
+        approval: { by: legal counsel, via: Slack, actions: [approve, edit, reject], timeout: 48h, on_timeout: reject, when: "risk tier == high" }
       - id: approve
         type: human
         label: Post approval
-        description: Preview of every platform variant with its AI label, slot and spend. Edits return to the repurposer, at most twice.
+        description: Preview of every platform variant with its AI label, slot and spend. Edits return to the repurposer.
         runtime: slack
         files: [src/tools/request-approval.ts]
-        approval: { by: social manager, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: reject }
-        limits: { max_iterations: 2 }
+        approval: { by: social manager, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: reject, rounds: 2 }
         sla: 24h
         evals:
-          - { name: first-pass approval rate (illustrative), value: 0.71, target: 0.7 }
+          - { name: first-pass approval rate, value: 0.71, target: 0.7, illustrative: true }
         resources:
           - { kind: log, label: Approval log, path: logs/approvals.log }
       - id: gate
@@ -437,6 +443,7 @@ layers:
         runtime: studio
         tower: towers/publisher.tower.yaml
         fanout: { min: 4, max: 8, by: platforms per post }
+        exactly_once: true
         limits: { timeout: 15m, retries: 3, backoff: "exponential 30s..15m", concurrency: 4 }
         credentials: service
         resources:
@@ -460,7 +467,7 @@ layers:
       - "quota -> queue [return]: over quota, reschedule"
       - "publisher -> tiktok_finish: inbox draft"
       - "publisher -> live: permalinks"
-      - "tiktok_finish -> live: posted"
+      - { from: tiktok_finish, to: live, label: posted, protocol: manual }
 
   # 6 ───────────────────────────────────────────────────────────────
   - id: community
@@ -481,13 +488,14 @@ layers:
       - id: triage
         agent: triage
         evals:
-          - { name: routing accuracy (illustrative), value: 0.91, target: 0.9 }
+          - { name: routing accuracy, value: 0.91, target: 0.9, illustrative: true }
       - id: route
         type: decision
         label: Route
         description: "spam -> hide | faq -> template | question, complaint -> draft | order issue -> helpdesk | crisis -> comms lead."
         runtime: studio
         files: [config/triage-rules.yaml]
+        decision: { output: choice, candidates: [spam, faq, question, complaint, order issue, crisis] }
       - id: policy
         type: guard
         label: Reply policy
@@ -504,11 +512,11 @@ layers:
         label: Reply approval
         description: Community lead approves, edits or answers in Slack; drafts expire with the platform's reply window.
         runtime: slack
-        approval: { by: community lead, via: Slack, actions: [approve, edit, reject, respond], timeout: 2h, on_timeout: escalate }
-        sla: 4h
+        approval: { by: community lead, via: Slack, actions: [approve, edit, reject, respond], timeout: 2h, on_timeout: escalate, escalate_to: social manager, per: reply }
+        sla: { within: 4h, business: true, description: "Mon-Sat 08:00-20:00 Europe/Amsterdam; outside them only spam and crisis are handled." }
         evals:
-          - { name: median first response in min (illustrative), value: 38, target: 60, higher_is_better: false }
-          - { name: replies within SLA (illustrative), value: 0.93, target: 0.95 }
+          - { name: median first response in min, value: 38, target: 60, higher_is_better: false, illustrative: true }
+          - { name: replies within SLA, value: 0.93, target: 0.95, illustrative: true }
         resources:
           - { kind: log, label: Community log, path: logs/community.log }
       - id: crisis
@@ -516,41 +524,42 @@ layers:
         label: Crisis lead
         description: Comms lead takes over in #social-crisis, pauses the queue, approves a holding statement. Agents only summarize.
         runtime: slack
-        approval: { by: comms lead, via: "Slack + phone call", actions: [approve, edit, respond], timeout: 15m, on_timeout: escalate }
+        approval: { by: comms lead, via: [Slack, phone call], actions: [approve, edit, respond, takeover], timeout: 15m, on_timeout: escalate }
         sla: 1h
       - id: helpdesk
         type: tool
         label: Zendesk ticket
         description: Order, warranty and service issues leave social for the helpdesk; the public reply only points to the DM.
         runtime: zendesk
-        data: { sensitivity: pii, region: eu, retention: 730d }
+        data: { sensitivity: pii, region: eu, retention: 2y }
       - id: insights
         label: Insights collector
         description: Daily pull of post and account metrics per platform into Postgres.
         runtime: studio
         files: [scripts/collect-insights.ts]
-        trigger: { kind: cron, schedule: "0 5 * * *", source: studio scheduler }
+        trigger: { kind: cron, schedule: "0 5 * * *", timezone: Europe/Amsterdam, source: studio scheduler }
         limits: { timeout: 20m, retries: 2 }
       - id: metrics
         type: memory
         label: Metrics DB
         description: One row per post per day; engagement rate is engagements / reach.
         runtime: postgres
-        data: { sensitivity: internal, region: eu, retention: 730d }
+        data: { sensitivity: internal, region: eu, retention: 2y }
       - id: analyst
         agent: analyst
         evals:
-          - { name: engagement rate on reach % (illustrative), value: 4.1, target: 3.5 }
-          - { name: posts shipped vs planned (illustrative), value: 0.92, target: 0.9 }
+          - { name: engagement rate on reach %, value: 4.1, target: 3.5, illustrative: true }
+          - { name: posts shipped vs planned, value: 0.92, target: 0.9, illustrative: true }
       - id: boost
         agent: boost
         label: Boost advisor
       - id: boost_ok
         type: human
         label: Boost approval
-        description: "Marketing lead turns the PAUSED campaign on in Ads Manager. Weekly paid cap: EUR 300."
+        description: Marketing lead turns the PAUSED campaign on in Ads Manager.
         runtime: slack
         approval: { by: marketing lead, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: reject }
+        budget: { amount: 300, currency: EUR, per: week, for: ads }
       - id: meta_ads
         type: tool
         label: Meta Ads MCP

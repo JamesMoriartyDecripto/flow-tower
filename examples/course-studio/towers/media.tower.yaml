@@ -119,6 +119,7 @@ layers:
         label: synthesize_voice
         description: ElevenLabs multilingual model, fixed voice per course, cached by text hash.
         runtime: elevenlabs
+        data: { disclosure: [synthetic voice, stated in the course intro] }
         files: [src/tools/tts.ts]
       - id: loudness
         label: Loudness norm

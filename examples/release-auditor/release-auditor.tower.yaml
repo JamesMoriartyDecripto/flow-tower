@@ -305,6 +305,7 @@ layers:
       - id: real
         type: decision
         label: Reproduced?
+        decision: { output: binary, candidates: [yes, no], fail: closed, description: "Kept only with a reproduction; never \"probably\"." }
       - id: dropped
         type: output
         label: Rejected, with reason
@@ -322,7 +323,8 @@ layers:
       - id: triage
         agent: lead
         label: Rank by severity
-        description: Blocker / major / minor per severity.md. Blockers stop the release; minors may become issues.
+        description: Per severity.md. Blockers stop the release; minors may become issues.
+        decision: { output: choice, candidates: [blocker, major, minor] }
       - id: issues
         type: output
         label: GitHub issues

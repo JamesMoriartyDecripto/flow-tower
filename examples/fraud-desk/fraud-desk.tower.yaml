@@ -62,18 +62,18 @@ agents:
     tools: [verify_mandates, get_transaction, hybrid_search_similar_frauds, detect_fraud_ring, escalate, record_decision]
     harness: { tools: custom_only, session: one per batch, path: "A (host-side custom tools)" }
     files: [src/setup.py, src/tools.py]
-    budget: { usd: 0.5, turns: 80, on_exceed: pause }
+    budget: { usd: 0.5, turns: 80, per: session, on_exceed: pause, description: "One session per batch; over budget pauses the session for an operator." }
     limits: { timeout: 30m, ttl: 48h }
     sandbox: { network: none, filesystem: none }
     credentials: service
-    data: { sensitivity: pii, region: us, retention: 1826d, description: "Account numbers and payment details; 5-year BSA record retention." }
+    data: { sensitivity: pii, region: us, retention: 5y, description: "Account numbers and payment details (BSA record retention)." }
     version: v4
     rollout: { strategy: shadow, previous: v3 }
     evals:
-      - { name: decision agreement with analysts, value: 0.96, target: 0.95 }
-      - { name: threshold escalation recall, value: 1.0, target: 1.0, description: "Every case inside a threshold band must escalate (config/thresholds.yaml)." }
-      - { name: exactly-one-terminal rate, value: 0.998, target: 1.0 }
-      - { name: cost per case (USD), value: 0.04, target: 0.1, higher_is_better: false }
+      - { name: decision agreement with analysts, value: 0.96, target: 0.95, illustrative: true }
+      - { name: threshold escalation recall, value: 1.0, target: 1.0, illustrative: true, description: "Every case inside a threshold band must escalate (config/thresholds.yaml)." }
+      - { name: exactly-one-terminal rate, value: 0.998, target: 1.0, illustrative: true }
+      - { name: cost per case, value: 0.04, target: 0.1, unit: USD, higher_is_better: false, illustrative: true }
     match: ["agent:MongoDB Atlas fraud reviewer"]
   packet:
     name: Case packet writer
@@ -83,7 +83,7 @@ agents:
     runtime: host
     tools: []
     files: [src/resolver.py]
-    budget: { usd: 0.03, turns: 1, on_exceed: stop }
+    budget: { usd: 0.03, turns: 1, per: call, on_exceed: stop }
     data: { sensitivity: pii, region: us }
 
 layers:
@@ -158,6 +158,7 @@ layers:
         type: decision
         label: Mandates valid?
         description: valid AND constraints_satisfied AND NOT double_spend_detected. Anything else is an immediate reject.
+        decision: { output: binary, fail: closed }
       - id: get_transaction
         runtime: host
         type: tool
@@ -180,7 +181,8 @@ layers:
         runtime: sandbox
         type: decision
         label: Escalate?
-        description: The four escalation rules from the system prompt, mirrored in config/thresholds.yaml.
+        description: The four escalation rules from the system prompt, mirrored in config/thresholds.yaml. Any match escalates; otherwise the agent records its own verdict.
+        decision: { output: binary, confidence: true, description: "Escalate to a human or record directly; the agent's confidence_score (0-100) feeds the medium-confidence band." }
         files: [config/thresholds.yaml, prompts/reviewer.md]
       - id: escalate
         runtime: host
@@ -192,7 +194,8 @@ layers:
         runtime: host
         type: tool
         label: record_decision
-        description: TERMINAL. Writes transaction_decisions, flips status, appends audit_events, stores a mandate receipt on approve.
+        description: Terminal. Writes transaction_decisions, flips status, appends audit_events, stores a mandate receipt on approve.
+        exactly_once: true
         files: [src/handlers.py]
       - id: terminal_guard
         runtime: host
@@ -208,16 +211,16 @@ layers:
     edges:
       - "reviewer -> verify_mandates [call]: first, always"
       - verify_mandates -> mandate_ok
-      - { from: mandate_ok, to: record, kind: call, label: hard reject, condition: "!valid || !constraints_satisfied || double_spend_detected" }
-      - "mandate_ok -> get_transaction [call]: pass"
+      - { from: mandate_ok, to: record, kind: call, label: hard reject, condition: "!valid || !constraints_satisfied || double_spend_detected", group: mandate }
+      - { from: mandate_ok, to: get_transaction, kind: call, label: pass, group: mandate }
       - "get_transaction -> hybrid [call]: k=5"
       - "hybrid -> ring [call]: sender account"
       - "ring -> thresholds: evidence"
-      - { from: thresholds, to: escalate, kind: call, label: structuring, condition: "4900 <= amount <= 4999" }
-      - { from: thresholds, to: escalate, kind: call, label: high value, condition: "amount >= 50000 && would_approve" }
-      - { from: thresholds, to: escalate, kind: call, label: medium confidence, condition: "75 <= confidence <= 85" }
-      - { from: thresholds, to: escalate, kind: call, label: ring hit, condition: "ring.suspicious_patterns" }
-      - "thresholds -> record [call]: clear-cut"
+      - { from: thresholds, to: escalate, kind: call, label: structuring, condition: "4900 <= amount <= 4999", group: verdict }
+      - { from: thresholds, to: escalate, kind: call, label: high value, condition: "amount >= 50000 && would_approve", group: verdict }
+      - { from: thresholds, to: escalate, kind: call, label: medium confidence, condition: "75 <= confidence <= 85", group: verdict }
+      - { from: thresholds, to: escalate, kind: call, label: ring hit, condition: "ring.suspicious_patterns", group: verdict }
+      - { from: thresholds, to: record, kind: call, label: clear-cut, group: verdict }
       - "escalate -> record [call]: escalated=true"
       - "record -> terminal_guard: count"
       - "terminal_guard -> nudge: ids missing"
@@ -244,7 +247,7 @@ layers:
         type: human
         label: Fraud analyst
         description: Reads the packet, decides approve or reject. Disagreeing with the agent is an override.
-        approval: { by: fraud analyst, via: case management console, actions: [approve, reject], timeout: 4h, on_timeout: escalate }
+        approval: { by: fraud analyst, via: case management console, actions: [approve, reject], timeout: 4h, on_timeout: escalate, escalate_to: senior fraud analyst }
         files: [src/resolver.py]
       - id: senior
         runtime: casemgmt
@@ -274,8 +277,8 @@ layers:
         type: human
         label: SAR referral
         description: Structuring and ring rejections go to BSA/AML for a Suspicious Activity Report decision.
-        sla: 30d
-        data: { sensitivity: confidential, region: us, retention: 1826d }
+        sla: { within: 30d, after: detection, description: "FinCEN SAR filing deadline, calendar days." }
+        data: { sensitivity: confidential, region: us, retention: 5y, retention_after: SAR filing }
     edges:
       - "packet -> queue [data]: packet"
       - "queue -> analyst [handoff]: open case"
@@ -297,7 +300,7 @@ layers:
         label: transactions
         description: transaction_id, text, amount, sender/recipient, lane, status, embedding, mandate fields.
         files: [data/pending_sample.jsonl, config/indexes.json]
-        data: { sensitivity: pii, region: us, retention: 1826d }
+        data: { sensitivity: pii, region: us, retention: 5y }
       - id: embed
         runtime: voyage
         type: model
@@ -350,7 +353,7 @@ layers:
         label: audit_events
         description: Append-only. decision_stored / escalated_to_human with severity and event_data. The host role cannot update or delete.
         files: [src/handlers.py, config/audit-role.json]
-        data: { sensitivity: confidential, region: us, retention: 1826d }
+        data: { sensitivity: confidential, region: us, retention: 5y }
       - id: receipts
         runtime: atlas
         type: memory
@@ -392,13 +395,6 @@ layers:
         label: Append-only role
         description: fraud-desk-host custom role. INSERT + FIND on audit_events, no UPDATE or REMOVE.
         files: [config/audit-role.json]
-      - id: budget
-        runtime: host
-        type: guard
-        label: Budget per batch
-        description: $0.50 and 80 turns per batch session; over budget pauses the session for an operator.
-        budget: { usd: 0.5, turns: 80, on_exceed: pause }
-        files: [src/config.py]
       - id: trace
         runtime: anthropic
         type: memory
@@ -446,4 +442,3 @@ links:
   - "review.reviewer -> platform.haiku [call]"
   - "desk.packet -> platform.sonnet [call]"
   - "intake.gate_loop -> platform.trace [data]: events"
-  - "platform.budget -> intake.session: over budget, pause"

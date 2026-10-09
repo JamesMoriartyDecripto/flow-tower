@@ -45,7 +45,8 @@ agents:
   art-director:
     runtime: studio-cluster
     from: .claude/agents/art-director.md
-    harness: { fresh_session_each_round: true, max_rounds: 2 }
+    harness: { fresh_session_each_round: true }
+    limits: { max_iterations: 2 }
   tagger:
     runtime: studio-cluster
     name: Asset tagger
@@ -216,7 +217,8 @@ layers:
         runtime: studio-cluster
         type: decision
         label: Approved?
-        description: Score >= 8 and no blockers. Round 2 is final; then the producer is told.
+        description: No blockers either. Round 2 is final; then the producer is told.
+        decision: { output: score, threshold: ">= 8" }
         files: [config/quality-gates.yaml]
       - id: tagger
         agent: tagger

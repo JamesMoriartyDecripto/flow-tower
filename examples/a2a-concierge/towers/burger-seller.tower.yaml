@@ -62,6 +62,7 @@ layers:
         type: memory
         label: InMemoryTaskStore
         description: "Tasks live in the instance; Cloud Run --min 1 keeps one warm instance."
+        data: { retention: none }
         files: [remote_seller_agents/burger_agent/a2a_server.py]
       - id: done
         runtime: burger_run
@@ -88,7 +89,8 @@ layers:
         label: Confirmed in query?
         description: "Items and total confirmed in the incoming text? If not, answer with the total and a confirmation question."
         files: [prompts/burger-seller.md]
-        approval: { by: customer (relayed by the concierge), via: A2A follow-up message, actions: [approve, reject], on_timeout: wait }
+        decision: { output: binary }
+        approval: { by: customer, relayed_by: concierge, via: A2A follow-up message, actions: [approve, reject], on_timeout: wait }
       - id: create_order
         runtime: burger_run
         type: tool

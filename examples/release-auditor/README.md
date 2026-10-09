@@ -44,6 +44,13 @@ node panel, map view, every sub-tower in and out), live events, panels at six sc
 
 Numbers on nodes (fan-out, timeouts, turn budgets) are this sweep's settings, not benchmarks.
 
+## Operational fields used
+
+`trigger` (manual), `budget` (turns per finder), `limits` (timeouts, concurrency, 2 verifier passes),
+`fanout` (one E2E test per tower), `sandbox` (read-only finders, localhost allowlists), `credentials`,
+`data` (redacted secrets), `approval` (maintainer via PR review) and typed `decision` outputs (severity,
+reproduced or not, fail closed).
+
 ## Sources
 
 - https://claude.com/blog/code-review (parallel finders, verification, severity ranking)

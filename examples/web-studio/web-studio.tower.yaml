@@ -246,7 +246,8 @@ layers:
       - id: route
         type: decision
         label: Route?
-        description: ready | needs_info | decline (custom web apps are not our offer).
+        description: Custom web apps are not our offer, so those briefs are declined.
+        decision: { output: choice, candidates: [ready, needs_info, decline] }
         runtime: orchestrator
       - id: clarify
         type: output
@@ -300,8 +301,7 @@ layers:
         description: Client sign-off 1 on sitemap, content model and user flows (FigJam). Backend work can start after it.
         runtime: slack
         files: [samples/sitemap.yaml, logs/client-review.log]
-        approval: { by: client decision-maker, via: Slack Connect, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
-        limits: { max_iterations: 2 }
+        approval: { by: client decision-maker, via: Slack Connect, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate, rounds: 2 }
     edges:
       - "researcher -> strategy [data]: audits"
       - "seo -> strategy [data]: keyword map"
@@ -322,8 +322,7 @@ layers:
         type: human
         label: Wireframe sign-off
         runtime: slack
-        approval: { by: client decision-maker, via: Figma comments + Slack Connect, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
-        limits: { max_iterations: 2 }
+        approval: { by: client decision-maker, via: [Figma comments, Slack Connect], actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate, rounds: 2 }
       - id: ds
         agent: ds
         label: Design system
@@ -349,12 +348,11 @@ layers:
       - id: design_ok
         type: human
         label: Design sign-off
-        description: Client sign-off 3 on high-fidelity templates with real copy. Three rounds included; a fourth is a change request.
+        description: Client sign-off 3 on high-fidelity templates with real copy. A fourth round is a change request.
         runtime: slack
-        approval: { by: client decision-maker, via: Figma prototype + Slack Connect, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
-        limits: { max_iterations: 3 }
+        approval: { by: client decision-maker, via: [Figma prototype, Slack Connect], actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate, rounds: 3 }
         evals:
-          - { name: rounds used, value: 2, target: 3, higher_is_better: false }
+          - { name: rounds used, value: 2, target: 3, higher_is_better: false, illustrative: true }
     edges:
       - wireframes -> wf_ok
       - "wf_ok -> wireframes [return]: comments, max 2"
@@ -436,9 +434,9 @@ layers:
       - id: db
         type: memory
         label: Neon Postgres
-        description: Products, posts, orders and enquiries. Orders are kept 5 years (Danish Bookkeeping Act).
+        description: Products, posts, orders and enquiries.
         runtime: neon
-        data: { sensitivity: pii, region: eu, retention: 1825d, description: "Names, emails and shipping addresses of customers and enquirers." }
+        data: { sensitivity: pii, region: eu, retention: 5y, description: "Names, emails and shipping addresses of customers and enquirers. Orders are kept 5 years (Danish Bookkeeping Act)." }
       - id: api
         label: Route handlers
         description: /api/checkout, /api/enquiries, /api/stripe/webhook. zod validation, rate limits, Turnstile, signature checks, idempotency.
@@ -491,7 +489,7 @@ layers:
         runtime: gha
         files: [.github/workflows/preview-qa.yml]
         evals:
-          - { name: blocking findings, value: 0, target: 0, higher_is_better: false }
+          - { name: blocking findings, value: 0, target: 0, higher_is_better: false, illustrative: true }
       - id: api_tests
         label: API tests
         description: Vitest integration tests against the seeded branch; Stripe CLI triggers webhook events, duplicates must be ignored.
@@ -510,26 +508,26 @@ layers:
         runtime: headless
         files: [qa/a11y.spec.ts]
         evals:
-          - { name: axe violations, value: 0, target: 0, higher_is_better: false, url: https://www.w3.org/TR/WCAG22/ }
+          - { name: axe violations, value: 0, target: 0, higher_is_better: false, url: https://www.w3.org/TR/WCAG22/, illustrative: true }
       - id: lighthouse
         label: Lighthouse CI
         description: Mobile, 3 runs per URL, asserts category scores and lab metrics. INP needs field data, so TBT is the lab proxy.
         runtime: gha
         files: [qa/lighthouserc.json]
         evals:
-          - { name: performance (mobile min), value: 0.93, target: 0.9 }
-          - { name: accessibility, value: 1, target: 1 }
-          - { name: SEO, value: 1, target: 0.95 }
-          - { name: LCP lab max (s), value: 2.1, target: 2.5, higher_is_better: false, url: https://web.dev/articles/vitals }
-          - { name: CLS max, value: 0.03, target: 0.1, higher_is_better: false }
-          - { name: TBT max (ms), value: 120, target: 200, higher_is_better: false }
+          - { name: performance (mobile min), value: 0.93, target: 0.9, illustrative: true }
+          - { name: accessibility, value: 1, target: 1, illustrative: true }
+          - { name: SEO, value: 1, target: 0.95, illustrative: true }
+          - { name: LCP lab max, unit: "s", value: 2.1, target: 2.5, higher_is_better: false, url: https://web.dev/articles/vitals, illustrative: true }
+          - { name: CLS max, value: 0.03, target: 0.1, higher_is_better: false, illustrative: true }
+          - { name: TBT max, unit: "ms", value: 120, target: 200, higher_is_better: false, illustrative: true }
       - id: visual
         label: Visual regression
         description: Playwright toHaveScreenshot per template and viewport against baselines approved at the last sign-off.
         runtime: headless
         files: [qa/visual.spec.ts]
         evals:
-          - { name: max pixel diff (%), value: 0.4, target: 1, higher_is_better: false }
+          - { name: max pixel diff, unit: "%", value: 0.4, target: 1, higher_is_better: false, illustrative: true }
       - id: gate
         type: decision
         label: All green?
@@ -561,16 +559,16 @@ layers:
       - id: client_review
         type: human
         label: Client review
-        description: Comments on the preview (Vercel toolbar) consolidated into one list per round. Three rounds included.
+        description: Comments on the preview (Vercel toolbar) consolidated into one list per round.
         runtime: slack
-        approval: { by: client decision-maker, via: Vercel preview comments + Slack Connect, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
-        limits: { max_iterations: 3 }
+        approval: { by: client decision-maker, via: [Vercel preview comments, Slack Connect], actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate, rounds: 3 }
         resources:
           - { kind: log, label: Sign-off history, path: logs/client-review.log }
       - id: in_scope
         type: decision
         label: In scope?
         description: Against the signed sitemap and proposal.
+        decision: { output: binary, candidates: [yes, no] }
         runtime: orchestrator
       - id: change_request
         type: output
@@ -579,11 +577,11 @@ layers:
         runtime: linear
       - id: release
         label: Rolling release
-        description: Production deploy, then Vercel Rolling Release at 25% with manual advancement; Stripe switches to live keys at 100%.
+        description: Production deploy as a Vercel Rolling Release, advanced manually; Stripe switches to live keys at 100%.
         runtime: vercel-edge
         version: v2.0.0
-        rollout: { strategy: canary, percent: 25, previous: v1.7.2 }
-        approval: { by: studio lead, via: Slack, actions: [approve, reject], timeout: 4h, on_timeout: reject }
+        rollout: { strategy: staged, steps: [25, 100], percent: 25, previous: v1.7.2 }
+        approval: { by: studio lead, via: Slack, actions: [approve, reject], per: rollout step, timeout: 4h, on_timeout: reject }
         resources:
           - { kind: log, label: Deploy log, path: logs/deploy.log }
       - id: analytics
@@ -595,10 +593,10 @@ layers:
       - id: monitor
         agent: monitor
         evals:
-          - { name: field LCP p75 (s), value: 1.9, target: 2.5, higher_is_better: false }
-          - { name: field INP p75 (ms), value: 140, target: 200, higher_is_better: false }
-          - { name: field CLS p75, value: 0.02, target: 0.1, higher_is_better: false }
-          - { name: checkout conversion (%), value: 2.8, target: 2.5 }
+          - { name: field LCP p75, unit: "s", value: 1.9, target: 2.5, higher_is_better: false, illustrative: true }
+          - { name: field INP p75, unit: "ms", value: 140, target: 200, higher_is_better: false, illustrative: true }
+          - { name: field CLS p75, value: 0.02, target: 0.1, higher_is_better: false, illustrative: true }
+          - { name: checkout conversion, unit: "%", value: 2.8, target: 2.5, illustrative: true }
       - id: report
         type: output
         label: Monthly report

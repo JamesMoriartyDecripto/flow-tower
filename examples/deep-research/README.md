@@ -28,15 +28,17 @@ The **Searcher** node drills down into `towers/searcher.tower.yaml`.
 
 | Field | Where |
 |---|---|
+| top-level `budget`, `limits` | one run: $12 `per: run` (`on_exceed: stop`), 45-minute timeout |
 | `trigger` (chat) | `intake.question` |
 | `approval` | clarifying question (`respond`), weekly human review |
 | `fanout` `{ min: 1, max: 10, by: query complexity }` | `search.searcher`; 3-5 parallel tool calls inside the sub-tower |
-| `budget` | lead ($12/run), searcher ($1.5, 15 turns) |
+| `budget` | searcher ($1.5, 15 turns) |
 | `limits` | lead `max_iterations: 6`, `concurrency: 5`; searcher `max_iterations: 10`, retries + backoff; verify `max_iterations: 2` |
 | `data` | confidential questions and artifacts, 30-day retention |
 | `credentials: user`, `sandbox` | MCP calls run on the analyst's OAuth grant; searchers reach only the MCP gateway |
-| `evals` | judge rubric, citation coverage, RACE score, searcher latency. **All values are illustrative targets**, not measured results |
-| `version`, `rollout` (rainbow) | `ops.rollout`, see `deploy/rainbow.yaml` |
+| `decision` | clarify? (`binary`), query class (`choice`: simple / comparison / complex), blocking issues? |
+| `evals` | judge rubric, citation coverage, RACE score, searcher latency (`unit`). **All values are illustrative** (`illustrative: true`), not measured results |
+| `version`, `rollout` (rainbow) | `ops.rollout`: `steps` 10 → 50 → 100, promotion `metric` and `guard` from `deploy/rainbow.yaml` |
 | `sla` | human review within 7 days |
 | edge `protocol: mcp` | searcher to Drive and Confluence |
 

@@ -36,6 +36,17 @@ The **Browser worker** node drills into `towers/browser.tower.yaml`: snapshot �
 element table → one Jev request for operation + speculative targets → validate → execute,
 with Mercury writing text only for `TYPE_TEXT`, and an independent check on `DONE`.
 
+## Operational fields used
+
+`decision` on every Jev node: `output` (`choice` with its declared `candidates`, or `binary` for
+nouls), `confidence`, the policy `threshold`, the pinned `model: jev-1.13.0` and `fail` (routing
+and the Stop check fail open, tool risk fails closed) · `approval` with `when` (ask user under
+the confidence floor; hold review `per: tool call`; escalate on p ≥ 0.5 or the cap) · edge
+`group`s for the alternatives each policy picks (ask gate, risk verdict, next step, browser
+verify) · `evals` with `unit` and `illustrative` (reported values carry their source URL) ·
+`budget`, `limits` (timeouts, retries, iteration caps), `fanout` (compaction batches),
+`sandbox`, `credentials`, `trigger` (chat, nightly cron), `data` retention on the judgment log.
+
 ## Files
 
 ```
@@ -94,7 +105,7 @@ our hands.
 | confidence floor 0.6 | reported (as an example) | TypeSafe "Confidence-gated routing" pattern |
 | $42 per billion input tokens, output not billed | reported (vendor) | typesafe.ai |
 | route floors 0.7 / 0.75, stop block 0.7, done-rule 0.7 / 0.3, finish 0.7, escalate 0.5 | illustrative | — |
-| every eval marked "Illustrative" in the tower, and all of `logs/` | illustrative | — |
+| every eval with `illustrative: true` in the tower, and all of `logs/` | illustrative | — |
 
 Many performance claims around Jev come from the vendor or from project authors measuring
 their own tools; secondary articles repeat them. Treat them as starting points.

@@ -38,19 +38,28 @@ The loop then applies the changes through each API, reads them back and logs the
 
 ## Operational features used
 
-`trigger` (cron for the quarterly kickoff, the daily loop, the weekly digest, the monthly MMM
-and hourly offline uploads; webhook for form leads; event for product events and spend
-spikes) · `approval` (PMM/legal 5d escalate, Finance 72h/48h reject, claims 72h reject,
-Head of Growth 4h/48h reject, editor 3d wait, SDR 1h escalate) · `fanout` (VoC sources,
-briefs, creative variants, platforms) · `limits` (timeouts, retries with exponential backoff,
-concurrency for API quotas, `max_iterations: 3` on the optimizer) · `budget` (the 120 k EUR
-monthly media cap with `on_exceed: pause`, per-agent LLM budgets, 900 USD monthly LLM
-budget with `downgrade`, Semrush unit cap) · `data` (PII/EU on leads, transcripts, audiences
-and journeys; confidential mart; secrets) · `credentials` (service accounts; `user` for
-LinkedIn's member OAuth; `author` for the strategist) · `evals` (CAC, pipeline ROAS, CTR,
-conversion rate, spam rate, inbox placement, trial-to-paid, lead response, pacing error) ·
-`sla` (1h lead response) · `version` + `rollout: ab 50 %` (demo-form experiment) · `status`
-(planned, experimental) · edge `protocol` (mcp, http, webhook) · a `log` resource.
+`trigger` (cron with `timezone: Europe/Berlin` for the quarterly kickoff, the daily loop, the
+weekly digest and the monthly MMM; hourly offline uploads; webhook for form leads; event for
+product events and spend spikes) · `approval` (PMM/legal 5d escalate, Finance 72h/48h reject,
+claims 72h reject `per: variant`, Head of Growth 4h/48h reject, editor 3d wait with 2 `rounds`,
+SDR 1h escalate to the team lead; spend and claims approvals carry their `when` conditions,
+e.g. `> 500 EUR/day or > 20 %`, with the auto-apply path as an alternative edge `group`) ·
+`decision` (MQL: binary, threshold `>= 65`, scoring rules v5; off plan?) · `fanout` (VoC
+sources, briefs, creative variants by `[message pillar, format]`, platforms) · `limits`
+(timeouts, retries with exponential backoff, concurrency, `rate` quotas: Google Ads Basic
+access 15,000 ops/day, GA4 200k tokens/day, 2 budget edits per campaign per week;
+`max_iterations: 3` on the optimizer) · `budget` (run-wide at the top level: 120,000 EUR per
+month `for: media` with `on_exceed: pause` and 900 USD per month `for: model` with
+`downgrade`; per-agent LLM budgets; Semrush units per month; TikTok test 8,000 EUR per month)
+· `exactly_once` (idempotent platform writes) · `data` (PII/EU on leads, transcripts, audiences
+and journeys; `lawful_basis: consent` on ad audiences; confidential mart and change log 3y;
+secrets; `disclosure` for AI imagery) · `credentials` (service accounts; `user` for LinkedIn's
+member OAuth; `author` for the strategist) · `evals` (all `illustrative`, with `unit`: CAC,
+pipeline ROAS, CTR, conversion rate, spam rate, inbox placement, trial-to-paid, lead response,
+pacing error) · `sla` (1h lead response, opt-outs within 2d `after: opt-out`, experiment end
+date `by`) · `version` + `rollout: ab 50 %` with `arms`, `metric`, `guard` and `sample`
+(demo-form experiment) · `status` (planned, experimental) · edge `protocol` (mcp, http,
+webhook) · a `log` resource.
 
 ## Files
 

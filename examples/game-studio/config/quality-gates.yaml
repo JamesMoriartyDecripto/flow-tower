@@ -80,7 +80,7 @@ gates:
     human_approved: { equals: true }
 
 budgets_usd:
-  studio_total: 450
+  studio_total: 400   # same as STUDIO_BUDGET_USD in src/config.ts
   per_department:
     research: 20
     preproduction: 40

@@ -53,6 +53,7 @@ layers:
         runtime: backend
         label: Both in top 10?
         description: match_format() in elo_tournament.py.
+        decision: { output: binary, candidates: [debate, single-turn] }
         files: [src/elo_tournament.py]
     edges:
       - task -> pick
@@ -77,6 +78,7 @@ layers:
         runtime: backend
         label: Winner named?
         description: Last line must read "better hypothesis A" or B; otherwise the match is discarded.
+        decision: { output: choice, candidates: [better hypothesis A, better hypothesis B], fail: closed }
         files: [src/elo_tournament.py]
       - id: model
         type: model

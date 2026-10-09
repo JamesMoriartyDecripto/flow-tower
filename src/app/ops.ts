@@ -41,20 +41,21 @@ export function opsMarks(ops: OpsDef): string[] {
 const show = (v: unknown) => (v === undefined || v === '' ? undefined : String(v));
 const join = (parts: unknown[], sep = ' ') => parts.filter((p) => p !== undefined && p !== false && p !== '').join(sep) || undefined;
 
-function budgetText(b: BudgetItem) {
+function budgetText(b: BudgetItem, brief = false) {
   return join([b.for && `${b.for}:`, money(b), b.tokens && `${b.tokens.toLocaleString()} tokens`, b.turns && `${b.turns} turns`,
-    b.per === 'run' && 'per run', b.rate && `(${b.rate})`, b.on_exceed && `→ ${b.on_exceed}`, b.description && `— ${b.description}`]);
+    b.per === 'run' && !brief && 'per run', !brief && b.rate && `(${b.rate})`, !brief && b.on_exceed && `→ ${b.on_exceed}`, !brief && b.description && `— ${b.description}`]);
 }
 
-export function limitsText(l: LimitsDef | undefined) {
+/** `brief`: numbers only, for one-line summaries (the full text goes in a tooltip). */
+export function limitsText(l: LimitsDef | undefined, brief = false) {
   if (!l) return undefined;
-  return join([l.timeout && `timeout ${l.timeout}`, l.ttl && `ttl ${l.ttl}`, l.retries !== undefined && `${l.retries} retries`, l.backoff,
+  return join([l.timeout && `timeout ${l.timeout}`, l.ttl && `ttl ${l.ttl}`, l.retries !== undefined && `${l.retries} retries`, !brief && l.backoff,
     l.max_iterations && `max ${l.max_iterations} rounds`, l.concurrency && `concurrency ${l.concurrency}`,
-    list(l.rate).length > 0 && `quota ${list(l.rate).join(', ')}`, l.description], ' · ');
+    list(l.rate).length > 0 && `quota ${list(l.rate).join(', ')}`, !brief && l.description], ' · ');
 }
 
-export function budgetsText(b: OpsDef['budget']) {
-  return list(b).map(budgetText).filter(Boolean).join(' · ') || undefined;
+export function budgetsText(b: OpsDef['budget'], brief = false) {
+  return list(b).map((x) => budgetText(x, brief)).filter(Boolean).join(' · ') || undefined;
 }
 
 function slaText(s: OpsDef['sla']) {

@@ -96,17 +96,12 @@ layers:
         label: migrate:create
         description: Generates SQL by diffing the schema against previous migrations. The lead reads it before committing.
         runtime: laptop
-      - id: destructive
-        type: decision
-        label: Destructive?
-        description: DROP, RENAME or type narrowing on a table with data.
-        runtime: laptop
       - id: approve
         type: human
         label: Studio lead OK
-        description: Destructive migrations need a written plan (backfill, deploy order) and the studio lead's approval.
+        description: Destructive migrations need a written plan (backfill, deploy order) and the studio lead's approval; others go straight to the branch.
         runtime: laptop
-        approval: { by: studio lead, via: Slack, actions: [approve, reject], timeout: 1d, on_timeout: reject }
+        approval: { by: studio lead, via: Slack, actions: [approve, reject], when: "destructive: DROP, RENAME or type narrowing on a table with data", timeout: 1d, on_timeout: reject }
       - id: branch
         type: memory
         label: Neon branch
@@ -116,9 +111,8 @@ layers:
         data: { sensitivity: internal, region: eu, description: Seed data only; production PII never copied to previews. }
     edges:
       - collections -> migrate
-      - migrate -> destructive
-      - "destructive -> approve: yes"
-      - "destructive -> branch [data]: no"
+      - "migrate -> approve: destructive"
+      - "migrate -> branch [data]: non-destructive"
       - "approve -> branch [data]: approved"
 
   - id: handlers
@@ -135,6 +129,7 @@ layers:
         agent: be
         label: /api/stripe/webhook
         description: constructEvent signature check, idempotent by event id, creates the order.
+        exactly_once: true
         runtime: vercel-fn
         files: [backend/stripe-webhook.ts]
       - id: enquiries
@@ -183,7 +178,7 @@ layers:
         runtime: gha
         files: [.github/workflows/preview-qa.yml]
         evals:
-          - { name: blocking findings, value: 0, target: 0, higher_is_better: false }
+          - { name: blocking findings, value: 0, target: 0, higher_is_better: false, illustrative: true }
       - id: green
         type: decision
         label: Green?

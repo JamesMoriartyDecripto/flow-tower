@@ -156,8 +156,8 @@ export function LayerNav() {
     <nav className="panel layernav">
       <div className="title">Layers</div>
       {tower.run && (
-        <div className="run-limits mono" title="Budget and limits for one run of the whole system, across every node">
-          RUN · {[budgetsText(tower.run.budget), limitsText(tower.run.limits)].filter(Boolean).join(' · ')}
+        <div className="run-limits mono" title={`One run of the whole system, across every node: ${[budgetsText(tower.run.budget), limitsText(tower.run.limits)].filter(Boolean).join(' · ')}`}>
+          RUN · {[budgetsText(tower.run.budget, true), limitsText(tower.run.limits, true)].filter(Boolean).join(' · ')}
         </div>
       )}
       <button className={focusedLayer === undefined ? 'on' : ''} onClick={resetView} title="Show the whole tower (0)">
