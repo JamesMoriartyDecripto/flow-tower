@@ -21,6 +21,16 @@ export function Inspector() {
   const node = findNode(tower, selected);
   const [tab, setTab] = useState<Tab>('overview');
   useEffect(() => setTab('overview'), [selected]);
+  // [ and ] (App keyboard) cycle through the tabs that have content.
+  useEffect(() => {
+    const onTab = (e: Event) => {
+      if (!node) return;
+      const open: Tab[] = ['overview', ...(node.prompt ? ['prompt' as const] : []), ...(node.tools.length ? ['tools' as const] : []), ...(node.files.length + node.resources.length ? ['files' as const] : [])];
+      setTab((cur) => open[(open.indexOf(cur) + (e as CustomEvent<number>).detail + open.length) % open.length]);
+    };
+    window.addEventListener('flow-tower:tab', onTab);
+    return () => window.removeEventListener('flow-tower:tab', onTab);
+  }, [node]);
   if (!tower || !node) return null;
 
   const { select, enterTower } = useStore.getState();

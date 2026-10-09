@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Full keyboard control: arrows move spatially between nodes and across layers, PgUp/PgDn layers, Shift/Alt+arrows and +/− for the camera, [ ] inspector tabs, F live feed, O auto-orbit, ? shortcuts overlay, visible focus ring, Settings focused on open.
 - Library: sort by recent / name / size / live, keyboard navigation (arrows, Enter), Tower / Map buttons per card, tags, runtime mix, last-modified time, live project count, "open" badge on the current project.
 - Settings → Animations: style (dots, comets, pulses), size, speed and density for flows between nodes and between layers; Visible by default: edge labels, node subtitles, links, grid, frame, base, scanner, sparkles.
 - Sub-towers are easy to find: bigger stacked-plates badge, `⇣ SUB` in node subtitles, a Sub-towers list in the Layers panel (select / enter), a SUB-TOWER chip in the inspector and a legend key.
@@ -51,6 +52,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Focused layer gets a near-opaque plate and the other layers dim further, so the focused flow reads cleanly.
 
 ### Fixed
+- Library arrows now work wherever the focus is (and wrap left/right); T / M open the focused card as tower / map.
 - Choosing Tower or Map now sticks: sub-towers and other projects open in the same view (saved as the default view).
 - HUD audit (1440×900 and 1280×720): controls hint no longer overlaps the legend, legend tabs no longer wrap, narrower feed/inspector on small screens, tooltips no longer linger after their panel closes, canvas redraws after a window resize.
 - Plates now occlude the layers below in proportion to their opacity (stack-aware draw order).

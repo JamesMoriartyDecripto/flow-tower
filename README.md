@@ -125,8 +125,16 @@ Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [
 | **Esc**, **Backspace** | Go back (file, then selection, then layer, then parent tower) |
 | **/** | Search nodes, models, tools |
 | **L** | Project library |
-| **M** | Switch Tower / Map view (map: layers side by side, seen from above) |
+| **M** | Switch Tower / Map view (map: layers side by side, seen from above); the choice also applies to sub-towers |
 | **,** | Settings: theme, performance, effects, views, live behaviour |
+| **← → ↑ ↓** | Move to the nearest node; ↑ ↓ cross to the layer above / below (library: move between cards) |
+| **PgUp / PgDn** | Previous / next layer |
+| **Shift / Alt + arrows**, **+ / −** | Orbit / pan / zoom the camera |
+| **[ ]** | Previous / next tab of the selected node |
+| **F**, **O** | Live feed, auto-orbit |
+| **?** | Every keyboard shortcut |
+
+Everything works without a mouse: **Tab** moves between HUD buttons, **Enter / Space** press them.
 | Hover a layer | Lens: magnify it and spread the stack around it |
 
 The bottom bar toggles orbit, flow particles and the rendering quality (`high` / `balanced` / `low`). You can also force a preset with `?quality=low`.

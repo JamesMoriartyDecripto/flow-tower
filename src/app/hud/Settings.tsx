@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useLive } from '../live';
 import { chooseView, resetPrefs, usePrefs, type DefaultView, type Flow, type Visibility } from '../settings';
 import type { FlowStyle } from '../scene/Particles';
@@ -64,12 +64,14 @@ export function Settings() {
   const prefs = usePrefs();
   const ui = useStore();
   const live = useLive();
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (prefs.open) panel.current?.querySelector<HTMLElement>('.theme.on')?.focus(); }, [prefs.open]);
   if (!prefs.open) return null;
   const close = () => prefs.set({ open: false });
 
   return (
     <div className="overlay" onClick={close}>
-      <div className="panel settings" onClick={(e) => e.stopPropagation()}>
+      <div className="panel settings" ref={panel} role="dialog" aria-label="Settings" onClick={(e) => e.stopPropagation()}>
         <header>
           <div className="title">Settings</div>
           <button className="close" onClick={close} title="Close (Esc)">✕</button>

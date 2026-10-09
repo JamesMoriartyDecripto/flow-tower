@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { ResolvedTower, Workspace } from '../../core/types';
 import { subtreeState, useLive, type LiveState } from '../live';
 import { useDescendants } from '../liveHooks';
@@ -186,17 +186,6 @@ const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current,
   );
 });
 
-/** Arrow keys move between cards row by row, like a file browser. */
-function moveFocus(grid: HTMLElement, e: KeyboardEvent) {
-  const cards = [...grid.querySelectorAll<HTMLElement>('[data-card]')];
-  const i = cards.indexOf(document.activeElement as HTMLElement);
-  if (i < 0 || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
-  e.preventDefault();
-  const cols = cards.filter((c) => c.offsetTop === cards[0].offsetTop).length || 1;
-  const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols }[e.key as 'ArrowLeft'];
-  cards[Math.min(cards.length - 1, Math.max(0, i + step))]?.focus();
-}
-
 /** Project gallery: every top-level tower found by the CLI, with size, health and live state. */
 export function Library() {
   const { workspace, library, stack, view, openProject, showLibrary } = useStore();
@@ -269,20 +258,13 @@ export function Library() {
           ))}
         </div>
       )}
-      <div
-        className="lib-grid"
-        ref={grid}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape' && stack.length) { e.stopPropagation(); showLibrary(false); return; }
-          if (grid.current) moveFocus(grid.current, e);
-        }}
-      >
+      <div className="lib-grid" ref={grid}>
         {shown.map(({ id, tower, stats }) => (
           <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} onOpen={onOpen} />
         ))}
         {shown.length === 0 && <p className="mono dim">No project matches. Clear the filter or the tag.</p>}
       </div>
-      <p className="lib-hint mono dim">↑↓←→ move · Enter open · Esc back · add projects: flow-tower &lt;dir&gt; scans every *.tower.yaml</p>
+      <p className="lib-hint mono dim">↑↓←→ move · Enter open · T / M open as tower / map · / filter · Esc back · add projects: flow-tower &lt;dir&gt; scans every *.tower.yaml</p>
     </div>
   );
 }

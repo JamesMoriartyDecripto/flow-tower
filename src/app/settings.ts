@@ -43,6 +43,8 @@ interface Prefs {
   /** Bumped when the theme changes: the scene remounts to pick up new colors. */
   themeRev: number;
   open: boolean;
+  /** Keyboard shortcuts overlay (not saved). */
+  help: boolean;
   set(patch: Partial<Omit<Prefs, 'set' | 'setTheme' | 'themeRev'>>): void;
   setTheme(id: string): void;
 }
@@ -72,6 +74,7 @@ export const usePrefs = create<Prefs>()((set, get) => ({
   defaultView: saved.defaultView ?? 'auto',
   themeRev: 0,
   open: false,
+  help: false,
   set: (patch) => set(patch),
   setTheme(id) {
     applyTheme(themeById(id));

@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { Vector3, type Group } from 'three';
 import { matches, related } from '../graph';
 import { useLayout, type TowerLayout } from '../layout';
+import { publishCamera, publishLayout } from '../keynav';
 import { useStore, useTower } from '../store';
 import { LAYER_GAP, PLATE_PAD } from '../theme';
 import { Ambient, Base, Scanner } from './Environment';
@@ -42,6 +43,8 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
   const layerY = (i: number) => height / 2 - i * LAYER_GAP * explode;
 
   const grid = useMemo(() => mapGrid(n, width, depth), [n, width, depth]);
+  useEffect(() => { publishLayout(tower.id, layout); }, [tower.id, layout]);
+  useEffect(() => { publishCamera(controls.current); return () => publishCamera(null); }, []);
   const centerY = useRef(0);
 
   useFrame((_, dt) => {
