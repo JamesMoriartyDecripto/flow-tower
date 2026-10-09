@@ -32,3 +32,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Fixed
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
+
+### Security
+- semgrep (javascript, typescript, react, nodejs, python, secrets rulesets): no findings; two loopback `http://127.0.0.1` fetches in `integrations/` annotated as intentional.
