@@ -7,6 +7,10 @@ export interface ParsedEdge {
   label?: string;
   condition?: string;
   protocol?: Protocol;
+  async?: boolean;
+  group?: string;
+  version?: string;
+  card?: string;
 }
 
 // "a -> b", "a -> b: label", "a -> b [spawn]", "a -> b [spawn]: label"

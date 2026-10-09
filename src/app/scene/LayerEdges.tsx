@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { Quaternion, Vector3, type InstancedMesh } from 'three';
 import { EDGE_KINDS } from '../../core/schema';
-import type { EdgePath } from '../layout';
+import { edgeText, type EdgePath } from '../layout';
 import { COLORS, EDGE_STYLE, FONTS, HOT } from '../theme';
 import { BatchLine } from './BatchLine';
 import { commit, CONE, scaled, setInstance, toSegments } from './batch';
@@ -39,7 +39,7 @@ export function LayerEdges({ views, layerFade, detail, labels: showLabels }: { v
   }, [lines]);
 
   const labels = useMemo<TextItem[]>(() => lines.flatMap((l) => {
-    const text = [l.edge.protocol?.toUpperCase(), l.edge.label].filter(Boolean).join(' · ');
+    const text = edgeText(l.edge);
     if (!text) return [];
     let best = 0;
     let at = l.points[0];

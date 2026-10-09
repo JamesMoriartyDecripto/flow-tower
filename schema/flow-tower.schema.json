@@ -29,6 +29,199 @@
       "description": "Base directory for every relative path. Defaults to the tower file directory.",
       "type": "string"
     },
+    "budget": {
+      "description": "Whole run / session of the system, across every node.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "usd": {
+              "description": "Amount in US dollars (shorthand for amount + currency USD).",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "amount": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            },
+            "tokens": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "turns": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "per": {
+              "description": "What the budget is counted over. Default: one run of this node.",
+              "type": "string",
+              "enum": [
+                "call",
+                "run",
+                "session",
+                "item",
+                "copy",
+                "day",
+                "week",
+                "month",
+                "year"
+              ]
+            },
+            "for": {
+              "description": "What it pays for when several budgets apply: model, media, ads, api...",
+              "type": "string"
+            },
+            "rate": {
+              "description": "Unit price, e.g. \"0.40 USD/s of video\" or \"1.20 EUR/take\".",
+              "type": "string"
+            },
+            "on_exceed": {
+              "type": "string",
+              "enum": [
+                "pause",
+                "stop",
+                "escalate",
+                "downgrade"
+              ]
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "usd": {
+                "description": "Amount in US dollars (shorthand for amount + currency USD).",
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "amount": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "currency": {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$"
+              },
+              "tokens": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "turns": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "per": {
+                "description": "What the budget is counted over. Default: one run of this node.",
+                "type": "string",
+                "enum": [
+                  "call",
+                  "run",
+                  "session",
+                  "item",
+                  "copy",
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ]
+              },
+              "for": {
+                "description": "What it pays for when several budgets apply: model, media, ads, api...",
+                "type": "string"
+              },
+              "rate": {
+                "description": "Unit price, e.g. \"0.40 USD/s of video\" or \"1.20 EUR/take\".",
+                "type": "string"
+              },
+              "on_exceed": {
+                "type": "string",
+                "enum": [
+                  "pause",
+                  "stop",
+                  "escalate",
+                  "downgrade"
+                ]
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    "limits": {
+      "description": "Whole run / session of the system, across every node.",
+      "type": "object",
+      "properties": {
+        "timeout": {
+          "type": "string",
+          "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
+        },
+        "ttl": {
+          "description": "Lifetime of a session / sandbox / browser.",
+          "type": "string",
+          "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "backoff": {
+          "description": "e.g. \"exponential 2s..60s\".",
+          "type": "string"
+        },
+        "max_iterations": {
+          "description": "Bound for loops (review rounds, tournament rounds...).",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "concurrency": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "rate": {
+          "description": "Quotas and rate limits, e.g. \"100/24h\" posts or [\"300/5m\", \"15000/d\"] requests.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d+(\\.\\d+)?\\s*\\/\\s*(\\d+(\\.\\d+)?)?(ms|s|m|h|d|w|y)$"
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^\\d+(\\.\\d+)?\\s*\\/\\s*(\\d+(\\.\\d+)?)?(ms|s|m|h|d|w|y)$"
+              }
+            }
+          ]
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "runtimes": {
       "default": {},
       "type": "object",
@@ -252,6 +445,20 @@
               "type": "string"
             }
           },
+          "skills": {
+            "description": "Agent Skills it can load.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "disabled_tools": {
+            "description": "Built-in tools turned off for this agent.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "trigger": {
             "description": "What starts this node (entry nodes, scheduled agents).",
             "type": "object",
@@ -277,6 +484,14 @@
                 "description": "Who fires it: PagerDuty, Gmail, a queue name, a Slack channel...",
                 "type": "string"
               },
+              "timezone": {
+                "description": "IANA zone the schedule and hours are in, e.g. \"Europe/Rome\".",
+                "type": "string"
+              },
+              "hours": {
+                "description": "When it may fire, e.g. \"Mon-Fri 09:00-18:00\" or \"business days\".",
+                "type": "string"
+              },
               "description": {
                 "type": "string"
               }
@@ -295,6 +510,7 @@
                 "type": "string"
               },
               "actions": {
+                "description": "`takeover`: a human takes the session over (live view) while automation pauses.",
                 "type": "array",
                 "items": {
                   "type": "string",
@@ -303,13 +519,15 @@
                     "edit",
                     "reject",
                     "respond",
-                    "snooze"
+                    "snooze",
+                    "dismiss",
+                    "takeover"
                   ]
                 }
               },
               "timeout": {
                 "type": "string",
-                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
               },
               "on_timeout": {
                 "type": "string",
@@ -320,53 +538,193 @@
                   "wait"
                 ]
               },
-              "via": {
-                "description": "Slack, email, PR review, app...",
+              "escalate_to": {
+                "description": "Backup approver when it times out or is escalated.",
                 "type": "string"
+              },
+              "via": {
+                "description": "Slack, email, PR review, app... several channels as a list.",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              },
+              "relayed_by": {
+                "description": "Agent that carries the request to the human and the answer back.",
+                "type": "string"
+              },
+              "when": {
+                "description": "Condition that requires it, e.g. \"refund > 500 EUR\" or \"discount > 10%\". Without it: always.",
+                "type": "string"
+              },
+              "per": {
+                "description": "Asked per item instead of once, e.g. \"flag\", \"row\", \"invoice\".",
+                "type": "string"
+              },
+              "rounds": {
+                "description": "Revision rounds included before it must be approved or rejected.",
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
               }
             },
             "additionalProperties": false
           },
           "budget": {
-            "type": "object",
-            "properties": {
-              "usd": {
-                "type": "number",
-                "exclusiveMinimum": 0
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "usd": {
+                    "description": "Amount in US dollars (shorthand for amount + currency USD).",
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "amount": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "currency": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$"
+                  },
+                  "tokens": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "turns": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "per": {
+                    "description": "What the budget is counted over. Default: one run of this node.",
+                    "type": "string",
+                    "enum": [
+                      "call",
+                      "run",
+                      "session",
+                      "item",
+                      "copy",
+                      "day",
+                      "week",
+                      "month",
+                      "year"
+                    ]
+                  },
+                  "for": {
+                    "description": "What it pays for when several budgets apply: model, media, ads, api...",
+                    "type": "string"
+                  },
+                  "rate": {
+                    "description": "Unit price, e.g. \"0.40 USD/s of video\" or \"1.20 EUR/take\".",
+                    "type": "string"
+                  },
+                  "on_exceed": {
+                    "type": "string",
+                    "enum": [
+                      "pause",
+                      "stop",
+                      "escalate",
+                      "downgrade"
+                    ]
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
               },
-              "tokens": {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 9007199254740991
-              },
-              "turns": {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 9007199254740991
-              },
-              "on_exceed": {
-                "type": "string",
-                "enum": [
-                  "pause",
-                  "stop",
-                  "escalate",
-                  "downgrade"
-                ]
+              {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "usd": {
+                      "description": "Amount in US dollars (shorthand for amount + currency USD).",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "amount": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "currency": {
+                      "type": "string",
+                      "pattern": "^[A-Z]{3}$"
+                    },
+                    "tokens": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "turns": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "per": {
+                      "description": "What the budget is counted over. Default: one run of this node.",
+                      "type": "string",
+                      "enum": [
+                        "call",
+                        "run",
+                        "session",
+                        "item",
+                        "copy",
+                        "day",
+                        "week",
+                        "month",
+                        "year"
+                      ]
+                    },
+                    "for": {
+                      "description": "What it pays for when several budgets apply: model, media, ads, api...",
+                      "type": "string"
+                    },
+                    "rate": {
+                      "description": "Unit price, e.g. \"0.40 USD/s of video\" or \"1.20 EUR/take\".",
+                      "type": "string"
+                    },
+                    "on_exceed": {
+                      "type": "string",
+                      "enum": [
+                        "pause",
+                        "stop",
+                        "escalate",
+                        "downgrade"
+                      ]
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
               }
-            },
-            "additionalProperties": false
+            ]
           },
           "limits": {
             "type": "object",
             "properties": {
               "timeout": {
                 "type": "string",
-                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
               },
               "ttl": {
                 "description": "Lifetime of a session / sandbox / browser.",
                 "type": "string",
-                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
               },
               "retries": {
                 "type": "integer",
@@ -387,6 +745,26 @@
                 "type": "integer",
                 "exclusiveMinimum": 0,
                 "maximum": 9007199254740991
+              },
+              "rate": {
+                "description": "Quotas and rate limits, e.g. \"100/24h\" posts or [\"300/5m\", \"15000/d\"] requests.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d+(\\.\\d+)?\\s*\\/\\s*(\\d+(\\.\\d+)?)?(ms|s|m|h|d|w|y)$"
+                  },
+                  {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^\\d+(\\.\\d+)?\\s*\\/\\s*(\\d+(\\.\\d+)?)?(ms|s|m|h|d|w|y)$"
+                    }
+                  }
+                ]
+              },
+              "description": {
+                "type": "string"
               }
             },
             "additionalProperties": false
@@ -413,7 +791,29 @@
                     "maximum": 9007199254740991
                   },
                   "by": {
-                    "description": "What decides the count.",
+                    "description": "What decides the count; several dimensions multiply (store × locale × device).",
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    ]
+                  },
+                  "from": {
+                    "description": "Different agents the copies are picked from (a supervisor queue), by agent id.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "pick": {
+                    "description": "How they are picked, e.g. \"weighted by queue priority\".",
                     "type": "string"
                   }
                 },
@@ -437,6 +837,7 @@
                   "pii",
                   "phi",
                   "pci",
+                  "biometric",
                   "secret"
                 ]
               },
@@ -445,8 +846,40 @@
                 "type": "string"
               },
               "retention": {
+                "description": "How long it is kept; `none` = in memory only, never persisted.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
+                  },
+                  {
+                    "type": "string",
+                    "const": "none"
+                  }
+                ]
+              },
+              "retention_after": {
+                "description": "Event the retention runs from, e.g. \"matter close\" (default: creation).",
+                "type": "string"
+              },
+              "lawful_basis": {
+                "description": "GDPR basis for processing personal data.",
                 "type": "string",
-                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                "enum": [
+                  "consent",
+                  "contract",
+                  "legal_obligation",
+                  "vital_interests",
+                  "public_task",
+                  "legitimate_interests"
+                ]
+              },
+              "disclosure": {
+                "description": "Labels and provenance on what it publishes: \"C2PA\", \"AI-generated label\", \"EU AI Act art. 50\"...",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               },
               "description": {
                 "type": "string"
@@ -478,6 +911,14 @@
                   "description": "Defaults to true. Used to color value vs target.",
                   "type": "boolean"
                 },
+                "unit": {
+                  "description": "\"%\", \"ms\", \"Elo\", \"USD\"... Relative scores (Elo, rank) need no target.",
+                  "type": "string"
+                },
+                "illustrative": {
+                  "description": "True when the number is an example, not a measurement.",
+                  "type": "boolean"
+                },
                 "description": {
                   "type": "string"
                 },
@@ -503,6 +944,7 @@
                 "enum": [
                   "all",
                   "canary",
+                  "staged",
                   "ab",
                   "shadow",
                   "blue-green",
@@ -510,9 +952,41 @@
                 ]
               },
               "percent": {
+                "description": "Current share of traffic.",
                 "type": "number",
                 "minimum": 0,
                 "maximum": 100
+              },
+              "steps": {
+                "description": "Staged / phased schedule, e.g. [1, 5, 25, 100].",
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              },
+              "metric": {
+                "description": "What decides promotion, e.g. \"approval rate\" or \"crash-free sessions\".",
+                "type": "string"
+              },
+              "guard": {
+                "description": "Halt or roll back when, e.g. \"crash-free < 99.5%\".",
+                "type": "string"
+              },
+              "arms": {
+                "description": "A/B arms, e.g. [\"prompt v3\", \"prompt v4\"].",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "sample": {
+                "description": "Sample size per step or arm.",
+                "type": [
+                  "number",
+                  "string"
+                ]
               },
               "previous": {
                 "description": "Version being replaced (rollback target).",
@@ -525,9 +999,132 @@
             "additionalProperties": false
           },
           "sla": {
-            "description": "Deadline to complete (e.g. a regulatory 72h).",
-            "type": "string",
-            "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+            "description": "Deadline to complete: \"72h\", or { within, after, before, by, business, external }.",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "within": {
+                    "type": "string",
+                    "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
+                  },
+                  "after": {
+                    "description": "Event it runs from, e.g. \"SDI rejection\" or \"store submission\".",
+                    "type": "string"
+                  },
+                  "before": {
+                    "description": "Event it must end before, e.g. \"release\".",
+                    "type": "string"
+                  },
+                  "by": {
+                    "description": "Absolute date or time, e.g. \"2026-12-31\".",
+                    "type": "string"
+                  },
+                  "business": {
+                    "description": "Counted in business days / hours (see trigger hours and timezone).",
+                    "type": "boolean"
+                  },
+                  "external": {
+                    "description": "An external wait (store review, carrier, regulator), not our processing time.",
+                    "type": "boolean"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
+          "async": {
+            "description": "Result comes back later: poll or callback.",
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "poll",
+                  "callback",
+                  "both"
+                ]
+              },
+              "interval": {
+                "description": "Polling interval.",
+                "type": "string",
+                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
+              },
+              "timeout": {
+                "type": "string",
+                "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": false
+          },
+          "exactly_once": {
+            "description": "Must run at most once per item (payouts, filings): idempotency key, no retries that repeat it.",
+            "type": "boolean"
+          },
+          "decision": {
+            "description": "Typed output of a decision (decision models).",
+            "type": "object",
+            "properties": {
+              "output": {
+                "type": "string",
+                "enum": [
+                  "binary",
+                  "choice",
+                  "score",
+                  "ranking"
+                ]
+              },
+              "candidates": {
+                "description": "Allowed answers for `choice` (and labels for `binary`).",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "threshold": {
+                "description": "e.g. 0.8 (probability) or \">= 70\".",
+                "type": [
+                  "number",
+                  "string"
+                ]
+              },
+              "confidence": {
+                "description": "Returns a probability / confidence with the answer.",
+                "type": "boolean"
+              },
+              "model": {
+                "description": "Pinned decision model or policy version.",
+                "type": "string"
+              },
+              "fail": {
+                "description": "On error or low confidence: let it through (open) or block (closed).",
+                "type": "string",
+                "enum": [
+                  "open",
+                  "closed"
+                ]
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "output"
+            ],
+            "additionalProperties": false
           },
           "credentials": {
             "description": "Whose credentials the tools use: a service account, the author, or the end user.",
@@ -770,6 +1367,14 @@
                       "description": "Who fires it: PagerDuty, Gmail, a queue name, a Slack channel...",
                       "type": "string"
                     },
+                    "timezone": {
+                      "description": "IANA zone the schedule and hours are in, e.g. \"Europe/Rome\".",
+                      "type": "string"
+                    },
+                    "hours": {
+                      "description": "When it may fire, e.g. \"Mon-Fri 09:00-18:00\" or \"business days\".",
+                      "type": "string"
+                    },
                     "description": {
                       "type": "string"
                     }
@@ -788,6 +1393,7 @@
                       "type": "string"
                     },
                     "actions": {
+                      "description": "`takeover`: a human takes the session over (live view) while automation pauses.",
                       "type": "array",
                       "items": {
                         "type": "string",
@@ -796,13 +1402,15 @@
                           "edit",
                           "reject",
                           "respond",
-                          "snooze"
+                          "snooze",
+                          "dismiss",
+                          "takeover"
                         ]
                       }
                     },
                     "timeout": {
                       "type": "string",
-                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
                     },
                     "on_timeout": {
                       "type": "string",
@@ -813,53 +1421,193 @@
                         "wait"
                       ]
                     },
-                    "via": {
-                      "description": "Slack, email, PR review, app...",
+                    "escalate_to": {
+                      "description": "Backup approver when it times out or is escalated.",
                       "type": "string"
+                    },
+                    "via": {
+                      "description": "Slack, email, PR review, app... several channels as a list.",
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ]
+                    },
+                    "relayed_by": {
+                      "description": "Agent that carries the request to the human and the answer back.",
+                      "type": "string"
+                    },
+                    "when": {
+                      "description": "Condition that requires it, e.g. \"refund > 500 EUR\" or \"discount > 10%\". Without it: always.",
+                      "type": "string"
+                    },
+                    "per": {
+                      "description": "Asked per item instead of once, e.g. \"flag\", \"row\", \"invoice\".",
+                      "type": "string"
+                    },
+                    "rounds": {
+                      "description": "Revision rounds included before it must be approved or rejected.",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
                     }
                   },
                   "additionalProperties": false
                 },
                 "budget": {
-                  "type": "object",
-                  "properties": {
-                    "usd": {
-                      "type": "number",
-                      "exclusiveMinimum": 0
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "usd": {
+                          "description": "Amount in US dollars (shorthand for amount + currency USD).",
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "amount": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "currency": {
+                          "type": "string",
+                          "pattern": "^[A-Z]{3}$"
+                        },
+                        "tokens": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "turns": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "per": {
+                          "description": "What the budget is counted over. Default: one run of this node.",
+                          "type": "string",
+                          "enum": [
+                            "call",
+                            "run",
+                            "session",
+                            "item",
+                            "copy",
+                            "day",
+                            "week",
+                            "month",
+                            "year"
+                          ]
+                        },
+                        "for": {
+                          "description": "What it pays for when several budgets apply: model, media, ads, api...",
+                          "type": "string"
+                        },
+                        "rate": {
+                          "description": "Unit price, e.g. \"0.40 USD/s of video\" or \"1.20 EUR/take\".",
+                          "type": "string"
+                        },
+                        "on_exceed": {
+                          "type": "string",
+                          "enum": [
+                            "pause",
+                            "stop",
+                            "escalate",
+                            "downgrade"
+                          ]
+                        },
+                        "description": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
                     },
-                    "tokens": {
-                      "type": "integer",
-                      "exclusiveMinimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "turns": {
-                      "type": "integer",
-                      "exclusiveMinimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "on_exceed": {
-                      "type": "string",
-                      "enum": [
-                        "pause",
-                        "stop",
-                        "escalate",
-                        "downgrade"
-                      ]
+                    {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "usd": {
+                            "description": "Amount in US dollars (shorthand for amount + currency USD).",
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          "amount": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          "currency": {
+                            "type": "string",
+                            "pattern": "^[A-Z]{3}$"
+                          },
+                          "tokens": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "turns": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "per": {
+                            "description": "What the budget is counted over. Default: one run of this node.",
+                            "type": "string",
+                            "enum": [
+                              "call",
+                              "run",
+                              "session",
+                              "item",
+                              "copy",
+                              "day",
+                              "week",
+                              "month",
+                              "year"
+                            ]
+                          },
+                          "for": {
+                            "description": "What it pays for when several budgets apply: model, media, ads, api...",
+                            "type": "string"
+                          },
+                          "rate": {
+                            "description": "Unit price, e.g. \"0.40 USD/s of video\" or \"1.20 EUR/take\".",
+                            "type": "string"
+                          },
+                          "on_exceed": {
+                            "type": "string",
+                            "enum": [
+                              "pause",
+                              "stop",
+                              "escalate",
+                              "downgrade"
+                            ]
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
                     }
-                  },
-                  "additionalProperties": false
+                  ]
                 },
                 "limits": {
                   "type": "object",
                   "properties": {
                     "timeout": {
                       "type": "string",
-                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
                     },
                     "ttl": {
                       "description": "Lifetime of a session / sandbox / browser.",
                       "type": "string",
-                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
                     },
                     "retries": {
                       "type": "integer",
@@ -880,6 +1628,26 @@
                       "type": "integer",
                       "exclusiveMinimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "rate": {
+                      "description": "Quotas and rate limits, e.g. \"100/24h\" posts or [\"300/5m\", \"15000/d\"] requests.",
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^\\d+(\\.\\d+)?\\s*\\/\\s*(\\d+(\\.\\d+)?)?(ms|s|m|h|d|w|y)$"
+                        },
+                        {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^\\d+(\\.\\d+)?\\s*\\/\\s*(\\d+(\\.\\d+)?)?(ms|s|m|h|d|w|y)$"
+                          }
+                        }
+                      ]
+                    },
+                    "description": {
+                      "type": "string"
                     }
                   },
                   "additionalProperties": false
@@ -906,7 +1674,29 @@
                           "maximum": 9007199254740991
                         },
                         "by": {
-                          "description": "What decides the count.",
+                          "description": "What decides the count; several dimensions multiply (store × locale × device).",
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "minItems": 1,
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          ]
+                        },
+                        "from": {
+                          "description": "Different agents the copies are picked from (a supervisor queue), by agent id.",
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "pick": {
+                          "description": "How they are picked, e.g. \"weighted by queue priority\".",
                           "type": "string"
                         }
                       },
@@ -930,6 +1720,7 @@
                         "pii",
                         "phi",
                         "pci",
+                        "biometric",
                         "secret"
                       ]
                     },
@@ -938,8 +1729,40 @@
                       "type": "string"
                     },
                     "retention": {
+                      "description": "How long it is kept; `none` = in memory only, never persisted.",
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
+                        },
+                        {
+                          "type": "string",
+                          "const": "none"
+                        }
+                      ]
+                    },
+                    "retention_after": {
+                      "description": "Event the retention runs from, e.g. \"matter close\" (default: creation).",
+                      "type": "string"
+                    },
+                    "lawful_basis": {
+                      "description": "GDPR basis for processing personal data.",
                       "type": "string",
-                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                      "enum": [
+                        "consent",
+                        "contract",
+                        "legal_obligation",
+                        "vital_interests",
+                        "public_task",
+                        "legitimate_interests"
+                      ]
+                    },
+                    "disclosure": {
+                      "description": "Labels and provenance on what it publishes: \"C2PA\", \"AI-generated label\", \"EU AI Act art. 50\"...",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "description": {
                       "type": "string"
@@ -971,6 +1794,14 @@
                         "description": "Defaults to true. Used to color value vs target.",
                         "type": "boolean"
                       },
+                      "unit": {
+                        "description": "\"%\", \"ms\", \"Elo\", \"USD\"... Relative scores (Elo, rank) need no target.",
+                        "type": "string"
+                      },
+                      "illustrative": {
+                        "description": "True when the number is an example, not a measurement.",
+                        "type": "boolean"
+                      },
                       "description": {
                         "type": "string"
                       },
@@ -996,6 +1827,7 @@
                       "enum": [
                         "all",
                         "canary",
+                        "staged",
                         "ab",
                         "shadow",
                         "blue-green",
@@ -1003,9 +1835,41 @@
                       ]
                     },
                     "percent": {
+                      "description": "Current share of traffic.",
                       "type": "number",
                       "minimum": 0,
                       "maximum": 100
+                    },
+                    "steps": {
+                      "description": "Staged / phased schedule, e.g. [1, 5, 25, 100].",
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      }
+                    },
+                    "metric": {
+                      "description": "What decides promotion, e.g. \"approval rate\" or \"crash-free sessions\".",
+                      "type": "string"
+                    },
+                    "guard": {
+                      "description": "Halt or roll back when, e.g. \"crash-free < 99.5%\".",
+                      "type": "string"
+                    },
+                    "arms": {
+                      "description": "A/B arms, e.g. [\"prompt v3\", \"prompt v4\"].",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "sample": {
+                      "description": "Sample size per step or arm.",
+                      "type": [
+                        "number",
+                        "string"
+                      ]
                     },
                     "previous": {
                       "description": "Version being replaced (rollback target).",
@@ -1018,9 +1882,132 @@
                   "additionalProperties": false
                 },
                 "sla": {
-                  "description": "Deadline to complete (e.g. a regulatory 72h).",
-                  "type": "string",
-                  "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w)$"
+                  "description": "Deadline to complete: \"72h\", or { within, after, before, by, business, external }.",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "within": {
+                          "type": "string",
+                          "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
+                        },
+                        "after": {
+                          "description": "Event it runs from, e.g. \"SDI rejection\" or \"store submission\".",
+                          "type": "string"
+                        },
+                        "before": {
+                          "description": "Event it must end before, e.g. \"release\".",
+                          "type": "string"
+                        },
+                        "by": {
+                          "description": "Absolute date or time, e.g. \"2026-12-31\".",
+                          "type": "string"
+                        },
+                        "business": {
+                          "description": "Counted in business days / hours (see trigger hours and timezone).",
+                          "type": "boolean"
+                        },
+                        "external": {
+                          "description": "An external wait (store review, carrier, regulator), not our processing time.",
+                          "type": "boolean"
+                        },
+                        "description": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "async": {
+                  "description": "Result comes back later: poll or callback.",
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "poll",
+                        "callback",
+                        "both"
+                      ]
+                    },
+                    "interval": {
+                      "description": "Polling interval.",
+                      "type": "string",
+                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
+                    },
+                    "timeout": {
+                      "type": "string",
+                      "pattern": "^\\d+(\\.\\d+)?(ms|s|m|h|d|w|y)$"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ],
+                  "additionalProperties": false
+                },
+                "exactly_once": {
+                  "description": "Must run at most once per item (payouts, filings): idempotency key, no retries that repeat it.",
+                  "type": "boolean"
+                },
+                "decision": {
+                  "description": "Typed output of a decision (decision models).",
+                  "type": "object",
+                  "properties": {
+                    "output": {
+                      "type": "string",
+                      "enum": [
+                        "binary",
+                        "choice",
+                        "score",
+                        "ranking"
+                      ]
+                    },
+                    "candidates": {
+                      "description": "Allowed answers for `choice` (and labels for `binary`).",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "threshold": {
+                      "description": "e.g. 0.8 (probability) or \">= 70\".",
+                      "type": [
+                        "number",
+                        "string"
+                      ]
+                    },
+                    "confidence": {
+                      "description": "Returns a probability / confidence with the answer.",
+                      "type": "boolean"
+                    },
+                    "model": {
+                      "description": "Pinned decision model or policy version.",
+                      "type": "string"
+                    },
+                    "fail": {
+                      "description": "On error or low confidence: let it through (open) or block (closed).",
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "closed"
+                      ]
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "output"
+                  ],
+                  "additionalProperties": false
                 },
                 "credentials": {
                   "description": "Whose credentials the tools use: a service account, the author, or the end user.",
@@ -1121,8 +2108,27 @@
                         "webhook",
                         "queue",
                         "event",
-                        "stdio"
+                        "stdio",
+                        "email",
+                        "manual"
                       ]
+                    },
+                    "async": {
+                      "description": "Fire-and-forget: the source does not wait (spawns, events). Default: it waits.",
+                      "type": "boolean"
+                    },
+                    "group": {
+                      "description": "Edges from the same node with the same group are alternatives: exactly one is taken.",
+                      "type": "string"
+                    },
+                    "version": {
+                      "description": "Protocol version, e.g. A2A \"0.3\" or an API version.",
+                      "type": "string"
+                    },
+                    "card": {
+                      "description": "A2A agent card URL of the target.",
+                      "type": "string",
+                      "pattern": "^https?:\\/\\/"
                     }
                   },
                   "required": [
@@ -1190,8 +2196,27 @@
                   "webhook",
                   "queue",
                   "event",
-                  "stdio"
+                  "stdio",
+                  "email",
+                  "manual"
                 ]
+              },
+              "async": {
+                "description": "Fire-and-forget: the source does not wait (spawns, events). Default: it waits.",
+                "type": "boolean"
+              },
+              "group": {
+                "description": "Edges from the same node with the same group are alternatives: exactly one is taken.",
+                "type": "string"
+              },
+              "version": {
+                "description": "Protocol version, e.g. A2A \"0.3\" or an API version.",
+                "type": "string"
+              },
+              "card": {
+                "description": "A2A agent card URL of the target.",
+                "type": "string",
+                "pattern": "^https?:\\/\\/"
               }
             },
             "required": [

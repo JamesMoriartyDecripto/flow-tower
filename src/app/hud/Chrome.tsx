@@ -5,6 +5,7 @@ import { useLive } from '../live';
 import { chooseView, usePrefs } from '../settings';
 import { useDemo } from '../demo';
 import { exportPng, exportSvg } from '../exporter';
+import { budgetsText, limitsText } from '../ops';
 import { STATIC } from '../staticData';
 import { useCurrentTowerLive } from '../liveHooks';
 import { useStore, useTower } from '../store';
@@ -154,6 +155,11 @@ export function LayerNav() {
   return (
     <nav className="panel layernav">
       <div className="title">Layers</div>
+      {tower.run && (
+        <div className="run-limits mono" title="Budget and limits for one run of the whole system, across every node">
+          RUN · {[budgetsText(tower.run.budget), limitsText(tower.run.limits)].filter(Boolean).join(' · ')}
+        </div>
+      )}
       <button className={focusedLayer === undefined ? 'on' : ''} onClick={resetView} title="Show the whole tower (0)">
         <span className="idx">◈</span><span className="name">Tower overview</span><span className="count">{tower.layers.length}L</span>
       </button>

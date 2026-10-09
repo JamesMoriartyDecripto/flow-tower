@@ -133,6 +133,11 @@ function Overview({ node, tower }: { node: ResolvedNode; tower: ResolvedTower })
           {node.runtime.description && <p className="dim" style={{ margin: '6px 0 0' }}>{node.runtime.description}</p>}
         </Section>
       )}
+      {agent && (agent.skills.length > 0 || agent.disabledTools.length > 0) && (
+        <Section title="Skills and tools">
+          <Table data={{ skills: agent.skills.join(', ') || undefined, 'disabled tools': agent.disabledTools.join(', ') || undefined }} />
+        </Section>
+      )}
       {agent && Object.keys(agent.harness).length > 0 && <Section title="Harness"><Table data={agent.harness} /></Section>}
       {Object.keys({ ...agent?.meta, ...node.meta }).length > 0 && <Section title="Meta"><Table data={{ ...agent?.meta, ...node.meta }} /></Section>}
     </>

@@ -424,3 +424,4 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .update-chip { padding: 4px 10px; font-size: 10px; text-transform: none; text-decoration: none; }
 .feed-usage { margin-left: auto; margin-right: 10px; font-size: 11px; color: var(--live-done); }
 .lib-usage { color: var(--live-done); }
+.run-limits { padding: 0 6px 8px; font-size: 11px; line-height: 1.4; color: var(--amber); }

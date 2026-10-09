@@ -50,25 +50,32 @@ Operational fields (optional, on agents or nodes; nodes inherit from their agent
 ```yaml
       - id: alert
         type: entry
-        trigger: { kind: webhook, source: PagerDuty }        # manual cron webhook event queue chat email file; cron: schedule: "0 9 * * 1-5"
+        trigger: { kind: cron, schedule: "0 9 * * 1-5", timezone: Europe/Rome, hours: "Mon-Fri 09:00-18:00" }  # manual cron webhook event queue chat email file
       - id: searcher
         agent: searcher
-        fanout: { min: 3, max: 5, by: query complexity }     # or a number: 4
-        budget: { usd: 2, turns: 30, on_exceed: pause }
-        limits: { timeout: 10m, retries: 2, max_iterations: 3 }
-        data: { sensitivity: pii, region: eu, retention: 30d }  # public internal confidential pii phi pci secret
-        evals: [{ name: pass@1, value: 0.82, target: 0.8 }]
+        fanout: { min: 3, max: 5, by: query complexity }     # or a number: 4; by: [store, locale] multiplies; from: [agent ids] picked from a queue
+        budget: { usd: 2, turns: 30, on_exceed: pause }       # or amount + currency: EUR, per: run|item|month..., for: model|media; a list for several
+        limits: { timeout: 10m, retries: 2, max_iterations: 3, rate: "100/24h" }   # rate: quotas, one or a list
+        data: { sensitivity: pii, region: eu, retention: 30d, lawful_basis: consent }  # public internal confidential pii phi pci biometric secret; retention: none = memory only; retention_after: matter close; disclosure: [C2PA]
+        evals: [{ name: pass@1, value: 0.82, target: 0.8 }, { name: Elo, value: 1240, unit: Elo, illustrative: true }]
         version: v4
-        rollout: { strategy: canary, percent: 10, previous: v3 }
+        rollout: { strategy: staged, steps: [1, 5, 25, 100], guard: "crash-free < 99.5%" }   # all canary staged ab shadow blue-green rainbow; percent, metric, arms, sample, previous
         credentials: service                                 # service | author | user
         sandbox: { network: allowlist, allow: [api.github.com], filesystem: workspace }
+        async: { mode: poll, interval: 10s }                 # long external jobs: poll | callback | both
+        exactly_once: true                                   # payouts, filings: never repeated
       - id: oncall
         type: human
-        approval: { by: on-call SRE, via: Slack, actions: [approve, reject], timeout: 15m, on_timeout: escalate }
-        sla: 72h
+        approval: { by: on-call SRE, via: [Slack, email], actions: [approve, reject], timeout: 15m, on_timeout: escalate, escalate_to: SRE lead, when: "severity >= 2" }   # per: item, rounds: 2, relayed_by: agent; actions also dismiss takeover
+        sla: 72h                                             # or { within: 5d, business: true, after: SDI rejection } / { before: release, external: true } / { by: 2026-12-31 }
+      - id: risk
+        type: decision
+        decision: { output: binary, threshold: 0.8, confidence: true, model: risk-v3, fail: closed }   # binary choice score ranking; candidates: [...]
 ```
 
-Edges can carry a wire protocol: `{ from: concierge, to: seller, kind: call, protocol: a2a }` (mcp a2a http grpc webhook queue event stdio). Durations: `250ms 90s 5m 72h 7d 2w`.
+Run-wide `budget` / `limits` go at the top level of the tower. Agents can list `skills` and `disabled_tools`.
+
+Edges (object form) can carry `protocol` (mcp a2a http grpc webhook queue event stdio email manual) with `version` and A2A `card`, `async: true` (fire-and-forget) and `group` (alternatives: exactly one edge of the group is taken). Durations: `250ms 90s 5m 72h 7d 2w 10y`. Rates: `100/24h`, `300/5m`.
 
 Edge kinds: `flow` (default, sequence), `call` (synchronous tool/function), `spawn` (starts a subagent), `handoff` (transfers control), `return` (result or loop back), `data` (reads/writes memory, files, DB).
 
