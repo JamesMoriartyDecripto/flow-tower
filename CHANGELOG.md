@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Settings → Animations: style (dots, comets, pulses), size, speed and density for flows between nodes and between layers; Visible by default: edge labels, node subtitles, links, grid, frame, base, scanner, sparkles.
+- Sub-towers are easy to find: bigger stacked-plates badge, `⇣ SUB` in node subtitles, a Sub-towers list in the Layers panel (select / enter), a SUB-TOWER chip in the inspector and a legend key.
 - Layer transparency slider in Settings (the focused layer always stays nearly opaque).
 - A description on every button, shown in a HUD-styled tooltip.
 - Settings page (⚙ or `,`): themes (Mark, Arc reactor, Stealth, Ember, Verdant, each with a matching live palette), quality, ambient animations, particles, glow strength, default view (auto = map above 10 layers), layer spacing, auto-orbit, spotlight, follow, live chips, controls hint; saved per browser.
@@ -48,6 +50,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Focused layer gets a near-opaque plate and the other layers dim further, so the focused flow reads cleanly.
 
 ### Fixed
+- HUD audit (1440×900 and 1280×720): controls hint no longer overlaps the legend, legend tabs no longer wrap, narrower feed/inspector on small screens, tooltips no longer linger after their panel closes, canvas redraws after a window resize.
 - Plates now occlude the layers below in proportion to their opacity (stack-aware draw order).
 - Esc did nothing in the library (focus in the filter) and with a slider focused; pressing L typed an "l" into the library filter.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.

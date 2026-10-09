@@ -120,7 +120,7 @@ Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [
 | Right-drag, **Shift + drag**, **Shift + two-finger scroll** (trackpad) | Pan |
 | Scroll, pinch | Zoom |
 | Click node | Inspect it and highlight its upstream and downstream paths |
-| Double-click node, or **Enter** | Enter its sub-tower |
+| Double-click node, **Enter**, or ⇣ in the Sub-towers list | Enter its sub-tower (marked by stacked plates and `⇣ SUB`) |
 | **1–9**, **0** | Focus a layer / overview |
 | **Esc**, **Backspace** | Go back (file, then selection, then layer, then parent tower) |
 | **/** | Search nodes, models, tools |

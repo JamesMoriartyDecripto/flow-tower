@@ -100,7 +100,8 @@ input { font: inherit; color: inherit; }
 .controls label { display: flex; align-items: center; gap: 8px; font: 600 10px var(--display); letter-spacing: .16em; color: var(--dim); }
 input[type=range] { accent-color: var(--orange); width: 110px; }
 
-.hint { position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); font: 11px var(--mono); color: var(--dim); letter-spacing: .04em; white-space: nowrap; pointer-events: none; }
+/* Controls hint: right-aligned above the controls bar, so it never runs into the legend. */
+.hint { position: absolute; bottom: 80px; right: 18px; max-width: min(760px, calc(100vw - 300px)); text-align: right; font: 11px/1.5 var(--mono); color: var(--dim); letter-spacing: .03em; pointer-events: none; }
 
 /* Inspector */
 .inspector { top: 80px; right: 14px; bottom: 76px; width: 420px; display: flex; flex-direction: column; animation: slidein .25s ease-out; }
@@ -178,7 +179,7 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .minitower .plate { fill: color-mix(in srgb, var(--orange) 8%, transparent); stroke: var(--orange); stroke-width: 1; filter: drop-shadow(0 0 3px color-mix(in srgb, var(--orange) 60%, transparent)); }
 .minitower .dot { fill: var(--white); opacity: .8; }
 .legend-tabs { display: flex; gap: 2px; margin-bottom: 10px; border-bottom: 1px solid var(--line-soft); }
-.legend-tabs button { flex: 1; padding: 4px 0 7px; font: 600 9px var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); border-bottom: 2px solid transparent; justify-content: center; }
+.legend-tabs button { flex: 1; padding: 4px 0 7px; font: 600 9px var(--display); letter-spacing: .1em; white-space: nowrap; text-transform: uppercase; color: var(--dim); border-bottom: 2px solid transparent; justify-content: center; }
 .legend-tabs button.on { color: var(--orange); border-bottom-color: var(--orange); }
 .legend-tabs button:disabled { opacity: .3; cursor: default; }
 .legend .runtimes { display: flex; flex-direction: column; gap: 2px; }
@@ -306,3 +307,21 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .hud-tip::before { content: ''; position: absolute; left: 50%; top: -4px; width: 7px; height: 7px; background: inherit;
   border-left: 1px solid var(--line); border-top: 1px solid var(--line); transform: translateX(-50%) rotate(45deg); }
 .hud-tip.above::before { top: auto; bottom: -4px; transform: translateX(-50%) rotate(225deg); }
+.set-group { border-left: 2px solid var(--line); padding-left: 12px; margin: 6px 0 14px; }
+.set-group .set-row:first-child .set-label { color: var(--orange); }
+.set-control input[type=range]:disabled { opacity: .35; }
+
+@media (max-width: 1400px) {
+  .livefeed { width: 380px; }
+  .livefeed.shifted { right: 440px; }
+  .inspector { width: 400px; }
+}
+/* Sub-towers */
+.subtowers { border-top: 1px solid var(--line-soft); margin-top: 8px; padding-top: 8px; }
+.subtowers .title { padding: 0 6px 6px; }
+.subtowers .sub { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; }
+.subtowers .sub .enter-btn { padding: 0 8px; font: 700 14px var(--mono); color: var(--amber); }
+.subtowers .sub .enter-btn:hover { color: var(--white); text-shadow: var(--glow); }
+.legend .sub-key { display: flex; align-items: center; gap: 8px; margin-top: 4px; font: 12px var(--ui); color: var(--amber); }
+.chip.sub { color: var(--bg); background: var(--amber); border-color: var(--amber); }
+.layernav .subtowers .sub .enter-btn { display: block; width: auto; grid-template-columns: none; border-left: 0; }

@@ -40,6 +40,7 @@ export function Inspector() {
           {node.model && <span className="chip">{node.model}</span>}
           {node.status !== 'active' && <span className={`chip status-${node.status}`}>{node.status.toUpperCase()}</span>}
           {node.runtime && <span className="chip" title={node.runtime.description}>@{node.runtime.label ?? node.runtime.id}</span>}
+          {node.tower && <span className="chip sub" title="This node contains its own tower: use the button below, Enter, or double-click the node">⇣ SUB-TOWER</span>}
         </div>
         <h2>{node.label}</h2>
         <div className="mono dim">{node.key}</div>

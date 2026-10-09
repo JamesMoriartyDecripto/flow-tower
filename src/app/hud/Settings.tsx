@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useLive } from '../live';
-import { resetPrefs, usePrefs, type DefaultView } from '../settings';
+import { resetPrefs, usePrefs, type DefaultView, type Flow, type Visibility } from '../settings';
+import type { FlowStyle } from '../scene/Particles';
 import { useStore, type Quality } from '../store';
 import { THEMES } from '../themes';
 
@@ -24,6 +25,39 @@ function Seg<T extends string>({ value, options, onChange }: { value: T; options
 function Toggle({ on, onChange }: { on: boolean; onChange(v: boolean): void }) {
   return <button className={`toggle ${on ? 'on' : ''}`} role="switch" aria-checked={on} onClick={() => onChange(!on)} title={on ? 'On: click to turn off' : 'Off: click to turn on'}><i /></button>;
 }
+
+/** Style, size, speed and density of one animated flow (between nodes or between layers). */
+function FlowControls({ title, hint, flow, onChange }: { title: string; hint: string; flow: Flow; onChange(f: Flow): void }) {
+  const patch = (p: Partial<Flow>) => onChange({ ...flow, ...p });
+  const slider = (key: 'size' | 'speed' | 'density', min: number, max: number, step: number) => (
+    <>
+      <input type="range" min={min} max={max} step={step} value={flow[key]} disabled={!flow.on} onChange={(e) => patch({ [key]: Number(e.target.value) })} />
+      <span className="mono dim">{flow[key].toFixed(1)}×</span>
+    </>
+  );
+  return (
+    <div className="set-group">
+      <Row label={title} hint={hint}><Toggle on={flow.on} onChange={(on) => patch({ on })} /></Row>
+      <Row label="Style" hint="Dots: round beads · Comets: streaks pointing where the flow goes · Pulses: beads that breathe.">
+        <Seg<FlowStyle> value={flow.style} options={[['dots', 'Dots'], ['comets', 'Comets'], ['pulses', 'Pulses']]} onChange={(style) => patch({ style })} />
+      </Row>
+      <Row label="Size">{slider('size', 0.4, 3, 0.1)}</Row>
+      <Row label="Speed">{slider('speed', 0.2, 3, 0.1)}</Row>
+      <Row label="Density" hint="Particles per connection.">{slider('density', 0.5, 4, 0.5)}</Row>
+    </div>
+  );
+}
+
+const VISIBILITY: [keyof Visibility, string, string][] = [
+  ['edgeLabels', 'Edge labels', 'Text on the arrows inside a layer (e.g. "spawn", "max 3").'],
+  ['nodeTags', 'Node subtitles', 'Type, model and runtime under each node name.'],
+  ['links', 'Links between layers', 'The curves that connect nodes of different layers.'],
+  ['grid', 'Layer grid', 'The fine grid drawn on each glass plate.'],
+  ['pillars', 'Tower frame', 'Vertical lines at the corners of the tower.'],
+  ['base', 'Base rings', 'The arc-reactor rings under the tower.'],
+  ['scanner', 'Scanner', 'The frame sweeping up and down the tower.'],
+  ['sparkles', 'Sparkles', 'Floating dust particles around the tower.'],
+];
 
 /** Settings page: theme, performance budget, effects, view, live behaviour, HUD. Saved per browser. */
 export function Settings() {
@@ -79,6 +113,23 @@ export function Settings() {
               <input type="range" min={0.1} max={0.95} step={0.05} value={prefs.plateOpacity} onChange={(e) => prefs.set({ plateOpacity: Number(e.target.value) })} />
               <span className="mono dim">{Math.round((1 - prefs.plateOpacity) * 100)}%</span>
             </Row>
+          </section>
+
+          <section>
+            <h3>Animations</h3>
+            <FlowControls title="Flow between nodes" hint="Particles along the arrows inside each layer."
+              flow={prefs.flowNodes} onChange={(flowNodes) => prefs.set({ flowNodes })} />
+            <FlowControls title="Flow between layers" hint="Particles along the curves that connect layers."
+              flow={prefs.flowLayers} onChange={(flowLayers) => prefs.set({ flowLayers })} />
+          </section>
+
+          <section>
+            <h3>Visible by default</h3>
+            {VISIBILITY.map(([key, label, hint]) => (
+              <Row key={key} label={label} hint={hint}>
+                <Toggle on={prefs.show[key]} onChange={(on) => prefs.set({ show: { ...prefs.show, [key]: on } })} />
+              </Row>
+            ))}
           </section>
 
           <section>

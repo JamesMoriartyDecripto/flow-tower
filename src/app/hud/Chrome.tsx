@@ -126,10 +126,39 @@ export function LayerNav() {
           <LiveCount {...liveOf(l.id)} total={l.nodes.length} />
         </button>
       ))}
+      <SubTowers />
     </nav>
   );
 }
 
+
+/** Every node of the current tower that opens its own tower: click selects it, ⇣ dives in. */
+function SubTowers() {
+  const tower = useTower();
+  const ws = useStore((s) => s.workspace);
+  const subs = (tower?.layers ?? []).flatMap((l) => l.nodes.filter((n) => n.tower).map((n) => ({ n, l })));
+  if (!tower || !subs.length) return null;
+  const pick = (layer: number, key: string) => {
+    const s = useStore.getState();
+    s.select(key);
+    s.focusLayer(layer);
+  };
+  return (
+    <div className="subtowers">
+      <div className="title">Sub-towers · {subs.length}</div>
+      {subs.map(({ n, l }) => (
+        <div key={n.key} className="sub">
+          <button onClick={() => pick(l.index, n.key)} title={`Select ${n.label} (layer ${l.index + 1}) — it opens "${ws?.towers[n.tower!]?.name ?? n.tower}"`}
+            style={{ display: 'contents' }}>
+            <span className="idx">L{String(l.index + 1).padStart(2, '0')}</span>
+            <span className="name">{n.label}</span>
+          </button>
+          <button className="enter-btn" onClick={() => useStore.getState().enterTower(n.tower!)} title={`Enter "${ws?.towers[n.tower!]?.name ?? n.tower}"`}>⇣</button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** Node count, or a pulsing live badge when agents on the layer are working (red if one failed). */
 function LiveCount({ run, error, total }: { run: number; error: boolean; total: number }) {
@@ -160,13 +189,18 @@ export function Legend() {
         </button>
       </nav>
       {tab === 'types' && (
-        <div className="grid">
-          {NODE_TYPES.map((t) => (
-            <button key={t} className={hiddenTypes.has(t) ? 'off' : ''} onClick={() => toggleType(t)} title={NODE_STYLE[t].hint}>
-              <span className="tag">{NODE_STYLE[t].tag}</span>{t}
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="grid">
+            {NODE_TYPES.map((t) => (
+              <button key={t} className={hiddenTypes.has(t) ? 'off' : ''} onClick={() => toggleType(t)} title={NODE_STYLE[t].hint}>
+                <span className="tag">{NODE_STYLE[t].tag}</span>{t}
+              </button>
+            ))}
+          </div>
+          <div className="sub-key" title="Nodes with stacked plates (and ⇣ SUB in their subtitle) contain their own tower. Double-click, press Enter, or use ⇣ in the Layers panel.">
+            <span>▤ ⇣ SUB</span><span className="dim">sub-tower · double-click to enter</span>
+          </div>
+        </>
       )}
       {tab === 'edges' && (
         <div className="grid">

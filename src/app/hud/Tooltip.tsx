@@ -10,6 +10,7 @@ const DELAY_MS = 350;
 export function Tooltip() {
   const [tip, setTip] = useState<{ text: string; x: number; y: number; above: boolean }>();
   const timer = useRef<number>(undefined);
+  const anchor = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const show = (e: MouseEvent) => {
@@ -24,6 +25,7 @@ export function Tooltip() {
       if (!text) return;
       clearTimeout(timer.current);
       timer.current = window.setTimeout(() => {
+        anchor.current = el;
         const r = el.getBoundingClientRect();
         const above = r.bottom + 60 > window.innerHeight;
         setTip({ text, x: Math.min(Math.max(r.left + r.width / 2, 160), window.innerWidth - 160), y: above ? r.top - 8 : r.bottom + 8, above });
@@ -36,12 +38,20 @@ export function Tooltip() {
       clearTimeout(timer.current);
       setTip(undefined);
     };
-    const reset = () => { clearTimeout(timer.current); setTip(undefined); };
+    const reset = () => { clearTimeout(timer.current); anchor.current = null; setTip(undefined); };
+    // Panels can close under the pointer (Esc, re-render): then no mouseout ever arrives.
+    const watchdog = window.setInterval(() => {
+      const el = anchor.current;
+      if (el && (!el.isConnected || !el.matches(':hover'))) reset();
+    }, 250);
     document.addEventListener('mouseover', show);
     document.addEventListener('mouseout', hide);
     document.addEventListener('mousedown', reset);
     window.addEventListener('blur', reset);
+    window.addEventListener('keydown', reset);
     return () => {
+      clearInterval(watchdog);
+      window.removeEventListener('keydown', reset);
       document.removeEventListener('mouseover', show);
       document.removeEventListener('mouseout', hide);
       document.removeEventListener('mousedown', reset);
