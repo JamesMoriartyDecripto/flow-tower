@@ -1,0 +1,9 @@
+2026-10-07T09:10:02Z worldgen seed=4127 stage=biome_graph islands=15 edges=21 beacon_path=6 valid=true
+2026-10-07T09:10:09Z worldgen seed=4127 stage=terrain_heightmap res=1009 islands=15 erosion_iters=30 ms=6211
+2026-10-07T09:10:14Z worldgen seed=4127 stage=poi_placement beacons=3 caches=18 camps=4 nests=2 rejected_slope=5
+2026-10-07T09:10:15Z worldgen seed=4127 stage=navmesh_check reachable=44/44 max_gap_m=3.7 -> pass
+2026-10-07T09:10:40Z worldgen seed=9001 stage=biome_graph islands=17 edges=24 beacon_path=7 valid=true
+2026-10-07T09:10:58Z worldgen seed=9001 stage=navmesh_check reachable=43/44 max_gap_m=4.6 -> fail (island 7 south cliff)
+2026-10-07T09:11:02Z worldgen seed=9001 action=retune bridge_min_len=3.0 -> 2.6
+2026-10-07T09:11:21Z worldgen seed=9001 stage=navmesh_check reachable=44/44 max_gap_m=3.9 -> pass
+2026-10-07T09:11:50Z worldgen seed=0x00001A2B stage=navmesh_check reachable=41/44 -> fail, added to bad seeds

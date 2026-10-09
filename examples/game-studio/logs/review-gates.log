@@ -1,0 +1,10 @@
+2026-10-06T12:01:10Z gate=code artifact=PR#118 "Beacon rekindle replication" round=1/3 evaluator=code-reviewer score=6 verdict=changes blocking=2
+2026-10-06T12:01:10Z   F1 major  BeaconComponent.cpp:142 server RPC lacks validation of player distance
+2026-10-06T12:01:10Z   F2 major  BeaconComponent.cpp:201 OnRep_Lit triggers VFX on dedicated server
+2026-10-06T12:07:52Z gate=code artifact=PR#118 round=2/3 evaluator=code-reviewer score=8 verdict=approve blocking=0 followups=1
+2026-10-06T12:08:30Z gate=assets artifact=SK_CinderWisp round=1/2 evaluator=art-director score=7 verdict=changes blocking=1
+2026-10-06T12:08:30Z   F1 blocker silhouette top-heavy reads as friendly lantern at 30 m
+2026-10-06T12:14:05Z gate=assets artifact=SK_CinderWisp round=2/2 evaluator=art-director score=7 verdict=changes -> escalate
+2026-10-06T12:15:40Z gate=budgets artifact=L_AshenShoals evaluator=technical-director score=9 verdict=approve draw_calls=1840/2500
+2026-10-06T12:16:02Z gate=pillars artifact=feature/grapple-v2 evaluator=creative-director score=9 verdict=approve
+2026-10-06T12:20:15Z summary passed=11 escalated=1 cost_usd=1.12 mean_rounds=1.6

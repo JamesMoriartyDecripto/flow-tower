@@ -1,0 +1,9 @@
+2026-10-07T16:02:11Z [package] runner=ue-ci-win-01 workflow=package.yml ref=refs/tags/v0.2.0-slice
+2026-10-07T16:02:12Z [package] build_gate check qa=pass gates=green open_s1=0 go_no_go=pending -> allowed (package only)
+2026-10-07T16:02:40Z [package] RunUAT BuildCookRun -project=Emberwake/Emberwake.uproject -platform=Win64 -clientconfig=Shipping
+2026-10-07T16:21:58Z [package] Cook: 2,941 packages, 0 errors, 7 warnings
+2026-10-07T16:22:03Z [package] Cook warning: /Game/Emberwake/Props/SM_Rock_Kit_07 has no simple collision
+2026-10-07T16:34:47Z [package] Stage + Pak: Emberwake-Win64-Shipping 3.84 GB (budget 6 GB)
+2026-10-07T16:35:20Z [package] symbols archived to s3://forge-symbols/emberwake/v0.2.0-slice/
+2026-10-07T16:35:31Z [package] artifact uploaded emberwake-win64-v0.2.0-slice (id 1903377412)
+2026-10-07T16:35:32Z [package] steam upload skipped: needs workflow_dispatch + release-go-no-go environment approval

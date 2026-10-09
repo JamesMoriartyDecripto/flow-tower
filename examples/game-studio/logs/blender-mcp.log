@@ -1,0 +1,13 @@
+2026-10-06 09:03:11,402 [blender-mcp] INFO  socket listening on 127.0.0.1:9876 (Blender 4.4.1, addon 1.2.0)
+2026-10-06 09:03:15,118 [blender-mcp] INFO  client connected agent=blender-modeler ticket=SM_Beacon_Brazier
+2026-10-06 09:03:15,620 [blender-mcp] INFO  get_scene_info objects=0 collections=1
+2026-10-06 09:04:02,991 [blender-mcp] INFO  execute_blender_code bytes=1840 duration_ms=412
+2026-10-06 09:09:47,305 [blender-mcp] INFO  get_viewport_screenshot views=front,side,three_quarter size=1024
+2026-10-06 09:21:30,774 [blender-mcp] INFO  execute_blender_code script=pipelines/blender/retopo.py target_tris=6000
+2026-10-06 09:21:58,016 [blender-mcp] INFO  retopo result tris=5874 quads=96.1% hard_edges_kept=212
+2026-10-06 09:22:40,227 [blender-mcp] INFO  execute_blender_code script=pipelines/blender/uv_unwrap.py texel=512
+2026-10-06 09:23:05,882 [blender-mcp] WARN  uv_unwrap island overlap 0.4% (threshold 0.5%) - accepted
+2026-10-06 09:24:10,519 [blender-mcp] INFO  fork copies: brazier_mat.blend brazier_lod.blend
+2026-10-06 09:38:51,064 [blender-mcp] INFO  execute_blender_code script=pipelines/blender/bake_pbr.py maps=normal,ao,curvature res=2048
+2026-10-06 09:40:12,443 [blender-mcp] INFO  export_asset format=gltf path=exports/SM_Beacon_Brazier.glb size_kb=3184
+2026-10-06 09:40:13,001 [blender-mcp] INFO  client disconnected agent=blender-modeler
