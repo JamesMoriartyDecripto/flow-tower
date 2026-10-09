@@ -15,7 +15,7 @@
 ## Conventions
 
 - English only, everywhere: code, docs, examples, commits. Exception: customer-facing sample documents for Italian customers (sales-pipeline quote/contract, invoicing-fic dunning letters), declared in their README.
-- Never work on `main`: one branch per feature or issue (`feat/…`, `fix/…`) from an up-to-date `main`. The user merges, or asks Claude to.
+- Never work on `main`: one branch per feature or issue (`feat/…`, `fix/…`) from an up-to-date `main`. The user merges, or asks Claude to. `main` is protected by the "Protect main" ruleset (PR + CI + CODEOWNERS review; the admin can merge their own PRs, nobody can push or force-push).
 - Stacked PRs: merge bottom-up with merge commits; retarget the next PR to `main` *before* deleting a merged base branch (GitHub closes PRs whose base disappears).
 - Commit and push after every completed piece of work; then check CI (`gh pr checks`): local runs can pass on files git ignores.
 - Update `CHANGELOG.md` under `[Unreleased]` (Added / Changed / Fixed / Security).

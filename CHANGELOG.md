@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Security
+- The repository is public with `main` protected by a ruleset: pull requests only (no direct or force pushes, no deletion), passing CI, maintainer review through CODEOWNERS. Secret scanning with push protection and Dependabot alerts are on; workflows get a read-only token, and PRs from forks need approval before their workflows run.
+- Commit history rewritten to the GitHub noreply address before going public.
+
+### Added
+- Pull request template.
+
 ## [0.1.0] - 2026-10-09
 
 First release.
