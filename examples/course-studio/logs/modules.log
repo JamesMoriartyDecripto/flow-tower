@@ -1,0 +1,19 @@
+2026-10-02T15:38:10.231Z INFO  [modules] pool size=3 queue=[m1,m2,m3,m4,m5,m6]
+2026-10-02T15:38:10.240Z INFO  [writer-m1] start lessons=4 minutes=110
+2026-10-02T15:38:10.244Z INFO  [writer-m2] start lessons=4 minutes=120
+2026-10-02T15:38:10.251Z INFO  [writer-m3] start lessons=3 minutes=95
+2026-10-02T15:52:47.118Z WARN  [hook:reading-level] DENY lessons/m2-l3.md grade 12.4 > 10 (+1)
+2026-10-02T15:53:30.502Z INFO  [hook:reading-level] lessons/m2-l3.md grade 9.6 ok
+2026-10-02T16:01:12.880Z WARN  [hook:pii-scan] DENY lessons/m3-l2.md email: dan***om
+2026-10-02T16:01:40.031Z INFO  [writer-m3] replaced example email with priya@example.com
+2026-10-02T16:14:09.775Z INFO  [writer-m3] STATUS done lessons=3 sources=S4,S5,S7,S12,S18 cost=$1.86
+2026-10-02T16:14:09.790Z INFO  [writer-m4] start lessons=4 minutes=120
+2026-10-02T16:20:55.441Z INFO  [writer-m1] STATUS done lessons=4 cost=$2.02
+2026-10-02T16:20:55.452Z INFO  [writer-m5] start lessons=4 minutes=125
+2026-10-02T16:27:31.666Z INFO  [writer-m2] STATUS done lessons=4 cost=$2.21
+2026-10-02T16:27:31.671Z INFO  [writer-m6] start lessons=4 minutes=120
+2026-10-02T16:49:02.398Z WARN  [writer-m5] STATUS blocked "O7 needs a source on eval set size; research pack has none"
+2026-10-02T16:49:02.401Z INFO  [modules] retry m5 attempt=2
+2026-10-02T16:51:33.640Z INFO  [writer-m4] STATUS done lessons=4 cost=$2.30
+2026-10-02T16:58:20.115Z INFO  [writer-m6] STATUS done lessons=4 cost=$2.12
+2026-10-02T17:09:11.990Z INFO  [writer-m5] STATUS done lessons=4 (O7 framed as SME recommendation, S18) cost=$1.44
