@@ -344,3 +344,14 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .legend .sub-key { display: flex; align-items: center; gap: 8px; margin-top: 4px; font: 12px var(--ui); color: var(--amber); }
 .chip.sub { color: var(--bg); background: var(--amber); border-color: var(--amber); }
 .layernav .subtowers .sub .enter-btn { display: block; width: auto; grid-template-columns: none; border-left: 0; }
+
+/* Keyboard */
+:where(button, [role="button"], a, input, [tabindex]):focus-visible { outline: 1px solid var(--orange); outline-offset: 2px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange) 25%, transparent); }
+.shortcuts { width: min(1040px, calc(100vw - 32px)); max-height: calc(100vh - 80px); overflow: auto; padding: 18px 22px; }
+.shortcuts header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.shortcuts .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px 26px; }
+.shortcuts h3 { margin: 0 0 8px; font: 600 11px var(--display); letter-spacing: .16em; text-transform: uppercase; color: var(--orange); }
+.shortcuts dl { margin: 0; display: grid; gap: 6px; }
+.shortcuts dl div { display: grid; grid-template-columns: 112px 1fr; gap: 10px; align-items: baseline; }
+.shortcuts dd { margin: 0; font: 14px var(--ui); color: var(--white); }
+kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; font: 11px var(--mono); color: var(--white); background: color-mix(in srgb, var(--plate) 80%, transparent); white-space: nowrap; }
