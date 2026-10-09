@@ -31,8 +31,9 @@ npm run simulate -- game-studio    # terminal 2: 3 parallel walkers replay a pla
 
 Notes:
 - **Claude Code:** the SessionStart hook is a `command` hook that runs `flow-tower emit`: put the CLI on your `PATH` with `npm link` in your checkout (never `npx flow-tower`: the name is not published on npm, so npx would fetch whatever package claims it). Without it only the session start is missed.
-- **Claude Code:** the endpoint answers `204` with an empty body, because Claude Code reads a JSON response body as a hook decision. If the server is down, the hook simply fails open.
-- **Claude Code subagents:** these are detected from the `Agent` (formerly `Task`) tool and from `SubagentStart`/`SubagentStop`.
+- **Claude Code:** the endpoint answers `204` with an empty body, because Claude Code reads a JSON response body as a hook decision. If the server is down, the hook fails open: the session runs normally and Claude Code only prints a non-blocking "hook failed: ECONNREFUSED" line (checked with a real session).
+- **Claude Code subagents:** an `Agent` (formerly `Task`) call starts the subagent and `SubagentStop` ends it. Background subagents (the default) return from the call at once (`status: async_launched`), so their node stays lit until they really stop. Every event a subagent produces carries its **`role`**: the `description` of the `Agent` call that launched it. Several subagents of the same type (`general-purpose`) therefore map to different nodes with `match: ["role:*security*"]`. Resuming one with `SendMessage` starts it again.
+- **Claude Code main session:** its events have `agent: main` (`match: ["agent:main"]`). Turns that Claude Code injects (a background subagent reporting back, scheduled tasks, messages from other sessions) arrive through `UserPromptSubmit` but become `log` events with a short summary, not user prompts.
 - **Pi:** `pi --mode json "…" | flow-tower emit --source pi` also works for one-off runs.
 - **Codex:** approve the hooks once with `/hooks`; hooks in a repo's `.codex/` only run in trusted projects. Hosted tools (web search) do not fire hooks. Tool names match across sources (`Bash`, `apply_patch`, `mcp__<server>__<tool>`); failures are inferred from the tool response (non-zero `exit_code`, `isError`), since hooks carry no status and no tokens.
 - **Codex one-off runs:** `codex exec --json "…" | flow-tower emit --source codex` adds token usage per turn (input + output) and `spawn_agent`/`close_agent` subagents. Only the `thread.started` line carries the thread id, so other lines have no session.
@@ -95,7 +96,7 @@ By default an event lands on:
 - **nodes whose agent matches `agent`:** compared against the node id, the label, the agent id and the agent name, ignoring case and punctuation;
 - **tool nodes whose id or label matches `tool`:** MCP tools (`mcp__github__create_pr`) also match a tool node named after the server (`github`).
 
-For anything else, add `match:` rules to a node or an agent. Rules use `field:pattern` with `*` wildcards; `&` combines conditions and any matching rule wins:
+For anything else, add `match:` rules to a node or an agent. Rules use `field:pattern` with `*` wildcards; `&` combines conditions, `!` negates one (`tool:Bash&!message:*npm*test*`), and any matching rule wins. Patterns ignore case and punctuation:
 
 ```yaml
 - id: deploy
