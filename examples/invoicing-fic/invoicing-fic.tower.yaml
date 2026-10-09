@@ -1,0 +1,647 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Invoicing with Fatture in Cloud
+description: >-
+  Order-to-cash and purchase-to-pay for an Italian company on Fatture in Cloud (TeamSystem), run by
+  Claude agents with deterministic fiscal guards and people on every irreversible step. Closed-won
+  deals, accepted milestones, recurring contracts and manual requests become invoice requests with an
+  idempotency key. Client data is checked (VIES, partita IVA / codice fiscale, codice destinatario or
+  PEC), lines are drafted per order line, and a rules engine applies natura codes, split payment,
+  reverse charge, bollo and numbering before an approval threshold. Invoices are created through the
+  Fatture in Cloud API v2 and sent to the SDI by a nested send-and-monitor loop that fixes rejections
+  (scarto) within the 5-day window. Collections reconcile the bank feed, run a dunning sequence and
+  route credit notes and write-offs to finance. Received e-invoices are extracted and matched to
+  purchase orders. Month-end prepares VAT data, the accountant export, a cash-flow forecast and
+  conservazione. Sample company "Brezza Sensori S.r.l." (fictional), Bologna: IoT sensors,
+  installation services and a monitoring SaaS.
+tags: [finance, invoicing, accounts-receivable, accounts-payable, fatture-in-cloud, teamsystem, sdi, fatturapa, e-invoicing, italy, vies, reconciliation, dunning, gdpr, human-in-the-loop, claude-agent-sdk]
+
+runtimes:
+  workers:
+    kind: container
+    label: Finance agents
+    description: Claude Agent SDK workers, the webhook receiver, schedulers and the rules engine. Holds the only Fatture in Cloud OAuth tokens.
+    host: finance-agents
+    provider: google-cloud-run
+    region: europe-west8
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  ledger:
+    kind: cloud
+    label: Finance DB (EU)
+    description: "Postgres: invoice requests, idempotency keys, SDI events, reconciliation state, append-only audit log."
+    provider: google-cloud-sql
+    region: europe-west8
+  fic:
+    kind: saas
+    label: Fatture in Cloud
+    description: "API v2 at api-v2.fattureincloud.it. OAuth 2.0 authorization code flow (access token 24h, refresh token 1 year). Limits: 300 req / 5 min per company, 1,000 req / h and 40,000 req / month per company-app pair."
+    provider: teamsystem
+    url: https://developers.fattureincloud.it
+  sdi:
+    kind: saas
+    label: SDI
+    description: Sistema di Interscambio of the Agenzia delle Entrate. Fatture in Cloud is the transmitting intermediary; outcomes come back as ei_status.
+    provider: agenzia-entrate
+    url: https://www.fatturapa.gov.it
+  ade:
+    kind: browser
+    label: Fatture e Corrispettivi
+    description: Agenzia delle Entrate portal. Free conservazione service (service agreement), bollo elenchi A/B and payment, invoice consultation.
+    provider: agenzia-entrate
+    url: https://ivaservizi.agenziaentrate.gov.it
+  vies:
+    kind: saas
+    label: VIES
+    description: "EU VAT number validation, REST API POST /check-vat-number. No API key."
+    provider: european-commission
+    url: https://ec.europa.eu/taxation_customs/vies
+  crm:
+    kind: saas
+    label: HubSpot CRM
+    description: Deals, companies and line items. The sales-pipeline preset ends here with a closed-won deal.
+    provider: hubspot
+    url: https://app.hubspot.com
+  bank:
+    kind: saas
+    label: Bank feed (PSD2)
+    description: Account information service (AISP) delivering booked transactions for the two operating accounts. Provider-agnostic; read-only consent renewed every 180 days.
+    provider: psd2-aisp
+  erp:
+    kind: server
+    label: Purchasing (ERP)
+    description: Purchase orders and goods receipts used for the passive-cycle 3-way match.
+    host: erp-01
+    provider: on-prem
+  slack:
+    kind: saas
+    label: Slack
+    description: "#fin-approvals and #fin-ops: approval cards, escalations, the monthly digest."
+    provider: slack
+  accountant:
+    kind: saas
+    label: Commercialista
+    description: External accountant (Studio Ferri, fictional). Receives the monthly export by SFTP and files VAT liquidation and F24.
+    provider: sftp
+
+prompts:
+  intake: { file: prompts/intake.md, description: Turns a manual request (email or Slack form) into an invoice request JSON. }
+  steward: { file: prompts/data-steward.md, description: Explains client data mismatches and asks sales ops for the missing field. }
+  drafter: { file: prompts/line-drafter.md, description: "One order line to one Fatture in Cloud item: product, VAT id, minimal description." }
+  reviewer: { file: prompts/approval-brief.md, description: Approval brief for the finance controller and CFO. }
+  reconciler: { file: prompts/remittance-reader.md, description: Matches ambiguous bank transactions to open invoices. }
+  dunning: { file: prompts/dunning.md, description: Picks the dunning step and drafts the message from the templates. }
+  extractor: { file: prompts/received-extractor.md, description: Extracts supplier invoice data for the PO match. }
+  analyst: { file: prompts/finance-analyst.md, description: Cash-flow forecast and monthly digest. }
+
+agents:
+  intake:
+    name: Intake classifier
+    description: Reads manual requests; outputs an invoice request or asks one clarifying question. Cannot create documents.
+    model: claude-haiku-5-5
+    prompt: intake
+    runtime: workers
+    tools: [read_mailbox, crm_get_deal, post_slack_thread, enqueue_request]
+    budget: { usd: 0.05, turns: 6, on_exceed: stop }
+    data: { sensitivity: pii, region: eu, retention: 3650d }
+  steward:
+    name: Data steward
+    description: Compares CRM, Fatture in Cloud and VIES data for a client and proposes a fix. Read-only on every system.
+    model: claude-haiku-5-5
+    prompt: steward
+    runtime: workers
+    tools: [fic_list_clients, fic_get_client, vies_check, crm_get_company, post_slack_thread]
+    budget: { usd: 0.05, turns: 8, on_exceed: stop }
+    credentials: service
+    data: { sensitivity: pii, region: eu, retention: 3650d }
+  drafter:
+    name: Line drafter
+    description: One instance per order line. Chooses the product and the VAT type id from list_vat_types; never invents a natura code.
+    model: claude-sonnet-5-5
+    prompt: drafter
+    runtime: workers
+    tools: [fic_list_products, fic_list_vat_types, read_mapping]
+    harness: { max_turns: 8, output: json_schema }
+    budget: { usd: 0.08, turns: 8, on_exceed: stop }
+    sandbox: { network: allowlist, allow: [api-v2.fattureincloud.it], filesystem: read-only }
+    credentials: service
+    evals:
+      - { name: line fields correct vs controller edits (%), value: 97.4, target: 97 }
+  reviewer:
+    name: Approval brief writer
+    description: Summarizes amount, client history, rule hits and anomalies in ten lines for the approver. No tools that write.
+    model: claude-opus-5-5
+    prompt: reviewer
+    runtime: workers
+    tools: [fic_get_issued_document, ledger_query]
+    budget: { usd: 0.4, turns: 6, on_exceed: downgrade }
+  reconciler:
+    name: Remittance reader
+    description: Reads causale text, amounts and payer IBAN of unmatched transactions; proposes a match with a confidence score.
+    model: claude-haiku-5-5
+    prompt: reconciler
+    runtime: workers
+    tools: [ledger_query, fic_list_issued_documents]
+    budget: { usd: 0.03, turns: 6, on_exceed: stop }
+    data: { sensitivity: confidential, region: eu, retention: 3650d, description: Bank transactions and payer IBANs. }
+    evals:
+      - { name: suggested matches confirmed by AR (%), value: 93, target: 90 }
+  dunning:
+    name: Dunning agent
+    description: Daily overdue scan. Chooses the step from collections/dunning-sequence.yaml and fills the Italian template; cannot change amounts or due dates.
+    model: claude-sonnet-5-5
+    prompt: dunning
+    runtime: workers
+    tools: [ledger_query, fic_get_issued_document, crm_get_company, send_email_draft]
+    budget: { usd: 0.3, turns: 12, on_exceed: pause }
+    data: { sensitivity: pii, region: eu, retention: 3650d }
+  extractor:
+    name: Received-invoice extractor
+    description: One instance per received e-invoice. Reads the pending document and its XML; outputs supplier, lines, VAT, ritenuta and due dates.
+    model: claude-haiku-5-5
+    prompt: extractor
+    runtime: workers
+    tools: [fic_get_pending_received_document, erp_get_po]
+    harness: { max_turns: 6, output: json_schema }
+    budget: { usd: 0.04, turns: 6, on_exceed: stop }
+    data: { sensitivity: confidential, region: eu, retention: 3650d }
+    evals:
+      - { name: header fields exact (%), value: 98.6, target: 98 }
+  analyst:
+    name: Finance analyst
+    description: Builds the 13-week cash-flow forecast and writes the monthly digest from the ledger. Read-only.
+    model: claude-opus-5-5
+    prompt: analyst
+    runtime: workers
+    tools: [ledger_query, fic_list_issued_documents, fic_list_received_documents, mcp__fattureincloud__get_situation]
+    budget: { usd: 3, turns: 30, on_exceed: downgrade }
+    data: { sensitivity: confidential, region: eu, retention: 3650d }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: intake
+    title: Triggers & Intake
+    description: Four ways in, one request shape, one idempotency key. A request that already produced an invoice is dropped, not re-issued.
+    nodes:
+      - id: won
+        type: entry
+        label: Deal closed-won
+        runtime: crm
+        description: HubSpot deal moved to closed-won with signed order and line items. The sales-pipeline preset hands off here.
+        trigger: { kind: webhook, source: HubSpot deal stage change }
+        files: [data/order-sample.json]
+      - id: milestone
+        type: entry
+        label: Milestone accepted
+        runtime: workers
+        description: Installation projects bill on signed acceptance of a milestone (SAL). The acceptance date is the effettuazione date for the 12-day clock.
+        trigger: { kind: event, source: project acceptance form }
+      - id: recurring
+        type: entry
+        label: Recurring run
+        runtime: workers
+        description: "Monitoring SaaS contracts billed monthly in advance on the 1st, 06:00 Europe/Rome. Unchanged amount + clean checks is the only auto-issue path."
+        trigger: { kind: cron, schedule: "0 6 1 * *", source: Cloud Scheduler }
+        files: [data/order-sample.json]
+      - id: manual
+        type: entry
+        label: Manual request
+        runtime: workers
+        description: Requests to fatturazione@brezza-sensori.example or the Slack form (one-off services, re-billing, corrections).
+        trigger: { kind: email, source: fatturazione@ mailbox and Slack form }
+      - id: intake
+        agent: intake
+        label: Intake classifier
+      - id: dedupe
+        type: guard
+        label: Idempotency key
+        runtime: workers
+        description: "key = source:deal_or_contract:milestone_or_period. Unique index in the ledger; a second request with the same key returns the existing invoice id."
+        files: [scripts/create_invoice.py]
+        data: { sensitivity: internal, region: eu, retention: 3650d }
+    edges:
+      - won -> dedupe
+      - milestone -> dedupe
+      - recurring -> dedupe
+      - manual -> intake
+      - "intake -> dedupe: request JSON"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: validate
+    title: Client & Data Validation
+    description: The SDI rejects unknown VAT numbers and invalid recipient codes (errors 00305, 00311). Catch them here, before a number is used.
+    nodes:
+      - id: lookup
+        label: Client lookup
+        runtime: workers
+        description: "Find the client in Fatture in Cloud by VAT number (list_clients, q \"vat_number = '...'\"), else by codice fiscale, else from the CRM company."
+        files: [scripts/fic_client.py]
+        limits: { timeout: 30s, retries: 3, backoff: "exponential 2s..60s" }
+      - id: vies
+        type: tool
+        label: VIES check
+        runtime: vies
+        description: "POST /check-vat-number with countryCode and vatNumber. Required for EU clients (N2.1 / N3.2 lines); also run for Italian VAT numbers. Member-state outages are retried, never treated as invalid."
+        files: [scripts/vies_check.py]
+        limits: { timeout: 20s, retries: 3, backoff: "exponential 5s..5m" }
+      - id: rules
+        type: guard
+        label: Fiscal ID rules
+        runtime: workers
+        description: Partita IVA checksum, codice fiscale format, codice destinatario (7 chars) or PEC, PA codice univoco ufficio (6 chars), XXXXXXX for foreign clients, split-payment flag.
+        files: [rules/client-validation.yaml]
+      - id: data_ok
+        type: decision
+        label: Data complete?
+        runtime: workers
+        description: Every field the XML needs is present and consistent across CRM, Fatture in Cloud and VIES.
+      - id: steward
+        agent: steward
+        label: Data steward
+      - id: sales_ops
+        type: human
+        label: Sales ops fix
+        runtime: slack
+        description: Gets the missing field from the client (codice destinatario, PEC, CIG/CUP for PA) and updates the CRM.
+        approval: { by: sales operations, via: Slack, actions: [respond, snooze], timeout: 48h, on_timeout: escalate }
+      - id: upsert
+        type: tool
+        label: Client upsert
+        runtime: fic
+        description: create_client / modify_client with ei_code, certified_email, e_invoice true, vat_number, tax_code, country_iso.
+        files: [scripts/fic_client.py, config/oauth-scopes.yaml]
+        credentials: service
+        data: { sensitivity: pii, region: eu, retention: 3650d }
+    edges:
+      - { from: lookup, to: vies, kind: call, protocol: http, label: check-vat-number }
+      - "vies -> rules [return]: valid, name, address"
+      - lookup -> rules
+      - rules -> data_ok
+      - "data_ok -> steward: mismatch or missing"
+      - "steward -> sales_ops [handoff]: one precise question"
+      - "sales_ops -> lookup [return]: corrected"
+      - "data_ok -> upsert: valid"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: draft
+    title: Drafting & Fiscal Checks
+    description: The agent drafts lines; code decides the fiscal treatment. Nothing in this layer reserves an invoice number.
+    nodes:
+      - id: drafter
+        agent: drafter
+        label: Line drafter
+        fanout: { min: 1, max: 40, by: order line }
+      - id: payload
+        label: Payload builder
+        runtime: workers
+        description: "Builds the create request from config/invoice-mapping.json: entity, items_list, payments_list from payment terms, e_invoice true, ei_data.payment_method MP05 and bank_iban."
+        files: [config/invoice-mapping.json, scripts/create_invoice.py]
+      - id: totals
+        type: tool
+        label: Totals preview
+        runtime: fic
+        description: get_new_issued_document_totals on the draft; amounts are compared with the CRM order (tolerance 0.01 EUR per line).
+        limits: { timeout: 30s, retries: 3, backoff: "exponential 2s..60s" }
+      - id: fiscal
+        type: guard
+        label: Fiscal rules
+        runtime: workers
+        description: Natura required when VAT is 0 % (00400) and forbidden otherwise (00401); split payment for PA; reverse charge never with split payment (00420); bollo 2 EUR when non-VAT lines exceed 77.47 EUR; forfettario and ritenuta cases.
+        files: [scripts/fiscal_checks.py, rules/vat-fiscal-rules.md]
+      - id: numbering
+        type: guard
+        label: Numbering & 12 days
+        runtime: workers
+        description: One numeration per series, no gaps, invoice date never after transmission (00403). Immediate invoices within 12 days of effettuazione; deferred (TD24) by the 15th of the following month.
+        files: [scripts/fiscal_checks.py, rules/vat-fiscal-rules.md]
+        sla: 12d
+      - id: draft_ok
+        type: decision
+        label: Checks pass?
+        runtime: workers
+        description: Hard failures go back to the drafter (max 2 rounds), then to a person. Warnings travel with the draft to approval.
+    edges:
+      - "drafter -> payload [data]: items"
+      - { from: payload, to: totals, kind: call, protocol: http, label: totals }
+      - "totals -> fiscal [return]: amounts"
+      - fiscal -> numbering
+      - numbering -> draft_ok
+      - { from: draft_ok, to: drafter, kind: return, label: "fixable, max 2", condition: "hard_failures > 0 && round < 2" }
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: approve
+    title: Approval & Issue
+    description: Auto-issue only for unchanged recurring invoices under the threshold. Everything else carries a brief and a named approver.
+    nodes:
+      - id: route
+        type: decision
+        label: Needs approval?
+        runtime: workers
+        description: "policies/approval-policy.yaml: amount >= 5,000 EUR, first invoice to a client, PA client, any warning, or amount differing from the order."
+        files: [policies/approval-policy.yaml]
+      - id: reviewer
+        agent: reviewer
+        label: Approval brief
+      - id: controller
+        type: human
+        label: Finance controller
+        runtime: slack
+        description: Approves invoices and every credit note. Edit sends the draft back with a comment.
+        approval: { by: finance controller, via: Slack, actions: [approve, edit, reject], timeout: 24h, on_timeout: escalate }
+      - id: cfo
+        type: human
+        label: CFO
+        runtime: slack
+        description: Invoices >= 50,000 EUR, credit notes > 2,000 EUR, every write-off, and controller timeouts.
+        approval: { by: CFO, via: Slack, actions: [approve, reject], timeout: 48h, on_timeout: wait }
+      - id: create
+        type: tool
+        label: Create invoice
+        runtime: fic
+        description: "Idempotency check (ledger, then list_issued_documents by subject tag), then create_issued_document with type invoice and e_invoice true. The returned id is written to the ledger in the same transaction as the key."
+        files: [scripts/create_invoice.py, config/oauth-scopes.yaml]
+        limits: { timeout: 60s, retries: 2, backoff: "exponential 5s..2m", concurrency: 2 }
+        credentials: service
+        data: { sensitivity: pii, region: eu, retention: 3650d, description: Client identifiers and fiscal data; 10 years under art. 2220 c.c. }
+        sla: 12d
+    edges:
+      - { from: route, to: create, label: auto, condition: "recurring && unchanged && amount < 5000 && warnings == 0" }
+      - "route -> reviewer: needs approval"
+      - "reviewer -> controller [handoff]: brief"
+      - { from: controller, to: cfo, kind: handoff, label: "≥ 50k or timeout", condition: "amount >= 50000 || timed_out" }
+      - "controller -> create: approved"
+      - "cfo -> create: approved"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: sdi
+    title: SDI Send & Monitoring
+    description: Sending and the scarto fix loop live in the sub-tower. This layer listens for outcomes and tells the client.
+    nodes:
+      - id: loop
+        label: SDI loop
+        runtime: workers
+        description: Verify XML, dry run, send, wait for the outcome, fix and resend a scarto within 5 days. Double-click to enter.
+        tower: towers/sdi-loop.tower.yaml
+        limits: { max_iterations: 3 }
+        sla: 5d
+      - id: hook
+        type: entry
+        label: Status webhook
+        runtime: fic
+        description: it.fattureincloud.webhooks.issued_documents.e_invoices.status_update. The body carries only document ids.
+        trigger: { kind: webhook, source: Fatture in Cloud webhooks }
+        files: [config/webhook-subscriptions.json]
+      - id: receiver
+        label: Webhook receiver
+        runtime: workers
+        description: Verifies the ES256 JWT in Authorization, drops duplicate ce-id (at-least-once delivery), answers 202 at once and queues the work. 10 days of errors expire the subscription.
+        files: [scripts/webhook_receiver.py]
+        resources:
+          - { kind: log, label: SDI notifications, path: logs/sdi-notifications.log }
+      - id: sweep
+        type: entry
+        label: Stuck-status sweep
+        runtime: workers
+        description: "Every 30 min: invoices still in attempt or pending after 2h are read once (fields=ei_status). Fallback for missed webhooks; costs at most a few dozen requests per day."
+        trigger: { kind: cron, schedule: "*/30 * * * *", source: Cloud Scheduler }
+      - id: outcome
+        type: decision
+        label: ei_status?
+        runtime: workers
+        description: rules/sdi-outcomes.md maps each ei_status to an action.
+        files: [rules/sdi-outcomes.md]
+      - id: notify
+        label: Client notice
+        runtime: workers
+        description: "Delivered: courtesy PDF via schedule_email (not the legal copy). not_delivered: the invoice is issued; tell the client it is in their Fatture e Corrispettivi area."
+        files: [rules/sdi-outcomes.md]
+    edges:
+      - { from: hook, to: receiver, kind: flow, protocol: webhook, label: CloudEvents }
+      - "receiver -> outcome: document id"
+      - "sweep -> outcome: stuck ids"
+      - "outcome -> notify: delivered or not_delivered"
+      - "outcome -> loop [return]: discarded or error"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: collect
+    title: Collections & Credit Notes
+    description: Match money to invoices, chase what is late, and never cancel revenue without a signature.
+    nodes:
+      - id: feed
+        type: entry
+        label: Bank feed
+        runtime: bank
+        description: Booked transactions of the last 3 days (overlap on purpose; dedupe by transaction id).
+        trigger: { kind: cron, schedule: "0 7 * * 1-5", source: AISP sync }
+        data: { sensitivity: confidential, region: eu, retention: 3650d }
+        files: [data/bank-feed-sample.csv]
+      - id: match
+        label: Auto-match
+        runtime: workers
+        description: "Deterministic first: invoice number in causale + exact amount, then IBAN + amount, then split-payment net amount for PA. Ties go to the agent."
+        files: [scripts/reconcile.py, collections/reconciliation-rules.yaml]
+        evals:
+          - { name: auto-match rate (%), value: 88, target: 85 }
+      - id: reconciler
+        agent: reconciler
+        label: Remittance reader
+      - id: mark_paid
+        type: tool
+        label: Mark paid
+        runtime: fic
+        description: modify_issued_document setting payments_list[n].status paid, paid_date and payment_account. Partial payments split the instalment.
+        limits: { retries: 3, backoff: "exponential 2s..60s", concurrency: 2 }
+        credentials: service
+      - id: ar_clerk
+        type: human
+        label: AR clerk
+        runtime: slack
+        description: Unmatched or low-confidence transactions; also refunds and unknown payers.
+        approval: { by: accounts receivable clerk, via: Slack, actions: [approve, edit, reject], timeout: 3d, on_timeout: escalate }
+      - id: dunning
+        agent: dunning
+        label: Dunning
+        description: "Steps at D+3, D+15, D+30, D+45 after the due date (collections/dunning-sequence.yaml). Paused by any open dispute or payment promise."
+        trigger: { kind: cron, schedule: "0 9 * * 1-5", source: overdue scan }
+        files: [collections/dunning-sequence.yaml, collections/dunning-templates.md]
+        evals:
+          - { name: paid within 15d of first reminder (%), value: 71, target: 65 }
+      - id: credit_mgr
+        type: human
+        label: Credit manager
+        runtime: slack
+        description: Decides on payment plans, service suspension, legal handoff, or a credit note / write-off proposal.
+        approval: { by: credit manager, via: Slack, actions: [approve, edit, reject, snooze], timeout: 5d, on_timeout: wait }
+      - id: credit_note
+        type: tool
+        label: Credit note
+        runtime: fic
+        description: "create_issued_document with type credit_note (TD04) referencing the original number and date; then the same SDI loop. Never deletes or edits an issued invoice."
+        files: [policies/approval-policy.yaml]
+        credentials: service
+    edges:
+      - feed -> match
+      - "match -> mark_paid: exact"
+      - "match -> reconciler: ambiguous"
+      - { from: reconciler, to: mark_paid, label: confident, condition: "confidence >= 0.9" }
+      - "reconciler -> ar_clerk [handoff]: low confidence"
+      - "ar_clerk -> mark_paid: confirmed"
+      - "dunning -> credit_mgr [handoff]: D+45 unpaid or dispute"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: passive
+    title: Passive Cycle
+    description: Received e-invoices arrive from the SDI through Fatture in Cloud. Registration stays a manual step because the API cannot register pending documents.
+    nodes:
+      - id: received
+        type: entry
+        label: Received e-invoice
+        runtime: fic
+        description: it.fattureincloud.webhooks.received_documents.e_invoices.receive (automatic registration off), then get_pending_received_document.
+        trigger: { kind: webhook, source: Fatture in Cloud webhooks }
+        files: [config/webhook-subscriptions.json]
+      - id: extractor
+        agent: extractor
+        label: Line extractor
+        fanout: { min: 1, max: 20, by: received invoice }
+      - id: po_match
+        label: PO 3-way match
+        runtime: erp
+        description: Invoice vs purchase order vs goods receipt. Tolerances in passive/po-matching-rules.yaml; services match against the PO only.
+        files: [passive/po-matching-rules.yaml]
+      - id: matched
+        type: decision
+        label: Within tolerance?
+        runtime: workers
+      - id: owner
+        type: human
+        label: Budget owner
+        runtime: slack
+        description: Invoices without a PO, over tolerance, or from a new supplier.
+        approval: { by: budget owner, via: Slack, actions: [approve, reject, respond], timeout: 5d, on_timeout: escalate }
+      - id: register
+        type: human
+        label: Register in FIC
+        runtime: fic
+        description: Accounts payable registers the document from "Da registrare" in the Fatture in Cloud UI ("It is not possible to register the documents using APIs").
+        credentials: user
+      - id: pay_run
+        label: Payment run
+        runtime: workers
+        description: Weekly SEPA batch proposal by due date. Freelancer invoices with ritenuta d'acconto pay the net amount; the withheld 20 % goes on the F24 by the 16th of the following month.
+        trigger: { kind: cron, schedule: "0 8 * * 3", source: Cloud Scheduler }
+        files: [passive/po-matching-rules.yaml]
+      - id: treasury
+        type: human
+        label: Treasury release
+        runtime: bank
+        description: Approves the batch in the bank portal with strong customer authentication. The agents have no payment initiation rights.
+        approval: { by: treasurer, via: bank portal, actions: [approve, edit, reject], timeout: 24h, on_timeout: wait }
+        credentials: user
+    edges:
+      - "received -> extractor [spawn]: per document"
+      - "extractor -> po_match [data]: lines, VAT, due dates"
+      - po_match -> matched
+      - "matched -> register: match"
+      - "matched -> owner: mismatch or no PO"
+      - "owner -> register: approved"
+      - "register -> pay_run [data]: due dates"
+      - "pay_run -> treasury [handoff]: batch"
+
+  # 8 ───────────────────────────────────────────────────────────────
+  - id: report
+    title: Reporting & Compliance
+    description: Agents prepare; the commercialista files. Ten-year retention for invoices, ledger and audit trail.
+    nodes:
+      - id: vat
+        label: VAT data
+        runtime: workers
+        description: "Month-end on the 2nd: output and input VAT by rate and natura, split-payment VAT (not collected), reverse-charge integrations, ritenute withheld. Feeds the monthly liquidation due on the 16th."
+        trigger: { kind: cron, schedule: "0 7 2 * *", source: Cloud Scheduler }
+        files: [reporting/accountant-export-spec.md]
+      - id: bollo
+        label: Bollo check
+        runtime: ade
+        description: "Quarterly: invoices with stamp_duty vs the Agency's elenco A, and elenco B (bollo detected but not declared). 2 EUR each; F24 codes 2521-2524."
+        files: [rules/vat-fiscal-rules.md]
+      - id: export
+        label: Accountant export
+        runtime: accountant
+        description: Monthly CSV + XML bundle by SFTP (PGP-encrypted) to the commercialista. Spec in reporting/accountant-export-spec.md.
+        files: [reporting/accountant-export-spec.md]
+        data: { sensitivity: confidential, region: eu, retention: 3650d }
+      - id: cashflow
+        agent: analyst
+        label: Cash-flow forecast
+        description: 13-week forecast from open receivables (due date + payer lateness history), the payment-run schedule, VAT and F24 dates.
+      - id: digest
+        type: output
+        label: Monthly digest
+        runtime: slack
+        description: Posted to #fin-ops on the 3rd.
+        files: [samples/monthly-digest-2026-09.md]
+      - id: conservazione
+        type: tool
+        label: Conservazione
+        runtime: ade
+        description: Free AdE conservazione a norma for every invoice sent or received through the SDI (service agreement signed in Fatture e Corrispettivi). Kept 10 years.
+        data: { sensitivity: confidential, region: eu, retention: 3650d }
+      - id: audit
+        type: memory
+        label: Audit trail
+        runtime: ledger
+        description: "Append-only: request, key, draft hash, rule results, approver, FIC document id, SDI events, payment matches, dunning messages. The worker role has INSERT only."
+        data: { sensitivity: confidential, region: eu, retention: 3650d }
+      - id: fic_mcp
+        type: tool
+        label: FIC MCP (read)
+        runtime: workers
+        status: experimental
+        description: "Community server aringad/fattureincloud-mcp (unofficial, MIT; no official MCP server exists). Run over stdio with a reader-scope manual token; only get_situation is allowlisted for the analyst. Its write tools (create_invoice, send_to_sdi) are never exposed."
+        files: [config/oauth-scopes.yaml]
+        sandbox: { network: allowlist, allow: [api-v2.fattureincloud.it], filesystem: none }
+        credentials: service
+      - id: llm_budget
+        type: guard
+        label: LLM budget
+        runtime: workers
+        description: Monthly Claude spend cap for the whole finance stack. Over the cap, Opus steps downgrade to Sonnet; fiscal guards never depend on a model.
+        budget: { usd: 180, on_exceed: downgrade }
+    edges:
+      - "vat -> export [data]: VAT summary"
+      - "vat -> cashflow [data]: VAT and F24 dates"
+      - "cashflow -> digest: forecast + KPIs"
+      - "bollo -> export [data]: bollo per quarter"
+      - { from: cashflow, to: fic_mcp, kind: call, protocol: mcp, label: get_situation }
+
+links:
+  # intake -> validation -> drafting
+  - "intake.dedupe -> validate.lookup: new request"
+  - "validate.upsert -> draft.drafter [spawn]: per order line"
+  - "draft.draft_ok -> approve.route: draft + warnings"
+  - "draft.draft_ok -> validate.steward [return]: client data issue"
+  # issue -> SDI
+  - "approve.create -> sdi.loop: document id"
+  - "approve.controller -> draft.drafter [return]: edit"
+  - "sdi.loop -> sdi.outcome: final ei_status"
+  # collections -> credit notes need approval
+  - "sdi.notify -> collect.dunning [data]: due dates"
+  - "collect.credit_mgr -> approve.controller [handoff]: credit note proposal"
+  - "collect.credit_mgr -> approve.cfo [handoff]: write-off"
+  - "approve.controller -> collect.credit_note: credit note approved"
+  - "approve.cfo -> collect.credit_note: approved"
+  - "collect.credit_note -> sdi.loop: TD04"
+  # passive cycle and reporting
+  - "collect.mark_paid -> report.cashflow [data]: receipts"
+  - "passive.pay_run -> report.cashflow [data]: outflows"
+  - "passive.register -> report.vat [data]: input VAT"
+  - "sdi.outcome -> report.conservazione [data]: issued invoices"
+  - "passive.register -> report.conservazione [data]: received invoices"
+  # audit and budget
+  - "approve.create -> report.audit [data]: key, approver, id"
+  - "sdi.receiver -> report.audit [data]: SDI events"
+  - "collect.mark_paid -> report.audit [data]: match"
+  - "report.llm_budget -> approve.reviewer: over cap, downgrade"

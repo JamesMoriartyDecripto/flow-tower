@@ -1,0 +1,35 @@
+# Yousign (renaming to Youtrust in 2026) API v3 signature request settings.
+# Secrets live in Secret Manager; only their names appear here.
+api:
+  base_url: https://api.yousign.app/v3
+  sandbox_url: https://api-sandbox.yousign.app/v3
+  api_key_secret: projects/ferrovento-sales/secrets/yousign-api-key   # name only
+
+signature_request:
+  name: "{{company}} - MSA + SOW {{quote_number}}"
+  delivery_mode: email
+  signature_level: advanced_electronic_signature
+  ordered_signers: true            # customer signs first, then Ferrovento's CEO
+  expiration_days: 30
+  reminders: { interval_days: 3, max_occurrences: 5 }
+  timezone: Europe/Rome
+  documents:
+    - { file: msa.pdf, nature: signable_document }
+    - { file: sow.pdf, nature: signable_document }
+    - { file: dpa.pdf, nature: signable_document }
+
+signers:
+  - role: customer_legal_representative
+    source: HubSpot deal property signer_name / signer_email (checked against Atoka officers)
+    authentication: otp_sms
+  - role: ferrovento_ceo
+    authentication: otp_sms
+
+webhook:
+  url: https://sales-agents.ferrovento.example/hooks/yousign
+  events: [signature_request.done, signature_request.declined, signature_request.expired, signature_request.canceled]
+  on_done:
+    - download signed documents and audit trail
+    - attach to HubSpot deal, set stage closedwon
+  on_declined_or_expired: notify AE in Slack; no automatic resend
+  idempotency: event uuid stored; repeated deliveries are ignored

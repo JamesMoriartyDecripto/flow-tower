@@ -1,0 +1,50 @@
+# Channel matrix used by scripts/lawful_basis.py and the sequence engine.
+# Not legal advice: reviewed by the DPO; re-check when a regulator publishes new guidance.
+version: 2026-10-06
+
+defaults:
+  max_emails_per_prospect: 4
+  retention_no_engagement_days: 180
+  opt_out_processing_hours: 24      # Gmail / Yahoo expect unsubscribes honoured within 2 days
+  ai_disclosure: >-
+    Messages are written and sent under a named employee who reviewed them. Any automated
+    assistant that converses with a person in real time says it is an AI (EU AI Act Art. 50(1)).
+
+countries:
+  IT:
+    email:
+      cold: false            # art. 130 Codice privacy: prior consent, also for legal persons as "contraenti"
+      with_consent: true
+      existing_customer_similar_service: true   # art. 130(4), with opt-out offered at collection and in every message
+    phone:
+      allowed: true          # operator calls to business numbers
+      condition: number not in the Registro pubblico delle opposizioni (checked before each campaign, at least monthly)
+    linkedin:
+      allowed: manual_only   # rep writes and sends; no automation
+    sources_forbidden: [ini-pec, purchased-email-lists, scraped-websites-email]
+    references:
+      - Garante, Linee guida spam 4 July 2013, sect. 2.5, 6.1 (doc. web 2542348)
+      - Garante, decision 17 May 2023 (doc. web 9899880), recital 47 not invocable
+      - Garante, decision 1 Feb 2018 (doc. web 7810723), PEC from public registers
+
+  FR:
+    email:
+      cold: true             # B2B: work address, message related to the person's role, informed + opt-out
+      condition: recipient role in the ICP persona list AND sender identified AND opt-out link in every email
+      with_consent: true
+    phone:
+      allowed: true
+      condition: business line; no Bloctel check needed for professionals (Bloctel covers consumers)
+    linkedin:
+      allowed: manual_only
+    references:
+      - CPCE art. L34-5 and CNIL guidance on B2B prospecting (opt-out regime for role-related messages)
+
+  OTHER:
+    email: { cold: false, with_consent: true }
+    phone: { allowed: false }
+    linkedin: { allowed: manual_only }
+    notes: Not in the ICP. Inbound only, until the DPO adds a country section.
+
+us_recipients:
+  note: Not targeted. If an inbound US lead is emailed, CAN-SPAM applies to B2B too (postal address, ad identification, opt-out honoured within 10 business days).
