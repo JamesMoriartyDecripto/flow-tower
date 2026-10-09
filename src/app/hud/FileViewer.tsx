@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { codeToHtml } from 'shiki';
 import { fetchFile } from '../api';
+import { usePrefs } from '../settings';
 import { useStore } from '../store';
+import { MarkdownView } from './MarkdownView';
 import { useDialogFocus } from './dialog';
 
 const LANGS: Record<string, string> = {
@@ -10,7 +12,7 @@ const LANGS: Record<string, string> = {
   rs: 'rust', go: 'go', sql: 'sql', html: 'html', css: 'css', sol: 'solidity',
 };
 
-type View = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ok'; html: string; lines: number; lang: string };
+type View = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ok'; html: string; lines: number; lang: string; source: string; markdown: boolean };
 
 /** Modal popup showing one of the node's files with syntax highlighting. */
 export function FileViewer() {
@@ -18,6 +20,8 @@ export function FileViewer() {
   const openFile = useStore((s) => s.openFile);
   const [view, setView] = useState<View>({ state: 'loading' });
   const path = file?.files[file.index];
+  const wrap = usePrefs((s) => s.viewerWrap);
+  const markdownSource = usePrefs((s) => s.markdownSource);
 
   useEffect(() => {
     if (!file || !path) return;
@@ -29,7 +33,7 @@ export function FileViewer() {
         // shiki escapes the source, so the generated HTML is safe to inject
         const html = await codeToHtml(content, { lang, theme: 'vitesse-dark' }).catch(() =>
           codeToHtml(content, { lang: 'text', theme: 'vitesse-dark' }));
-        if (alive) setView({ state: 'ok', html, lines: content.split('\n').length, lang });
+        if (alive) setView({ state: 'ok', html, lines: content.split('\n').length, lang, source: content, markdown: ext === 'md' || ext === 'markdown' });
       })
       .catch((e: Error) => alive && setView({ state: 'error', message: e.message }));
     return () => { alive = false; };
@@ -51,14 +55,25 @@ export function FileViewer() {
             </button>
           ))}
         </nav>
-        <div className="code">
+        <div className={`code ${wrap ? 'wrap' : ''}`}>
           {view.state === 'loading' && <p className="mono dim" style={{ padding: 20 }}>DECRYPTING STREAM…</p>}
           {view.state === 'error' && <p className="mono" style={{ padding: 20, color: 'var(--error)' }}>{view.message}</p>}
-          {view.state === 'ok' && <div dangerouslySetInnerHTML={{ __html: view.html }} />}
+          {view.state === 'ok' && (view.markdown && !markdownSource
+            ? <MarkdownView source={view.source} path={path} files={file.files} onOpen={(f) => openFile({ ...file, index: file.files.indexOf(f) })} />
+            : <div dangerouslySetInnerHTML={{ __html: view.html }} />)}
         </div>
         <footer>
-          <span>{path}</span>
-          <span>{view.state === 'ok' ? `${view.lines} lines · ${view.lang}` : ''} · ESC to close</span>
+          <span className="viewer-path">{path}</span>
+          <span className="viewer-tools">
+            {view.state === 'ok' && view.markdown && (
+              <span className="seg" title="Markdown: formatted or source (V)">
+                <button className={markdownSource ? '' : 'on'} onClick={() => usePrefs.getState().set({ markdownSource: false })}>Formatted</button>
+                <button className={markdownSource ? 'on' : ''} onClick={() => usePrefs.getState().set({ markdownSource: true })}>Source</button>
+              </span>
+            )}
+            <button className={`chip clickable ${wrap ? 'on' : ''}`} onClick={() => usePrefs.getState().set({ viewerWrap: !wrap })} title="Wrap long lines (W)">⏎ Wrap</button>
+            <span>{view.state === 'ok' ? `${view.lines} lines · ${view.lang}` : ''} · ESC to close</span>
+          </span>
         </footer>
       </div>
     </div>

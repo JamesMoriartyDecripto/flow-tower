@@ -123,7 +123,7 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .kv { display: grid; grid-template-columns: 120px 1fr; gap: 4px 10px; font: 13px var(--mono); }
 .kv dt { color: var(--dim); }
 .kv dd { margin: 0; word-break: break-word; }
-.conn { display: flex; gap: 8px; align-items: center; width: 100%; padding: 5px 6px; font: 14px var(--ui); text-align: left; }
+.conn { display: grid; grid-template-columns: 58px auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 8px; width: 100%; padding: 5px 6px; font: 14px var(--ui); text-align: left; }
 .conn:hover { background: color-mix(in srgb, var(--orange) 8%, transparent); }
 .conn .k { font: 10px var(--mono); color: var(--amber); width: 58px; }
 .prompt { white-space: pre-wrap; font: 12.5px/1.6 var(--mono); color: #cfdcf3; background: rgba(0, 0, 0, .25); border: 1px solid var(--line-soft); padding: 12px; }
@@ -230,8 +230,8 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .tabbody { padding-bottom: 30px; scrollbar-gutter: stable; }
 .kv { grid-template-columns: fit-content(42%) minmax(0, 1fr); }
 .kv dt, .kv dd { overflow-wrap: anywhere; min-width: 0; }
-.conn { flex-wrap: wrap; row-gap: 2px; }
-.conn > span { min-width: 0; overflow-wrap: anywhere; }
+.conn .what { min-width: 0; overflow-wrap: break-word; }
+.conn .tags { display: flex; gap: 4px; align-items: baseline; white-space: nowrap; }
 .prompt { overflow-wrap: anywhere; }
 .filelist button, .reslist a, .reslist button { overflow-wrap: anywhere; }
 .enter { flex-shrink: 0; }
@@ -369,7 +369,7 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 /* Node panel: connections and keyboard stops */
 .inspector .section:focus-visible, .inspector .section:focus { outline: none; box-shadow: inset 2px 0 0 var(--orange); background: color-mix(in srgb, var(--orange) 5%, transparent); }
 .conn .arrow { color: var(--dim); }
-.conn .name { flex: 1; min-width: 0; }
+.conn .name { color: var(--white); }
 .conn .lay { font: 10px var(--mono); color: var(--orange); border: 1px solid var(--line); padding: 0 4px; }
 .conn-back { width: 100%; margin: 4px 0 10px; text-align: left; }
 
@@ -425,3 +425,32 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .feed-usage { margin-left: auto; margin-right: 10px; font-size: 11px; color: var(--live-done); }
 .lib-usage { color: var(--live-done); }
 .run-limits { padding: 0 6px 8px; font-size: 11px; line-height: 1.4; color: var(--amber); }
+
+/* File viewer: wrap and formatted Markdown */
+.viewer footer { align-items: center; gap: 12px; }
+.viewer .viewer-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.viewer .viewer-tools { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.viewer .viewer-tools .seg button { padding: 3px 8px; font-size: 10px; }
+.viewer .code.wrap pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Wrapped lines hang under the text, not under the line number. */
+.viewer .code.wrap .line { display: inline-block; padding-left: 4.4em; text-indent: -4.4em; }
+.md-view { max-width: 860px; padding: 4px 28px 24px; font: 15px/1.6 var(--ui); color: var(--white); overflow-wrap: anywhere; }
+.md-view h1, .md-view h2, .md-view h3, .md-view h4 { font-family: var(--display); color: var(--orange); letter-spacing: .04em; margin: 1.3em 0 .5em; line-height: 1.25; }
+.md-view h1 { font-size: 22px; } .md-view h2 { font-size: 18px; } .md-view h3 { font-size: 15px; } .md-view h4 { font-size: 13px; }
+.md-view a, .md-view .md-link { color: var(--amber); text-decoration: underline; text-underline-offset: 2px; }
+.md-view .md-link { font: inherit; padding: 0; cursor: pointer; }
+.md-view .md-dead, .md-view .md-img { color: var(--dim); }
+.md-view code { font: 13px var(--mono); background: color-mix(in srgb, var(--plate) 70%, transparent); padding: 1px 5px; border-radius: 3px; }
+.md-view pre { background: color-mix(in srgb, var(--plate) 70%, transparent); border: 1px solid var(--line-soft); padding: 10px 14px; overflow-x: auto; }
+.md-view pre code { background: none; padding: 0; }
+.viewer .code.wrap .md-view pre { white-space: pre-wrap; }
+.md-view blockquote { margin: 0; padding: 2px 14px; border-left: 3px solid var(--orange); color: var(--dim); }
+.md-view table { border-collapse: collapse; margin: 10px 0; font-size: 14px; display: block; overflow-x: auto; }
+.md-view th, .md-view td { border: 1px solid var(--line-soft); padding: 5px 10px; text-align: left; vertical-align: top; }
+.md-view th { color: var(--orange); font-weight: 700; }
+.md-view hr { border: 0; border-top: 1px solid var(--line-soft); margin: 18px 0; }
+.md-view ul, .md-view ol { padding-left: 1.4em; }
+.md-view .md-meta { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 0 0 14px; padding: 8px 12px; border: 1px solid var(--line-soft); font: 12px var(--mono); }
+.md-view .md-meta div { display: contents; }
+.md-view .md-meta dt { color: var(--dim); }
+.md-view .md-meta dd { margin: 0; color: var(--white); }

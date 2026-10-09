@@ -1,3 +1,4 @@
+import { usePrefs } from '../settings';
 /**
  * Keyboard focus inside HUD panels. Once focus is in a panel, arrows stay in it:
  * ↑ ↓ (Home / End) walk its sections and buttons in reading order, ← → switch tabs, Esc returns
@@ -56,8 +57,18 @@ export function panelKey(panel: HTMLElement, e: KeyboardEvent): boolean {
   return true;
 }
 
-/** File viewer: ← → switch files, ↑ ↓ PageUp PageDown Home End scroll the code, wherever the focus is inside. */
+/**
+ * File viewer: ← → switch files, ↑ ↓ PageUp PageDown Home End scroll the code, W wraps long lines,
+ * V switches Markdown between formatted and source. Other letters do nothing here (no map toggle behind).
+ */
 function viewerKey(panel: HTMLElement, e: KeyboardEvent): boolean {
+  if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1) {
+    const k = e.key.toLowerCase();
+    const prefs = usePrefs.getState();
+    if (k === 'w') prefs.set({ viewerWrap: !prefs.viewerWrap });
+    if (k === 'v') prefs.set({ markdownSource: !prefs.markdownSource });
+    return e.key !== ' ' && e.key !== '?';
+  }
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     const tabs = [...panel.querySelectorAll<HTMLElement>('.files button')];
     const i = tabs.findIndex((t) => t.classList.contains('on'));

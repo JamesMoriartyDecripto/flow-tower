@@ -56,6 +56,8 @@
     "postprocessing": "^6.39.5",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "shiki": "^4.5.0",
     "three": "^0.186.1",
     "three-stdlib": "^2.36.1",
