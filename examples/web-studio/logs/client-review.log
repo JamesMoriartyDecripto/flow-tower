@@ -1,0 +1,8 @@
+2026-09-12T10:14:00Z signoff sitemap round=1 client=ida.sorensen decision=approve comments=2 (rename "Journal" kept, add FAQ)
+2026-09-19T16:20:00Z signoff wireframes round=1 decision=edit comments=9 (wholesale form shorter, subscription toggle on product)
+2026-09-23T11:05:00Z signoff wireframes round=2 decision=approve
+2026-09-30T15:42:00Z signoff design round=1 decision=edit comments=14 (hero photography, softer crema background)
+2026-10-02T09:10:00Z signoff design round=2 decision=approve copy_changes=6
+2026-10-07T13:00:00Z signoff preview round=1 url=https://nordlicht-git-main-studio.vercel.app decision=edit comments=7
+2026-10-08T08:30:00Z change-request CR-03 "gift cards" out of scope -> estimate 3.5 days, client to decide
+2026-10-09T10:15:00Z signoff preview round=2 decision=approve -> launch window 2026-10-13 07:00 CET

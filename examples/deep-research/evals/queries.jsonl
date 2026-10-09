@@ -1,0 +1,10 @@
+{"id": "q01", "class": "simple", "query": "When did the EU AI Act's obligations for general-purpose AI models start to apply?"}
+{"id": "q02", "class": "simple", "query": "What is the current list price per million input tokens for Claude Sonnet 5.5?"}
+{"id": "q03", "class": "comparison", "query": "Compare Postgres logical replication and Debezium CDC for a 2 TB OLTP database."}
+{"id": "q04", "class": "comparison", "query": "Compare EU and US rules on AI in hiring between 2023 and 2026."}
+{"id": "q05", "class": "comparison", "query": "Which of Tavily, Exa and native model web search returns fresher news results?"}
+{"id": "q06", "class": "complex", "query": "List the board members of the top 20 S&P 500 IT companies and their other board seats."}
+{"id": "q07", "class": "complex", "query": "What is the evidence that GLP-1 agonists reduce alcohol use disorder? Include trials registered since 2022."}
+{"id": "q08", "class": "complex", "query": "Map the European heat-pump supply chain: top manufacturers, compressor suppliers, refrigerant shifts."}
+{"id": "q09", "class": "comparison", "query": "How do Stripe and Adyen differ on payout timing and fees for EU marketplaces?"}
+{"id": "q10", "class": "complex", "query": "Summarise the open problems in long-horizon agent evaluation, with the main benchmarks and their known flaws."}

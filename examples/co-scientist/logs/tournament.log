@@ -1,0 +1,8 @@
+2026-10-06T13:02:31Z [match] a=3fd2a1c0(1388) b=91b7e044(1371) sim=0.72 format=debate turns=4 winner=b elo=1371->1387.8 / 1388->1371.2
+2026-10-06T13:02:34Z [match] a=0c88e1d2(1204) b=5a19f3e7(1200) sim=0.64 format=single_turn winner=a elo=1204->1219.8 / 1200->1184.2
+2026-10-06T13:02:36Z [match] a=e5021b9a(1251) b=77c0fd13(1196) sim=0.81 format=single_turn winner=b elo=1196->1214.5 / 1251->1232.5
+2026-10-06T13:02:40Z [proximity] new=b4e18a02 nearest=3fd2a1c0 sim=0.93 duplicate_of=3fd2a1c0 -> not entered
+2026-10-06T13:02:52Z [match] a=91b7e044(1387.8) b=4410aa9e(1349) sim=0.58 format=debate turns=3 winner=a
+2026-10-06T13:03:05Z [tournament-review] recurring_loss="target lacks AML expression evidence" count=14
+2026-10-07T02:31:40Z [match] a=e19c04aa(1200,scientist) b=0c88e1d2(1241) sim=0.69 format=single_turn winner=a
+2026-10-07T18:22:15Z [table] top: 91b7e044 1512 | e19c04aa 1497 | 3fd2a1c0 1466 | 4410aa9e 1431 | 2be0f61d 1419

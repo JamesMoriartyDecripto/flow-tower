@@ -1,0 +1,6 @@
+role,base_min,base_max,equity_min_pct,equity_max_pct,loaded_multiplier
+Senior Engineer,180000,220000,0.1,0.3,1.3
+Junior Engineer,100000,130000,0.05,0.1,1.3
+Engineering Manager,200000,250000,0.3,0.5,1.3
+VP Engineering,250000,300000,0.5,1.0,1.3
+Account Executive,120000,150000,0.05,0.15,1.25

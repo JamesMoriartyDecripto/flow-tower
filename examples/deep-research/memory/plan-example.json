@@ -1,0 +1,13 @@
+{
+  "run_id": "4be1c0a97f12",
+  "brief": "I want to understand how EU and US rules on AI in hiring differ between 2023 and 2026, for an HR team deploying a CV screening tool in both regions.",
+  "complexity": "comparison",
+  "tasks": [
+    "EU: obligations for high-risk AI in employment under the AI Act (Annex III), with application dates. Primary sources: EUR-Lex, Commission guidance. Output: obligations list with article numbers.",
+    "US federal: EEOC guidance on AI and Title VII / ADA since 2023, and any withdrawals. Primary sources: eeoc.gov, Federal Register.",
+    "US state and city: NYC Local Law 144 bias audits, Colorado AI Act, Illinois HB 3773. Output: table of law, scope, effective date, audit duty.",
+    "Practice: what bias audits and notices cost and look like in practice. Prefer audit firm publications and regulator FAQs over vendor blogs."
+  ],
+  "boundaries": "Task 2 covers federal only; task 3 covers state and city only. Nobody covers UK or Canada.",
+  "round": 1
+}

@@ -1,0 +1,22 @@
+{
+  "name": "pizza_seller_agent",
+  "description": "Helps with creating pizza orders",
+  "url": "https://pizza-agent-480913327416.us-central1.run.app",
+  "version": "1.0.0",
+  "protocolVersion": "0.2.6",
+  "preferredTransport": "JSONRPC",
+  "capabilities": {
+    "streaming": true
+  },
+  "defaultInputModes": ["text", "text/plain"],
+  "defaultOutputModes": ["text", "text/plain"],
+  "skills": [
+    {
+      "id": "create_pizza_order",
+      "name": "Pizza Order Creation Tool",
+      "description": "Helps with creating pizza orders",
+      "tags": ["pizza order creation"],
+      "examples": ["I want to order 2 pepperoni pizzas"]
+    }
+  ]
+}

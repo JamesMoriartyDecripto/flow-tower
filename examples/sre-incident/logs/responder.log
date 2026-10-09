@@ -1,0 +1,24 @@
+2026-10-07T14:09:12.611Z webhook POST /pagerduty event=incident.triggered incident=Q2K7XJ4PL9WZ1R sig=valid ack_ms=44
+2026-10-07T14:09:13.402Z session created sesn_011CZpw3gtC691y7qmaLNmLM agent=sre-investigator v3 title="[checkout-svc] checkout-svc pods in CrashLoopBackOff, 5xx 18%"
+2026-10-07T14:09:13.950Z slack channel #inc-4127-checkout-svc created
+2026-10-07T14:09:15.120Z statuspage incident created status=investigating component=Checkout
+2026-10-07T14:09:31.774Z tool get_alerts incident=Q2K7XJ4PL9WZ1R -> 3 alerts
+2026-10-07T14:09:38.205Z tool get_recent_deployments service=checkout-svc since=2h -> a1b9f3e 14:01:58Z
+2026-10-07T14:09:52.917Z tool get_logs service=checkout-svc query="OOMKilled" window=30m -> 14 lines
+2026-10-07T14:11:06.440Z findings signature=oom confidence=high runbook=runbooks/oom.md cost_usd=1.12 turns=19
+2026-10-07T14:11:07.031Z handoff -> sesn_011CZpx8RkT2mVbq9dJ1sWfE agent=sre-remediator v2 (canary 20%)
+2026-10-07T14:12:40.588Z tool open_pull_request -> pr=#1312 "fix(checkout-svc): raise memory request 256Mi, limit 512Mi"
+2026-10-07T14:12:41.102Z ci infra-validate pr=#1312 kubeconform=pass conftest=pass
+2026-10-07T14:12:41.950Z tool request_approval -> parked event=sevt_01Hq7 slack=#payments-oncall timer=15m
+2026-10-07T14:16:03.311Z slack approve by U04ONCALL1 pr=#1312
+2026-10-07T14:16:09.874Z tool merge_pull_request pr=#1312 -> merged=true
+2026-10-07T14:19:45.002Z argocd checkout-svc synced rev=5e21c0d health=Healthy
+2026-10-07T14:29:46.118Z watch 5xx_ratio=0.002 restarts=0 for 10m -> recovered
+2026-10-07T14:30:02.540Z pagerduty resolved incident=Q2K7XJ4PL9WZ1R
+2026-10-07T14:31:20.661Z postmortem draft postmortems/2026-10-07-checkout-svc-4127.md
+2026-10-07T14:31:21.003Z sessions archived total_cost_usd=2.87
+2026-10-08T03:12:09.715Z webhook POST /pagerduty event=incident.triggered incident=Q9RZ1LMB3 sig=valid
+2026-10-08T03:13:58.201Z findings signature=5xx confidence=medium runbook=runbooks/5xx.md
+2026-10-08T03:15:22.640Z tool request_approval -> parked slack=#payments-oncall timer=15m
+2026-10-08T03:30:22.641Z approval timeout -> pagerduty escalation_level=2 result=escalated
+2026-10-08T03:30:24.019Z remediator stopped: "approval escalated, PR #1318 left open for the incident commander"

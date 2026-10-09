@@ -1,0 +1,6 @@
+{
+  "script_executions": [
+    { "timestamp": "2026-10-06T16:39:30", "script": "hiring_impact.py", "command": "python scripts/hiring_impact.py 3 200000", "description": "Burn and runway impact of 3 senior hires", "tool_used": "Bash", "success": true },
+    { "timestamp": "2026-10-08T07:01:48", "script": "simple_calculation.py", "command": "python scripts/simple_calculation.py 2000000 500000", "description": "Runway after a hypothetical $8M acquisition", "tool_used": "Bash", "success": true }
+  ]
+}

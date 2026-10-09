@@ -1,0 +1,553 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Ambient Chief of Staff
+tags: [personal-productivity, ambient-agent, claude-agent-sdk, human-in-the-loop]
+description: >-
+  An ambient executive assistant on the Claude Agent SDK. A background worker watches
+  Gmail and Calendar push events plus a weekday 07:00 cron, triages every email with
+  Haiku, and lets an Opus Chief of Staff delegate to subagents (drafter, scheduler,
+  financial analyst, recruiter). The user is interrupted only through three inbox card
+  kinds: notify, question, review. Nothing is sent without an approved review card,
+  enforced by a PreToolUse hook. PostToolUse hooks write the audit trail, and every edit
+  or rejection teaches memory/preferences.md. Top layer is user-facing; the rest runs in
+  the background. Structure follows the Claude Agent SDK chief-of-staff cookbook (CLAUDE.md,
+  subagents, slash commands, output styles, plan mode, hooks); the ambient patterns follow
+  LangChain's ambient agents and its executive AI assistant.
+
+runtimes:
+  laptop:
+    kind: local
+    label: "Exec's laptop (CLI)"
+    description: "User-facing. python agent.py or Claude Code in this folder: slash commands, plan mode, output styles."
+    host: "sarah-mbp"
+  inbox_app:
+    kind: browser
+    label: "Review Inbox app"
+    description: "User-facing. One list of open notify / question / review cards, with the allowed actions per kind."
+    url: "https://cos.techstart.example.com/inbox"
+  phone:
+    kind: device
+    label: "Phone"
+    description: "User-facing. Push notification per new card; tapping opens the card in the Review Inbox."
+  worker:
+    kind: container
+    label: "Ambient worker"
+    description: "Background service. Cloud Run: push receiver, triage, Chief of Staff runs, inbox API, reflection."
+    provider: "google-cloud"
+    region: "us-central1"
+    url: "https://cos-worker.example.com/health"
+  pubsub:
+    kind: saas
+    label: "Cloud Pub/Sub"
+    description: "Background. Topic gmail-inbox fed by Gmail users.watch; push subscription to the worker."
+    provider: "google-cloud"
+    url: "https://console.cloud.google.com/cloudpubsub"
+  cloud_scheduler:
+    kind: saas
+    label: "Cloud Scheduler"
+    description: "Background. daily-brief, sweep and renew-watches jobs (ambient/schedules.yaml)."
+    provider: "google-cloud"
+    url: "https://console.cloud.google.com/cloudscheduler"
+  google:
+    kind: saas
+    label: "Google Workspace"
+    description: "Gmail and Calendar APIs, called with the user's own OAuth token."
+    provider: "google"
+    url: "https://gmail.googleapis.com"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "Opus, Sonnet and Haiku 5.5."
+    provider: "anthropic"
+    url: "https://console.anthropic.com"
+
+prompts:
+  chief-of-staff: { file: prompts/chief-of-staff.md, description: "Lead system prompt: three ways to reach the user, delegation map." }
+  triage: { file: prompts/triage.md, description: "ignore / notify / respond, plus learned rules appended at runtime." }
+  reflection: { file: prompts/reflection.md, description: "Turn one piece of feedback into at most one dated rule." }
+
+agents:
+  cos:
+    name: Chief of Staff
+    description: "Opus lead. Expands slash commands, delegates via Task, reaches the user only through inbox cards."
+    model: claude-opus-5-5
+    prompt: chief-of-staff
+    tools: [Task, Read, Write, Edit, Bash, WebSearch, mcp__inbox__notify, mcp__inbox__ask_question, mcp__inbox__request_review, mcp__workspace__get_thread, mcp__workspace__free_busy, mcp__workspace__send_email, mcp__workspace__send_invite]
+    runtime: worker
+    files: [agent.py, ambient/run_thread.py, CLAUDE.md]
+    harness: { setting_sources: [project], max_turns: 40, permission_modes: "default | plan | acceptEdits" }
+    budget: { usd: 1.5, turns: 40, on_exceed: pause }
+    fanout: { min: 1, max: 4, by: "email threads in flight (Semaphore 4)" }
+    data: { sensitivity: pii, region: us, retention: 30d, description: "Email bodies, calendars, candidate and board names." }
+    credentials: user
+    sandbox: { network: allowlist, allow: [gmail.googleapis.com, www.googleapis.com, api.anthropic.com], filesystem: workspace }
+    resources:
+      - { kind: log, label: "Ambient log", path: logs/ambient.log }
+  triage:
+    name: Inbox triage
+    description: "Tool-less Haiku call per inbound email; JSON verdict. Cheap enough for every message."
+    model: claude-haiku-5-5
+    prompt: triage
+    tools: []
+    runtime: worker
+    files: [ambient/run_thread.py, memory/preferences.md]
+    budget: { usd: 0.002, turns: 1, on_exceed: stop }
+    data: { sensitivity: pii, retention: 30d }
+    evals:
+      - { name: agreement with user overrides, target: 0.95, description: "Share of verdicts the user did not reverse in the inbox, weekly." }
+      - { name: notify cards dismissed, target: 0.2, higher_is_better: false, description: "Dismissed notifies mean the agent interrupts too often." }
+    version: v3
+    rollout: { strategy: shadow, previous: v2 }
+  email-drafter:
+    runtime: worker
+    from: .claude/agents/email-drafter.md
+    data: { sensitivity: pii, retention: 30d }
+    credentials: user
+    evals:
+      - { name: drafts sent unedited, target: 0.6, description: "Approve without edit, rolling 30 days." }
+  scheduler:
+    runtime: worker
+    from: .claude/agents/scheduler.md
+    credentials: user
+  financial-analyst:
+    runtime: worker
+    from: .claude/agents/financial-analyst.md
+    tower: towers/financial-analyst.tower.yaml
+    data: { sensitivity: confidential, region: us }
+    sandbox: { network: allowlist, allow: [api.anthropic.com], filesystem: read-only }
+  recruiter:
+    runtime: worker
+    from: .claude/agents/recruiter.md
+    data: { sensitivity: pii, retention: 30d }
+  reflect:
+    name: Reflection
+    description: "Rewrites one section of memory/preferences.md from one piece of feedback. Read + Edit only."
+    model: claude-opus-5-5
+    prompt: reflection
+    tools: [Read, Edit]
+    runtime: worker
+    files: [ambient/reflect.py]
+    harness: { permission_mode: acceptEdits, max_turns: 6 }
+    budget: { usd: 0.3, turns: 6, on_exceed: stop }
+
+layers:
+  # 1 ── user-facing ─────────────────────────────────────────────────
+  - id: surfaces
+    title: User-facing - CLI, Inbox & Notifications
+    description: >-
+      Everything the executive sees. On-demand work from the terminal, and three card kinds in
+      the Review Inbox, pushed to the phone. Nothing else interrupts her.
+    nodes:
+      - id: cli
+        runtime: laptop
+        type: entry
+        label: Terminal (CLI)
+        description: "python agent.py or Claude Code in this folder: '/budget-impact hiring 5 engineers', '/strategic-brief SmartDev'."
+        trigger: { kind: manual, source: "Exec at the terminal" }
+        files: [agent.py]
+      - id: commands
+        runtime: laptop
+        label: Slash commands
+        description: "/budget-impact, /strategic-brief, /talent-scan (cookbook) plus /daily-brief, /handle-email, /calendar-change, /resume."
+        files: [.claude/commands/budget-impact.md, .claude/commands/strategic-brief.md, .claude/commands/talent-scan.md, .claude/commands/daily-brief.md]
+      - id: style
+        runtime: laptop
+        type: decision
+        label: Output style?
+        description: "settings={\"outputStyle\": ...}: executive for the CEO and every inbox card, technical for analysts."
+        files: [.claude/output-styles/executive.md, .claude/output-styles/technical.md]
+      - id: report
+        runtime: laptop
+        type: output
+        label: Report / brief
+        description: "Answer in the terminal; long briefs saved to output_reports/."
+        files: [output_reports/hiring_decision.md]
+      - id: push
+        runtime: phone
+        label: Push notification
+        description: "One per new card: title + kind. Review cards are marked 'needs you'."
+      - id: inbox
+        runtime: inbox_app
+        label: Review Inbox
+        description: "Open cards newest first; each shows only its allowed actions (ambient/inbox_tools.py ACTIONS)."
+        files: [ambient/inbox_api.py]
+      - id: notify_card
+        runtime: inbox_app
+        type: human
+        label: Notify
+        description: "FYI: important, no action taken (DocuSign waiting, board doc shared, daily brief)."
+        approval: { by: Executive, via: "Review Inbox + push", actions: [respond, reject], on_timeout: wait }
+      - id: question_card
+        runtime: inbox_app
+        type: human
+        label: Question
+        description: "The agent is blocked on a fact only she knows ('Attend DevTools Summit in Berlin?')."
+        approval: { by: Executive, via: "Review Inbox + push", actions: [respond, reject], timeout: 48h, on_timeout: wait }
+      - id: review_card
+        runtime: inbox_app
+        type: human
+        label: Review
+        description: "Draft reply, invite or plan. Edit sends her text verbatim; respond sends it back for a redraft."
+        approval: { by: Executive, via: "Review Inbox + push", actions: [approve, edit, reject, respond], timeout: 24h, on_timeout: wait }
+        sla: 24h
+      - id: answer
+        runtime: worker
+        type: decision
+        label: Her answer?
+        description: "POST /inbox/{id}: rejects actions the card kind does not allow (422)."
+        files: [ambient/inbox_api.py]
+    edges:
+      - cli -> commands
+      - "commands -> style: settings"
+      - "push -> inbox: tap"
+      - "inbox -> notify_card: open"
+      - "inbox -> question_card: open"
+      - "inbox -> review_card: open"
+      - { from: notify_card, to: answer, label: "respond / dismiss", protocol: http }
+      - { from: question_card, to: answer, label: "respond / dismiss", protocol: http }
+      - { from: review_card, to: answer, label: "approve / edit / reject / respond", protocol: http }
+
+  # 2 ── background ──────────────────────────────────────────────────
+  - id: triggers
+    title: Background - Triggers & Triage
+    description: >-
+      Not human-triggered. Gmail and Calendar push events, a 10-minute sweep for dropped
+      pushes and a weekday morning brief. Every inbound email gets a cheap verdict first.
+    nodes:
+      - id: gmail
+        runtime: pubsub
+        type: entry
+        label: Gmail push
+        description: "users.watch on INBOX publishes {emailAddress, historyId} to the gmail-inbox topic."
+        trigger: { kind: event, source: "Gmail users.watch -> Pub/Sub push" }
+        data: { sensitivity: internal }
+      - id: calendar
+        runtime: google
+        type: entry
+        label: Calendar push
+        description: "events.watch channel on the primary calendar; headers only, no payload."
+        trigger: { kind: event, source: "Calendar events.watch (web_hook channel)" }
+      - id: brief_cron
+        runtime: cloud_scheduler
+        type: entry
+        label: Daily brief 07:00
+        trigger: { kind: cron, schedule: "0 7 * * 1-5", source: "Cloud Scheduler daily-brief", description: "America/Los_Angeles" }
+        files: [ambient/schedules.yaml]
+      - id: sweep_cron
+        runtime: cloud_scheduler
+        type: entry
+        label: Sweep 10 min
+        description: "Catches dropped pushes and resumes threads answered in the inbox (same cadence as the EAIA cron)."
+        trigger: { kind: cron, schedule: "*/10 * * * *", source: "Cloud Scheduler sweep" }
+        files: [ambient/schedules.yaml]
+      - id: renew
+        runtime: cloud_scheduler
+        type: entry
+        label: Renew watches
+        description: "Gmail watches expire after 7 days; renewed daily at 03:15."
+        trigger: { kind: cron, schedule: "15 3 * * *", source: "Cloud Scheduler renew-watches" }
+        files: [ambient/oauth.py, ambient/schedules.yaml]
+      - id: receiver
+        runtime: worker
+        label: Push receiver
+        description: "Verifies the Pub/Sub OIDC token, acks fast, queues a background task."
+        files: [ambient/receiver.py]
+        limits: { timeout: 10s, retries: 5, backoff: "Pub/Sub exponential 10s..600s" }
+      - id: dedupe
+        runtime: worker
+        type: guard
+        label: Seen before?
+        description: "At-least-once delivery: (source, historyId) and (channel, message number) are inserted once."
+        files: [ambient/state.py]
+      - id: history
+        runtime: worker
+        type: tool
+        label: history.list
+        description: "historyId -> new messages since the cursor (memory/gmail_cursor.json)."
+        files: [ambient/gmail_history.py]
+        credentials: user
+      - id: from_me
+        runtime: worker
+        type: decision
+        label: She replied?
+        description: "If the newest message is from the executive, the thread is done: no run."
+        files: [ambient/run_thread.py]
+      - { id: triage, agent: triage, label: Triage (Haiku) }
+      - id: route
+        runtime: worker
+        type: decision
+        label: Verdict?
+        description: "ignore / notify / respond (EAIA triage_no / triage_notify / triage_email)."
+        files: [ambient/run_thread.py]
+      - id: ignored
+        runtime: worker
+        type: output
+        label: Ignored
+        description: "No run and no card. Overrides in the inbox feed the triage eval and the learned ignore rules."
+    edges:
+      - { from: gmail, to: receiver, label: "POST /push/gmail", protocol: webhook }
+      - { from: calendar, to: receiver, label: "POST /push/calendar", protocol: webhook }
+      - { from: brief_cron, to: receiver, label: "POST /cron/daily-brief", protocol: http }
+      - { from: sweep_cron, to: receiver, label: "POST /cron/sweep", protocol: http }
+      - { from: renew, to: receiver, label: "POST /cron/renew-watches", protocol: http }
+      - receiver -> dedupe
+      - "dedupe -> history: new historyId"
+      - "history -> from_me [data]: messages"
+      - "from_me -> triage: inbound"
+      - "triage -> route [data]: JSON verdict"
+      - "route -> ignored: ignore"
+
+  # 3 ── background ──────────────────────────────────────────────────
+  - id: orchestration
+    title: Background - Chief of Staff
+    description: >-
+      One Opus session per thread, up to four in parallel. Risky work is planned first in
+      plan mode (read-only); the plan itself becomes a review card.
+    nodes:
+      - id: expand
+        runtime: worker
+        label: Command expansion
+        description: "/handle-email $1 $2, /calendar-change, /daily-brief, /resume: one prompt per entry point."
+        files: [.claude/commands/handle-email.md, .claude/commands/calendar-change.md, .claude/commands/resume.md]
+      - { id: cos, agent: cos, label: Chief of Staff }
+      - id: plan_first
+        runtime: worker
+        type: decision
+        label: Plan first?
+        description: "Spends money, commits > 1h of her time, or writes to > 3 people -> plan mode."
+        files: [prompts/chief-of-staff.md]
+      - id: plan_mode
+        runtime: worker
+        label: Plan mode
+        description: "permission_mode='plan': no writes, no Bash, no sends. Plan between <plan> tags, then ExitPlanMode."
+        files: [agent.py]
+      - id: plan_file
+        runtime: worker
+        type: memory
+        label: plans/*.md
+        description: "plan_<YYYYMMDD_HHMMSS>.md with created / prompt / model / source headers."
+        files: [plans/plan_20261008_070214.md]
+      - id: delegate
+        runtime: worker
+        label: Task dispatch
+        description: "Task tool: drafter for replies, scheduler for times, analyst for money, recruiter for people."
+        tools: [Task]
+      - id: needs_user
+        runtime: worker
+        type: decision
+        label: Card kind?
+        description: "FYI -> notify. Missing fact -> question. Any outbound action -> review."
+        files: [prompts/chief-of-staff.md, ambient/inbox_tools.py]
+      - id: execute
+        runtime: worker
+        label: Execute approved
+        description: "/resume: approve sends the draft, edit sends her text verbatim, reject marks read, respond redrafts."
+        files: [.claude/commands/resume.md]
+        limits: { max_iterations: 3 }
+    edges:
+      - expand -> cos
+      - "cos -> plan_first"
+      - "plan_first -> plan_mode: risky"
+      - "plan_mode -> plan_file [data]: <plan>"
+      - "plan_first -> delegate: routine"
+      - "delegate -> needs_user [return]: draft / slots / numbers"
+      - "execute -> delegate [return]: respond = redraft"
+
+  # 4 ── background ──────────────────────────────────────────────────
+  - id: specialists
+    title: Background - Subagents, Tools & Models
+    description: >-
+      Subagents from .claude/agents/ (isolated context, least-privilege tools). Two in-process
+      SDK MCP servers: inbox (the only way to reach the user) and workspace (Gmail and Calendar
+      as the user). The financial analyst opens its own sub-tower.
+    nodes:
+      - { id: drafter, agent: email-drafter, label: email-drafter }
+      - { id: scheduler, agent: scheduler, label: scheduler }
+      - { id: analyst, agent: financial-analyst, label: financial-analyst }
+      - { id: recruiter, agent: recruiter, label: recruiter }
+      - id: scripts
+        runtime: worker
+        type: tool
+        label: scripts/*.py
+        description: "hiring_impact, financial_forecast, decision_matrix, talent_scorer, simple_calculation via Bash."
+        files: [scripts/hiring_impact.py, scripts/financial_forecast.py, scripts/decision_matrix.py, scripts/talent_scorer.py, scripts/simple_calculation.py]
+        sandbox: { network: none, filesystem: read-only }
+      - id: inbox_mcp
+        runtime: worker
+        type: tool
+        label: inbox MCP
+        description: "create_sdk_mcp_server('inbox'): notify, ask_question, request_review. Queues a card, then the run stops."
+        files: [ambient/inbox_tools.py]
+      - id: workspace_mcp
+        runtime: worker
+        type: tool
+        label: workspace MCP
+        description: "create_sdk_mcp_server('workspace'): get_thread, free_busy, mark_read, send_email, send_invite."
+        files: [ambient/workspace_tools.py, ambient/oauth.py]
+        credentials: user
+      - id: send
+        runtime: google
+        type: tool
+        label: send_email / invite
+        description: "Gmail messages.send and Calendar events.insert(sendUpdates='all'), as the user."
+        files: [ambient/workspace_tools.py]
+        credentials: user
+        data: { sensitivity: pii }
+      - id: websearch
+        runtime: anthropic
+        type: tool
+        label: WebSearch
+        description: "Market rates for the recruiter, comparables for the analyst."
+      - id: opus
+        runtime: anthropic
+        type: model
+        label: Opus 5.5
+        model: claude-opus-5-5
+        description: "Chief of Staff and reflection."
+      - id: sonnet
+        runtime: anthropic
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        description: "All four subagents."
+      - id: haiku
+        runtime: anthropic
+        type: model
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        description: "Triage on every inbound email."
+    edges:
+      - "analyst -> scripts [call]: Bash"
+      - "recruiter -> scripts [call]: talent_scorer"
+      - "recruiter -> websearch [call]"
+      - "drafter -> workspace_mcp [call]: get_thread"
+      - "scheduler -> workspace_mcp [call]: free_busy"
+      - { from: workspace_mcp, to: send, kind: call, label: approved only, protocol: http }
+      - "drafter -> sonnet [call]"
+      - "analyst -> sonnet [call]"
+
+  # 5 ── background ──────────────────────────────────────────────────
+  - id: harness
+    title: Background - Hooks, Memory & Learning
+    description: >-
+      .claude/settings.json hooks (setting_sources ["project"]): one PreToolUse gate on
+      sends, three PostToolUse audit writers. Memory is files: CLAUDE.md for facts,
+      preferences.md for rules learned from her feedback.
+    nodes:
+      - id: settings
+        runtime: worker
+        type: guard
+        label: Permissions
+        description: "Allow inbox tools, reads and scripts/; deny curl, rm and the OAuth token folder."
+        files: [.claude/settings.json]
+      - id: send_gate
+        runtime: worker
+        type: hook
+        label: PreToolUse send gate
+        description: "send_email / send_invite denied unless review_id is an approved card."
+        files: [.claude/hooks/send-gate.py]
+      - id: post_bash
+        runtime: worker
+        type: hook
+        label: PostToolUse Bash
+        description: "script-usage-logger.py -> audit/script_usage_log.json (last 100)."
+        files: [.claude/hooks/script-usage-logger.py]
+      - id: post_write
+        runtime: worker
+        type: hook
+        label: PostToolUse Write|Edit
+        description: "report-tracker.py -> audit/report_history.json (last 50). Fixes the cookbook's broken Edit matcher."
+        files: [.claude/hooks/report-tracker.py]
+      - id: post_action
+        runtime: worker
+        type: hook
+        label: PostToolUse actions
+        description: "action-audit.py: one JSON line per inbox or workspace call; email bodies only as a hash."
+        files: [.claude/hooks/action-audit.py]
+      - id: audit
+        runtime: worker
+        type: memory
+        label: Audit trail
+        description: "audit/*.json from the cookbook hooks plus the append-only logs/audit.log."
+        files: [audit/report_history.json, audit/script_usage_log.json]
+        data: { sensitivity: confidential, retention: 2w }
+        resources:
+          - { kind: log, label: "Action audit", path: logs/audit.log }
+      - id: claude_md
+        runtime: worker
+        type: memory
+        label: CLAUDE.md
+        description: "Company facts, board, meeting priorities, upcoming decisions. Loaded via setting_sources ['project']."
+        files: [CLAUDE.md]
+      - id: preferences
+        runtime: worker
+        type: memory
+        label: preferences.md
+        description: "'Set by Sarah' rules plus dated learned rules for triage, writing style and scheduling."
+        files: [memory/preferences.md]
+        data: { sensitivity: confidential }
+      - id: cards_db
+        runtime: worker
+        type: memory
+        label: ambient.sqlite3
+        description: "Inbox cards (status, response) and the dedupe table. Card ids link sends to approvals."
+        files: [ambient/state.py]
+        data: { sensitivity: pii, retention: 30d }
+      - id: feedback
+        runtime: worker
+        label: Feedback event
+        description: "Edit -> unified diff; reject / respond -> her text. Plain approvals teach nothing."
+        files: [ambient/reflect.py]
+      - { id: reflect, agent: reflect, label: Reflection }
+      - id: durable
+        runtime: worker
+        type: decision
+        label: Durable lesson?
+        description: "Most edits are one-off facts: NO_CHANGE. Only rules that generalize are written."
+        files: [prompts/reflection.md]
+    edges:
+      - "send_gate -> cards_db [data]: status == approved?"
+      - "post_bash -> audit [data]"
+      - "post_write -> audit [data]"
+      - "post_action -> audit [data]"
+      - "feedback -> reflect [spawn]"
+      - reflect -> durable
+      - "durable -> preferences [data]: dated rule"
+      - "settings -> send_gate: then hooks"
+
+links:
+  # background -> user-facing
+  - { from: specialists.inbox_mcp, to: harness.cards_db, kind: data, label: queue card }
+  - { from: harness.cards_db, to: surfaces.push, kind: data, label: new card, protocol: http }
+  - { from: harness.cards_db, to: surfaces.inbox, kind: data, label: "GET /inbox", protocol: http }
+  - "triggers.route -> surfaces.notify_card: notify (via inbox MCP)"
+  # user-facing -> background
+  - { from: surfaces.answer, to: orchestration.execute, kind: handoff, label: "/resume (continue_conversation)", protocol: http }
+  - { from: surfaces.answer, to: harness.feedback, kind: data, label: "edit / reject / respond" }
+  - { from: surfaces.style, to: orchestration.cos, kind: spawn, label: "query() from the CLI" }
+  - "orchestration.cos -> surfaces.report [return]: answer"
+  - "orchestration.plan_file -> surfaces.review_card: plan as review"
+  # triggers -> orchestration
+  - "triggers.route -> orchestration.expand [handoff]: notify / respond"
+  - "triggers.brief_cron -> orchestration.plan_mode: /daily-brief (plan mode)"
+  # orchestration -> specialists
+  - "orchestration.delegate -> specialists.drafter [spawn]: reply"
+  - "orchestration.delegate -> specialists.scheduler [spawn]: times"
+  - "orchestration.delegate -> specialists.analyst [spawn]: money"
+  - "orchestration.delegate -> specialists.recruiter [spawn]: people"
+  - { from: orchestration.needs_user, to: specialists.inbox_mcp, kind: call, label: "notify / ask_question / request_review", protocol: mcp }
+  - { from: orchestration.execute, to: specialists.workspace_mcp, kind: call, label: "send_email(review_id)", protocol: mcp }
+  - "orchestration.cos -> specialists.opus [call]"
+  - "triggers.triage -> specialists.haiku [call]"
+  - "harness.reflect -> specialists.opus [call]"
+  # hooks around tool calls
+  - { from: specialists.workspace_mcp, to: harness.send_gate, label: "PreToolUse: send_*", protocol: stdio }
+  - { from: specialists.scripts, to: harness.post_bash, label: PostToolUse, protocol: stdio }
+  - { from: orchestration.plan_file, to: harness.post_write, label: "PostToolUse: Write", protocol: stdio }
+  - { from: specialists.inbox_mcp, to: harness.post_action, label: PostToolUse, protocol: stdio }
+  - { from: specialists.send, to: harness.post_action, label: PostToolUse, protocol: stdio }
+  # memory -> agents
+  - "harness.claude_md -> orchestration.cos [data]: setting_sources project"
+  - "harness.preferences -> triggers.triage [data]: learned triage rules"
+  - "harness.preferences -> specialists.drafter [data]: writing style"
+  - "harness.preferences -> specialists.scheduler [data]: scheduling"

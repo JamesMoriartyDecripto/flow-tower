@@ -1,0 +1,567 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Airline Customer Service
+tags: [customer-service, openai-agents-sdk, handoffs, guardrails]
+description: >-
+  OpenAI's customer service agents demo (OpenAI Agents SDK + ChatKit), frontend and backend.
+  A Next.js UI (chat widget + Agent View) talks HTTP/SSE to a FastAPI backend where a
+  Triage Agent routes each chat to five peer specialists that hand off to each other
+  without a central orchestrator. Every agent runs a relevance and a jailbreak input
+  guardrail on the latest message; a tripwire replaces the reply with a refusal. All agents
+  share one typed context holding the passenger's booking. Agents run on gpt-5.2,
+  guardrails on gpt-4.1-mini (OpenAI models, as in the source). Dashed nodes are production
+  extensions the demo does not have: payout approval, a human-agent console for
+  escalations, and the Baggage Agent its prompts already mention.
+
+runtimes:
+  ui:
+    kind: browser
+    label: "Next.js UI"
+    description: "Customer-facing. ChatKit chat widget plus the Agent View (agents, guardrails, runner output, context, seat map)."
+    host: "localhost:3000"
+  console:
+    kind: browser
+    label: "Human-agent console"
+    description: "Production extension, staff-facing: escalated chats and payout approvals for customer care staff."
+    host: "care.example-air.com"
+  backend:
+    kind: server
+    label: "FastAPI backend"
+    description: "uvicorn main:app on port 8000. Agents SDK runner, ChatKit server, in-memory thread store."
+    host: "localhost:8000"
+  openai:
+    kind: saas
+    label: "OpenAI API"
+    description: "Responses API for gpt-5.2 and gpt-4.1-mini. Tracing disabled for zero data retention orgs."
+    provider: "openai"
+    url: "https://platform.openai.com"
+  contact_center:
+    kind: saas
+    label: "Contact center queue"
+    description: "Production extension: ticket queue behind the console (Zendesk or similar)."
+    provider: "zendesk"
+    url: "https://support.example-air.com/agent"
+
+prompts:
+  triage: { file: prompts/triage.md, description: "Routes to one specialist, at most one tool call first." }
+  flight-information: { file: prompts/flight-information.md, description: "Status, connection risk, alternates." }
+  booking-cancellation: { file: prompts/booking-cancellation.md, description: "Book, rebook, cancel; preferred next handoffs." }
+  seat-services: { file: prompts/seat-services.md, description: "Seat changes and medical seating." }
+  faq: { file: prompts/faq.md, description: "Answer only from faq_lookup_tool." }
+  refunds-compensation: { file: prompts/refunds-compensation.md, description: "Consult policy, then open a case." }
+  relevance-guardrail: { file: prompts/relevance-guardrail.md, description: "Is the latest message about airline travel?" }
+  jailbreak-guardrail: { file: prompts/jailbreak-guardrail.md, description: "Is the latest message a jailbreak?" }
+
+agents:
+  triage:
+    name: Triage Agent
+    description: "Entry point. Hydrates the trip with get_trip_details if needed, then hands off once."
+    model: gpt-5.2
+    prompt: triage
+    tools: [get_trip_details]
+    runtime: backend
+    files: [python-backend/airline/agents.py]
+    credentials: service
+    data: { sensitivity: pii, retention: 1d, description: "Reads passenger name and confirmation from the shared context." }
+    meta: { handoffs: "flight-info, booking, seats, faq, refunds", input_guardrails: "relevance, jailbreak" }
+  flight-info:
+    name: Flight Information Agent
+    description: "Provides flight status, connection impact, and alternate options."
+    model: gpt-5.2
+    prompt: flight-information
+    tools: [flight_status_tool, get_matching_flights]
+    runtime: backend
+    files: [python-backend/airline/agents.py]
+    credentials: service
+    data: { sensitivity: pii, retention: 1d }
+  booking:
+    name: Booking and Cancellation Agent
+    description: "Handles new bookings, rebookings after delays, and cancellations."
+    model: gpt-5.2
+    prompt: booking-cancellation
+    tools: [cancel_flight, get_matching_flights, book_new_flight]
+    runtime: backend
+    files: [python-backend/airline/agents.py, python-backend/airline/tools.py]
+    credentials: service
+    data: { sensitivity: pii, retention: 1d }
+  seats:
+    name: Seat and Special Services Agent
+    description: "Updates seats and handles medical or special service seating."
+    model: gpt-5.2
+    prompt: seat-services
+    tools: [update_seat, assign_special_service_seat, display_seat_map]
+    runtime: backend
+    files: [python-backend/airline/agents.py, python-backend/airline/services.py]
+    credentials: service
+    data: { sensitivity: pii, retention: 1d, description: "special_service_note may describe a medical need." }
+  faq:
+    name: FAQ Agent
+    description: "Answers common questions about policies, baggage, seats, and compensation."
+    model: gpt-5.2
+    prompt: faq
+    tools: [faq_lookup_tool]
+    runtime: backend
+    files: [python-backend/airline/agents.py]
+    data: { sensitivity: public }
+  refunds:
+    name: Refunds and Compensation Agent
+    description: "Opens compensation cases and issues hotel/meal support after delays."
+    model: gpt-5.2
+    prompt: refunds-compensation
+    tools: [issue_compensation, faq_lookup_tool]
+    runtime: backend
+    files: [python-backend/airline/agents.py, python-backend/airline/services.py]
+    credentials: service
+    data: { sensitivity: pii, retention: 1d }
+  relevance:
+    name: Relevance Guardrail
+    description: "Structured output RelevanceOutput { reasoning, is_relevant }. Tripwire when not relevant."
+    model: gpt-4.1-mini
+    prompt: relevance-guardrail
+    tools: []
+    runtime: backend
+    files: [python-backend/airline/guardrails.py]
+    evals:
+      - { name: false trips on greetings, target: 0, higher_is_better: false, description: "'Hi', 'OK' must pass." }
+  jailbreak:
+    name: Jailbreak Guardrail
+    description: "Structured output JailbreakOutput { reasoning, is_safe }. Tripwire when unsafe."
+    model: gpt-4.1-mini
+    prompt: jailbreak-guardrail
+    tools: []
+    runtime: backend
+    files: [python-backend/airline/guardrails.py]
+    evals:
+      - { name: prompt-leak catch rate, target: 0.99, description: "Red-team set of prompt-extraction and SQL-ish inputs." }
+
+layers:
+  # 1 ── frontend ────────────────────────────────────────────────────
+  - id: ui
+    title: Web UI (frontend)
+    description: >-
+      Next.js app. Left: the Agent View, fed by a server-sent state stream. Right: the ChatKit
+      chat widget. Dashed: a staff console for escalations and payout approvals.
+    nodes:
+      - id: chat
+        runtime: ui
+        type: entry
+        label: Chat widget
+        description: "ChatKit panel. Each user message is one backend run bound to the thread id."
+        trigger: { kind: chat, source: "ChatKit web widget", description: "One run per user message." }
+        resources:
+          - { kind: repo, label: "chatkit-panel.tsx", url: "https://github.com/openai/openai-cs-agents-demo/blob/main/ui/components/chatkit-panel.tsx" }
+      - id: reply
+        runtime: ui
+        type: output
+        label: Streamed reply
+        description: "Assistant message plus progress updates (\"Checking status for PA441...\") rendered as they stream."
+      - id: seat_picker
+        runtime: ui
+        label: Seat map
+        description: "Opens when a tool returns DISPLAY_SEAT_MAP; the chosen seat is sent back as a chat message."
+        resources:
+          - { kind: repo, label: "seat-map.tsx", url: "https://github.com/openai/openai-cs-agents-demo/blob/main/ui/components/seat-map.tsx" }
+      - id: api_client
+        runtime: ui
+        label: lib/api.ts
+        description: "Bootstrap and state fetches; subscribes to the SSE state stream for the active thread."
+        resources:
+          - { kind: repo, label: "api.ts", url: "https://github.com/openai/openai-cs-agents-demo/blob/main/ui/lib/api.ts" }
+      - id: agents_list
+        runtime: ui
+        type: output
+        label: Agents list
+        description: "Every agent with its handoffs, tools and guardrails; the current agent is highlighted."
+        resources:
+          - { kind: repo, label: "agents-list.tsx", url: "https://github.com/openai/openai-cs-agents-demo/blob/main/ui/components/agents-list.tsx" }
+      - id: guardrail_panel
+        runtime: ui
+        type: output
+        label: Guardrail lights
+        description: "Relevance and Jailbreak turn red with the model's reasoning when they trip."
+        resources:
+          - { kind: repo, label: "guardrails.tsx", url: "https://github.com/openai/openai-cs-agents-demo/blob/main/ui/components/guardrails.tsx" }
+          - { kind: log, label: "Guardrail log", path: logs/guardrails.log }
+      - id: runner_output
+        runtime: ui
+        type: output
+        label: Runner output
+        description: "Timeline of messages, handoffs, tool calls, tool outputs and context updates."
+        resources:
+          - { kind: repo, label: "runner-output.tsx", url: "https://github.com/openai/openai-cs-agents-demo/blob/main/ui/components/runner-output.tsx" }
+          - { kind: log, label: "Runner log", path: logs/runner.log }
+      - id: context_panel
+        runtime: ui
+        type: output
+        label: Context panel
+        description: "The public context only: passenger, confirmation, flight, seat, vouchers once granted."
+        resources:
+          - { kind: repo, label: "conversation-context.tsx", url: "https://github.com/openai/openai-cs-agents-demo/blob/main/ui/components/conversation-context.tsx" }
+      - id: agent_console
+        runtime: console
+        status: planned
+        type: human
+        label: Human-agent console
+        description: "Escalated chats with the last 20 messages and the public context; the human replies in the same thread."
+        files: [python-backend/airline/approvals.py]
+        approval: { by: "Tier-2 customer care", via: "Human-agent console", actions: [respond], timeout: 15m, on_timeout: escalate }
+        sla: 4h
+        data: { sensitivity: pii, region: us, retention: 90d }
+      - id: duty_manager
+        runtime: console
+        status: planned
+        type: human
+        label: Payout approval
+        description: "Duty manager approves, edits or rejects a paused issue_compensation call; rejection text goes back to the model."
+        files: [python-backend/airline/approvals.py]
+        approval: { by: "Duty manager", via: "Human-agent console", actions: [approve, edit, reject], timeout: 30m, on_timeout: escalate }
+    edges:
+      - "seat_picker -> chat: chosen seat"
+      - "agent_console -> reply: human reply"
+
+  # 2 ── backend API ─────────────────────────────────────────────────
+  - id: api
+    title: API & Guardrails (backend)
+    description: >-
+      FastAPI + ChatKitServer. Every user message is one streamed run. Both input guardrails
+      run on the latest message in parallel with the current agent; a tripwire discards the
+      run and returns a refusal.
+    nodes:
+      - id: endpoint
+        runtime: backend
+        label: POST /chatkit
+        description: "ChatKitServer.process(); answers with a text/event-stream."
+        files: [python-backend/main.py]
+        resources:
+          - { kind: endpoint, label: "Health", url: "http://localhost:8000/health" }
+      - id: state_api
+        runtime: backend
+        label: GET /chatkit/state
+        description: "Snapshot (current agent, public context, agents, events, guardrails); /bootstrap creates a thread."
+        files: [python-backend/main.py, python-backend/airline_server.py]
+      - id: state_stream
+        runtime: backend
+        label: /chatkit/state/stream
+        description: "SSE: initial snapshot, then events_delta for every handoff, tool call and context change."
+        files: [python-backend/main.py, python-backend/airline_server.py]
+      - id: runner
+        runtime: backend
+        label: Runner.run_streamed
+        description: "Starts at state.current_agent_name, not always Triage: the last specialist keeps the floor."
+        files: [python-backend/airline_server.py]
+        budget: { turns: 10, on_exceed: stop }
+        resources:
+          - { kind: log, label: "Runner log", path: logs/runner.log }
+      - { id: relevance, agent: relevance, type: guard, label: Relevance }
+      - { id: jailbreak, agent: jailbreak, type: guard, label: Jailbreak }
+      - id: tripwire
+        runtime: backend
+        type: decision
+        label: Tripwire?
+        description: "InputGuardrailTripwireTriggered is caught; the failing guardrail is recorded for the UI."
+        files: [python-backend/airline_server.py]
+        resources:
+          - { kind: log, label: "Guardrail log", path: logs/guardrails.log }
+      - id: refusal
+        runtime: backend
+        type: output
+        label: Refusal
+        description: "\"Sorry, I can only answer questions related to airline travel.\" appended to the history."
+        files: [python-backend/airline_server.py]
+    edges:
+      - endpoint -> runner
+      - "runner -> relevance [call]: latest message"
+      - "runner -> jailbreak [call]: latest message"
+      - "relevance -> tripwire [return]: is_relevant"
+      - "jailbreak -> tripwire [return]: is_safe"
+      - "tripwire -> refusal: tripped"
+      - "runner -> state_stream [data]: run items"
+      - "state_api -> state_stream [data]: snapshot"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: agents
+    title: Agents & Handoffs (backend)
+    description: >-
+      Decentralized: no orchestrator. Each agent owns the conversation until it hands off.
+      Handoffs to Booking and Seats pass through on_handoff hooks that hydrate the context.
+      Every agent can return to Triage. One handoff per message.
+    nodes:
+      - id: resume
+        runtime: backend
+        type: decision
+        label: Who has the floor?
+        description: "New thread starts at Triage; otherwise the run resumes with the last active agent."
+        files: [python-backend/airline_server.py]
+      - { id: triage, agent: triage, label: Triage }
+      - { id: flight_info, agent: flight-info, label: Flight Information }
+      - id: on_booking
+        runtime: backend
+        type: hook
+        label: on_booking_handoff
+        description: "apply_itinerary_defaults(): confirmation and flight are set before the booking agent speaks."
+        files: [python-backend/airline/agents.py]
+      - { id: booking, agent: booking, label: Booking & Cancel }
+      - id: on_seat
+        runtime: backend
+        type: hook
+        label: on_seat_handoff
+        description: "on_seat_booking_handoff: same hydration for the seat agent."
+        files: [python-backend/airline/agents.py]
+      - { id: seats, agent: seats, label: Seat & Services }
+      - { id: faq, agent: faq, label: FAQ }
+      - { id: refunds, agent: refunds, label: Refunds & Comp }
+      - id: baggage
+        runtime: backend
+        status: planned
+        label: Baggage Agent
+        description: >-
+          Planned. Seat, booking and refunds prompts upstream already say "hand off to the Baggage
+          Agent", and baggage_tool exists, but no Baggage agent is registered yet.
+        model: gpt-5.2
+        tools: [baggage_tool]
+        files: [python-backend/airline/tools.py]
+      - id: wants_human
+        runtime: backend
+        status: planned
+        type: decision
+        label: Wants a person?
+        description: "Production extension: explicit request for a human, or the same guardrail tripped twice."
+        files: [python-backend/airline/approvals.py]
+      - id: ticket
+        runtime: contact_center
+        status: planned
+        type: tool
+        label: Escalation ticket
+        description: "escalation_ticket(): thread id, priority, filtered public context, last 20 messages."
+        files: [python-backend/airline/approvals.py]
+        data: { sensitivity: pii, region: us, retention: 90d }
+    edges:
+      - "resume -> triage: new thread"
+      - "triage -> flight_info [handoff]: status"
+      - "triage -> on_booking [handoff]: change trip"
+      - "triage -> on_seat [handoff]: seats"
+      - "triage -> faq [handoff]: policy"
+      - "triage -> refunds [handoff]: disruption"
+      - "flight_info -> on_booking [handoff]: rebook"
+      - "on_booking -> booking [handoff]"
+      - "on_seat -> seats [handoff]"
+      - "booking -> on_seat [handoff]: seat preference"
+      - "booking -> refunds [handoff]: disrupted"
+      - "seats -> refunds [handoff]: support pending"
+      - "refunds -> faq [handoff]: policy first"
+      - "faq -> triage [handoff]: done"
+      - "flight_info -> triage [handoff]: off-topic"
+      - "booking -> triage [handoff]: done"
+      - "seats -> triage [handoff]: done"
+      - "refunds -> triage [handoff]: done"
+      - "seats -> baggage [handoff]: bags missing"
+      - "refunds -> baggage [handoff]: bags missing"
+      - "triage -> wants_human: escalation check"
+      - "wants_human -> ticket [call]: yes"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: tools
+    title: Function Tools (backend)
+    description: >-
+      @function_tool functions. They chain inside one turn without asking the user, mutate the
+      shared context and stream ProgressUpdateEvents. Data is mocked (demo_data.py).
+    nodes:
+      - id: get_trip_details
+        runtime: backend
+        type: tool
+        label: get_trip_details
+        description: "Mentions of Paris/New York/Austin load the disrupted PA441 -> NY802 itinerary."
+        files: [python-backend/airline/tools.py]
+      - id: flight_status
+        runtime: backend
+        type: tool
+        label: flight_status_tool
+        description: "Status, gate and missed-connection warning for a flight number."
+        files: [python-backend/airline/tools.py]
+      - id: matching_flights
+        runtime: backend
+        type: tool
+        label: get_matching_flights
+        description: "Rebooking options (NY950, NY982) for a disrupted segment."
+        files: [python-backend/airline/tools.py]
+      - id: book_new_flight
+        runtime: backend
+        type: tool
+        label: book_new_flight
+        description: "Books the replacement, auto-assigns a seat, keeps the confirmation."
+        files: [python-backend/airline/tools.py]
+      - id: cancel_flight
+        runtime: backend
+        type: tool
+        label: cancel_flight
+        description: "Cancels the flight in context. The prompt requires the customer to confirm first."
+        files: [python-backend/airline/tools.py]
+      - id: update_seat
+        runtime: backend
+        type: tool
+        label: update_seat
+        files: [python-backend/airline/services.py]
+      - id: special_seat
+        runtime: backend
+        type: tool
+        label: special_service_seat
+        description: "assign_special_service_seat: front row 1A/2A for medical needs; writes special_service_note."
+        files: [python-backend/airline/services.py]
+        data: { sensitivity: phi, retention: 1d, description: "Free-text medical reason." }
+      - id: seat_map
+        runtime: backend
+        type: tool
+        label: display_seat_map
+        description: "Returns the DISPLAY_SEAT_MAP sentinel; the frontend intercepts it."
+        files: [python-backend/airline/services.py]
+      - id: faq_lookup
+        runtime: backend
+        type: tool
+        label: faq_lookup_tool
+        description: "Keyword lookup: bags, compensation/delay, seats/plane, wifi."
+        files: [python-backend/airline/tools.py, python-backend/airline/demo_data.py]
+      - id: payout_gate
+        runtime: backend
+        status: planned
+        type: decision
+        label: Over $500?
+        description: "needs_approval callable: payouts over $500 or any cash refund pause the run (result.interruptions)."
+        files: [python-backend/airline/approvals.py]
+      - id: issue_compensation
+        runtime: backend
+        type: tool
+        label: issue_compensation
+        description: "Opens case CMP-xxxx and issues hotel ($180), meal ($60) and ground ($40) vouchers."
+        files: [python-backend/airline/services.py]
+        data: { sensitivity: pii, retention: 30d }
+      - id: baggage_tool
+        runtime: backend
+        status: planned
+        type: tool
+        label: baggage_tool
+        description: "Defined upstream (fees, allowance, missing bags) but not attached to any agent."
+        files: [python-backend/airline/tools.py]
+    edges:
+      - "get_trip_details -> flight_status: PA441"
+      - "flight_status -> matching_flights: delayed"
+      - "matching_flights -> book_new_flight: NY950"
+      - "update_seat -> special_seat: medical"
+      - "payout_gate -> issue_compensation: within limit"
+      - "faq_lookup -> issue_compensation: policy checked"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: state
+    title: Shared Context, State & Models (backend)
+    description: >-
+      One typed context per thread, shared by every agent and tool; only a filtered view
+      reaches the browser. Everything lives in process memory. OpenAI models only.
+    nodes:
+      - id: conversation
+        runtime: backend
+        type: memory
+        label: ConversationState
+        description: "input_items, current_agent_name, events and guardrail checks per thread."
+        files: [python-backend/airline_server.py]
+        data: { sensitivity: pii, retention: 1d, description: "Process memory; lost on restart." }
+      - id: airline_ctx
+        runtime: backend
+        type: memory
+        label: AirlineAgentContext
+        description: "passenger_name, confirmation, flight, seat, account_number, itinerary, vouchers, case id."
+        files: [python-backend/airline/context.py]
+        data: { sensitivity: pii, retention: 1d }
+      - id: thread_store
+        runtime: backend
+        type: memory
+        label: MemoryStore
+        description: "ChatKit Store: threads, items and attachments in dicts. Swap for a database in production."
+        files: [python-backend/memory_store.py]
+      - id: mock_data
+        runtime: backend
+        type: memory
+        label: Mock itineraries
+        description: "disrupted (IR-D204, PA441 -> NY802) and on_time (LL0EZ6, FLT-123) plus FAQ answers."
+        files: [python-backend/airline/demo_data.py]
+      - id: public_ctx
+        runtime: backend
+        type: guard
+        label: public_context()
+        description: "Hides itinerary, baggage_claim_id, compensation_case_id and scenario; vouchers only once granted."
+        files: [python-backend/airline/context.py]
+      - id: no_tracing
+        runtime: backend
+        type: guard
+        label: Tracing off
+        description: "OPENAI_TRACING_DISABLED=1 by default so zero data retention orgs send no traces."
+        files: [python-backend/main.py]
+      - id: deps
+        runtime: backend
+        type: tool
+        label: Agents SDK + ChatKit
+        description: "openai-agents, openai-chatkit, fastapi, uvicorn, pydantic."
+        files: [python-backend/requirements.txt]
+      - id: gpt52
+        runtime: openai
+        type: model
+        label: gpt-5.2
+        model: gpt-5.2
+        description: "MODEL constant for all six agents."
+        files: [python-backend/airline/agents.py]
+      - id: gpt41mini
+        runtime: openai
+        type: model
+        label: gpt-4.1-mini
+        model: gpt-4.1-mini
+        description: "GUARDRAIL_MODEL: two calls per user message, structured output."
+        files: [python-backend/airline/guardrails.py]
+    edges:
+      - "thread_store -> conversation [data]: thread"
+      - "conversation -> airline_ctx [data]: state"
+      - "mock_data -> airline_ctx [data]: apply_itinerary_defaults"
+      - "airline_ctx -> public_ctx [data]"
+      - "no_tracing -> deps: no traces exported"
+      - { from: deps, to: gpt52, kind: call, label: Responses API, protocol: http }
+      - { from: deps, to: gpt41mini, kind: call, label: Responses API, protocol: http }
+
+links:
+  # frontend <-> backend API (HTTP + server-sent events)
+  - { from: ui.chat, to: api.endpoint, label: "POST /chatkit", protocol: http }
+  - { from: api.endpoint, to: ui.reply, kind: return, label: "SSE thread events", protocol: http }
+  - { from: api.refusal, to: ui.reply, kind: return, label: refusal message, protocol: http }
+  - { from: ui.api_client, to: api.state_api, kind: call, label: "GET /chatkit/bootstrap, /state", protocol: http }
+  - { from: api.state_stream, to: ui.runner_output, kind: data, label: "SSE events_delta", protocol: http }
+  - { from: api.state_stream, to: ui.guardrail_panel, kind: data, label: guardrails, protocol: http }
+  - { from: api.state_stream, to: ui.context_panel, kind: data, label: public context, protocol: http }
+  - { from: api.state_stream, to: ui.agents_list, kind: data, label: current agent, protocol: http }
+  - { from: tools.seat_map, to: ui.seat_picker, kind: return, label: DISPLAY_SEAT_MAP, protocol: http }
+  - { from: agents.ticket, to: ui.agent_console, kind: handoff, label: escalated chat, protocol: webhook }
+  - { from: tools.payout_gate, to: ui.duty_manager, kind: handoff, label: "over limit: interruption", protocol: http }
+  - { from: ui.duty_manager, to: tools.issue_compensation, label: "RunState.approve", protocol: http }
+  # backend: runner -> agents
+  - "api.runner -> agents.resume: current agent"
+  - "api.tripwire -> agents.wants_human: tripped twice"
+  # agents -> tools
+  - "agents.triage -> tools.get_trip_details [call]"
+  - "agents.flight_info -> tools.flight_status [call]"
+  - "agents.flight_info -> tools.matching_flights [call]"
+  - "agents.booking -> tools.book_new_flight [call]"
+  - "agents.booking -> tools.cancel_flight [call]: confirmed"
+  - "agents.seats -> tools.seat_map [call]"
+  - "agents.seats -> tools.update_seat [call]"
+  - "agents.faq -> tools.faq_lookup [call]"
+  - "agents.refunds -> tools.faq_lookup [call]: policy"
+  - "agents.refunds -> tools.payout_gate [call]: issue_compensation"
+  - "agents.baggage -> tools.baggage_tool [call]"
+  # hooks and tools -> context
+  - "agents.on_booking -> state.airline_ctx [data]: hydrate"
+  - "agents.on_seat -> state.airline_ctx [data]: hydrate"
+  - "tools.book_new_flight -> state.airline_ctx [data]: flight, seat"
+  - "tools.special_seat -> state.airline_ctx [data]: special_service_note"
+  - "tools.issue_compensation -> state.airline_ctx [data]: case, vouchers"
+  - "state.public_ctx -> api.state_api [data]: filtered"
+  - "state.public_ctx -> agents.ticket [data]: ticket context"
+  - "state.conversation -> api.runner [data]: input_items"
+  # guardrails and agents -> models
+  - "api.relevance -> state.gpt41mini [call]"
+  - "api.jailbreak -> state.gpt41mini [call]"
+  - "agents.triage -> state.gpt52 [call]"

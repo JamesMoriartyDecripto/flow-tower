@@ -1,0 +1,6 @@
+row_id,vdr_ref,doc_type,counterparty,column,answer,quote,location,flag,verified_by
+R-0412,4.2.17,commercial.supply_agreement,Halvorsen Components AS,coc_effect,termination_right,"Either Party may terminate this Agreement with immediate effect if the other Party undergoes a Change of Control.",p.14 §12.3,red,a.keller
+R-0413,4.2.17,commercial.supply_agreement,Halvorsen Components AS,indem_uncapped,"IP infringement indemnity, no cap","The limitations in clause 15.1 shall not apply to the Supplier's obligations under clause 16 (IP Indemnity).",p.17 §15.4,yellow,a.keller
+R-0587,4.3.02,commercial.distribution_agreement,Rhein Retail GmbH,excl_affiliates,yes,"Der Lieferant und seine verbundenen Unternehmen werden im Gebiet keine Konkurrenzprodukte vertreiben.",p.6 §4.2,yellow,a.keller
+R-0911,6.1.04,ip.ip_assignment,Dr. J. Varga,executed,no,,p.3 signature block,red,a.keller
+R-1022,8.2.01,real_estate.lease,Logistikpark Süd KG,assign_consent,"landlord consent, not to be unreasonably withheld","Any assignment of this lease requires the prior written consent of the Landlord, which shall not be unreasonably withheld.",p.9 §18.1,green,a.keller

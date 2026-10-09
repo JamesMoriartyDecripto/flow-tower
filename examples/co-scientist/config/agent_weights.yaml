@@ -1,0 +1,28 @@
+# Worker pool and supervisor knobs. The supervisor overrides the weights every
+# cycle from statistics; these are the starting point and the hard limits.
+workers: 32                 # parallel worker processes (concurrency)
+queue_size: 256
+batch_size: 64              # tasks queued per supervisor cycle
+task_timeout_s: 900
+max_cycles: 400             # hard stop for one session
+stable_cycles: 12           # top-10 Elo unchanged this long = terminal state
+meta_review_every: 10       # cycles
+initial_weights:
+  generation: 0.45
+  reflection: 0.25
+  ranking: 0.15
+  evolution: 0.05
+  proximity: 0.05
+  meta_review: 0.05
+late_weights:               # once the pool has 100+ hypotheses
+  generation: 0.15
+  reflection: 0.25
+  ranking: 0.35
+  evolution: 0.15
+  proximity: 0.05
+  meta_review: 0.05
+tournament:
+  initial_elo: 1200
+  k_factor: 32
+  debate_top_n: 10          # multi-turn debates among the top 10, single-turn below
+  debate_max_turns: 4

@@ -1,0 +1,14 @@
+# Signed off by the client on 2026-09-12 (round 1 of 2).
+pages:
+  - { path: /, template: home, keyword: specialty coffee roaster copenhagen, cta: Shop beans }
+  - { path: /shop, template: listing, keyword: buy specialty coffee beans online, cta: Add to cart }
+  - { path: /shop/[slug], template: product, keyword: per product, cta: Add to cart, backend: [products, checkout] }
+  - { path: /subscriptions, template: landing, keyword: coffee subscription denmark, cta: Start subscription, backend: [checkout] }
+  - { path: /wholesale, template: landing, keyword: wholesale coffee for cafes, cta: Request samples, backend: [enquiries] }
+  - { path: /journal, template: listing, keyword: coffee brewing guides, cta: Read }
+  - { path: /journal/[slug], template: article, keyword: per article }
+  - { path: /about, template: content, keyword: nordlicht coffee story }
+  - { path: /faq, template: content, keyword: coffee shipping denmark }
+  - { path: /contact, template: content, cta: Send message, backend: [contact] }
+templates: [home, listing, product, landing, article, content]
+collections: [products, posts, faqs, enquiries, orders, media]

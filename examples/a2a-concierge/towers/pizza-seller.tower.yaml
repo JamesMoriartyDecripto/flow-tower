@@ -1,0 +1,101 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Pizza seller internals
+description: >-
+  The pizza seller on Cloud Run: the same a2a-sdk server shape in front of a LangGraph
+  create_react_agent. The A2A contextId is the LangGraph thread_id, so follow-ups keep history
+  in a MemorySaver checkpointer.
+root: ..
+
+runtimes:
+  pizza_run:
+    kind: serverless
+    label: "Cloud Run: pizza-agent"
+    description: "Port 8080, --min 1, HOST_OVERRIDE = service URL."
+    provider: "google-cloud"
+    region: "us-central1"
+    url: "https://pizza-agent-480913327416.us-central1.run.app"
+  vertex:
+    kind: cloud
+    label: "Vertex AI Gemini"
+    provider: "google-cloud"
+    region: "us-central1"
+
+agents:
+  react:
+    name: Pizza ReAct agent
+    description: "create_react_agent(ChatVertexAI, tools=[create_pizza_order], checkpointer=MemorySaver, prompt=SYSTEM_INSTRUCTION)."
+    runtime: pizza_run
+    model: gemini-2.5-flash-lite
+    prompt: { file: prompts/pizza-seller.md }
+    tools: [create_pizza_order]
+    harness: { framework: langgraph, prebuilt: create_react_agent }
+    files: [remote_seller_agents/pizza_agent/agent.py]
+
+layers:
+  - id: server
+    title: A2A Server
+    description: Starlette app from a2a-sdk 0.2.16; cancel is unsupported because orders are short-running.
+    nodes:
+      - id: request
+        runtime: pizza_run
+        type: entry
+        label: message/send
+        description: "JSON-RPC request from the concierge with the user's confirmed order or a menu question."
+        trigger: { kind: webhook, source: A2A JSON-RPC (concierge) }
+        files: [remote_seller_agents/pizza_agent/a2a_server.py]
+      - id: executor
+        runtime: pizza_run
+        label: AgentExecutor
+        description: "PizzaSellerAgentExecutor.execute: invoke(query, context_id), then completed_task with artifact pizza_<task_id>."
+        files: [remote_seller_agents/pizza_agent/a2a_server.py]
+      - id: done
+        runtime: pizza_run
+        type: output
+        label: Completed task
+        description: "Items, price breakdown, total and order ID as one text artifact."
+        files: [remote_seller_agents/pizza_agent/a2a_server.py]
+    edges:
+      - "request -> executor"
+      - "executor -> done [return]: artifact"
+
+  - id: graph
+    title: LangGraph ReAct Loop
+    description: Prebuilt agent node and tools node; the loop ends when the model answers without a tool call.
+    nodes:
+      - id: agent
+        agent: react
+        label: ReAct agent
+      - id: tool_call
+        runtime: pizza_run
+        type: decision
+        label: Tool call?
+        description: "Prebuilt tools_condition: route to the ToolNode or finish."
+      - id: create_order
+        runtime: pizza_run
+        type: tool
+        label: create_pizza_order
+        description: "@tool; builds Order(order_id uuid4, status created) from OrderItem(name, quantity, price)."
+        files: [remote_seller_agents/pizza_agent/agent.py]
+      - id: checkpointer
+        runtime: pizza_run
+        type: memory
+        label: MemorySaver
+        description: "thread_id = A2A contextId. In process only: lost on a new Cloud Run instance."
+        files: [remote_seller_agents/pizza_agent/agent.py]
+      - id: model
+        runtime: vertex
+        type: model
+        label: gemini-2.5-flash-lite
+        model: gemini-2.5-flash-lite
+        description: "ChatVertexAI(model='gemini-2.5-flash-lite', project, location)."
+    edges:
+      - "agent -> tool_call"
+      - "tool_call -> create_order [call]: yes"
+      - "create_order -> agent [return]: order dump"
+      - "agent -> checkpointer [data]: messages"
+      - "agent -> model [call]"
+
+links:
+  - "server.executor -> graph.agent [call]: graph.invoke"
+  - "graph.tool_call -> server.done [return]: final answer"

@@ -1,0 +1,5 @@
+{"ts":"2026-10-05T10:02:14.118Z","matterId":"M-2026-0412","agent":"clause-reviewer:change_of_control","promptVersion":"v7","event":"PreToolUse","tool":"mcp__docstore__search_passages","docId":"a41f09c2e7d1b355","toolUseId":"toolu_01"}
+{"ts":"2026-10-05T10:02:15.902Z","matterId":"M-2026-0412","agent":"clause-reviewer:change_of_control","promptVersion":"v7","event":"PreToolUse","tool":"mcp__docstore__read_pages","docId":"a41f09c2e7d1b355","pages":"13-15","toolUseId":"toolu_02"}
+{"ts":"2026-10-05T10:02:16.007Z","matterId":"M-2026-0412","agent":"clause-reviewer:assignment","promptVersion":"v7","event":"PreToolUse","tool":"WebFetch","decision":"deny","reason":"No web access on client matters."}
+{"ts":"2026-10-06T16:30:09.551Z","matterId":"M-2026-0412","stage":"review_table","event":"checkpoint.approved","by":"a.keller","cells_edited":142}
+{"ts":"2026-10-09T08:14:02.300Z","matterId":"M-2026-0412","stage":"report","event":"checkpoint.approved","by":"s.hoffmann","version":"RFR-v2"}

@@ -1,0 +1,12 @@
+2026-10-08T06:58:01.330Z WARN  portal.login     MFA challenge on login session=01K7AX0V2D8N wi=wi_20261008_4e90
+2026-10-08T06:58:01.512Z WARN  portal.session   takeover requested session=01K7AX0V2D8N reason=MFA
+2026-10-08T06:58:01.640Z INFO  portal.session   UpdateBrowserStream automationStreamUpdate.streamStatus=DISABLED
+2026-10-08T06:58:01.902Z INFO  portal.ops       Slack #ops-portal-bot: "Live View needed for MFA" link=ops-console/sessions/01K7AX0V2D8N
+2026-10-08T07:00:44.118Z INFO  portal.ops       operator=k.osei joined Live View
+2026-10-08T07:01:09.771Z INFO  portal.ops       operator=k.osei released control (OTP entered, dashboard visible)
+2026-10-08T07:01:09.905Z INFO  portal.session   UpdateBrowserStream automationStreamUpdate.streamStatus=ENABLED
+2026-10-08T07:01:10.220Z INFO  portal.worker    resumed wi_20261008_4e90 at step=1 remaining_ttl=651s
+2026-10-08T09:14:27.006Z WARN  portal.worker    request_takeover reason="Unexpected modal: 'Your password expires in 3 days. Change now?'"
+2026-10-08T09:14:27.190Z INFO  portal.session   UpdateBrowserStream automationStreamUpdate.streamStatus=DISABLED
+2026-10-08T09:24:27.200Z WARN  portal.ops       no operator within 10m -> session stopped, work item returned to queue
+2026-10-08T09:24:27.410Z INFO  portal.session   recording kept: s3://acme-ins-browser-recordings-eu/portal-worker/01K7B5QH6WTE/

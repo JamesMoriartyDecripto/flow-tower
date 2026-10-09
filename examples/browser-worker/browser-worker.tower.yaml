@@ -1,0 +1,430 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Legacy Portal Browser Worker
+tags: [insurance, computer-use, browser-agent, aws, agentcore, human-in-the-loop]
+description: >-
+  Insurance operations automation for a legacy insurer agent portal that has no API.
+  Endorsements and claim-document uploads arrive on SQS; a Claude computer-use agent drives
+  an isolated Amazon Bedrock AgentCore Browser session (15 min TTL, 8 h for batches) through
+  login, policy search, form filling and uploads. Every session is recorded to S3, an operator
+  can take over in Live View, and a guard holds Submit until an independent verifier has
+  confirmed every field on a fresh screenshot. Exceptions go to a human.
+
+runtimes:
+  sqs:
+    kind: cloud
+    label: "SQS work queue"
+    description: "portal-work-items (visibility 120s, maxReceiveCount 3) and its dead-letter queue."
+    provider: "aws"
+    region: "eu-central-1"
+  lambda:
+    kind: serverless
+    label: "Intake Lambda"
+    description: "SQS event source mapping, batch size 5, partial batch responses."
+    provider: "aws"
+    region: "eu-central-1"
+  agentcore:
+    kind: serverless
+    label: "AgentCore Runtime"
+    description: "portal_worker runtime: one microVM per invocation, runs src/handler.py."
+    provider: "aws"
+    region: "eu-central-1"
+  browser:
+    kind: browser
+    label: "AgentCore Browser"
+    description: "Custom browser portal_browser: recording to S3, public network, isolated microVM per session."
+    provider: "aws"
+    region: "eu-central-1"
+    url: "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/browser-tool.html"
+  bedrock:
+    kind: cloud
+    label: "Amazon Bedrock"
+    description: "Claude Haiku, Sonnet and Opus 5.5 through EU cross-region inference profiles."
+    provider: "aws"
+    region: "eu-central-1"
+  portal:
+    kind: server
+    label: "Insurer agent portal"
+    description: "Third-party legacy web app (JSF, session cookies, OTP for new devices). No API, no test tenant."
+    host: "agents.legacy-insurer.example.com"
+    url: "https://agents.legacy-insurer.example.com"
+  ops:
+    kind: cloud
+    label: "Ops console"
+    description: "Internal app on CloudFront that embeds the Live View stream and the human review queue."
+    provider: "aws"
+    url: "https://ops.acme-insurance.example.com/portal-bot"
+  policycenter:
+    kind: saas
+    label: "Guidewire PolicyCenter"
+    description: "System of record that emits the work items and receives the confirmation numbers."
+    provider: "guidewire"
+
+prompts:
+  classifier: { file: prompts/classifier.md, description: "Routes a work item: type, single or batch, missing fields, risk." }
+  worker: { file: prompts/worker.md, description: "Computer-use system prompt. No login, no Submit, stop on anything unexpected." }
+  verifier: { file: prompts/verifier.md, description: "Fresh-context field-by-field check of the filled form on a new screenshot." }
+
+agents:
+  classifier:
+    name: Work item classifier
+    runtime: lambda
+    model: claude-haiku-5-5
+    prompt: classifier
+    tools: []
+    files: [src/intake.py]
+    budget: { usd: 0.01, tokens: 2000 }
+    evals:
+      - { name: route accuracy, value: 0.97, target: 0.95 }
+  worker:
+    name: Portal worker
+    runtime: agentcore
+    model: claude-sonnet-5-5
+    prompt: worker
+    tools: [computer, request_takeover, ready_to_submit, report]
+    harness: { tool: computer_20251124, beta: computer-use-2025-11-24, display: 1456x819, enable_zoom: true }
+    files: [src/handler.py, src/computer_loop.py, config/browser.yaml]
+    resources:
+      - { kind: log, label: "Worker log", path: "logs/worker.log" }
+      - { kind: dashboard, label: "CloudWatch: portal worker", url: "https://eu-central-1.console.aws.amazon.com/cloudwatch/home?region=eu-central-1#dashboards/dashboard/portal-worker" }
+    fanout: { min: 1, max: 6, by: queue depth (portal locks the service user after 8 logins) }
+    budget: { usd: 1.5, turns: 60, on_exceed: escalate }
+    limits: { timeout: 12m, ttl: 15m, retries: 2, backoff: "SQS visibility 120s", max_iterations: 60, concurrency: 6 }
+    data: { sensitivity: pii, region: eu, retention: 90d, description: "Policyholder names, dates of birth, licence numbers, addresses on screenshots" }
+    credentials: service
+    sandbox: { network: allowlist, allow: [agents.legacy-insurer.example.com, sso.legacy-insurer.example.com], filesystem: workspace }
+    evals:
+      - { name: straight-through rate, value: 0.81, target: 0.8 }
+      - { name: wrong-field submits, value: 0, target: 0, higher_is_better: false }
+      - { name: median steps per item, value: 19, target: 30, higher_is_better: false }
+    version: v7
+    rollout: { strategy: canary, percent: 10, previous: v6 }
+  verifier:
+    name: Pre-submit verifier
+    runtime: agentcore
+    model: claude-opus-5-5
+    prompt: verifier
+    tools: []
+    files: [src/verify.py]
+    budget: { usd: 0.25, turns: 1 }
+    data: { sensitivity: pii, region: eu }
+    evals:
+      - { name: field mismatch recall, value: 0.99, target: 0.98, description: "Seeded wrong values caught on the replay set" }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: intake
+    title: Intake & Triage
+    description: Work items from PolicyCenter land on SQS. A Lambda dedupes, Haiku classifies, policy rules route.
+    nodes:
+      - id: queue
+        runtime: sqs
+        type: entry
+        label: SQS work items
+        description: "One message per endorsement or claim-document upload, emitted by a PolicyCenter activity rule."
+        trigger: { kind: queue, source: "SQS portal-work-items", description: "Guidewire PolicyCenter activity rule" }
+        files: [samples/work-item.json]
+        resources:
+          - { kind: queue, label: "portal-work-items", url: "https://eu-central-1.console.aws.amazon.com/sqs/v3/home?region=eu-central-1#/queues" }
+        data: { sensitivity: pii, region: eu }
+      - id: intake_fn
+        runtime: lambda
+        label: Intake Lambda
+        description: "Batch of 5; failures are reported per message (batchItemFailures) so one bad item does not retry the batch."
+        files: [src/intake.py]
+      - id: dedupe
+        runtime: lambda
+        type: guard
+        label: Idempotency key
+        description: "DynamoDB conditional put on policy:type:effective_date:key-field. A redelivered message never files twice."
+        files: [src/intake.py, samples/work-item.json]
+        resources:
+          - { kind: database, label: "portal-work-items table", url: "https://eu-central-1.console.aws.amazon.com/dynamodbv2/home?region=eu-central-1#table?name=portal-work-items" }
+      - id: classify
+        agent: classifier
+        label: Classify (Haiku)
+      - id: route
+        runtime: lambda
+        type: decision
+        label: Supported?
+        description: "Cancellations, bank details and claim payouts are never automated; missing fields go to a person."
+        files: [prompts/classifier.md]
+      - id: review_queue
+        runtime: sqs
+        type: output
+        label: Review queue
+        description: "portal-human-review queue, surfaced in the ops console."
+        files: [src/intake.py]
+      - id: dlq
+        runtime: sqs
+        type: output
+        label: Dead-letter queue
+        description: "After 3 receives. A CloudWatch alarm pages the ops lead when depth > 0 for 15 minutes."
+        resources:
+          - { kind: queue, label: "portal-work-items-dlq", url: "https://eu-central-1.console.aws.amazon.com/sqs/v3/home?region=eu-central-1#/queues" }
+    edges:
+      - { from: queue, to: intake_fn, kind: flow, label: batch of 5, protocol: queue }
+      - "intake_fn -> dedupe [call]: idempotency key"
+      - "dedupe -> classify: first delivery"
+      - "classify -> route [data]: route JSON"
+      - "route -> review_queue: unsupported or missing"
+      - "intake_fn -> dlq: 3rd failure"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: session
+    title: Browser Session
+    description: >-
+      One isolated AgentCore Browser session per work item, recorded to S3. Login is deterministic
+      Playwright over CDP so the password never reaches the model; MFA goes to a human in Live View.
+    nodes:
+      - id: mode
+        runtime: agentcore
+        type: decision
+        label: Single or batch?
+        description: "Nightly renewal batches (> 20 policies) need one long session instead of 20 logins."
+        files: [src/session.py]
+      - id: start
+        runtime: browser
+        label: StartBrowserSession
+        description: "sessionTimeoutSeconds 900 (AgentCore default), viewport 1456x819. The microVM is destroyed at TTL."
+        files: [src/session.py, config/browser.yaml]
+        limits: { ttl: 15m, retries: 2, backoff: "exponential 1s..8s" }
+      - id: start_batch
+        runtime: browser
+        label: Batch session
+        description: "sessionTimeoutSeconds 28800, the 8 hour maximum. Re-login if the portal idles out after 20 minutes."
+        files: [src/session.py, config/browser.yaml]
+        limits: { ttl: 8h, retries: 1 }
+        trigger: { kind: cron, schedule: "0 1 * * 1-5", description: "Nightly renewals export" }
+      - id: login
+        runtime: agentcore
+        label: CDP login
+        description: "Playwright connect_over_cdp on the automation stream; credentials from Secrets Manager, filled by selector."
+        files: [src/login.py]
+        credentials: service
+        sandbox: { network: allowlist, allow: [agents.legacy-insurer.example.com, sso.legacy-insurer.example.com], filesystem: none }
+        limits: { timeout: 60s, retries: 1 }
+      - id: mfa
+        runtime: portal
+        type: decision
+        label: OTP prompt?
+        description: "The portal asks for a one-time code on unknown devices (every few weeks per microVM fingerprint)."
+        files: [src/login.py]
+      - id: takeover
+        runtime: ops
+        type: human
+        label: Operator takeover
+        description: >-
+          UpdateBrowserStream sets the automation stream to DISABLED, so the agent is locked out while
+          the operator types the OTP or closes an odd modal in Live View. Re-enabled on release.
+        files: [src/session.py]
+        resources:
+          - { kind: log, label: "Takeover log", path: "logs/takeover.log" }
+          - { kind: dashboard, label: "Live View (ops console)", url: "https://ops.acme-insurance.example.com/portal-bot/sessions" }
+        approval: { by: portal operations analyst, via: "Slack #ops-portal-bot + Live View", actions: [respond, reject], timeout: 10m, on_timeout: reject }
+        sla: 10m
+      - id: live_view
+        runtime: browser
+        type: tool
+        label: Live View stream
+        description: "/browser-streams/{browser}/sessions/{id}/live-view, embedded in the ops console for watching every run."
+        files: [src/session.py]
+      - id: recording
+        runtime: browser
+        type: memory
+        label: Session recordings
+        description: "DOM changes, user actions, console logs and network events per session, replayable in the AWS console."
+        files: [config/browser.yaml]
+        resources:
+          - { kind: recording, label: "Replays (S3)", url: "https://s3.console.aws.amazon.com/s3/buckets/acme-ins-browser-recordings-eu?prefix=portal-worker/" }
+          - { kind: config, label: "Custom browser config", path: "config/browser.yaml" }
+        data: { sensitivity: pii, region: eu, retention: 90d, description: "S3 lifecycle 90 days; SSE-KMS; access logged in CloudTrail" }
+      - id: stop
+        runtime: browser
+        label: StopBrowserSession
+        description: "Always in a finally block; skipped while an operator holds the session (the TTL still caps it)."
+        files: [src/session.py, src/handler.py]
+    edges:
+      - "mode -> start: single"
+      - "mode -> start_batch: batch"
+      - "start -> login [call]: CDP"
+      - "start_batch -> login [call]: CDP"
+      - "login -> mfa"
+      - "mfa -> takeover [handoff]: OTP required"
+      - "takeover -> live_view [call]: types OTP"
+      - "start -> recording [data]: replay"
+      - "start_batch -> recording [data]: replay"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: worker
+    title: Computer-Use Worker
+    description: >-
+      Sonnet 5.5 drives the portal through screenshots. Every action is one InvokeBrowser call
+      answered with a new screenshot. The worker can fill but never submit.
+    nodes:
+      - id: worker
+        agent: worker
+        label: Portal worker
+      - id: search
+        runtime: portal
+        label: Policy search
+        description: "Left menu > Policy Search, then confirm the policyholder name on the result before opening it."
+        files: [prompts/worker.md]
+      - id: fill
+        runtime: portal
+        label: Fill endorsement
+        description: "Field by field from the field map; zoom to read back each value. Dates are DD/MM/YYYY."
+        files: [config/field-map.yaml, prompts/worker.md]
+      - id: upload
+        runtime: portal
+        label: Upload documents
+        description: "Attach button, file chooser via OS-level action, wait for the green tick. Max 10 MB per file."
+        files: [config/field-map.yaml]
+      - id: screenshot
+        runtime: browser
+        type: tool
+        label: Screenshot + zoom
+        description: "InvokeBrowser screenshot (full desktop, PNG); zoom crops are cut client-side for small JSF labels."
+        files: [src/computer_loop.py]
+      - id: outcome
+        runtime: agentcore
+        type: decision
+        label: Worker outcome?
+        description: "ready_to_submit, request_takeover, or report(exception | mismatch | stuck)."
+        files: [src/handler.py]
+      - id: attempts
+        runtime: sqs
+        type: decision
+        label: Attempt < 3?
+        description: "Stuck runs raise, the message becomes visible again after 120s and gets a fresh session."
+        limits: { retries: 2, backoff: "SQS visibility timeout 120s" }
+        files: [src/handler.py, src/intake.py]
+    edges:
+      - "worker -> search [call]: menu, type, enter"
+      - "search -> fill: holder matches"
+      - "fill -> upload: fields done"
+      - "worker -> screenshot [call]: after every action"
+      - "screenshot -> worker [return]: image"
+      - "upload -> outcome"
+      - "search -> outcome: holder mismatch"
+      - "outcome -> attempts: stuck"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: verify
+    title: Verification & Review
+    description: >-
+      A different model in a fresh context reads the filled form. Only the guard clicks Submit,
+      by DOM selector, after every verify:true field is confirmed. Everything else goes to a person.
+    nodes:
+      - id: verifier
+        agent: verifier
+        label: Verifier (Opus)
+      - id: guard
+        runtime: agentcore
+        type: guard
+        label: Submit guard
+        description: "Blocks unless verdict=pass, every verify:true field was entered AND seen on screen, and no page warnings."
+        files: [src/submit_guard.py, config/field-map.yaml]
+      - id: submit
+        runtime: portal
+        label: Guarded submit
+        description: "Playwright clicks #submit-endorsement and reads the confirmation number. The model has no Submit action."
+        files: [src/submit_guard.py, src/verify.py]
+        limits: { timeout: 30s, retries: 0 }
+      - id: review
+        runtime: ops
+        type: human
+        label: Exception review
+        description: "Referral banners, premium changes, mismatches, blocked submits. The reviewer sees the recording and the verdict."
+        files: [src/verify.py]
+        resources:
+          - { kind: dashboard, label: "Review queue", url: "https://ops.acme-insurance.example.com/portal-bot/review" }
+        approval: { by: claims operations specialist, via: ops console, actions: [approve, edit, reject], timeout: 4h, on_timeout: escalate }
+        sla: 24h
+        data: { sensitivity: pii, region: eu }
+      - id: writeback
+        runtime: policycenter
+        type: output
+        label: PolicyCenter update
+        description: "Confirmation number and recording link added to the activity; the activity is closed."
+        files: [logs/worker.log]
+    edges:
+      - "verifier -> guard [data]: verdict JSON"
+      - "guard -> submit: pass"
+      - "guard -> review [handoff]: blocked"
+      - "submit -> writeback [data]: confirmation no."
+      - "review -> writeback: handled manually"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: platform
+    title: Tools & Models
+    description: Two ways into the same browser (CDP for deterministic steps, OS-level actions for the model) and three Claude tiers on Bedrock.
+    nodes:
+      - id: computer_tool
+        runtime: bedrock
+        type: tool
+        label: computer tool
+        description: "computer_20251124 with beta computer-use-2025-11-24 (Bedrock still accepts it for the 5.5 models). zoom enabled."
+        tools: [screenshot, left_click, double_click, right_click, type, key, scroll, zoom, wait]
+        files: [src/computer_loop.py]
+      - id: invoke_browser
+        runtime: browser
+        type: tool
+        label: InvokeBrowser
+        description: "OS-level mouseClick, keyType (ASCII only), keyPress, keyShortcut, mouseScroll, screenshot. Handles file dialogs CDP cannot."
+        files: [src/computer_loop.py]
+      - id: cdp
+        runtime: browser
+        type: tool
+        label: Playwright CDP
+        description: "SigV4-signed WebSocket automation stream (generate_ws_headers) for login and the guarded submit."
+        files: [src/login.py, src/verify.py]
+      - id: secrets
+        runtime: agentcore
+        type: tool
+        label: Secrets Manager
+        description: "portal/service-user-ops-bot, rotated monthly by the portal admin. Read only by the login step."
+        files: [src/login.py]
+        data: { sensitivity: secret }
+      - id: haiku
+        runtime: bedrock
+        type: model
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        description: Classifier. About $0.001 per work item.
+      - id: sonnet
+        runtime: bedrock
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        description: "Computer-use worker. Median 19 steps, about $0.40 per item with screenshots."
+      - id: opus
+        runtime: bedrock
+        type: model
+        label: Opus 5.5
+        model: claude-opus-5-5
+        description: Pre-submit verifier. One call per item, one screenshot.
+    edges:
+      - "computer_tool -> invoke_browser [call]: action map"
+      - "secrets -> cdp [data]: username, password"
+
+links:
+  - "intake.route -> session.mode [handoff]: supported"
+  - "session.mfa -> worker.worker [handoff]: logged in"
+  - "session.takeover -> worker.worker [return]: automation ENABLED"
+  - "worker.outcome -> session.takeover [handoff]: request_takeover"
+  - "worker.outcome -> verify.verifier [handoff]: ready_to_submit"
+  - "worker.outcome -> verify.review [handoff]: exception or mismatch"
+  - "worker.attempts -> intake.queue [return]: visible again"
+  - "worker.attempts -> intake.dlq: 3rd failure"
+  - "verify.writeback -> session.stop: done"
+  - "verify.review -> session.recording [data]: watch replay"
+  - "intake.review_queue -> verify.review [handoff]: manual item"
+  - "intake.classify -> platform.haiku [call]"
+  - "worker.worker -> platform.sonnet [call]: screenshots + actions"
+  - "worker.worker -> platform.computer_tool [call]"
+  - "worker.screenshot -> platform.invoke_browser [call]: screenshot"
+  - "verify.verifier -> platform.opus [call]: one screenshot"
+  - "verify.submit -> platform.cdp [call]: click by selector"
+  - "session.login -> platform.cdp [call]: fill by selector"
+  - "session.login -> platform.secrets [call]"

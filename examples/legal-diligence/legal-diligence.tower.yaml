@@ -1,0 +1,437 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Legal Due Diligence
+description: >-
+  An M&A red-flag diligence desk for a law firm, built on the Claude Agent SDK and Claude on
+  Amazon Bedrock in eu-central-1. A virtual data room is ingested and classified, five clause
+  families are extracted per document by parallel reviewers with sentence-level citations,
+  findings are scored against the matter's materiality thresholds, and a red flag report is
+  drafted. A lawyer edits and approves every stage (scope, classification, review table,
+  flags, report). Client data is confidential and never leaves the EU; every read and every
+  approval lands in an append-only audit trail. Sample matter: "Project Lindwurm", a share
+  deal for a German industrial supplier, 1,184 documents.
+tags: [legal, m-and-a, due-diligence, contract-review, human-in-the-loop, citations, data-residency, claude-agent-sdk]
+
+runtimes:
+  matter-svc:
+    kind: container
+    label: Diligence service (EU)
+    description: Node 22 pods running the pipeline, every SDK query(), the hooks and the in-process docstore MCP. One namespace per matter.
+    host: eks:dd-eu/diligence
+    provider: aws
+    region: eu-central-1
+  bedrock:
+    kind: cloud
+    label: Claude on Bedrock (EU)
+    description: Haiku, Sonnet and Opus 5.5 through the Frankfurt endpoint, so prompts and documents are processed in-region.
+    provider: aws-bedrock
+    region: eu-central-1
+    url: https://bedrock-runtime.eu-central-1.amazonaws.com
+  datasite:
+    kind: saas
+    label: Datasite VDR
+    description: Seller-run virtual data room. Publishes upload webhooks and hosts the buyer Q&A module.
+    provider: datasite
+    url: https://www.datasite.com
+  dms:
+    kind: saas
+    label: iManage Work (EU)
+    description: Firm DMS. Matter workspace, playbooks, model clauses and the final report. Ethical walls enforced here.
+    provider: imanage
+    region: eu
+    url: https://dms.example-firm.eu
+  review-ui:
+    kind: browser
+    label: Review workspace
+    description: Firm web app where lawyers edit and approve each checkpoint (classification queue, review table, flags, report).
+    url: https://dd.example-firm.eu
+  teams:
+    kind: saas
+    label: Microsoft Teams
+    description: Deal-team channel for red-flag alerts and checkpoint nudges.
+    provider: microsoft
+
+prompts:
+  classifier: { file: prompts/classifier.md, description: "Haiku. Page-one classification into the matter taxonomy, privilege flag, amendment links." }
+  clause-reviewer: { file: prompts/clause-reviewer.md, description: "Sonnet. One document, one clause family; every answer carries a verbatim quote." }
+  consistency: { file: prompts/consistency.md, description: "Opus. Cross-document outliers, conflicts with amendments, missing documents." }
+  red-flag-scorer: { file: prompts/red-flag-scorer.md, description: "Opus. Severity and recommended action per finding against the playbook." }
+  rfi-drafter: { file: prompts/rfi-drafter.md, description: "Sonnet. Seller Q&A questions for gaps; never reveals the buyer's assessment." }
+  memo-writer: { file: prompts/memo-writer.md, description: "Opus. Red flag report from approved flags only; no citation, no sentence." }
+
+agents:
+  classifier:
+    name: Document classifier
+    description: Tool-less, JSON-only. Runs on the first six OCR pages of every document, in 250-document batches.
+    model: claude-haiku-5-5
+    prompt: classifier
+    tools: []
+    runtime: matter-svc
+    files: [src/classify.ts, config/taxonomy.yaml]
+    harness: { max_turns: 2, setting_sources: [] }
+    fanout: { min: 1, max: 40, by: 250-document batches }
+    budget: { usd: 15, on_exceed: pause }
+    limits: { timeout: 20m, retries: 2, concurrency: 8 }
+    data: { sensitivity: confidential, region: eu }
+    credentials: service
+    sandbox: { network: none, filesystem: none }
+    evals:
+      - { name: doc-type accuracy (illustrative), value: 0.96, target: 0.95, description: Graded on associate reclassifications in past matters. }
+  clause-reviewer:
+    name: Clause reviewer
+    description: >-
+      One isolated session per (document, clause family). Reads only through the docstore MCP,
+      answers the review-table columns for its family with a verbatim quote and page/paragraph.
+    model: claude-sonnet-5-5
+    prompt: clause-reviewer
+    tools: [mcp__docstore__read_pages, mcp__docstore__search_passages]
+    runtime: matter-svc
+    tower: towers/clause-review.tower.yaml
+    files: [src/extract.ts, src/docstore.ts, templates/review-columns.yaml]
+    harness: { max_turns: 12, context: isolated, setting_sources: [] }
+    fanout: { min: 1, max: 1200, by: documents in scope }
+    budget: { usd: 250, on_exceed: pause }
+    limits: { timeout: 5m, retries: 2, backoff: "exponential 2s..60s", concurrency: 32 }
+    data: { sensitivity: confidential, region: eu }
+    version: v8
+    rollout: { strategy: shadow, percent: 100, previous: v7 }
+    credentials: service
+    sandbox: { network: none, filesystem: none }
+    resources:
+      - { kind: log, label: Review log, path: logs/review.log }
+    evals:
+      - { name: key-term extraction accuracy (illustrative), value: 0.95, target: 0.95, description: "Against a gold set of 3 annotated data rooms. Vendors report similar figures (Harvey Vault: 96%)." }
+      - { name: citation verified rate, value: 0.987, target: 0.98, description: Share of cells whose quote is found verbatim on the cited page. }
+      - { name: associate edit rate, value: 0.009, target: 0.02, higher_is_better: false, description: Cells changed by the associate at the review-table checkpoint. }
+  consistency:
+    name: Consistency analyst
+    model: claude-opus-5-5
+    prompt: consistency
+    tools: [mcp__reviewtable__query]
+    runtime: matter-svc
+    harness: { max_turns: 30, effort: high }
+    data: { sensitivity: confidential, region: eu }
+    budget: { usd: 20, on_exceed: escalate }
+  scorer:
+    name: Red-flag scorer
+    model: claude-opus-5-5
+    prompt: red-flag-scorer
+    tools: [mcp__reviewtable__query, mcp__dms__read_playbook]
+    runtime: matter-svc
+    files: [config/playbook.yaml]
+    harness: { max_turns: 20, effort: high }
+    data: { sensitivity: confidential, region: eu }
+    budget: { usd: 10, on_exceed: escalate }
+  rfi:
+    name: RFI drafter
+    model: claude-sonnet-5-5
+    prompt: rfi-drafter
+    tools: [mcp__reviewtable__query]
+    runtime: matter-svc
+    data: { sensitivity: confidential, region: eu }
+  memo:
+    name: Memo writer
+    model: claude-opus-5-5
+    prompt: memo-writer
+    tools: [mcp__reviewtable__query, mcp__dms__read_template]
+    runtime: matter-svc
+    files: [templates/memo-template.md]
+    harness: { max_turns: 40, effort: high }
+    data: { sensitivity: confidential, region: eu }
+    budget: { usd: 25, on_exceed: escalate }
+    limits: { timeout: 30m, max_iterations: 3 }
+    evals:
+      - { name: answer score, value: 0.91, target: 0.9, description: "Illustrative, BigLaw Bench-style: share of a lawyer-quality report completed, net of penalties for errors.", url: https://www.harvey.ai/blog/introducing-biglaw-bench }
+      - { name: source score, value: 0.97, target: 0.95, description: "Illustrative, BigLaw Bench-style: share of correct statements supported by an accurate source.", url: https://www.harvey.ai/blog/introducing-biglaw-bench }
+      - { name: unsupported sentences, value: 0, target: 0, higher_is_better: false }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: intake
+    title: Matter Intake & Classification
+    description: Scope first, then ingest the data room in-region, classify every document and keep privileged material out.
+    nodes:
+      - id: scope
+        type: human
+        label: Scope & thresholds
+        description: The lead associate sets workstreams, risk categories, materiality thresholds and the review columns (imported from the client's diligence request list).
+        runtime: review-ui
+        files: [config/playbook.yaml, templates/review-columns.yaml]
+        approval: { by: lead associate, via: review workspace, actions: [approve, edit, reject], timeout: 24h, on_timeout: wait }
+      - id: vdr_sync
+        type: entry
+        label: VDR upload
+        description: Datasite webhook on every published batch. Late uploads re-enter here and are diffed against the index.
+        runtime: datasite
+        trigger: { kind: webhook, source: Datasite documents.published }
+        data: { sensitivity: confidential, region: eu }
+      - id: walls
+        type: guard
+        label: Ethical wall
+        description: Only timekeepers cleared on the matter (conflicts + wall in iManage) can open it; agents act within that ACL.
+        runtime: dms
+        credentials: user
+      - id: ingest
+        label: Ingest & OCR
+        description: SHA-256 dedupe (chain of custody), Amazon Textract in eu-central-1, encrypted with the matter KMS key.
+        runtime: matter-svc
+        files: [src/ingest.ts]
+        limits: { timeout: 2h, retries: 3, backoff: "exponential 5s..5m" }
+        data: { sensitivity: confidential, region: eu }
+        sandbox: { network: allowlist, allow: [textract.eu-central-1.amazonaws.com, s3.eu-central-1.amazonaws.com, api.datasite.com], filesystem: workspace }
+        resources:
+          - { kind: log, label: Ingest log, path: logs/ingest.log }
+          - { kind: queue, label: dd-ingest-eu (SQS), url: https://eu-central-1.console.aws.amazon.com/sqs }
+      - id: classifier
+        agent: classifier
+      - id: privilege
+        type: guard
+        label: Privilege screen
+        description: Documents flagged as counsel advice or litigation strategy are excluded from extraction and the report, and listed for the associate.
+        runtime: matter-svc
+        files: [prompts/classifier.md, src/pipeline.ts]
+      - id: docstore
+        type: memory
+        label: Matter docstore
+        description: Postgres + pgvector per matter (pages, passages, embeddings). Deleted 180 days after matter close.
+        runtime: matter-svc
+        files: [src/docstore.ts]
+        data: { sensitivity: confidential, region: eu, retention: 180d }
+      - id: class_review
+        type: human
+        label: Classification ok
+        description: The associate fixes low-confidence types, confirms privilege flags and links orphan amendments. Edits are kept.
+        runtime: review-ui
+        approval: { by: associate, via: classification queue, actions: [approve, edit], timeout: 8h, on_timeout: escalate }
+    edges:
+      - "scope -> walls: matter opened"
+      - { from: vdr_sync, to: walls, label: batch, protocol: webhook }
+      - "walls -> ingest: cleared"
+      - "ingest -> docstore [data]: pages"
+      - { from: ingest, to: classifier, kind: spawn, label: 250-doc batches, protocol: queue }
+      - "scope -> classifier [data]: taxonomy"
+      - "classifier -> privilege: labels"
+      - "privilege -> class_review: confidence < 0.8 or privileged"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: review
+    title: Clause Extraction
+    description: >-
+      Parallelization. Every in-scope document is reviewed by five clause-family reviewers in
+      isolated sessions; quotes are verified deterministically, then the associate reviews the table.
+    nodes:
+      - id: dispatch
+        label: Dispatch jobs
+        description: (document x clause family) jobs, concurrency 32 against the shared Bedrock EU quota.
+        runtime: matter-svc
+        files: [src/pipeline.ts]
+      - id: coc
+        agent: clause-reviewer
+        label: Change of control
+        description: Consent vs notice vs termination right vs acceleration; definition of Control and Affiliate.
+      - id: assign
+        agent: clause-reviewer
+        label: Assignment
+        description: Assignment by operation of law or merger, consent standard. Consent columns run only if a clause exists.
+      - id: excl
+        agent: clause-reviewer
+        label: Exclusivity
+        description: Scope, duration, and whether it binds affiliates (the buyer's group after closing).
+      - id: term
+        agent: clause-reviewer
+        label: Termination
+        description: Convenience rights, notice periods, termination fees, survival.
+      - id: indem
+        agent: clause-reviewer
+        label: Indemnities
+        description: Caps, baskets, carve-outs and uncapped heads of liability.
+      - id: cite_check
+        type: guard
+        label: Quote verifier
+        description: Deterministic. A cell survives only if its quote is found verbatim on the cited page; failures retry once, then go to the associate.
+        runtime: matter-svc
+        files: [src/citations.ts]
+        evals:
+          - { name: rejected cells after retry, value: 24, target: 50, higher_is_better: false }
+      - id: table
+        type: memory
+        label: Review table
+        description: One row per document, one column per question, each cell with answer, quote, location, confidence, flag and verifier.
+        runtime: matter-svc
+        files: [samples/review-table.csv, templates/review-columns.yaml]
+        data: { sensitivity: confidential, region: eu, retention: 180d }
+      - id: consistency
+        agent: consistency
+      - id: table_review
+        type: human
+        label: Associate review
+        description: Cell-level edits with reasoning and sentence-level citations visible; red / yellow / green flags and comments.
+        runtime: review-ui
+        approval: { by: associate, via: review table, actions: [approve, edit, reject], timeout: 48h, on_timeout: escalate }
+        sla: 48h
+    edges:
+      - "dispatch -> coc [spawn]"
+      - "dispatch -> assign [spawn]"
+      - "dispatch -> excl [spawn]"
+      - "dispatch -> term [spawn]"
+      - "dispatch -> indem [spawn]"
+      - "coc -> cite_check [data]"
+      - "assign -> cite_check [data]"
+      - "excl -> cite_check [data]"
+      - "term -> cite_check [data]"
+      - "indem -> cite_check [data]"
+      - "cite_check -> dispatch [return]: quote not on page, 1 retry"
+      - "cite_check -> table [data]: verified cells"
+      - "table -> consistency [data]: rows by doc type"
+      - "consistency -> table_review: outliers + gaps"
+      - "table -> table_review [data]"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: risk
+    title: Red-Flag Scoring
+    description: Cluster and rank. Findings are scored against the matter playbook; red flags reach the partner at once; gaps become seller questions.
+    nodes:
+      - id: playbook
+        type: memory
+        label: Playbook
+        description: Materiality thresholds, severity rules and the firm's model clauses for this deal type.
+        runtime: dms
+        files: [config/playbook.yaml]
+      - id: scorer
+        agent: scorer
+      - id: severity
+        type: decision
+        label: Severity?
+        description: red (price / structure / deal-breaker), amber (warranty, indemnity, condition), green (appendix), or information gap.
+        runtime: matter-svc
+      - id: alert
+        type: output
+        label: Red-flag alert
+        description: Immediate post to the deal-team channel with the citation, before the full report exists.
+        runtime: teams
+        sla: 4h
+      - id: rfi
+        agent: rfi
+      - id: flag_review
+        type: human
+        label: Senior review
+        description: The senior associate approves, edits, upgrades or rejects each flag and the RFI list. Manual flags are never downgraded by the model.
+        runtime: review-ui
+        approval: { by: senior associate, via: review workspace, actions: [approve, edit, reject], timeout: 24h, on_timeout: escalate }
+      - id: vdr_qa
+        type: tool
+        label: VDR Q&A
+        description: Approved information requests are posted to the Datasite Q&A module, tagged by workstream and priority.
+        runtime: datasite
+        credentials: user
+    edges:
+      - "playbook -> scorer [data]: thresholds"
+      - scorer -> severity
+      - "severity -> alert: red"
+      - "severity -> flag_review: red, amber, green"
+      - "severity -> rfi: information gap"
+      - "rfi -> flag_review: draft questions"
+      - "flag_review -> scorer [return]: re-score"
+      - { from: flag_review, to: vdr_qa, kind: call, label: approved RFIs, protocol: http }
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: report
+    title: Red Flag Report
+    description: Drafted from approved flags only, every sentence cited to the data room, signed off by the partner who owns it.
+    nodes:
+      - id: memo
+        agent: memo
+      - id: source_check
+        type: guard
+        label: Citation gate
+        description: Blocks any factual sentence without a [VDR x.y.z, p. §] citation, and any citation to a row the lawyer rejected.
+        runtime: matter-svc
+        files: [src/citations.ts]
+      - id: partner
+        type: human
+        label: Partner sign-off
+        description: The partner edits in Word (DMS add-in) and approves. Rejections return to the memo writer with comments, at most 3 rounds.
+        runtime: review-ui
+        approval: { by: supervising partner, via: Word add-in, actions: [approve, edit, reject], timeout: 48h, on_timeout: wait }
+      - id: deliver
+        type: output
+        label: Report delivered
+        description: Report (Word/PDF) and review table (Excel, with citations) filed to the matter workspace and sent to the client deal team.
+        runtime: dms
+        files: [templates/memo-template.md]
+        sla: 10d
+        credentials: user
+    edges:
+      - "memo -> source_check: draft"
+      - "source_check -> memo [return]: uncited sentences"
+      - "source_check -> partner: clean draft"
+      - "partner -> memo [return]: edits, max 3 rounds"
+      - "partner -> deliver: approved"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: governance
+    title: Governance, Models & Audit
+    description: In-region models, hooks on every agent session, and an append-only trail of every read, edit and approval.
+    nodes:
+      - id: region_guard
+        type: guard
+        label: Region guard
+        description: PreToolUse. Denies web fetch, search and shell on client matters; models only via the eu-central-1 endpoint.
+        runtime: matter-svc
+        files: [src/hooks/region-guard.ts, src/hooks/index.ts]
+      - id: audit_hook
+        type: hook
+        label: Audit hook
+        description: Pre/PostToolUse, async. Logs agent, prompt version, tool, document id and pages. Never logs document text.
+        runtime: matter-svc
+        files: [src/hooks/audit.ts]
+      - id: audit_log
+        type: memory
+        label: Audit trail
+        description: S3 Object Lock (compliance mode). Tool calls, checkpoint approvals with before/after diffs, report versions.
+        runtime: matter-svc
+        data: { sensitivity: confidential, region: eu, retention: 2555d, description: Kept 7 years for professional-conduct and insurer requirements. }
+        resources:
+          - { kind: log, label: Audit trail (sample), path: logs/audit.log }
+      - id: haiku
+        type: model
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        runtime: bedrock
+      - id: sonnet
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        runtime: bedrock
+      - id: opus
+        type: model
+        label: Opus 5.5
+        model: claude-opus-5-5
+        runtime: bedrock
+      - id: dms
+        type: tool
+        label: iManage
+        description: Matter workspace, playbooks and filing. Calls run with the signed-in lawyer's token so walls and ACLs apply.
+        runtime: dms
+        credentials: user
+    edges:
+      - "region_guard -> audit_hook: allowed"
+      - "audit_hook -> audit_log [data]: events"
+
+links:
+  - "intake.class_review -> review.dispatch [handoff]: approved index"
+  - "intake.docstore -> review.dispatch [data]: in-scope docs"
+  - { from: review.coc, to: intake.docstore, kind: call, label: search + read pages, protocol: mcp }
+  - "review.table_review -> risk.scorer [handoff]: approved table"
+  - "risk.flag_review -> report.memo [handoff]: approved flags"
+  - "review.table -> report.memo [data]: table export"
+  - "governance.dms -> risk.playbook [data]: model clauses"
+  - { from: report.deliver, to: governance.dms, kind: call, label: file report, protocol: http }
+  - { from: intake.classifier, to: governance.haiku, kind: call, protocol: http }
+  - { from: review.coc, to: governance.sonnet, kind: call, label: all 5 families, protocol: http }
+  - { from: review.consistency, to: governance.opus, kind: call, protocol: http }
+  - { from: risk.scorer, to: governance.opus, kind: call, protocol: http }
+  - { from: report.memo, to: governance.opus, kind: call, protocol: http }
+  - "review.dispatch -> governance.region_guard [call]: every tool call"
+  - "intake.scope -> governance.audit_log [data]: approval"
+  - "report.partner -> governance.audit_log [data]: approval + diff"

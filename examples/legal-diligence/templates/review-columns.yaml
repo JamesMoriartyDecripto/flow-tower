@@ -1,0 +1,18 @@
+# Review table columns, converted from the client's diligence request list.
+# Conditional columns run only when their `when` column is true.
+columns:
+  - { id: parties, family: all, type: verbatim, question: "Who are the parties?" }
+  - { id: governing_law, family: all, type: enum, question: "Governing law" }
+  - { id: coc_present, family: change_of_control, type: yes_no, question: "Is there a change of control provision?" }
+  - { id: coc_effect, family: change_of_control, type: enum, values: [consent, notice, termination_right, acceleration, none], when: coc_present }
+  - { id: coc_control_def, family: change_of_control, type: verbatim, when: coc_present, question: "Definition of Control" }
+  - { id: assign_clause, family: assignment, type: yes_no, question: "Is assignment restricted?" }
+  - { id: assign_by_law, family: assignment, type: yes_no, when: assign_clause, question: "Does it cover assignment by operation of law or merger?" }
+  - { id: assign_consent, family: assignment, type: verbatim, when: assign_clause, question: "Consent requirement and standard (not unreasonably withheld?)" }
+  - { id: excl_scope, family: exclusivity, type: verbatim, question: "Exclusivity or non-compete scope" }
+  - { id: excl_affiliates, family: exclusivity, type: yes_no, question: "Does it bind affiliates?" }
+  - { id: term_convenience, family: termination, type: verbatim, question: "Termination for convenience and notice period" }
+  - { id: term_fee, family: termination, type: currency, question: "Termination fee" }
+  - { id: indem_cap, family: indemnity, type: currency, question: "Liability cap" }
+  - { id: indem_uncapped, family: indemnity, type: verbatim, question: "Uncapped heads of liability" }
+  - { id: annual_value, family: all, type: currency, question: "Annual contract value (for materiality)" }
