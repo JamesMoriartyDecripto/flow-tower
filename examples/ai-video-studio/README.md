@@ -13,7 +13,7 @@ Sample client: **Kestrel Trail Co.** (fictional), campaign "Your First Ultra". S
 **Mara Lindqvist** (fictional) has a consent record covering her likeness and cloned voice.
 
 ```bash
-npx flow-tower examples/ai-video-studio
+node bin/flow-tower.js examples/ai-video-studio
 ```
 
 ## Layers

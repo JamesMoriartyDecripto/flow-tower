@@ -1,4 +1,4 @@
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { parseDocument } from 'yaml';
@@ -32,6 +32,28 @@ export function findTowerFiles(entries: string[]): string[] {
   return [...out].sort();
 }
 
+/**
+ * The project a tower may read from: the git repository that contains it, else the folder that was
+ * opened. A tower from a cloned repository must not pull ~/.ssh or ~/.aws into the workspace.
+ */
+export function projectOf(entry: string): string {
+  const abs = resolve(entry);
+  const start = statSync(abs).isDirectory() ? abs : dirname(abs);
+  for (let d = start; ; d = dirname(d)) {
+    if (existsSync(join(d, '.git'))) return d;
+    if (dirname(d) === d) return start;
+  }
+}
+
+/** Absolute path of `path` (relative to `root`) if it stays inside `project`, symlinks resolved. */
+async function inside(project: string, root: string, path: string): Promise<string | undefined> {
+  const abs = safeJoin(project, resolve(root, path));
+  if (!abs) return undefined;
+  // Symlinks are judged by their target. A missing file cannot be a symlink: report it as missing.
+  const real = await realpath(abs).catch(() => undefined);
+  return !real || safeJoin(await realpath(project), real) ? abs : undefined;
+}
+
 function commonDir(files: string[]): string {
   let base = dirname(files[0]);
   while (!files.every((f) => f.startsWith(base + sep)) && dirname(base) !== base) base = dirname(base);
@@ -45,6 +67,13 @@ function commonDir(files: string[]): string {
  */
 export async function loadLibrary(entries: string[]): Promise<LoadResult> {
   const files = findTowerFiles(entries);
+  // Each tower file belongs to the project of the entry it was found through; nested towers inherit it.
+  const projects = new Map<string, string>();
+  for (const entry of entries) {
+    if (!existsSync(resolve(entry))) continue;
+    const project = projectOf(entry);
+    for (const f of findTowerFiles([entry])) if (!projects.has(f)) projects.set(f, project);
+  }
   const base = files.length ? commonDir(files) : resolve('.');
   const result: LoadResult = {
     workspace: { projects: [], towers: {}, loadedAt: new Date().toISOString() },
@@ -58,17 +87,31 @@ export async function loadLibrary(entries: string[]): Promise<LoadResult> {
     const file = queue.shift()!;
     const id = toId(base, file);
     if (result.workspace.towers[id]) continue;
-    const { tower, root, nested } = await loadTower(file, id, result.watched, result.missing);
+    const project = projects.get(file) ?? projectOf(file);
+    const { tower, root, nested } = await loadTower(file, id, project, result.watched, result.missing);
     result.workspace.towers[id] = tower;
     result.roots.set(id, root);
     for (const n of nested) {
+      if (!projects.has(n.abs)) projects.set(n.abs, project);
       const nid = toId(base, n.abs);
       if (nid !== id) nestedIds.add(nid);
       queue.push(n.abs);
       patchTowerRef(tower, n.ref, nid);
     }
   }
-  result.workspace.projects = files.map((f) => toId(base, f)).filter((id) => !nestedIds.has(id));
+  const ids = files.map((f) => toId(base, f));
+  const top = ids.filter((id) => !nestedIds.has(id));
+  // Towers that only reference each other (a cycle) would all look nested: keep the first of each
+  // group that no project reaches as a project too, or they vanish from the library.
+  const reached = new Set<string>();
+  const visit = (id: string) => {
+    for (const n of result.workspace.towers[id]?.layers.flatMap((l) => l.nodes.flatMap((x) => [x.tower, x.agent?.tower])) ?? []) {
+      if (n && !reached.has(n)) { reached.add(n); visit(n); }
+    }
+  };
+  top.forEach(visit);
+  for (const id of ids) if (!top.includes(id) && !reached.has(id)) { top.push(id); visit(id); }
+  result.workspace.projects = ids.filter((id) => top.includes(id));
   return result;
 }
 
@@ -84,7 +127,7 @@ function patchTowerRef(tower: ResolvedTower, ref: string, id: string) {
   }
 }
 
-async function loadTower(file: string, id: string, watched: Set<string>, missing: Set<string>) {
+async function loadTower(file: string, id: string, project: string, watched: Set<string>, missing: Set<string>) {
   watched.add(file);
   const issues: Issue[] = [];
   const empty = (root: string) => ({
@@ -110,22 +153,34 @@ async function loadTower(file: string, id: string, watched: Set<string>, missing
   }
 
   const def = parsed.data;
-  const root = resolve(dirname(file), def.root ?? '.');
+  const outside = (path: string) => issues.push({ level: 'error', message: `${path} is outside the project (${project}): not read` });
+  let root = resolve(dirname(file), def.root ?? '.');
+  if (!safeJoin(project, root)) {
+    outside(`root ${def.root}`);
+    root = dirname(file);
+  }
   const fs: FileReader = {
     async read(path) {
-      const abs = resolve(root, path);
+      const abs = await inside(project, root, path);
+      if (!abs) { outside(path); return undefined; }
       watched.add(abs);
       try { return await readFile(abs, 'utf8'); } catch { missing.add(abs); return undefined; }
     },
   };
   const tower = await buildTower(def, id, fs, issues, (p) => {
-    const abs = resolve(root, p);
+    const abs = safeJoin(project, resolve(root, p));
+    if (!abs) { outside(p); return false; }
     if (existsSync(abs)) return true;
     missing.add(abs);
     return false;
   });
   const refs = new Set(tower.layers.flatMap((l) => l.nodes.flatMap((n) => [n.tower, n.agent?.tower])).filter(Boolean) as string[]);
-  const nested = [...refs].map((ref) => ({ ref, abs: resolve(root, ref) }));
+  const nested = [];
+  for (const ref of refs) {
+    const abs = await inside(project, root, ref);
+    if (abs) nested.push({ ref, abs });
+    else outside(`tower ${ref}`);
+  }
   tower.updatedAt = await stat(file).then((st) => st.mtime.toISOString(), () => undefined);
   return { tower, root, nested };
 }

@@ -23,7 +23,13 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === '/' && document.activeElement !== input.current) { e.preventDefault(); input.current?.focus(); }
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || document.activeElement === input.current) return;
+      // Dialogs on top (settings, shortcuts, file viewer, library) keep their keys.
+      const prefs = usePrefs.getState();
+      const s = useStore.getState();
+      if (prefs.open || prefs.help || s.file || s.library) return;
+      e.preventDefault();
+      input.current?.focus();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

@@ -11,7 +11,7 @@ models the source uses. The Python under `python-backend/` is an abridged mirror
 upstream code, kept to under 80 lines per file. It is meant to be read, not run.
 
 ```bash
-npx flow-tower examples/airline-support/airline-support.tower.yaml
+node bin/flow-tower.js examples/airline-support/airline-support.tower.yaml
 ```
 
 ## Layers

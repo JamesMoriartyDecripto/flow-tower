@@ -44,6 +44,8 @@ The server only reads files under the tower roots. Workspace changes and live ev
 | `src/app/keynav.ts`, `spatial.ts` | Keyboard navigation of the scene (arrows, layers, camera nudges, sub-towers) |
 | `src/app/layout.ts` | ELK layout of a layer (left to right) |
 | `src/app/ops.ts` | Operational markers and inspector rows |
+| `src/app/api.ts` | Fetching the workspace and refetching on server push |
+| `src/app/theme.ts`, `themes.ts` | Node / edge styles and bloom colors; theme switching (shared colors mutated in place, scene remounted) |
 | `src/app/graph.ts` | Neighbours, related nodes, search, breadcrumb paths |
 
 ## Scene (three.js via react-three-fiber)
@@ -57,6 +59,8 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 | `scene/frameBudget.ts` | On-demand rendering, FPS caps, `keepAlive` |
 | `scene/lens.ts` | Hover lens and map layout |
 | `scene/Layer.tsx`, `LayerNodes.tsx`, `LayerEdges.tsx`, `TextBatch.tsx` | Drawing one layer: plates, nodes, markers, labels, edges |
+| `scene/batch.ts` | Shared geometries, color dimming, polyline to `LineSegments2` helpers |
+| `scene/shiftPan.ts` | Shift + drag / two-finger scroll pans the camera |
 | `scene/Links.tsx`, `Particles.tsx` | Cross-layer links and animated flow |
 | `scene/LiveOverlay.tsx`, `chips.ts` | Live highlights and the DOM chips projected onto nodes |
 | `scene/Environment.tsx`, `Effects.tsx` | Base rings, scanner, sparkles, bloom |
@@ -70,6 +74,7 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 | `hud/Library.tsx` | Project gallery |
 | `hud/LiveFeed.tsx`, `LiveChips.tsx` | Live feed and chips |
 | `hud/Settings.tsx`, `Shortcuts.tsx` | Settings page, keyboard overlay |
+| `hud/FileViewer.tsx` | File popup with syntax highlighting (shiki), focus restored on close |
 | `hud/focusNav.ts`, `Tooltip.tsx` | Keyboard focus inside panels, HUD tooltips |
 | `src/app/App.tsx` | Global keyboard handler, panel composition |
 | `src/app/styles.css` | All HUD styles (CSS variables per theme; `--ui-scale` zooms the HUD) |
@@ -77,3 +82,5 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 ## Tests
 
 `tests/*.test.ts` (vitest only collects `tests/`). `examples.test.ts` loads every example and fails on any error, warning or git-ignored file.
+
+`e2e/` (Playwright, `npm run e2e`): one test per example tower driven from the keyboard, live feed, panel layout at six sizes, axe. Tests read app state through `window.__flowTower` (dev builds only) and fail on any console or page error.

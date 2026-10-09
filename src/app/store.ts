@@ -15,6 +15,8 @@ interface State {
   error?: string;
   /** Breadcrumb of tower ids, last one is on screen. */
   stack: string[];
+  /** For each stack entry, the node of the tower above it that was used to enter it (several nodes can share a sub-tower). */
+  owners: (string | undefined)[];
   /** Library (project gallery) overlay visible. */
   library: boolean;
   selected?: string;
@@ -68,6 +70,7 @@ let leaveTimer: ReturnType<typeof setTimeout> | undefined;
 
 export const useStore = create<State>()((set, get) => ({
   stack: [],
+  owners: [],
   library: false,
   explode: 1,
   autoRotate: false,
@@ -84,10 +87,19 @@ export const useStore = create<State>()((set, get) => ({
     // Keep the user where they are on live reload, unless that tower disappeared.
     const first = !get().workspace;
     const stack = get().stack.filter((id) => ws.towers[id]);
+    // The edit may have removed the selected node, the focused layer or the tower on screen.
+    const tower = ws.towers[stack.at(-1) ?? ''];
+    const moved = stack.length !== get().stack.length || !tower;
+    const { selected, focusedLayer, file } = get();
+    const nodeGone = selected !== undefined && !tower?.layers.some((l) => l.nodes.some((n) => n.key === selected));
     set({
       workspace: ws,
       error: undefined,
+      selected: moved || nodeGone ? undefined : selected,
+      focusedLayer: moved || (focusedLayer ?? 0) >= (tower?.layers.length ?? 0) ? undefined : focusedLayer,
+      file: file && ws.towers[file.tower] && !moved ? file : undefined,
       stack: stack.length ? stack : ws.projects.slice(0, 1),
+      owners: moved ? [] : get().owners,
       library: first ? ws.projects.length > 1 : get().library,
       revision: get().revision + 1,
     });
@@ -104,27 +116,28 @@ export const useStore = create<State>()((set, get) => ({
   resetView: () => set({ focusedLayer: undefined, viewNonce: get().viewNonce + 1 }),
   enterTower(id) {
     if (!get().workspace?.towers[id]) return;
-    set({ stack: [...get().stack, id], selected: undefined, focusedLayer: undefined, hoveredLayer: undefined, file: undefined, runtimeFocus: undefined });
+    set({ stack: [...get().stack, id], owners: [...get().stack.map((_, i) => get().owners[i]), get().selected], selected: undefined, focusedLayer: undefined, hoveredLayer: undefined, file: undefined, runtimeFocus: undefined });
   },
   openProject(id) {
-    set({ stack: [id], library: false, selected: undefined, focusedLayer: undefined, hoveredLayer: undefined, file: undefined, search: '', runtimeFocus: undefined });
+    set({ stack: [id], owners: [], library: false, selected: undefined, focusedLayer: undefined, hoveredLayer: undefined, file: undefined, search: '', runtimeFocus: undefined });
   },
   openPath(stack, select) {
-    set({ stack, library: false, selected: select, focusedLayer: undefined, hoveredLayer: undefined, file: undefined });
+    set({ stack, owners: [], library: false, selected: select, focusedLayer: undefined, hoveredLayer: undefined, file: undefined, runtimeFocus: undefined });
   },
   showLibrary: (library) => set({ library }),
   goTo(depth) {
-    const { stack, workspace } = get();
+    const { stack, owners, workspace } = get();
+    // The current tower's own crumb: nothing to leave, keep the selection.
+    if (depth >= stack.length - 1) return;
     // Coming back up: land on the node that opens the tower we leave, so the user is where they left.
     const child = stack[depth + 1];
     const parent = workspace?.towers[stack[depth]];
-    let selected: string | undefined;
-    let focusedLayer: number | undefined;
-    parent?.layers.forEach((l, i) => {
-      const n = !selected && l.nodes.find((x) => x.tower === child);
-      if (n) { selected = n.key; focusedLayer = i; }
-    });
-    set({ stack: stack.slice(0, depth + 1), selected, focusedLayer, hoveredLayer: undefined, file: undefined });
+    const opens = (n: { tower?: string; agent?: { tower?: string } }) => n.tower === child || n.agent?.tower === child;
+    const candidates = parent?.layers.flatMap((l, i) => l.nodes.filter(opens).map((n) => ({ key: n.key, i }))) ?? [];
+    // Prefer the node the user entered from; else the first node that opens the tower we leave.
+    const back = candidates.find((c) => c.key === owners[depth + 1]) ?? candidates[0];
+    // A runtime spotlight belongs to the tower it was set in; the parent may not even have that runtime.
+    set({ stack: stack.slice(0, depth + 1), owners: owners.slice(0, depth + 1), selected: back?.key, focusedLayer: back?.i, hoveredLayer: undefined, file: undefined, runtimeFocus: undefined });
   },
   set: (patch) => set(patch),
   toggleType(type) {

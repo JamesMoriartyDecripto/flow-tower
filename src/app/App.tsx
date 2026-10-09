@@ -43,7 +43,7 @@ export function App() {
         gl={{ antialias: quality === 'eco', powerPreference: 'high-performance' }}
         frameloop="demand"
         onPointerMissed={() => useStore.getState().select(undefined)}
-        onCreated={(state) => { if (import.meta.env.DEV) Object.assign(window, { __flowTower: state }); }}
+        onCreated={(state) => { if (import.meta.env.DEV) Object.assign(window, { __flowTower: { store: useStore, three: state } }); }}
       >
         <Suspense fallback={null}>
           <TowerScene key={themeRev} />

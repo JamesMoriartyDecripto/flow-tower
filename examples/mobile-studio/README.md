@@ -3,7 +3,7 @@
 A studio pipeline that takes a mobile app from idea to both stores and keeps it healthy after launch: store research and ASO, spec and Figma design checked against Apple's Human Interface Guidelines and Material 3, an architecture decision, a Supabase / RevenueCat / Firebase backend, a shared Expo app plus **iOS and Android lanes** (each a sub-tower), device QA, TestFlight and Play beta, store review with a rejection loop, then a phased / staged rollout guarded by a crash-rate check, a kill switch and over-the-air fixes. Sample app: **Leafwise** (fictional), a plant-care app with reminders, a home-screen widget and a subscription, in en-US, de-DE, it-IT and es-ES.
 
 ```bash
-npx flow-tower examples/mobile-studio
+node bin/flow-tower.js examples/mobile-studio
 ```
 
 ## Layers

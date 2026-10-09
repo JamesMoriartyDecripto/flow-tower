@@ -9,7 +9,7 @@ fresh-context verifier.
 This is a reference example: it is meant to be read, not run.
 
 ```bash
-npx flow-tower examples/deep-research/deep-research.tower.yaml
+node bin/flow-tower.js examples/deep-research/deep-research.tower.yaml
 ```
 
 The **Searcher** node drills down into `towers/searcher.tower.yaml`.

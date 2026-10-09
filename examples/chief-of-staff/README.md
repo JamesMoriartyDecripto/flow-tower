@@ -17,7 +17,7 @@ human-in-the-loop kinds, and learning from feedback.
 The code is meant to be read, not run.
 
 ```bash
-npx flow-tower examples/chief-of-staff/chief-of-staff.tower.yaml
+node bin/flow-tower.js examples/chief-of-staff/chief-of-staff.tower.yaml
 ```
 
 ## User-facing vs background

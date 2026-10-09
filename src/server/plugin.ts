@@ -14,12 +14,19 @@ export const UPDATE_EVENT = 'flow-tower:update';
 export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES ?? '[]')): Plugin {
   let state: LoadResult | undefined;
   let timer: NodeJS.Timeout | undefined;
+  // chokidar keeps one listener per add() call even for paths it already watches: add only new ones.
+  const watching = new Set<string>();
+  const watch = (server: ViteDevServer, paths: string[]) => {
+    const fresh = paths.filter((p) => !watching.has(p));
+    fresh.forEach((p) => watching.add(p));
+    if (fresh.length) server.watcher.add(fresh);
+  };
 
   const reload = async (server?: ViteDevServer) => {
     if (!entries.length) return;
     state = await loadLibrary(entries);
     if (server) {
-      server.watcher.add([...state.watched, ...existingDirs(state.missing)]);
+      watch(server, [...state.watched, ...existingDirs(state.missing)]);
       server.ws.send(UPDATE_EVENT, { loadedAt: state.workspace.loadedAt });
     }
   };
@@ -28,7 +35,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
     name: 'flow-tower',
     async configureServer(server) {
       await reload();
-      if (state) server.watcher.add([...state.watched, ...existingDirs(state.missing), ...entries.map((e) => resolve(e))]);
+      if (state) watch(server, [...state.watched, ...existingDirs(state.missing), ...entries.map((e) => resolve(e))]);
       // A tower file added to or removed from a watched directory changes the library too.
       const onFsEvent = (file: string) => {
         if (!state?.watched.has(file) && !state?.missing.has(file) && !file.endsWith('.tower.yaml')) return;

@@ -24,6 +24,6 @@ claim_documents:
   screen: Claims > Claim File > Documents > Upload
   fields:
     - { name: claim_number, source: payload.claim_number, verify: true }
-    - { name: document_type, source: payload.documents[*].type, verify: true }
+    - { name: document_type, source: "payload.documents[*].type", verify: true }
   documents: [repair_estimate, photos, police_report]
   max_upload_mb: 10

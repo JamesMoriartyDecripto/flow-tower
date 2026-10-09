@@ -3,7 +3,7 @@
 An agency pipeline from client brief to a launched, monitored site, with a client sign-off closing each phase. The build is split into a **frontend lane** and a **backend lane** that run in parallel and meet on a Vercel preview with its own seeded database. Sample client: Nordlicht Coffee Roasters (fictional), a coffee shop selling in DK, SE and DE.
 
 ```bash
-npx flow-tower examples/web-studio
+node bin/flow-tower.js examples/web-studio
 ```
 
 ## Layers

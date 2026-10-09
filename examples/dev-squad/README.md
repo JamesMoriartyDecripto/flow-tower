@@ -10,7 +10,7 @@ This is the flagship flow-tower example: it is meant to be read, not run.
 ## Open it
 
 ```bash
-npx flow-tower examples/dev-squad/dev-squad.tower.yaml
+node bin/flow-tower.js examples/dev-squad/dev-squad.tower.yaml
 ```
 
 Click any node to see its prompt, tools, model and source files. The **researcher**

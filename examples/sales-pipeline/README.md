@@ -10,7 +10,7 @@ invoice sent to SDI and formal payment notices. Sample company: **Ferrovento S.r
 retainers to manufacturing SMEs in Northern Italy and France.
 
 ```bash
-npx flow-tower examples/sales-pipeline
+node bin/flow-tower.js examples/sales-pipeline
 ```
 
 Marketing and demand generation are covered by the `marketing-studio` preset. The full invoicing
