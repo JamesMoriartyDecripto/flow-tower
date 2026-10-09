@@ -12,8 +12,8 @@
 - **Structural changes.** Mark nodes `planned`, `experimental` or `deprecated`.
 - **Library.** Point it at a folder and browse every project you work on.
 - **Live.** Save the YAML, or any referenced file, and the tower updates.
-- **Generate towers with Claude Code.** The bundled skill reads an agentic codebase and writes a validated tower. It works with Claude Code, the Agent SDK, LangGraph, CrewAI, OpenAI Agents, Pi, Hermes and more.
-- **Realtime agents.** Connect Claude Code, the Agent SDK, Pi, Hermes or your own loops. Active nodes light up, errors flash, and a live feed shows every step. See [docs/realtime.md](docs/realtime.md).
+- **Generate towers with any coding agent.** Claude Code, Codex, Pi, Hermes, Cursor or any other agent reads an agentic codebase and writes a validated tower. It maps Claude Code, the Agent SDK, LangGraph, CrewAI, OpenAI Agents, Pi, Hermes and more.
+- **Realtime agents.** Connect Claude Code, the Agent SDK, Codex, Pi, Hermes or your own loops. Active nodes light up, errors flash, and a live feed shows every step. See [docs/realtime.md](docs/realtime.md).
 
 ![Library](docs/screenshot-library.png)
 
@@ -78,13 +78,21 @@ See the full **[schema reference](docs/schema.md)**. A generated JSON Schema (`s
 
 Every example ships real prompt, agent, code, config and log files, so the popups have something to show.
 
-## Generate a tower from your code (Claude Code skill)
+## Generate a tower from your code (any coding agent)
+
+Your coding agent reads the codebase and writes the tower. The procedure is harness-neutral: [docs/generate-a-tower.md](docs/generate-a-tower.md). Install it as an [Agent Skill](https://agentskills.io) for your agent:
 
 ```bash
-node bin/flow-tower.js install-skill            # into ~/.claude/skills (or --project for ./.claude/skills)
+node bin/flow-tower.js install-skill                  # Claude Code: ~/.claude/skills
+node bin/flow-tower.js install-skill --target codex   # Codex: ~/.agents/skills
+node bin/flow-tower.js install-skill --target pi      # Pi: ~/.pi/agent/skills
+node bin/flow-tower.js install-skill --target hermes  # Hermes Agent: ~/.hermes/skills
+node bin/flow-tower.js install-skill --target cursor  # Cursor: ~/.cursor/skills
+node bin/flow-tower.js install-skill --target agents  # shared ~/.agents/skills (Agent Skills clients)
+# add --project to install into the current project instead (e.g. ./.claude/skills)
 ```
 
-Then ask Claude Code, inside any agent project: *"map this agent system into a flow tower"*. The skill:
+Then ask your agent, inside any agent project: *"map this agent system into a flow tower"*. Any other agent works too: tell it to run `node <flow-tower>/bin/flow-tower.js guide` and follow the printed procedure. Agents that clone this repo find the same pointer in [AGENTS.md](AGENTS.md). The procedure:
 1. inventories agents, prompts, tools/MCP, hooks, memory, models, runtimes and logs, from the code only;
 2. writes `<system>.tower.yaml`, plus nested towers when needed;
 3. runs `flow-tower validate` until there are no errors or warnings.
@@ -102,7 +110,7 @@ npm run simulate -- game-studio        # see it without wiring anything
 npx flow-tower emit --kind tool.start --agent coder --tool Bash -m "npm test"
 ```
 
-Ready-made configs for Claude Code, the Agent SDK, Pi and Hermes are in [`integrations/`](integrations).
+Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [`integrations/`](integrations).
 
 ## Controls
 
@@ -141,17 +149,17 @@ Flow Tower is meant to run next to busy agents, so it is frugal by design:
 ## Project layout
 
 ```
-bin/            CLI: serve, init, validate, emit, install-skill
+bin/            CLI: serve, init, validate, emit, guide, install-skill
 src/core/       schema (zod), YAML loader, validation, live-event adapters and matching
 src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /api/events, live reload
 src/app/        React + three.js app: scene/ (3D) and hud/ (overlay UI)
 src/cli/        TypeScript CLI commands (validate)
 schema/         generated JSON Schema
-skills/         Claude Code skill that generates towers from a codebase
-integrations/   live-event configs for Claude Code, Agent SDK, Pi, Hermes
+skills/         Agent Skill (SKILL.md) that generates towers from a codebase
+integrations/   live-event configs for Claude Code, Agent SDK, Codex, Pi, Hermes
 examples/       reference towers (coding, game dev, course creation)
 scripts/        schema, stress-tower and event-simulator scripts
-docs/           schema reference, realtime guide
+docs/           schema reference, realtime guide, tower generation procedure
 ```
 
 ## Contributing
