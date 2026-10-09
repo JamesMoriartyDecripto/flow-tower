@@ -1,0 +1,97 @@
+import type { EdgeKind, NodeType, ResourceDef, RuntimeDef, Status } from './schema.ts';
+
+/** Fully resolved data sent to the browser. Every reference is already expanded. */
+
+export interface ResolvedPrompt {
+  id?: string;
+  text: string;
+  source?: string;
+  description?: string;
+  vars: string[];
+  tokens: number;
+}
+
+export interface ResolvedRuntime extends RuntimeDef {
+  id: string;
+}
+
+export interface ResolvedAgent {
+  id: string;
+  name: string;
+  description?: string;
+  model?: string;
+  prompt?: ResolvedPrompt;
+  tools: string[];
+  harness: Record<string, unknown>;
+  files: string[];
+  source?: string;
+  tower?: string;
+  runtime?: string;
+  resources: ResourceDef[];
+  meta: Record<string, unknown>;
+}
+
+export interface ResolvedNode {
+  id: string;
+  /** Globally unique inside a tower: "layer.node". */
+  key: string;
+  layer: string;
+  type: NodeType;
+  label: string;
+  description?: string;
+  agent?: ResolvedAgent;
+  model?: string;
+  prompt?: ResolvedPrompt;
+  tools: string[];
+  files: string[];
+  tower?: string;
+  runtime?: ResolvedRuntime;
+  status: Status;
+  resources: ResourceDef[];
+  meta: Record<string, unknown>;
+}
+
+export interface ResolvedEdge {
+  id: string;
+  from: string;
+  to: string;
+  kind: EdgeKind;
+  label?: string;
+  condition?: string;
+}
+
+export interface ResolvedLayer {
+  id: string;
+  index: number;
+  title: string;
+  description?: string;
+  nodes: ResolvedNode[];
+  edges: ResolvedEdge[];
+}
+
+export type IssueLevel = 'error' | 'warning' | 'info';
+
+export interface Issue {
+  level: IssueLevel;
+  message: string;
+  path?: string;
+}
+
+export interface ResolvedTower {
+  /** Path of the tower file relative to the workspace root (used as id). */
+  id: string;
+  name: string;
+  description?: string;
+  tags: string[];
+  runtimes: Record<string, ResolvedRuntime>;
+  layers: ResolvedLayer[];
+  links: ResolvedEdge[];
+  issues: Issue[];
+}
+
+export interface Workspace {
+  /** Top-level towers (projects) shown in the library; nested towers are reachable from them. */
+  projects: string[];
+  towers: Record<string, ResolvedTower>;
+  loadedAt: string;
+}

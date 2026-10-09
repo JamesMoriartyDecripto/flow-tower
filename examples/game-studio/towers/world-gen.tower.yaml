@@ -1,0 +1,162 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: World generation
+description: >-
+  Procedural archipelago per seed. Deterministic Python stages (biome graph, terrain, POIs,
+  navmesh) feed an Unreal assembly; a reachability gate and a pacing review send bad seeds back.
+root: ..
+
+prompts:
+  worldgen-planner: { file: prompts/worldgen-planner.md }
+  review-round: { file: prompts/review-round.md }
+
+agents:
+  planner:
+    name: World planner
+    model: claude-sonnet-5-5
+    prompt: worldgen-planner
+    tools: [Read, mcp__forge__generate_world]
+    files: [src/departments/world.ts]
+  builder:
+    from: .claude/agents/world-builder.md
+  designer:
+    from: .claude/agents/game-designer.md
+
+layers:
+  - id: seed
+    title: Seed & Rules
+    description: Same seed, same world. All randomness flows from one 64-bit seed.
+    nodes:
+      - id: seed
+        type: entry
+        label: Seed
+        description: Curated slice seed or a random playtest seed.
+        files: [config/worldgen.yaml]
+      - id: rules
+        type: memory
+        label: World rules
+        description: Biomes, island size ranges, POI types and densities, beacon path length.
+        files: [config/worldgen.yaml, docs/gdd-template.md]
+      - id: bad_seeds
+        type: memory
+        label: Bad seeds
+        description: Seeds that failed reachability or pacing, with the reason. Never regenerated.
+        files: [memory/playtest-insights.md]
+      - id: planner
+        agent: planner
+    edges:
+      - "seed -> planner [data]: seed"
+      - "rules -> planner [data]: constraints"
+      - "bad_seeds -> planner [data]: skip list"
+
+  - id: graph
+    title: Biome Graph
+    description: Topology first. Islands are nodes, bridges and updrafts are edges.
+    nodes:
+      - id: tool
+        type: tool
+        label: generate_world
+        description: Runs the worldgen stages headless with the seed; returns artefact paths and stats.
+        tools: [mcp__forge__generate_world]
+        files: [src/tools/generate-world.ts]
+      - id: biome_graph
+        label: Biome graph
+        description: 12-18 islands, one guaranteed beacon path of 5-8 hops, optional loops for exploration.
+        files: [pipelines/worldgen/biome_graph.py]
+      - id: valid
+        type: decision
+        label: Graph valid?
+        description: Connected, beacon path length in range, no dead-end beacon.
+      - id: layout
+        label: Island layout
+        description: Force-directed placement in 3D with altitude bands per biome.
+        files: [pipelines/worldgen/biome_graph.py]
+    edges:
+      - "tool -> biome_graph [call]: stage 1"
+      - "biome_graph -> valid"
+      - "valid -> biome_graph [return]: reroll edges"
+      - "valid -> layout: ok"
+
+  - id: terrain
+    title: Terrain & Placement
+    description: Heightmaps per island, then scatter and Poisson-disk POI placement.
+    nodes:
+      - id: heightmap
+        label: Heightmaps
+        description: Seeded fBm noise with island falloff mask, 1009x1009 per island.
+        files: [pipelines/worldgen/terrain_heightmap.py]
+      - id: erosion
+        label: Erosion pass
+        description: Thermal erosion, 30 iterations; cliff mask for the climbing system.
+        files: [pipelines/worldgen/terrain_heightmap.py]
+      - id: pois
+        label: POI placement
+        description: Beacons, caches, camps, wisp nests. Min spacing and slope limits per type.
+        files: [pipelines/worldgen/poi_placement.py]
+      - id: scatter
+        label: Foliage scatter
+        description: Density maps per biome from slope and moisture; feeds PCG volumes in Unreal.
+    edges:
+      - "heightmap -> erosion [data]: raw"
+      - "erosion -> pois [data]: slope map"
+      - "erosion -> scatter [data]: masks"
+
+  - id: build
+    title: Unreal Assembly
+    description: The world builder turns artefacts into a World Partition level through editor Python.
+    nodes:
+      - id: builder
+        agent: builder
+        label: World builder
+      - id: build_level
+        label: Build level
+        description: Landscape import per island, kit pieces on POIs, PCG graphs for scatter.
+        files: [pipelines/unreal/build_level.py]
+      - id: streaming
+        label: Streaming cells
+        description: One data layer per island, 128 m cells, HLODs for distant islands.
+        files: [pipelines/unreal/level_streaming.py]
+      - id: unreal
+        type: tool
+        label: Unreal MCP
+        tools: [mcp__unreal__run_python, mcp__unreal__take_screenshot]
+        files: [.mcp.json]
+    edges:
+      - "builder -> unreal [call]: run_python"
+      - "unreal -> build_level [call]: script"
+      - "build_level -> streaming: placed"
+
+  - id: validate
+    title: Validation
+    description: Machine gate first (reachability), then a design review of pacing (max 2 rounds).
+    nodes:
+      - id: navmesh
+        label: Navmesh check
+        description: Flood fill from spawn over the nav grid, jump gaps under 4 m, updraft links included.
+        files: [pipelines/worldgen/navmesh_check.py, pipelines/unreal/validate_level.py]
+      - id: reachable
+        type: decision
+        label: All reachable?
+      - id: pacing
+        agent: designer
+        label: Pacing review
+        description: Beacon spacing vs the 20-minute target, resource density vs the economy curve.
+        prompt: review-round
+      - id: approved
+        type: output
+        label: Seed approved
+        description: Added to the slice seed list with its stats.
+    edges:
+      - "navmesh -> reachable"
+      - "reachable -> pacing [handoff]: yes"
+      - "pacing -> approved: pass"
+
+links:
+  - "seed.planner -> graph.tool [call]: params"
+  - "graph.layout -> terrain.heightmap: islands"
+  - "terrain.pois -> build.builder [handoff]: layout"
+  - "terrain.scatter -> build.build_level [data]: density maps"
+  - "build.streaming -> validate.navmesh: level"
+  - "validate.reachable -> seed.bad_seeds [data]: failed seed"
+  - "validate.reachable -> seed.planner [return]: new seed"
+  - "validate.pacing -> seed.planner [return]: tune params"

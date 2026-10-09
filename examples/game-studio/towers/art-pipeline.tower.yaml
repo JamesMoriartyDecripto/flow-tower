@@ -1,0 +1,194 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Art pipeline
+description: >-
+  How one asset ticket becomes a validated, engine-ready export through the Blender MCP:
+  block-out, sculpt, retopo, UV, then materials, rig and LODs in parallel, export and
+  validation against the asset budget, graded by the art director (max 2 rounds).
+root: ..
+
+prompts:
+  review-round: { file: prompts/review-round.md }
+  asset-tagger: { file: prompts/asset-tagger.md }
+
+agents:
+  modeler:
+    from: .claude/agents/blender-modeler.md
+    harness: { max_turns: 60, context: isolated }
+  materials:
+    from: .claude/agents/material-artist.md
+    tower: towers/material-bake.tower.yaml
+  rigger:
+    from: .claude/agents/rigger.md
+  art-director:
+    from: .claude/agents/art-director.md
+    harness: { fresh_session_each_round: true, max_rounds: 2 }
+  tagger:
+    name: Asset tagger
+    model: claude-haiku-5-5
+    prompt: asset-tagger
+    tools: [mcp__forge__register_asset]
+    files: [src/memory/asset-registry.ts]
+
+layers:
+  - id: ticket
+    title: Asset Ticket
+    description: Everything the modeller needs before the first vertex. No guessing scale or budget.
+    nodes:
+      - id: ticket
+        type: entry
+        label: Asset ticket
+        description: "Example: SM_Beacon_Brazier (hero prop). Concept, turnarounds, budget class, due milestone."
+        files: [src/departments/art.ts]
+      - id: budgets
+        type: memory
+        label: Asset budgets
+        description: Tris per LOD, texture resolution, material slots and bone limits per class.
+        files: [config/asset-budgets.yaml]
+      - id: refs
+        type: memory
+        label: Turnarounds
+        description: Locked concept, orthographic sheets and the art bible shape language.
+        files: [memory/art-bible.md]
+      - id: asset_class
+        type: decision
+        label: Asset class?
+        description: hero / prop / modular kit / skinned character. Skinned assets go through the rigger.
+        files: [config/asset-budgets.yaml]
+      - id: plan
+        label: Block-out plan
+        description: Primitive breakdown, pivot, real-world scale (1 unit = 1 m) and modular grid if a kit.
+    edges:
+      - "ticket -> asset_class"
+      - "budgets -> asset_class [data]: class limits"
+      - "refs -> plan [data]: callouts"
+      - "asset_class -> plan: class"
+
+  - id: modelling
+    title: Modelling (Blender MCP)
+    description: The modeller drives Blender through execute_blender_code and checks itself with viewport screenshots.
+    nodes:
+      - id: blockout
+        agent: modeler
+        label: Block-out
+      - id: screenshot
+        type: tool
+        label: Viewport shot
+        description: Front, side and 3/4 views at the concept camera angle for silhouette comparison.
+        tools: [mcp__blender__get_viewport_screenshot]
+        files: [.mcp.json]
+      - id: silhouette
+        type: decision
+        label: Silhouette reads?
+        description: Self-check against the concept at thumbnail size before any detail work.
+      - id: sculpt
+        label: High-poly detail
+        description: Multires sculpt or bevel/subdivision pass for the bake source.
+      - id: retopo
+        label: Retopology
+        description: Quad remesh to the LOD0 budget, preserving hard edges and deformation loops.
+        files: [pipelines/blender/retopo.py]
+      - id: uv
+        label: UV unwrap
+        description: Smart seams on hard edges, pack at the class texel density, 8 px padding.
+        files: [pipelines/blender/uv_unwrap.py]
+    edges:
+      - "blockout -> screenshot [call]: 3 views"
+      - "screenshot -> silhouette [data]: images"
+      - "silhouette -> blockout [return]: rework"
+      - "silhouette -> sculpt: reads"
+      - "sculpt -> retopo [call]: high poly"
+      - "retopo -> uv [call]: low poly"
+
+  - id: parallel
+    title: Materials, Rig & LODs
+    description: Fan-out after UVs. Three branches run concurrently on copies of the low-poly, then fan in.
+    nodes:
+      - id: fork
+        label: Parallel fork
+        description: Promise.all over three agents, each on its own .blend copy to avoid write conflicts.
+        files: [src/departments/art.ts]
+      - id: materials
+        agent: materials
+        label: Material artist
+      - id: rigger
+        agent: rigger
+        label: Rigger
+      - id: auto_rig
+        label: Auto-rig
+        description: Rigify metarig fitted to landmarks, deform-only export skeleton, weight transfer.
+        files: [pipelines/blender/auto_rig.py]
+      - id: deforms
+        type: decision
+        label: Deforms clean?
+        description: Range-of-motion test poses; no candy-wrapping at wrists, no volume loss at knees.
+      - id: lods
+        label: LOD chain
+        description: LOD1-3 by decimation ratios from the budget file, normals preserved.
+        files: [pipelines/blender/generate_lods.py]
+      - id: join
+        label: Fan-in
+        description: Merges textures, armature and LODs into the export scene.
+    edges:
+      - "fork -> materials [spawn]: UV mesh"
+      - "fork -> rigger [spawn]: skinned only"
+      - "fork -> lods [call]: LOD0"
+      - "rigger -> auto_rig [call]: landmarks"
+      - "auto_rig -> deforms [data]: ROM poses"
+      - "deforms -> rigger [return]: fix weights"
+      - "deforms -> join: clean"
+      - "materials -> join [return]: PBR set"
+      - "lods -> join [return]: LODs"
+
+  - id: export
+    title: Export & Validation
+    description: Deterministic export, a guard on budgets, then the art director grades it (max 2 rounds).
+    nodes:
+      - id: export
+        label: Export
+        description: glTF 2.0 for static meshes, FBX for skinned meshes; +Y forward, cm scale for Unreal.
+        files: [pipelines/blender/export_asset.py]
+      - id: budget_guard
+        type: guard
+        label: Budget guard
+        description: PreToolUse denies registering an asset whose export exceeds its class budget.
+        files: [src/hooks/asset-budget.ts]
+      - id: validate
+        type: tool
+        label: validate_asset
+        description: Headless validate_mesh.py report - tris, n-gons, UV overlap, scale, bones.
+        tools: [mcp__forge__validate_asset]
+        files: [src/tools/validate-asset.ts, pipelines/blender/validate_mesh.py]
+      - id: review
+        agent: art-director
+        label: Art director
+        prompt: review-round
+      - id: verdict
+        type: decision
+        label: Approved?
+        description: Score >= 8 and no blockers. Round 2 is final; then the producer is told.
+        files: [config/quality-gates.yaml]
+      - id: tagger
+        agent: tagger
+      - id: ready
+        type: output
+        label: Asset ready
+        description: Registered with tags, licence and budget class; queued for Unreal import.
+        files: [src/memory/asset-registry.ts]
+    edges:
+      - "export -> validate [call]: file"
+      - "validate -> budget_guard [data]: report"
+      - "budget_guard -> review [handoff]: within budget"
+      - "review -> verdict [data]: verdict JSON"
+      - "verdict -> tagger: approved"
+      - "tagger -> ready [data]: tags"
+
+links:
+  - "ticket.plan -> modelling.blockout [handoff]: plan"
+  - "modelling.uv -> parallel.fork: UVs packed"
+  - "parallel.join -> export.export: merged"
+  - "export.budget_guard -> modelling.retopo [return]: over budget"
+  - "export.verdict -> modelling.blockout [return]: shape notes"
+  - "export.verdict -> parallel.materials [return]: surface notes"
+  - "ticket.budgets -> export.budget_guard [data]: limits"
+  - "ticket.refs -> export.review [data]: concept"

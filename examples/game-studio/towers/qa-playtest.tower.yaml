@@ -1,0 +1,175 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: QA & playtest
+description: >-
+  A candidate build is played by bot personas in parallel on different seeds. Telemetry is
+  aggregated into heatmaps and funnels, profiled, triaged and deduped; blockers go back to
+  their owners and a regression loop (max 2 cycles) decides pass or block.
+root: ..
+
+prompts:
+  qa-lead: { file: prompts/qa-lead.md }
+  playtest-bot: { file: prompts/playtest-bot.md }
+  bug-triage: { file: prompts/bug-triage.md }
+  ux-researcher: { file: prompts/ux-researcher.md }
+
+agents:
+  lead:
+    name: QA lead
+    model: claude-sonnet-5-5
+    prompt: qa-lead
+    tools: [Agent, Read, mcp__forge__run_playtest, mcp__forge__query_telemetry]
+    files: [src/departments/qa.ts]
+  bot:
+    name: Playtest bot
+    model: claude-haiku-5-5
+    prompt: playtest-bot
+    tools: [mcp__forge__run_playtest]
+    files: [pipelines/playtest/bot_policy.py]
+    tower: towers/playtest-bot.tower.yaml
+  triage:
+    name: Bug triage
+    model: claude-haiku-5-5
+    prompt: bug-triage
+    tools: [Read, mcp__github__list_issues]
+  ux:
+    name: UX researcher
+    model: claude-sonnet-5-5
+    prompt: ux-researcher
+    tools: [Read, Write, mcp__forge__query_telemetry]
+  perf:
+    from: .claude/agents/perf-profiler.md
+
+layers:
+  - id: plan
+    title: Test Plan
+    description: Which personas, which seeds, which builds. The matrix is the contract with release.
+    nodes:
+      - id: build
+        type: entry
+        label: Candidate build
+        description: Development build with telemetry enabled, from the review gates.
+        files: [src/tools/package-build.ts]
+      - id: lead
+        agent: lead
+      - id: personas
+        type: memory
+        label: Personas
+        description: Explorer, speedrunner, chaos, co-op host, newcomer. Each with goals and input style.
+        files: [memory/playtest-insights.md]
+      - id: matrix
+        label: Test matrix
+        description: 5 personas x 4 seeds x 2 graphics presets = 40 runs, 8 in parallel.
+        files: [src/departments/qa.ts]
+    edges:
+      - "build -> lead [handoff]: build id"
+      - "personas -> lead [data]: personas"
+      - "lead -> matrix [data]: plan"
+
+  - id: bots
+    title: Bot Playtests (parallel)
+    description: Cheap Haiku bots on headless clients. Each bot is its own tower one level down.
+    nodes:
+      - id: explorer
+        agent: bot
+        label: Explorer bot
+      - id: speedrun
+        agent: bot
+        label: Speedrun bot
+      - id: chaos
+        agent: bot
+        label: Chaos bot
+      - id: coop
+        agent: bot
+        label: Co-op host bot
+        description: Hosts a 4-player session with three follower bots; tests join, desync and host leave.
+      - id: run_playtest
+        type: tool
+        label: run_playtest
+        description: Launches the build with -nullrhi and the bot plugin; streams JSON telemetry.
+        tools: [mcp__forge__run_playtest]
+        files: [src/tools/run-playtest.ts]
+    edges:
+      - "explorer -> run_playtest [call]: seed 1"
+      - "speedrun -> run_playtest [call]: seed 2"
+      - "chaos -> run_playtest [call]: seed 3"
+      - "coop -> run_playtest [call]: seed 4"
+
+  - id: analysis
+    title: Telemetry & Analysis
+    description: Numbers first, opinions second. Perf and UX read the same aggregated telemetry.
+    nodes:
+      - id: aggregate
+        label: Aggregate runs
+        description: Death and stuck heatmaps, beacon funnel, time-to-first-craft, fps percentiles.
+        files: [src/telemetry/aggregate.ts]
+      - id: query
+        type: tool
+        label: query_telemetry
+        tools: [mcp__forge__query_telemetry]
+        files: [src/tools/query-telemetry.ts]
+      - id: perf
+        agent: perf
+        label: Perf profiler
+      - id: ux
+        agent: ux
+        label: UX researcher
+    edges:
+      - "aggregate -> query [data]: summary"
+      - "query -> perf [call]: frame times"
+      - "query -> ux [call]: funnels"
+
+  - id: triage
+    title: Triage & Regression
+    description: Dedupe against open issues, assign severity and owner, loop at most twice.
+    nodes:
+      - id: triage
+        agent: triage
+        label: Bug triage
+      - id: dedupe
+        label: Dedupe
+        description: Clusters by stack hash and location; links duplicates instead of filing new issues.
+      - id: severity
+        type: decision
+        label: S1/S2 open?
+        files: [config/quality-gates.yaml]
+      - id: file
+        type: tool
+        label: File issues
+        description: GitHub issues with repro seed, persona, timestamp and clip link.
+        tools: [mcp__github__create_issue]
+        files: [.mcp.json]
+      - id: regression
+        label: Regression run
+        description: Replays failing seeds on the fix build plus the smoke subset.
+      - id: cycle
+        type: decision
+        label: Cycle < 2?
+      - id: pass
+        type: output
+        label: QA pass
+        description: Report to release - runs, crash rate, perf percentiles, known issues.
+      - id: blocked
+        type: output
+        label: Release blocked
+        description: Open blockers with owners; the producer re-plans.
+    edges:
+      - "triage -> dedupe [data]: reports"
+      - "dedupe -> severity"
+      - "severity -> pass: none"
+      - "severity -> file [call]: blockers"
+      - "file -> regression: fix build"
+      - "regression -> cycle"
+      - "cycle -> blocked: cap hit"
+
+links:
+  - "plan.matrix -> bots.explorer [spawn]: persona"
+  - "plan.matrix -> bots.speedrun [spawn]: persona"
+  - "plan.matrix -> bots.chaos [spawn]: persona"
+  - "plan.matrix -> bots.coop [spawn]: persona"
+  - "bots.run_playtest -> analysis.aggregate [data]: telemetry"
+  - "analysis.perf -> triage.triage [data]: perf bugs"
+  - "analysis.ux -> triage.triage [data]: UX issues"
+  - "analysis.aggregate -> triage.triage [data]: crashes, stuck"
+  - "triage.cycle -> bots.explorer [return]: re-run seeds"
+  - "triage.pass -> plan.lead [return]: report"

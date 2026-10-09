@@ -1,0 +1,82 @@
+name: Package Emberwake
+
+# Builds, cooks and packages the vertical slice on a self-hosted UE 5.6 runner.
+# Upload to Steam happens ONLY on manual dispatch, ONLY to a password-protected
+# beta branch, and only after the release_go_no_go human approval (environment gate).
+
+on:
+  push:
+    branches: [main]
+    paths: ["Source/**", "Content/**", "Config/**", "Emberwake.uproject"]
+  workflow_dispatch:
+    inputs:
+      steam_branch:
+        description: Steam beta branch (never "default")
+        type: choice
+        options: [internal, playtest]
+        default: internal
+      upload:
+        description: Upload to Steam after packaging
+        type: boolean
+        default: false
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: [self-hosted, windows, ue-5.6]
+    timeout-minutes: 90
+    env:
+      UE_ROOT: C:\Epic\UE_5.6
+      BUILD_VERSION: 0.${{ vars.MILESTONE }}.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Unit + automation tests
+        shell: pwsh
+        run: |
+          & "$env:UE_ROOT\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "$pwd\Emberwake.uproject" `
+            -ExecCmds="Automation RunTests Emberwake.;Quit" -unattended -nullrhi -nosplash -log -ReportExportPath="$pwd\reports"
+
+      - name: BuildCookRun Win64 Shipping
+        shell: pwsh
+        run: |
+          & "$env:UE_ROOT\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun `
+            -project="$pwd\Emberwake.uproject" -platform=Win64 -clientconfig=Shipping `
+            -build -cook -stage -pak -iostore -compressed -prereqs -package -archive `
+            -archivedirectory="$pwd\dist" -map=/Game/Emberwake/Maps/L_FrontEnd+/Game/Emberwake/Maps/L_AshenShoals `
+            -unattended -utf8output -nop4 -BuildMachine
+
+      - name: Sign executable
+        shell: pwsh
+        run: ./tools/sign.ps1 -Path dist/Windows/Emberwake.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: emberwake-win64-${{ env.BUILD_VERSION }}
+          path: dist/Windows
+          retention-days: 14
+
+  steam-upload:
+    if: github.event_name == 'workflow_dispatch' && inputs.upload && inputs.steam_branch != 'default'
+    needs: package
+    runs-on: [self-hosted, windows, ue-5.6]
+    environment: release-go-no-go     # required reviewers = human go/no-go
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: emberwake-win64-0.${{ vars.MILESTONE }}.${{ github.run_number }}
+          path: dist/Windows
+      - name: Upload to Steam beta branch
+        shell: pwsh
+        env:
+          STEAM_USER: ${{ secrets.STEAM_BUILD_USER }}
+          STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
+        run: |
+          ./tools/write-app-build.ps1 -AppId 3412870 -DepotId 3412871 -Content dist/Windows `
+            -SetLive "${{ inputs.steam_branch }}" -Out build/app_build.vdf
+          steamcmd +login $env:STEAM_USER +run_app_build "$pwd\build\app_build.vdf" +quit
