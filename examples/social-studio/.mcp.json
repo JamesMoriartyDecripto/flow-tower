@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "meta_ads": {
+      "type": "http",
+      "url": "https://mcp.facebook.com/ads"
+    },
+    "studio": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["tsx", "src/tools/index.ts"]
+    }
+  }
+}

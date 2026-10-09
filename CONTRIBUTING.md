@@ -6,7 +6,7 @@ Thanks for helping build Flow Tower.
 
 ```bash
 npm install
-npm run dev        # opens the Dev Squad example with live reload
+npm run dev        # library of every example, with live reload
 npm run check      # typecheck + tests
 ```
 
@@ -21,10 +21,4 @@ npm run check      # typecheck + tests
 
 ## Project layout
 
-| Path | What |
-|---|---|
-| `src/core` | Schema, YAML loader, resolution, validation (Node + browser safe types) |
-| `src/server` | Vite plugin: `/api/workspace`, `/api/file`, live reload |
-| `src/app` | React app: `scene/` (3D), `hud/` (overlay UI) |
-| `bin` | CLI |
-| `examples` | Reference towers |
+See [docs/architecture.md](docs/architecture.md) for which file owns what. New example towers: follow the rules in [examples/README.md](examples/README.md).

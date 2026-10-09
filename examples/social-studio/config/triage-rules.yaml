@@ -1,0 +1,38 @@
+# Inbox triage: categories, routes, response targets and escalation.
+# Business hours: Mon-Sat 08:00-20:00 Europe/Amsterdam. Outside them only spam and crisis are handled.
+
+categories:
+  spam:      { route: hide, examples: ["crypto offers", "fake giveaway", "link farms"] }
+  praise:    { route: like_and_thank, auto_send: template }
+  faq:       { route: template, auto_send: true }
+  question:  { route: draft, sla: 4h }
+  complaint: { route: draft, sla: 2h, tone: "acknowledge, apologise once, move to DM" }
+  order:     { route: helpdesk, sla: 4h, public_reply: "We've sent you a DM so we can look at your order." }
+  sales:     { route: draft, sla: 4h, cc: "#b2b-leads" }
+  crisis:    { route: comms_lead, sla: 1h }
+
+auto_send:
+  allowed_platforms: [instagram, facebook, threads, youtube]
+  never: [x, linkedin, tiktok, bluesky]   # X: AI replies need prior approval; others: person replies
+  templates:
+    - id: opening-hours
+      text: "Hi {first_name}! The workshop is open Mon-Fri 9-18 and Sat 10-16. See you there."
+    - id: test-ride
+      text: "Hi {first_name}, test rides are free: book a slot at haldenbikes.example/test-ride."
+    - id: shipping-countries
+      text: "We deliver in the Netherlands, Belgium and Germany for now."
+
+platform_windows:
+  instagram_dm: "Reply within 24h of the user's last message; no automated messages after that."
+  instagram_private_reply: "One private reply per comment, within 7 days of the comment."
+  x: "Reply only when the user engaged with us first; one reply per interaction."
+
+crisis_triggers:
+  - "negative share > 35% on >= 30 mentions within 2h"
+  - "any mention of fire, battery smoke, brake failure, injury"
+  - "press or creator with > 50k followers asking for comment"
+  - "same complaint from >= 5 accounts within 1h"
+
+pii:
+  detect: [email, phone, street address, order number, IBAN]
+  rule: "Never repeat PII in a public reply; redact it in Slack previews; keep inbox items 90 days."
