@@ -1,0 +1,665 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: AI Video Studio
+description: >-
+  An agentic video production line that turns a brief into short-form and long-form video for
+  YouTube, TikTok and Instagram. A Claude Agent SDK producer runs research and hook testing,
+  scripts with per-platform variants, and a storyboard that becomes a shot list. Each shot fans
+  out into its own generation pipeline (sub-tower) on async video APIs (Veo 3.1 on the Gemini
+  API, Runway as fallback), next to ElevenLabs voice and music and HeyGen avatar segments that
+  exist only for a consented spokesperson. A Remotion timeline renders on Lambda, FFmpeg mixes
+  and reframes per platform, Whisper timestamps drive captions. QA checks frames, brand, rights
+  and consent, platform specs, then signs C2PA Content Credentials and sets each platform's AI
+  disclosure before the client approves. Packaging A/B tests thumbnails, uploads per platform,
+  and analytics feed the next brief. Sample client: "Kestrel Trail Co." (fictional), a
+  trail-running brand, campaign "Your First Ultra".
+tags: [video, short-form, generative-video, veo, elevenlabs, heygen, remotion, ffmpeg, c2pa, ai-disclosure, human-in-the-loop, claude-agent-sdk]
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Studio orchestrator
+    description: Node 22 container running the producer and its subagents (Agent SDK), the job dispatcher and the webhook receiver.
+    host: run:studio-orchestrator
+    provider: google-cloud
+    region: europe-west4
+  render-box:
+    kind: container
+    label: Render worker
+    description: FFmpeg 7, ffprobe, c2patool and the Remotion CLI. CPU only; generation happens at the vendors.
+    host: run:render-worker
+    provider: google-cloud
+    region: europe-west4
+  lambda:
+    kind: serverless
+    label: Remotion Lambda
+    description: Chunked parallel rendering on AWS Lambda; output lands in S3, then is copied to the asset bucket.
+    provider: aws
+    region: eu-central-1
+  bucket:
+    kind: cloud
+    label: Asset bucket
+    description: GCS bucket with every take, stem, render and its provenance sidecar. Object versioning on.
+    provider: google-cloud
+    region: europe-west4
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  gemini:
+    kind: saas
+    label: Gemini API
+    description: Veo 3.1 (video), Nano Banana image models, Lyria 3.5 (music). Paid tier only for Veo.
+    provider: google
+    url: https://ai.google.dev/gemini-api/docs/veo
+  runway:
+    kind: saas
+    label: Runway API
+    description: Fallback video models (gen4.5, gen4_turbo) billed in credits at $0.01.
+    provider: runway
+    url: https://docs.dev.runwayml.com
+  elevenlabs:
+    kind: saas
+    label: ElevenLabs
+    description: TTS with a verified Professional Voice Clone, Eleven Music, sound effects. Remote MCP server.
+    provider: elevenlabs
+    url: https://api.elevenlabs.io/v1/mcp
+  heygen:
+    kind: saas
+    label: HeyGen API
+    description: Avatar video of the consented spokesperson (v3 API, callback_url webhooks).
+    provider: heygen
+    url: https://api.heygen.com
+  openai:
+    kind: saas
+    label: OpenAI audio
+    description: whisper-1 transcription with word timestamps, used only for captions.
+    provider: openai
+    url: https://api.openai.com
+  slack:
+    kind: saas
+    label: Slack Connect
+    description: Shared channel with the client for briefs, approvals and the weekly digest.
+    provider: slack
+  youtube:
+    kind: saas
+    label: YouTube
+    description: Data API v3 uploads, Analytics API, Studio Test & compare.
+    provider: google
+    url: https://developers.google.com/youtube/v3
+  tiktok:
+    kind: saas
+    label: TikTok
+    description: Content Posting API (direct post). The client app is audited, so posts can be public.
+    provider: tiktok
+    url: https://developers.tiktok.com
+  meta:
+    kind: saas
+    label: Instagram
+    description: Instagram Graph API content publishing (Reels).
+    provider: meta
+    url: https://developers.facebook.com/docs/instagram-platform
+
+prompts:
+  intake: { file: prompts/intake.md, description: "Haiku. Slack brief -> structured brief YAML, missing fields, route." }
+  producer: { file: prompts/producer.md, description: "Opus. Owns budget, schedule, approvals and dispatch." }
+  researcher: { file: prompts/researcher.md, description: Platform and competitor research with sources. }
+  hook-lab: { file: prompts/hook-lab.md, description: Writes and scores opening hooks against the hook bank. }
+  scriptwriter: { file: prompts/scriptwriter.md, description: "Master script, then per-platform variants." }
+  storyboarder: { file: prompts/storyboarder.md, description: "Storyboard -> shot list JSON (one row per shot)." }
+  shot-director: { file: prompts/shot-director.md, description: Per-shot prompt writing and take selection. }
+  editor: { file: prompts/editor.md, description: "Timeline JSON for Remotion: cuts, captions, b-roll, music." }
+  frame-qa: { file: prompts/frame-qa.md, description: Vision review of sampled frames and the contact sheet. }
+  packager: { file: prompts/packager.md, description: "Titles, descriptions, hashtags, thumbnail briefs per platform." }
+  analyst: { file: prompts/analyst.md, description: "Retention, hook rate, CTR, cost per minute; next brief." }
+
+agents:
+  intake:
+    name: Brief intake
+    model: claude-haiku-5-5
+    prompt: intake
+    tools: []
+    runtime: orchestrator
+    harness: { max_turns: 2, output: json_schema }
+  producer:
+    name: Producer
+    model: claude-opus-5-5
+    prompt: producer
+    tools: [Agent, Read, Write, TodoWrite, mcp__studio__request_approval, mcp__studio__estimate_cost]
+    runtime: orchestrator
+    files: [CLAUDE.md, config/model-rates.yaml]
+    harness: { max_turns: 120, effort: high, fallback_model: claude-sonnet-5-5 }
+    budget: { usd: 150, on_exceed: pause }
+  researcher:
+    name: Researcher
+    model: claude-sonnet-5-5
+    prompt: researcher
+    tools: [WebSearch, WebFetch, mcp__youtube__search]
+    runtime: orchestrator
+    fanout: { min: 3, max: 5, by: research questions in the brief }
+    limits: { timeout: 15m, retries: 1 }
+    budget: { usd: 4, on_exceed: stop }
+  hook-lab:
+    name: Hook lab
+    model: claude-sonnet-5-5
+    prompt: hook-lab
+    tools: [Read]
+    runtime: orchestrator
+    files: [research/hook-bank.md]
+  writer:
+    name: Scriptwriter
+    model: claude-opus-5-5
+    prompt: scriptwriter
+    tools: [Read, Write]
+    runtime: orchestrator
+  storyboarder:
+    name: Storyboarder
+    model: claude-sonnet-5-5
+    prompt: storyboarder
+    tools: [Read, Write]
+    runtime: orchestrator
+    harness: { output: json_schema }
+  shot-director:
+    name: Shot director
+    model: claude-sonnet-5-5
+    prompt: shot-director
+    tools: [Read, mcp__studio__generate_image, mcp__studio__generate_video, mcp__studio__poll_job]
+    runtime: orchestrator
+    tower: towers/shot.tower.yaml
+  editor:
+    name: Editor
+    model: claude-sonnet-5-5
+    prompt: editor
+    tools: [Read, Write, mcp__studio__render_timeline]
+    runtime: orchestrator
+    files: [pipeline/remotion/ShortVideo.tsx]
+  frame-qa:
+    name: Frame QA
+    model: claude-sonnet-5-5
+    prompt: frame-qa
+    tools: [Read]
+    runtime: orchestrator
+  packager:
+    name: Packager
+    model: claude-sonnet-5-5
+    prompt: packager
+    tools: [Read, Write, mcp__studio__generate_image]
+    runtime: orchestrator
+  analyst:
+    name: Analyst
+    model: claude-sonnet-5-5
+    prompt: analyst
+    tools: [Read, Write, mcp__studio__query_analytics]
+    runtime: orchestrator
+    trigger: { kind: cron, schedule: "0 7 * * *", source: orchestrator scheduler }
+    budget: { usd: 1, on_exceed: stop }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: brief
+    title: Brief & Research
+    description: A brief arrives from Slack or the content calendar. Haiku structures it, the Opus producer plans, researchers and the hook lab run in parallel, and the client signs the creative direction.
+    nodes:
+      - id: slack_brief
+        type: entry
+        label: /brief in Slack
+        description: Client or account manager fills the brief template in a Slack modal.
+        runtime: slack
+        trigger: { kind: chat, source: "Slack /brief slash command" }
+        files: [briefs/video-brief-template.md]
+      - id: calendar
+        type: entry
+        label: Content calendar
+        description: Weekly slots from the agreed calendar create briefs with the series defaults filled in.
+        runtime: orchestrator
+        trigger: { kind: cron, schedule: "0 8 * * 1", source: content calendar }
+      - id: intake
+        agent: intake
+        data: { sensitivity: confidential, description: Unreleased campaign plans. }
+      - id: route
+        type: decision
+        label: Route?
+        description: "ready | needs_info | decline. Declined: real people without a consent record, political or election content, medical claims without a source."
+        runtime: orchestrator
+      - id: producer
+        agent: producer
+        files: [briefs/kestrel-first-ultra.yaml, CLAUDE.md]
+      - id: research
+        agent: researcher
+        label: Research
+        description: Top videos on the topic per platform (format, length, first 3 seconds), competitor channels, and facts the script will need, each with a source.
+      - id: hooks
+        agent: hook-lab
+        label: Hook lab
+        description: Twelve opening hooks in four patterns, scored against the hook bank of past 3-second hold rates; top three go to the script.
+        evals:
+          - { name: predicted 3s hold (top hook), value: 0.71, target: 0.65, description: "Illustrative. Calibrated on the client's last 40 shorts." }
+      - id: brand_kit
+        type: memory
+        label: Brand kit
+        description: Palette, fonts, logo safe zones, caption style, voice and banned words.
+        runtime: bucket
+        files: [config/brand-kit.json]
+      - id: learnings
+        type: memory
+        label: Learnings
+        description: What retained and what did not, written back by the analyst after each release.
+        runtime: bucket
+        files: [memory/learnings.md, research/hook-bank.md]
+      - id: brief_ok
+        type: human
+        label: Direction sign-off
+        description: Client approves angle, hooks, formats and budget before any paid generation.
+        runtime: slack
+        approval: { by: client marketing lead, via: Slack Connect, actions: [approve, edit, reject], timeout: 48h, on_timeout: escalate }
+        resources:
+          - { kind: log, label: Approval history, path: logs/approvals.log }
+    edges:
+      - { from: slack_brief, to: intake, label: modal submit, protocol: webhook }
+      - "calendar -> intake: slot"
+      - "intake -> route [data]: brief.yaml"
+      - "route -> producer [handoff]: ready"
+      - "producer -> research [spawn]: questions"
+      - "producer -> hooks [spawn]"
+      - "learnings -> hooks [data]: hook bank"
+      - "brand_kit -> producer [data]"
+      - "research -> producer [return]: findings + sources"
+      - "hooks -> producer [return]: top 3 hooks"
+      - "producer -> brief_ok: direction + estimate"
+      - "brief_ok -> producer [return]: edits"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: script
+    title: Script & Storyboard
+    description: One master script, variants per platform, a claims check, then a storyboard and a shot list that is priced before anything is generated.
+    nodes:
+      - id: writer
+        agent: writer
+        label: Master script
+        description: Long-form 16:9 script with timed beats, VO lines, on-screen text and b-roll notes.
+        files: [content/first-ultra-script.md]
+      - id: variants
+        agent: writer
+        label: Platform variants
+        description: "45 s 9:16 short (TikTok, Reels, Shorts), 6-8 min 16:9 YouTube, 30 s 1:1 paid cut. Each opens on a different tested hook."
+        fanout: { min: 2, max: 4, by: target formats }
+      - id: claims
+        type: guard
+        label: Claims check
+        description: Health and performance claims need a cited source; no competitor names; no real people beyond consent records; no lyrics or song titles.
+        runtime: orchestrator
+        files: [compliance/consent-rights-checklist.md]
+      - id: storyboard
+        agent: storyboarder
+        label: Storyboard
+        description: Frames per beat with framing, motion, lighting and continuity notes, then one JSON row per shot.
+        files: [content/first-ultra-storyboard.md]
+      - id: shot_list
+        type: memory
+        label: Shot list
+        description: Shot id, kind (t2v, i2v, avatar, product, graphic), duration, aspect, model tier, refs.
+        runtime: bucket
+        files: [content/first-ultra-shots.json]
+      - id: estimate
+        label: Cost estimate
+        description: Shot list x model rates x expected takes, plus voice, music, avatar and render minutes.
+        runtime: orchestrator
+        files: [pipeline/estimate-cost.ts, config/model-rates.yaml]
+      - id: fits
+        type: decision
+        label: Within budget?
+        description: "Over budget -> downgrade b-roll to Veo 3.1 Fast or Lite, cut shots, or ask the producer."
+        runtime: orchestrator
+      - id: script_ok
+        type: human
+        label: Script sign-off
+        description: Producer then client approve script, variants and storyboard frames. Three rounds included.
+        runtime: slack
+        approval: { by: producer + client marketing lead, via: Slack Connect, actions: [approve, edit, reject], timeout: 48h, on_timeout: escalate }
+        limits: { max_iterations: 3 }
+    edges:
+      - "writer -> variants [spawn]: per format"
+      - "variants -> claims: drafts"
+      - "claims -> storyboard: clean"
+      - "claims -> writer [return]: unsourced claim"
+      - "storyboard -> shot_list [data]: shots.json"
+      - "shot_list -> estimate [data]"
+      - estimate -> fits
+      - "fits -> script_ok: yes"
+      - "fits -> storyboard [return]: trim shots"
+      - "script_ok -> writer [return]: notes, max 3 rounds"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: assets
+    title: Asset Generation
+    description: >-
+      Fan-out per shot into the shot sub-tower, alongside voice, music, SFX and avatar jobs.
+      Every vendor call is an async job (submit, then poll or receive a webhook), so the dispatcher
+      enforces concurrency against API quotas and the producer's budget.
+    nodes:
+      - id: dispatch
+        label: Job dispatcher
+        description: Queues generation jobs from the locked shot list; caps parallel jobs per vendor and stops new jobs when the budget is spent.
+        runtime: orchestrator
+        files: [pipeline/estimate-cost.ts]
+        limits: { concurrency: 4, retries: 2, backoff: "exponential 10s..2m" }
+        budget: { usd: 90, on_exceed: pause }
+        resources:
+          - { kind: log, label: Render jobs, path: logs/render-jobs.log }
+      - id: shot
+        agent: shot-director
+        label: Shot pipeline
+        description: "One run per shot: prompt, keyframe, generate, poll, check, keep the best take."
+        fanout: { min: 6, max: 24, by: shots in the shot list }
+        budget: { usd: 6, on_exceed: downgrade }
+        limits: { timeout: 20m, max_iterations: 3 }
+        credentials: service
+      - id: voice
+        type: tool
+        label: Voice-over
+        description: ElevenLabs TTS with the spokesperson's Professional Voice Clone (verified by voice captcha). Generated per line so retakes are cheap.
+        runtime: elevenlabs
+        data: { sensitivity: pii, region: eu, description: "Voice clone of a real, consenting person; use limited to the scope in the consent record." }
+        limits: { timeout: 2m, retries: 2 }
+        credentials: service
+      - id: avatar
+        type: tool
+        label: Avatar segments
+        description: HeyGen avatar video of the spokesperson's digital twin. Renders only when the avatar group's consent status is cleared.
+        runtime: heygen
+        data: { sensitivity: pii, description: Likeness of a real person. }
+        limits: { timeout: 30m, retries: 1, backoff: "Retry-After on 429" }
+        credentials: service
+      - id: music
+        type: tool
+        label: Music bed
+        description: Eleven Music (music_v2_5, instrumental, 3 s to 5 min); Lyria 3.5 as fallback. No artist names or lyrics in prompts.
+        runtime: elevenlabs
+        limits: { timeout: 5m, retries: 1 }
+      - id: sfx
+        type: tool
+        label: Sound effects
+        description: Footsteps on gravel, wind, zipper, gel pack. Short ElevenLabs sound-effect generations with a set duration.
+        runtime: elevenlabs
+      - id: callbacks
+        label: Webhook receiver
+        description: Receives HeyGen callback_url and Remotion webhook events, verifies them by fetching the job status, and wakes the waiting step. Returns 2xx fast.
+        runtime: orchestrator
+        files: [pipeline/webhooks.ts]
+        limits: { timeout: 10s }
+      - id: consent
+        type: memory
+        label: Consent registry
+        description: Signed likeness and voice releases with scope (channels, territories, uses), expiry and revocation. Checked before every avatar or voice job.
+        runtime: bucket
+        files: [compliance/consent-record-mara.json]
+        data: { sensitivity: pii, region: eu, retention: 1095d, description: "Release forms, ID check result, voice captcha recording id. Kept 3 years after expiry." }
+      - id: store
+        type: memory
+        label: Takes & stems
+        description: Every kept take and audio stem with a provenance sidecar (model, version, prompt hash, cost, SynthID flag).
+        runtime: bucket
+        data: { sensitivity: confidential, retention: 365d }
+    edges:
+      - "dispatch -> shot [spawn]: per shot"
+      - { from: dispatch, to: voice, kind: call, label: "VO lines (text_to_speech)", protocol: mcp }
+      - { from: dispatch, to: avatar, kind: call, label: "avatar video + callback_url", protocol: http }
+      - "dispatch -> music [call]: bed per format"
+      - "dispatch -> sfx [call]"
+      - "consent -> voice [data]: scope check"
+      - "consent -> avatar [data]: scope check"
+      - { from: avatar, to: callbacks, kind: return, label: avatar_video.success, protocol: webhook }
+      - "shot -> store [data]: best take"
+      - "voice -> store [data]: VO stems"
+      - "music -> store [data]"
+      - "sfx -> store [data]"
+      - "callbacks -> store [data]: avatar mp4"
+      - "voice -> consent [data]: usage log"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: edit
+    title: Edit & Assembly
+    description: The editor agent writes a timeline as data, Remotion renders it on Lambda, FFmpeg mixes and normalises loudness, Whisper timestamps drive captions, and each platform gets its own reframe.
+    nodes:
+      - id: editor
+        agent: editor
+        label: Timeline
+        description: Remotion inputProps JSON. Cuts on beats, b-roll over VO, caption style from the brand kit, end card. No generated text inside video frames.
+      - id: render
+        type: tool
+        label: Remotion Lambda
+        description: renderMediaOnLambda with a webhook; chunks render in parallel and are stitched in S3. Company licence (4+ people) priced per render.
+        runtime: lambda
+        files: [pipeline/render-lambda.ts, pipeline/remotion/ShortVideo.tsx]
+        limits: { timeout: 15m, retries: 1, concurrency: 200 }
+      - id: captions
+        label: Captions
+        description: whisper-1 with word timestamps -> SRT for upload and word-level JSON for animated captions; brand terms passed as prompt.
+        runtime: render-box
+        files: [pipeline/captions.py]
+        limits: { timeout: 3m, retries: 2 }
+      - id: mix
+        label: Mix & loudness
+        description: "Music ducked under VO (sidechain), SFX, loudnorm to -14 LUFS integrated, -1 dBTP."
+        runtime: render-box
+        files: [pipeline/assemble.sh]
+      - id: reframe
+        label: Reframe per platform
+        description: "9:16 1080x1920, 1:1 1080x1080, 16:9 1920x1080 with platform safe zones; subject-aware crop from the storyboard."
+        runtime: render-box
+        files: [pipeline/reframe.sh, config/platform-specs.yaml]
+        fanout: { min: 2, max: 4, by: target platforms and aspect ratios }
+      - id: rough_ok
+        type: human
+        label: Rough-cut review
+        description: Producer watches the 9:16 cut on a phone before QA spends time on it.
+        runtime: slack
+        approval: { by: producer, via: Slack, actions: [approve, edit], timeout: 8h, on_timeout: escalate }
+    edges:
+      - { from: editor, to: render, kind: call, label: inputProps, protocol: http }
+      - "captions -> editor [data]: word timings"
+      - "render -> mix: picture + stems"
+      - mix -> rough_ok
+      - "rough_ok -> editor [return]: notes"
+      - "rough_ok -> reframe: approved"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: qa
+    title: QA & Compliance
+    description: Automated and agent checks in parallel, a gate with a fix loop, AI labelling with Content Credentials, legal review when a real person or a claim is involved, then client approval.
+    nodes:
+      - id: frame_qa
+        agent: frame-qa
+        label: Frame QA
+        description: Contact sheet plus 2 frames per second around cuts. Flags warped hands and faces, garbled text, logo drift, continuity breaks, flicker.
+        evals:
+          - { name: shots flagged per video, value: 2, target: 3, higher_is_better: false, description: Illustrative. }
+      - id: brand_guard
+        type: guard
+        label: Brand guard
+        description: Palette, logo safe zone and size, caption font and position, banned words in VO and captions, end card present.
+        runtime: orchestrator
+        files: [config/brand-kit.json]
+      - id: rights
+        type: guard
+        label: Rights & consent
+        description: Every likeness and voice covered by an unexpired consent for this channel and territory; music licence on file; no third-party marks, artists or copyrighted characters; source list for claims.
+        runtime: orchestrator
+        files: [compliance/consent-rights-checklist.md, compliance/consent-record-mara.json]
+        data: { sensitivity: pii }
+      - id: specs
+        type: guard
+        label: Platform specs
+        description: ffprobe against the spec table (codec, resolution, fps, duration, loudness, file size), captions in safe zones.
+        runtime: render-box
+        files: [pipeline/check-specs.py, config/platform-specs.yaml]
+      - id: label
+        label: AI label + C2PA
+        description: "Signs a C2PA manifest (digitalSourceType trainedAlgorithmicMedia or compositeWithTrainedAlgorithmicMedia) with c2patool and sets per-platform disclosure flags: YouTube containsSyntheticMedia, TikTok is_aigc, Meta AI info."
+        runtime: render-box
+        files: [pipeline/sign-c2pa.sh, compliance/c2pa-manifest.json]
+        credentials: service
+      - id: gate
+        type: decision
+        label: All pass?
+        description: Failures go back to the editor or to the shot pipeline for a regenerate. Three fix rounds, then the producer decides.
+        runtime: orchestrator
+        limits: { max_iterations: 3 }
+      - id: legal
+        type: human
+        label: Legal review
+        description: Only when the video uses a real person's likeness or voice, a health or performance claim, or a paid partnership.
+        runtime: slack
+        approval: { by: client legal counsel, via: Slack Connect, actions: [approve, reject, respond], timeout: 24h, on_timeout: reject }
+        sla: 48h
+      - id: final_ok
+        type: human
+        label: Client approval
+        description: Client approves every platform cut with captions, labels and the publish plan. Three revision rounds included; a fourth is a change order.
+        runtime: slack
+        approval: { by: client marketing lead, via: Slack Connect review link, actions: [approve, edit, reject], timeout: 48h, on_timeout: escalate }
+        limits: { max_iterations: 3 }
+        sla: 72h
+        evals:
+          - { name: revision rounds used, value: 1, target: 3, higher_is_better: false, description: Illustrative. }
+    edges:
+      - "frame_qa -> gate [data]"
+      - "brand_guard -> gate [data]"
+      - "rights -> gate [data]"
+      - "specs -> gate [data]"
+      - "gate -> label: pass"
+      - "label -> legal: likeness or claims"
+      - "label -> final_ok: otherwise"
+      - "legal -> final_ok: cleared"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: publish
+    title: Packaging & Publishing
+    description: Titles, descriptions, hashtags and thumbnail variants per platform, then scheduled uploads that carry the AI disclosure set in QA.
+    nodes:
+      - id: packager
+        agent: packager
+        label: Titles & copy
+        description: Per platform title, description, hashtags, chapters for YouTube, first comment, and three thumbnail briefs.
+      - id: thumbs
+        type: tool
+        label: Thumbnails
+        description: "Three variants from Nano Banana Pro (gemini-3-pro-image) on the spokesperson's approved still; text added in Remotion, not by the model."
+        runtime: gemini
+        fanout: 3
+        version: thumb-v3
+        rollout: { strategy: ab, percent: 33, previous: thumb-v2 }
+      - id: schedule
+        label: Schedule
+        description: Picks slots from the calendar and audience activity; staggers platforms by 2 hours.
+        runtime: orchestrator
+        resources:
+          - { kind: log, label: Publish log, path: logs/publish.log }
+      - id: yt
+        type: tool
+        label: YouTube upload
+        description: "videos.insert, resumable; status.containsSyntheticMedia, status.publishAt, captions track; 1 unit of the Video Uploads quota per call."
+        runtime: youtube
+        files: [pipeline/publish-youtube.ts]
+        credentials: user
+        limits: { retries: 3, backoff: "exponential 5s..5m" }
+      - id: tiktok
+        type: tool
+        label: TikTok post
+        description: "Direct post with is_aigc true; 6 requests per minute per token; upload_url valid 1 hour."
+        runtime: tiktok
+        files: [pipeline/publish-tiktok.ts]
+        credentials: user
+        limits: { ttl: 1h, retries: 2 }
+      - id: reels
+        type: tool
+        label: Instagram Reels
+        description: "Container (media_type REELS) -> poll status_code until FINISHED (once a minute, max 5 min) -> media_publish. 100 API posts per 24 h."
+        runtime: meta
+        credentials: user
+        limits: { timeout: 5m, retries: 1 }
+    edges:
+      - "packager -> thumbs [call]: 3 briefs"
+      - "packager -> schedule"
+      - { from: schedule, to: yt, kind: call, protocol: http }
+      - { from: schedule, to: tiktok, kind: call, protocol: http }
+      - { from: schedule, to: reels, kind: call, protocol: http }
+      - "thumbs -> yt [data]: A/B variants"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: analytics
+    title: Analytics & Iteration
+    description: Daily pulls for 14 days, a thumbnail test on long-form, an analyst that compares against targets and cost, and learnings that feed the next brief.
+    nodes:
+      - id: pull
+        label: Metrics pull
+        description: YouTube Analytics (retention curve, CTR, views), TikTok and Instagram insights, per video and per hook.
+        runtime: orchestrator
+        trigger: { kind: cron, schedule: "0 6 * * *", source: orchestrator scheduler }
+        limits: { retries: 3 }
+      - id: abtest
+        label: Thumbnail test
+        description: YouTube Test & compare on the long-form video, up to 3 thumbnails or titles, winner by watch time share, up to 2 weeks. Not available for Shorts.
+        runtime: youtube
+        rollout: { strategy: ab, percent: 33 }
+        sla: 14d
+      - id: analyst
+        agent: analyst
+        files: [analytics/first-ultra-week1.md]
+        evals:
+          - { name: 3s hook rate (shorts), value: 0.68, target: 0.65, description: "Illustrative target, share of viewers still watching at 3 s." }
+          - { name: avg % viewed (shorts), value: 0.74, target: 0.7, description: Illustrative. }
+          - { name: long-form CTR, value: 0.052, target: 0.05, description: "Illustrative; impressions click-through rate." }
+          - { name: avg view duration (min), value: 3.1, target: 3.5, description: "Illustrative, long-form 7:40 cut." }
+          - { name: cost per finished minute (USD), value: 7.6, target: 15, higher_is_better: false, description: "Illustrative sample (fictional), all vendors incl. rejected takes." }
+      - id: ledger
+        type: memory
+        label: Cost ledger
+        description: Spend per video, per vendor and per shot, including discarded takes; compared with the estimate.
+        runtime: bucket
+        files: [logs/render-jobs.log]
+      - id: digest
+        type: output
+        label: Weekly digest
+        description: One message to the client with numbers, the thumbnail winner and two recommendations.
+        runtime: slack
+      - id: next
+        type: output
+        label: Next brief
+        description: Proposed angles and hooks for the next calendar slot, based on what retained.
+        runtime: orchestrator
+    edges:
+      - "pull -> analyst [data]: metrics"
+      - "abtest -> analyst [data]: winner"
+      - "ledger -> analyst [data]: spend"
+      - analyst -> digest
+      - analyst -> next
+
+links:
+  - "brief.brief_ok -> script.writer [handoff]: signed direction"
+  - "brief.hooks -> script.writer [data]: top 3 hooks"
+  - "brief.brand_kit -> script.storyboard [data]: look + palette"
+  - "script.fits -> brief.producer [return]: still over budget"
+  - "script.script_ok -> assets.dispatch [handoff]: locked shot list"
+  - "script.shot_list -> assets.dispatch [data]: shots.json"
+  - "assets.store -> edit.editor [data]: takes + stems"
+  - "assets.voice -> edit.captions [data]: VO audio"
+  - "edit.reframe -> qa.frame_qa: platform cuts"
+  - "edit.reframe -> qa.brand_guard"
+  - "edit.reframe -> qa.rights"
+  - "edit.reframe -> qa.specs"
+  - "assets.consent -> qa.rights [data]: releases"
+  - "qa.gate -> edit.editor [return]: fixes, max 3"
+  - "qa.gate -> assets.shot [return]: regenerate shot"
+  - "qa.final_ok -> edit.editor [return]: client notes, max 3 rounds"
+  - "qa.final_ok -> publish.packager [handoff]: approved cuts"
+  - "qa.label -> publish.schedule [data]: signed files + disclosure flags"
+  - "publish.yt -> analytics.pull: video ids"
+  - "publish.tiktok -> analytics.pull"
+  - "publish.reels -> analytics.pull"
+  - "publish.thumbs -> analytics.abtest [data]: 3 variants"
+  - "assets.dispatch -> analytics.ledger [data]: job costs"
+  - "analytics.analyst -> brief.learnings [data]: what retained"
+  - "analytics.next -> brief.producer: next slot"
+  - { from: edit.render, to: assets.callbacks, kind: return, label: Remotion webhook, protocol: webhook }

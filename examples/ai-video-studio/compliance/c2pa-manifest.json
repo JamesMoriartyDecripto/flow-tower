@@ -1,0 +1,27 @@
+{
+  "alg": "es256",
+  "private_key": "/run/secrets/c2pa/reelwright-es256.key",
+  "sign_cert": "/run/secrets/c2pa/reelwright-es256.pem",
+  "ta_url": "http://timestamp.digicert.com",
+  "claim_generator_info": [{ "name": "reelwright-pipeline", "version": "1.4.0" }],
+  "title": "KTC-2026-041 Your First Ultra",
+  "assertions": [
+    {
+      "label": "c2pa.actions",
+      "data": {
+        "actions": [
+          {
+            "action": "c2pa.created",
+            "digitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia",
+            "softwareAgent": "Veo 3.1, ElevenLabs, HeyGen, Remotion"
+          },
+          { "action": "c2pa.edited", "softwareAgent": "Remotion + FFmpeg (human-directed edit)" }
+        ]
+      }
+    },
+    {
+      "label": "stds.schema-org.CreativeWork",
+      "data": { "@context": "https://schema.org", "@type": "CreativeWork", "author": [{ "@type": "Organization", "name": "Reelwright Studio" }] }
+    }
+  ]
+}

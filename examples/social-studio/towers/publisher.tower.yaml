@@ -1,0 +1,197 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Publisher internals
+description: >-
+  How one approved job becomes a live post. The worker refreshes the platform token, uploads
+  media from the verified media domain, creates the post through the official API, polls until
+  it is processed, and records the permalink. Every adapter carries the platform's real limits;
+  failures retry with backoff, then land in a dead-letter queue that pings a person.
+root: ..
+tags: [publishing, rate-limits, meta-graph-api, linkedin, tiktok, youtube, x-api, bluesky]
+
+runtimes:
+  studio:
+    kind: container
+    label: Publisher worker
+    description: BullMQ worker in the studio container, concurrency 4.
+    host: social-01.example.com
+    provider: hetzner
+    region: fsn1
+  vault:
+    kind: cloud
+    label: Secrets store
+    description: Encrypted OAuth tokens per platform account; never logged.
+    provider: infisical
+    region: eu
+  meta:
+    kind: saas
+    label: Meta Graph API
+    provider: meta
+    url: https://graph.facebook.com
+  linkedin:
+    kind: saas
+    label: LinkedIn API
+    provider: linkedin
+    url: https://api.linkedin.com/rest
+  tiktok:
+    kind: saas
+    label: TikTok API
+    provider: tiktok
+    url: https://open.tiktokapis.com
+  youtube:
+    kind: saas
+    label: YouTube Data API
+    provider: google
+    url: https://www.googleapis.com/youtube/v3
+  x:
+    kind: saas
+    label: X API
+    provider: x
+    url: https://api.x.com
+  bluesky:
+    kind: saas
+    label: Bluesky PDS
+    provider: bluesky
+    url: https://bsky.social
+  slack:
+    kind: saas
+    label: Slack
+    provider: slack
+
+layers:
+  - id: dispatch
+    title: Dispatch
+    description: Idempotent by approval id; tokens are refreshed before any upload starts.
+    nodes:
+      - id: job
+        type: entry
+        label: Publish job
+        description: "{ approvalId, platform, variantId, mediaUrls, publishAt, aiFlags } from the schedule queue."
+        runtime: studio
+        trigger: { kind: queue, source: BullMQ publish queue }
+      - id: once
+        type: guard
+        label: Idempotency
+        description: A job whose approvalId + platform already has a permalink is acknowledged and dropped.
+        runtime: studio
+      - id: token
+        label: Token refresh
+        description: "Meta long-lived tokens (60 days), LinkedIn refresh tokens, TikTok 24h access tokens, Google OAuth, Bluesky session reuse (createSession is capped at 30 per 5 min)."
+        runtime: vault
+        data: { sensitivity: secret }
+        credentials: service
+      - id: router
+        type: decision
+        label: Platform?
+        runtime: studio
+    edges:
+      - job -> once
+      - "once -> token: new"
+      - token -> router
+
+  - id: adapters
+    title: Platform adapters
+    description: One adapter per API. Limits are the documented ones (October 2026); each adapter also enforces them itself.
+    nodes:
+      - id: instagram
+        type: tool
+        label: Instagram
+        description: "Create container (image_url JPEG, REELS, carousel up to 10, is_ai_generated), poll status_code once a minute up to 5 min, then media_publish. Containers expire after 24h."
+        runtime: meta
+        files: [src/adapters/instagram.ts]
+        limits: { timeout: 6m, retries: 3, backoff: "exponential 30s..10m" }
+      - id: facebook
+        type: tool
+        label: Facebook Page
+        description: "POST /{page-id}/feed or /photos; native scheduling with published=false + scheduled_publish_time (10 min to 30 days ahead)."
+        runtime: meta
+        limits: { timeout: 2m, retries: 3 }
+      - id: threads
+        type: tool
+        label: Threads
+        description: "Container then threads_publish. 500 characters, carousels 2-20 items, 250 posts and 1,000 replies per 24h."
+        runtime: meta
+        limits: { timeout: 6m, retries: 3 }
+      - id: linkedin
+        type: tool
+        label: LinkedIn Page
+        description: "Images/Videos API upload, then POST /rest/posts as urn:li:organization with Linkedin-Version header. Needs w_organization_social and a Page admin/content-admin member. Organic carousels are not supported: use MultiImage or a document post."
+        runtime: linkedin
+        limits: { timeout: 10m, retries: 3, backoff: "exponential 1m..30m" }
+      - id: tiktok
+        type: tool
+        label: TikTok inbox
+        description: "POST /v2/post/publish/inbox/video/init (video.upload scope) with PULL_FROM_URL from the verified domain. Lands as a draft; 6 init calls/min per token; max 5 pending shares per 24h."
+        runtime: tiktok
+        files: [src/adapters/tiktok-inbox.ts]
+        limits: { timeout: 15m, retries: 2 }
+      - id: youtube
+        type: tool
+        label: YouTube Shorts
+        description: "Resumable videos.insert with status.publishAt and status.containsSyntheticMedia. Uploads have their own bucket of 100 calls a day."
+        runtime: youtube
+        limits: { timeout: 15m, retries: 3 }
+      - id: x
+        type: tool
+        label: X post
+        description: "POST /2/tweets on pay-per-use: $0.015 per post, $0.20 when the post contains a URL, so links go in the profile or the reply thread. Weekly spend cap in config."
+        runtime: x
+        budget: { usd: 5, on_exceed: stop }
+        limits: { timeout: 1m, retries: 2 }
+      - id: bluesky
+        type: tool
+        label: Bluesky
+        description: "uploadBlob then com.atproto.repo.createRecord (app.bsky.feed.post). 3 points per create; 5,000 points per hour, 35,000 per day per account."
+        runtime: bluesky
+        files: [src/adapters/bluesky.ts]
+        limits: { timeout: 1m, retries: 3 }
+    edges: []
+
+  - id: confirm
+    title: Confirm & record
+    description: A post counts as published only when the platform returns a permalink.
+    nodes:
+      - id: status
+        label: Status poll
+        description: Container / upload status until FINISHED, PUBLISHED or an error code.
+        runtime: studio
+      - id: ok
+        type: decision
+        label: Live?
+        runtime: studio
+        limits: { max_iterations: 3 }
+      - id: record
+        type: memory
+        label: Post record
+        description: Permalink, platform post id, AI flags sent, approval id. Feeds the insights collector.
+        runtime: studio
+        resources:
+          - { kind: log, label: Publisher log, path: logs/publisher.log }
+      - id: dlq
+        type: output
+        label: Dead letter + alert
+        description: After 3 failures the job parks with the API error and pings #social-approvals; a person re-queues or drops it.
+        runtime: slack
+    edges:
+      - status -> ok
+      - "ok -> record: yes"
+      - "ok -> dlq: failed x3"
+
+links:
+  - "adapters.instagram -> confirm.status"
+  - "adapters.threads -> confirm.status"
+  - "adapters.linkedin -> confirm.status"
+  - "adapters.youtube -> confirm.status"
+  - "adapters.tiktok -> confirm.status"
+  - "adapters.facebook -> confirm.record [data]: post id"
+  - "adapters.x -> confirm.record [data]: post id"
+  - "adapters.bluesky -> confirm.record [data]: uri"
+  - "dispatch.router -> adapters.instagram: instagram"
+  - "dispatch.router -> adapters.facebook: facebook"
+  - "dispatch.router -> adapters.threads: threads"
+  - "dispatch.router -> adapters.linkedin: linkedin"
+  - "dispatch.router -> adapters.tiktok: tiktok"
+  - "dispatch.router -> adapters.youtube: youtube"
+  - "dispatch.router -> adapters.x: x"
+  - "dispatch.router -> adapters.bluesky: bluesky"
+  - "confirm.ok -> dispatch.token [return]: retry, backoff"

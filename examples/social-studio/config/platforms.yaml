@@ -1,0 +1,82 @@
+# Platform specs and publishing limits used by the spec fitter, the quota guard and the publisher.
+# Checked against the official docs in October 2026 (see README "Sources"). "own_cap" is our
+# own, stricter limit; everything else is the platform's documented limit.
+
+instagram:
+  api: Instagram Graph API (Content Publishing)
+  account: professional (business or creator)
+  scopes: [instagram_business_basic, instagram_business_content_publish, instagram_business_manage_comments]
+  publish_limit: { posts: 100, window: 24h, check: "GET /{ig-id}/content_publishing_limit" }
+  own_cap: { posts_per_day: 3 }
+  image: { format: jpeg, note: "MPO and JPS not supported" }
+  carousel: { max_items: 10, counts_as: 1 post }
+  container: { expires: 24h, poll: "status_code once per minute, max 5 minutes" }
+  ai_flag: "is_ai_generated=true (on the carousel container only, not on children)"
+  not_supported: [shopping tags, filters]
+
+facebook:
+  api: Pages API
+  scopes: [pages_manage_posts, pages_manage_engagement, pages_read_engagement, pages_read_user_engagement, publish_video]
+  page_tasks: [CREATE_CONTENT, MANAGE, MODERATE]
+  scheduling: { field: scheduled_publish_time, requires: "published=false", window: "10 minutes to 30 days" }
+  own_cap: { posts_per_day: 2 }
+
+threads:
+  api: Threads API
+  scopes: [threads_basic, threads_content_publish, threads_manage_replies]
+  publish_limit: { posts: 250, replies: 1000, deletions: 100, window: 24h, check: "GET /{threads-user-id}/threads_publishing_limit" }
+  text_max_chars: 500
+  image: { formats: [jpeg, png], max_mb: 8, width_px: [320, 1440] }
+  video: { formats: [mov, mp4], max_minutes: 5, max_gb: 1 }
+  carousel: { min_items: 2, max_items: 20 }
+
+linkedin:
+  api: Posts API (Community Management API)
+  headers: { Linkedin-Version: "202609", X-Restli-Protocol-Version: "2.0.0" }
+  scopes: [w_organization_social, r_organization_social]
+  member_roles: [ADMINISTRATOR, CONTENT_ADMIN, DIRECT_SPONSORED_CONTENT_POSTER]
+  rate_limits: "Per app and per member per day, reset at midnight UTC; not published, read them in the Developer Portal Analytics tab. 429 on breach."
+  organic_formats: [text, image, video, document, article, multi_image, poll]
+  not_supported: [organic carousel]
+  article_posts: "No URL scraping: set title, description and thumbnail yourself."
+  version_note: "Version 202510 sunsets on 2026-10-15; we pin 202609."
+
+tiktok:
+  api: Content Posting API (upload to inbox)
+  scope: video.upload
+  endpoint: POST /v2/post/publish/inbox/video/init/
+  init_rate: { requests: 6, window: 1m, per: user token }
+  pending_shares: { max: 5, window: 24h, error: spam_risk_too_many_pending_share }
+  upload_url_ttl: 1h
+  source: "PULL_FROM_URL from a verified domain (cdn.haldenbikes.example)"
+  why_inbox: >-
+    Direct Post needs an audited client and a UX where the user picks privacy (no default),
+    interactions and commercial-content toggles and consents before each post. We let the
+    social manager finish in the TikTok app instead. Unaudited Direct Post clients post private only.
+  direct_post_cap: "about 15 posts per creator per day, shared across all apps"
+  ai_flag: "is_aigc=true (Direct Post) or the AI-generated toggle in the app"
+  rules: [no promotional watermark or logo, user can edit all preset text]
+
+youtube:
+  api: YouTube Data API v3
+  quota: { units_per_day: 10000, uploads_per_day: 100, note: "videos.insert has its own 100-call bucket; comments.insert costs 50 units" }
+  scheduling: status.publishAt (with privacyStatus private)
+  ai_flag: status.containsSyntheticMedia
+  shorts: { aspect: "9:16", note: "vertical, up to 3 minutes" }
+
+x:
+  api: X API v2 (pay-per-use)
+  pricing_usd: { post_create: 0.015, post_create_with_url: 0.20, post_read: 0.005, user_read: 0.010 }
+  own_cap: { usd_per_week: 5, reads_per_day: 2000 }
+  automation_rules:
+    - "No automated replies or mentions unless the user engaged first (opt-in)"
+    - "No keyword-triggered replies"
+    - "AI-generated replies need X's prior approval: we draft only, a person sends"
+    - "Set the Automated account label if any posting is unattended"
+
+bluesky:
+  api: AT Protocol (PDS)
+  record: app.bsky.feed.post via com.atproto.repo.createRecord
+  write_points: { create: 3, update: 2, delete: 1, per_hour: 5000, per_day: 35000 }
+  create_session: { max: 30, window: 5m, daily: 300, note: "reuse and refresh the session" }
+  text_max_graphemes: 300

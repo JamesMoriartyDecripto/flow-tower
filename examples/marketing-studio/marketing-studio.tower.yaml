@@ -1,0 +1,772 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Marketing Studio
+description: >-
+  An AI-agent-run B2B growth operation, from voice-of-customer research to weekly budget
+  reallocation. Claude agents mine reviews and sales calls, draft positioning, plan campaigns,
+  write SEO content, generate ad variants and lifecycle journeys, and score inbound leads into
+  the CRM. People keep the decisions that move money or make claims: messaging sign-off,
+  quarterly budget, legal review of claims, spend changes above a threshold and the weekly
+  reallocation. Measurement is consent-first (Consent Mode v2, server-side GTM, EU region) and
+  triangulated: platform data, GA4 attribution, a Meridian MMM and geo or conversion-lift
+  tests. The daily paid-media loop is a nested tower. Sample company: "Tallymoor"
+  (fictional), accounts-payable automation for mid-market finance teams in DE, NL and FR.
+tags: [marketing, growth, performance-marketing, lifecycle, seo, google-ads, meta-ads, linkedin-ads, ga4, hubspot, customer-io, growthbook, mmm, gdpr, human-in-the-loop, claude-agent-sdk]
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Growth agents
+    description: Claude Agent SDK workers, schedulers and the MCP client config. One container per agent role.
+    host: growth-agents
+    provider: google-cloud-run
+    region: europe-west3
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  gcp:
+    kind: cloud
+    label: Google Cloud (EU)
+    description: BigQuery marketing mart, Secret Manager, Meridian notebooks. Data stays in europe-west3.
+    provider: google-cloud
+    region: europe-west3
+  sgtm:
+    kind: container
+    label: Server-side GTM
+    description: Tagging server on a first-party subdomain (collect.tallymoor.example). Strips PII before forwarding.
+    host: collect.tallymoor.example
+    provider: google-cloud-run
+    region: europe-west3
+  site:
+    kind: serverless
+    label: Marketing site
+    description: Next.js marketing site and landing pages; GrowthBook SDK evaluates experiments at the edge of the request.
+    provider: vercel
+    region: fra1
+  visitor:
+    kind: browser
+    label: Visitor browser
+    description: Consent banner (CMP), Google tag with Consent Mode v2, Meta pixel only after consent.
+  google-ads:
+    kind: saas
+    label: Google Ads
+    description: Google Ads API v25 (GAQL search and mutate) under a manager account. Official MCP server is read-only.
+    provider: google
+    url: https://ads.google.com
+  meta:
+    kind: saas
+    label: Meta Ads
+    description: Marketing API v25.0; hosted Ads MCP server at mcp.facebook.com/ads; Conversions API.
+    provider: meta
+    url: https://adsmanager.facebook.com
+  linkedin:
+    kind: saas
+    label: LinkedIn Ads
+    description: "Marketing API, versioned REST with header Linkedin-Version: 202609."
+    provider: linkedin
+    url: https://www.linkedin.com/campaignmanager
+  tiktok:
+    kind: saas
+    label: TikTok Ads
+    description: TikTok API for Business (official SDKs). No official MCP server found; called over HTTP.
+    provider: tiktok
+    url: https://ads.tiktok.com
+  ga4:
+    kind: saas
+    label: Google Analytics 4
+    description: GA4 Data API (runReport) plus daily BigQuery export. analytics-mcp for ad-hoc questions.
+    provider: google
+    url: https://analytics.google.com
+  search-console:
+    kind: saas
+    label: Search Console
+    provider: google
+    url: https://search.google.com/search-console
+  semrush:
+    kind: saas
+    label: Semrush MCP
+    description: Remote MCP at mcp.semrush.com (SEO + Trends APIs, Projects read-only). Same API-unit billing as the API.
+    provider: semrush
+    url: https://mcp.semrush.com/v2/mcp
+  ahrefs:
+    kind: saas
+    label: Ahrefs MCP
+    description: Hosted MCP. Terms allow interactive client use only, so no scripts call it.
+    provider: ahrefs
+    url: https://api.ahrefs.com/mcp/mcp
+  hubspot:
+    kind: saas
+    label: HubSpot
+    description: CRM of record and CMS. Remote MCP (mcp.hubspot.com, GA April 2026) for CRM read/write; CMS publishing through the CMS API.
+    provider: hubspot
+    url: https://mcp.hubspot.com
+  customerio:
+    kind: saas
+    label: Customer.io (EU)
+    description: Lifecycle messaging in the EU data center. MCP at mcp-eu.customer.io; write:live scope disabled by the admin.
+    provider: customer.io
+    region: eu
+    url: https://mcp-eu.customer.io/mcp
+  growthbook:
+    kind: saas
+    label: GrowthBook Cloud
+    description: Feature flags and experiments; remote MCP at mcp.growthbook.io.
+    provider: growthbook
+    url: https://mcp.growthbook.io/mcp
+  slack:
+    kind: saas
+    label: Slack
+    description: "#growth-approvals channel: every approval in this tower posts here with approve / reject buttons."
+    provider: slack
+
+prompts:
+  voc: { file: prompts/voc-miner.md, description: "Haiku. Extract pains, jobs, objections and exact phrases from one source batch." }
+  strategist: { file: prompts/strategist.md, description: "Opus. ICP, personas and the messaging framework from VoC evidence." }
+  planner: { file: prompts/planner.md, description: "Opus. Quarterly campaign brief and channel budget split from response curves." }
+  seo: { file: prompts/seo-strategist.md, description: "Sonnet. Keyword clusters, briefs, AI-search visibility checks." }
+  writer: { file: prompts/writer.md, description: "Sonnet. One article or landing page from one approved brief." }
+  creative: { file: prompts/creative.md, description: "Sonnet. Ad variants per platform spec, claims only from the register." }
+  lifecycle: { file: prompts/lifecycle.md, description: "Sonnet. Segments, journeys and email copy inside the consent rules." }
+  scorer: { file: prompts/lead-scorer.md, description: "Haiku. Fit + intent score and a one-line reason for the SDR." }
+  analyst: { file: prompts/analyst.md, description: "Opus. Weekly digest and reallocation proposal from triangulated measurement." }
+
+agents:
+  voc:
+    name: VoC miner
+    description: Reads one batch of reviews, call transcripts or tickets and returns tagged quotes. Never stores names.
+    model: claude-haiku-5-5
+    prompt: voc
+    runtime: orchestrator
+    tools: [Read, mcp__hubspot]
+    harness: { max_turns: 12, output: json_schema }
+    budget: { usd: 1.5, turns: 12, on_exceed: stop }
+    data: { sensitivity: pii, region: eu, retention: 90d, description: "Call transcripts and tickets; quotes are de-identified before they leave the batch." }
+    credentials: service
+  strategist:
+    name: Positioning strategist
+    model: claude-opus-5-5
+    prompt: strategist
+    runtime: orchestrator
+    tools: [Read, Write, mcp__ahrefs, mcp__semrush]
+    harness: { max_turns: 30, permission_mode: default }
+    budget: { usd: 8, turns: 30, on_exceed: pause }
+    credentials: author
+  planner:
+    name: Campaign planner
+    model: claude-opus-5-5
+    prompt: planner
+    runtime: orchestrator
+    tools: [Read, Write, bigquery_query]
+    files: [plans/campaign-brief-2026-q4.md, plans/budget-plan-2026-q4.yaml]
+    budget: { usd: 6, turns: 40, on_exceed: pause }
+    credentials: service
+  seo:
+    name: SEO strategist
+    model: claude-sonnet-5-5
+    prompt: seo
+    runtime: orchestrator
+    tools: [mcp__semrush, search_console_query, Read, Write]
+    budget: { usd: 3, turns: 40, on_exceed: pause }
+    limits: { retries: 2, backoff: "exponential 2s..60s" }
+    credentials: service
+  writer:
+    name: Content writer
+    model: claude-sonnet-5-5
+    prompt: writer
+    runtime: orchestrator
+    tools: [Read, Write, WebFetch]
+    budget: { usd: 2, turns: 25, on_exceed: stop }
+  creative:
+    name: Ad creative
+    model: claude-sonnet-5-5
+    prompt: creative
+    runtime: orchestrator
+    tools: [Read, Write]
+    files: [ads/creative-variants.yaml]
+    budget: { usd: 2, turns: 20, on_exceed: stop }
+  paid:
+    name: Paid media lead
+    description: Owns the daily optimization loop for all four ad platforms. Proposes; never applies above the threshold without a person.
+    model: claude-sonnet-5-5
+    prompt: { file: prompts/paid-optimizer.md }
+    runtime: orchestrator
+    tools: [mcp__google_ads, mcp__meta_ads, linkedin_ads_api, tiktok_ads_api, bigquery_query, propose_changes]
+    tower: towers/paid-media.tower.yaml
+    credentials: service
+  lifecycle:
+    name: Lifecycle marketer
+    model: claude-sonnet-5-5
+    prompt: lifecycle
+    runtime: orchestrator
+    tools: [mcp__customerio, mcp__hubspot, Read, Write]
+    budget: { usd: 3, turns: 30, on_exceed: pause }
+    data: { sensitivity: pii, region: eu, retention: 730d }
+    credentials: service
+  scorer:
+    name: Lead scorer
+    model: claude-haiku-5-5
+    prompt: scorer
+    runtime: orchestrator
+    tools: [mcp__hubspot]
+    files: [sales/lead-scoring-rules.yaml]
+    budget: { usd: 0.05, turns: 4, on_exceed: stop }
+    limits: { timeout: 90s, retries: 2 }
+    data: { sensitivity: pii, region: eu, retention: 730d }
+    credentials: service
+  analyst:
+    name: Measurement analyst
+    model: claude-opus-5-5
+    prompt: analyst
+    runtime: orchestrator
+    tools: [bigquery_query, mcp__analytics, Read, Write]
+    budget: { usd: 5, turns: 40, on_exceed: pause }
+    credentials: service
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: research
+    title: Research & Positioning
+    description: >-
+      Quarterly. Voice-of-customer evidence first, then ICP, personas and a messaging framework.
+      Every claim the later layers may use is registered with its proof.
+    nodes:
+      - id: kickoff
+        type: entry
+        label: Quarterly kickoff
+        runtime: orchestrator
+        description: First working day of the quarter, or manually after a launch or pricing change.
+        trigger: { kind: cron, schedule: "0 7 1 1,4,7,10 *", source: Cloud Scheduler, description: "Europe/Berlin" }
+      - id: sources
+        type: memory
+        label: VoC sources
+        runtime: gcp
+        description: Review-site exports, HubSpot call transcripts (last 90 days), support tickets, win/loss notes.
+        files: [data/voc-sample.jsonl]
+        data: { sensitivity: pii, region: eu, retention: 90d }
+      - id: voc
+        agent: voc
+        label: Mine VoC
+        fanout: { min: 3, max: 6, by: source batch }
+      - id: icp
+        agent: strategist
+        label: ICP & personas
+        files: [strategy/icp-personas.md]
+      - id: messaging
+        agent: strategist
+        label: Messaging
+        description: Positioning statement, value pillars, proof per pillar, objection handling, words to avoid.
+        files: [strategy/messaging-framework.md]
+      - id: claims
+        type: guard
+        label: Claims register
+        runtime: orchestrator
+        description: Every quantified or comparative claim with its evidence and expiry. Copy agents may only use registered claims.
+        files: [strategy/claims-register.yaml]
+      - id: pmm_ok
+        type: human
+        label: PMM + legal OK
+        runtime: slack
+        description: Head of product marketing approves the framework; legal approves new claims.
+        approval: { by: Head of PMM and legal counsel, via: Slack, actions: [approve, edit, reject], timeout: 5d, on_timeout: escalate }
+    edges:
+      - kickoff -> voc [spawn]
+      - "sources -> voc [data]: one batch per copy"
+      - "voc -> icp: tagged quotes"
+      - icp -> messaging
+      - "messaging -> claims [data]: new claims"
+      - claims -> pmm_ok
+      - "pmm_ok -> messaging [return]: edits"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: planning
+    title: Planning & Budget
+    description: >-
+      The planner turns positioning into a quarterly campaign brief and splits the media budget
+      using MMM response curves. Finance approves the quarter; a hard cap protects each month.
+    nodes:
+      - id: planner
+        agent: planner
+        label: Campaign planner
+      - id: allocator
+        label: Budget allocator
+        runtime: gcp
+        description: Meridian budget optimization over the latest response curves, constrained by min/max per channel and test budgets.
+        files: [plans/budget-plan-2026-q4.yaml]
+      - id: plan
+        type: memory
+        label: Budget plan
+        runtime: gcp
+        description: Monthly cap, channel split, test reserve, pacing targets. The paid loop reads it every morning.
+        files: [plans/budget-plan-2026-q4.yaml]
+      - id: cap
+        type: guard
+        label: Monthly spend cap
+        runtime: orchestrator
+        description: "Media cap 120,000 EUR per month (budget.usd holds the USD equivalent). At 100 % every campaign is paused, not just slowed."
+        budget: { usd: 140000, on_exceed: pause }
+        files: [policies/spend-approval-policy.yaml]
+      - id: finance
+        type: human
+        label: CMO + Finance
+        runtime: slack
+        description: Quarterly budget and any cross-channel move above 5,000 EUR per month.
+        approval: { by: CMO and FP&A partner, via: Slack, actions: [approve, edit, reject], timeout: 72h, on_timeout: reject }
+        files: [policies/spend-approval-policy.yaml]
+      - id: brief
+        type: output
+        label: Campaign brief
+        runtime: orchestrator
+        description: Objective, audience, offer, channels, KPIs and guardrails per campaign; the contract every lane works from.
+        files: [plans/campaign-brief-2026-q4.md]
+    edges:
+      - "planner -> allocator [call]: constraints"
+      - "allocator -> plan [data]: channel split"
+      - plan -> finance
+      - "finance -> planner [return]: edits"
+      - "finance -> brief: approved"
+      - "plan -> cap [data]: monthly cap"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: content
+    title: Content & SEO
+    description: >-
+      Keyword clusters from Semrush and Search Console, briefs, articles and programmatic pages,
+      reviewed by an editor before they publish. AI search needs no special markup: indexable,
+      crawlable, useful pages, measured in the Search Console "Web" report.
+    nodes:
+      - id: semrush
+        type: tool
+        label: Semrush MCP
+        runtime: semrush
+        description: Keyword overview, related keywords, SERP features, competitor gaps. API units are capped per month.
+        limits: { concurrency: 2, retries: 2 }
+        budget: { usd: 150, on_exceed: pause }
+      - id: gsc
+        type: tool
+        label: Search Console API
+        runtime: search-console
+        description: searchanalytics.query by page and query; data lags 2-3 days; includes AI Overviews and AI Mode clicks under Web.
+        limits: { retries: 3, backoff: "exponential 5s..5m" }
+      - id: seo
+        agent: seo
+        label: SEO strategist
+        description: Clusters by intent, picks targets, writes one brief per page.
+        files: [seo/keyword-clusters.csv, seo/seo-brief-ap-automation.md]
+      - id: ai_search
+        label: AI-search check
+        runtime: orchestrator
+        status: experimental
+        description: Monthly prompt panel (40 buyer questions) across AI assistants; logs whether Tallymoor is cited. Directional only.
+        trigger: { kind: cron, schedule: "0 8 2 * *" }
+      - id: writer
+        agent: writer
+        label: Write drafts
+        fanout: { min: 2, max: 6, by: approved brief }
+      - id: programmatic
+        label: Programmatic pages
+        runtime: site
+        status: planned
+        description: Integration pages (one per ERP) from verified integration data only; thin pages ship noindex.
+      - id: editor
+        type: human
+        label: Editor + SME
+        runtime: hubspot
+        description: Fact check, voice, claims against the register, human editorial responsibility (EU AI Act Art. 50 text exemption).
+        approval: { by: content editor, via: HubSpot draft review, actions: [approve, edit, reject], timeout: 3d, on_timeout: wait }
+      - id: cms
+        type: tool
+        label: HubSpot CMS
+        runtime: hubspot
+        description: Publishes through the CMS API (the MCP server exposes marketing content read-only).
+      - id: social
+        type: output
+        label: Social handoff
+        runtime: orchestrator
+        description: Published pieces and approved angles are handed to the organic social team (see the social-studio preset). Social is one channel here.
+    edges:
+      - { from: seo, to: semrush, kind: call, protocol: mcp, label: keyword data }
+      - { from: seo, to: gsc, kind: call, protocol: http, label: page x query }
+      - "seo -> ai_search [spawn]: monthly"
+      - "seo -> writer [spawn]: briefs"
+      - "seo -> programmatic: template + data"
+      - "writer -> editor: draft"
+      - "programmatic -> editor: sample of 10"
+      - "editor -> writer [return]: edits, max 2"
+      - { from: editor, to: cms, kind: call, protocol: http, label: publish }
+      - "cms -> social [handoff]: published URL"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: paid
+    title: Paid Acquisition
+    description: >-
+      Creative variants per message pillar and platform spec, policy and claims checks, consented
+      audiences, then launch in a paused state. The daily optimization loop lives in the sub-tower.
+    nodes:
+      - id: paid
+        agent: paid
+        label: Paid media lead
+        evals:
+          - { name: pipeline ROAS (illustrative), value: 3.4, target: 3.0, description: "Qualified pipeline EUR / media EUR, trailing 90 days." }
+          - { name: budget pacing error (%), value: 3.1, target: 5, higher_is_better: false }
+      - id: creative
+        agent: creative
+        label: Creative variants
+        fanout: { min: 3, max: 6, by: message pillar x format }
+        evals:
+          - { name: LinkedIn CTR % (illustrative), value: 0.71, target: 0.6 }
+          - { name: Meta CTR % (illustrative), value: 0.94, target: 1.0 }
+      - id: policy
+        type: guard
+        label: Policy + disclosure
+        runtime: orchestrator
+        description: Ad-policy checklist per platform, brand safety exclusions, AI-generated imagery labelled (EU AI Act Art. 50), claims only from the register.
+        files: [ads/ad-policy-checklist.md, strategy/claims-register.yaml]
+      - id: legal
+        type: human
+        label: Claims review
+        runtime: slack
+        description: Any variant with a number, a comparison or a compliance statement.
+        approval: { by: legal counsel, via: Slack, actions: [approve, edit, reject], timeout: 72h, on_timeout: reject }
+      - id: audiences
+        label: Consented audiences
+        runtime: gcp
+        description: HubSpot lists with marketing consent only, normalized and SHA-256 hashed, to Customer Match / Meta custom audiences / LinkedIn matched audiences.
+        data: { sensitivity: pii, region: eu, retention: 540d }
+      - id: launch
+        label: Launch paused
+        runtime: orchestrator
+        description: Campaigns are created PAUSED with the plan's daily budgets; enabling them is a change set that goes through the paid loop guard.
+        fanout: { min: 3, max: 4, by: platform }
+        limits: { retries: 3, backoff: "exponential 2s..60s" }
+      - id: google_ads
+        type: tool
+        label: Google Ads API
+        runtime: google-ads
+        description: v25. Search + Performance Max. Daily spend may reach 2x the average daily budget; the month is capped at 30.4x.
+        credentials: service
+      - id: meta_ads
+        type: tool
+        label: Meta Marketing API
+        runtime: meta
+        description: v25.0 via a system-user token; hosted Ads MCP for reporting and drafting.
+        credentials: service
+      - id: linkedin_ads
+        type: tool
+        label: LinkedIn Ads API
+        runtime: linkedin
+        description: "/rest/adCampaigns with Linkedin-Version 202609. Member OAuth token of an ad-account manager."
+        credentials: user
+      - id: tiktok_ads
+        type: tool
+        label: TikTok Ads API
+        runtime: tiktok
+        status: experimental
+        description: 8,000 EUR/month awareness test for the finance-ops persona; kill if no assisted pipeline by week 8.
+        credentials: service
+    edges:
+      - "paid -> creative [spawn]: brief + pillars"
+      - "creative -> policy: variants"
+      - "policy -> legal: has a claim"
+      - "legal -> creative [return]: rejected"
+      - "policy -> launch: clean"
+      - "legal -> launch: approved"
+      - "audiences -> launch [data]: hashed lists"
+      - { from: launch, to: google_ads, kind: call, protocol: http, label: mutate }
+      - { from: launch, to: meta_ads, kind: call, protocol: http, label: "status PAUSED" }
+      - { from: launch, to: linkedin_ads, kind: call, protocol: http, label: adCampaigns }
+      - { from: launch, to: tiktok_ads, kind: call, protocol: http, label: campaign create }
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: lifecycle
+    title: Lifecycle & Email
+    description: >-
+      Trial onboarding and nurture in Customer.io's EU region. Consent and deliverability gates
+      run before any journey goes live; the agent cannot send to live audiences on its own.
+    nodes:
+      - id: events
+        type: entry
+        label: Product events
+        runtime: site
+        description: trial_started, invoice_uploaded, approval_flow_created, teammate_invited.
+        trigger: { kind: event, source: product event stream }
+      - id: segments
+        agent: lifecycle
+        label: Segments
+        description: Persona x stage x activation milestone; suppression lists applied first.
+      - id: journeys
+        agent: lifecycle
+        label: Journeys + copy
+        files: [lifecycle/trial-onboarding-journey.yaml]
+      - id: consent
+        type: guard
+        label: Consent + opt-out
+        runtime: orchestrator
+        description: Marketing consent recorded per contact (double opt-in in DE), one-click unsubscribe, opt-outs honoured within 2 days (CAN-SPAM allows 10 business days).
+        files: [lifecycle/deliverability.md]
+      - id: deliverability
+        type: guard
+        label: Deliverability
+        runtime: customerio
+        description: SPF + DKIM + aligned DMARC, Postmaster spam rate under 0.1 % (hard stop at 0.3 %), warm-up for new sending domains.
+        files: [lifecycle/deliverability.md]
+        evals:
+          - { name: Gmail spam rate (%), value: 0.04, target: 0.1, higher_is_better: false }
+          - { name: inbox placement % (seed test), value: 96, target: 95 }
+          - { name: trial-to-paid % (illustrative), value: 11.8, target: 12 }
+      - id: lc_ok
+        type: human
+        label: Lifecycle owner
+        runtime: slack
+        description: Approves a new or changed journey before it is activated.
+        approval: { by: lifecycle marketing manager, via: Slack, actions: [approve, edit, reject], timeout: 2d, on_timeout: wait }
+      - id: cio
+        type: tool
+        label: Customer.io MCP
+        runtime: customerio
+        description: read + write scopes only. write:live (sending, live segments) stays off; activation happens in the UI after approval.
+        data: { sensitivity: pii, region: eu, retention: 730d }
+    edges:
+      - "events -> segments [data]: track"
+      - segments -> journeys
+      - journeys -> consent
+      - consent -> deliverability
+      - deliverability -> lc_ok
+      - "lc_ok -> journeys [return]: edits"
+      - { from: lc_ok, to: cio, kind: call, protocol: mcp, label: "draft journey, write scope" }
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: conversion
+    title: Conversion & Sales Handoff
+    description: >-
+      Landing pages run as GrowthBook experiments. Form leads arrive by webhook, are enriched and
+      scored, synced to HubSpot and routed to an SDR within the hour. Qualified outcomes flow
+      back to the ad platforms as offline conversions.
+    nodes:
+      - id: lp
+        label: Landing pages
+        runtime: site
+        description: One page per campaign x persona; variants written by the content writer, built from approved components.
+        files: [cro/ab-test-plan-demo-page.md]
+        evals:
+          - { name: demo-page conversion % (illustrative), value: 4.1, target: 4.5 }
+      - id: growthbook
+        type: tool
+        label: GrowthBook
+        runtime: growthbook
+        description: "Experiment exp-demo-form-short: 50/50 split, CUPED, guardrail on lead quality (MQL rate)."
+        version: v2-short-form
+        rollout: { strategy: ab, percent: 50, previous: v1-long-form }
+        files: [cro/ab-test-plan-demo-page.md]
+      - id: form
+        type: entry
+        label: Demo / trial form
+        runtime: site
+        description: Demo request and trial sign-up; consent checkboxes are unticked by default.
+        trigger: { kind: webhook, source: HubSpot form submission }
+        data: { sensitivity: pii, region: eu, retention: 730d }
+      - id: enrich
+        label: Enrich + dedupe
+        runtime: orchestrator
+        description: Company domain, size band, country, existing contact or open deal. Personal email domains skip enrichment.
+        limits: { timeout: 30s, retries: 2 }
+      - id: scorer
+        agent: scorer
+        label: Lead scorer
+      - id: mql
+        type: decision
+        label: MQL?
+        runtime: orchestrator
+        description: Fit A/B and score >= 65, or any demo request from fit A.
+        files: [sales/lead-scoring-rules.yaml]
+      - id: hubspot
+        type: tool
+        label: HubSpot MCP
+        runtime: hubspot
+        description: Writes contact, company, lead status and a note with the score reason; respects the connecting user's permissions.
+      - id: sdr
+        type: human
+        label: SDR first touch
+        runtime: hubspot
+        description: Round-robin by country; reassigned to the team lead if untouched.
+        sla: 1h
+        approval: { by: SDR on rotation, via: HubSpot task, actions: [respond, snooze], timeout: 1h, on_timeout: escalate }
+        evals:
+          - { name: lead response p90 (min), value: 42, target: 60, higher_is_better: false }
+      - id: offline
+        label: Offline conversions
+        runtime: gcp
+        description: MQL, SQL and closed-won sent back as Google enhanced conversions for leads (hashed email + GCLID) and Meta Conversions API events (shared event_id).
+        trigger: { kind: cron, schedule: "30 * * * *" }
+        limits: { retries: 3, backoff: "exponential 10s..10m" }
+        data: { sensitivity: pii, region: eu, description: "Hashed identifiers only; consent state travels with each event." }
+    edges:
+      - { from: lp, to: growthbook, kind: call, protocol: http, label: assign variant }
+      - "lp -> form: submit"
+      - { from: form, to: enrich, protocol: webhook, label: submission }
+      - enrich -> scorer
+      - scorer -> mql
+      - { from: mql, to: hubspot, kind: call, protocol: mcp, label: "yes: MQL + owner" }
+      - { from: mql, to: hubspot, kind: call, protocol: mcp, label: "no: nurture", condition: "score < 65" }
+      - "hubspot -> sdr [handoff]: task, 1h SLA"
+      - "hubspot -> offline [data]: stage changes"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: measurement
+    title: Measurement & Optimization
+    description: >-
+      Consent-first collection, then three views that are never summed: GA4 attribution for
+      daily steering, a Meridian MMM for budget shape, and lift tests as ground truth that
+      calibrate the MMM. A weekly digest closes the loop back into planning.
+    nodes:
+      - id: cmp
+        type: guard
+        label: Consent Mode v2
+        runtime: visitor
+        description: Defaults denied for EEA/UK/CH (ad_storage, analytics_storage, ad_user_data, ad_personalization) until the banner choice.
+        files: [measurement/consent-defaults.js]
+      - id: sgtm
+        label: Server-side GTM
+        runtime: sgtm
+        description: First-party collection endpoint; drops IP and free-text fields, forwards to GA4, Google Ads and Meta CAPI per consent.
+        data: { sensitivity: pii, region: eu, retention: 14d, description: "Request logs only; no user-level storage on the tagging server." }
+      - id: ga4
+        type: tool
+        label: GA4 Data API
+        runtime: ga4
+        description: runReport for daily KPIs (quota 200k tokens/property/day); analytics-mcp (read-only) for ad-hoc questions.
+        files: [scripts/ga4_pull.py]
+        limits: { concurrency: 4, retries: 3, backoff: "exponential 2s..2m" }
+      - id: mart
+        type: memory
+        label: Marketing mart
+        runtime: gcp
+        description: "BigQuery: GA4 export, spend ledger (all platforms), HubSpot pipeline, experiments. Single source for every number in the digest."
+        data: { sensitivity: confidential, region: eu, retention: 1095d }
+      - id: attribution
+        label: Attribution
+        runtime: gcp
+        description: GA4 data-driven attribution for the web journey, HubSpot first/last-touch for pipeline. Used for in-week steering only.
+        evals:
+          - { name: blended CAC EUR (illustrative), value: 4180, target: 4500, higher_is_better: false }
+      - id: mmm
+        label: Meridian MMM
+        runtime: gcp
+        description: Monthly refresh on 104 weeks of spend and pipeline; ROI priors calibrated with lift results; outputs response curves.
+        trigger: { kind: cron, schedule: "0 5 3 * *" }
+        files: [measurement/measurement-plan.md]
+      - id: lift
+        label: Lift tests
+        runtime: gcp
+        description: Meridian GeoX geo holdouts (Google, LinkedIn) and Meta conversion lift; one test per channel per half-year.
+        files: [measurement/measurement-plan.md]
+      - id: analyst
+        agent: analyst
+        label: Weekly digest
+        trigger: { kind: cron, schedule: "0 7 * * 1", source: Cloud Scheduler }
+        files: [samples/weekly-digest-2026-w40.md]
+      - id: realloc
+        type: human
+        label: Head of Growth
+        runtime: slack
+        description: Approves the weekly within-channel reallocation; cross-channel moves above 5,000 EUR/month go to CMO + Finance.
+        approval: { by: Head of Growth, via: Slack, actions: [approve, edit, reject], timeout: 48h, on_timeout: reject }
+    edges:
+      - "cmp -> sgtm: consent state"
+      - { from: sgtm, to: ga4, protocol: http, label: Measurement Protocol }
+      - "ga4 -> mart [data]: daily export"
+      - "mart -> attribution [data]"
+      - "mart -> mmm [data]: weekly series"
+      - "lift -> mmm [data]: ROI priors"
+      - "attribution -> analyst [data]"
+      - "mmm -> analyst [data]: response curves"
+      - "analyst -> realloc: proposal"
+
+  # 8 ───────────────────────────────────────────────────────────────
+  - id: platform
+    title: Models & Guardrails
+    description: Credentials stay in Secret Manager, every change is logged, LLM spend has its own budget.
+    nodes:
+      - id: secrets
+        type: guard
+        label: Service accounts
+        runtime: gcp
+        description: One service identity per platform, least privilege, tokens in Secret Manager; agents get short-lived access through tools.
+        files: [config/service-accounts.yaml, config/mcp-servers.json]
+        credentials: service
+        data: { sensitivity: secret }
+      - id: llm_budget
+        type: guard
+        label: LLM budget
+        runtime: orchestrator
+        description: 900 USD per month across all agents; at the cap, Opus roles downgrade to Sonnet and a human is pinged.
+        budget: { usd: 900, on_exceed: downgrade }
+      - id: changelog
+        type: memory
+        label: Change + approval log
+        runtime: gcp
+        description: Append-only log of every platform mutation and approval (who, what, before, after, reason).
+        resources:
+          - { kind: log, label: Paid optimizer log, path: logs/paid-optimizer.log }
+        data: { sensitivity: confidential, region: eu, retention: 1095d }
+      - id: opus
+        type: model
+        label: Opus 5.5
+        runtime: anthropic
+        model: claude-opus-5-5
+        description: Strategy, planning and the weekly analysis.
+      - id: sonnet
+        type: model
+        label: Sonnet 5.5
+        runtime: anthropic
+        model: claude-sonnet-5-5
+        description: SEO, writing, creative, lifecycle, paid optimization.
+      - id: haiku
+        type: model
+        label: Haiku 5.5
+        runtime: anthropic
+        model: claude-haiku-5-5
+        description: VoC extraction and lead scoring (high volume, low latency).
+    edges:
+      - "secrets -> changelog: token use audited"
+
+links:
+  # research -> planning -> lanes
+  - "research.pmm_ok -> planning.planner [handoff]: approved messaging"
+  - "research.claims -> paid.policy [data]: allowed claims"
+  - "research.claims -> content.editor [data]: allowed claims"
+  - "planning.brief -> content.seo [spawn]: content goals"
+  - "planning.brief -> paid.paid [spawn]: channel budgets"
+  - "planning.brief -> lifecycle.segments [spawn]: offers"
+  - "planning.brief -> conversion.lp: landing page list"
+  - "planning.plan -> paid.paid [data]: daily budgets"
+  - "planning.cap -> paid.launch: at cap, pause all"
+  # content / paid -> conversion
+  - "content.writer -> conversion.lp: page copy"
+  - "paid.launch -> conversion.lp: ad clicks"
+  - "content.cms -> conversion.lp: organic visits"
+  - "conversion.mql -> lifecycle.segments [data]: nurture"
+  - { from: conversion.offline, to: paid.google_ads, kind: data, protocol: http, label: enhanced conversions for leads }
+  - { from: conversion.offline, to: paid.meta_ads, kind: data, protocol: http, label: Conversions API }
+  - "conversion.lp -> measurement.cmp: page view"
+  # measurement loop
+  - "paid.paid -> measurement.mart [data]: spend ledger"
+  - "conversion.hubspot -> measurement.mart [data]: pipeline"
+  - "conversion.growthbook -> measurement.mart [data]: exposures"
+  - "measurement.mmm -> planning.allocator [data]: response curves"
+  - "measurement.realloc -> planning.allocator [return]: weekly reallocation"
+  - "measurement.realloc -> planning.finance: cross-channel > 5k"
+  - "measurement.lift -> paid.paid: holdout geos"
+  # models and guardrails
+  - "research.voc -> platform.haiku [call]"
+  - "conversion.scorer -> platform.haiku [call]"
+  - "research.icp -> platform.opus [call]"
+  - "planning.planner -> platform.opus [call]"
+  - "measurement.analyst -> platform.opus [call]"
+  - "content.seo -> platform.sonnet [call]"
+  - "paid.creative -> platform.sonnet [call]"
+  - "lifecycle.journeys -> platform.sonnet [call]"
+  - "platform.secrets -> paid.launch [data]: platform tokens"
+  - "paid.launch -> platform.changelog [data]: mutations"
+  - "platform.llm_budget -> planning.planner: over budget, downgrade"

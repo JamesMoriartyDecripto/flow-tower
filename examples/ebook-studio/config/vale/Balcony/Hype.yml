@@ -1,0 +1,12 @@
+# Style sheet, Voice: no hype words. Warnings go to the copy editor's query list.
+extends: existence
+message: "Style sheet: avoid '%s'."
+level: warning
+ignorecase: true
+tokens:
+  - game-?changer
+  - foolproof
+  - secret
+  - simply
+  - easy
+  - effortless

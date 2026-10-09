@@ -1,0 +1,13 @@
+# Locked terms from memory/book-bible.md. Errors go back to the writer.
+extends: substitution
+message: "Book bible: use '%s' instead of '%s'."
+level: error
+ignorecase: true
+swap:
+  wind barriers?: windbreak
+  wind shields?: windbreak
+  hours of sunlight: sun hours
+  acclimati[sz]e: harden off
+  weight capacity: load limit
+  wicking pots?: self-watering container
+  frost date: last frost date

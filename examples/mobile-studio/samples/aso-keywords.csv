@@ -1,0 +1,15 @@
+locale,keyword,volume,difficulty,intent,field,rank_today
+en-US,plant watering reminder,52,38,task,subtitle,
+en-US,plant care,71,74,category,name,48
+en-US,watering,45,41,task,subtitle,
+en-US,houseplant,49,55,category,keywords,
+en-US,plant widget,23,12,feature,keywords,
+de-DE,pflanzen gießen erinnerung,41,22,task,subtitle,
+de-DE,pflanzenpflege,55,48,category,name,
+de-DE,zimmerpflanzen,47,51,category,keywords,
+it-IT,promemoria piante,33,19,task,subtitle,
+it-IT,cura delle piante,44,40,category,name,
+it-IT,annaffiare,29,17,task,subtitle,
+es-ES,recordatorio riego,31,21,task,subtitle,
+es-ES,cuidado de plantas,46,43,category,name,
+es-ES,plantas de interior,40,45,category,keywords,

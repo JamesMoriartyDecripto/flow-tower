@@ -1,0 +1,30 @@
+# Leafwise 2.4 listing, de-DE. Written natively from the de-DE keyword map, not translated.
+app_store:
+  name: "Leafwise: Pflanzenpflege"              # 24 [30]
+  subtitle: "Pflanzen gießen Erinnerung"        # 26 [30]
+  keywords: "zimmerpflanzen,gießplan,widget,garten,sukkulenten,tagebuch,wasser,kräuter,kalender" # 82 [100]
+  promotional_text: "Neu: Erinnerungen, die sich nach der Jahreszeit richten, und ein Widget zum Abhaken." # 84 [170]
+  whats_new: |
+    Saisonale Erinnerungen: Das Gießintervall passt sich Monat und Topfgröße an.
+    Home-Bildschirm-Widget: Fällige Pflanzen sehen und mit einem Tipp als gegossen markieren.
+google_play:
+  title: "Leafwise: Pflanzen gießen"            # 25 [30]
+  short_description: "Gieß-Erinnerungen nach Jahreszeit und ein Widget für deine Zimmerpflanzen." # 74 [80]
+  release_notes: "Saisonale Erinnerungen und ein Widget, um Pflanzen als gegossen zu markieren." # 77 [500]
+description: |
+  Leafwise weiß, wann jede deiner Pflanzen Wasser braucht.
+
+  - Erinnerungen nach Jahreszeit: Im Winter wird seltener gegossen, große Töpfe brauchen länger.
+  - Widget für den Home-Bildschirm: Heute fällige Pflanzen mit einem Tipp abhaken.
+  - Pflegetagebuch mit Fotos für jede Pflanze.
+  - Funktioniert offline und synchronisiert später.
+
+  Leafwise Premium schaltet Pflanzenerkennung und unbegrenzt viele Pflanzen frei. Jahresabo mit 7 Tagen gratis oder Monatsabo. Die Zahlung erfolgt über dein Store-Konto; das Abo verlängert sich automatisch, wenn es nicht mindestens 24 Stunden vor Ablauf gekündigt wird.
+
+  Datenschutz: Kein Tracking über Apps und Websites hinweg; dein Konto kannst du in der App löschen.
+screenshot_captions:
+  - "Heute fällig auf einen Blick"
+  - "Gießen nach Jahreszeit"
+  - "Abhaken direkt im Widget"
+  - "Tagebuch für jede Pflanze"
+  - "Pflanzen erkennen mit Premium"

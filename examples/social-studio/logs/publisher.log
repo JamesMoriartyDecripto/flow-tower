@@ -1,0 +1,22 @@
+2026-10-05T18:00:01+02:00 job=W41-01:instagram quota=ok ig_usage=0/100 container=17890012 status=IN_PROGRESS
+2026-10-05T18:01:02+02:00 job=W41-01:instagram container=17890012 status=FINISHED media_publish id=18034411 permalink=https://www.instagram.com/reel/EXAMPLE01/
+2026-10-05T18:00:01+02:00 job=W41-01:facebook scheduled_publish_time=2026-10-05T18:00 post_id=1029_8841 ok
+2026-10-05T18:00:03+02:00 job=W41-01:tiktok inbox/video/init publish_id=v_inbox_7731 status=SEND_TO_USER_INBOX pending=1/5
+2026-10-05T18:00:04+02:00 job=W41-01:youtube videos.insert uploads=1/100 publishAt=2026-10-05T18:00 containsSyntheticMedia=false id=yt_EXAMPLE01
+2026-10-05T18:22:40+02:00 job=W41-01:tiktok status=PUBLISH_COMPLETE finished_by=@marit
+2026-10-06T12:00:02+02:00 job=W41-02:linkedin images.initializeUpload ok posts 201 x-restli-id=urn:li:share:7380000000000000001
+2026-10-06T19:30:01+02:00 job=W41-03:threads usage=3/250 container ok threads_publish id=1801122
+2026-10-06T19:30:02+02:00 job=W41-03:bluesky session=resumed createRecord points=3 uri=at://did:plc:example/app.bsky.feed.post/3m2example
+2026-10-07T18:00:01+02:00 job=W41-04:instagram carousel children=7 is_ai_generated=false container=17890055 status=FINISHED id=18034502
+2026-10-07T18:00:02+02:00 job=W41-04:linkedin multiImage images=7 posts 201 x-restli-id=urn:li:share:7380000000000000002
+2026-10-07T18:00:02+02:00 job=W41-04:facebook photos=7 post_id=1029_8867 ok
+2026-10-08T07:45:02+02:00 job=W41-05:youtube videos.insert uploads=2/100 containsSyntheticMedia=false id=yt_EXAMPLE02
+2026-10-08T07:45:03+02:00 job=W41-05:tiktok inbox/video/init publish_id=v_inbox_7790 pending=1/5
+2026-10-08T12:30:01+02:00 job=W41-06:x POST /2/tweets url=false cost_usd=0.015 week_spend_usd=0.045 id=19700000000000001
+2026-10-08T12:30:02+02:00 job=W41-06:bluesky createRecord points=3 uri=at://did:plc:example/app.bsky.feed.post/3m2example2
+2026-10-08T13:10:15+02:00 job=W41-05:tiktok status=PUBLISH_COMPLETE finished_by=@marit ai_generated_toggle=on
+2026-10-09T18:00:01+02:00 job=W41-07:instagram container=17890101 status=IN_PROGRESS
+2026-10-09T18:05:03+02:00 job=W41-07:instagram container=17890101 error="not ready after 5 minutes" attempt=1/3 retry_in=30s
+2026-10-09T18:06:35+02:00 job=W41-07:instagram attempt=2/3 container=17890109 status=FINISHED id=18034640
+2026-10-09T18:00:02+02:00 job=W41-07:facebook post_id=1029_8902 ok
+2026-10-09T18:00:03+02:00 job=W41-07:tiktok inbox/video/init publish_id=v_inbox_7815 pending=1/5

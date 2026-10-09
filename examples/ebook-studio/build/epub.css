@@ -1,0 +1,15 @@
+/* House ebook stylesheet. Relative units only so readers' font and size settings win (WCAG 1.4.4, 1.4.12). */
+@namespace epub "http://www.idpf.org/2007/ops";
+body { margin: 0 5%; line-height: 1.5; }
+h1 { font-size: 1.6em; margin: 2em 0 1em; text-align: left; page-break-before: always; break-before: page; }
+h2 { font-size: 1.25em; margin: 1.5em 0 0.5em; page-break-after: avoid; break-after: avoid; }
+p { margin: 0; text-indent: 1.2em; }
+h1 + p, h2 + p, figure + p, div + p { text-indent: 0; }
+figure { margin: 1.5em 0; text-align: center; }
+figure img { max-width: 100%; height: auto; }
+figcaption { font-size: 0.9em; margin-top: 0.4em; }
+div.checklist, div.warning { margin: 1.5em 0; padding: 0.8em 1em; border: 1px solid currentColor; }
+div.checklist ul { margin: 0.5em 0 0 1.2em; padding: 0; }
+section.footnotes, aside[epub|type~="footnote"] { font-size: 0.9em; }
+section[epub|type~="titlepage"] h1, section[epub|type~="copyright-page"] p { text-indent: 0; }
+section[epub|type~="copyright-page"] p { font-size: 0.85em; margin-bottom: 0.6em; }

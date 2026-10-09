@@ -1,0 +1,57 @@
+{
+  "mcpServers": {
+    "expo": {
+      "type": "http",
+      "url": "https://mcp.expo.dev/mcp"
+    },
+    "xcode": {
+      "type": "stdio",
+      "command": "xcrun",
+      "args": ["mcpbridge"]
+    },
+    "mobilebuildmcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mobilebuildmcp@latest", "mcp"]
+    },
+    "mobile-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@mobilenext/mobile-mcp@latest"]
+    },
+    "maestro": {
+      "type": "stdio",
+      "command": "maestro",
+      "args": ["mcp"]
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp"
+    },
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=dev-project-ref-placeholder&features=database,functions,docs"
+    },
+    "revenuecat": {
+      "type": "http",
+      "url": "https://mcp.revenuecat.ai/mcp"
+    },
+    "firebase": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "firebase-tools@latest", "mcp", "--only", "crashlytics"]
+    },
+    "appfigures": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@appfigures/cli", "mcp"]
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
+      }
+    }
+  }
+}

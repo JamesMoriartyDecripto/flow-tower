@@ -1,0 +1,56 @@
+# Lead scoring rules v5 (Marketing Ops + Sales, effective 2026-09-15).
+# score = fit (max 50) + intent (max 50), intent decays. MQL = fit in [A, B] and score >= 65,
+# or any demo request from fit A. Reviewed quarterly against SQL conversion.
+version: 5
+mql_threshold: 65
+
+fit:                                   # from enrichment + form
+  employees:
+    "200-2000": 20
+    "100-199": 10
+    "2001-5000": 10
+    "<100": 0
+  country:
+    [DE, NL, FR]: 10
+    [AT, BE, CH]: 6
+    other_eu: 2
+  erp:
+    [sap_s4hana, dynamics_365, exact]: 15
+    [netsuite, datev]: 8
+    none: -10
+  job_function:
+    [accounts_payable, accounting, finance]: 5
+    [it, erp]: 3
+  grades: { A: ">= 40", B: "30-39", C: "15-29", D: "< 15" }
+
+intent:
+  demo_request: 30
+  trial_started: 25
+  pricing_page_2plus_visits_7d: 10
+  roi_calculator_completed: 10
+  webinar_attended: 8
+  einvoicing_checklist_download: 5
+  email_click_30d: 3
+  max: 50
+  decay: { half_life: 21d }
+
+text_signals:                          # read by the Lead scorer from the free-text field
+  - { pattern: "ERP migration|S/4HANA|moving to Dynamics", points: 8, label: erp_migration }
+  - { pattern: "audit|Prüfung|duplicate payment", points: 5, label: audit_pain }
+  - { pattern: "XRechnung|e-invoic|Peppol|Factur-X", points: 5, label: einvoicing }
+
+disqualify:
+  - personal_email_and_no_company_found      # cap at C, never auto-MQL
+  - job_seeker
+  - student
+  - vendor_or_agency_pitch
+  - existing_customer                         # routes to CSM instead
+
+routing:
+  mql: { owner: sdr_round_robin_by_country, sla: 1h, escalate_to: sdr_team_lead }
+  nurture: { journey: nurture-ap-v2 }
+  disqualify: { lifecycle_stage: other, no_marketing: false }
+
+calibration:                           # illustrative, last review 2026-09-12
+  mql_to_sql: 0.37
+  sql_rate_by_grade: { A: 0.52, B: 0.31, C: 0.09 }

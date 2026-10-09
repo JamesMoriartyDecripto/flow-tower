@@ -10,7 +10,9 @@
 - **Real files.** Prompts, code, configs and logs open in a syntax-highlighted viewer. Existing Claude Code agents (`.claude/agents/*.md`) import as they are.
 - **Hybrid deployments.** `runtimes` show what runs on a laptop, a server, a CI job or a third-party service.
 - **Structural changes.** Mark nodes `planned`, `experimental` or `deprecated`.
-- **Library.** Point it at a folder and browse every project you work on.
+- **How it runs in production.** Triggers, human approvals with timeouts, budgets, limits, fan-out, data sensitivity, evals, rollouts and SLAs show on the nodes and in the node panel.
+- **Library.** Point it at a folder and browse every project you work on. Switch between a stacked tower and a top-down map.
+- **Keyboard first.** Arrows walk nodes and layers, Enter dives into sub-towers or the node panel, `?` lists every shortcut. Settings cover themes, fonts, interface size and animations.
 - **Live.** Save the YAML, or any referenced file, and the tower updates.
 - **Generate towers with any coding agent.** Claude Code, Codex, Pi, Hermes, Cursor or any other agent reads an agentic codebase and writes a validated tower. It maps Claude Code, the Agent SDK, LangGraph, CrewAI, OpenAI Agents, Pi, Hermes and more.
 - **Realtime agents.** Connect Claude Code, the Agent SDK, Codex, Pi, Hermes or your own loops. Active nodes light up, errors flash, and a live feed shows every step. See [docs/realtime.md](docs/realtime.md).
@@ -70,33 +72,18 @@ See the full **[schema reference](docs/schema.md)**. A generated JSON Schema (`s
 
 ## Examples
 
-Start small: the **starters** are one short YAML file each, the presets below show large systems.
+Start small with a **starter** (one short YAML file), or open a preset close to your system. The full index, by pattern, is in **[examples/README.md](examples/README.md)**.
 
-| Starter | Layers | What it shows |
-|---|---|---|
-| [`single-agent`](examples/starters/single-agent) | 1 | One agent in a tool loop (web search) |
-| [`rag-bot`](examples/starters/rag-bot) | 2 | Nightly ingestion feeding a cited Q&A flow, one cross-layer link |
-| [`pr-reviewer`](examples/starters/pr-reviewer) | 3 | GitHub Actions PR review: trigger, review, outcome |
-| [`voice-assistant`](examples/starters/voice-assistant) | 3 | Personal voice assistant: local wake word / STT / TTS, Claude in the middle |
-
-| Preset | What it shows |
+| Starters | Layers |
 |---|---|
-| [`dev-squad`](examples/dev-squad) | Software delivery on the Claude Agent SDK: triage, orchestrator-workers, review loop, hooks, MCP, memory |
-| [`game-studio`](examples/game-studio) | AI game studio: design, concept art, Blender, Unreal, world generation, code review, QA bots, marketing. 140 nodes, nesting depth 2 |
-| [`course-studio`](examples/course-studio) | Course creation: instructional design, parallel module writers, assessment, review board, SCORM/LMS publishing |
-| [`sre-incident`](examples/sre-incident) | SRE: PagerDuty webhook, sandboxed investigation split from remediation, fix PR behind a Slack approval with timeout, postmortem |
-| [`fraud-desk`](examples/fraud-desk) | Fintech fraud review: hard pre-checks, hybrid search, fraud-ring graph, escalation thresholds, append-only audit, PII retention |
-| [`deep-research`](examples/deep-research) | Deep research: lead + 1–10 parallel searchers (fan-out), citation agent, verifier, budgets and evals |
-| [`co-scientist`](examples/co-scientist) | AI co-scientist: generation, reflection, Elo tournament, evolution, meta-review; long-running queue-driven loop |
-| [`airline-support`](examples/airline-support) | Customer service: triage with peer handoffs, relevance and jailbreak guardrails, browser UI vs server agents over HTTP |
-| [`chief-of-staff`](examples/chief-of-staff) | Ambient executive assistant: event + cron triggers, notify / question / review human-in-the-loop, memory, hooks, audit log |
-| [`browser-worker`](examples/browser-worker) | Insurance ops computer-use agent on a legacy portal: browser runtime, live-view takeover, session recordings, TTLs |
-| [`a2a-concierge`](examples/a2a-concierge) | E-commerce A2A: ADK concierge discovering CrewAI and LangGraph seller agents (sub-towers) over the A2A protocol |
-| [`legal-diligence`](examples/legal-diligence) | M&A due diligence: data room, per-document fan-out clause review, red flags, lawyer approvals, EU-resident confidential data |
-| [`web-studio`](examples/web-studio) | Website agency: brief to launch, design system via Figma MCP, separate frontend and backend sub-towers, Lighthouse / axe evals |
-| [`jev-agent`](examples/jev-agent) | Decision-model harness for Jev (TypeSafe): the LLM writes, Jev decides (routing, tool-risk gate, browser next action, compaction, stop checks), code acts |
+| [`single-agent`](examples/starters/single-agent): one agent in a tool loop | 1 |
+| [`rag-bot`](examples/starters/rag-bot): nightly ingestion + cited Q&A | 2 |
+| [`pr-reviewer`](examples/starters/pr-reviewer): GitHub Actions PR review with approval | 3 |
+| [`voice-assistant`](examples/starters/voice-assistant): on-device voice around Claude | 3 |
 
-Every example ships real prompt, agent, code, config and log files, so the popups have something to show.
+**Presets**: software delivery ([`dev-squad`](examples/dev-squad)), game studio ([`game-studio`](examples/game-studio)), courses ([`course-studio`](examples/course-studio)), websites ([`web-studio`](examples/web-studio)), SRE ([`sre-incident`](examples/sre-incident)), fraud review ([`fraud-desk`](examples/fraud-desk)), deep research ([`deep-research`](examples/deep-research)), AI co-scientist ([`co-scientist`](examples/co-scientist)), customer service ([`airline-support`](examples/airline-support)), chief of staff ([`chief-of-staff`](examples/chief-of-staff)), browser automation ([`browser-worker`](examples/browser-worker)), A2A commerce ([`a2a-concierge`](examples/a2a-concierge)), legal due diligence ([`legal-diligence`](examples/legal-diligence)), Jev decision layer ([`jev-agent`](examples/jev-agent)), social media ([`social-studio`](examples/social-studio)), AI video ([`ai-video-studio`](examples/ai-video-studio)), ebooks ([`ebook-studio`](examples/ebook-studio)), mobile apps ([`mobile-studio`](examples/mobile-studio)), marketing ([`marketing-studio`](examples/marketing-studio)).
+
+Every example ships real prompt, agent, code, config and log files, so the popups have something to show, and a README with its sources.
 
 ## Generate a tower from your code (any coding agent)
 
@@ -157,7 +144,7 @@ Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [
 Everything works without a mouse: **Tab** moves between HUD buttons, **Enter / Space** press them.
 | Hover a layer | Lens: magnify it and spread the stack around it |
 
-The bottom bar toggles orbit, flow particles and the rendering quality (`high` / `balanced` / `low`). You can also force a preset with `?quality=low`.
+The bottom bar toggles orbit, flow particles and the rendering quality (`eco` / `balanced` / `high`). You can also force a preset with `?quality=eco`.
 
 ## Performance
 
@@ -187,9 +174,9 @@ src/cli/        TypeScript CLI commands (validate)
 schema/         generated JSON Schema
 skills/         Agent Skill (SKILL.md) that generates towers from a codebase
 integrations/   live-event configs for Claude Code, Agent SDK, Codex, Pi, Hermes
-examples/       starters (1–3 layers) and reference towers (coding, game dev, course creation)
+examples/       starters (1–3 layers) and researched presets, indexed by pattern in examples/README.md
 scripts/        schema, stress-tower and event-simulator scripts
-docs/           schema reference, realtime guide, tower generation procedure
+docs/           schema reference, architecture map, realtime guide, tower generation procedure
 ```
 
 ## Contributing

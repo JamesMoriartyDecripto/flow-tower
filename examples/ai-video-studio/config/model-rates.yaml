@@ -1,0 +1,25 @@
+# Vendor rates used by pipeline/estimate-cost.ts. Checked 2026-10-09 on the vendors' pages (README
+# lists them). Promotional prices are noted; re-check before quoting a client.
+video:   # USD per second of generated output
+  veo-3.1-generate-preview:      { "720p": 0.40, "1080p": 0.40, "4k": 0.60, audio: included, durations: [4, 6, 8] }
+  veo-3.1-fast-generate-preview: { "720p": 0.10, "1080p": 0.12, "4k": 0.30, audio: included, durations: [4, 6, 8] }
+  veo-3.1-lite-generate-preview: { "720p": 0.05, "1080p": 0.08, durations: [4, 6, 8] }
+  runway/gen4.5:                 { any: 0.12 }   # 12 credits/s x $0.01
+  runway/gen4_turbo:             { any: 0.05 }   # 5 credits/s
+  luma/ray-3.2:                  { any: null }   # price not published on the API page we read; experiment budget only
+image:   # USD per image
+  gemini-3.1-flash-image:        { "1K": 0.067, "2K": 0.101, "4K": 0.151 }   # Nano Banana 2
+  gemini-3-pro-image:            { "1K": 0.134, "2K": 0.134, "4K": 0.24 }    # Nano Banana Pro
+audio:
+  elevenlabs/tts-v4:             { per_1k_chars: 0.08, promo_until: 2026-10-12, promo_per_1k_chars: 0.022 }
+  elevenlabs/tts-v3:             { per_1k_chars: 0.08 }
+  elevenlabs/music:              { per_minute: 0.15 }
+  elevenlabs/sound-effects:      { per_minute: 0.12 }
+  lyria-3.5:                     { per_song: 0.08 }
+  openai/whisper-1:              { per_minute: null }   # pricing page not opened; budgeted at $0.01/min (assumption)
+avatar:
+  heygen/avatar-video:           { per_minute: null }   # plan-dependent credits; budgeted at $3/min (assumption)
+render:
+  remotion/automators:           { per_render: 0.01, monthly_minimum: 100 }
+  shotstack/payg:                { per_minute: 0.20 }   # alternative cloud renderer, not used by default
+expected_takes: { standard: 1.6, fast: 2.2, lite: 2.5 }  # studio averages (fictional history)

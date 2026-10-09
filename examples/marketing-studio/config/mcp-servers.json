@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "google_ads": {
+      "command": "pipx",
+      "args": ["run", "--spec", "git+https://github.com/googleads/google-ads-mcp.git", "google-ads-mcp"],
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "/var/secrets/google-ads.json",
+        "GOOGLE_PROJECT_ID": "tallymoor-growth",
+        "GOOGLE_ADS_DEVELOPER_TOKEN": "${GOOGLE_ADS_DEVELOPER_TOKEN}",
+        "GOOGLE_ADS_LOGIN_CUSTOMER_ID": "${GOOGLE_ADS_LOGIN_CUSTOMER_ID}"
+      }
+    },
+    "analytics": {
+      "command": "pipx",
+      "args": ["run", "analytics-mcp"],
+      "env": { "GOOGLE_APPLICATION_CREDENTIALS": "/var/secrets/ga4-reader.json" }
+    },
+    "meta_ads": { "type": "http", "url": "https://mcp.facebook.com/ads" },
+    "hubspot": { "type": "http", "url": "https://mcp.hubspot.com" },
+    "customerio": { "type": "http", "url": "https://mcp-eu.customer.io/mcp" },
+    "semrush": { "type": "http", "url": "https://mcp.semrush.com/v2/mcp" },
+    "ahrefs": { "type": "http", "url": "https://api.ahrefs.com/mcp/mcp" },
+    "growthbook": { "type": "http", "url": "https://mcp.growthbook.io/mcp" }
+  }
+}

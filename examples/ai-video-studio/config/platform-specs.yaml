@@ -1,0 +1,46 @@
+# Export specs per platform. "verified" = read in the platform docs on 2026-10-09 (see README).
+# "studio" = our house defaults (safe zones, bitrates), not a platform limit.
+defaults:
+  codec: h264            # studio
+  audio: { codec: aac, sample_rate: 48000, loudness_lufs: -14, true_peak_db: -1 }   # studio
+  fps: 24                # matches Veo 3.1 output (verified: 24 fps)
+
+platforms:
+  youtube_long:
+    aspect: "16:9"
+    size: 1920x1080
+    max_title_chars: 100            # studio keeps titles <= 60 for mobile
+    captions: srt                   # uploaded as a caption track, not burned in
+    disclosure: status.containsSyntheticMedia   # verified field on videos.insert
+    ab_test: youtube_test_and_compare           # verified: up to 3 variants, not for Shorts
+  youtube_shorts:
+    aspect: "9:16"
+    size: 1080x1920
+    max_duration_s: 180             # verified: Shorts up to 3 minutes (square or vertical)
+    studio_max_duration_s: 60       # studio: >60 s Shorts with any copyright claim are blocked globally (verified)
+    burned_captions: true
+    safe_zone: { top: 0.12, bottom: 0.20, right: 0.12 }   # studio
+    disclosure: status.containsSyntheticMedia
+  tiktok:
+    aspect: "9:16"
+    size: 1080x1920
+    containers: [video/mp4, video/quicktime, video/webm]  # verified (Content Posting API)
+    max_caption_chars: 2200                               # verified (post_info.title, UTF-16 runes)
+    rate_limit: 6 requests/min per user token             # verified
+    upload_url_ttl: 1h                                    # verified
+    burned_captions: true
+    safe_zone: { top: 0.10, bottom: 0.22, right: 0.14 }   # studio
+    disclosure: post_info.is_aigc                         # verified
+  instagram_reels:
+    aspect: "9:16"
+    size: 1080x1920
+    publish_flow: [container REELS, poll status_code FINISHED (1/min, max 5 min), media_publish]   # verified
+    publish_limit: 100 posts / 24h per account            # verified
+    burned_captions: true
+    safe_zone: { top: 0.14, bottom: 0.25, right: 0.12 }   # studio
+    disclosure: Meta "AI info" label (set in app; required for photorealistic video or realistic audio)
+  instagram_feed_paid:
+    aspect: "1:1"
+    size: 1080x1080
+    max_duration_s: 30              # studio (paid cut)
+    burned_captions: true

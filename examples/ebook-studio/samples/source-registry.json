@@ -1,0 +1,67 @@
+{
+  "book": "the-balcony-harvest",
+  "updated": "2026-09-17",
+  "note": "Excerpt (chapters 2 and 6). Built by the research librarian, one session per chapter; the fact-checker re-opens each source. URLs point to the publisher's site; the locator names the page or section that was read.",
+  "sources": [
+    {
+      "id": "S4",
+      "chapters": [2],
+      "type": "standard",
+      "title": "BS 6180:2011 Barriers in and about buildings. Code of practice",
+      "publisher": "BSI",
+      "date": "2011",
+      "url": "https://www.bsigroup.com/",
+      "locator": "Scope; loads on barriers (summary only, licensed copy in the press library)",
+      "licence": "paraphrase only",
+      "accessed": "2026-06-30"
+    },
+    {
+      "id": "S5",
+      "chapters": [2],
+      "type": "government",
+      "title": "Approved Document K: Protection from falling, collision and impact",
+      "publisher": "UK Government (DLUHC/MHCLG)",
+      "date": "2013 edition incorporating 2013 amendments",
+      "url": "https://www.gov.uk/",
+      "locator": "Section 3, Guarding",
+      "licence": "Open Government Licence v3.0",
+      "accessed": "2026-06-30"
+    },
+    {
+      "id": "S7",
+      "chapters": [6, 8],
+      "type": "horticultural society",
+      "title": "Windbreaks and shelter in gardens",
+      "publisher": "Royal Horticultural Society",
+      "date": "undated web advice page",
+      "url": "https://www.rhs.org.uk/",
+      "locator": "Advice > Garden design > Shelter",
+      "licence": "paraphrase only",
+      "accessed": "2026-07-01"
+    },
+    {
+      "id": "S8",
+      "chapters": [6],
+      "type": "government",
+      "title": "Conservation Practice Standard 380: Windbreak/Shelterbelt Establishment and Renovation",
+      "publisher": "USDA Natural Resources Conservation Service",
+      "date": "current national standard",
+      "url": "https://www.nrcs.usda.gov/",
+      "locator": "Criteria: density and protected distance",
+      "licence": "US Government work",
+      "accessed": "2026-07-01"
+    },
+    {
+      "id": "S9",
+      "chapters": [6],
+      "type": "planning guidance",
+      "title": "Wind Microclimate Guidelines for Developments in the City of London",
+      "publisher": "City of London Corporation",
+      "date": "2019",
+      "url": "https://www.cityoflondon.gov.uk/",
+      "locator": "Introduction: corner acceleration and downdraught",
+      "licence": "paraphrase only",
+      "accessed": "2026-07-01"
+    }
+  ]
+}

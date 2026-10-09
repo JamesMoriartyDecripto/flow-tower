@@ -1,0 +1,51 @@
+# Produced by the intake agent from the author's proposal email, then edited at greenlight.
+# All names, numbers and identifiers in this example are fictional.
+book:
+  working_title: The Balcony Harvest
+  subtitle: Growing Food in Small Spaces in Cool, Windy Climates
+  author: Ines Halvorsen
+  imprint: Larchwood Press
+  genre: nonfiction / practical gardening
+  language: en-GB
+  length_words: 52000
+  chapters: 12
+  figures: 28            # planting plans, sun-hour charts, author photos
+
+reader:
+  who: >-
+    Renters and flat owners in northern Europe, Canada and the northern US with a balcony or
+    terrace, little time, no garden experience, and weather that kills most "easy" advice.
+  promise: >-
+    By the end you can plan, plant and keep a balcony that feeds you salads from April to
+    October and some tomatoes, beans and berries in summer, without breaking lease rules or
+    the railing.
+  not_for: [allotment growers, hydroponics hobbyists, warm-climate gardeners]
+
+author:
+  platform: { newsletter_subscribers: 6400, instagram_followers: 18000, talks_per_year: 10 }
+  credentials: Balcony grower since 2014; writes the "Seventh Floor Garden" newsletter.
+  sample_pages: drafts/sample-chapter-6.md
+  notes_format: voice memos (transcribed) + garden diary 2019-2026
+
+positioning:
+  comps: 5               # comparable titles analysed (see comps table in the run folder)
+  gap: "Most balcony books assume sun and shelter; few cover wind, load limits and short seasons."
+  price_ebook: { GBP: 6.99, USD: 8.99, EUR: 7.99 }
+  price_paperback: { GBP: 14.99, USD: 18.99, EUR: 17.99 }
+  formats: [epub, kdp-paperback-6x9]
+  territories: world
+  release_date: 2026-11-24
+  preorder_from: 2026-09-25
+
+ai_use_plan:
+  allowed: [market research, outline proposals, source finding, first drafts from author notes, editing passes, fact-check, alt-text drafts, metadata drafts]
+  not_allowed: [cover art, interior images, text not rewritten by the author, invented anecdotes or quotes]
+  disclosure: "Answer every store's AI questions from the provenance ledger; when in doubt, disclose."
+
+budget:
+  model_spend_usd: 140
+  editor_hours: 60
+  cover_designer_fee_gbp: 1200
+
+signoffs:
+  greenlight: { by: [publisher, author], date: 2026-06-09 }

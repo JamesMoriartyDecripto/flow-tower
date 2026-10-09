@@ -1,0 +1,18 @@
+2026-09-24T09:02:11Z [gha] mobile-ci #412 PR #87 "Seasonal reminders + widget" checks: lint ok, tsc ok, jest 214 passed, expo-doctor 17/17
+2026-09-24T09:03:40Z [gha] fingerprint changed (app/targets/widget, app/modules/care-widget, @bacons/apple-targets) -> label native-change
+2026-09-24T09:04:02Z [eas] build preview ios  queued  id=7f3c...a1  profile=preview  resourceClass=medium
+2026-09-24T09:04:03Z [eas] build preview android queued id=2b91...0e profile=preview
+2026-09-24T09:21:47Z [eas] build preview android finished 17m44s  apk 41.2 MB
+2026-09-24T09:29:15Z [eas] build preview ios finished 25m12s  (precompiled XCFrameworks) ipa 38.0 MB
+2026-09-24T09:52:30Z [maestro-cloud] onboarding.yaml 7/7 devices passed; paywall.yaml 6/7 (iPad A16: "Premium is active" not visible in 20s)
+2026-09-24T10:14:05Z [lab-qa] iPhone SE VoiceOver: paywall close button announced as "button" -> P2 #91
+2026-09-24T11:40:22Z [ios-lane] PR #92 paywall iPad layout + close button label; RenderPreview ok; XCUITest smoke 3/3
+2026-09-24T12:31:09Z [maestro-cloud] rerun after #92: 14/14 passed
+2026-09-24T12:33:00Z [qa-gate] release-ready: maestro 1.00, lab blocking 0, cold start A15 p50 1450 ms, iPhone SE p50 820 ms
+2026-09-25T08:00:12Z [eas] build production ios 2.4.0 (412) finished 23m40s; android 2.4.0 (2040012) finished 18m02s
+2026-09-25T08:41:55Z [eas-submit] ios 2.4.0 (412) uploaded to App Store Connect, processing
+2026-09-25T09:20:31Z [testflight] build 412 available to internal group; external group waiting for Beta App Review
+2026-09-25T09:22:10Z [eas-submit] android 2040012 -> track alpha (closed testing) completed
+2026-09-25T21:05:44Z [testflight] Beta App Review approved; external group (240 testers) notified
+2026-09-27T09:00:00Z [release-manager] beta digest: 31 feedback items, 2 crashes (both iOS 18.6, same issue, fixed in 413), Play pre-launch report: 0 crashes, 1 accessibility warning (contrast on disabled button)
+2026-09-27T14:10:37Z [eas] build production ios 2.4.0 (413) finished 22m58s

@@ -1,0 +1,30 @@
+# Leafwise 2.4 listing, en-US. Character counts checked by the copywriter (limits in brackets).
+app_store:
+  name: "Leafwise: Plant Care"                 # 20 [30]
+  subtitle: "Smart plant watering reminder"     # 29 [30]
+  keywords: "houseplant,widget,garden,schedule,indoor,succulent,journal,tracker,cactus,fern" # 78 [100]
+  promotional_text: "New: reminders that follow the seasons and a widget that marks plants as watered." # 81 [170]
+  whats_new: |
+    Seasonal reminders: watering adapts to the month and pot size.
+    Home Screen widget: see what's due and mark it watered with one tap.
+google_play:
+  title: "Leafwise: Plant Care Reminder"        # 29 [30]
+  short_description: "Seasonal watering reminders and a widget for your houseplants." # 62 [80]
+  release_notes: "Seasonal reminders and a home screen widget to mark plants as watered." # 70 [500]
+description: |
+  Leafwise remembers when each of your plants needs water, so you don't have to.
+
+  - Reminders that follow the seasons: watering intervals stretch in winter and adapt to pot size.
+  - A widget for your Home Screen: see what's due today and mark it watered with one tap.
+  - A care journal for every plant, with photos.
+  - Works offline; syncs when you're back online.
+
+  Leafwise Premium unlocks plant identification and unlimited plants. Annual plan with a 7-day free trial, or monthly. Payment is charged to your store account; the subscription renews automatically unless cancelled at least 24 hours before the end of the period. Manage or cancel it in your account settings.
+
+  Privacy: we don't track you across apps and websites, and you can delete your account in the app.
+screenshot_captions:                             # [30 each], order = Maestro screenshots
+  - "Know what's due today"
+  - "Reminders that follow seasons"
+  - "Water from your Home Screen"
+  - "A journal for every plant"
+  - "Identify plants with Premium"

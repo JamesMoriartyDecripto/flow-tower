@@ -1,0 +1,193 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Shot pipeline
+description: >-
+  Inside one shot of the fan-out: compose a model-specific prompt from the shot row and the
+  brand references, make a keyframe when the shot is image-to-video, submit an async job to Veo
+  3.1 (Runway as fallback, Luma as an experiment), poll with backoff, run technical and vision
+  checks, and keep the best take with its provenance. Three takes at most; when the shot's
+  budget runs out the tier is downgraded, then the shot goes back to the producer.
+root: ..
+tags: [video, generative-video, veo, runway, luma, async-jobs, provenance]
+
+runtimes:
+  orchestrator:
+    kind: container
+    label: Studio orchestrator
+    provider: google-cloud
+    region: europe-west4
+  render-box:
+    kind: container
+    label: Render worker
+    description: ffprobe and the frame sampler.
+    provider: google-cloud
+    region: europe-west4
+  bucket:
+    kind: cloud
+    label: Asset bucket
+    provider: google-cloud
+    region: europe-west4
+  gemini:
+    kind: saas
+    label: Gemini API
+    description: "Veo 3.1 (generate, fast, lite previews) and Nano Banana image models."
+    provider: google
+    url: https://ai.google.dev/gemini-api/docs/veo
+  runway:
+    kind: saas
+    label: Runway API
+    provider: runway
+    url: https://docs.dev.runwayml.com
+  luma:
+    kind: saas
+    label: Luma API
+    description: Ray 3.2 through the Luma Agents API; polling only.
+    provider: luma
+    url: https://docs.agents.lumalabs.ai
+
+agents:
+  director:
+    name: Shot director
+    model: claude-sonnet-5-5
+    prompt: { file: prompts/shot-director.md }
+    tools: [Read, mcp__studio__generate_image, mcp__studio__generate_video, mcp__studio__poll_job]
+    runtime: orchestrator
+  checker:
+    name: Frame QA
+    model: claude-sonnet-5-5
+    prompt: { file: prompts/frame-qa.md }
+    tools: [Read]
+    runtime: orchestrator
+
+layers:
+  - id: plan
+    title: Plan the shot
+    description: The shot row is the contract. Prompts are written per model, references come only from approved sources.
+    nodes:
+      - id: row
+        type: entry
+        label: Shot row
+        description: One object from shots.json (id, kind, duration, aspect, tier, refs, continuity notes).
+        runtime: orchestrator
+        files: [content/first-ultra-shots.json]
+      - id: refs
+        type: memory
+        label: Approved refs
+        description: Brand palette, product packshots, location stills, and the spokesperson's still only if her consent covers this use.
+        runtime: bucket
+        files: [config/brand-kit.json, compliance/consent-record-mara.json]
+        data: { sensitivity: confidential }
+      - id: compose
+        agent: director
+        label: Compose prompt
+        description: "Subject, action, camera, lens, light, mood, audio cue; 9:16 or 16:9; no brand names or real people in text-to-video prompts."
+      - id: kind
+        type: decision
+        label: Shot kind?
+        description: "t2v -> straight to video. i2v / product -> keyframe first. graphic -> skipped here, built in Remotion."
+        runtime: orchestrator
+      - id: keyframe
+        type: tool
+        label: Keyframe image
+        description: "Nano Banana 2 (gemini-3.1-flash-image) start frame at 1K from the packshot; about $0.067 per image."
+        runtime: gemini
+        limits: { timeout: 60s, retries: 2 }
+    edges:
+      - "row -> compose"
+      - "refs -> compose [data]"
+      - "compose -> kind"
+      - "kind -> keyframe: i2v, product"
+
+  - id: generate
+    title: Generate (async)
+    description: Every call returns a job id. The poller owns waiting, backoff and timeouts so the agent does not burn turns.
+    nodes:
+      - id: veo
+        type: tool
+        label: Veo 3.1
+        description: "predictLongRunning on veo-3.1-fast-generate-preview for b-roll, veo-3.1-generate-preview for hero shots. 4/6/8 s, 24 fps, native audio, SynthID. 1080p needs 8 s."
+        runtime: gemini
+        version: veo-3.1-fast-generate-preview
+        limits: { timeout: 10m, retries: 2, backoff: "exponential 10s..2m", concurrency: 4 }
+        credentials: service
+      - id: runway
+        type: tool
+        label: Runway fallback
+        description: "gen4.5 (12 credits/s) when Veo blocks or times out twice; gen4_turbo (5 credits/s) for drafts."
+        runtime: runway
+        limits: { timeout: 10m, retries: 1 }
+        credentials: service
+      - id: luma
+        type: tool
+        label: Luma Ray 3.2
+        description: Trial on product macro shots. Luma suggests the first poll after about 30 s and a hard timeout around 10 min.
+        runtime: luma
+        status: experimental
+        limits: { timeout: 10m, retries: 1 }
+      - id: poller
+        label: Job poller
+        description: "Polls operations every 10 s (Veo latency is 11 s to 6 min), downloads within the 2-day retention window, records cost per second generated."
+        runtime: orchestrator
+        files: [pipeline/veo-poller.ts]
+        resources:
+          - { kind: log, label: Render jobs, path: logs/render-jobs.log }
+      - id: spend
+        type: guard
+        label: Shot budget
+        description: "Each take is charged before submit. Over $6 for the shot -> downgrade (Fast -> Lite, 1080p -> 720p), then stop."
+        runtime: orchestrator
+        files: [config/model-rates.yaml]
+        budget: { usd: 6, on_exceed: downgrade }
+    edges:
+      - { from: spend, to: veo, kind: call, label: submit, protocol: http }
+      - { from: spend, to: runway, kind: call, label: "fallback: blocked or 2 timeouts", protocol: http }
+      - { from: spend, to: luma, kind: call, label: experiment, protocol: http }
+      - { from: veo, to: poller, kind: return, label: operation name, protocol: http }
+      - { from: runway, to: poller, kind: return, label: task id, protocol: http }
+      - { from: luma, to: poller, kind: return, label: generation id, protocol: http }
+
+  - id: check
+    title: Check & keep
+    description: Technical checks first because they are free, then a vision review, then keep or regenerate. Three takes per shot.
+    nodes:
+      - id: probe
+        type: guard
+        label: ffprobe
+        description: Duration within 0.2 s, 24 fps, expected resolution and aspect, audio stream present when the shot needs it.
+        runtime: render-box
+        files: [pipeline/check-specs.py]
+      - id: vision
+        agent: checker
+        label: Vision check
+        description: Six sampled frames plus the previous shot's last frame. Anatomy, garbled text, product shape and colour, continuity, flicker. Score 1-10.
+        evals:
+          - { name: first-take acceptance, value: 0.58, target: 0.5, description: Illustrative. }
+      - id: good
+        type: decision
+        label: Score >= 7?
+        description: Below 7 -> new take with the critique added to the prompt.
+        runtime: orchestrator
+        limits: { max_iterations: 3 }
+      - id: keep
+        type: memory
+        label: Keep take
+        description: "Take + sidecar JSON: model, version, prompt hash, cost, job id, SynthID expected, C2PA ingredient for the final manifest."
+        runtime: bucket
+        files: [compliance/c2pa-manifest.json]
+      - id: escalate
+        type: output
+        label: To producer
+        description: Three failed takes or budget exhausted. The producer rewrites the shot, swaps it for a graphic or stock, or accepts the best take.
+        runtime: orchestrator
+    edges:
+      - probe -> vision
+      - vision -> good
+      - "good -> keep: yes"
+      - "good -> escalate: no, after 3 takes"
+
+links:
+  - "plan.kind -> generate.spend: t2v"
+  - "plan.keyframe -> generate.spend: start frame"
+  - "generate.poller -> check.probe: mp4"
+  - "check.good -> plan.compose [return]: no, critique, max 3"
+  - "generate.spend -> check.escalate: budget exhausted"

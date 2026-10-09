@@ -1,0 +1,6 @@
+{
+  "version": "2.4.1",
+  "androidVersionCode": "2040014",
+  "iosPhasedReleaseId": "00000000-placeholder-phased-release-id",
+  "note": "Read by scripts/crash-guard.ts. Written by the release manager when a rollout starts; ids are placeholders."
+}

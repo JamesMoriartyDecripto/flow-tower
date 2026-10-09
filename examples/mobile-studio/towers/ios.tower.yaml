@@ -1,0 +1,154 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: iOS lane internals
+description: >-
+  How the iOS lane lead ships one native task (here the "water today" home-screen widget) in a
+  Claude Code session on the Mac: read the Figma frame and the shared contract, generate the
+  widget target with @bacons/apple-targets, check privacy strings and the StoreKit config, then
+  build, preview and test through Xcode's MCP bridge and MobileBuildMCP before opening a PR.
+root: ..
+tags: [ios, swiftui, widgetkit, xcode, mcp, xcuitest]
+
+runtimes:
+  mac:
+    kind: local
+    label: Mac Studio (Xcode 26.4)
+    description: Claude Code with the repo, CLAUDE.md and .mcp.json; Xcode exposes its tools through xcrun mcpbridge.
+  simulator:
+    kind: local
+    label: iOS Simulator
+    description: iPhone 16 Pro and iPhone SE (3rd gen) simulators, iOS 26.
+  iphone:
+    kind: device
+    label: Dev iPhone (USB)
+    description: Development-signed build on a real iPhone for widget refresh and push behaviour that the simulator fakes.
+  figma:
+    kind: saas
+    label: Figma (remote MCP)
+    provider: figma
+    url: https://mcp.figma.com/mcp
+  github:
+    kind: saas
+    label: GitHub
+    provider: github
+    url: https://github.com/example-studio/leafwise
+
+agents:
+  ios:
+    name: iOS lane lead
+    model: claude-opus-5-5
+    prompt: { file: prompts/ios-lead.md }
+    tools: [Read, Edit, Write, Bash, mcp__xcode__BuildProject, mcp__xcode__RenderPreview, mcp__xcode__DocumentationSearch, mcp__mobilebuildmcp__*]
+    runtime: mac
+    budget: { usd: 35, turns: 120, on_exceed: escalate }
+    sandbox: { network: allowlist, allow: [registry.npmjs.org, cdn.cocoapods.org, mcp.figma.com, api.github.com], filesystem: workspace }
+
+layers:
+  - id: inputs
+    title: Inputs
+    description: The task, the signed design and the shared contract. Nothing is copied by eye.
+    nodes:
+      - id: task
+        type: entry
+        label: Lane task
+        description: GitHub issue from the app lead with acceptance criteria and the Figma frame link.
+        runtime: github
+        trigger: { kind: event, source: GitHub issue assigned to ios-lane }
+      - id: design
+        type: tool
+        label: get_design_context
+        description: Figma MCP returns the widget frames (small, medium) as structured context; the prompt asks for SwiftUI.
+        runtime: figma
+        credentials: user
+      - id: contract
+        type: memory
+        label: Shared contract
+        description: App Group id, deep-link routes and the CareEvent shape the widget reads from shared storage.
+        runtime: mac
+        files: [app/src/types/supabase.ts, design/tokens.json]
+    edges:
+      - { from: task, to: design, kind: call, label: frame link, protocol: mcp }
+
+  - id: native
+    title: Native target
+    description: Continuous Native Generation. The target lives in app/targets and is linked into the generated Xcode project on every prebuild.
+    nodes:
+      - id: target
+        agent: ios
+        label: Widget target
+        description: "npx create-target widget, then SwiftUI views and a TimelineProvider; data from the App Group, colors from tokens."
+        files: [app/targets/widget/expo-target.config.js, app/targets/widget/WaterWidget.swift]
+      - id: plist
+        type: guard
+        label: Privacy strings
+        description: Every permission has an Info.plist purpose string (camera for plant ID, photo library); the privacy manifest declares required-reason APIs.
+        runtime: mac
+        files: [app/app.json, privacy/data-safety-checklist.md]
+      - id: storekit
+        type: memory
+        label: StoreKit config
+        description: Local StoreKit configuration for the monthly and annual products, so purchase flows run in the simulator without App Store Connect.
+        runtime: mac
+      - id: prebuild
+        label: expo prebuild
+        description: "npx expo prebuild -p ios --clean regenerates ios/ from app.json and the config plugins; ios/ is never edited by hand."
+        runtime: mac
+        files: [app/app.json]
+    edges:
+      - "target -> plist: entitlements + strings"
+      - "plist -> prebuild"
+      - "storekit -> prebuild [data]: Products.storekit"
+
+  - id: verify
+    title: Build, preview & test
+    description: Xcode's own tools through MCP, plus the simulator and one real device. Three rounds, then the lane escalates to the app lead.
+    nodes:
+      - id: xcode
+        type: tool
+        label: Xcode MCP
+        description: "xcrun mcpbridge (Xcode 26.3+): BuildProject, RenderPreview of the widget families, DocumentationSearch for WidgetKit APIs."
+        runtime: mac
+        files: [.mcp.json]
+      - id: sim
+        type: tool
+        label: MobileBuildMCP
+        description: Builds for the simulator, boots it, installs, launches and captures logs; device tools need signing set up in Xcode.
+        runtime: simulator
+        files: [.mcp.json]
+        limits: { timeout: 20m }
+      - id: uitest
+        label: XCUITest smoke
+        description: Launch, add a plant, mark watered, check the widget timeline reloads; runs on both simulators.
+        runtime: simulator
+        files: [app/native-tests/ios/LeafwiseSmokeUITests.swift]
+        evals:
+          - { name: smoke pass rate, value: 1, target: 1 }
+      - id: device
+        label: Real-device check
+        description: Widget refresh budget, push after reboot, VoiceOver labels on the widget.
+        runtime: iphone
+      - id: ok
+        type: decision
+        label: Matches & green?
+        runtime: mac
+        limits: { max_iterations: 3 }
+      - id: pr
+        type: output
+        label: Pull request
+        description: PR with preview renders, test output and the simulator recording; goes to the code reviewer in the main tower.
+        runtime: github
+        resources:
+          - { kind: log, label: Build log, path: logs/build.log }
+    edges:
+      - { from: xcode, to: sim, label: app + widget built }
+      - sim -> uitest
+      - uitest -> device
+      - "device -> ok [data]"
+      - "ok -> pr: yes"
+
+links:
+  - "inputs.design -> native.target [data]: SwiftUI context"
+  - "inputs.contract -> native.target [data]: App Group + types"
+  - "native.prebuild -> verify.xcode: ios/ generated"
+  - { from: native.target, to: verify.xcode, kind: call, label: RenderPreview, protocol: mcp }
+  - "verify.ok -> native.target [return]: no, max 3"
