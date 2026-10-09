@@ -45,7 +45,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
     if (focusedLayer === undefined) {
       // Fit the taller of (tower height, plate width) inside the vertical field of view.
       const fit = Math.max(height + 10, width * 0.75, depth) / (2 * Math.tan((42 / 2) * (Math.PI / 180)));
-      const dir = new Vector3(0.5, 0.32, 0.85).normalize().multiplyScalar(fit * 1.12);
+      const dir = new Vector3(0.5, 0.32, 0.85).normalize().multiplyScalar(fit * 1.3);
       c.setLookAt(dir.x, dir.y, dir.z, 0, 0, 0, true);
     } else {
       const y = layerY(focusedLayer);

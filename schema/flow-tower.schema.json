@@ -17,9 +17,78 @@
     "description": {
       "type": "string"
     },
+    "tags": {
+      "default": [],
+      "description": "Used to filter and group towers in the library view.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "root": {
       "description": "Base directory for every relative path. Defaults to the tower file directory.",
       "type": "string"
+    },
+    "runtimes": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "local",
+              "server",
+              "cloud",
+              "container",
+              "serverless",
+              "saas",
+              "edge",
+              "ci",
+              "browser",
+              "device"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "host": {
+            "description": "Machine, cluster or service name.",
+            "type": "string"
+          },
+          "provider": {
+            "description": "aws, gcp, hetzner, anthropic, vercel, github-actions...",
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https?:\\/\\/"
+          },
+          "meta": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "description": "Free-form key/value metadata shown in the inspector."
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false
+      }
     },
     "prompts": {
       "default": {},
@@ -130,6 +199,50 @@
           "tower": {
             "description": "Path to a nested .tower.yaml describing this agent internals.",
             "type": "string"
+          },
+          "runtime": {
+            "description": "Reference to an entry of the `runtimes` registry.",
+            "type": "string"
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "log",
+                    "script",
+                    "dashboard",
+                    "endpoint",
+                    "config",
+                    "doc",
+                    "queue",
+                    "database",
+                    "repo",
+                    "other"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "path": {
+                  "description": "Local file, opens in the viewer (logs show their tail).",
+                  "type": "string"
+                },
+                "url": {
+                  "description": "External link, opens in a new tab.",
+                  "type": "string",
+                  "pattern": "^https?:\\/\\/"
+                }
+              },
+              "required": [
+                "kind",
+                "label"
+              ],
+              "additionalProperties": false
+            }
           },
           "meta": {
             "type": "object",
@@ -244,6 +357,61 @@
                 },
                 "tower": {
                   "type": "string"
+                },
+                "runtime": {
+                  "description": "Reference to `runtimes`. Inherited from the agent when omitted.",
+                  "type": "string"
+                },
+                "status": {
+                  "description": "Defaults to `active`.",
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "planned",
+                    "experimental",
+                    "deprecated"
+                  ]
+                },
+                "resources": {
+                  "description": "Logs, scripts, dashboards, endpoints... related to this node.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "log",
+                          "script",
+                          "dashboard",
+                          "endpoint",
+                          "config",
+                          "doc",
+                          "queue",
+                          "database",
+                          "repo",
+                          "other"
+                        ]
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "description": "Local file, opens in the viewer (logs show their tail).",
+                        "type": "string"
+                      },
+                      "url": {
+                        "description": "External link, opens in a new tab.",
+                        "type": "string",
+                        "pattern": "^https?:\\/\\/"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  }
                 },
                 "meta": {
                   "type": "object",
