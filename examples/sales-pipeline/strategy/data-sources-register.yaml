@@ -1,0 +1,52 @@
+# Data sources the prospecting layer may use. Reviewed by the DPO each quarter.
+# A source missing from this file is not allowed. "uses" lists what the data may be used for.
+version: 2026-10-06
+owner: DPO (external, fictional: Studio Privacy Emilia)
+
+sources:
+  - id: atoka
+    provider: SpazioDati / Cerved (Atoka API v2)
+    countries: [IT]
+    data: [company registry data, ATECO, turnover, employees, officers, company phone and generic email]
+    uses: [account selection, scoring, call preparation]
+    not_for: [promotional email to personal or generic addresses without consent]
+    legal_basis: legitimate interest (account research), see compliance/legitimate-interest-assessment.md
+    notes: Company data is mostly not personal data; officers' names are. Keep only role + name.
+
+  - id: apollo
+    provider: Apollo.io (remote MCP)
+    countries: [FR]
+    data: [company search, people search (no contact data), people enrichment (work email, credits)]
+    uses: [account selection, FR email outreach after basis check]
+    conditions:
+      - Enrichment only after the lawful-basis check passes (credits are spent per person).
+      - Model training on Apollo data is prohibited by Apollo's MCP terms; training opt-out set in the Claude org.
+    legal_basis: legitimate interest, FR B2B email rule (role-relevant, opt-out in every message)
+
+  - id: events
+    provider: Trade fairs (badge scans) and webinars, stored in HubSpot
+    countries: [IT, FR]
+    data: [name, work email, company, role, consent record]
+    uses: [email outreach within the consent scope]
+    legal_basis: consent (text version and timestamp stored per contact)
+
+  - id: customers
+    provider: HubSpot existing customers
+    countries: [IT, FR]
+    data: [contacts given during a sale]
+    uses: [email about similar services (art. 130(4) Codice privacy), unless they objected]
+
+  - id: linkedin
+    provider: LinkedIn Sales Navigator
+    countries: [IT, FR]
+    uses: [manual research and manual messages by the rep]
+    not_for: [scraping, browser extensions, automated connection requests or messages, export to CRM by tools]
+    notes: LinkedIn User Agreement section 8.2 prohibits bots, scraping and automating activity.
+
+forbidden:
+  - id: ini-pec
+    reason: Bulk extraction of PEC lists from INI-PEC / Registro Imprese is reserved to public administrations; Garante decision 1 Feb 2018 (doc. web 7810723).
+  - id: purchased-email-lists
+    reason: Consent collected by a list seller is not specific to Ferrovento (Garante spam guidelines 2013, sect. 2.6.3).
+  - id: scraped-websites-email
+    reason: Public availability does not authorise promotional email in Italy (Garante decision 17 May 2023, doc. web 9899880).

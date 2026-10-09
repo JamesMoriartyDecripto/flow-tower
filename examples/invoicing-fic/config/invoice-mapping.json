@@ -1,0 +1,65 @@
+{
+  "_comment": "CRM order (data/order-sample.json) -> Fatture in Cloud CreateIssuedDocumentRequest. Field names verified against the official Python SDK models (IssuedDocument, Entity, IssuedDocumentEiData, IssuedDocumentPaymentsListItem) and the invoice-creation guide. '$.' paths read the order; 'lookup:' values are resolved by code, never by the model.",
+  "document": {
+    "data.type": "invoice",
+    "data.e_invoice": true,
+    "data.numeration": "lookup:numeration_for(order.series)",
+    "data.date": "lookup:issue_date(order.effettuazione_date)",
+    "data.subject": "concat('req:', idempotency_key)",
+    "data.visible_subject": "$.order.reference",
+    "data.currency": { "id": "EUR" },
+    "data.language": { "code": "it", "name": "Italiano" },
+    "data.use_split_payment": "lookup:client.split_payment",
+    "data.stamp_duty": "lookup:bollo_amount(lines)",
+    "data.payment_method": { "id": "lookup:fic_payment_method_id('Bonifico bancario')" },
+    "data.ei_data": {
+      "payment_method": "MP05",
+      "bank_name": "lookup:company.bank_name",
+      "bank_iban": "lookup:company.iban",
+      "cig": "$.order.pa.cig",
+      "cup": "$.order.pa.cup",
+      "od_number": "$.order.pa.purchase_order_number",
+      "od_date": "$.order.pa.purchase_order_date"
+    }
+  },
+  "entity": {
+    "data.entity.id": "lookup:fic_client_id",
+    "data.entity.name": "$.client.legal_name",
+    "data.entity.vat_number": "$.client.vat_number",
+    "data.entity.tax_code": "$.client.tax_code",
+    "data.entity.address_street": "$.client.address.street",
+    "data.entity.address_postal_code": "$.client.address.postal_code",
+    "data.entity.address_city": "$.client.address.city",
+    "data.entity.address_province": "$.client.address.province",
+    "data.entity.country": "$.client.address.country",
+    "data.entity.country_iso": "$.client.address.country_iso",
+    "data.entity.ei_code": "$.client.sdi_code",
+    "data.entity.certified_email": "$.client.pec",
+    "_note": "Fatture in Cloud does not autocomplete entity fields from the client id: every field shown on the invoice must be sent."
+  },
+  "items_list[]": {
+    "product_id": "lookup:fic_product_id($.line.sku)",
+    "code": "$.line.sku",
+    "name": "$.line.name",
+    "description": "$.line.short_description",
+    "qty": "$.line.qty",
+    "measure": "$.line.unit",
+    "net_price": "$.line.unit_price_net",
+    "discount": "$.line.discount_pct",
+    "vat": { "id": "lookup:vat_type_id(rules/vat-fiscal-rules.md, line.vat_case)" },
+    "_note": "vat.id comes from InfoApi.list_vat_types; ids differ per company. The drafter proposes vat_case, code resolves the id."
+  },
+  "payments_list[]": {
+    "amount": "lookup:instalment_amount(order.payment_terms, totals.amount_due)",
+    "due_date": "lookup:due_date(order.payment_terms, data.date)",
+    "status": "not_paid",
+    "_note": "Instalments must sum to the amount due returned by get_new_issued_document_totals (net of split-payment VAT and ritenuta)."
+  },
+  "payment_terms": {
+    "BB30FM": { "label": "Bonifico 30 gg fine mese", "instalments": [{ "pct": 100, "days": 30, "end_of_month": true }] },
+    "BB60": { "label": "Bonifico 60 gg data fattura", "instalments": [{ "pct": 100, "days": 60 }] },
+    "BB30-60": { "label": "Bonifico 30/60 gg", "instalments": [{ "pct": 50, "days": 30 }, { "pct": 50, "days": 60 }] },
+    "ADV": { "label": "Anticipato (SaaS mensile)", "instalments": [{ "pct": 100, "days": 0 }] }
+  },
+  "privacy": "Descriptions name the product or service only. No personal data of the client's employees, no health or legal details (Garante, provvedimento 20/12/2018)."
+}

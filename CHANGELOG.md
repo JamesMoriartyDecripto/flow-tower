@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Sales Pipeline (prospect → closed deal → invoice) and Invoicing with Fatture in Cloud (SDI e-invoicing, collections, passive cycle) presets, researched online with sources.
+- README demo GIF (and full MP4) plus new screenshots: tower, map, node panel, library.
 - Social Media Studio preset (per-platform API quotas, approval gates, comment/DM triage, publisher sub-tower).
 - AI Video Studio, Ebook Studio, Mobile App Studio and Marketing Studio presets, each researched online with sources in its README.
 - Docs for context engineering: `docs/architecture.md` (which file owns what, read on demand), `examples/README.md` (examples indexed by pattern), load-on-demand maps in CLAUDE.md and AGENTS.md; the skill and the generation guide cover operational fields.
@@ -63,6 +65,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Focused layer gets a near-opaque plate and the other layers dim further, so the focused flow reads cleanly.
 
 ### Fixed
+- Creating a file that a tower references (and was missing) now reloads the library, so its warning disappears without touching the YAML.
+- Library tag bar shows the 12 most used tags with counts and a toggle for the rest (100+ tags filled the screen).
 - HUD corner brackets no longer scroll with the content of scrolling panels (legend, layers, issues, shortcuts).
 - Camera framing respects the HUD (#30): the projection is centered on the free area between panels (setViewOffset), framings fit that area, opening the inspector or the live feed slides the scene instead of covering it, and a node selected under a panel is brought into view with the smallest camera move. When panels open or close, the camera zooms out only as much as needed for the visible nodes to fit, and returns to the previous distance when they fit again.
 - vitest only runs `tests/`: sample `*.spec.ts` files inside examples are content, not project tests.

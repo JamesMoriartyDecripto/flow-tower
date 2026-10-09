@@ -1,0 +1,30 @@
+# Who may approve what. Read by scripts/discount_gate.py. Thresholds are illustrative.
+version: 2026-09-15
+
+discount_bands:
+  - { max: 0.10, approver: account_executive, timeout: null }
+  - { max: 0.20, approver: sales_director, timeout: 24h, on_timeout: reject }
+  - { max: 1.00, approver: ceo, timeout: 48h, on_timeout: reject }
+
+always_ceo:
+  - gross margin below pricing-rules margin_floor
+  - fixed-price total above 80000 EUR
+  - unlimited liability or liability cap above 100 % of fees
+  - payment terms above 60 days (D.Lgs. 231/2002 caps B2B terms at 60 days unless not grossly unfair)
+
+sales_director:
+  - payment terms 31-60 days
+  - deposit below 30 % on fixed price
+  - free days or extra scope worth more than 5 % of fees
+
+never:
+  - Discount without something in return (longer retainer, case study rights, faster signature).
+  - Price changes communicated before the approval is recorded.
+  - Agents granting or promising any concession; the negotiation assistant only proposes.
+
+give_get_menu:      # concessions the negotiation assistant may suggest, in this order
+  - phase the scope (Starter now, integration next quarter)
+  - shift payment share to later milestones (same total)
+  - 6-month retainer commitment for 5 % off fees
+  - reference call or anonymised case study for 3 % off
+  - price discount (last)

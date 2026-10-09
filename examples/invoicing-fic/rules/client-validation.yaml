@@ -1,0 +1,45 @@
+# Client master-data rules applied before any draft (validate.rules).
+# Goal: never let the SDI find what we could have found. Error codes from the SDI
+# "Specifiche tecniche" v1.9 (Allegato A), section on controls.
+
+italian_vat_number:            # partita IVA
+  format: "^[0-9]{11}$"        # without the IT prefix in vat_number; IdPaese IT is separate
+  checksum: luhn_mod10_variant  # last digit is the control digit (see scripts/fiscal_checks.py)
+  must_exist_in_anagrafe: true  # SDI rejects with 00305 if the cessionario IdCodice is not valid
+  vies: recommended             # VIES answers for IT numbers too; a 'false' blocks auto-issue
+
+codice_fiscale:
+  person: "^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$"
+  company: "^[0-9]{11}$"        # companies: same digits as the partita IVA in most cases
+  rule: "required for B2C and for clients without partita IVA; SDI error 00306 if invalid"
+
+recipient_address:              # where the SDI delivers
+  b2b_code: "^[A-Z0-9]{7}$"     # codice destinatario of the client's intermediary
+  pa_code: "^[A-Z0-9]{6}$"      # codice univoco ufficio from IndicePA
+  pec_only: { code: "0000000", requires: certified_email }
+  unknown: { code: "0000000", note: "SDI puts the invoice in the client's reserved area; tell the client by email" }
+  foreign: { code: "XXXXXXX", requires: "IdPaese != IT (error 00313 otherwise)" }
+  errors: { "00311": "codice destinatario not valid", "00312": "codice destinatario not active" }
+  precedence: "A code registered by the client in Fatture e Corrispettivi overrides the one on the invoice."
+
+eu_clients:
+  vies_required: true
+  vies_endpoint: "POST https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number"
+  on_invalid: block             # an intra-EU non-taxable or N2.1 line needs a valid VAT id
+  on_unavailable: retry_then_ask  # member-state service down is not 'invalid'
+  keep_evidence: [requestDate, requestIdentifier, valid, name]   # stored in the audit trail
+
+public_administration:
+  split_payment: true           # art. 17-ter DPR 633/72; extended to 30/06/2029 (Council decision 2026)
+  required_fields: [pa_code, cig_or_exemption]
+  optional_fields: [cup, purchase_order_number, purchase_order_date]
+
+consistency:
+  name_match: "VIES name vs CRM legal name, normalized (S.R.L. == SRL); mismatch -> data steward"
+  address_country: "country_iso must equal the VAT prefix country"
+  e_invoice_flag: "client.e_invoice must be true for Italian clients"
+
+fictional_test_clients:         # used by tests; numbers are placeholders, not real taxpayers
+  - { name: "Officine Valdoria S.p.A.", vat_number: "00000000000", sdi_code: "AAAAAAA", note: "placeholder, not a real taxpayer" }
+  - { name: "Comune di Valdoria", tax_code: "00000000001", pa_code: "UFZZ99", split_payment: true }
+  - { name: "Nordwind Sensorik GmbH", vat_number: "DE000000000", country_iso: DE, sdi_code: "XXXXXXX" }

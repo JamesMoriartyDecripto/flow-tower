@@ -1,0 +1,52 @@
+# Dunning sequence (collect.dunning). Days are counted from the instalment due_date.
+# Timings and tone are company policy (illustrative). Templates: collections/dunning-templates.md.
+
+pause_when:
+  - open dispute on the invoice (ticket tag "contestazione")
+  - payment promise recorded in the last 10 days
+  - partial payment received in the last 5 days
+  - client is a PA and the invoice is not yet accepted or past decorrenza termini
+  - invoice ei_status is not_delivered and the client has not confirmed seeing it
+
+steps:
+  - id: d3
+    day: 3
+    channel: email
+    template: courtesy_reminder
+    to: [client.admin_email]
+    approval: none                       # agent sends from a no-reply-safe address with reply-to AR
+  - id: d15
+    day: 15
+    channel: email
+    template: sollecito
+    to: [client.admin_email, crm.account_owner_cc]
+    approval: none
+    attach: [invoice_pdf_link]
+  - id: d30
+    day: 30
+    channel: pec
+    template: formal_notice
+    to: [client.pec]
+    approval: credit_manager             # draft only; a person sends PEC
+    side_effects: [flag_account_in_crm, hold_new_orders_over_5000]
+  - id: d45
+    day: 45
+    channel: pec
+    template: diffida
+    to: [client.pec]
+    approval: credit_manager
+    side_effects: [suspend_saas_after_7d_notice, propose_legal_or_payment_plan]
+
+after_last_step:
+  handoff: credit_mgr                    # payment plan, legal, credit note or write-off proposal
+  write_off: requires CFO (policies/approval-policy.yaml)
+
+limits:
+  max_messages_per_client_per_week: 1
+  quiet_hours: "no sends outside 09:00-18:00 Europe/Rome, weekdays only"
+  late_payment_interest: "mentioned from d30 only (D.Lgs. 231/2002); never computed by the model"
+
+metrics:
+  - DSO (days sales outstanding), monthly
+  - share paid within 15 days of the d3 reminder
+  - number of accounts at d45

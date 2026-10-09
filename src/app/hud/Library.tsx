@@ -86,6 +86,7 @@ const MiniTower = memo(function MiniTower({ tower }: { tower: ResolvedTower }) {
 });
 
 const NO_PROJECTS: string[] = [];
+const TOP_TAGS = 12;
 const LIVE_LABEL: Partial<Record<LiveState, string>> = { run: 'running', error: 'error', done: 'active', flash: 'active' };
 
 /** Live state per project (incl. nested towers), polled every second; re-renders only on change. */
@@ -197,7 +198,14 @@ export function Library() {
   const cards = useMemo(() => (workspace?.projects ?? []).map((id) => ({
     id, tower: workspace!.towers[id], stats: projectStats(workspace!, id),
   })), [workspace]);
-  const tags = useMemo(() => [...new Set(cards.flatMap((c) => c.tower.tags))].sort(), [cards]);
+  // Most shared tags first: with many projects the full list is a wall of chips, so show the top ones
+  // and expand on demand. The filter box matches every tag anyway.
+  const tags = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const c of cards) for (const t of c.tower.tags) count.set(t, (count.get(t) ?? 0) + 1);
+    return [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [cards]);
+  const [allTags, setAllTags] = useState(false);
   const live = useProjectsLive(workspace?.projects ?? NO_PROJECTS, library);
   useEffect(() => { try { localStorage.setItem('flow-tower:library-sort', sort); } catch { /* ignore */ } }, [sort]);
   if (!library || !workspace) return null;
@@ -252,10 +260,15 @@ export function Library() {
       {tags.length > 0 && (
         <div className="lib-tags">
           <button className={`chip clickable ${!tag ? 'on' : ''}`} onClick={() => setTag(undefined)} title="Show every project">ALL</button>
-          {tags.map((t) => (
+          {tags.filter(([t], i) => allTags || i < TOP_TAGS || t === tag).map(([t, n]) => (
             <button key={t} className={`chip clickable ${tag === t ? 'on' : ''}`} onClick={() => setTag(tag === t ? undefined : t)}
-              title={`Only projects tagged "${t}" (click again to clear)`}>{t}</button>
+              title={`Only projects tagged "${t}" (click again to clear)`}>{t}{n > 1 && <span className="dim"> {n}</span>}</button>
           ))}
+          {tags.length > TOP_TAGS && (
+            <button className="chip clickable more" onClick={() => setAllTags((v) => !v)} title={allTags ? 'Show only the most used tags' : 'Show every tag'}>
+              {allTags ? 'less' : `+${tags.length - TOP_TAGS}`}
+            </button>
+          )}
         </div>
       )}
       <div className="lib-grid" ref={grid}>
