@@ -1,0 +1,44 @@
+{
+  "mcpServers": {
+    "blender": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["blender-mcp"],
+      "env": {
+        "BLENDER_HOST": "127.0.0.1",
+        "BLENDER_PORT": "9876"
+      }
+    },
+    "unreal": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["unreal-remote-mcp", "--remote-control", "http://127.0.0.1:30010", "--python-allowlist", "pipelines/unreal"]
+    },
+    "imagegen": {
+      "type": "http",
+      "url": "https://imagegen.forge.internal/mcp",
+      "headers": {
+        "Authorization": "Bearer ${IMAGEGEN_TOKEN}"
+      }
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}",
+        "X-MCP-Toolsets": "issues,pull_requests,repos,actions"
+      }
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp"
+    },
+    "analytics": {
+      "type": "http",
+      "url": "https://mcp.posthog.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${POSTHOG_PERSONAL_API_KEY}"
+      }
+    }
+  }
+}

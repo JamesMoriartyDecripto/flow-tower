@@ -1,0 +1,93 @@
+# Quality gates and review-loop caps. Read by src/loop/quality-gates.ts and
+# src/loop/review-gate.ts. A loop that hits its round cap escalates to a human.
+
+# Iteration caps for evaluator-optimizer loops.
+review_rounds:
+  design: 3          # design-critic <-> game-designer
+  concept: 3         # art-director <-> concept-artist
+  assets: 2          # art-director <-> blender-modeler / material-artist / rigger
+  code: 3            # code-reviewer <-> gameplay-programmer / tools-engineer
+  code_escalate_on: 3          # last fix round runs on claude-opus-5-5
+  craft: 2           # audio, lighting, animation, world reviews
+  regression_cycles: 2         # QA regression loops before release is blocked
+
+pass_scores:
+  design: 8
+  concept: 8
+  assets: 7
+  code: 8
+  craft: 7
+
+# Reference performance budget (60 fps @ 1080p High).
+perf:
+  reference_hardware: "GTX 1660, Ryzen 5 3600, 16 GB, 1080p High"
+  target_fps: 60
+  frame_ms_p95: 18.0
+  gpu_ms_p95: 14.0
+  p1_low_fps: 45
+  memory_mb: 6144
+  load_time_s: 25
+  draw_calls: 2500
+
+# Gate thresholds: min / max / equals / required. checkGate(name, metrics) fails on the first miss.
+gates:
+  performance:
+    fps_avg: { min: 60 }
+    fps_p1: { min: 45 }
+    frame_ms_p95: { max: 18.0 }
+    memory_mb: { max: 6144 }
+    load_time_s: { max: 25 }
+  playtest:
+    bot_runs: { min: 50 }
+    completion_rate: { min: 0.8 }        # share of bot runs that light the final beacon
+    stuck_events_per_run: { max: 2 }
+    crash_rate_per_hour: { max: 0.05 }
+  bugs:
+    blocker: { max: 0 }
+    critical: { max: 0 }
+    major: { max: 5 }
+  art_signoff:
+    art_director_score: { min: 8 }
+    style_frames: { min: 3 }
+    character_turnaround: { required: true }
+    human_approved: { equals: true }     # art_direction checkpoint
+  code_review:
+    reviewer_verdict: { equals: approve }
+    unit_tests_green: { equals: true }
+    blocking_findings: { max: 0 }
+  engine_integration:
+    assets_imported_ratio: { min: 1.0 }
+    missing_references: { max: 0 }
+    material_instances_valid: { equals: true }
+  worldgen:
+    seeds_valid: { min: 5 }
+    unreachable_pois: { max: 0 }
+    route_length: { min: 4, max: 8 }
+  qa:
+    playtest_gate: { equals: pass }
+    bugs_gate: { equals: pass }
+    regression_cycles: { max: 2 }
+  greenlight:
+    market_report: { required: true }
+    pitch_fit: { min: 0.6 }
+    human_approved: { equals: true }
+  release_go_no_go:
+    qa: { equals: pass }
+    performance: { equals: pass }
+    build_signed: { equals: true }
+    store_page_approved: { equals: true }
+    license_audit_clean: { equals: true }
+    human_approved: { equals: true }
+
+budgets_usd:
+  studio_total: 450
+  per_department:
+    research: 20
+    preproduction: 40
+    art: 120
+    engine: 60
+    world: 40
+    engineering: 90
+    qa: 40
+    release: 15
+    marketing: 25

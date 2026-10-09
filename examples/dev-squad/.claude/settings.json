@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git status)",
+      "Bash(npm test:*)",
+      "Bash(npx vitest:*)",
+      "mcp__squad__run_tests",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "mcp__github__get_issue",
+      "mcp__semgrep__semgrep_scan"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(npm install:*)",
+      "mcp__squad__open_pr",
+      "mcp__squad__request_approval"
+    ],
+    "deny": [
+      "Bash(gh pr merge:*)",
+      "Bash(git push --force:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(npm publish:*)",
+      "Bash(sudo:*)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Read(~/.ssh/**)",
+      "Edit(./.github/workflows/**)",
+      "Edit(./package-lock.json)"
+    ]
+  },
+  "enableAllProjectMcpServers": false,
+  "enabledMcpjsonServers": ["github", "context7", "playwright", "semgrep"],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts context-loader" }]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts secret-scan-prompt", "timeout": 20 }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts bash-guard" }]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts secret-scan-write" }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts format-lint", "timeout": 60 }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts changelog-gate" }]
+      }
+    ]
+  }
+}

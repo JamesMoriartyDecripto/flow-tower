@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git status)",
+      "Bash(npx vitest:*)",
+      "Bash(blender -b:*)",
+      "Bash(python pipelines/worldgen/*)",
+      "mcp__blender__get_scene_info",
+      "mcp__blender__get_object_info",
+      "mcp__blender__get_viewport_screenshot",
+      "mcp__unreal__get_property",
+      "mcp__unreal__list_assets",
+      "mcp__unreal__take_screenshot",
+      "mcp__figma__get_design_context",
+      "mcp__figma__get_variable_defs",
+      "mcp__figma__get_screenshot",
+      "mcp__analytics__query_insights",
+      "mcp__forge__validate_asset",
+      "mcp__forge__check_license",
+      "mcp__forge__simulate_economy",
+      "mcp__forge__query_telemetry",
+      "mcp__forge__run_playtest",
+      "mcp__forge__generate_world",
+      "mcp__github__get_pull_request",
+      "mcp__github__list_issues"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(npm install:*)",
+      "Bash(pip install:*)",
+      "mcp__blender__execute_blender_code",
+      "mcp__unreal__run_python",
+      "mcp__unreal__call_function",
+      "mcp__imagegen__generate_image",
+      "mcp__forge__register_asset",
+      "mcp__forge__package_build",
+      "mcp__forge__request_approval",
+      "mcp__github__create_pull_request",
+      "mcp__github__run_workflow"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(rm -rf:*)",
+      "Bash(git lfs prune:*)",
+      "Bash(steamcmd:*)",
+      "Bash(*run_app_build*)",
+      "Bash(*set_app_build_live*)",
+      "Bash(sudo:*)",
+      "Bash(curl * | sh)",
+      "mcp__unreal__delete_asset",
+      "mcp__github__merge_pull_request",
+      "WebFetch(domain:twitter.com)",
+      "WebFetch(domain:x.com)",
+      "WebFetch(domain:discord.com)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Read(~/.ssh/**)",
+      "Read(~/.steam/**)",
+      "Edit(./.github/workflows/**)",
+      "Edit(./config/quality-gates.yaml)",
+      "Edit(./config/asset-budgets.yaml)",
+      "Edit(./Content/**/*.uasset)"
+    ]
+  },
+  "enableAllProjectMcpServers": false,
+  "enabledMcpjsonServers": ["blender", "unreal", "imagegen", "github", "figma", "analytics"],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts context-loader" }]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts secret-scan-prompt", "timeout": 20 }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "mcp__blender__execute_blender_code|mcp__forge__register_asset",
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts asset-budget" }]
+      },
+      {
+        "matcher": "WebFetch|mcp__imagegen__generate_image|mcp__forge__register_asset",
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts license-check" }]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts secret-scan-write" }]
+      },
+      {
+        "matcher": "mcp__forge__package_build",
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts build-gate", "timeout": 30 }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts cost-ledger" }]
+      }
+    ]
+  }
+}

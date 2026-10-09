@@ -7,3 +7,6 @@ coverage/
 test-results/
 playwright-report/
 .playwright-mcp/
+.stress/
+# Example logs are fixtures referenced by the towers: keep them in git.
+!examples/**/*.log

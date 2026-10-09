@@ -1,0 +1,613 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Dev Squad
+tags: [coding, claude-agent-sdk, multi-agent]
+description: >-
+  A multi-agent software delivery system on the Claude Agent SDK. It takes a GitHub
+  issue, routes it, plans, researches, codes, tests, reviews in an evaluator-optimizer
+  loop, verifies with a fresh context and opens a draft PR that a human merges.
+
+runtimes:
+  laptop:
+    kind: local
+    label: "Maintainer laptop"
+    description: "Interactive Claude Code sessions with the same agents, hooks and settings.json permissions."
+    host: "dev-mbp"
+  vps:
+    kind: container
+    label: "Squad container"
+    description: "Pipeline, lead and every subagent in one docker compose stack; worktrees on a volume."
+    host: "squad-01.example.com"
+    provider: "hetzner"
+    region: "fsn1"
+  webhook:
+    kind: serverless
+    label: "Webhook receiver"
+    description: "Cloudflare Worker that verifies the HMAC, dedupes deliveries and enqueues issues."
+    provider: "cloudflare"
+    url: "https://hooks.dev-squad.example.com/github"
+  actions:
+    kind: ci
+    label: "GitHub Actions"
+    description: "Repo CI on draft PRs and the post-merge pipeline on main. Agents read it, never edit it."
+    provider: "github-actions"
+    url: "https://github.com/example-org/app/actions"
+  github:
+    kind: saas
+    label: "GitHub"
+    description: "Issues, pull requests and the remote GitHub MCP."
+    provider: "github"
+    url: "https://github.com/example-org/app"
+  context7:
+    kind: saas
+    label: "Context7"
+    description: "Version-pinned library documentation over MCP."
+    provider: "upstash"
+    url: "https://context7.com"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "Opus, Sonnet and Haiku 5.5 plus server-side web search."
+    provider: "anthropic"
+    url: "https://console.anthropic.com"
+
+prompts:
+  triage:
+    file: prompts/triage.md
+    description: Routing prompt. Classifies the issue into quickfix / full / needs_info / reject.
+  orchestrator:
+    file: prompts/orchestrator.md
+    description: Lead system prompt. Orchestrator-workers over the specialist team.
+  architect:
+    file: prompts/architect.md
+    description: Planner prompt. Issue -> ordered, testable YAML step plan.
+  review-round:
+    file: prompts/review-round.md
+    description: Per-round evaluator prompt (prompt chaining with previous findings).
+  fix-round:
+    file: prompts/fix-round.md
+    description: Optimizer prompt. Coder fixes only the blocking findings.
+
+agents:
+  triage:
+    runtime: vps
+    name: Triage router
+    description: Cheap, tool-less classifier with a JSON schema output and deterministic policy overrides.
+    model: claude-haiku-5-5
+    prompt: triage
+    tools: []
+    harness: { max_turns: 2, budget_usd: 0.05, output: json_schema, setting_sources: [] }
+    files: [src/triage.ts]
+    meta: { pattern: routing }
+  lead:
+    runtime: vps
+    resources:
+      - { kind: log, label: "Lead log", path: "logs/lead.log" }
+      - { kind: config, label: "docker compose", path: "deploy/docker-compose.yml" }
+      - { kind: script, label: "Deploy to VPS", path: "scripts/deploy-vps.sh" }
+      - { kind: dashboard, label: "Squad runs", url: "https://grafana.dev-squad.example.com/d/squad/dev-squad-runs" }
+    name: Lead orchestrator
+    description: Plans with the architect, fans out researchers, walks the plan with coders. Cannot edit files itself.
+    model: claude-opus-5-5
+    prompt: orchestrator
+    tools: [Agent, Read, Grep, Glob, TodoWrite, mcp__squad__request_approval]
+    harness: { max_turns: 80, budget_usd: 8, permission_mode: default, effort: high, fallback_model: claude-sonnet-5-5, max_subagent_depth: 1, max_concurrent_subagents: 4 }
+    files: [src/orchestrator.ts, src/agents.ts, CLAUDE.md]
+    meta: { pattern: orchestrator-workers }
+  architect:
+    runtime: vps
+    name: Architect
+    description: Read-only planner. Produces criteria, research questions and steps of at most ~150 lines each.
+    model: claude-opus-5-5
+    prompt: architect
+    tools: [Read, Grep, Glob]
+    harness: { max_turns: 30 }
+    files: [src/agents.ts]
+  researcher:
+    runtime: vps
+    from: .claude/agents/researcher.md
+    tower: towers/researcher.tower.yaml
+    harness: { max_turns: 20, context: isolated }
+    meta: { pattern: parallelization }
+  coder:
+    runtime: vps
+    from: .claude/agents/coder.md
+    tower: towers/coder.tower.yaml
+    harness: { permission_mode: acceptEdits, max_attempts: 3, escalate_model_on_round: 3 }
+  tester:
+    runtime: vps
+    from: .claude/agents/tester.md
+    harness: { flaky_retries: 1 }
+  doc-writer:
+    runtime: vps
+    from: .claude/agents/doc-writer.md
+  reviewer:
+    runtime: vps
+    resources:
+      - { kind: log, label: "Review loop log", path: "logs/review-loop.log" }
+    from: .claude/agents/reviewer.md
+    harness: { max_turns: 25, budget_usd: 1.5, fresh_session_each_round: true }
+    files: [src/loop/review-loop.ts]
+    meta: { pattern: evaluator-optimizer, role: evaluator }
+  security:
+    runtime: vps
+    from: .claude/agents/security-auditor.md
+    harness: { max_turns: 25, budget_usd: 1.5, blocks_on: [critical, high] }
+    files: [src/loop/review-loop.ts]
+  verifier:
+    runtime: vps
+    from: .claude/agents/verifier.md
+    harness: { max_turns: 30, budget_usd: 1.5, permission_mode: dontAsk, context: fresh }
+    files: [src/loop/verify.ts]
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: intake
+    title: Intake & Triage
+    description: Routing. A cheap Haiku call decides how much machinery an issue deserves.
+    nodes:
+      - id: issue
+        runtime: github
+        resources:
+          - { kind: repo, label: "squad:go issues", url: "https://github.com/example-org/app/issues?q=label%3Asquad%3Ago" }
+        type: entry
+        label: GitHub issue
+        description: An issue labelled `squad:go` by a maintainer. Humans always opt in.
+        files: [src/main.ts]
+      - id: webhook
+        runtime: webhook
+        resources:
+          - { kind: log, label: "Webhook log", path: "logs/webhook.log" }
+          - { kind: endpoint, label: "Webhook URL", url: "https://hooks.dev-squad.example.com/github" }
+        label: Webhook receiver
+        description: Verifies the HMAC signature, acks in under 10s, dedupes redeliveries, caps parallel issues at 2.
+        files: [src/main.ts]
+        meta: { endpoint: POST /github, max_parallel_issues: 2 }
+      - id: triage
+        agent: triage
+        label: Triage router
+      - id: route
+        runtime: vps
+        type: decision
+        label: Route?
+        description: Model proposes a route; deterministic policy upgrades sensitive quickfixes to full.
+        files: [src/triage.ts]
+      - id: quickfix
+        runtime: vps
+        status: deprecated
+        label: Quick-fix path
+        description: "Deprecated. Complexity 1-2, one file, single coder run. Being folded into the full path with a one-step plan so every change gets a plan record."
+        files: [src/pipeline.ts]
+      - id: needs_info
+        runtime: github
+        type: output
+        label: Ask reporter
+        description: Comments the clarifying questions on the issue and stops. No worktree is created.
+        files: [src/pipeline.ts]
+    edges:
+      - issue -> webhook
+      - "webhook -> triage [call]: issue JSON"
+      - "triage -> route [data]: TriageSchema"
+      - "route -> quickfix: trivial"
+      - { from: route, to: needs_info, label: unclear, condition: "route in [needs_info, reject]" }
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: orchestration
+    title: Orchestration
+    description: Orchestrator-workers. The Opus lead plans, gates risky plans on a human, then dispatches.
+    nodes:
+      - id: worktree
+        runtime: vps
+        resources:
+          - { kind: script, label: "New worktree", path: "scripts/new-worktree.sh" }
+        label: Issue worktree
+        description: "`git worktree add -B squad/<n>-<slug>` from origin/main. Every agent is fenced into this path."
+        files: [src/pipeline.ts]
+      - id: lead
+        agent: lead
+      - id: architect
+        agent: architect
+      - id: plan
+        runtime: vps
+        label: Step plan
+        description: YAML with criteria, research questions and ordered steps. Each step leaves the suite green.
+        files: [prompts/architect.md]
+      - id: risk
+        runtime: vps
+        type: decision
+        label: High risk?
+        description: risk == high OR steps > 6 requires a human sign-off before any code is written.
+        files: [src/config.ts]
+      - id: signoff
+        runtime: github
+        type: human
+        label: Plan sign-off
+        description: Maintainer approves with the `squad:approved` label or comments `/squad revise`.
+        files: [src/tools/request-approval.ts]
+      - id: dispatch
+        runtime: vps
+        label: Dispatch steps
+        description: Parallel researchers for independent questions; sequential coders unless steps are marked independent.
+        files: [prompts/orchestrator.md]
+      - id: integrate
+        runtime: vps
+        label: Collect results
+        description: Merges subagent summaries into the lead report (status, plan, steps, tests) for the pipeline.
+        files: [src/orchestrator.ts, src/pipeline.ts]
+    edges:
+      - "worktree -> lead: cwd"
+      - "lead -> architect [spawn]: plan"
+      - "architect -> plan [data]: YAML"
+      - plan -> risk
+      - "risk -> signoff [handoff]: high"
+      - "risk -> dispatch: low"
+      - "signoff -> dispatch: approved"
+      - "signoff -> architect [return]: revise"
+      - "integrate -> lead [return]: report"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: specialists
+    title: Specialist Agents
+    description: Focused subagents with isolated context and least-privilege tool lists. Only their final report returns.
+    nodes:
+      - id: researcher
+        agent: researcher
+      - id: coder
+        agent: coder
+      - id: tester
+        agent: tester
+      - id: green
+        runtime: vps
+        type: decision
+        label: Suite green?
+        description: Tester result. Red goes back to the coder at most 2 extra times before the lead reports blocked.
+        files: [.claude/agents/tester.md]
+      - id: doc_writer
+        agent: doc-writer
+        label: Doc writer
+      - id: perf_bench
+        runtime: vps
+        status: planned
+        label: Perf benchmark
+        description: >-
+          Planned. Runs the vitest bench suite on perf-sensitive areas (areas tagged `hot-path`) and
+          blocks regressions over 10% against origin/main before the review loop.
+        files: [src/tools/run-tests.ts]
+    edges:
+      - "researcher -> coder [data]: cited brief"
+      - "coder -> tester [handoff]: diff ready"
+      - "tester -> green [data]: report"
+      - "green -> coder [return]: failures"
+      - "green -> doc_writer: green"
+      - "green -> perf_bench: hot-path areas"
+      - "perf_bench -> doc_writer: within 10%"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: quality
+    title: Quality Loop
+    description: >-
+      Evaluator-optimizer, max 3 rounds. Reviewer and security auditor grade in parallel
+      in fresh sessions; a fresh-context verifier and a human close the loop.
+    nodes:
+      - id: fanout
+        runtime: vps
+        resources:
+          - { kind: log, label: "Review loop log", path: "logs/review-loop.log" }
+        label: Parallel review
+        description: Promise.all over two fresh query() sessions. Neither evaluator sees the other.
+        prompt: review-round
+        files: [src/loop/review-loop.ts, prompts/review-round.md]
+      - id: reviewer
+        agent: reviewer
+        label: Reviewer
+      - id: security
+        agent: security
+        label: Security auditor
+      - id: verdict
+        runtime: vps
+        type: decision
+        label: All pass?
+        description: Approve AND pass. Only blocking findings (and critical/high security) fail the round.
+        files: [src/loop/review-loop.ts]
+      - id: round_cap
+        runtime: vps
+        type: decision
+        label: Round < 3?
+        description: Hard iteration cap. The fix before the last round runs on Opus (cheap first, smart when stuck).
+        prompt: fix-round
+        files: [src/config.ts, prompts/fix-round.md]
+      - id: escalate
+        runtime: github
+        type: human
+        label: Escalate
+        description: Loop did not converge. Open findings are posted on the issue for a maintainer.
+        files: [src/pipeline.ts]
+      - id: verifier
+        agent: verifier
+        label: Fresh verifier
+      - id: approval
+        runtime: github
+        resources:
+          - { kind: repo, label: "Draft squad PRs", url: "https://github.com/example-org/app/pulls?q=is%3Adraft+head%3Asquad" }
+        type: human
+        label: Merge approval
+        description: Draft PR + review request. Agents have no merge tool and `gh pr merge` is denied.
+        files: [src/tools/request-approval.ts]
+      - id: merged
+        runtime: actions
+        resources:
+          - { kind: dashboard, label: "Actions runs", url: "https://github.com/example-org/app/actions" }
+        type: output
+        label: Merged PR
+        description: Merged by a human. The run is recorded in the session log.
+        files: [memory/session-log.md]
+    edges:
+      - "fanout -> reviewer [spawn]: rubric"
+      - "fanout -> security [spawn]: SAST"
+      - "reviewer -> verdict [return]: verdict JSON"
+      - "security -> verdict [return]: findings"
+      - "verdict -> verifier: approved"
+      - "verdict -> round_cap: changes"
+      - "round_cap -> escalate [handoff]: cap hit"
+      - "approval -> merged: approved"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: tools
+    title: Tools & MCP
+    description: Built-in tools, an in-process SDK MCP server for delivery actions, and four external MCP servers.
+    nodes:
+      - id: builtin
+        runtime: vps
+        type: tool
+        label: Built-in tools
+        description: Read, Edit, Write, Grep, Glob, Bash, WebSearch, WebFetch. Granted per agent, never all.
+        tools: [Read, Edit, Write, Grep, Glob, Bash, WebSearch, WebFetch, TodoWrite, Agent]
+        files: [.claude/settings.json]
+      - id: squad_mcp
+        runtime: vps
+        resources:
+          - { kind: other, label: "Server source", path: "src/tools/index.ts" }
+        type: tool
+        label: squad MCP
+        description: createSdkMcpServer in-process. Tools surface as mcp__squad__<name>.
+        files: [src/tools/index.ts]
+      - id: run_tests
+        runtime: vps
+        type: tool
+        label: run_tests
+        description: Vitest/Playwright with a JSON reporter, summarized to the first 10 failures to save context.
+        files: [src/tools/run-tests.ts]
+      - id: open_pr
+        runtime: vps
+        type: tool
+        label: open_pr
+        description: Pushes the issue branch and opens a DRAFT PR. Refuses protected branches; argv only, no shell.
+        files: [src/tools/open-pr.ts]
+      - id: request_approval
+        runtime: vps
+        type: tool
+        label: request_approval
+        description: Labels + comments + review request. Returns immediately; the pipeline resumes on human response.
+        files: [src/tools/request-approval.ts]
+      - id: github
+        runtime: github
+        type: tool
+        label: GitHub MCP
+        description: Remote HTTP MCP, read-only toolsets (issues, pull_requests, repos).
+        files: [.mcp.json]
+      - id: context7
+        runtime: context7
+        type: tool
+        label: Context7 MCP
+        description: Version-pinned library docs for the researcher.
+        files: [.mcp.json]
+      - id: playwright
+        runtime: vps
+        status: experimental
+        type: tool
+        label: Playwright MCP
+        description: Headless, isolated browser for the tester's e2e smoke flows.
+        files: [.mcp.json]
+      - id: semgrep
+        runtime: vps
+        resources:
+          - { kind: dashboard, label: "SAST findings", url: "https://semgrep.example.com/orgs/example-org/findings" }
+        type: tool
+        label: Semgrep MCP
+        description: SAST rulesets p/default, p/owasp-top-ten, p/secrets for the security auditor.
+        files: [.mcp.json]
+    edges:
+      - "squad_mcp -> run_tests [call]"
+      - "squad_mcp -> open_pr [call]"
+      - "squad_mcp -> request_approval [call]"
+      - "open_pr -> github [data]: PR url"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: harness
+    title: Harness & Guardrails
+    description: >-
+      Lifecycle hooks registered in-process (options.hooks) and mirrored in .claude/settings.json
+      for interactive sessions. Deny beats ask beats allow.
+    nodes:
+      - id: session_start
+        runtime: vps
+        type: hook
+        label: SessionStart
+        description: Injects learned patterns and recent runs as additionalContext; re-injects after compaction.
+        files: [src/hooks/context-loader.ts]
+      - id: prompt_submit
+        runtime: vps
+        type: hook
+        label: UserPromptSubmit
+        description: Blocks prompts carrying leaked credentials; flags injection-like issue text as data.
+        files: [src/hooks/secret-scan.ts]
+      - id: pre_tool
+        runtime: vps
+        resources:
+          - { kind: log, label: "Hooks log", path: "logs/hooks.log" }
+        type: hook
+        label: PreToolUse
+        description: Matchers fan out to the guards; all run in parallel, the most restrictive decision wins.
+        files: [src/hooks/index.ts]
+      - id: bash_guard
+        runtime: vps
+        type: guard
+        label: Bash guard
+        description: Denies force-push, merge, rm -rf, curl|sh, publish, env dumps; asks for push and installs.
+        files: [src/hooks/bash-guard.ts]
+      - id: secret_scan
+        runtime: vps
+        type: guard
+        label: Secret + fence
+        description: Denies writes containing secrets and any write outside the issue worktree.
+        files: [src/hooks/secret-scan.ts, src/hooks/index.ts]
+      - id: permissions
+        runtime: laptop
+        resources:
+          - { kind: config, label: "Permission rules", path: ".claude/settings.json" }
+        type: guard
+        label: Permission rules
+        description: settings.json allow / ask / deny, evaluated after hooks. Merge, force-push and workflow edits are denied.
+        files: [.claude/settings.json]
+      - id: post_tool
+        runtime: vps
+        type: hook
+        label: PostToolUse
+        description: Prettier + ESLint --fix on every edited file; leftover problems return as additionalContext.
+        files: [src/hooks/format-lint.ts]
+      - id: stop
+        runtime: vps
+        type: hook
+        label: Stop
+        description: Blocks finishing while source changed without a CHANGELOG entry; appends the session log.
+        files: [src/hooks/changelog-gate.ts]
+      - id: budget
+        runtime: vps
+        resources:
+          - { kind: dashboard, label: "Spend per issue", url: "https://grafana.dev-squad.example.com/d/spend/spend-per-issue" }
+        type: guard
+        label: Turn & $ caps
+        description: maxTurns and maxBudgetUsd per query, $15 per issue, subagent depth 1, concurrency 4.
+        files: [src/config.ts]
+    edges:
+      - session_start -> prompt_submit
+      - prompt_submit -> pre_tool
+      - "pre_tool -> bash_guard [call]: Bash"
+      - "pre_tool -> secret_scan [call]: Write|Edit"
+      - "bash_guard -> permissions: allow"
+      - "secret_scan -> permissions: allow"
+      - "permissions -> post_tool: executed"
+      - post_tool -> stop
+      - "budget -> stop: limit hit"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: memory
+    title: Memory & Context
+    description: Plain files, reviewed in PRs. Static memory via CLAUDE.md, learned rules and run journal via hooks.
+    nodes:
+      - id: claude_md
+        runtime: laptop
+        type: memory
+        label: CLAUDE.md
+        description: Project memory loaded by settingSources ['project'] into every session and subagent.
+        files: [CLAUDE.md]
+      - id: patterns
+        runtime: vps
+        type: memory
+        label: patterns.md
+        description: DO/DON'T rules promoted from repeated findings. Filtered by issue area before injection.
+        files: [memory/patterns.md, src/memory/store.ts]
+      - id: session_log
+        runtime: vps
+        resources:
+          - { kind: log, label: "Session log", path: "memory/session-log.md" }
+        type: memory
+        label: Session log
+        description: Append-only run journal; the last 5 issue outcomes are injected at SessionStart.
+        files: [memory/session-log.md, src/memory/session-log.ts]
+      - id: promote
+        runtime: vps
+        status: experimental
+        type: decision
+        label: Seen twice?
+        description: A finding that recurs across 2+ issues is promoted to a permanent rule (deduped).
+        files: [src/memory/store.ts]
+      - id: context_pack
+        runtime: vps
+        label: Context pack
+        description: Patterns + recent runs, capped at 6k chars. Context is finite; spend it on signal.
+        files: [src/hooks/context-loader.ts]
+    edges:
+      - "session_log -> promote [data]: lessons"
+      - "promote -> patterns [data]: new rule"
+      - "patterns -> context_pack [data]: by area"
+      - "session_log -> context_pack [data]: last 5"
+      - "claude_md -> context_pack [data]: static"
+
+  # 8 ───────────────────────────────────────────────────────────────
+  - id: models
+    title: Models
+    description: Right-size every call. Opus where judgment compounds, Sonnet for the work, Haiku for routing and prose.
+    nodes:
+      - id: policy
+        runtime: vps
+        resources:
+          - { kind: config, label: "Model policy", path: "src/config.ts" }
+        label: Model policy
+        description: ROLE_MODEL map plus escalation to Opus on the last fix round and Sonnet as fallback for the lead.
+        files: [src/config.ts]
+      - id: opus
+        runtime: anthropic
+        type: model
+        label: Opus 5.5
+        model: claude-opus-5-5
+        description: Lead, architect, and the escalated last-round fixer.
+      - id: sonnet
+        runtime: anthropic
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        description: Researcher, coder, tester, reviewer, security auditor, verifier.
+      - id: haiku
+        runtime: anthropic
+        type: model
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        description: Triage router and doc writer. Cents per issue.
+    edges:
+      - "policy -> opus: plan, lead"
+      - "policy -> sonnet: build, judge"
+      - "policy -> haiku: route, docs"
+
+links:
+  # intake -> orchestration / specialists
+  - "intake.route -> orchestration.worktree [handoff]: full"
+  - "intake.quickfix -> specialists.coder [spawn]: one-liner"
+  - "intake.triage -> tools.github [call]: open issues"
+  - "intake.webhook -> harness.prompt_submit: issue text"
+  # orchestration -> specialists
+  - "orchestration.dispatch -> specialists.researcher [spawn]: questions"
+  - "orchestration.dispatch -> specialists.coder [spawn]: step N"
+  - "specialists.doc_writer -> orchestration.integrate [return]: docs + PR body"
+  - "orchestration.lead -> tools.request_approval [call]: plan review"
+  # specialists -> quality
+  - "orchestration.integrate -> quality.fanout [handoff]: candidate diff"
+  - "quality.round_cap -> specialists.coder [return]: fix list"
+  - "quality.verifier -> tools.open_pr [call]: ship"
+  - "tools.request_approval -> quality.approval [handoff]: notify"
+  - "quality.escalate -> memory.session_log [data]: open findings"
+  - "quality.merged -> memory.session_log [data]: outcome"
+  # specialists -> tools
+  - "specialists.researcher -> tools.context7 [call]: docs"
+  - "specialists.coder -> tools.builtin [call]: Edit, Bash"
+  - "specialists.tester -> tools.run_tests [call]: affected"
+  - "specialists.tester -> tools.playwright [call]: e2e"
+  - "quality.security -> tools.semgrep [call]: SAST"
+  # tools -> harness -> memory
+  - "tools.builtin -> harness.pre_tool: every call"
+  - "harness.session_start -> memory.context_pack [data]: inject"
+  - "harness.stop -> memory.session_log [data]: append"
+  - "memory.context_pack -> orchestration.lead [data]: context"
+  # models
+  - "orchestration.lead -> models.policy [call]: role"
+  - "intake.triage -> models.haiku [call]"

@@ -1,0 +1,82 @@
+{
+  "course": "intro-to-prompt-engineering-for-product-managers",
+  "updated": "2026-10-06T14:12:09Z",
+  "sources": [
+    {
+      "id": "S4",
+      "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/multishot-prompting",
+      "title": "Use examples (multishot prompting) to guide Claude's behavior",
+      "author": "Anthropic",
+      "published": null,
+      "accessed": "2026-10-03",
+      "type": "primary",
+      "licence": "all-rights-reserved",
+      "reuse": "cite",
+      "quotes": [],
+      "notes": "Vendor guidance: diverse, relevant examples wrapped in tags. Cite and paraphrase only."
+    },
+    {
+      "id": "S5",
+      "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/use-xml-tags",
+      "title": "Use XML tags to structure your prompts",
+      "author": "Anthropic",
+      "published": null,
+      "accessed": "2026-10-03",
+      "type": "primary",
+      "licence": "all-rights-reserved",
+      "reuse": "cite",
+      "quotes": []
+    },
+    {
+      "id": "S7",
+      "url": "https://arxiv.org/abs/2005.14165",
+      "title": "Language Models are Few-Shot Learners",
+      "author": "Brown, T. et al.",
+      "published": "2020-05-28",
+      "accessed": "2026-10-02",
+      "type": "primary",
+      "licence": "arxiv-nonexclusive",
+      "reuse": "cite",
+      "quotes": [],
+      "notes": "Origin of the zero-, one- and few-shot framing. Older than the freshness window; cited as history only."
+    },
+    {
+      "id": "S12",
+      "url": "https://arxiv.org/abs/2202.12837",
+      "title": "Rethinking the Role of Demonstrations: What Makes In-Context Learning Work?",
+      "author": "Min, S. et al.",
+      "published": "2022-02-25",
+      "accessed": "2026-10-02",
+      "type": "primary",
+      "licence": "CC-BY-4.0",
+      "reuse": "cite",
+      "quotes": [],
+      "notes": "Format and input distribution of examples matter a lot; label correctness mattered less than expected on classification tasks. Do not overgeneralise to generation tasks."
+    },
+    {
+      "id": "S14",
+      "url": "https://www.w3.org/TR/WCAG22/",
+      "title": "Web Content Accessibility Guidelines (WCAG) 2.2",
+      "author": "W3C",
+      "published": "2023-10-05",
+      "accessed": "2026-10-01",
+      "type": "primary",
+      "licence": "W3C-document-license",
+      "reuse": "cite",
+      "quotes": []
+    },
+    {
+      "id": "S18",
+      "url": "https://sme-notes.example.com/dana-okafor/interview-2026-09-29",
+      "title": "SME interview: mistakes PMs make with examples",
+      "author": "Dana Okafor (SME)",
+      "published": "2026-09-29",
+      "accessed": "2026-09-29",
+      "type": "sme",
+      "licence": "licensed",
+      "reuse": "quote",
+      "quotes": ["Most of the bad prompts I review have exactly one example, and the model copies it word for word."],
+      "attribution": "Dana Okafor, interview for this course, used with permission."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+2026-10-03T09:15:02.110Z INFO  [review] round=1 build=a41f09c27e3b5d10 reviewers=4 (fresh sessions)
+2026-10-03T09:31:47.902Z INFO  [review] r1 pedagogy=changes_requested blocking=3 (m2-l4 objective O3 not practised)
+2026-10-03T09:31:47.903Z INFO  [review] r1 fact-check=changes_requested blocking=4 (m3-l2-c09 misattributed S4; m6-l2-c03 outdated price)
+2026-10-03T09:31:47.904Z INFO  [review] r1 accessibility=changes_requested blocking=2 (1.1.1 m4-fig2 empty alt; 2.4.11 quiz focus obscured)
+2026-10-03T09:31:47.905Z INFO  [review] r1 rights=pass blocking=0 attributions=7
+2026-10-03T09:33:20.418Z INFO  [consolidator] r1 verdict=revise blockers=9 (dedup from 9) owners=writer:m2,m3,m6 media:m4 player
+2026-10-03T09:33:20.430Z INFO  [modules] revision round=1 modules=[2,3,6] model=sonnet
+2026-10-03T10:12:05.661Z INFO  [review] round=2 build=7be2c0d9914af3e2
+2026-10-03T10:24:51.003Z INFO  [review] r2 previous: 9 resolved=7 still_open=2
+2026-10-03T10:25:30.774Z INFO  [consolidator] r2 verdict=revise blockers=2 (m6-l2-c03 still outdated; quiz focus obscured)
+2026-10-03T10:25:30.790Z INFO  [modules] revision round=2 modules=[6] model=opus (escalated for final round)
+2026-10-03T10:51:14.229Z INFO  [review] round=3 build=c3d81e5a0b77f491
+2026-10-03T11:02:40.887Z INFO  [consolidator] r3 verdict=pass blockers=0 backlog=11
+2026-10-03T11:02:41.020Z INFO  [review] board pass rounds=3 cost=$9.84 -> request_signoff checkpoint=content

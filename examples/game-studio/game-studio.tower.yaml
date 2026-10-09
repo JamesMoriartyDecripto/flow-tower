@@ -1,0 +1,1441 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Forge Studio
+tags: [games, unreal, blender, multi-agent]
+description: >-
+  An autonomous AI game studio on the Claude Agent SDK. It takes a game pitch and ships a
+  playable Unreal Engine 5 vertical slice plus launch marketing. Departments run in parallel,
+  every department is gated by a reviewer agent (evaluator-optimizer, capped rounds), and
+  humans sign off at greenlight, art direction and release go/no-go. Current project is
+  Emberwake, a co-op survival-crafting roguelite on a procedurally generated archipelago.
+
+runtimes:
+  studio-cluster:
+    kind: container
+    label: "Orchestrator cluster"
+    description: "Producer, directors and specialist agents as Claude Agent SDK containers on GKE Autopilot."
+    host: "gke-forge-prod"
+    provider: "gcp"
+    region: "europe-west4"
+    url: "https://argocd.forge.example.com/applications/studio-orchestrator"
+  artist-ws:
+    kind: local
+    label: "Artist workstation"
+    description: "Blender 4.4 with the MCP addon on an RTX 4080 workstation, reached through a Tailscale tunnel."
+    host: "ws-art-03"
+    provider: "on-prem"
+  render-farm:
+    kind: server
+    label: "Unreal farm"
+    description: "Four UE 5.6 editor nodes with Remote Control for import, animation, lighting, world building and profiling."
+    host: "ue-farm-01..04"
+    provider: "on-prem"
+    region: "studio-rack-a"
+  gpu-cloud:
+    kind: cloud
+    label: "GPU playtest fleet"
+    description: "Spot g5.xlarge fleet running headless builds with bot clients. Scales to zero between runs."
+    host: "forge-playtest-spot"
+    provider: "aws"
+    region: "eu-central-1"
+  ci:
+    kind: ci
+    label: "Packaging CI"
+    description: "Self-hosted Windows UE runner for automation tests, BuildCookRun and Steam beta uploads."
+    host: "ue-ci-win-01"
+    provider: "github-actions"
+    url: "https://github.com/forge-studio-example/emberwake/actions"
+  cron:
+    kind: serverless
+    label: "Scheduled jobs"
+    description: "Cloud Run jobs for the daily standup digest and webhook-triggered bug triage."
+    provider: "gcp"
+    region: "europe-west4"
+  review-portal:
+    kind: browser
+    label: "Review portal"
+    description: "Approval UI where humans sign off greenlight, art direction, publishing and go/no-go."
+    url: "https://review.forge.example.com"
+  anthropic:
+    kind: saas
+    label: "Claude API"
+    description: "Opus, Sonnet and Haiku 5.5 plus server-side web search."
+    provider: "anthropic"
+    url: "https://console.anthropic.com"
+  imagegen:
+    kind: saas
+    label: "Image generation"
+    description: "Concept and capsule art generation with licence metadata per image."
+    provider: "example-imagegen"
+    url: "https://imagegen.example.com"
+  figma:
+    kind: saas
+    label: "Figma"
+    description: "HUD, menus and brand variables."
+    provider: "figma"
+    url: "https://www.figma.com"
+  github:
+    kind: saas
+    label: "GitHub"
+    description: "Repository, issues and pull requests."
+    provider: "github"
+    url: "https://github.com/forge-studio-example/emberwake"
+  analytics:
+    kind: saas
+    label: "PostHog"
+    description: "Playtest funnels, wishlist and community traffic."
+    provider: "posthog"
+    region: "eu"
+    url: "https://eu.posthog.com"
+  steam:
+    kind: saas
+    label: "Steamworks"
+    description: "Store page, beta branches and wishlists."
+    provider: "valve"
+    url: "https://partner.steamgames.com"
+  site-edge:
+    kind: edge
+    label: "Website edge"
+    description: "Landing page and press kit served from Cloudflare Pages."
+    provider: "cloudflare"
+    url: "https://emberwake.example.com"
+
+prompts:
+  pitch-intake: { file: prompts/pitch-intake.md, description: "Haiku classifier. Pitch -> genre, scope, risk, studio fit as JSON." }
+  creative-director: { file: prompts/creative-director.md, description: "Vision keeper. Owns pillars and final creative calls." }
+  producer: { file: prompts/producer.md, description: "Studio orchestrator. Milestones, parallel dispatch, budgets, checkpoints." }
+  technical-director: { file: prompts/technical-director.md, description: "Architecture, engine constraints, perf budgets." }
+  design-critic: { file: prompts/design-critic.md, description: "Grades GDD sections against the pillars, JSON verdict." }
+  ux-researcher: { file: prompts/ux-researcher.md, description: "Personas, heuristic evaluation, playtest surveys." }
+  qa-lead: { file: prompts/qa-lead.md, description: "Builds the playtest matrix and assigns bot personas." }
+  playtest-bot: { file: prompts/playtest-bot.md, description: "Persona-driven bot that plays a build through run_playtest." }
+  bug-triage: { file: prompts/bug-triage.md, description: "Dedupe, severity and owner routing for bug reports." }
+  web-developer: { file: prompts/web-developer.md, description: "Landing page and press kit from brand tokens." }
+  marketing-lead: { file: prompts/marketing-lead.md, description: "Positioning and the launch campaign plan." }
+  trailer-writer: { file: prompts/trailer-writer.md, description: "60s/90s trailer script and shot list." }
+  store-page-writer: { file: prompts/store-page-writer.md, description: "Steam store page copy, tags and capsule briefs." }
+  community-manager: { file: prompts/community-manager.md, description: "Discord/Reddit/social posts and feedback digests." }
+  asset-tagger: { file: prompts/asset-tagger.md, description: "Tags exported assets for the registry." }
+  standup-summary: { file: prompts/standup-summary.md, description: "Daily cross-department digest for the producer." }
+  review-round: { file: prompts/review-round.md, description: "Generic evaluator round (rubric + previous findings)." }
+  fix-round: { file: prompts/fix-round.md, description: "Generic optimizer round. Fix blocking findings only." }
+  worldgen-planner: { file: prompts/worldgen-planner.md, description: "Biome graph and generation parameters per seed." }
+  integration-lead: { file: prompts/integration-lead.md, description: "Coordinates Unreal integration of finished assets." }
+  positioning: { file: prompts/positioning.md, description: "Positioning statement and target audience." }
+  release-notes: { file: prompts/release-notes.md, description: "Patch notes from merged PRs." }
+
+agents:
+  # ── Direction (prompt-based, Opus) ─────────────────────────────────
+  pitch-intake:
+    runtime: studio-cluster
+    name: Pitch intake
+    description: Tool-less Haiku classifier with JSON schema output. Rejects pitches outside studio constraints early.
+    model: claude-haiku-5-5
+    prompt: pitch-intake
+    tools: []
+    harness: { max_turns: 2, budget_usd: 0.05, output: json_schema }
+    files: [src/greenlight.ts]
+    meta: { pattern: routing }
+  creative-director:
+    runtime: studio-cluster
+    name: Creative director
+    description: Keeps the vision. Writes the pillars, settles cross-department creative disputes, grades marketing for brand fit.
+    model: claude-opus-5-5
+    prompt: creative-director
+    tools: [Read, Grep, Agent, mcp__forge__request_approval]
+    harness: { max_turns: 30, budget_usd: 4, effort: high }
+    files: [src/studio.ts, memory/art-bible.md, memory/decisions.md]
+  producer:
+    runtime: studio-cluster
+    resources:
+      - { kind: log, label: "Producer log", path: "logs/producer.log" }
+      - { kind: dashboard, label: "Studio overview", url: "https://grafana.forge.example.com/d/studio-overview/forge-studio" }
+      - { kind: config, label: "K8s deployment", path: "deploy/k8s/studio-orchestrator.yaml" }
+      - { kind: script, label: "Deploy orchestrator", path: "scripts/deploy-orchestrator.sh" }
+    name: Producer
+    description: Orchestrator-workers over every department. Plans milestones, dispatches in parallel, tracks budget, never makes assets itself.
+    model: claude-opus-5-5
+    prompt: producer
+    tools: [Agent, Read, TodoWrite, mcp__forge__request_approval, mcp__forge__query_telemetry]
+    harness: { max_turns: 120, budget_usd: 25, permission_mode: default, effort: high, fallback_model: claude-sonnet-5-5, max_concurrent_subagents: 6, max_subagent_depth: 2 }
+    files: [src/studio.ts, src/pipeline.ts, src/agents.ts, CLAUDE.md]
+    meta: { pattern: orchestrator-workers }
+  technical-director:
+    runtime: studio-cluster
+    name: Technical director
+    description: Read-only architect. Turns the GDD into a tech plan, owns perf and memory budgets, reviews engine risk.
+    model: claude-opus-5-5
+    prompt: technical-director
+    tools: [Read, Grep, Glob, WebFetch]
+    harness: { max_turns: 40, budget_usd: 4 }
+    files: [src/departments/engineering.ts, config/quality-gates.yaml]
+  design-critic:
+    runtime: studio-cluster
+    name: Design critic
+    description: Evaluator for the GDD. Fresh session each round, scores 1-10 against the pillars, max 3 rounds.
+    model: claude-opus-5-5
+    prompt: design-critic
+    tools: [Read]
+    harness: { max_turns: 10, budget_usd: 1.5, fresh_session_each_round: true }
+    files: [src/loop/review-gate.ts, src/departments/preproduction.ts]
+    meta: { pattern: evaluator-optimizer, role: evaluator }
+  # ── Specialists from prompts ────────────────────────────────────────
+  ux-researcher:
+    runtime: studio-cluster
+    name: UX researcher
+    model: claude-sonnet-5-5
+    prompt: ux-researcher
+    tools: [Read, Write, mcp__forge__query_telemetry, mcp__figma__get_screenshot]
+    files: [src/departments/qa.ts]
+  qa-lead:
+    runtime: studio-cluster
+    name: QA lead
+    description: Plans the playtest matrix, fans out bot personas in parallel, runs the regression loop.
+    model: claude-sonnet-5-5
+    prompt: qa-lead
+    tools: [Agent, Read, mcp__forge__run_playtest, mcp__forge__query_telemetry, mcp__github__create_issue]
+    harness: { max_turns: 40, budget_usd: 3, max_regression_cycles: 2 }
+    files: [src/departments/qa.ts]
+    tower: towers/qa-playtest.tower.yaml
+  playtest-bot:
+    runtime: gpu-cloud
+    resources:
+      - { kind: log, label: "Fleet log", path: "logs/playtest-fleet.log" }
+      - { kind: script, label: "Run playtest fleet", path: "scripts/playtest-fleet.sh" }
+    name: Playtest bot
+    description: Cheap persona-driven player. Many run in parallel on different seeds.
+    model: claude-haiku-5-5
+    prompt: playtest-bot
+    tools: [mcp__forge__run_playtest]
+    harness: { max_turns: 60, budget_usd: 0.3, parallel: 8 }
+    files: [src/tools/run-playtest.ts, pipelines/playtest/bot_policy.py]
+  bug-triage:
+    runtime: cron
+    name: Bug triage
+    model: claude-haiku-5-5
+    prompt: bug-triage
+    tools: [Read, mcp__github__list_issues]
+    harness: { max_turns: 4, output: json_schema }
+    files: [src/departments/qa.ts]
+  web-developer:
+    runtime: studio-cluster
+    name: Web developer
+    model: claude-sonnet-5-5
+    prompt: web-developer
+    tools: [Read, Write, Edit, Bash, mcp__figma__get_variable_defs]
+    files: [src/departments/marketing.ts, config/style-guide.json]
+  marketing-lead:
+    runtime: studio-cluster
+    name: Marketing lead
+    description: Owns positioning and the campaign. Fans out website, trailer, store page and social in parallel.
+    model: claude-sonnet-5-5
+    prompt: marketing-lead
+    tools: [Agent, Read, Write, WebSearch, mcp__analytics__query_insights]
+    files: [src/departments/marketing.ts, memory/competitors.md]
+    tower: towers/marketing.tower.yaml
+  trailer-writer:
+    runtime: studio-cluster
+    name: Trailer writer
+    model: claude-sonnet-5-5
+    prompt: trailer-writer
+    tools: [Read, Write]
+    files: [src/departments/marketing.ts, pipelines/unreal/sequencer_shots.py]
+  store-page-writer:
+    runtime: studio-cluster
+    name: Store page writer
+    model: claude-sonnet-5-5
+    prompt: store-page-writer
+    tools: [Read, Write, WebSearch]
+    files: [src/departments/marketing.ts, config/platforms.yaml]
+  community-manager:
+    runtime: studio-cluster
+    name: Community manager
+    model: claude-sonnet-5-5
+    prompt: community-manager
+    tools: [Read, Write, mcp__analytics__query_insights]
+    harness: { publish_requires_approval: true }
+    files: [src/departments/marketing.ts]
+  asset-tagger:
+    runtime: studio-cluster
+    name: Asset tagger
+    model: claude-haiku-5-5
+    prompt: asset-tagger
+    tools: [mcp__forge__register_asset]
+    harness: { max_turns: 3 }
+    files: [src/memory/asset-registry.ts]
+  standup:
+    runtime: cron
+    name: Standup summary
+    model: claude-haiku-5-5
+    prompt: standup-summary
+    tools: []
+    harness: { max_turns: 1, schedule: daily }
+    files: [src/studio.ts]
+  worldgen-planner:
+    runtime: studio-cluster
+    resources:
+      - { kind: log, label: "Worldgen log", path: "logs/worldgen.log" }
+      - { kind: script, label: "Seed sweep", path: "scripts/seed-sweep.sh" }
+    name: World planner
+    description: Designs the biome graph and generation parameters per seed, then iterates until every POI is reachable.
+    model: claude-sonnet-5-5
+    prompt: worldgen-planner
+    tools: [Read, mcp__forge__generate_world]
+    files: [src/departments/world.ts, config/worldgen.yaml]
+    tower: towers/world-gen.tower.yaml
+  integration-lead:
+    runtime: render-farm
+    resources:
+      - { kind: log, label: "Unreal farm log", path: "logs/unreal-farm.log" }
+      - { kind: script, label: "Launch farm editor", path: "scripts/farm-editor.sh" }
+    name: Integration lead
+    description: Brings validated assets into Unreal, dispatches animation, lighting and audio passes in parallel.
+    model: claude-sonnet-5-5
+    prompt: integration-lead
+    tools: [Agent, Read, mcp__unreal__run_python, mcp__unreal__list_assets]
+    files: [src/departments/engine.ts]
+    tower: towers/unreal-integration.tower.yaml
+  release-notes:
+    runtime: ci
+    name: Release notes
+    model: claude-haiku-5-5
+    prompt: release-notes
+    tools: [mcp__github__list_pull_requests]
+    files: [src/departments/release.ts]
+  # ── Claude Code subagents (.claude/agents) ─────────────────────────
+  market-analyst: { runtime: studio-cluster, from: .claude/agents/market-analyst.md, harness: { max_turns: 25, context: isolated }, meta: { pattern: parallelization } }
+  web-researcher: { runtime: studio-cluster, from: .claude/agents/web-researcher.md, harness: { max_turns: 20, context: isolated } }
+  game-designer: { runtime: studio-cluster, from: .claude/agents/game-designer.md, files: [docs/gdd-template.md], harness: { max_turns: 40 } }
+  economy-balancer: { runtime: studio-cluster, from: .claude/agents/economy-balancer.md, files: [config/economy.yaml] }
+  narrative-writer: { runtime: studio-cluster, from: .claude/agents/narrative-writer.md, files: [docs/storyboard-template.md] }
+  concept-artist: { runtime: studio-cluster, from: .claude/agents/concept-artist.md, harness: { max_images_per_round: 12 } }
+  art-director:
+    runtime: studio-cluster
+    resources:
+      - { kind: log, label: "Review gates log", path: "logs/review-gates.log" }
+    from: .claude/agents/art-director.md
+    files: [memory/art-bible.md, config/style-guide.json]
+    harness: { fresh_session_each_round: true, max_rounds: 3 }
+    meta: { pattern: evaluator-optimizer, role: evaluator }
+  blender-modeler:
+    runtime: artist-ws
+    resources:
+      - { kind: log, label: "Blender MCP log", path: "logs/blender-mcp.log" }
+      - { kind: script, label: "Start Blender MCP", path: "scripts/start-blender-mcp.sh" }
+    from: .claude/agents/blender-modeler.md
+    tower: towers/art-pipeline.tower.yaml
+    files: [src/departments/art.ts]
+    harness: { max_turns: 60, budget_usd: 2 }
+  material-artist: { runtime: artist-ws, from: .claude/agents/material-artist.md, files: [pipelines/blender/bake_pbr.py] }
+  rigger: { runtime: artist-ws, from: .claude/agents/rigger.md, files: [pipelines/blender/auto_rig.py] }
+  animator: { runtime: render-farm, from: .claude/agents/animator.md, files: [pipelines/unreal/anim_blueprint.py] }
+  world-builder: { runtime: render-farm, from: .claude/agents/world-builder.md, files: [pipelines/unreal/build_level.py] }
+  lighting-artist: { runtime: render-farm, from: .claude/agents/lighting-artist.md }
+  audio-designer: { runtime: studio-cluster, from: .claude/agents/audio-designer.md }
+  gameplay-programmer:
+    runtime: studio-cluster
+    from: .claude/agents/gameplay-programmer.md
+    tower: towers/engineering.tower.yaml
+    harness: { permission_mode: acceptEdits, max_attempts: 3 }
+  tools-engineer: { runtime: studio-cluster, from: .claude/agents/tools-engineer.md, harness: { permission_mode: acceptEdits } }
+  code-reviewer:
+    runtime: studio-cluster
+    resources:
+      - { kind: log, label: "Review gates log", path: "logs/review-gates.log" }
+    from: .claude/agents/code-reviewer.md
+    files: [src/loop/review-gate.ts]
+    harness: { fresh_session_each_round: true, max_rounds: 3, escalate_fixer_on_round: 3 }
+    meta: { pattern: evaluator-optimizer, role: evaluator }
+  perf-profiler: { runtime: render-farm, from: .claude/agents/perf-profiler.md, files: [config/quality-gates.yaml] }
+  ui-designer: { runtime: studio-cluster, from: .claude/agents/ui-designer.md }
+  release-engineer: { runtime: ci, resources: [{ kind: log, label: "Package log", path: "logs/ci-package.log" }, { kind: script, label: "Local packaging", path: "scripts/package-win64.sh" }, { kind: dashboard, label: "Package workflow", url: "https://github.com/forge-studio-example/emberwake/actions/workflows/package.yml" }], from: .claude/agents/release-engineer.md, files: [.github/workflows/package.yml] }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: greenlight
+    title: Greenlight & Direction
+    description: >-
+      A pitch is routed by a cheap classifier, scanned against the market and greenlit by a
+      human. The Opus direction trio then sets pillars, a tech plan and milestones.
+    nodes:
+      - id: pitch
+        runtime: studio-cluster
+        resources:
+          - { kind: doc, label: "Emberwake pitch", path: "docs/pitch-emberwake.md" }
+        type: entry
+        label: Game pitch
+        description: A one-page pitch (fantasy, core loop, audience, comps). Emberwake is the current project.
+        files: [docs/pitch-emberwake.md, src/main.ts]
+      - id: intake
+        agent: pitch-intake
+      - id: fit
+        runtime: studio-cluster
+        type: decision
+        label: Studio fit?
+        description: Scope <= vertical slice in 10 weeks, team skills, no licensed IP, budget under the studio cap.
+        files: [src/greenlight.ts]
+      - id: greenlight
+        runtime: review-portal
+        resources:
+          - { kind: endpoint, label: "Greenlight approvals", url: "https://review.forge.example.com/approvals?kind=greenlight" }
+        type: human
+        label: Greenlight
+        description: Studio head approves the one-pager + market scan. Checkpoint kind greenlight.
+        files: [src/tools/request-approval.ts, src/greenlight.ts]
+      - id: passed
+        runtime: studio-cluster
+        type: output
+        label: Pass on pitch
+        description: Written rationale filed in decisions.md so similar pitches are routed faster next time.
+        files: [memory/decisions.md]
+      - id: creative_director
+        agent: creative-director
+      - id: producer
+        agent: producer
+      - id: tech_director
+        agent: technical-director
+      - id: milestones
+        runtime: studio-cluster
+        label: Milestone plan
+        description: M0 pre-production, M1 first playable, M2 vertical slice, M3 launch beta. Each with exit criteria.
+        files: [src/studio.ts, config/quality-gates.yaml]
+      - id: dispatch
+        runtime: studio-cluster
+        resources:
+          - { kind: queue, label: "Department jobs topic", url: "https://pubsub.forge.example.com/topics/department-jobs" }
+        label: Parallel dispatch
+        description: Promise.all over department pipelines, max 6 concurrent agents, dependencies respected (art before engine).
+        files: [src/pipeline.ts]
+      - id: standup
+        agent: standup
+        label: Daily standup
+      - id: milestone_review
+        runtime: review-portal
+        type: human
+        label: Milestone review
+        description: Producer posts the milestone build + digest. A human accepts or asks for a re-plan.
+        files: [src/tools/request-approval.ts]
+    edges:
+      - "pitch -> intake [call]: pitch.md"
+      - "intake -> fit [data]: PitchSchema"
+      - "fit -> passed: out of scope"
+      - "greenlight -> passed: declined"
+      - "greenlight -> creative_director [handoff]: approved"
+      - "creative_director -> producer [handoff]: pillars"
+      - "producer -> tech_director [spawn]: tech plan"
+      - "tech_director -> milestones [data]: risks, budgets"
+      - "producer -> milestones: plan"
+      - "milestones -> dispatch"
+      - "standup -> producer [return]: digest"
+      - "producer -> milestone_review [handoff]: milestone build"
+      - "milestone_review -> milestones [return]: re-plan"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: research
+    title: Research & Market
+    description: Parallelization by sectioning. Independent questions fan out to isolated researchers, then fan in with citations.
+    nodes:
+      - id: questions
+        runtime: studio-cluster
+        label: Research questions
+        description: Producer splits unknowns into independent questions (market, comps, references, tech risk).
+        files: [src/departments/research.ts]
+      - id: market
+        agent: market-analyst
+        label: Market analyst
+      - id: comps
+        agent: market-analyst
+        label: Competitor scan
+        description: Second market-analyst instance. Teardown of 6-10 comparable titles (price, reviews, wishlists, hooks).
+      - id: references
+        agent: web-researcher
+        label: Reference hunt
+        description: Art, mechanics and narrative references. Only licence-clear sources are kept.
+      - id: tech_scout
+        agent: web-researcher
+        label: Tech scout
+        description: UE 5.6 features, Blender add-ons, co-op netcode options. Version-pinned citations.
+      - id: synth
+        runtime: studio-cluster
+        label: Synthesis
+        description: Fan-in. Merges four reports, dedupes sources, flags contradictions for the producer.
+        files: [src/departments/research.ts]
+      - id: cited
+        runtime: studio-cluster
+        type: decision
+        label: Cited & fresh?
+        description: Every claim has a source younger than 18 months. Gaps go back for one more round (max 2).
+      - id: report
+        runtime: studio-cluster
+        resources:
+          - { kind: doc, label: "Competitors", path: "memory/competitors.md" }
+        type: output
+        label: Market report
+        description: Positioning inputs, comps table, risks. Persisted for marketing and future pitches.
+        files: [memory/competitors.md]
+    edges:
+      - "questions -> market [spawn]: market size"
+      - "questions -> comps [spawn]: comps"
+      - "questions -> references [spawn]: references"
+      - "questions -> tech_scout [spawn]: tech risks"
+      - "market -> synth [return]: findings"
+      - "comps -> synth [return]: teardown"
+      - "references -> synth [return]: refs"
+      - "tech_scout -> synth [return]: risks"
+      - "synth -> cited"
+      - "cited -> report: yes"
+      - "cited -> questions [return]: gaps"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: preprod
+    title: Pre-production
+    description: >-
+      The designer drafts the GDD while economy, narrative and UX work in parallel. A design
+      critic grades every section (evaluator-optimizer, max 3 rounds, pass >= 8/10).
+    nodes:
+      - id: designer
+        agent: game-designer
+        label: Game designer
+      - id: economy
+        agent: economy-balancer
+        label: Economy balancer
+      - id: econ_sim
+        runtime: studio-cluster
+        resources:
+          - { kind: config, label: "Economy config", path: "config/economy.yaml" }
+          - { kind: dashboard, label: "Economy curves", url: "https://grafana.forge.example.com/d/economy-sim/economy-curves" }
+        type: tool
+        label: simulate_economy
+        description: Monte-carlo over 10k simulated runs. Returns resource curves and time-to-craft percentiles.
+        tools: [mcp__forge__simulate_economy]
+        files: [src/tools/simulate-economy.ts, config/economy.yaml]
+      - id: narrative
+        agent: narrative-writer
+        label: Narrative writer
+      - id: storyboard
+        runtime: studio-cluster
+        label: Storyboard
+        description: Beat sheet and 12-panel storyboard for the slice opening and the first beacon rekindle.
+        files: [docs/storyboard-template.md]
+      - id: ux
+        agent: ux-researcher
+        label: UX researcher
+      - id: gdd
+        runtime: studio-cluster
+        label: GDD draft
+        description: Sections merged into the template. Every mechanic links to a pillar and a measurable goal.
+        files: [docs/gdd-template.md]
+      - id: critic
+        agent: design-critic
+        label: Design critic
+      - id: design_pass
+        runtime: studio-cluster
+        type: decision
+        label: Score >= 8?
+        description: Blocking findings go back to the designer. Round 3 is final; unresolved items escalate to the creative director.
+        files: [config/quality-gates.yaml, src/loop/review-gate.ts]
+      - id: gdd_locked
+        runtime: studio-cluster
+        resources:
+          - { kind: doc, label: "GDD template", path: "docs/gdd-template.md" }
+        type: output
+        label: GDD v1 locked
+        description: Frozen for M1. Changes after this point need a decision record.
+        files: [memory/decisions.md]
+    edges:
+      - "designer -> economy [spawn]: loops & sinks"
+      - "economy -> econ_sim [call]: 10k runs"
+      - "econ_sim -> economy [return]: curves"
+      - "designer -> narrative [spawn]: world & beats"
+      - "narrative -> storyboard [data]: beats"
+      - "designer -> ux [spawn]: personas"
+      - "designer -> gdd [data]: mechanics"
+      - "economy -> gdd [data]: tables"
+      - "storyboard -> gdd [data]: story"
+      - "ux -> gdd [data]: UX goals"
+      - "gdd -> critic [handoff]: review"
+      - "critic -> design_pass [data]: verdict JSON"
+      - "design_pass -> designer [return]: findings"
+      - "design_pass -> gdd_locked: pass"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: art
+    title: Concept & Art Direction
+    description: Concepts are generated, licence-checked and graded by the art director (max 3 rounds), then a human locks the style.
+    nodes:
+      - id: brief
+        runtime: studio-cluster
+        label: Art brief
+        description: Pillars + GDD + references -> per-asset briefs with mood, silhouette and palette constraints.
+        files: [memory/art-bible.md, config/style-guide.json]
+      - id: concept
+        agent: concept-artist
+        label: Concept artist
+      - id: moodboard
+        runtime: studio-cluster
+        label: Moodboards
+        description: Three competing directions, 4 keyframes each. Every image carries its prompt and licence record.
+        files: [memory/art-bible.md]
+      - id: art_director
+        agent: art-director
+        label: Art director
+      - id: on_style
+        runtime: studio-cluster
+        type: decision
+        label: On style?
+        description: Score >= 8 and no silhouette or palette blockers. Notes return to the concept artist (max 3 rounds).
+        files: [config/quality-gates.yaml]
+      - id: signoff
+        runtime: review-portal
+        resources:
+          - { kind: endpoint, label: "Art direction approvals", url: "https://review.forge.example.com/approvals?kind=art_direction" }
+        type: human
+        label: Art sign-off
+        description: Checkpoint art_direction. A human picks the direction or asks for another one.
+        files: [src/tools/request-approval.ts]
+      - id: style_lock
+        runtime: studio-cluster
+        resources:
+          - { kind: config, label: "Style tokens", path: "config/style-guide.json" }
+          - { kind: doc, label: "Art bible", path: "memory/art-bible.md" }
+        type: output
+        label: Style locked
+        description: Art bible and style tokens are frozen; every downstream reviewer grades against them.
+        files: [memory/art-bible.md, config/style-guide.json]
+      - id: turnarounds
+        runtime: studio-cluster
+        label: Turnarounds
+        description: Orthographic sheets and callouts for the modellers (front, side, back, scale figure).
+        files: [src/departments/art.ts]
+      - id: asset_list
+        runtime: studio-cluster
+        label: Asset tickets
+        description: Slice asset list split into tickets with class (hero, prop, kit, character) and budget.
+        files: [config/asset-budgets.yaml, src/departments/art.ts]
+    edges:
+      - "brief -> concept [spawn]: brief"
+      - "concept -> moodboard [data]: 3 directions"
+      - "moodboard -> art_director [handoff]: grade"
+      - "art_director -> on_style [data]: score"
+      - "on_style -> concept [return]: notes"
+      - "on_style -> signoff [handoff]: pass"
+      - "signoff -> moodboard [return]: other direction"
+      - "signoff -> style_lock: approved"
+      - "style_lock -> turnarounds"
+      - "turnarounds -> asset_list [data]: callouts"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: assets
+    title: Asset Production (Blender)
+    description: >-
+      Per asset, fan-out then fan-in. After retopo, materials, rigging and LODs run in
+      parallel through the Blender MCP, then merge into one validated export.
+    nodes:
+      - id: queue
+        runtime: studio-cluster
+        label: Asset queue
+        description: Up to 4 assets in flight, hero assets first. Each ticket carries its budget class.
+        files: [src/departments/art.ts, config/asset-budgets.yaml]
+      - id: modeler
+        agent: blender-modeler
+        label: Blender modeler
+      - id: retopo
+        runtime: artist-ws
+        label: Retopo & UV
+        description: Quad-dominant retopo to budget, then seams + UV packing at the target texel density.
+        files: [pipelines/blender/retopo.py, pipelines/blender/uv_unwrap.py]
+      - id: materials
+        agent: material-artist
+        label: Material artist
+      - id: rigger
+        agent: rigger
+        label: Rigger
+      - id: lods
+        runtime: artist-ws
+        status: deprecated
+        label: LOD chain
+        description: "Deprecated. LOD1-3 via Blender decimate, ratios per class from the budget file. Being replaced by the engine auto-LOD trial."
+        files: [pipelines/blender/generate_lods.py]
+      - id: bake
+        runtime: artist-ws
+        label: PBR bake
+        description: High-to-low normal, AO and curvature bakes; ORM channel pack.
+        files: [pipelines/blender/bake_pbr.py]
+      - id: join
+        runtime: artist-ws
+        label: Fan-in & export
+        description: Waits for materials, rig and LODs, then exports glTF (props) or FBX (skinned).
+        files: [pipelines/blender/export_asset.py]
+      - id: validate
+        runtime: artist-ws
+        resources:
+          - { kind: config, label: "Asset budgets", path: "config/asset-budgets.yaml" }
+        type: tool
+        label: validate_asset
+        description: Headless Blender run of validate_mesh.py. Tris, UV overlap, n-gons, scale, bone count vs budget.
+        tools: [mcp__forge__validate_asset]
+        files: [src/tools/validate-asset.ts, pipelines/blender/validate_mesh.py]
+      - id: tagger
+        resources:
+          - { kind: database, label: "Asset registry", url: "https://db.forge.example.com/asset-registry" }
+        agent: asset-tagger
+        label: Asset tagger
+    edges:
+      - "queue -> modeler [spawn]: ticket"
+      - "modeler -> retopo [call]: high poly"
+      - "retopo -> materials [spawn]: UV'd mesh"
+      - "retopo -> rigger [spawn]: skinnable"
+      - "retopo -> lods [call]: LOD0"
+      - "materials -> bake [call]: shaders"
+      - "bake -> join [return]: PBR set"
+      - "rigger -> join [return]: skeleton"
+      - "lods -> join [return]: LOD1-3"
+      - "join -> validate [call]: budgets"
+      - "validate -> modeler [return]: over budget"
+      - "validate -> tagger [data]: report"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: engine
+    title: Engine Integration (Unreal)
+    description: Assets enter Unreal through editor Python; animation, lighting and audio passes run in parallel on top.
+    nodes:
+      - id: integration_lead
+        agent: integration-lead
+      - id: import
+        runtime: render-farm
+        label: Import assets
+        description: Interchange import with fixed paths and naming (SM_, SK_, T_, MI_). Reimport is idempotent.
+        files: [pipelines/unreal/import_assets.py]
+      - id: mat_instances
+        runtime: render-farm
+        label: Material instances
+        description: One MI per asset from the three master materials; parameters come from style tokens.
+        files: [pipelines/unreal/material_instances.py, config/style-guide.json]
+      - id: animator
+        agent: animator
+        label: Animator
+      - id: anim_bp
+        runtime: render-farm
+        label: Anim Blueprints
+        description: Locomotion state machine, blend spaces and montage slots generated from a spec.
+        files: [pipelines/unreal/anim_blueprint.py]
+      - id: sequencer
+        runtime: render-farm
+        label: Sequencer shots
+        description: Intro cinematic and trailer shots as Level Sequences; reused by marketing.
+        files: [pipelines/unreal/sequencer_shots.py]
+      - id: lighting
+        agent: lighting-artist
+        label: Lighting artist
+      - id: audio
+        agent: audio-designer
+        label: Audio designer
+      - id: audio_briefs
+        runtime: studio-cluster
+        label: SFX/music briefs
+        description: Cue sheet per gameplay event, adaptive music states, licence record for every library sound.
+        files: [.claude/agents/audio-designer.md]
+      - id: auto_lod
+        runtime: render-farm
+        status: experimental
+        label: Engine auto-LOD
+        description: >-
+          Trial replacement for the Blender LOD chain. Nanite for static meshes, UE skeletal mesh
+          reduction for characters. Running on 10% of assets while budgets are compared.
+        files: [pipelines/unreal/import_assets.py, config/asset-budgets.yaml]
+      - id: integrated
+        runtime: render-farm
+        resources:
+          - { kind: script, label: "Validate level", path: "pipelines/unreal/validate_level.py" }
+        type: decision
+        label: Integrates clean?
+        description: No missing references, no default materials, map check clean, shader compile under budget.
+        files: [pipelines/unreal/validate_level.py]
+    edges:
+      - "integration_lead -> import [call]: manifest"
+      - "import -> mat_instances: meshes"
+      - "integration_lead -> animator [spawn]: rigs"
+      - "animator -> anim_bp [call]: state machine"
+      - "anim_bp -> sequencer [data]: montages"
+      - "integration_lead -> lighting [spawn]: lighting pass"
+      - "integration_lead -> audio [spawn]: audio pass"
+      - "audio -> audio_briefs [data]: cue sheet"
+      - "mat_instances -> integrated"
+      - "import -> auto_lod [call]: 10% trial"
+      - "auto_lod -> integrated: reduced"
+      - "sequencer -> integrated"
+      - "lighting -> integrated [return]: lit level"
+      - "integrated -> integration_lead [return]: missing refs"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: world
+    title: World & Level
+    description: Procedural archipelago per seed. Deterministic Python generation, Unreal assembly, reachability validation.
+    nodes:
+      - id: seed
+        runtime: studio-cluster
+        resources:
+          - { kind: config, label: "Worldgen config", path: "config/worldgen.yaml" }
+        type: entry
+        label: Run seed
+        description: 64-bit seed per run; the slice ships 20 curated seeds plus an open seed for playtests.
+        files: [config/worldgen.yaml]
+      - id: planner
+        agent: worldgen-planner
+        label: World planner
+      - id: biome_graph
+        runtime: studio-cluster
+        label: Biome graph
+        description: Islands as nodes, bridges and updrafts as edges. Guarantees one beacon path of length 5-8.
+        files: [pipelines/worldgen/biome_graph.py]
+      - id: terrain
+        runtime: studio-cluster
+        label: Terrain gen
+        description: Seeded noise heightmaps per island, cliff masks, erosion pass.
+        files: [pipelines/worldgen/terrain_heightmap.py]
+      - id: pois
+        runtime: studio-cluster
+        label: POI placement
+        description: Poisson-disk placement of beacons, caches, camps and wisp nests with min spacing rules.
+        files: [pipelines/worldgen/poi_placement.py]
+      - id: builder
+        agent: world-builder
+        label: World builder
+      - id: level_build
+        runtime: render-farm
+        label: Build level
+        description: Landscape import, kit placement, World Partition streaming cells.
+        files: [pipelines/unreal/build_level.py, pipelines/unreal/level_streaming.py]
+      - id: reachable
+        runtime: render-farm
+        type: decision
+        label: Navmesh OK?
+        description: Every POI reachable from spawn, no isolated nav islands, jump gaps under 4 m.
+        files: [pipelines/worldgen/navmesh_check.py]
+      - id: level
+        runtime: render-farm
+        type: output
+        label: Playable level
+        description: Seeded level package ready for QA bots.
+    edges:
+      - "seed -> planner [data]: seed"
+      - "planner -> biome_graph [call]: params"
+      - "biome_graph -> terrain [data]: islands"
+      - "terrain -> pois [data]: heightmaps"
+      - "pois -> builder [handoff]: layout"
+      - "builder -> level_build [call]: editor python"
+      - "level_build -> reachable"
+      - "reachable -> level: yes"
+      - "reachable -> planner [return]: unreachable POIs"
+
+  # 8 ───────────────────────────────────────────────────────────────
+  - id: engineering
+    title: Engineering
+    description: Gameplay, co-op netcode, tools and UI programmers work in parallel from one tech spec; tests gate every PR.
+    nodes:
+      - id: spec
+        runtime: studio-cluster
+        label: Tech spec
+        description: Features from the GDD mapped to modules, replication model and test plan.
+        files: [src/departments/engineering.ts]
+      - id: gameplay
+        agent: gameplay-programmer
+        label: Gameplay prog
+      - id: netcode
+        status: experimental
+        agent: gameplay-programmer
+        label: Co-op netcode
+        description: Second gameplay-programmer instance scoped to replication, prediction and session flow.
+      - id: tools_eng
+        agent: tools-engineer
+        label: Tools engineer
+      - id: ui_designer
+        agent: ui-designer
+        label: UI designer
+      - id: hud
+        runtime: render-farm
+        label: HUD & menus
+        description: UMG widgets generated from Figma variables; controller and keyboard navigation.
+        files: [config/style-guide.json]
+      - id: tests
+        runtime: ci
+        resources:
+          - { kind: dashboard, label: "Automation tests", url: "https://github.com/forge-studio-example/emberwake/actions/workflows/package.yml" }
+        label: Automation tests
+        description: UE automation + functional tests per feature, run headless on the editor build.
+        files: [src/departments/engineering.ts]
+      - id: green
+        runtime: ci
+        type: decision
+        label: Tests green?
+        description: Red goes back to the author (max 3 attempts) before the producer is told.
+      - id: pr
+        runtime: github
+        resources:
+          - { kind: repo, label: "Open PRs", url: "https://github.com/forge-studio-example/emberwake/pulls" }
+        type: output
+        label: Pull requests
+        description: One draft PR per feature with test evidence and screenshots.
+    edges:
+      - "spec -> gameplay [spawn]: features"
+      - "spec -> netcode [spawn]: replication"
+      - "spec -> tools_eng [spawn]: pipeline tools"
+      - "spec -> ui_designer [spawn]: HUD spec"
+      - "ui_designer -> hud [data]: Figma tokens"
+      - "gameplay -> tests [call]: automation"
+      - "netcode -> tests [call]: PIE 4 clients"
+      - "hud -> tests [call]: widget tests"
+      - "tests -> green [data]: report"
+      - "green -> gameplay [return]: failures"
+      - "green -> pr: green"
+      - "tools_eng -> pr: tooling PR"
+
+  # 9 ───────────────────────────────────────────────────────────────
+  - id: review
+    title: Review Gates
+    description: >-
+      Evaluator-optimizer for every department. Evaluators grade in parallel, each in a fresh
+      session, against config/quality-gates.yaml. Hard round caps; then a human decides.
+    nodes:
+      - id: router
+        runtime: studio-cluster
+        label: Gate router
+        description: Routes each artifact to the evaluators its gate requires (code, assets, budgets, pillars).
+        files: [src/loop/quality-gates.ts, config/quality-gates.yaml]
+      - id: round
+        runtime: studio-cluster
+        resources:
+          - { kind: log, label: "Review gates log", path: "logs/review-gates.log" }
+          - { kind: config, label: "Quality gates", path: "config/quality-gates.yaml" }
+        label: Review round
+        description: Promise.all of fresh evaluator sessions with the rubric and previous findings.
+        prompt: review-round
+        files: [src/loop/review-gate.ts]
+      - id: code_reviewer
+        agent: code-reviewer
+        label: Code reviewer
+      - id: asset_review
+        agent: art-director
+        label: Asset review
+        description: Art director grades in-engine screenshots of each asset against the art bible.
+      - id: tech_review
+        agent: technical-director
+        label: Budget review
+        description: Draw calls, memory, shader permutations and tick cost against the perf budgets.
+      - id: pillar_check
+        agent: creative-director
+        label: Pillar check
+        description: Does the feature still serve the pillars? Only blocks on direct contradictions.
+      - id: verdict
+        runtime: studio-cluster
+        type: decision
+        label: All gates pass?
+        description: Every evaluator approves with score >= pass score; minor findings become follow-ups.
+      - id: round_cap
+        runtime: studio-cluster
+        type: decision
+        label: Round < cap?
+        description: Caps per gate (code 3, assets 2, design 3). The last fix round escalates the fixer to Opus.
+        prompt: fix-round
+        files: [config/quality-gates.yaml]
+      - id: escalate
+        runtime: review-portal
+        type: human
+        label: Escalate
+        description: Loop did not converge. Open findings go to the producer and a human lead decides.
+        files: [src/tools/request-approval.ts]
+      - id: passed
+        runtime: studio-cluster
+        type: output
+        label: Gate passed
+        description: Artifact merged into the milestone branch; follow-ups filed as issues.
+    edges:
+      - "router -> round"
+      - "round -> code_reviewer [spawn]: diff"
+      - "round -> asset_review [spawn]: screenshots"
+      - "round -> tech_review [spawn]: profile"
+      - "round -> pillar_check [spawn]: feature"
+      - "code_reviewer -> verdict [return]: verdict"
+      - "asset_review -> verdict [return]: verdict"
+      - "tech_review -> verdict [return]: verdict"
+      - "pillar_check -> verdict [return]: verdict"
+      - "verdict -> passed: pass"
+      - "verdict -> round_cap: changes"
+      - "round_cap -> escalate [handoff]: cap hit"
+      - "escalate -> passed: override"
+
+  # 10 ──────────────────────────────────────────────────────────────
+  - id: qa
+    title: QA & Playtest
+    description: Bot personas play the build in parallel on different seeds; telemetry feeds perf, UX and bug triage.
+    nodes:
+      - id: qa_lead
+        agent: qa-lead
+      - id: bot_explorer
+        agent: playtest-bot
+        label: Explorer bot
+        description: Persona explorer. Visits every POI, maximises map coverage, reports stuck points.
+      - id: bot_speedrun
+        agent: playtest-bot
+        label: Speedrun bot
+        description: Persona speedrunner. Rushes beacons, exposes sequence breaks and economy shortcuts.
+      - id: bot_chaos
+        status: experimental
+        agent: playtest-bot
+        label: Chaos bot
+        description: Persona chaos. Random inputs, menu spam, disconnects mid co-op session.
+      - id: telemetry
+        runtime: studio-cluster
+        resources:
+          - { kind: dashboard, label: "Playtest funnels", url: "https://eu.posthog.example.com/project/48213/dashboard/playtest-funnels" }
+        label: Telemetry agg
+        description: Merges bot runs into death and stuck heatmaps, beacon funnel, fps percentiles, crash list.
+        files: [src/telemetry/aggregate.ts, src/tools/query-telemetry.ts]
+      - id: perf
+        agent: perf-profiler
+        label: Perf profiler
+      - id: ux_playtest
+        agent: ux-researcher
+        label: UX playtest
+        description: Funnel drop-offs and heuristic review of onboarding, HUD readability, menu flow.
+      - id: triage
+        resources:
+          - { kind: repo, label: "QA issues", url: "https://github.com/forge-studio-example/emberwake/issues?q=label%3Aqa" }
+        agent: bug-triage
+        label: Bug triage
+      - id: blockers
+        runtime: studio-cluster
+        type: decision
+        label: Blockers?
+        description: Any S1/S2 or crash rate above gate returns to the owning department; max 2 regression cycles.
+        files: [config/quality-gates.yaml]
+      - id: regression
+        runtime: gpu-cloud
+        label: Regression suite
+        description: Re-runs failing seeds and the smoke matrix on every fix build.
+        files: [src/departments/qa.ts]
+    edges:
+      - "qa_lead -> bot_explorer [spawn]: seed A"
+      - "qa_lead -> bot_speedrun [spawn]: seed B"
+      - "qa_lead -> bot_chaos [spawn]: seed C"
+      - "bot_explorer -> telemetry [data]: run log"
+      - "bot_speedrun -> telemetry [data]: run log"
+      - "bot_chaos -> telemetry [data]: run log"
+      - "telemetry -> perf [handoff]: frame times"
+      - "telemetry -> ux_playtest [data]: funnels"
+      - "telemetry -> triage [data]: crashes, stuck"
+      - "perf -> triage [data]: perf bugs"
+      - "ux_playtest -> triage [data]: UX issues"
+      - "triage -> blockers"
+      - "qa_lead -> regression [call]: smoke"
+      - "regression -> triage [data]: regressions"
+
+  # 11 ──────────────────────────────────────────────────────────────
+  - id: release
+    title: Build & Release
+    description: CI builds, a guard refuses to package unless every gate is green, and a human makes the go/no-go call.
+    nodes:
+      - id: release_engineer
+        agent: release-engineer
+        label: Release engineer
+      - id: ci
+        runtime: ci
+        label: CI build
+        description: Self-hosted UE 5.6 runner, BuildCookRun Win64 Shipping, symbols archived.
+        files: [.github/workflows/package.yml]
+      - id: build_gate
+        runtime: ci
+        resources:
+          - { kind: log, label: "Guardrails log", path: "logs/guardrails.log" }
+        type: guard
+        label: Build gate
+        description: PreToolUse on package_build. Denies unless QA pass, gates green and no open S1 bugs.
+        files: [src/hooks/build-gate.ts, config/quality-gates.yaml]
+      - id: package
+        runtime: ci
+        type: tool
+        label: package_build
+        description: RunUAT wrapper with platform profiles; returns build id, size and cook warnings.
+        tools: [mcp__forge__package_build]
+        files: [src/tools/package-build.ts, config/platforms.yaml]
+      - id: smoke
+        runtime: gpu-cloud
+        label: Smoke test
+        description: Boot, new game, first beacon, save/load, co-op join. Five minutes, three seeds.
+        files: [src/departments/release.ts]
+      - id: notes
+        agent: release-notes
+        label: Release notes
+      - id: go_no_go
+        runtime: review-portal
+        resources:
+          - { kind: endpoint, label: "Go/no-go approvals", url: "https://review.forge.example.com/approvals?kind=release_go_no_go" }
+        type: human
+        label: Go / no-go
+        description: Checkpoint release_go_no_go with the build, notes, QA summary and open risks.
+        files: [src/tools/request-approval.ts]
+      - id: beta
+        runtime: steam
+        resources:
+          - { kind: endpoint, label: "Steam builds", url: "https://steamworks.example.com/apps/3412870/builds" }
+        type: output
+        label: Steam beta branch
+        description: Uploaded to a password-protected beta branch. Default branch changes are human-only.
+        files: [config/platforms.yaml]
+      - id: hold
+        runtime: studio-cluster
+        type: output
+        label: Release held
+        description: No-go reasons become issues; the producer re-plans the milestone.
+    edges:
+      - "release_engineer -> ci [call]: tag"
+      - "ci -> build_gate"
+      - "build_gate -> package [call]: allowed"
+      - "package -> smoke [data]: build"
+      - "smoke -> notes: green"
+      - "notes -> go_no_go [handoff]: release pack"
+      - "go_no_go -> beta: go"
+      - "go_no_go -> hold: no-go"
+
+  # 12 ──────────────────────────────────────────────────────────────
+  - id: marketing
+    title: Marketing & Launch
+    description: Positioning first, then website, trailer, store page and social in parallel. Nothing is published without a human.
+    nodes:
+      - id: marketing_lead
+        agent: marketing-lead
+      - id: positioning
+        runtime: studio-cluster
+        label: Positioning
+        description: One-line hook, audience segments, three differentiators vs comps.
+        model: claude-sonnet-5-5
+        prompt: positioning
+        files: [memory/competitors.md]
+      - id: website
+        runtime: site-edge
+        resources:
+          - { kind: endpoint, label: "Landing page", url: "https://emberwake.example.com" }
+        agent: web-developer
+        label: Website
+      - id: trailer
+        agent: trailer-writer
+        label: Trailer script
+      - id: store_page
+        agent: store-page-writer
+        label: Store page
+      - id: social
+        agent: community-manager
+        label: Social campaign
+      - id: on_brand
+        runtime: studio-cluster
+        type: decision
+        label: On brand?
+        description: Creative director grades every asset against pillars and tone; max 2 rounds.
+      - id: publish_ok
+        runtime: review-portal
+        type: human
+        label: Publish approval
+        description: Store page, posts and press emails are queued as drafts until a human approves.
+        files: [src/tools/request-approval.ts]
+      - id: launch
+        runtime: steam
+        resources:
+          - { kind: dashboard, label: "Wishlists & traffic", url: "https://grafana.forge.example.com/d/wishlists/wishlists-and-traffic" }
+        type: output
+        label: Launch
+        description: Store page live, wishlist campaign running, trailer published.
+      - id: community
+        status: planned
+        agent: community-manager
+        label: Community
+        description: Post-launch Discord and Reddit digest; feedback routed back to design and QA.
+    edges:
+      - "marketing_lead -> positioning [call]: market report"
+      - "positioning -> website [spawn]: hook"
+      - "positioning -> trailer [spawn]: key moments"
+      - "positioning -> store_page [spawn]: features"
+      - "positioning -> social [spawn]: calendar"
+      - "website -> on_brand [return]: preview"
+      - "trailer -> on_brand [return]: script"
+      - "store_page -> on_brand [return]: copy"
+      - "social -> on_brand [return]: posts"
+      - "on_brand -> marketing_lead [return]: rework"
+      - "on_brand -> publish_ok [handoff]: approved"
+      - "publish_ok -> launch: publish"
+      - "launch -> community: live"
+
+  # 13 ──────────────────────────────────────────────────────────────
+  - id: platform
+    title: Tools, MCP & Models
+    description: >-
+      Seven MCP servers plus built-ins, granted per agent (never all). Model policy right-sizes
+      every call - Opus for judgement, Sonnet for production, Haiku for routing and bots.
+    nodes:
+      - id: forge_mcp
+        runtime: studio-cluster
+        type: tool
+        label: forge MCP
+        description: In-process createSdkMcpServer. approval, validation, licence, playtest, economy, world, packaging, registry.
+        files: [src/tools/index.ts]
+      - id: blender_mcp
+        runtime: artist-ws
+        resources:
+          - { kind: config, label: "MCP servers", path: ".mcp.json" }
+        type: tool
+        label: Blender MCP
+        description: Socket bridge to a running Blender 4.4. Agents send bpy code; screenshots for review.
+        tools: [mcp__blender__execute_blender_code, mcp__blender__get_scene_info, mcp__blender__get_object_info, mcp__blender__get_viewport_screenshot]
+        files: [.mcp.json]
+      - id: unreal_mcp
+        runtime: render-farm
+        type: tool
+        label: Unreal MCP
+        description: Remote Control API + editor Python on a UE 5.6 editor instance.
+        tools: [mcp__unreal__run_python, mcp__unreal__call_function, mcp__unreal__get_property, mcp__unreal__list_assets, mcp__unreal__take_screenshot]
+        files: [.mcp.json]
+      - id: imagegen_mcp
+        runtime: imagegen
+        type: tool
+        label: Image gen MCP
+        description: Concept and capsule art generation with per-image prompt and licence metadata.
+        tools: [mcp__imagegen__generate_image, mcp__imagegen__upscale_image]
+        files: [.mcp.json]
+      - id: figma_mcp
+        runtime: figma
+        type: tool
+        label: Figma MCP
+        description: HUD and menu frames, variables (colour, type, spacing) for UMG and the website.
+        tools: [mcp__figma__get_design_context, mcp__figma__get_variable_defs, mcp__figma__get_screenshot]
+        files: [.mcp.json]
+      - id: github_mcp
+        runtime: github
+        type: tool
+        label: GitHub MCP
+        description: Issues, pull requests, Actions runs. No merge tool is exposed.
+        files: [.mcp.json]
+      - id: analytics_mcp
+        runtime: analytics
+        type: tool
+        label: Analytics MCP
+        description: PostHog insights for wishlists, playtest funnels and community traffic.
+        tools: [mcp__analytics__query_insights, mcp__analytics__run_hogql]
+        files: [.mcp.json]
+      - id: web
+        runtime: anthropic
+        type: tool
+        label: Web search
+        description: Built-in WebSearch and WebFetch for research agents only.
+        tools: [WebSearch, WebFetch]
+        files: [.claude/settings.json]
+      - id: policy
+        runtime: studio-cluster
+        resources:
+          - { kind: config, label: "Model policy", path: "src/config.ts" }
+        type: decision
+        label: Model policy
+        description: ROLE_MODEL map, Opus escalation on final fix rounds, Sonnet fallback for the producer.
+        files: [src/config.ts]
+      - id: opus
+        runtime: anthropic
+        resources:
+          - { kind: dashboard, label: "Model spend", url: "https://grafana.forge.example.com/d/model-spend/model-spend" }
+        type: model
+        label: Opus 5.5
+        model: claude-opus-5-5
+        description: Creative director, producer, technical director, design critic, art director, code reviewer.
+      - id: sonnet
+        runtime: anthropic
+        type: model
+        label: Sonnet 5.5
+        model: claude-sonnet-5-5
+        description: Every production specialist - artists, programmers, researchers, marketing.
+      - id: haiku
+        runtime: anthropic
+        type: model
+        label: Haiku 5.5
+        model: claude-haiku-5-5
+        description: Pitch intake, playtest bots, bug triage, asset tags, standups, release notes.
+    edges:
+      - "policy -> opus: judge, direct"
+      - "policy -> sonnet: produce"
+      - "policy -> haiku: route, bots"
+      - "forge_mcp -> github_mcp [call]: approvals"
+      - "forge_mcp -> analytics_mcp [data]: telemetry"
+
+  # 14 ──────────────────────────────────────────────────────────────
+  - id: guardrails
+    title: Guardrails & Memory
+    description: >-
+      Hooks registered in-process and mirrored in .claude/settings.json. Most restrictive
+      decision wins. Memory is plain files injected at SessionStart and appended at Stop.
+    nodes:
+      - id: session_start
+        runtime: studio-cluster
+        type: hook
+        label: SessionStart
+        description: Injects the art bible excerpt, department patterns and recent decisions as additionalContext.
+        files: [src/hooks/context-loader.ts]
+      - id: pre_tool
+        runtime: studio-cluster
+        resources:
+          - { kind: log, label: "Guardrails log", path: "logs/guardrails.log" }
+        type: hook
+        label: PreToolUse
+        description: Matchers fan out to the guards in parallel; deny > ask > allow.
+        files: [src/hooks/index.ts]
+      - id: asset_budget
+        runtime: studio-cluster
+        type: guard
+        label: Asset budget
+        description: Denies Blender code or registry writes that exceed tris, texture or bone budgets.
+        files: [src/hooks/asset-budget.ts, config/asset-budgets.yaml]
+      - id: license
+        runtime: studio-cluster
+        type: guard
+        label: Licence / IP
+        description: Denies unlicensed, non-commercial or trademark-adjacent references, sounds and fonts.
+        files: [src/hooks/license-check.ts, src/tools/check-license.ts]
+      - id: secret_scan
+        runtime: studio-cluster
+        type: guard
+        label: Secret scan
+        description: Blocks credentials in prompts and file writes (Steam, PostHog, GitHub tokens).
+        files: [src/hooks/secret-scan.ts]
+      - id: permissions
+        runtime: studio-cluster
+        resources:
+          - { kind: config, label: "Permission rules", path: ".claude/settings.json" }
+        type: guard
+        label: Permission rules
+        description: settings.json allow / ask / deny. Asset deletion, default-branch publish and force-push denied.
+        files: [.claude/settings.json]
+      - id: stop
+        runtime: studio-cluster
+        resources:
+          - { kind: log, label: "Session log", path: "memory/session-log.md" }
+        type: hook
+        label: Stop / ledger
+        description: Appends the session log and per-department cost; blocks new work past the studio budget.
+        files: [src/hooks/cost-ledger.ts]
+      - id: claude_md
+        runtime: studio-cluster
+        type: memory
+        label: CLAUDE.md
+        description: Studio memory loaded into every session via settingSources ['project'].
+        files: [CLAUDE.md]
+      - id: art_bible
+        runtime: studio-cluster
+        type: memory
+        label: Art bible
+        description: Pillars, palette, shape language, do/don't sheet. The reference every art reviewer grades against.
+        files: [memory/art-bible.md, config/style-guide.json]
+      - id: patterns
+        runtime: studio-cluster
+        type: memory
+        label: patterns.md
+        description: DO/DON'T rules promoted from findings seen in 2+ review rounds, filtered by department.
+        files: [memory/patterns.md, src/memory/store.ts]
+      - id: session_log
+        runtime: studio-cluster
+        type: memory
+        label: Session log
+        description: Append-only run journal with costs, gates and checkpoint outcomes.
+        files: [memory/session-log.md, memory/decisions.md]
+      - id: registry
+        runtime: studio-cluster
+        resources:
+          - { kind: database, label: "Asset registry", url: "https://db.forge.example.com/asset-registry" }
+        type: memory
+        label: Asset registry
+        description: Every asset with path, tags, licence, budget class and review status.
+        files: [src/memory/asset-registry.ts]
+    edges:
+      - "session_start -> pre_tool"
+      - "pre_tool -> asset_budget [call]: blender code"
+      - "pre_tool -> license [call]: fetch, register"
+      - "pre_tool -> secret_scan [call]: Write|Edit"
+      - "asset_budget -> permissions: allow"
+      - "license -> permissions: allow"
+      - "secret_scan -> permissions: allow"
+      - "permissions -> stop: executed"
+      - "claude_md -> session_start [data]: static"
+      - "art_bible -> session_start [data]: excerpt"
+      - "patterns -> session_start [data]: by department"
+      - "stop -> session_log [data]: append"
+      - "session_log -> patterns [data]: promote"
+
+links:
+  # greenlight -> research -> greenlight
+  - "greenlight.fit -> research.questions [spawn]: quick scan"
+  - "research.report -> greenlight.greenlight [handoff]: one-pager"
+  - "greenlight.intake -> platform.haiku [call]"
+  - "greenlight.producer -> platform.policy [call]: role"
+  - "greenlight.producer -> guardrails.session_start: start"
+  # dispatch to departments (parallel)
+  - "greenlight.dispatch -> preprod.designer [spawn]: M0 design"
+  - "greenlight.dispatch -> art.brief [spawn]: art brief"
+  - "greenlight.dispatch -> world.seed [spawn]: worldgen"
+  - "greenlight.dispatch -> engineering.spec [spawn]: tech spec"
+  - "greenlight.dispatch -> marketing.marketing_lead [spawn]: campaign"
+  - "greenlight.tech_director -> engineering.spec [data]: architecture"
+  - "greenlight.creative_director -> guardrails.art_bible [data]: pillars"
+  # research feeds
+  - "research.references -> platform.web [call]: search"
+  - "research.market -> platform.analytics_mcp [call]: wishlists"
+  - "research.report -> preprod.designer [data]: comps"
+  - "research.report -> marketing.marketing_lead [data]: market report"
+  # pre-production -> art / engineering / world
+  - "preprod.gdd_locked -> art.brief [data]: GDD"
+  - "preprod.gdd_locked -> engineering.spec [data]: mechanics"
+  - "preprod.gdd_locked -> world.planner [data]: world rules"
+  - "preprod.design_pass -> greenlight.creative_director [handoff]: escalation"
+  - "preprod.storyboard -> engine.sequencer [data]: shot list"
+  # art -> assets -> engine
+  - "art.concept -> platform.imagegen_mcp [call]: generate"
+  - "art.concept -> guardrails.license [call]: licence"
+  - "art.signoff -> greenlight.producer [return]: style locked"
+  - "art.asset_list -> assets.queue [handoff]: tickets"
+  - "assets.modeler -> platform.blender_mcp [call]: bpy"
+  - "assets.modeler -> guardrails.asset_budget [call]: budget"
+  - "assets.tagger -> guardrails.registry [data]: register"
+  - "assets.tagger -> engine.integration_lead [handoff]: asset manifest"
+  - "assets.validate -> platform.forge_mcp [call]"
+  # engine / world / engineering collaboration
+  - "engine.integration_lead -> platform.unreal_mcp [call]: editor python"
+  - "engine.integrated -> review.router [handoff]: integrated assets"
+  - "world.builder -> platform.unreal_mcp [call]: build"
+  - "world.builder -> engine.integration_lead [data]: kit requests"
+  - "world.level -> qa.qa_lead [handoff]: seeded level"
+  - "engineering.ui_designer -> platform.figma_mcp [call]: frames"
+  - "engineering.gameplay -> engine.anim_bp [data]: gameplay tags"
+  - "engineering.pr -> review.router [handoff]: PRs"
+  - "engineering.gameplay -> preprod.designer [return]: design questions"
+  # review gates send work back
+  - "review.round_cap -> engineering.gameplay [return]: code fixes"
+  - "review.round_cap -> assets.modeler [return]: asset fixes"
+  - "review.round_cap -> engine.lighting [return]: lighting notes"
+  - "review.escalate -> greenlight.producer [handoff]: open findings"
+  - "review.passed -> qa.qa_lead [handoff]: candidate build"
+  - "review.code_reviewer -> platform.github_mcp [call]: PR diff"
+  # qa -> departments
+  - "qa.bot_explorer -> platform.forge_mcp [call]: run_playtest"
+  - "qa.blockers -> engineering.gameplay [return]: S1/S2 bugs"
+  - "qa.blockers -> world.planner [return]: stuck seeds"
+  - "qa.ux_playtest -> preprod.designer [return]: friction"
+  - "qa.blockers -> release.release_engineer [handoff]: QA pass"
+  - "qa.triage -> platform.github_mcp [call]: file issues"
+  - "qa.telemetry -> guardrails.session_log [data]: insights"
+  # release + marketing
+  - "release.package -> guardrails.pre_tool: gated"
+  - "release.beta -> marketing.publish_ok [handoff]: build live"
+  - "release.go_no_go -> greenlight.milestone_review [data]: outcome"
+  - "engine.sequencer -> marketing.trailer [data]: trailer shots"
+  - "marketing.on_brand -> greenlight.creative_director [call]: grade"
+  - "marketing.community -> qa.triage [data]: player reports"
+  - "marketing.community -> preprod.designer [data]: feedback"
+  - "marketing.launch -> guardrails.session_log [data]: launch metrics"
+  # harness + memory
+  - "greenlight.standup -> guardrails.session_log [data]: read"
+  - "guardrails.session_start -> greenlight.producer [data]: context"
+  - "guardrails.stop -> greenlight.standup [data]: events"
+  - "platform.forge_mcp -> guardrails.pre_tool: every call"

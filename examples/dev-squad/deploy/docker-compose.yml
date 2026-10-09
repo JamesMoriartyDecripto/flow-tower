@@ -1,0 +1,22 @@
+# Dev Squad on a single VPS: orchestrator + a small queue. Webhooks arrive from a serverless receiver.
+services:
+  squad:
+    image: ghcr.io/example-org/dev-squad:${SQUAD_TAG:-latest}
+    restart: unless-stopped
+    env_file: /srv/dev-squad/secrets.list      # ANTHROPIC_API_KEY, GITHUB_TOKEN, CONTEXT7_API_KEY, SEMGREP_APP_TOKEN
+    environment:
+      SQUAD_MAX_PARALLEL_ISSUES: "2"
+      SQUAD_QUEUE_URL: redis://queue:6379/0
+    volumes:
+      - worktrees:/tmp/dev-squad/worktrees
+      - ./logs:/app/logs
+    depends_on: [queue]
+  queue:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - queue:/data
+volumes:
+  worktrees:
+  queue:
