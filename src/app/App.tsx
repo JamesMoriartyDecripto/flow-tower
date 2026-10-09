@@ -7,6 +7,8 @@ import { Inspector } from './hud/Inspector';
 import { Library } from './hud/Library';
 import { LiveFeed } from './hud/LiveFeed';
 import { LiveChips } from './hud/LiveChips';
+import { Settings } from './hud/Settings';
+import { usePrefs, viewFor } from './settings';
 import { useLiveSync } from './live';
 import { Effects } from './scene/Effects';
 import { TowerScene } from './scene/Tower';
@@ -21,6 +23,9 @@ export function App() {
   const error = useStore((s) => s.error);
   const selected = useStore((s) => s.selected);
   const quality = useStore((s) => s.quality);
+  const themeRev = usePrefs((s) => s.themeRev);
+  const hints = usePrefs((s) => s.hints);
+  useDefaultView();
   const [showIssues, setShowIssues] = useState(false);
   const broken = tower && tower.layers.length === 0;
 
@@ -35,7 +40,7 @@ export function App() {
         onCreated={(state) => { if (import.meta.env.DEV) Object.assign(window, { __flowTower: state }); }}
       >
         <Suspense fallback={null}>
-          <TowerScene />
+          <TowerScene key={themeRev} />
           <FrameDriver />
           <Effects />
         </Suspense>
@@ -47,7 +52,7 @@ export function App() {
         <LayerNav />
         <Legend />
         <Controls />
-        {!selected && (
+        {!selected && hints && (
           <div className="hint">DRAG rotate · SHIFT+DRAG / RIGHT-DRAG pan · SCROLL zoom · SHIFT+SCROLL pan · CLICK inspect · DBL-CLICK enter · 1-9 layers · M map · ESC back</div>
         )}
         <Inspector />
@@ -55,6 +60,7 @@ export function App() {
         {(showIssues || broken) && <Issues onClose={() => setShowIssues(false)} />}
       </div>
       <FileViewer />
+      <Settings />
       <Library />
       {!tower && (
         <div className="boot">
@@ -68,6 +74,17 @@ export function App() {
   );
 }
 
+/** Applies the default view (tower / map / auto by complexity) whenever another tower comes on screen. */
+function useDefaultView() {
+  const tower = useTower();
+  useEffect(() => {
+    if (!tower) return;
+    const view = viewFor(usePrefs.getState().defaultView, tower.layers.length);
+    if (new URLSearchParams(location.search).has('view')) return;
+    useStore.getState().set({ view });
+  }, [tower?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 /** Esc walks back (file → selection → layer focus → parent tower), digits focus layers. */
 function useKeyboard() {
   const tower = useTower();
@@ -75,6 +92,14 @@ function useKeyboard() {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
       const s = useStore.getState();
+      if (usePrefs.getState().open) {
+        if (e.key === 'Escape') usePrefs.getState().set({ open: false });
+        return;
+      }
+      if (e.key === ',') {
+        usePrefs.getState().set({ open: true });
+        return;
+      }
       if (s.library) {
         if (e.key === 'Escape' && s.stack.length) s.showLibrary(false);
         return;

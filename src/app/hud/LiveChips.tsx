@@ -4,6 +4,7 @@ import { useLive } from '../live';
 import { useCurrentTowerLive } from '../liveHooks';
 import { findNode, useStore } from '../store';
 import { chipEls } from '../scene/chips';
+import { usePrefs } from '../settings';
 
 const MAX_CHIPS = 14;
 
@@ -15,6 +16,7 @@ export function LiveChips() {
   const { tower, states } = useCurrentTowerLive();
   const focused = useStore((s) => s.focusedLayer);
   const feedOpen = useLive((s) => s.feedOpen);
+  const chipsOn = usePrefs((s) => s.chips);
 
   const keys = useMemo(() => {
     if (!tower) return [];
@@ -26,7 +28,7 @@ export function LiveChips() {
       .map(([key, st]) => ({ key, error: st === 'error' }));
   }, [tower, states, focused]);
 
-  if (!tower || !feedOpen) return null;
+  if (!tower || !feedOpen || !chipsOn) return null;
   return (
     <div className="live-chips">
       {keys.map(({ key, error }) => (
