@@ -17,6 +17,8 @@ Usage
   flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [-m text]
                      [--user u] [--machine m] [--runtime r] [--session s] [--project-name p]
   flow-tower validate <file.tower.yaml | dir>... [--json]
+  flow-tower token add <id> | list | revoke <id> | pause <id> | resume <id>
+                                                        per-sender hub tokens stored under the user folder
   flow-tower guide                                      print the procedure to generate a tower from a codebase
   flow-tower install-skill [--target <t>] [--project]   install it as an Agent Skill for your coding agent
                                                         <t>: claude (default), codex, pi, hermes, cursor, agents
@@ -143,6 +145,13 @@ if (positionals[0] === 'validate') {
   const script = join(pkgRoot, 'src', 'cli', 'validate.ts');
   const args = [...positionals.slice(1), ...(process.argv.includes('--json') ? ['--json'] : [])];
   const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'token') {
+  // Same trick as validate: the token store is TypeScript, run it with Node's type stripping.
+  const script = join(pkgRoot, 'src', 'cli', 'token.ts');
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...positionals.slice(1)], { stdio: 'inherit' });
   process.exit(r.status ?? 1);
 }
 

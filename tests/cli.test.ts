@@ -95,6 +95,46 @@ describe('emit identity defaults (#82)', () => {
   });
 });
 
+describe('cli token (#83)', () => {
+  const home = mkdtempSync(join(tmpdir(), 'flow-tower-cli-tokens-'));
+  afterAll(() => rmSync(home, { recursive: true, force: true }));
+  // The CLI keeps its tokens under userHome(): FLOW_TOWER_HOME points that at a temp folder, never the repo.
+  const token = (...args: string[]) =>
+    spawnSync(process.execPath, [CLI, 'token', ...args], { encoding: 'utf8', env: { ...process.env, FLOW_TOWER_HOME: home } });
+
+  it('adds a token, prints it once with the hash warning, then never again', () => {
+    const added = token('add', 'alice');
+    expect(added.status).toBe(0);
+    const [secret] = added.stdout.split('\n');
+    expect(secret).toMatch(/^ft_alice_[A-Za-z0-9_-]{43}$/);
+    expect(added.stdout).toContain('shown once');
+    expect(added.stdout).toContain('sha256');
+
+    // list shows the sender and its dates, but never the secret or its hash.
+    const list = token('list');
+    expect(list.status).toBe(0);
+    expect(list.stdout).toContain('alice');
+    expect(list.stdout).toContain('active');
+    expect(list.stdout).not.toContain(secret);
+
+    // The file underneath holds a hash, not the plaintext.
+    expect(readFileSync(join(home, 'tokens.json'), 'utf8')).not.toContain(secret);
+  });
+
+  it('revokes and resumes, and refuses an unknown id with exit 1', () => {
+    token('add', 'bob');
+    expect(token('pause', 'bob').stdout).toContain('paused');
+    expect(token('list').stdout).toContain('paused');
+    expect(token('resume', 'bob').stdout).toContain('resumed');
+    expect(token('revoke', 'bob').stdout).toContain('revoked');
+    expect(token('list').stdout).toContain('revoked');
+
+    const unknown = token('revoke', 'ghost');
+    expect(unknown.status).toBe(1);
+    expect(unknown.stderr).toContain('unknown token');
+  });
+});
+
 describe('cli validate', () => {
   it('passes on the examples and reports JSON', () => {
     const r = run('validate', 'examples/dev-squad', '--json');
