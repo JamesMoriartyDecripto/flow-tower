@@ -37,6 +37,19 @@ describe('voice commands (#62)', () => {
     expect(say('spegni il microfono')).toEqual({ kind: 'mic-off' });
   });
 
+  it('keeps the phrases of the issue working, in English and with Italian variants', () => {
+    const tools = squad.layers.findIndex((l) => l.id === 'tools');
+    expect(say('open the dev squad project', true)).toEqual({ kind: 'tower', id: 'dev-squad/dev-squad.tower.yaml' });
+    expect(say('show layer one')).toEqual({ kind: 'layer', index: 0 });
+    expect(say('go to the triage node')).toEqual({ kind: 'node', tower: squad.id, key: 'intake.triage' });
+    expect(say('tools layer')).toEqual({ kind: 'layer', index: tools });
+    expect(say('aprimi la dev squad', true)).toEqual({ kind: 'tower', id: 'dev-squad/dev-squad.tower.yaml' });
+    expect(say('portami al terzo livello')).toEqual({ kind: 'layer', index: 2 });
+    expect(say('vediamo i livelli degli MCP')).toEqual({ kind: 'layer', index: tools });
+    // Whisper hears "matta" for "mappa": one wrong letter in a command word is forgiven.
+    expect(say('Vista matta.')).toEqual({ kind: 'view', view: 'map' });
+  });
+
   it('offers a choice when names tie, and admits when nothing matches', () => {
     const r = say('vai al nodo MCP');
     expect(r.kind).toBe('ambiguous');

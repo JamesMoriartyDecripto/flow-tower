@@ -168,6 +168,8 @@ Press **V** or the **MIC** button (top bar or library header) and say where to g
 
 **Setup.** Voice needs an [OpenRouter](https://openrouter.ai) API key. Put `OPENROUTER_API_KEY=...` in the `.env` file in your flow-tower folder (it is git-ignored), or export it in your shell, then restart Flow Tower. The key stays on the local server and never reaches the page. The online demo has no server, so it has no voice.
 
+**Language.** Settings → Voice → Spoken language: Auto (detected from each clip), Italiano or English. Picking yours helps short commands. Command words forgive a misheard letter, and "vista …" / "… view" means the map unless you say tower.
+
 | Italian | English | Does |
 |---|---|---|
 | "apri dev squad" | "open dev squad" | Open a project |

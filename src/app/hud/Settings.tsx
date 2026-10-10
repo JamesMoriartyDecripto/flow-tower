@@ -1,6 +1,7 @@
 import { createContext, useContext, useRef, type InputHTMLAttributes, type ReactNode } from 'react';
 import { useLive } from '../live';
-import { chooseView, effectiveScale, resetPrefs, usePrefs, type DefaultView, type Flow, type TextFont, type TitleFont, type Visibility } from '../settings';
+import { chooseView, effectiveScale, resetPrefs, usePrefs, type DefaultView, type Flow, type TextFont, type TitleFont, type Visibility, type VoiceLanguage } from '../settings';
+import { STATIC } from '../staticData';
 import type { FlowStyle } from '../scene/Particles';
 import { useStore, type Quality } from '../store';
 import { THEMES } from '../themes';
@@ -186,6 +187,15 @@ export function Settings() {
               <Toggle on={prefs.chips} onChange={(chips) => prefs.set({ chips })} />
             </Row>
           </section>
+
+          {!STATIC && (
+            <section>
+              <h3>Voice</h3>
+              <Row label="Spoken language" hint="Voice commands (V). Auto detects it from each clip; picking one helps short commands. Commands work in Italian and English.">
+                <Seg<VoiceLanguage> value={prefs.voiceLanguage} options={[['auto', 'Auto'], ['it', 'Italiano'], ['en', 'English']]} onChange={(voiceLanguage) => prefs.set({ voiceLanguage })} />
+              </Row>
+            </section>
+          )}
 
           <section>
             <h3>Interface</h3>

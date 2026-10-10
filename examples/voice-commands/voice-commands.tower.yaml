@@ -48,8 +48,7 @@ layers:
         runtime: browser
         description: "start() asks GET /api/voice whether the server has OPENROUTER_API_KEY ({ cloud, model }, never the key). No key: the caption says how to add it; no answer (server down): it says the local server is not reachable. Either way the mic is never opened; the error fades after 8 s or closes with ✕. The static demo has no MIC at all."
         decision: { output: binary, candidates: [yes, no], fail: closed }
-        files: [src/app/voice/voice.ts]
-      - id: mic
+        files: [src/app/voice/voice.ts      - id: mic
         type: process
         label: Mic + speech end
         runtime: browser
@@ -90,8 +89,8 @@ layers:
         type: process
         label: Upload clip
         runtime: browser
-        description: "transcribe(): base64 of the clip and its format (read from what the browser recorded) as JSON to POST /api/voice. No language hint: Whisper detects the language from the clip. Any error reply or network failure goes to the caption; an empty transcript does nothing."
-        files: [src/app/voice/voice.ts]
+        description: "transcribe(): base64 of the clip and its format (read from what the browser recorded) as JSON to POST /api/voice. The language set in Settings (Voice: Auto, Italiano, English), or none on Auto, where Whisper detects it from the clip. Any error reply or network failure goes to the caption; an empty transcript does nothing."
+        files: [src/app/voice/voice.ts, src/app/hud/Settings.tsx]
       - id: stt
         type: tool
         label: OpenRouter STT
@@ -240,7 +239,7 @@ layers:
         type: process
         label: Forward to STT
         runtime: server
-        description: "Bearer key, model, input_audio { data, format }, a language only if a caller sends one (the widget does not), and provider.zdr unless turned off. Answers { text, ms, cost }."
+        description: "Bearer key, model, input_audio { data, format }, the language when Settings picks one, and provider.zdr unless turned off. Answers { text, ms, cost }."
         credentials: service
         limits: { timeout: 30s }
         files: [src/server/voice.ts]

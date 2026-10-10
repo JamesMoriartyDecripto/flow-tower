@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { towerPath } from '../graph';
-import { chooseView } from '../settings';
+import { chooseView, usePrefs } from '../settings';
 import { findNode, useStore } from '../store';
 import { norm, parseCommand, type VoiceAction } from './commands';
 import { openMic, type Mic } from './mic';
@@ -156,12 +156,14 @@ function armIdle() {
 
 async function transcribe(audio: Blob, format: string, mine: number) {
   if (mine !== session) return;
+  const language = usePrefs.getState().voiceLanguage;
   try {
     const r = await fetch('/api/voice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', [VOICE_HEADER]: '1' },
-      // No language hint: the browser's UI language is not the speaker's; Whisper detects it from the clip.
-      body: JSON.stringify({ audio: await base64(audio), format }),
+      // The language set in Settings (Voice), or none: the browser's UI language is not the speaker's, and Whisper
+      // detects it from the clip. A hint helps short commands.
+      body: JSON.stringify({ audio: await base64(audio), format, ...(language !== 'auto' && { language }) }),
     });
     const out = (await r.json()) as { text?: string; error?: string };
     if (mine !== session) return; // stopped while transcribing: the command no longer applies

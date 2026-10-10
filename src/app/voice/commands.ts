@@ -29,7 +29,8 @@ const STOP = new Set(('il lo la i gli le l un una uno del dello della dei degli 
   'the a an of to on in at for and e ed please per favore mi ci fammi fai vedere puoi potresti vorrei ' +
   'me you can could would i like now just ok okay adesso ora').split(' '));
 // Command words are not part of a name: "vai al nodo del triage" names "triage".
-const VERBS = new Set(('apri aprire open mostra mostrami show vai andiamo passa passiamo spostati go goto select seleziona ' +
+const VERBS = new Set(('apri aprire aprimi apriamo open mostra mostrami show vai andiamo passa passiamo spostati portami vediamo vedere ' +
+  'entriamo torniamo voglio vorrei go goto take bring select seleziona livelli layers nodi nodes ' +
   'progetto project torre tower livello livelli layer level piano nodo node vista view voglio want see let s lets').split(' '));
 
 const ORDINALS: Record<string, number> = {
@@ -41,6 +42,9 @@ const ORDINALS: Record<string, number> = {
 };
 
 const has = (words: string[], ...any: string[]) => any.some((w) => words.includes(w));
+/** A command word, forgiving one wrong letter in longer words: Whisper hears "vista matta" for "vista mappa". */
+const like = (words: string[], ...keys: string[]) =>
+  keys.some((k) => words.some((w) => w === k || (k.length >= 5 && w.length >= 4 && distance(w, k) <= 1)));
 const phrase = (text: string, re: RegExp) => re.test(text);
 
 /** Edit distance, for misheard words ("triaje" → "triage"). */
@@ -119,18 +123,21 @@ export function parseCommand(transcript: string, { ws, tower, library }: VoiceCo
   const words = all.filter((w) => !STOP.has(w) && !VERBS.has(w));
 
   if (phrase(text, /\b(spegni|disattiva|ferma|stop|turn off)\b.*\b(microfono|ascolto|voce|mic|microphone|listening)\b|^stop listening$/)) return { kind: 'mic-off' };
-  const saysNode = has(all, 'nodo', 'node', 'agente', 'agent');
+  const saysNode = like(all, 'nodo', 'node', 'agente', 'agent');
   // A node named "Home" or "Map view" must stay reachable: the shortcuts below yield to an explicit node.
-  if (!saysNode && has(all, 'libreria', 'library', 'home', 'progetti', 'projects') && words.length <= 2) return { kind: 'library' };
+  // "progetti" stays exact: one letter from "progetto", which opens a project.
+  if (!saysNode && (like(all, 'libreria', 'library') || has(all, 'home', 'progetti', 'projects')) && words.length <= 2) return { kind: 'library' };
   if (phrase(text, /^(indietro|torna indietro|back|go back|esci|su)$/)) return { kind: 'back' };
   if (phrase(text, /\b(panoramica|overview|insieme|tutta la torre|whole tower|tutti i livelli|all layers)\b/)) return { kind: 'overview' };
-  if (!saysNode && has(all, 'mappa', 'map')) return { kind: 'view', view: 'map' };
+  if (!saysNode && like(all, 'mappa', 'map')) return { kind: 'view', view: 'map' };
   if (phrase(text, /\b(vista|view|modalita|mode) (torre|tower|3d)\b|\b(torre|tower) (view|3d)\b/)) return { kind: 'view', view: 'tower' };
+  // Only two views exist: "vista <anything else>" is the map, however Whisper spelled it ("vista matta").
+  if (phrase(text, /^(vista|view) \w+$|^\w+ view$/)) return { kind: 'view', view: 'map' };
   if (phrase(text, /^(entra|enter|dive in|apri la sotto ?torre|open the sub ?tower|dentro)$/)) return { kind: 'enter' };
   if (phrase(text, /^(chiudi|close|deseleziona|deselect|chiudi il pannello|close the panel)$/)) return { kind: 'close' };
 
-  const saysTower = has(all, 'progetto', 'project', 'torre', 'tower', 'apri', 'open');
-  const saysLayer = has(all, 'livello', 'layer', 'level', 'piano');
+  const saysTower = like(all, 'progetto', 'project', 'torre', 'tower', 'apri', 'open', 'aprimi');
+  const saysLayer = like(all, 'livello', 'livelli', 'layer', 'level', 'piano');
 
   if (tower && saysLayer && !saysNode) {
     const n = layerNumber(words, tower);

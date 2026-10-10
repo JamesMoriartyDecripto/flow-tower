@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Voice language in Settings (Auto, Italiano, English), sent to transcription as a hint; command words forgive one misheard letter and more Italian verbs are understood (aprimi, portami, vediamo, andiamo…).
 - Node list: with a layer focused and no node selected, a panel on the right lists the layer's nodes in flow order (type tag, name, sub-tower, live state). The names stay readable however small or far the cards are; a click selects the node and the inspector takes its place.
 - Voice commands (#62): press V or the MIC button (top bar, library header) and speak, in Italian or English, to open a project, focus a layer by number or name, select a node or agent, switch to map or tower view, go to the overview, go back, open the library or turn the microphone off. Clips end after ~0.6 s of silence and are transcribed by OpenRouter (`openai/whisper-large-v3-turbo`, override with `FLOW_TOWER_VOICE_MODEL`); commands are matched locally against the names on screen, tolerate misheard words, and offer a numbered choice when a name is ambiguous. A caption under the top bar shows what was heard and done. Listening stops after 2 minutes without a command. Needs `OPENROUTER_API_KEY`; not available in the static demo.
 - `voice-commands` example: the tower of the voice widget itself, with the speech engines it weighed (Web Speech on-device and cloud, Whisper in the browser, OpenRouter) and a planned LLM intent step.
