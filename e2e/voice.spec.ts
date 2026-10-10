@@ -112,7 +112,11 @@ test('voice: Esc silences the reply still being written, and the turn is journal
     if (path === '/api/voice/journal') { const b = r.request().postDataJSON(); if (b.entry) entries.push(b.entry); return r.fulfill({ json: { ok: true } }); }
     if (path === '/api/voice/memory') return r.fulfill({ json: { memory: { aliases: [], notes: [], pending: [], reviewedUpTo: 0 }, stats: {} } });
     // Speech is still being synthesized when Esc comes: Esc cancels it (no audio in this test).
-    if (path === '/api/voice/speak') { speak++; await held; return r.fulfill({ status: 204 }).catch(() => undefined); }
+    if (path === '/api/voice/speak') {
+      // The cached acknowledgement phrases (#70) are warmed too: only the reply's own sentences count.
+      if (!/^(Ecco|Riceve|Poi)/.test(r.request().postDataJSON().text)) return r.fulfill({ status: 204 });
+      speak++; await held; return r.fulfill({ status: 204 }).catch(() => undefined);
+    }
     if (path === '/api/voice/chat') {
       // Step 1: a first sentence (spoken at once) and a tool call. Step 2 is held until Esc was pressed.
       if (++chat === 1) {
