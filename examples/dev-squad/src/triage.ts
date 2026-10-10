@@ -56,9 +56,15 @@ export async function triage(issue: Issue, openIssueTitles: string[]): Promise<T
 function applyPolicy(t: Triage, issue: Issue): Triage {
   // Opting out wins over everything, including the upgrade below.
   if (issue.labels.includes('squad:skip')) return { ...t, route: 'reject', rationale: 'Opted out via label.' };
-  const sensitive = /auth|billing|payment|migration|permission|secret/i;
-  if (t.route === 'quickfix' && (t.complexity > 2 || sensitive.test(issue.title + t.areas.join(' ')))) {
+  // Personal data counts as sensitive too: a journal of what users say is as risky as billing code.
+  const sensitive = /auth|billing|payment|migration|permission|secret|privacy|personal|pii|gdpr/i;
+  const touchesSensitive = sensitive.test(`${issue.title} ${t.areas.join(' ')}`);
+  if (t.route === 'quickfix' && (t.complexity > 2 || touchesSensitive)) {
     return { ...t, route: 'full', risk: 'high', rationale: `${t.rationale} [policy: upgraded to full]` };
+  }
+  // On the full route too: a sensitive area always gets a human plan sign-off (risk high).
+  if (t.route === 'full' && touchesSensitive && t.risk !== 'high') {
+    return { ...t, risk: 'high', rationale: `${t.rationale} [policy: sensitive area, risk high]` };
   }
   return t;
 }

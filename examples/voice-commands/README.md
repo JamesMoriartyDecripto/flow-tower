@@ -1,17 +1,19 @@
 # Voice Commands
 
-The voice widget of Flow Tower itself (issues #62 and #63), mapped from its code. Press **V** (or **MIC**) and speak.
+The voice widget of Flow Tower itself (issues #62, #63 and #68), mapped from its code. Press **V** (or **MIC**) and speak.
 Navigation ("apri dev squad", "livello 2", "vai al nodo triage") moves the tower as if you had used the keyboard.
 Questions ("cosa c'è nel secondo livello?", "a cosa è collegato questo nodo?", "how many MCP servers are there?")
-go to a voice agent that reads the tower on screen, shows what it talks about and answers aloud.
+go to a voice agent that reads the tower on screen, shows what it talks about and answers aloud. With
+**Learn from my sessions** on, it keeps a text journal of the turns and proposes fixes you accept or reject.
 It is dogfooding: the tower sets `root: ../..`, so every node opens the real source file it describes.
 
 ```bash
 node bin/flow-tower.js examples/voice-commands     # or: npm run dev, then open "Voice Commands"
 ```
 
-To try the widget itself, put `OPENROUTER_API_KEY` in a git-ignored `.env` file in the flow-tower folder (or in the
-environment) and restart. Without a key the caption says so and the microphone is never opened.
+To try the widget itself, put `OPENROUTER_API_KEY` in `~/.config/flow-tower/.env` (or in the environment) and
+restart. A git-ignored `.env` in the flow-tower folder still works as a fallback. Without a key the caption says so and
+the microphone is never opened.
 
 ## Layers
 
@@ -20,22 +22,47 @@ environment) and restart. Without a key the caption says so and the microphone i
 | Capture | V key or MIC button, the key check (`GET /api/voice`), the microphone with end-of-speech detection, the compressed clip |
 | Transcription | The speech-engine decision: OpenRouter STT (wired), and the three engines weighed and not chosen, dashed |
 | Understanding | Echo filter and barge-in, the agent-or-parser route, the pending numbered pick, the local parser, "Ambiguous?" with its loop |
-| Conversation | The voice agent: screen and history per turn, the LLM step, the tool-calls decision with its 4-step cap, the 12 tower tools, the spoken reply and the TTS model |
+| Conversation | The voice agent: screen and history per turn, the LLM step, the tool-calls decision with its 4-step cap, the 13 tower tools, the spoken reply and the TTS model |
 | Actions | The same store calls as the keyboard, the caption, the 2-minute idle stop, mic off |
-| Server & Secrets | The key loaded at startup, `/api/voice` with `/chat` and `/speak`, the guards (JSON only, per-route body limits, 3 calls at once), the three forwards to OpenRouter with ZDR, error replies, the tests |
+| Learning | The opt-in journal: the toggle, each turn recorded, outcome marks (corrected, undone, interrupted), the journal file, the review that runs at mic off after 20 turns, the real-names filter, the voice memory, the Settings panel where you accept or reject, the SUGGESTIONS chip, and what accepted items change: aliases before the parser and the agent, notes in the agent's prompt |
+| Server & Secrets | The key loaded at startup (user folder first), `/api/voice` with `/chat`, `/speak` and the journal routes, the guards (JSON only, cross-site reads refused, per-route body limits, 6 requests at once), the three forwards to OpenRouter with ZDR, error replies, the tests |
 
 Every exit is drawn: no key, microphone denied, request refused (404, 405, 415, 403, 429, 413, 400, 503), OpenRouter
-error (502), a tie (numbered choice), an unknown command (on to the agent, or "Not understood" without one), an agent
-error and a failed spoken reply. Two exits end silently and are only described: a transcript that echoes the reply,
+error (502), a review already running (409), a tie (numbered choice), an unknown command (on to the agent, or "Not
+understood" without one), an agent error and a spoken reply the browser blocked. Two exits end silently and are only described: a transcript that echoes the reply,
 and a barge-in stop word.
 
 ## How a turn runs
 
 1. The clip is transcribed (`POST /api/voice`).
 2. A transcript that repeats the reply being played is dropped (echo). While a reply plays, a stop word stops it, fewer than 3 words are ignored, 3 or more stop it and count as a new request (barge-in).
-3. `wantsAgent()` routes: a question or a reference to the screen ("questo", "this", "file", "collegato", "il primo") goes to the agent; the rest to the parser, and what the parser does not understand goes on to the agent.
-4. The agent loop: the prompt, the last 12 messages, the screen state and the transcript to `POST /api/voice/chat`; tool calls run in the page and go back; at most 4 steps, the last with `tool_choice: none`.
-5. The answer is shown in the caption and, with Spoken replies on, spoken through `POST /api/voice/speak` and an `<audio>` element.
+3. Accepted aliases replace misheard names ("triaje" becomes "triage"). Then `wantsAgent()` routes: a question or a reference to the screen ("questo", "this", "file", "collegato", "il primo") goes to the agent; the rest to the parser, and what the parser does not understand goes on to the agent.
+4. The agent loop: the prompt, the accepted notes, the last 12 messages, the screen state and the transcript to `POST /api/voice/chat`, streamed; tool calls run in the page and go back; at most 4 steps, the last with `tool_choice: none`.
+5. The answer appears in the caption as it is written and, with Spoken replies on, each finished sentence is spoken through `POST /api/voice/speak` and an `<audio>` element while the next one is still being written.
+6. With the journal on, the turn is written to it (`POST /api/voice/journal`), and the next words can mark it corrected, undone or interrupted.
+
+## The Learning layer (#68)
+
+Off by default: Settings > Voice > **Learn from my sessions**.
+
+- **What is written.** One line of text per turn: what was heard, the route, what the app did, the outcome, the tower, and for agent turns the tools, time, cost and time to first audio. Never audio.
+- **Outcomes learned later.** "no", "not that", "sbagliato", "i meant" within 15 s mark the last turn *corrected*; "back", "indietro", "undo" alone within 6 s of an action mark it *undone*; a barge-in marks it *interrupted*.
+- **The review.** At mic off, after 20 or more new turns in this page (or with Review now), the server sends the latest 200 unreviewed entries to the same chat model (ZDR) with the real names of the towers they mention. It keeps at most 8 suggestions: aliases for misheard names, which must match a real name, and rules or reply-style notes for the agent. One review runs at a time; its cost shows in the stats.
+- **Nothing applies until you accept it.** Suggestions wait in Settings > Voice; a SUGGESTIONS chip in the caption points there. Accepted aliases rewrite the transcript before the parser and the agent; accepted notes join the agent's prompt as a system message. Each can be removed; **Forget everything** deletes the journal and the memory.
+
+### Where your data lives
+
+Outside the repository, in your user folder: `~/.config/flow-tower/` (or the folder in `FLOW_TOWER_HOME`).
+
+| File | What |
+|---|---|
+| `.env` | Your `OPENROUTER_API_KEY`, read first; the repo's git-ignored `.env` is the fallback |
+| `voice-journal.jsonl` | The journal, owner-only (0600) in an owner-only folder; past 5 MB the older half is dropped |
+| `voice-memory.json` | Accepted aliases and notes, waiting suggestions, how far the journal was reviewed (0600) |
+
+`/api/file` never serves anything from that folder, even when a tower's root contains it, and the Playwright tests set
+`FLOW_TOWER_HOME` to a temporary folder so they never touch yours. The tower's nodes point at the code, never at those
+files: a journal is personal and is not part of the example.
 
 ## The choices, and why
 
@@ -69,7 +96,7 @@ Single runs on this machine, not benchmarks:
 
 ## Voice-agent practice applied
 
-- **Latency budget.** Voice agents aim for ~0.8-1.2 s from the end of speech to the first audio. Here a question costs transcription, one to four model steps and a speech request, so it is well above that; navigation skips the model entirely, and the prompt asks for tools called together in one step. Nothing is streamed yet.
+- **Latency budget.** Voice agents aim for ~0.8-1.2 s from the end of speech to the first audio. Here a question costs transcription, one to four model steps and a speech request, so it is above that; navigation skips the model entirely, the prompt asks for tools called together in one step, and the reply is streamed: its first sentence is spoken while the rest is written. The journal records each agent turn's time to first audio, and Settings shows the average.
 - **Prompting for speech.** One or two short sentences of plain text, no markdown, lists or URLs; the user's language; names kept as written; long lists stay on screen.
 - **Barge-in.** The user can talk over the reply: 3 or more words or a stop word interrupt it, a cough or "ok" does not (Pipecat's minimum-words strategy).
 - **Echo.** The reply plays through an `<audio>` element, whose echo the browser's `echoCancellation` removes from the mic; a word-overlap filter drops what still gets through.
@@ -77,10 +104,11 @@ Single runs on this machine, not benchmarks:
 
 ## Operational fields used
 
-`trigger` (manual), `limits` (8 s per clip, 4 agent steps, 30 s per OpenRouter call, 3 calls at once, 120 s idle stop),
-`data` (the voice clip and the reply audio in memory only; transcript text to ZDR endpoints; the key as a secret),
-`credentials` (service key on the server), `evals` (the measured numbers above, marked illustrative), typed `decision`
-outputs and `status: planned` for the speech engines not chosen. There is no budget cap in the code, so no `budget`.
+`trigger` (manual), `limits` (8 s per clip, 4 agent steps, 30 s per OpenRouter call, 6 requests at once, 120 s idle
+stop, 200 entries per review), `data` (the voice clip and the reply audio in memory only; transcript text to ZDR
+endpoints; the journal and the memory as personal data; the key as a secret), `credentials` (service key on the
+server), `approval` (the user accepts or rejects each suggestion), `evals` (the measured numbers above, marked
+illustrative), typed `decision` outputs and `status: planned` for the speech engines not chosen. There is no budget cap in the code, so no `budget`.
 
 ## Sources
 

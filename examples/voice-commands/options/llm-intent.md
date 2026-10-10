@@ -4,7 +4,7 @@
 
 Questions and references to the screen ("cosa c'è nel secondo livello?", "a cosa è collegato questo nodo") skip the parser and go to the agent (`wantsAgent()` in `src/app/voice/agent.ts`); so does anything the parser does not understand.
 `converse()` sends the system prompt, the last 12 messages (words only), the screen state and the transcript to `POST /api/voice/chat`.
-The server makes one OpenRouter chat completion with the 12 tools of `src/app/voice/tools.ts`, `provider: { zdr: true, require_parameters: true }` and `max_tokens: 500`.
+The server makes one OpenRouter chat completion with the 13 tools of `src/app/voice/tools.ts`, `provider: { zdr: true, require_parameters: true }` and `max_tokens: 500`.
 Tool calls come back to the page and run there, on the tower on screen: read tools answer from the tower, act tools use the same store calls as the keyboard.
 The loop is capped at 4 steps; the last is sent with `tool_choice: none`, so it must answer.
 The answer, one or two sentences in the user's language, appears in the caption and is spoken ([tts.md](tts.md)).

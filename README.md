@@ -168,7 +168,7 @@ Links can open a tower, a layer or a node directly: `?tower=request` (the id, th
 
 Press **V** or the **MIC** button (top bar or library header) and say where to go. When you stop speaking (about 0.6 s of silence), the browser sends the clip to the local server, which has it transcribed; the command is then matched in the page. A caption under the top bar shows what it heard and what it did.
 
-**Setup.** Voice needs an [OpenRouter](https://openrouter.ai) API key. Put `OPENROUTER_API_KEY=...` in the `.env` file in your flow-tower folder (it is git-ignored), or export it in your shell, then restart Flow Tower. The key stays on the local server and never reaches the page. The online demo has no server, so it has no voice.
+**Setup.** Voice needs an [OpenRouter](https://openrouter.ai) API key. Put `OPENROUTER_API_KEY=...` in `~/.config/flow-tower/.env`, your own folder outside every repo (see [where your data lives](#where-your-data-lives)), or export it in your shell, then restart Flow Tower. The `.env` file in the flow-tower folder (git-ignored) still works as a fallback. The environment wins, then the user folder, then the repo folder. The key stays on the local server and never reaches the page. The online demo has no server, so it has no voice.
 
 **Language.** Settings → Voice → Spoken language: Auto (detected from each clip), Italiano or English. Picking yours helps short commands. Command words forgive a misheard letter, and "vista …" / "… view" means the map unless you say tower.
 
@@ -209,7 +209,30 @@ The agent reads the tower on screen through a dozen tools (layers, nodes, connec
 - **Models** (OpenRouter, zero data retention): `google/gemini-3.1-flash-lite` for the answers and `elevenlabs/eleven-flash-v2.5` for the voice, one voice for every language. Change them with `FLOW_TOWER_AGENT_MODEL`, `FLOW_TOWER_TTS_MODEL` and `FLOW_TOWER_TTS_VOICE`.
 - **Settings → Voice → Spoken replies**: off shows the answers in the caption only.
 - **Cost and speed** (measured once on dev-squad, illustrative): an answer took 1.1–2.9 s and about $0.001, and speaking it about 0.7 s more. Plain commands never reach the agent and stay instant.
-- **Privacy:** the transcript, what is on screen and the tool results go to the model; no audio is kept, nothing is logged.
+- **Privacy:** the transcript, what is on screen and the tool results go to the model; no audio is kept. Nothing is logged unless you turn on the journal below.
+
+### Learning from your sessions
+
+Voice can learn from how you use it. It is off by default: turn it on in **Settings → Voice → Learn from my sessions**.
+
+- **What is recorded.** Text only, never audio. One line per turn: what was heard, what happened, and how it went.
+- **Outcome marks.** The outcome is corrected from what you do next: "no, the other one" marks the last turn *corrected*, "back" right after marks it *undone*, speaking over a reply marks it *interrupted*.
+- **Review.** After 20 new turns, a review runs when the microphone turns off. It costs about a cent with the default model. **Review now** runs one at any time.
+- **Suggestions.** The review proposes aliases for names the recognizer mishears ("triaje" → triage), rules for the agent, and reply style. They change nothing until you accept them in Settings. The caption shows how many are waiting.
+- **Forget everything** deletes the journal and all it learned. Each accepted item can also be removed alone.
+- **Privacy.** Reviews send journal text to OpenRouter with zero data retention: transcripts and replies, which can quote tower names and file text.
+
+### Where your data lives
+
+Your own things stay in your user folder, never in a repo: `~/.config/flow-tower` (or `FLOW_TOWER_HOME`).
+
+| File | Holds |
+|---|---|
+| `.env` | `OPENROUTER_API_KEY` |
+| `voice-journal.jsonl` | the voice journal (only when learning is on) |
+| `voice-memory.json` | accepted aliases and notes, waiting suggestions |
+
+Flow Tower creates the folder, the journal and the memory readable by you only. `/api/file` never serves this folder. The `.env` file in the flow-tower folder is only a git-ignored fallback for the key. Nothing personal is written in the repo.
 
 ## Performance
 
@@ -230,14 +253,14 @@ Flow Tower is meant to run next to busy agents, so it is frugal by design:
 
 ## Privacy and updates
 
-Flow Tower runs on your machine: the server listens on `127.0.0.1` only, reads only inside your projects, and live events never leave your computer. It calls out in two cases only. **Voice commands** send speech clips to OpenRouter, only when you use them and have set a key ([details](#voice-commands)). The **update check** runs once a day: it asks GitHub for the latest release (`api.github.com/repos/JamesMoriartyDecripto/flow-tower/releases/latest`, nothing about you or your towers is sent). When a newer version exists, the terminal prints how to update and the top bar shows a small `↑ vX.Y.Z` link to the release notes. Turn it off with `--no-update-check` or `FLOW_TOWER_NO_UPDATE_CHECK=1`; it is always off in CI and in the online demo.
+Flow Tower runs on your machine: the server listens on `127.0.0.1` only, reads only inside your projects, and live events never leave your computer. It calls out in two cases only. **Voice** sends speech clips, questions and, if you turn learning on, journal reviews to OpenRouter with zero data retention, only when you use it and have set a key ([details](#voice-commands)). Your key, journal and voice memory stay in `~/.config/flow-tower` ([where your data lives](#where-your-data-lives)). The **update check** runs once a day: it asks GitHub for the latest release (`api.github.com/repos/JamesMoriartyDecripto/flow-tower/releases/latest`, nothing about you or your towers is sent). When a newer version exists, the terminal prints how to update and the top bar shows a small `↑ vX.Y.Z` link to the release notes. Turn it off with `--no-update-check` or `FLOW_TOWER_NO_UPDATE_CHECK=1`; it is always off in CI and in the online demo.
 
 ## Project layout
 
 ```
 bin/            CLI: serve, init, validate, emit, guide, install-skill
 src/core/       schema (zod), YAML loader, validation, live-event adapters and matching
-src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /api/events, /api/voice (speech, agent, spoken replies), live reload
+src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /api/events, /api/voice (speech, agent, spoken replies, journal), live reload
 src/app/        React + three.js app: scene/ (3D) and hud/ (overlay UI)
 src/cli/        TypeScript CLI commands (validate)
 schema/         generated JSON Schema

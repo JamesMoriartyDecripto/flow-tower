@@ -150,7 +150,7 @@ export function voiceHandler(cfg: VoiceConfig) {
     if (req.method !== 'POST') return json(res, 405, { error: 'use GET or POST' });
     if (!isJson(req)) return json(res, 415, { error: 'content-type must be application/json' });
     if (crossSite(req) || req.headers[VOICE_HEADER] !== '1') return json(res, 403, { error: 'only the Flow Tower page can use /api/voice' });
-    if (!cfg.key && !route.keyless) return json(res, 503, { error: 'Voice commands need OPENROUTER_API_KEY: put it in flow-tower/.env (git-ignored) or the environment, then restart.' });
+    if (!cfg.key && !route.keyless) return json(res, 503, { error: 'Voice commands need OPENROUTER_API_KEY: put it in ~/.config/flow-tower/.env (or, as a fallback, the git-ignored .env in the flow-tower folder) or the environment, then restart.' });
 
     // Reserved before the body is read, so parallel requests cannot each buffer a body first.
     if (inFlight >= MAX_IN_FLIGHT) return json(res, 429, { error: 'too many voice requests at once' });

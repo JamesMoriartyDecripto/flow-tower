@@ -1,14 +1,13 @@
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { env } from 'node:process';
 import { randomUUID } from 'node:crypto';
+import { userHome } from './home.ts';
 
 /**
  * The voice journal and the voice memory (#68). Opt-in, text only, never audio, on this machine:
  * ~/.config/flow-tower (or FLOW_TOWER_HOME), outside every repo and outside what /api/file can serve.
  * - voice-journal.jsonl: one line per turn (what was heard, what happened, how it went), plus later
- *   "mark" lines when a turn turns out corrected, undone or interrupted.
+ *   "mark" lines when a turn turns out corrected, undone or interrupted, and "review" lines (entries, cost).
  * - voice-memory.json: what the user accepted from reviews (aliases for misheard names, rules, reply
  *   style), the suggestions waiting for a decision, and how far the journal was reviewed.
  */
@@ -26,7 +25,11 @@ export interface JournalEntry {
   tools?: string[];
   ms?: number;
   cost?: number;
+  /** Agent turns: from the end of the transcript to the first spoken sentence. */
+  firstAudioMs?: number;
 }
+/** One review of the journal: how many entries it read and what it cost. */
+export interface ReviewRecord { review: number; entries: number; cost?: number }
 
 export interface Alias { heard: string; means: string }
 export interface Note { kind: 'rule' | 'style'; text: string }
@@ -37,7 +40,7 @@ const MAX_JOURNAL_BYTES = 5_000_000;
 const empty = (): Memory => ({ aliases: [], notes: [], pending: [], reviewedUpTo: 0 });
 const clean = (s: unknown, max = 300) => String(s ?? '').replace(/[\r\n]+/g, ' ').trim().slice(0, max);
 
-export function voiceStore(dir = env.FLOW_TOWER_HOME ?? join(homedir(), '.config', 'flow-tower')) {
+export function voiceStore(dir = userHome()) {
   const journal = join(dir, 'voice-journal.jsonl');
   const memoryFile = join(dir, 'voice-memory.json');
   const ensure = () => { if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 }); };
@@ -54,6 +57,22 @@ export function voiceStore(dir = env.FLOW_TOWER_HOME ?? join(homedir(), '.config
     write(journal, `${lines.slice(Math.floor(lines.length / 2)).join('\n')}\n`);
   };
 
+  const parse = () => {
+    const entries = new Map<number, JournalEntry>();
+    const reviews: ReviewRecord[] = [];
+    if (!existsSync(journal)) return { entries: [], reviews };
+    for (const line of readFileSync(journal, 'utf8').split('\n')) {
+      if (!line) continue;
+      try {
+        const v = JSON.parse(line) as JournalEntry | ReviewRecord | { mark: number; outcome: Outcome };
+        if ('mark' in v) { const e = entries.get(v.mark); if (e) e.outcome = v.outcome; } else if ('review' in v) reviews.push(v); else entries.set(v.ts, v);
+      } catch { /* a torn line from a crash: skip it */ }
+    }
+    return { entries: [...entries.values()].sort((a, b) => a.ts - b.ts), reviews };
+  };
+  let forgotten = 0;
+  const average = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, x) => a + x, 0) / xs.length) : undefined);
+
   return {
     dir,
     append(raw: Record<string, unknown>) {
@@ -66,6 +85,7 @@ export function voiceStore(dir = env.FLOW_TOWER_HOME ?? join(homedir(), '.config
         ...(Array.isArray(raw.tools) ? { tools: raw.tools.slice(0, 12).map((t) => clean(t, 40)) } : {}),
         ...(Number.isFinite(raw.ms) ? { ms: Math.round(Number(raw.ms)) } : {}),
         ...(Number.isFinite(raw.cost) ? { cost: Number(raw.cost) } : {}),
+        ...(Number.isFinite(raw.firstAudioMs) && Number(raw.firstAudioMs) >= 0 ? { firstAudioMs: Math.round(Number(raw.firstAudioMs)) } : {}),
       };
       if (!entry.heard) return undefined;
       write(journal, `${JSON.stringify(entry)}\n`, true);
@@ -77,18 +97,12 @@ export function voiceStore(dir = env.FLOW_TOWER_HOME ?? join(homedir(), '.config
       if (!OUTCOMES.includes(outcome) || !Number.isFinite(ts)) return;
       write(journal, `${JSON.stringify({ mark: ts, outcome })}\n`, true);
     },
-    read(since = 0): JournalEntry[] {
-      if (!existsSync(journal)) return [];
-      const entries = new Map<number, JournalEntry>();
-      for (const line of readFileSync(journal, 'utf8').split('\n')) {
-        if (!line) continue;
-        try {
-          const v = JSON.parse(line) as JournalEntry | { mark: number; outcome: Outcome };
-          if ('mark' in v) { const e = entries.get(v.mark); if (e) e.outcome = v.outcome; } else entries.set(v.ts, v);
-        } catch { /* a torn line from a crash: skip it */ }
-      }
-      return [...entries.values()].filter((e) => e.ts > since).sort((a, b) => a.ts - b.ts);
+    /** A review that ran: its cost counts in the stats, like the turns'. */
+    reviewed(entries: number, cost?: number) {
+      write(journal, `${JSON.stringify({ review: Date.now(), entries, ...(Number.isFinite(cost) && { cost }) })}\n`, true);
     },
+    read(since = 0): JournalEntry[] { return parse().entries.filter((e) => e.ts > since); },
+    reviews(since = 0): ReviewRecord[] { return parse().reviews.filter((r) => r.review > since); },
     memory(): Memory {
       try { return { ...empty(), ...JSON.parse(readFileSync(memoryFile, 'utf8')) as Partial<Memory> }; } catch { return empty(); }
     },
@@ -113,17 +127,24 @@ export function voiceStore(dir = env.FLOW_TOWER_HOME ?? join(homedir(), '.config
       const turns = this.read(since);
       const share = (o: Outcome) => (turns.length ? Math.round((100 * turns.filter((t) => t.outcome === o).length) / turns.length) : 0);
       const agent = turns.filter((t) => t.route === 'agent' && t.ms);
+      const reviews = this.reviews(since);
       return {
         days, turns: turns.length, agentTurns: agent.length,
         notUnderstood: share('not_understood'), corrected: share('corrected'), undone: share('undone'), interrupted: share('interrupted'),
-        agentMs: agent.length ? Math.round(agent.reduce((a, t) => a + (t.ms ?? 0), 0) / agent.length) : undefined,
+        agentMs: average(agent.map((t) => t.ms ?? 0)),
+        firstAudioMs: average(turns.flatMap((t) => (t.firstAudioMs === undefined ? [] : [t.firstAudioMs]))),
         cost: Number(turns.reduce((a, t) => a + (t.cost ?? 0), 0).toFixed(5)),
+        reviews: reviews.length,
+        reviewCost: Number(reviews.reduce((a, r) => a + (r.cost ?? 0), 0).toFixed(5)),
       };
     },
     forget() {
+      forgotten++;
       rmSync(journal, { force: true });
       rmSync(memoryFile, { force: true });
     },
+    /** Bumped by forget(): a review that outlives it must not write anything back. */
+    forgets: () => forgotten,
     newId: () => randomUUID().slice(0, 8),
   };
 }

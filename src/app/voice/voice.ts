@@ -4,7 +4,7 @@ import { chooseView, usePrefs } from '../settings';
 import { findNode, useStore } from '../store';
 import { norm, parseCommand, type VoiceAction } from './commands';
 import { openMic, type Mic } from './mic';
-import { converse, forget, isEcho, isSpeaking, newReply, say, stopSpeaking, wantsAgent } from './agent';
+import { converse, firstAudio, forget, isEcho, isSpeaking, newReply, onPlaybackBlocked, say, stopSpeaking, wantsAgent } from './agent';
 import { clearAgentSearch } from './tools';
 import { applyAliases, interrupted, judgeLast, loadMemory, notesForAgent, record, reviewIfDue } from './journal';
 
@@ -91,6 +91,9 @@ useStore.subscribe((s, prev) => {
   if (useVoice.getState().options) useVoice.setState({ options: undefined });
 });
 
+// Autoplay blocked: the reply is still on the caption, and the user learns why it is silent.
+onPlaybackBlocked((message) => flash(message));
+
 const status = (): VoiceStatus => (speaking ? 'hearing' : pending ? 'thinking' : 'listening');
 
 /** An error while listening: shown, then faded, without stopping the mic. */
@@ -121,7 +124,7 @@ async function start() {
   // What the user accepted from past reviews: aliases for the parser, notes for the agent.
   void loadMemory().then((m) => m && set({ suggestions: m.memory.pending.length || undefined }));
   if (!config) return fail('Voice commands need the local flow-tower server, which this page cannot reach.');
-  if (!config.cloud) return fail('Voice commands need OPENROUTER_API_KEY in flow-tower/.env (git-ignored), then a restart.');
+  if (!config.cloud) return fail('Voice commands need OPENROUTER_API_KEY in ~/.config/flow-tower/.env (or the git-ignored .env in the flow-tower folder), then a restart.');
   try {
     const opened = await openMic({
       speaking: (on) => {
@@ -198,7 +201,6 @@ async function transcribe(audio: Blob, format: string, mine: number) {
       interrupted();
       if (stopWord) return;
     }
-    judgeLast(text); // "no, the other one" or "back" right after: the last turn was wrong
     await handle(text, mine);
   } catch (err) {
     if (mine === session) flash((err as Error).message);
@@ -211,6 +213,8 @@ async function transcribe(audio: Blob, format: string, mine: number) {
  * those name nothing, and only an understood command or an answer keeps the mic alive.
  */
 async function handle(heard: string, mine: number) {
+  const heardAt = performance.now();
+  judgeLast(heard); // "no, the other one" or "back" right after: the last turn was wrong
   // Aliases the user accepted from past reviews ("triaje" → "triage") apply before anything reads it.
   const text = applyAliases(heard);
   const s = useStore.getState();
@@ -248,8 +252,14 @@ async function handle(heard: string, mine: number) {
   }
   if (mine !== session) return;
   useVoice.setState({ did: turn.reply });
-  record({ heard, route: 'agent', did: turn.reply, outcome: 'done', tower, tools: turn.tools, ms: turn.ms, cost: turn.cost });
   armIdle();
+  // Time to first audio: what the user waits in silence. The last sentence may still be on its way to
+  // the speech model, so the entry waits for it (the next transcript waits in the queue anyway).
+  const audioAt = voice ? await firstAudio() : undefined;
+  record({
+    heard, route: 'agent', did: turn.reply, outcome: 'done', tower, tools: turn.tools, ms: turn.ms, cost: turn.cost,
+    ...(audioAt !== undefined && { firstAudioMs: Math.round(audioAt - heardAt) }),
+  });
 }
 
 const base64 = (blob: Blob) => new Promise<string>((resolve, reject) => {

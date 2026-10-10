@@ -1,5 +1,5 @@
 import type { ServerResponse } from 'node:http';
-import type { JournalEntry, Outcome, Suggestion, VoiceStore } from './voice-memory.ts';
+import type { JournalEntry, Memory, Outcome, Suggestion, VoiceStore } from './voice-memory.ts';
 
 /**
  * Routes of the voice journal and its review (#68), mounted under /api/voice by voiceHandler:
@@ -53,6 +53,8 @@ const SCHEMA = {
 
 export function learningRoutes(d: LearningDeps) {
   const { store, send } = d;
+  /** One review at a time: a second click or a second tab would pay for the same entries twice. */
+  let reviewing = false;
   return {
     '/journal': {
       limit: 16_000, keyless: true,
@@ -77,48 +79,68 @@ export function learningRoutes(d: LearningDeps) {
     '/review': {
       limit: 1_000, keyless: false,
       async run(res: ServerResponse) {
-        const m = store.memory();
-        const entries = store.read(m.reviewedUpTo).slice(-REVIEW_MAX);
-        if (!entries.length) return send(res, 200, { pending: m.pending, reviewed: 0 });
-        const names = d.names([...new Set(entries.map((e) => e.tower).filter(Boolean) as string[])]);
-        const r = await d.complete({
-          messages: [
-            { role: 'system', content: PROMPT },
-            { role: 'user', content: JSON.stringify({
-              names, accepted: { aliases: m.aliases, notes: m.notes }, waiting: m.pending.map(({ id: _, ...p }) => p),
-              journal: entries.map(compact),
-            }) },
-          ],
-          response_format: { type: 'json_schema', json_schema: SCHEMA },
-          max_tokens: 1200,
-        });
-        if (!r.ok) return send(res, 502, { error: `review failed: OpenRouter ${r.status}` });
-        const out = (await r.json()) as { choices?: { message?: { content?: string } }[] };
-        let raw: { suggestions?: RawSuggestion[] } = {};
-        try { raw = JSON.parse(out.choices?.[0]?.message?.content ?? '{}'); } catch { /* an empty review */ }
-        m.pending.push(...accept(raw.suggestions ?? [], names, m, store.newId));
-        m.reviewedUpTo = entries[entries.length - 1].ts;
-        store.save(m);
-        send(res, 200, { pending: m.pending, reviewed: entries.length });
+        if (reviewing) return send(res, 409, { error: 'a review is already running' });
+        reviewing = true;
+        try { await review(res); } finally { reviewing = false; }
       },
     },
   };
+
+  async function review(res: ServerResponse) {
+    const m = store.memory();
+    const entries = store.read(m.reviewedUpTo).slice(-REVIEW_MAX);
+    if (!entries.length) return send(res, 200, { pending: m.pending, reviewed: 0 });
+    const names = d.names([...new Set(entries.map((e) => e.tower).filter(Boolean) as string[])]);
+    const forgets = store.forgets();
+    const r = await d.complete({
+      messages: [
+        { role: 'system', content: PROMPT },
+        { role: 'user', content: JSON.stringify({
+          names, accepted: { aliases: m.aliases, notes: m.notes }, waiting: m.pending.map(({ id: _, ...p }) => p),
+          journal: entries.map(compact),
+        }) },
+      ],
+      response_format: { type: 'json_schema', json_schema: SCHEMA },
+      max_tokens: 1200,
+      usage: { include: true }, // the review's cost, for the stats
+    });
+    if (!r.ok) return send(res, 502, { error: `review failed: OpenRouter ${r.status}` });
+    const out = (await r.json()) as { choices?: { message?: { content?: string } }[]; usage?: { cost?: number } };
+    // "Forget everything" while the model was thinking: nothing from the old journal comes back.
+    if (store.forgets() !== forgets) return send(res, 200, { pending: [], reviewed: 0 });
+    store.reviewed(entries.length, out.usage?.cost);
+    let raw: { suggestions?: unknown } | null = null;
+    try { raw = JSON.parse(out.choices?.[0]?.message?.content ?? ''); } catch { /* checked below */ }
+    // An unreadable reply reviewed nothing: the same entries go to the next review.
+    if (!Array.isArray(raw?.suggestions)) return send(res, 502, { error: 'review failed: the model sent no readable suggestions' });
+    // Decisions made while the model was thinking are in the file now: build on it, not on `m`.
+    const now = store.memory();
+    now.pending.push(...accept(raw.suggestions as RawSuggestion[], names, [now, m], store.newId));
+    now.reviewedUpTo = Math.max(now.reviewedUpTo, entries[entries.length - 1].ts);
+    store.save(now);
+    send(res, 200, { pending: now.pending, reviewed: entries.length });
+  }
 }
 
 interface RawSuggestion { kind: string; heard: string; means: string; text: string; why: string; evidence: number }
 
 const compact = (e: JournalEntry) => ({ heard: e.heard, route: e.route, did: e.did.slice(0, 160), outcome: e.outcome, ...(e.language && { language: e.language }) });
 
-/** Keeps only suggestions that can work: an alias points at a real name and is new; notes are new. */
-function accept(list: RawSuggestion[], names: string[], m: ReturnType<VoiceStore['memory']>, id: () => string): Suggestion[] {
+/**
+ * Keeps only suggestions that can work: an alias points at a real name and is new; notes are new. New
+ * against every memory given: the current one, and the one the review started from (what was waiting
+ * then and was rejected meanwhile must not come back).
+ */
+function accept(list: RawSuggestion[], names: string[], known: Memory[], id: () => string): Suggestion[] {
   const real = new Map(names.map((n) => [n.toLowerCase(), n]));
-  const seen = new Set([
+  const seen = new Set(known.flatMap((m) => [
     ...m.aliases.map((a) => `alias:${a.heard.toLowerCase()}`),
     ...m.notes.map((n) => `note:${n.text.toLowerCase()}`),
     ...m.pending.map((p) => (p.kind === 'alias' ? `alias:${p.heard.toLowerCase()}` : `note:${p.text.toLowerCase()}`)),
-  ]);
+  ]));
   const out: Suggestion[] = [];
   for (const s of list.slice(0, 8)) {
+    if (!s || typeof s !== 'object') continue;
     const why = String(s.why ?? '').slice(0, 300);
     const evidence = Math.max(0, Math.round(Number(s.evidence) || 0));
     if (s.kind === 'alias') {

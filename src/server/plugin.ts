@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env, loadEnvFile } from 'node:process';
@@ -11,6 +10,7 @@ import { createEventHub, EVENTS_EVENT } from './events.ts';
 import { checkForUpdate, updateCheckDisabled, type UpdateInfo } from './update.ts';
 import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
+import { userHome } from './home.ts';
 import { crossSite } from './guard.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -20,7 +20,7 @@ const UPDATE_COMMAND = existsSync(join(PKG_ROOT, '.git')) ? `cd ${PKG_ROOT} && g
 // The user's own things (OPENROUTER_API_KEY, voice journal and memory) live in their config folder, not in
 // the repo: ~/.config/flow-tower (or FLOW_TOWER_HOME). The git-ignored .env in the flow-tower folder is still
 // read as a fallback. Real environment variables win, then the user folder, then the repo folder.
-export const USER_HOME = env.FLOW_TOWER_HOME ?? join(homedir(), '.config', 'flow-tower');
+export const USER_HOME = userHome();
 for (const file of [join(USER_HOME, '.env'), join(PKG_ROOT, '.env')]) if (existsSync(file)) loadEnvFile(file);
 
 export const UPDATE_EVENT = 'flow-tower:update';

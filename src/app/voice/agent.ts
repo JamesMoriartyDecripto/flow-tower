@@ -164,6 +164,18 @@ let playing: HTMLAudioElement | undefined;
 let abort = new AbortController();
 let spokenText = '';
 let speakingUntil = 0;
+/** Told once when the browser refuses to play (autoplay blocked), until a sentence plays again. */
+let blocked: ((message: string) => void) | undefined;
+let blockedTold = false;
+export const onPlaybackBlocked = (cb: (message: string) => void) => { blocked = cb; };
+
+const deferred = () => {
+  let resolve!: (at?: number) => void;
+  const promise = new Promise<number | undefined>((r) => { resolve = r; });
+  return { promise, resolve };
+};
+/** When the current reply's first sentence started playing (performance.now()); undefined if none did. */
+let firstPlay = deferred();
 
 export function say(sentence: string) {
   spokenText += ` ${sentence}`;
@@ -179,7 +191,7 @@ let draining = false;
 async function playNext(signal: AbortSignal) {
   if (signal.aborted) return; // stopSpeaking() already freed the player: the queue now belongs to the next reply
   const next = queue.shift();
-  if (!next) { draining = false; playing = undefined; speakingUntil = performance.now() + 800; return; }
+  if (!next) { draining = false; playing = undefined; speakingUntil = performance.now() + 800; firstPlay.resolve(undefined); return; }
   const blob = await next;
   if (signal.aborted) return;
   if (!blob) return playNext(signal); // a failed sentence is skipped, not fatal
@@ -187,7 +199,28 @@ async function playNext(signal: AbortSignal) {
   const audio = new Audio(url);
   playing = audio;
   audio.onended = () => { URL.revokeObjectURL(url); void playNext(signal); };
-  await audio.play().catch(() => playNext(signal));
+  try {
+    await audio.play();
+    firstPlay.resolve(performance.now()); // only the first call counts: a promise settles once
+    blockedTold = false;
+  } catch (err) {
+    URL.revokeObjectURL(url);
+    if (signal.aborted) return; // paused by a barge-in before it started
+    if ((err as Error).name === 'NotAllowedError' && !blockedTold) {
+      blockedTold = true;
+      blocked?.('The browser blocked the spoken reply: click the page or allow sound for this site.');
+    }
+    return playNext(signal); // the next sentence may still play
+  }
+}
+
+/**
+ * Resolves with when the current reply started to be heard (performance.now()), or undefined when it
+ * was not spoken (voice off, stopped, blocked). Capped, so a turn never waits on it for long.
+ */
+export function firstAudio(maxMs = 10_000): Promise<number | undefined> {
+  if (!draining) firstPlay.resolve(undefined); // nothing queued: already played, or nothing to play
+  return Promise.race([firstPlay.promise, new Promise<undefined>((r) => setTimeout(r, maxMs))]);
 }
 
 /** A new reply: forget what the last one said (the echo filter compares with this reply only). */
@@ -197,6 +230,8 @@ export function newReply() {
 }
 
 export function stopSpeaking() {
+  firstPlay.resolve(undefined);
+  firstPlay = deferred();
   abort.abort();
   abort = new AbortController();
   queue = [];

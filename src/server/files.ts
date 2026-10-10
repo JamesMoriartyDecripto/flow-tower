@@ -1,6 +1,7 @@
 import { open, readFile, realpath, stat } from 'node:fs/promises';
-import { basename, extname } from 'node:path';
+import { basename, extname, resolve } from 'node:path';
 import { safeJoin } from '../core/loader.ts';
+import { userHome } from './home.ts';
 
 const MAX_FILE_BYTES = 1_000_000;
 /**
@@ -9,8 +10,8 @@ const MAX_FILE_BYTES = 1_000_000;
  * plus common key and credential files.
  */
 const SECRET = /^(\.env(\..*)?|\.envrc|\.dev\.vars|\.git-credentials|\.npmrc|\.netrc|\.pgpass|\.pypirc|credentials(\.json)?|id_(rsa|dsa|ecdsa|ed25519)(\.pub)?|.*\.(pem|key|crt|p12|pfx|jks|keystore|tfvars))$/i;
-/** Folders that only hold credentials: nothing inside them is served. */
-const SECRET_DIRS = new Set(['.git', '.ssh', '.aws', '.gnupg', '.docker', '.kube', '.azure', '.config/gcloud']);
+/** Folders that only hold credentials (or the user's own voice journal and key, #68): nothing inside them is served. */
+const SECRET_DIRS = new Set(['.git', '.ssh', '.aws', '.gnupg', '.docker', '.kube', '.azure', '.config/gcloud', '.config/flow-tower']);
 export const isSecretPath = (path: string) => {
   const parts = path.split(/[\\/]/).map((p) => p.toLowerCase());
   return SECRET.test(basename(path)) || parts.some((p, i) => SECRET_DIRS.has(p) || SECRET_DIRS.has(`${p}/${parts[i + 1]}`));
@@ -30,7 +31,7 @@ export async function readTowerFile(root: string, path: string): Promise<FileRes
     const candidate = safeJoin(realRoot, path);
     const abs = candidate && await realpath(candidate);
     if (!abs || !safeJoin(realRoot, abs)) return { status: 403, body: { error: 'path outside tower root' } };
-    if (isSecretPath(path) || isSecretPath(abs)) return { status: 403, body: { error: 'secret files are never served' } };
+    if (isSecretPath(path) || isSecretPath(abs) || await inUserHome(abs)) return { status: 403, body: { error: 'secret files are never served' } };
     const { size } = await stat(abs);
     const isLog = /\.(log|jsonl|out|txt)$/.test(abs);
     if (size > MAX_FILE_BYTES && !isLog) return { status: 413, body: { error: 'file too large to preview' } };
@@ -41,6 +42,13 @@ export async function readTowerFile(root: string, path: string): Promise<FileRes
   } catch {
     return { status: 404, body: { error: `file not found: ${path}` } };
   }
+}
+
+/** The user's folder (FLOW_TOWER_HOME may be anywhere, even inside a tower root), as given and resolved. */
+async function inUserHome(abs: string) {
+  const home = resolve(userHome());
+  const real = await realpath(home).catch(() => home);
+  return !!(safeJoin(home, abs) || safeJoin(real, abs));
 }
 
 async function readTail(path: string, bytes: number): Promise<string> {

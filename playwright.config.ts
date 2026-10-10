@@ -1,4 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { env } from 'node:process';
 
 /**
@@ -28,7 +30,8 @@ export default defineConfig({
     command: 'node bin/flow-tower.js examples --no-open --port 5317',
     url: 'http://127.0.0.1:5317/api/workspace',
     reuseExistingServer: !CI,
-    env: { FLOW_TOWER_NO_UPDATE_CHECK: '1' }, // tests stay offline
+    // Tests stay offline, and never read or write the user's folder (~/.config/flow-tower: key, voice journal).
+    env: { FLOW_TOWER_NO_UPDATE_CHECK: '1', FLOW_TOWER_HOME: join(tmpdir(), 'flow-tower-e2e-home') },
     timeout: 60_000,
   },
 });

@@ -11,7 +11,10 @@ export interface Alias { heard: string; means: string }
 export interface Note { kind: 'rule' | 'style'; text: string }
 export type Suggestion = { id: string; why: string; evidence: number } & ({ kind: 'alias'; heard: string; means: string } | { kind: 'rule' | 'style'; text: string });
 export interface Memory { aliases: Alias[]; notes: Note[]; pending: Suggestion[]; reviewedUpTo: number }
-export interface Stats { days: number; turns: number; agentTurns: number; notUnderstood: number; corrected: number; undone: number; interrupted: number; agentMs?: number; cost: number }
+export interface Stats {
+  days: number; turns: number; agentTurns: number; notUnderstood: number; corrected: number; undone: number; interrupted: number;
+  agentMs?: number; firstAudioMs?: number; cost: number; reviews: number; reviewCost: number;
+}
 
 const HEADER = { 'Content-Type': 'application/json', 'x-flow-tower-voice': '1' };
 const on = () => usePrefs.getState().voiceJournal;
@@ -49,7 +52,7 @@ let last: { ts: number; at: number; acted: boolean } | undefined;
 let sinceReview = 0;
 const CORRECTION = /^(no\b|non\b|not that|wrong|sbagliato|ho detto|i said|intendevo|i meant)/i;
 
-export function record(entry: { heard: string; route: 'parser' | 'agent' | 'pick'; did: string; outcome: Outcome; tower?: string; tools?: string[]; ms?: number; cost?: number }) {
+export function record(entry: { heard: string; route: 'parser' | 'agent' | 'pick'; did: string; outcome: Outcome; tower?: string; tools?: string[]; ms?: number; cost?: number; firstAudioMs?: number }) {
   const ts = Date.now();
   last = { ts, at: performance.now(), acted: entry.outcome === 'done' };
   if (!on()) return;

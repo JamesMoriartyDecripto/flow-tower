@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- `dev-squad` example, from a field run on #68: personal data counts as a sensitive area (a full route in a sensitive area gets risk high, so its plan needs a human sign-off), and the maintainer can approve a plan with changes (`/squad approve <notes>`); parts moved out of scope become follow-up issues through the new `file_followup` tool.
+- Voice journal and self-improvement (#68). Opt-in, text only, never audio: each turn records what was heard, what happened and how it went. Outcomes are corrected from what you do next ("no, …" = corrected, "back" right after = undone, speaking over a reply = interrupted). After 20 new turns a review runs when the microphone turns off (about a cent with the default model): an LLM proposes aliases for misheard names (only real names on screen), rules for the agent and reply style. Nothing applies until accepted. Accepted aliases rewrite the transcript before the parser and the agent; accepted notes join the agent's prompt. The caption shows how many suggestions wait.
+- Settings → Voice → Learning: the journal toggle, last-7-days stats (turns, not understood, corrected, interrupted, answer time, cost), suggestions to accept or reject, what was learned (removable one by one), **Review now** and **Forget everything**.
+- E2E of the voice path (`e2e/voice.spec.ts`): transcripts go in through `__flowTower.hear()`, OpenRouter is answered by route interception (no cost), and the journal goes to a temporary `FLOW_TOWER_HOME`.
+
+### Security
+- The user's own data lives outside the repo, in `~/.config/flow-tower` (or `FLOW_TOWER_HOME`): the key file, the voice journal and the voice memory, created readable by the owner only. `OPENROUTER_API_KEY` is read from the environment, then the user folder, then the git-ignored `.env` in the flow-tower folder (a fallback). Nothing personal is written in the repo.
+- `/api/file` never serves the user folder, even when a tower root contains it.
+- GETs under `/api/voice` refuse cross-site requests: the journal stats and the voice memory are personal.
+
 ## [0.4.0] - 2026-10-10
 
 ### Added

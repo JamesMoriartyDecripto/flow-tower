@@ -1,15 +1,17 @@
 # yaml-language-server: $schema=../../schema/flow-tower.schema.json
 version: 1
 name: Voice Commands
-tags: [voice, speech-to-text, text-to-speech, voice-agent, openrouter, whisper, browser, dogfooding]
+tags: [voice, speech-to-text, text-to-speech, voice-agent, openrouter, whisper, browser, learning, dogfooding]
 description: >-
-  The voice widget of Flow Tower itself (issues #62 and #63), mapped from its code. Press V (or MIC) and
+  The voice widget of Flow Tower itself (issues #62, #63 and #68), mapped from its code. Press V (or MIC) and
   speak in Italian or English. Navigation ("apri dev squad", "livello 2", "vai al nodo triage") goes to a
   local parser (no LLM) and runs the same store calls as the keyboard. Questions and references to the
   screen ("cosa c'è nel secondo livello?", "a cosa è collegato questo nodo") go to a conversational agent:
-  an OpenRouter chat model with 12 tools that run in the page on the tower on screen, whose short reply is
-  shown in the caption and spoken. Audio goes to the local flow-tower server and on to OpenRouter with zero
-  data retention. The speech engines that were weighed are drawn as planned alternatives; the model choices
+  an OpenRouter chat model with 13 tools that run in the page on the tower on screen, whose short reply is
+  streamed into the caption and spoken sentence by sentence. Audio goes to the local flow-tower server and on
+  to OpenRouter with zero data retention. With "Learn from my sessions" on, each turn is written to a text
+  journal in the user's folder; a review proposes aliases for misheard names and notes for the agent, which
+  apply only once the user accepts them. The speech engines that were weighed are drawn as planned alternatives; the model choices
   for the agent and the voice open their own pages. Paths are relative to the repository root, so every
   reference opens the real file.
 root: ../..
@@ -38,7 +40,8 @@ agents:
       converse() in agent.ts. The system prompt (PROMPT, in the same file) asks for one or two short spoken
       sentences of plain text in the user's language, tools instead of guesses, tools called together in one
       step, showing what it talks about (focus_layer, select_node), and saying an action is done only after
-      its tool succeeded. Every LLM step goes through POST /api/voice/chat; tool calls run in the page.
+      its tool succeeded. Notes the user accepted from journal reviews (#68) are added as a second system
+      message. Every LLM step goes through POST /api/voice/chat, streamed; tool calls run in the page.
       Illustrative numbers, measured on the dev-squad tower (commit 86234b9): 1.1-2.9 s and about $0.001 per
       turn. No budget cap in the code.
     model: google/gemini-3.1-flash-lite
@@ -46,7 +49,7 @@ agents:
     runtime: browser
     files: [src/app/voice/agent.ts, src/app/voice/tools.ts, examples/voice-commands/options/llm-intent.md]
     limits: { max_iterations: 4, description: "At most 4 LLM steps per turn; the last one is sent with answer: true, so the server asks for tool_choice none and the model must answer with what it has." }
-    data: { retention: none, description: "Transcript text, the screen state and tool results go to OpenRouter (ZDR endpoints); no audio. The last 12 messages, text only, stay in page memory until reload." }
+    data: { retention: none, description: "Transcript text, the screen state and tool results go to OpenRouter (ZDR endpoints); no audio. The last 12 messages, text only, stay in page memory until the mic turns off." }
     evals:
       - { name: turn time, value: 2.9, unit: s, higher_is_better: false, illustrative: true, description: "1.1-2.9 s per agent turn on dev-squad, measured once (slowest shown)." }
       - { name: cost per turn, value: 0.001, unit: USD, higher_is_better: false, illustrative: true, description: "About $0.001 per turn on dev-squad, measured once." }
@@ -68,7 +71,7 @@ layers:
         type: decision
         label: Key configured?
         runtime: browser
-        description: "start() asks GET /api/voice what the server has ({ cloud, model, agent, tts }, never the key) and keeps whether an agent model is set. No key: the caption says how to add it; no answer (server down): it says the local server is not reachable. Either way the mic is never opened; the error fades after 8 s or closes with ✕. The static demo has no MIC at all."
+        description: "start() asks GET /api/voice what the server has ({ cloud, model, agent, tts, journal }, never the key) and keeps whether an agent model is set; it also loads the voice memory (GET /api/voice/memory) for the aliases, the agent notes and the suggestions chip. No key: the caption says how to add it; no answer (server down): it says the local server is not reachable. Either way the mic is never opened; the error fades after 8 s or closes with ✕. The static demo has no MIC at all."
         decision: { output: binary, candidates: [yes, no], fail: closed }
         files: [src/app/voice/voice.ts]
       - id: mic
@@ -172,7 +175,7 @@ layers:
         type: decision
         label: Agent or parser?
         runtime: browser
-        description: "handle() with wantsAgent(): a question mark, a question word at the start (cosa, quanti, what, which...), a request (dimmi, spiega, explain, tell...) or a reference to the screen (questo, this, file, collegato, connected, il primo, the first, aprilo...) goes to the agent. Everything else goes to the parser first. Without an agent model on the server, everything goes to the parser."
+        description: "handle() first applies the aliases the user accepted (Learning), then wantsAgent(): a question mark, a question word at the start (cosa, quanti, what, which...), a request (dimmi, spiega, explain, tell...) or a reference to the screen (questo, this, file, collegato, connected, il primo, the first, aprilo...) goes to the agent. Everything else goes to the parser first. Without an agent model on the server, everything goes to the parser."
         decision: { output: binary, candidates: [agent, parser] }
         files: [src/app/voice/agent.ts, src/app/voice/voice.ts, tests/voice-agent.test.ts]
       - id: pick
@@ -215,13 +218,13 @@ layers:
         type: memory
         label: Screen + history
         runtime: browser
-        description: "Each turn sends the system prompt, the last 12 messages (user words and replies only, no tool traffic), a fresh \"Screen now\" from the screen tool (library or tower, focused layer, selected node, open file, view) and the transcript. forget() would clear the history, but nothing calls it: it lasts until the page reloads, across mic sessions and projects."
+        description: "Each turn sends the system prompt, the notes the user accepted from journal reviews (a second system message, only when there are some), the last 12 messages (user words and replies only, no tool traffic), a fresh \"Screen now\" from the screen tool (library or tower, focused layer, selected node, open file, view) and the transcript. stop() calls forget(): one listening session is one conversation."
         data: { retention: none, description: "Page memory only." }
         files: [src/app/voice/agent.ts]
       - id: agent
         agent: guide
         label: Voice guide
-        description: "converse(): posts { messages, tools, answer, stream: true } to /api/voice/chat and reads the reply as it streams (each tool step and the text appear in the caption), appends the assistant message, runs every tool call it carries and loops; a message without tool calls is the reply (… if empty). An error reply or network failure throws and the caption shows it. Not cancelled by a mic stop."
+        description: "converse(): posts { messages, tools, answer, stream: true } to /api/voice/chat and reads the reply as it streams (each tool step and the text appear in the caption), appends the assistant message, runs every tool call it carries and loops; a message without tool calls is the reply (… if empty). An error reply or network failure throws and the caption shows it. A mic stop aborts the turn: the request is cancelled and no further tool runs."
       - id: llm
         type: model
         label: Gemini Flash-Lite
@@ -254,7 +257,7 @@ layers:
         type: process
         label: Spoken reply
         runtime: browser
-        description: "Only with Settings > Spoken replies on (default on); off, the answer is only in the caption. say(): every finished sentence of the streamed reply is POSTed to /api/voice/speak at once (in parallel) and played in order, one <audio> element at a time (the browser's echo cancellation covers media elements), so the voice starts on the first sentence. stopSpeaking() pauses it and drops the queue: barge-in, mic off, or a new reply."
+        description: "Only with Settings > Spoken replies on (default on); off, the answer is only in the caption. say(): every finished sentence of the streamed reply is POSTed to /api/voice/speak at once (in parallel) and played in order, one <audio> element at a time (the browser's echo cancellation covers media elements), so the voice starts on the first sentence. A sentence whose speech request fails is skipped; if the browser refuses to play (NotAllowedError, autoplay blocked), the caption says so once and the next sentence is still tried. stopSpeaking() pauses it and drops the queue: barge-in, mic off, or a new reply."
         data: { retention: none, description: "The reply audio lives in a blob URL until playback ends." }
         files: [src/app/voice/agent.ts, src/app/voice/voice.ts, src/app/hud/Settings.tsx, src/app/settings.ts]
       - id: tts
@@ -308,7 +311,7 @@ layers:
         type: output
         label: Mic off
         runtime: browser
-        description: "stop(): stops a spoken reply, closes the recorder, stops the tracks, closes the AudioContext and drops a pending choice."
+        description: "stop(): aborts the agent turn in flight, stops a spoken reply, clears the conversation history and the agent's search, asks for a journal review when one is due (Learning), closes the recorder, stops the tracks, closes the AudioContext and drops a pending choice."
         files: [src/app/voice/voice.ts, src/app/voice/mic.ts]
     edges:
       - "execute -> store [call]: same as keys"
@@ -318,30 +321,146 @@ layers:
       - "idle -> off: 2 min silence"
 
   # 6 ───────────────────────────────────────────────────────────────
+  - id: learning
+    title: Learning
+    description: "The voice journal (#68): opt-in, text only, in the user's folder outside every repo. A review by the chat model proposes aliases for misheard names and notes for the agent; nothing applies until the user accepts it."
+    nodes:
+      - id: toggle
+        type: guard
+        label: Learn toggle
+        runtime: browser
+        description: "Settings > Voice > Learn from my sessions, off by default and saved with the browser's preferences. It gates the journal lines, the outcome marks and the automatic review; Review now is disabled while it is off. Aliases and notes already accepted keep applying either way: they are loaded at every start."
+        files: [src/app/hud/VoiceLearning.tsx, src/app/settings.ts, src/app/voice/journal.ts]
+      - id: record
+        type: process
+        label: Record turn
+        runtime: browser
+        description: "record(), called by handle(): parser and pick turns (what it did, done or not_understood; a parser miss that goes on to the agent is recorded once, as the agent turn), agent turns (reply, tools used, ms, cost, and the time from the transcript to the first spoken sentence, so an agent turn is written once its voice starts, waiting at most 10 s) and agent errors, with the tower on screen. The raw transcript is kept, before aliases, so a review sees what the recognizer wrote. POST /api/voice/journal, fire and forget; each turn also counts towards the next review."
+        files: [src/app/voice/journal.ts, src/app/voice/voice.ts]
+      - id: marks
+        type: process
+        label: Outcome marks
+        runtime: browser
+        description: "judgeLast(), at the start of handle(), reads the next transcript: a correction (\"no\", \"not that\", \"wrong\", \"sbagliato\", \"ho detto\", \"i meant\"...) within 15 s marks the last turn corrected; \"back\", \"indietro\", \"annulla\" or \"undo\" alone within 6 s of an action marks it undone. A barge-in marks it interrupted. Sent as POST /api/voice/journal { mark: { ts, outcome } }; one mark per turn."
+        files: [src/app/voice/journal.ts, src/app/voice/voice.ts]
+      - id: journal
+        type: memory
+        label: Voice journal
+        runtime: server
+        description: >-
+          voice-journal.jsonl in the user's folder (~/.config/flow-tower, or FLOW_TOWER_HOME), outside every repo.
+          One JSON line per turn: time, what was heard, route (parser, agent, pick), what happened, outcome, tower,
+          tools, ms, cost, time to first audio; text flattened to one line and cut. Marks are appended and applied
+          when read, and each review adds a line with how many entries it read and its cost; a torn line is skipped. Folder 0700, file 0600 (owner only). Past 5 MB the older half is dropped. Never audio.
+        data: { sensitivity: pii, description: "What the user said and what the app did, as text. Kept on this machine until rotation or Forget everything; the review sends the new part to OpenRouter (ZDR endpoints)." }
+        files: [src/server/voice-memory.ts, tests/voice-journal.test.ts]
+      - id: due
+        type: decision
+        label: Review due?
+        runtime: browser
+        description: "reviewIfDue() at mic off: the journal is on and 20 or more turns were recorded since the last review in this page (the count starts again on reload). Otherwise nothing is sent. Review now in Settings asks at once."
+        decision: { output: binary, candidates: [review, wait], threshold: 20 }
+        files: [src/app/voice/journal.ts, src/app/voice/voice.ts]
+      - id: review
+        type: process
+        label: Journal review
+        runtime: server
+        description: >-
+          POST /api/voice/review (needs the key). Takes the journal entries after the last review, the latest 200,
+          and the real names of the towers they mention (every project, plus the layers, nodes and agents of those
+          towers, up to 600). One chat completion with the review prompt: names, accepted aliases and notes, waiting
+          suggestions and the compact entries (heard, route, what happened, outcome). Strict json_schema reply,
+          max_tokens 1200, usage included, same chat model with ZDR and require_parameters. One review at a time
+          (409). The review and its cost are logged; if Forget everything ran meanwhile, nothing is written back.
+          The memory is read again after the call, so decisions made meanwhile stay, and the reviewed mark moves to
+          the last entry read. An OpenRouter error or an unreadable reply answers 502, and the same entries go to
+          the next review.
+        limits: { description: "At most 200 new entries per review: with more, the older unreviewed ones are skipped for good." }
+        data: { sensitivity: pii, description: "The new journal text goes to OpenRouter (ZDR endpoints)." }
+        files: [src/server/voice-learning.ts, src/server/plugin.ts]
+      - id: filter
+        type: guard
+        label: Real names only
+        runtime: server
+        description: "accept(): at most 8 suggestions. An alias must point at one of the real names (any case; the name's own spelling is kept), differ from what was heard and be new; a rule or style note must be non-empty and new. Duplicates of accepted or waiting ones are dropped; text is cut at 300 characters."
+        files: [src/server/voice-learning.ts, tests/voice-journal.test.ts]
+      - id: memory
+        type: memory
+        label: Voice memory
+        runtime: server
+        description: "voice-memory.json next to the journal, 0600: the accepted aliases and notes (rule, style), the suggestions waiting for a decision with why and evidence, and how far the journal was reviewed. Missing or unreadable reads as empty."
+        data: { sensitivity: pii, description: "Derived from the user's own words; deleted by Forget everything." }
+        files: [src/server/voice-memory.ts]
+      - id: panel
+        type: human
+        label: Settings panel
+        runtime: browser
+        description: "VoiceLearning in Settings > Voice: the toggle; the last 7 days (turns, % not understood, corrected, interrupted, average agent time, time to first audio, cost, reviews and their cost); Suggestions with Accept and Reject; Learned, with ✕ to remove one; Review now; Forget everything, after a confirm, deletes the journal and the memory. Each decision is a POST /api/voice/memory."
+        approval: { by: the user, actions: [approve, reject], via: Settings > Voice, on_timeout: wait, description: "Nothing a review proposes applies until it is accepted here." }
+        files: [src/app/hud/VoiceLearning.tsx, src/app/hud/Settings.tsx]
+      - id: chip
+        type: output
+        label: Suggestions chip
+        runtime: browser
+        description: "N SUGGESTIONS in the caption while suggestions wait; a click opens Settings. The count comes from the memory at every start and from an automatic review; any decision in the panel clears it. The caption hides while the mic is off, so a review run at mic off shows at the next start."
+        files: [src/app/hud/Voice.tsx, src/app/voice/voice.ts]
+      - id: aliases
+        type: process
+        label: Apply aliases
+        runtime: browser
+        description: "applyAliases() at the start of handle(), before the route: each accepted alias replaces the misheard phrase with the real name, whole words only, any case, Unicode letters (\"triaje\" becomes \"triage\"). The parser and the agent both get the corrected text; the journal keeps the raw one."
+        files: [src/app/voice/journal.ts, src/app/voice/voice.ts, tests/voice-journal.test.ts]
+      - id: notes
+        type: memory
+        label: Agent notes
+        runtime: browser
+        description: "notesForAgent(): the accepted rules and reply-style notes as a list, passed to converse() and sent as a system message (\"Learned from this user's past sessions (they approved these)\"). Page memory, loaded at every start."
+        files: [src/app/voice/journal.ts, src/app/voice/agent.ts]
+    edges:
+      - "toggle -> record: on"
+      - "toggle -> marks: on"
+      - "record -> journal [data]: one line"
+      - "marks -> journal [data]: mark line"
+      - "toggle -> due: on"
+      - "due -> review [call]: 20+ turns"
+      - "journal -> review [data]: latest 200"
+      - "review -> filter: max 8"
+      - "filter -> memory [data]: pending"
+      - "memory -> panel [data]: suggestions"
+      - "journal -> panel [data]: 7-day stats"
+      - "panel -> memory [data]: accept, reject"
+      - "panel -> review [call]: Review now"
+      - "panel -> journal: forget all"
+      - "memory -> chip [data]: pending count"
+      - "chip -> panel: opens Settings"
+      - "memory -> aliases [data]: each start"
+      - "memory -> notes [data]: each start"
+
+  # 7 ───────────────────────────────────────────────────────────────
   - id: server
     title: Server & Secrets
-    description: The only part with the key. Three JSON-only routes on the local server, with every rejection a JSON error the caption shows.
+    description: "The only part with the key. JSON-only routes on the local server: three that spend the key (speech to text, an agent step, speech) and three for the voice journal, with every rejection a JSON error the caption shows."
     nodes:
       - id: secrets
         type: memory
         label: Local secrets
         runtime: server
-        description: "At startup plugin.ts loads the git-ignored dotenv file in the flow-tower folder, if present; real environment variables win. /api/file never serves it (src/server/files.ts refuses secret files even inside a tower root, which matters for this tower: its root is the flow-tower folder). FLOW_TOWER_VOICE_MODEL, FLOW_TOWER_AGENT_MODEL, FLOW_TOWER_TTS_MODEL and FLOW_TOWER_TTS_VOICE pick other models; FLOW_TOWER_VOICE_ZDR=0 turns the ZDR filter off."
+        description: "At startup plugin.ts loads the dotenv file in the user's folder (~/.config/flow-tower, or FLOW_TOWER_HOME) first, then the git-ignored one in the flow-tower folder as a fallback. Real environment variables win, then the user's folder, then the repo folder. /api/file never serves either: src/server/files.ts refuses secret file names, and anything inside the user's folder, even inside a tower root (this tower's root is the flow-tower folder). FLOW_TOWER_VOICE_MODEL, FLOW_TOWER_AGENT_MODEL, FLOW_TOWER_TTS_MODEL and FLOW_TOWER_TTS_VOICE pick other models; FLOW_TOWER_VOICE_ZDR=0 turns the ZDR filter off."
         data: { sensitivity: secret }
         meta: { secret: OPENROUTER_API_KEY, stt: FLOW_TOWER_VOICE_MODEL, agent: FLOW_TOWER_AGENT_MODEL, tts: "FLOW_TOWER_TTS_MODEL, FLOW_TOWER_TTS_VOICE", zdr: FLOW_TOWER_VOICE_ZDR }
-        files: [src/server/plugin.ts, src/server/files.ts, .gitignore]
+        files: [src/server/plugin.ts, src/server/home.ts, src/server/files.ts, .gitignore]
       - id: route
         type: process
         label: /api/voice
         runtime: server
-        description: "Mounted by the flowTower plugin, with sub-routes / (speech to text), /chat (one agent step) and /speak (the spoken reply). GET answers { cloud, model, agent, tts }: whether a key is set, never the key, and the models in use. POST runs the route."
+        description: "Mounted by the flowTower plugin, with sub-routes / (speech to text), /chat (one agent step) and /speak (the spoken reply), plus /journal, /memory and /review (the voice journal, voice-learning.ts). GET / answers { cloud, model, agent, tts, journal }: whether a key is set, never the key, the models in use and whether the journal routes are mounted; GET /journal and /memory answer the stats and the memory. POST runs the route."
         files: [src/server/plugin.ts, src/server/voice.ts]
       - id: guards
         type: guard
         label: Request guards
         runtime: server
-        description: "In order: a known route (404), GET or POST only (405), an exact application/json content type (415), no cross-site Origin or Sec-Fetch-Site and the page's own x-flow-tower-voice header, so other web pages cannot spend the key (403), a key (503), at most 3 upstream calls at once across the three routes (429), a body under the route's limit (413) and valid JSON (400)."
-        limits: { concurrency: 3, description: "Body limits per route: 2 MB for a clip (~10 KB per command), 256 KB for a conversation, 8 KB for a reply." }
+        description: "In order: a known route (404); a GET from another site is refused (403), since the memory and stats are personal; GET or POST only (405); an exact application/json content type (415); no cross-site Origin or Sec-Fetch-Site and the page's own x-flow-tower-voice header, so other web pages cannot spend the key or write the journal (403); a key, except for the keyless /journal and /memory (503); at most 6 requests at once across all routes, journal ones included (429); a body under the route's limit (413) and valid JSON (400)."
+        limits: { concurrency: 6, description: "6 at once: a turn overlaps transcription, a streamed chat and a few sentences of speech. Body limits per route: 2 MB for a clip (~10 KB per command), 256 KB for a conversation, 8 KB for a reply, 16 KB for a journal line, 8 KB for a memory decision, 1 KB for a review request." }
         files: [src/server/voice.ts, src/server/guard.ts, tests/server-guards.test.ts]
       - id: forward
         type: process
@@ -355,7 +474,7 @@ layers:
         type: process
         label: Forward to chat
         runtime: server
-        description: "Checks messages (1 to 60) and tools (up to 20) (400), then sends model, messages, tools, max_tokens 500, tool_choice (none when answer is true) and provider { zdr, require_parameters }. Answers { message, ms, cost }."
+        description: "Checks messages (1 to 60) and tools (up to 20) (400), then sends model, messages, tools, max_tokens 500, tool_choice (none when answer is true) and provider { zdr, require_parameters }. With stream: true (what the page sends) it asks for a stream with usage and pipes the server-sent events through as they arrive; otherwise it answers { message, ms, cost }."
         credentials: service
         limits: { timeout: 30s }
         files: [src/server/voice.ts]
@@ -367,29 +486,37 @@ layers:
         credentials: service
         limits: { timeout: 30s }
         files: [src/server/voice.ts]
+      - id: learn
+        type: process
+        label: Journal routes
+        runtime: server
+        description: "learningRoutes(), mounted only with a store. /journal: POST { entry } appends a turn, POST { mark } corrects its outcome, GET answers the 7-day stats. /memory: GET answers the memory and the stats, POST takes accept, reject, remove or forget. Both are keyless: nothing goes upstream. /review needs the key and runs one review at a time (409 for a second one)."
+        files: [src/server/voice-learning.ts, src/server/voice-memory.ts, src/server/plugin.ts]
       - id: rejected
         type: output
         label: Error reply
         runtime: server
-        description: "JSON { error } with the status. 502 covers an OpenRouter error status, an unreachable endpoint and the 30 s timeout, on all three routes."
+        description: "JSON { error } with the status. 502 covers an OpenRouter error status, an unreachable endpoint and the 30 s timeout, on every route that calls OpenRouter, and a review reply that cannot be read."
         files: [src/server/voice.ts]
       - id: tests
         type: tool
         label: vitest
         runtime: server
-        description: "voice-server.test.ts starts the handler with a fake fetch: GET never shows the key; POST sends key, ZDR and language; an agent step with tool_choice none and require_parameters; speech as audio/mpeg; 404, 503, 415 and 400 refusals. voice-commands.test.ts covers the parser, voice-agent.test.ts the agent-or-parser routing, voice-tools.test.ts the tools on the real dev-squad tower."
-        files: [tests/voice-server.test.ts, tests/voice-commands.test.ts, tests/voice-agent.test.ts, tests/voice-tools.test.ts]
+        description: "voice-server.test.ts starts the handler with a fake fetch: GET never shows the key; POST sends key, ZDR and language; an agent step with tool_choice none and require_parameters; speech as audio/mpeg; 404, 503, 415, 403 and 400 refusals. voice-journal.test.ts: the journal store (marks, 0600, forget), the routes (keyless journal, cross-site GET refused, review keeps only real aliases) and applyAliases. voice-commands.test.ts covers the parser, voice-agent.test.ts the agent-or-parser routing, voice-tools.test.ts the tools on the real dev-squad tower."
+        files: [tests/voice-server.test.ts, tests/voice-journal.test.ts, tests/voice-commands.test.ts, tests/voice-agent.test.ts, tests/voice-tools.test.ts]
     edges:
       - "secrets -> route [data]: key at startup"
-      - "route -> guards: POST"
+      - "route -> guards: GET, POST"
       - "guards -> forward: / clip"
       - "guards -> chat: /chat"
       - "guards -> speech: /speak"
+      - "guards -> learn: journal routes"
       - "guards -> rejected: 503 no key"
       - "guards -> rejected: 404 405 415 403 429 413 400"
       - "forward -> rejected: 400, 502"
       - "chat -> rejected: 400, 502"
       - "speech -> rejected: 400, 502"
+      - "learn -> rejected: 400, 409, 502"
       - "tests -> route [call]: fake fetch"
 
 links:
@@ -432,9 +559,34 @@ links:
   - { from: server.speech, to: conversation.tts, kind: call, protocol: http, label: text + voice }
   - "conversation.tts -> server.speech [return]: mp3"
   - "server.speech -> conversation.speak [return]: audio/mpeg"
-  - "conversation.speak -> actions.caption: reply failed"
+  - "conversation.speak -> actions.caption: playback blocked"
   - "actions.off -> conversation.speak [call]: stop audio"
+  # Learning: turns and outcomes into the journal, through the server.
+  - "actions.execute -> learning.record [data]: parser turn"
+  - "conversation.step -> learning.record [data]: agent turn"
+  - "conversation.agent -> learning.record [data]: agent error"
+  - "understanding.bargein -> learning.marks [call]: interrupted"
+  - "understanding.route -> learning.marks [call]: next words"
+  - { from: learning.record, to: server.route, kind: call, protocol: http, label: POST /journal }
+  - { from: learning.marks, to: server.route, kind: call, protocol: http, label: POST mark }
+  - { from: learning.panel, to: server.route, kind: call, protocol: http, label: /memory }
+  - { from: learning.due, to: server.route, kind: call, protocol: http, label: POST /review }
+  - "server.learn -> learning.journal [data]: append 0600"
+  - "server.learn -> learning.memory [data]: read, save"
+  - "server.learn -> learning.review [call]: /review"
+  - "actions.off -> learning.due: mic off"
+  # The review goes to the same chat model, structured output.
+  - { from: learning.review, to: conversation.llm, kind: call, protocol: http, label: json_schema + zdr }
+  - "conversation.llm -> learning.review [return]: suggestions"
+  - "learning.review -> server.rejected: 502"
+  # What was accepted, applied.
+  - "learning.aliases -> understanding.parser [data]: aliased text"
+  - "learning.aliases -> conversation.agent [data]: aliased text"
+  - "learning.notes -> conversation.context [data]: approved notes"
+  - "learning.chip -> actions.caption: in the caption"
   # Tests.
   - "server.tests -> understanding.parser [call]: unit tests"
   - "server.tests -> understanding.route [call]: routing cases"
   - "server.tests -> conversation.tools [call]: dev-squad tower"
+  - "server.tests -> learning.filter [call]: fake review"
+  - "server.tests -> learning.aliases [call]: unit tests"
