@@ -60,6 +60,15 @@ describe('adapters', () => {
     })).toEqual([{ kind: 'agent.end', source: 'codex', agent: 'codex', session: 'b5f6c1c2', status: 'ok', message: 'Rename complete.' }]);
   });
 
+  it('accepts the identity/tokens fields and stays permissive', () => {
+    const e = FlowEventSchema.parse({
+      kind: 'usage', user: 'u', host: 'h', runtime: 'claude-code/aws', project: 'p',
+      estimated: true, tokens_detail: { input: 1, cache_read: 2 }, whatever: 'kept',
+    });
+    expect(e).toEqual(expect.objectContaining({ user: 'u', host: 'h', runtime: 'claude-code/aws', project: 'p', estimated: true }));
+    expect(FlowEventSchema.parse({ kind: 'log', unknown: 1 })).toEqual(expect.objectContaining({ unknown: 1 }));
+  });
+
   it('passes normalized events through and drops junk', () => {
     expect(normalize(undefined, { kind: 'log', message: 'hi' })).toEqual([{ kind: 'log', message: 'hi', source: 'custom' }]);
     expect(normalize(undefined, 'nope')).toEqual([]);

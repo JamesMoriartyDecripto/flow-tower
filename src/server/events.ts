@@ -51,7 +51,7 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
     if (token && req.headers['x-flow-tower-token'] !== token) return json(res, 401, { error: 'bad or missing x-flow-tower-token' });
     const encoding = encodingOf(req);
-    if (!encoding) return json(res, 415, unknownEncoding(req));
+    if (!encoding) return json(res, 415, unknownEncoding());
 
     void readBody(req, res, MAX_BODY, encoding).then((chunks) => {
       if (!chunks) return; // the response was already sent (413, 400)
@@ -80,7 +80,7 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
     if (token && req.headers['x-flow-tower-token'] !== token) return json(res, 401, { error: 'bad or missing x-flow-tower-token' });
     const encoding = encodingOf(req);
-    if (!encoding) return json(res, 415, unknownEncoding(req));
+    if (!encoding) return json(res, 415, unknownEncoding());
     void readBody(req, res, MAX_OTLP_BODY, encoding).then((chunks) => {
       if (!chunks) return; // the response was already sent (413, 400)
       try {
@@ -103,15 +103,19 @@ function sourceOf(req: IncomingMessage, url: URL): string | undefined {
 
 /** Content encoding to undo: gzip/deflate are decompressed, identity needs nothing. Undefined means unknown. */
 function encodingOf(req: IncomingMessage): 'identity' | 'gzip' | 'deflate' | undefined {
-  const raw = (req.headers['content-encoding'] ?? '').split(',')[0].trim().toLowerCase();
+  // One coding only: a stacked list ("gzip, br") is refused rather than half-decoded.
+  const parts = (req.headers['content-encoding'] ?? '').split(',').map((p) => p.trim().toLowerCase()).filter(Boolean);
+  if (parts.length > 1) return undefined;
+  const raw = parts[0] ?? '';
   if (!raw || raw === 'identity') return 'identity';
   if (raw === 'gzip' || raw === 'x-gzip') return 'gzip'; // the OTLP Collector sends this by default
   if (raw === 'deflate') return 'deflate';
   return undefined;
 }
 
-function unknownEncoding(req: IncomingMessage) {
-  return { error: `unsupported content-encoding: ${req.headers['content-encoding']} (use identity, gzip or deflate)` };
+function unknownEncoding() {
+  // A fixed message: the header is not echoed back.
+  return { error: 'unsupported content-encoding (use identity, gzip or deflate)' };
 }
 
 /**
@@ -146,5 +150,6 @@ function json(res: ServerResponse, status: number, body: unknown) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   res.end(JSON.stringify(body));
 }

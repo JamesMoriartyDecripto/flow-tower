@@ -71,10 +71,10 @@ describe('compressed OTLP bodies (#81)', () => {
 
   it('refuses an unknown encoding with 415', async () => {
     const { url } = await start();
-    for (const enc of ['br', 'zstd']) {
+    for (const enc of ['br', 'zstd', 'gzip, br']) {
       const r = await post(`${url}/v1/logs`, gzipSync('{"resourceLogs":[]}'), { 'Content-Encoding': enc });
       expect(r.status, enc).toBe(415);
-      expect((await r.json()).error).toContain(enc);
+      expect((await r.json()).error).toContain('unsupported content-encoding'); // the header is never echoed
     }
   });
 });
