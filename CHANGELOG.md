@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-10
+
 ### Security
 - The repository is public with `main` protected by a ruleset: pull requests only (no direct or force pushes, no deletion), passing CI, maintainer review through CODEOWNERS. Secret scanning with push protection and Dependabot alerts are on; workflows get a read-only token, and PRs from forks need approval before their workflows run.
 - Commit history rewritten to the GitHub noreply address before going public.
@@ -168,5 +170,6 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/JamesMoriartyDecripto/flow-tower/releases/tag/v0.1.0

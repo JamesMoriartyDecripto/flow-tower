@@ -1,43 +1,45 @@
-# npm run e2e: passed, 42 tests, 0 not passed (2026-10-09T22:02Z)
+# npm run e2e: passed, 44 tests, 0 not passed (2026-10-10T09:05Z)
 passed      0.6s  the file API refuses paths outside the tower root
-passed      1.5s  events endpoint rejects malformed bodies without crashing
-passed      7.1s  every referenced file is served by /api/file
-passed     13.7s  tower: Website & Web Design Studio
-passed     13.9s  layout 1280x720 at 1x
-passed     14.1s  layout 1440x900 at 1.3x
+passed      2.5s  events endpoint rejects malformed bodies without crashing
+passed      9.3s  every referenced file is served by /api/file
 passed     14.1s  tower: Docs Q&A Bot
-passed     14.4s  layout 1920x1080 at 1.15x
-passed     14.7s  tower: Research Helper
-passed     14.8s  layout 1440x900 at 1x
-passed     15.2s  OTLP logs: tokens and cost per node, per tower and per project
-passed     15.3s  layout 720x900 at 1x
-passed     15.4s  layout 1024x640 at 1x
-passed     16.3s  tower: PR Review Bot
-passed     16.6s  tower: Pocket Voice Assistant
-passed     17.1s  layout 2560x1440 at 1.6x
-passed     18.1s  live feed: mapped, error and unmapped events
-passed     19.3s  tower: Fraud Review Desk
-passed     19.6s  tower: Legacy Portal Browser Worker
-passed     20.4s  tower: Jev Agent
-passed     21.2s  tower: Airline Customer Service
-passed     21.3s  tower: A2A Purchasing Concierge
-passed     22.8s  tower: Deep Research Team
-passed     22.8s  tower: Social Media Studio
-passed     22.9s  export PNG and SVG (eco)
-passed     23.0s  tower: SRE Incident Responder
-passed     23.2s  export PNG and SVG (balanced)
-passed     23.6s  tower: Ambient Chief of Staff
-passed     24.1s  tower: Release Auditor
-passed     25.3s  tower: AI Co-Scientist
-passed     25.6s  tower: Invoicing with Fatture in Cloud
-passed     26.0s  zoom is kept when moving to the next node of the same layer
-passed     26.6s  tower: AI Video Studio
-passed     26.8s  tower: Ebook Studio
-passed     27.3s  tower: Marketing Studio
-passed     27.6s  tower: Legal Due Diligence
-passed     28.0s  tower: Dev Squad
-passed     29.6s  tower: Mobile App Studio
-passed     30.2s  tower: Sales Pipeline: prospect to invoice
-passed     35.4s  accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)
-passed     46.0s  tower: Syllabus Forge
-passed     61.8s  tower: Forge Studio
+passed     14.7s  layout 1440x900 at 1.3x
+passed     15.0s  live feed: mapped, error and unmapped events
+passed     16.0s  layout 1024x640 at 1x
+passed     16.0s  layout 720x900 at 1x
+passed     16.1s  file viewer: formatted Markdown, source, wrap
+passed     16.3s  layout 1920x1080 at 1.15x
+passed     16.4s  OTLP logs: tokens and cost per node, per tower and per project
+passed     16.6s  tower: PR Review Bot
+passed     17.0s  layout 1280x720 at 1x
+passed     17.0s  tower: Legacy Portal Browser Worker
+passed     17.0s  tower: Research Helper
+passed     17.3s  tower: Pocket Voice Assistant
+passed     17.6s  layout 1440x900 at 1x
+passed     18.4s  layout 2560x1440 at 1.6x
+passed     18.8s  tower: Fraud Review Desk
+passed     20.0s  the PNG pack is Full HD and includes the 3D view (balanced)
+passed     20.6s  tower: Airline Customer Service
+passed     21.0s  tower: Website & Web Design Studio
+passed     21.5s  tower: Deep Research Team
+passed     22.2s  tower: Jev Agent
+passed     23.1s  tower: AI Co-Scientist
+passed     23.2s  tower: Ambient Chief of Staff
+passed     23.4s  tower: SRE Incident Responder
+passed     23.5s  tower: Release Auditor
+passed     23.8s  tower: A2A Purchasing Concierge
+passed     24.1s  tower: Social Media Studio
+passed     25.2s  tower: Ebook Studio
+passed     26.0s  tower: Invoicing with Fatture in Cloud
+passed     26.7s  tower: Marketing Studio
+passed     27.2s  tower: Sales Pipeline: prospect to invoice
+passed     27.7s  tower: Legal Due Diligence
+passed     28.3s  tower: AI Video Studio
+passed     28.4s  tower: Dev Squad
+passed     30.3s  tower: Mobile App Studio
+passed     36.6s  accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)
+passed     41.4s  tower: Syllabus Forge
+passed     60.3s  tower: Forge Studio
+passed    100.2s  the SVG pack has every layer and map of the project and its sub-towers
+passed    103.7s  the PNG pack is Full HD and includes the 3D view (eco)
+passed    103.8s  zoom is kept when moving to the next node of the same layer
