@@ -15,6 +15,9 @@ import { userHome, warnIfInRepo } from './home.ts';
 import { crossSite } from './guard.ts';
 import { isRemote } from './auth.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
+import { openHistory } from './history/db.ts';
+import { createHistory } from './history/store.ts';
+import { historyHandler } from './history/api.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
@@ -28,6 +31,15 @@ warnIfInRepo(PKG_ROOT);
 for (const file of [join(USER_HOME, '.env'), join(PKG_ROOT, '.env')]) if (existsSync(file)) loadEnvFile(file);
 
 export const UPDATE_EVENT = 'flow-tower:update';
+
+/** Set once a history write has failed: one warning per process is enough to tell the user. */
+let historyWarned = false;
+const warnHistoryOnce = (server: ViteDevServer, err: unknown) => {
+  if (historyWarned) return;
+  historyWarned = true;
+  const reason = err instanceof Error ? err.message : String(err);
+  server.config.logger.warn(`flow-tower: history write failed (${reason}); ingest keeps running, history may be incomplete`);
+};
 
 /** Serves the resolved library + referenced files, and pushes live updates on change. */
 export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES ?? '[]')): Plugin {
@@ -89,12 +101,32 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       });
       server.middlewares.use('/api/file', (req, res) => void serveFile(req, res, state));
 
-      const hub = createEventHub(
-        () => state?.workspace,
+      // History (#84) lives in the user's folder, never the repo. An old Node without node:sqlite disables
+      // it with one message: the live view keeps working, the hub simply gets no onAccepted.
+      const opened = await openHistory(join(USER_HOME, 'history.db'));
+      if ('disabled' in opened) server.config.logger.warn(`flow-tower: ${opened.disabled}`);
+      const history = 'disabled' in opened ? undefined : createHistory(opened.db);
+      if (history) {
+        // Retention policy (#84): prune once on start, then hourly. unref() so the timer never keeps the
+        // dev server process alive on its own.
+        history.prune();
+        setInterval(() => history.prune(), 3_600_000).unref();
+      }
+
+      const hub = createEventHub(        () => state?.workspace,
         (events) => server.ws.send(EVENTS_EVENT, events),
         // The user folder holds the per-sender tokens (#83); FLOW_TOWER_TOKEN stays the shared legacy secret.
         { legacy: env.FLOW_TOWER_TOKEN, home: userHome(), hub: hubOpts.hub, ingestOnly: hubOpts.ingestOnly },
+        // History must never break ingest: a full disk makes the INSERT throw, and the live view is what
+        // matters. Warn once, then stay quiet so a broken DB cannot flood the log.
+        { onAccepted: (events) => { try { history?.write(events); } catch (err) { warnHistoryOnce(server, err); } } },
       );
+      // History reads (#84 phase 4): a viewing route like /api/workspace, so hub mode's remote-viewer
+      // rule decides who sees it and crossSite keeps other pages on this machine out.
+      const views = historyHandler(history);
+      server.middlewares.use('/api/history/info', views.info);
+      server.middlewares.use('/api/history', views.totals);
+
       server.middlewares.use('/api/events', hub.handle);
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.
       server.middlewares.use('/v1/logs', hub.otlp('logs'));
