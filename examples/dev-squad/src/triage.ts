@@ -42,7 +42,11 @@ export async function triage(issue: Issue, openIssueTitles: string[]): Promise<T
     if (msg.type !== 'result') continue;
     if (msg.subtype !== 'success') throw new Error(`triage failed: ${msg.subtype}`);
     const parsed = TriageSchema.safeParse(msg.structured_output);
-    if (parsed.success) return applyPolicy(parsed.data, issue);
+    if (parsed.success) {
+      const t = applyPolicy(parsed.data, issue);
+      console.log(`[triage] issue=#${issue.number} kind=${t.kind} complexity=${t.complexity} risk=${t.risk} areas=[${t.areas.join(', ')}] route=${t.route} cost_usd=${msg.total_cost_usd.toFixed(2)}`);
+      return t;
+    }
     throw new Error(`triage returned invalid JSON: ${parsed.error.message}`);
   }
   throw new Error('triage produced no result');
@@ -50,10 +54,11 @@ export async function triage(issue: Issue, openIssueTitles: string[]): Promise<T
 
 /** Deterministic overrides: code, not the model, has the last word on safety. */
 function applyPolicy(t: Triage, issue: Issue): Triage {
+  // Opting out wins over everything, including the upgrade below.
+  if (issue.labels.includes('squad:skip')) return { ...t, route: 'reject', rationale: 'Opted out via label.' };
   const sensitive = /auth|billing|payment|migration|permission|secret/i;
   if (t.route === 'quickfix' && (t.complexity > 2 || sensitive.test(issue.title + t.areas.join(' ')))) {
     return { ...t, route: 'full', risk: 'high', rationale: `${t.rationale} [policy: upgraded to full]` };
   }
-  if (issue.labels.includes('squad:skip')) return { ...t, route: 'reject', rationale: 'Opted out via label.' };
   return t;
 }

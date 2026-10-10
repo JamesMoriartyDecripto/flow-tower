@@ -19,7 +19,7 @@ interface VitestReport {
  * of lines. The agent gets a compact, structured summary with only the failures,
  * which keeps its context window for reasoning instead of log noise.
  */
-export const runTests = tool(
+export const runTests = (cwd: string) => tool(
   'run_tests',
   'Run the project test suite and return a compact summary. Use scope "affected" while iterating ' +
     '(tests related to files changed vs origin/main), "unit" before handing off, "e2e" only for UI changes.',
@@ -28,7 +28,6 @@ export const runTests = tool(
     pattern: z.string().max(200).optional().describe('Optional test name filter (-t)'),
   },
   async ({ scope, pattern }) => {
-    const cwd = process.cwd();
     const out = join(cwd, '.squad', 'vitest.json');
     const args = ['vitest', 'run', '--reporter=json', `--outputFile=${out}`];
     if (scope === 'affected') args.push('--changed', 'origin/main');

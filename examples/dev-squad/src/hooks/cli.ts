@@ -16,7 +16,7 @@ import { secretScanPrompt, secretScanWrite } from './secret-scan';
 
 const issue = Number(env.SQUAD_ISSUE ?? 0);
 const HOOKS: Record<string, HookCallback> = {
-  'bash-guard': bashGuard,
+  'bash-guard': bashGuard(),
   'secret-scan-write': secretScanWrite,
   'secret-scan-prompt': secretScanPrompt,
   'format-lint': formatLint,

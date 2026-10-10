@@ -26,6 +26,7 @@ export function changelogGate(ctx: { issue: number }): HookCallback {
     const touchedChangelog = files.includes('CHANGELOG.md');
 
     if (touchedSource && !touchedChangelog && !stop.stop_hook_active) {
+      console.log(`[hook] Stop changelog-gate block issue=#${ctx.issue} (source changed, no CHANGELOG entry)`);
       return {
         decision: 'block' as const,
         reason:
@@ -34,6 +35,7 @@ export function changelogGate(ctx: { issue: number }): HookCallback {
       };
     }
 
+    console.log(`[hook] Stop changelog-gate allow issue=#${ctx.issue} files=${files.length}`);
     await appendSessionEntry({
       issue: ctx.issue,
       sessionId: stop.session_id,

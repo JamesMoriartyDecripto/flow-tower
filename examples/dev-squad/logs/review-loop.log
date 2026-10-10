@@ -1,8 +1,7 @@
-2026-10-08T08:09:40Z [review] issue=#482 round=1/3 reviewer=changes_requested security=pass blocking=2
+2026-10-08T08:09:40Z [review] round 1: reviewer=changes_requested security=pass blocking=2
 2026-10-08T08:09:40Z [review]   F1 src/billing/money.ts:88 rounds before summing line items (off by 0.01 on 3+ lines)
 2026-10-08T08:09:40Z [review]   F2 src/billing/money.test.ts:12 no test for negative credit notes
-2026-10-08T08:13:02Z [fix] round=1 model=claude-sonnet-5-5 changed=2 tests=61/61
-2026-10-08T08:16:44Z [review] issue=#482 round=2/3 reviewer=approve security=pass blocking=0 follow_ups=1
-2026-10-08T08:19:10Z [verify] fresh context verdict=ship criteria=4/4 tests=unit green
-2026-10-08T08:19:24Z [open_pr] draft PR #491 squad/482-invoice-rounding -> main
-2026-10-08T08:19:25Z [approval] review requested from @billing-maintainers
+2026-10-08T08:13:02Z [fix] round=1 model=claude-sonnet-5-5 ok=true
+2026-10-08T08:16:44Z [review] round 2: reviewer=approve security=pass blocking=0
+2026-10-08T08:19:10Z [verify] verdict=ship criteria=4/4 suite=green
+2026-10-08T08:19:24Z [pipeline] draft PR https://github.com/example-org/app/pull/491 ← squad/482-invoice-rounding

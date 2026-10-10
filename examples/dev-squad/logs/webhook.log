@@ -1,8 +1,6 @@
-2026-10-08T07:41:02.311Z POST /github event=issues action=labeled delivery=3f9a1c20-a4b1 issue=#482 label=squad:go sig=valid ack_ms=38
-2026-10-08T07:41:02.349Z enqueue issue=#482 queue=squad-issues depth=1
-2026-10-08T07:58:15.902Z POST /github event=issues action=labeled delivery=3f9a1c20-a4b1 issue=#482 duplicate=true -> 200 (deduped)
-2026-10-08T09:12:44.017Z POST /github event=issue_comment action=created issue=#479 body="/squad revise" sig=valid ack_ms=41
-2026-10-08T09:12:44.060Z enqueue issue=#479 queue=squad-revise depth=1
-2026-10-08T10:03:30.556Z POST /github event=issues action=labeled issue=#485 sig=INVALID -> 401
-2026-10-08T11:20:09.874Z POST /github event=issues action=labeled issue=#486 label=squad:go sig=valid ack_ms=35
-2026-10-08T11:20:09.902Z throttle issue=#486 running=2 max_parallel=2 -> delayed
+2026-10-08T07:30:11Z [squad] webhook listening on :8787/github
+2026-10-08T07:41:02Z [webhook] 2026-10-08T07:41:02.311Z delivery=3f9a1c20-a4b1 issues.labeled issue=#482 label=squad:go -> 202 running=0 max_parallel=2
+2026-10-08T07:58:15Z [webhook] 2026-10-08T07:58:15.902Z delivery=3f9a1c20-a4b1 issue=#482 duplicate -> 202 (deduped)
+2026-10-08T09:12:44Z [webhook] 2026-10-08T09:12:44.017Z delivery=8c41d07e-19f2 issue_comment.created ignored -> 202
+2026-10-08T10:03:30Z [webhook] 2026-10-08T10:03:30.556Z delivery=b7e2a915-0c3d sig=invalid -> 401
+2026-10-08T11:20:09Z [webhook] 2026-10-08T11:20:09.874Z delivery=51d6fa3b-77e0 issues.labeled issue=#486 label=squad:go -> 202 running=2 max_parallel=2
