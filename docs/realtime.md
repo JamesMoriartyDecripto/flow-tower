@@ -76,8 +76,8 @@ acknowledged and dropped so exporters set up for every signal do not complain.
 
 | Source | Setup | What is read |
 |---|---|---|
-| **Claude Code** | Merge [`integrations/claude-code/telemetry.json`](../integrations/claude-code/telemetry.json) into `.claude/settings.json` (its `env` block), or export the same variables: `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_LOGS_EXPORTER=otlp`, `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:5317` | `claude_code.api_request`: `cost_usd`, input / output / cache tokens, model, `query_source`, `agent.name` (subagents); `claude_code.api_error` as an error |
-| **Codex** | The `[otel]` block in [`integrations/codex/config.toml`](../integrations/codex/config.toml): `otlp-http`, `protocol = "json"`, endpoint `http://127.0.0.1:5317/v1/logs` | `codex.sse_event` on `response.completed` (token counts) and `codex.turn_cost` (`usage.estimated_usd`) |
+| **Claude Code** | Merge [`integrations/claude-code/telemetry.json`](../integrations/claude-code/telemetry.json) into `~/.claude/settings.json` (its `env` block) or managed settings, or export in the shell. A project's `.claude/settings.json` does **not** work: Claude Code ignores the telemetry flag and the OTEL exporter variables there. Variables: the same variables: `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_LOGS_EXPORTER=otlp`, `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:5317` | `claude_code.api_request`: `cost_usd`, input / output / cache tokens, model, `query_source`, `agent.name` (subagents); `claude_code.api_error` as an error |
+| **Codex** | The `[otel]` block in [`integrations/codex/config.toml`](../integrations/codex/config.toml), merged into `~/.codex/config.toml` (a project `.codex/config.toml` `[otel]` block is ignored): `otlp-http`, `protocol = "json"`, endpoint `http://127.0.0.1:5317/v1/logs` | `codex.sse_event` on `response.completed` (token counts) and `codex.turn_cost` (`usage.estimated_usd`) |
 
 Each one becomes a `usage` event that lands like any other: on the node whose agent matches `agent`
 (the subagent name). The main Claude Code thread has no agent name; send its usage to the orchestrator
@@ -87,6 +87,10 @@ Totals show in the node panel (Live → usage), in the live feed header (the tow
 sub-towers) and on library cards. They cover the events the local server keeps (the last 2000), and an
 agent present in both a tower and its sub-tower is counted once per project. If `FLOW_TOWER_TOKEN` is
 set, add it to the exporter: `OTEL_EXPORTER_OTLP_HEADERS=x-flow-tower-token=<token>`.
+
+**Who and where.** With API-key, Bedrock or Vertex auth Claude Code fills only `user.id` and `session.id`, and sends no `host.name`. Tag each machine with `OTEL_RESOURCE_ATTRIBUTES="enduser.id=alice,team.id=platform,project=flow-tower"`. Prompts, tool inputs and responses stay out unless you turn them on (`OTEL_LOG_USER_PROMPTS`, `OTEL_LOG_TOOL_DETAILS`, `OTEL_LOG_ASSISTANT_RESPONSES` for Claude Code; `log_user_prompt` for Codex): all off by default, keep them off.
+
+**Through a collector.** Bodies with `Content-Encoding: gzip` are accepted (the OTel Collector `otlp_http` exporter compresses by default; `compression: none` also works). [`integrations/otel-collector/`](../integrations/otel-collector/) is a per-host collector that adds host and user tags, strips prompt fields, and queues on disk while offline.
 
 `npm run simulate` sends sample `api_request` logs for every agent step, so you can see it without setup.
 
