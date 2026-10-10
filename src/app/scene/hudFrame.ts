@@ -43,7 +43,6 @@ export function fitScale(width: number, height: number) {
   return Math.max(width / r.w, height / r.h);
 }
 
-const projected = new Vector3();
 const world = new Vector3();
 const target = new Vector3();
 const position = new Vector3();
@@ -103,7 +102,8 @@ export function useHudFrame(controls: React.RefObject<CameraControls | null>, la
       const key = `${size.width}x${size.height}@${scale}|${selected ? 'inspector' : ''}|${feedOpen ? 'feed' : ''}`;
       const changed = settled && key !== lastRect.current;
       if (settled) lastRect.current = key;
-      const ext = changed && ctl ? contentExtent(camera, size, layout, layerIds) : undefined;
+      // With a node selected, the selection framing below sets the distance.
+      const ext = changed && ctl && !selected ? contentExtent(camera, size, layout, layerIds) : undefined;
       if (ctl && ext) {
         const need = Math.max(ext.w / (r.w * 0.94), ext.h / (r.h * 0.94));
         if (need > 1.03) {
@@ -137,42 +137,32 @@ export function useHudFrame(controls: React.RefObject<CameraControls | null>, la
     keepAlive(120);
   });
 
-  // A node selected by keyboard (or from a list) that lands under a panel: bring it into view.
+  // Selecting a node (click, keys, lists, search): center it in the free area and come close enough to
+  // read it and its neighbours, never farther than the user already zoomed in. The angle is kept.
+  const prevSelected = useRef<string>(undefined);
   useEffect(() => {
     const ctl = controls.current;
+    const wasOpen = prevSelected.current !== undefined;
+    prevSelected.current = selected;
     if (!selected || !ctl) return;
     const t = setTimeout(() => {
       const layerId = selected.slice(0, selected.indexOf('.'));
       const group = layerGroups.get(layerId);
       const box = layout.layers[layerIds.indexOf(layerId)]?.nodes[selected];
-      if (!group || !box) return;
+      if (!group?.visible || !box) return;
       const r = freeRect(size.width, size.height);
       world.set(box.x, 0.2, box.z).applyMatrix4(group.matrixWorld);
-      projected.copy(world).project(camera);
-      const sx = ((projected.x + 1) / 2) * size.width;
-      const sy = ((1 - projected.y) / 2) * size.height;
-      const pad = 60;
-      if (sx > r.left + pad && sx < r.right - pad && sy > r.top + pad && sy < r.bottom - pad) return;
-      // Slide the camera (same angle and distance) just enough to bring the node inside the free area.
-      const want = {
-        x: Math.min(Math.max(sx, r.left + pad), r.right - pad) - sx,
-        y: Math.min(Math.max(sy, r.top + pad), r.bottom - pad) - sy,
-      };
-      // Screen pixels per world unit along x and z at the node (a 2x2 Jacobian), then solve for the move.
-      const px = (p: Vector3) => { p.project(camera); return { x: ((p.x + 1) / 2) * size.width, y: ((1 - p.y) / 2) * size.height }; };
-      const ax = px(projected.copy(world).add(new Vector3(1, 0, 0)));
-      const az = px(projected.copy(world).add(new Vector3(0, 0, 1)));
-      const j = [[ax.x - sx, az.x - sx], [ax.y - sy, az.y - sy]];
-      const det = j[0][0] * j[1][1] - j[0][1] * j[1][0];
-      if (Math.abs(det) < 1e-6) return;
-      // Moving the camera by d moves the node on screen by -J·d.
-      const dx = -(j[1][1] * want.x - j[0][1] * want.y) / det;
-      const dz = -(-j[1][0] * want.x + j[0][0] * want.y) / det;
-      ctl.getTarget(target);
-      ctl.getPosition(position);
-      ctl.setLookAt(position.x + dx, position.y, position.z + dz, target.x + dx, target.y, target.z + dz, true);
+      // Where the camera is going, not where it is mid-flight (a layer focus may have just started).
+      ctl.getTarget(target, true);
+      const offset = ctl.getPosition(position, true).sub(target);
+      // World units per screen pixel at distance D is 2·D·tan(fov/2) / height: fit about four node
+      // widths across the free area and four depths down it.
+      const tan = Math.tan((camera.fov / 2) * (Math.PI / 180));
+      const near = (Math.max((box.w * 4) / (r.w * 0.9), (box.d * 4) / (r.h * 0.9)) * size.height) / (2 * tan);
+      offset.setLength(Math.min(offset.length(), near));
+      ctl.setLookAt(world.x + offset.x, world.y + offset.y, world.z + offset.z, world.x, world.y, world.z, true);
       keepAlive(1200);
-    }, 350); // after the inspector has opened and the projection offset settled
+    }, wasOpen ? 30 : 350); // the first selection waits for the inspector to open and the projection to settle
     return () => clearTimeout(t);
   }, [selected]); // eslint-disable-line react-hooks/exhaustive-deps
 }

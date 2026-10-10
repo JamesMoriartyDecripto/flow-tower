@@ -12,6 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Commit history rewritten to the GitHub noreply address before going public.
 
 ### Added
+- Zoom to selection: selecting a node (click, arrows, lists, search) centers it in the free area and moves the camera in close enough to read it and its neighbours, following as you move between nodes, in tower and map view. A closer zoom of your own is kept.
 - Docs: **[what goes where](docs/what-goes-where.md)**, what belongs in a layer, a node, an edge (and a cross-layer link) and a nested tower, with do / don't rules and a validated example; a compact version in the skill's `reference.md`, linked from the procedure, the schema reference and the README.
 - File viewer: **Wrap** (W) wraps long lines with a hanging indent under the code; Markdown files open **formatted** (V switches to source) with GitHub tables, YAML frontmatter as a small metadata table, links to the node's other files opening in the viewer and external links in a new tab. Rendering is inert: raw HTML is dropped, unsafe URLs removed and remote images never loaded. Both choices are remembered.
 - Schema (#31), the gaps the presets hit, all optional and backward compatible:
