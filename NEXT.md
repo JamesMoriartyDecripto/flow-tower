@@ -1,17 +1,16 @@
 # Next session: handoff
 
-Status on 2026-10-10: **v0.4.0 released** (gates and E2E in `examples/release-auditor/reports/v0.4.0.md`). Since v0.3.0:
-- **Voice:** commands (#62) and a conversational voice agent that answers out loud and acts on the tower (#63 part 1). Both run through OpenRouter, with the key kept on the local server.
-- **Node list panel.**
-- **Server hardening:** exact content type, cross-site refusal, and secret files never served.
-- **Skill and docs:** a verify-against-the-code step, a services guide, clearer `validate` errors, deep links and `--browser` (#56, #7).
-- **Examples:** `db-api-playbook` and `voice-commands`; dev-squad's sample code now matches its tower.
-
-Done on `feat/voice-journal` (not merged yet): **#68**, the voice journal and self-improvement loop (#63 part 2). Opt-in in Settings > Voice > Learning; reviews propose aliases, rules and reply style, applied only when accepted. The key, journal and memory live in `~/.config/flow-tower` (or `FLOW_TOWER_HOME`), never in the repo.
+Status on 2026-10-10: **v0.5.0 released** (gates and E2E in `examples/release-auditor/reports/v0.5.0.md`). Since v0.4.0:
+- **Voice journal and self-improvement (#68):** opt-in; reviews propose aliases, rules and reply style, applied only when accepted. The key, journal and memory live in `~/.config/flow-tower` (or `FLOW_TOWER_HOME`), never in the repo.
+- **Voice fixes:** no echo loop (half-duplex, #72), a spectral noise filter for laptop fans (#73), robustness (#74).
+- **Faster first audio (#70):** a cached spoken acknowledgement brings first audio to about 0.6 s. The agent now runs on Gemini 3.5 Flash-Lite, the winner of a six-model benchmark.
+- **Security:** the loader never reads secret files or the user folder, including through symlinked tower files.
+- **Skill:** `flow-tower-costs` cuts model cost and latency of a tower, measured on real cases.
+- **Examples:** the dev-squad models the mixed-model squad that built these releases. Coder and security run on DeepSeek 4.1 Flash, the reviewer on GLM 5.3 FlashX, lead and verifier on Claude, all at low effort.
 
 Next:
 - #69: vocabulary hints for transcription (tower names as an STT prompt);
-- #70: faster first audio of agent replies;
+- #75: dev-squad field findings (smaller coder tasks: the Flash coder hit its 60-step cap twice);
 - #65: PDF export;
 - #59: team hub;
 - #5: Pi live test, on the other machine.

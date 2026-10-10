@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-10
+
 ### Added
 - `flow-tower-costs` Agent Skill (`skills/flow-tower-costs/`): optimize model cost and latency of a mapped agent system: inventory from the tower, current OpenRouter prices (`models.mjs`, no key), benchmark on real cases, levers (caching, effort, escalation), field results from #70.
 - Faster first audio (#70): when an agent turn has said nothing 600 ms after the end of speech, a short cached acknowledgement ("Un attimo.", "One moment."; es, fr, de, pt too) plays through the reply player, rotated and once per turn. Phrases are synthesized once when the mic starts; language from the transcription, else Settings, else the browser. Time to first audio: 1.9–2.9 s → 0.60–0.65 s. The journal adds `firstAnswerMs` (first real sentence); `firstAudioMs` counts the ack.
@@ -245,7 +247,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.1.0...v0.2.0
