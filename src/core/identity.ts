@@ -66,8 +66,9 @@ export function identityFromAttributes(a: Record<string, unknown>): Identity {
 }
 
 const TOKEN_KEYS: Record<TokenKind, string[]> = {
-  input: ['gen_ai.usage.input_tokens', 'gen_ai.usage.prompt_tokens', 'input_tokens'],
-  output: ['gen_ai.usage.output_tokens', 'gen_ai.usage.completion_tokens', 'output_tokens'],
+  // The `*_token_count` spellings are what Gemini CLI's gemini_cli.api_response exports.
+  input: ['gen_ai.usage.input_tokens', 'gen_ai.usage.prompt_tokens', 'input_tokens', 'input_token_count'],
+  output: ['gen_ai.usage.output_tokens', 'gen_ai.usage.completion_tokens', 'output_tokens', 'output_token_count'],
   cache_read: [
     'gen_ai.usage.cache_read.input_tokens', 'gen_ai.usage.cache_read_input_tokens',
     'cache_read_tokens', 'cache_read_input_tokens',

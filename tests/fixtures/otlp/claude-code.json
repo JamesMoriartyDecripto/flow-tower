@@ -1,0 +1,29 @@
+{
+  "resourceLogs": [{
+    "resource": {
+      "attributes": [
+        { "key": "service.name", "value": { "stringValue": "claude-code" } },
+        { "key": "user.email", "value": { "stringValue": "dev@example.com" } },
+        { "key": "session.id", "value": { "stringValue": "sess-1" } },
+        { "key": "organization.id", "value": { "stringValue": "org-42" } }
+      ]
+    },
+    "scopeLogs": [{
+      "scope": { "name": "com.anthropic.claude_code.events" },
+      "logRecords": [{
+        "timeUnixNano": "1760000000000000000",
+        "body": { "stringValue": "claude_code.api_request" },
+        "attributes": [
+          { "key": "event.name", "value": { "stringValue": "api_request" } },
+          { "key": "model", "value": { "stringValue": "claude-sonnet-5-5" } },
+          { "key": "input_tokens", "value": { "intValue": "1200" } },
+          { "key": "output_tokens", "value": { "intValue": "300" } },
+          { "key": "cache_read_tokens", "value": { "intValue": "5000" } },
+          { "key": "cache_creation_tokens", "value": { "intValue": "0" } },
+          { "key": "cost_usd", "value": { "doubleValue": 0.0123 } },
+          { "key": "query_source", "value": { "stringValue": "main" } }
+        ]
+      }]
+    }]
+  }]
+}
