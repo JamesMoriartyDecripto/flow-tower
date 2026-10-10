@@ -48,7 +48,8 @@ layers:
         runtime: browser
         description: "start() asks GET /api/voice whether the server has OPENROUTER_API_KEY ({ cloud, model }, never the key). No key: the caption says how to add it; no answer (server down): it says the local server is not reachable. Either way the mic is never opened; the error fades after 8 s or closes with ✕. The static demo has no MIC at all."
         decision: { output: binary, candidates: [yes, no], fail: closed }
-        files: [src/app/voice/voice.ts      - id: mic
+        files: [src/app/voice/voice.ts]
+      - id: mic
         type: process
         label: Mic + speech end
         runtime: browser
