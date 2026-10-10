@@ -79,6 +79,16 @@ Edges (object form) can carry `protocol` (mcp a2a http grpc webhook queue event 
 
 Edge kinds: `flow` (default, sequence), `call` (synchronous tool/function), `spawn` (starts a subagent), `handoff` (transfers control), `return` (result or loop back), `data` (reads/writes memory, files, DB).
 
+## What goes where
+
+Full guide with examples: `docs/what-goes-where.md` in the flow-tower repo.
+
+- **Layer** = one stage of the run or one supporting concern (tools, harness, memory, models). Stages top to bottom in run order, then concerns. 3–10 nodes; inside a layer the flow reads **left to right**. No empty or one-node layers.
+- **Node** = one thing doing one step: agent, process, decision, tool / MCP server, model, store, human, guard, hook. Split when parts differ in timing, runtime, model, permissions or retries; merge what always runs together. On the node (not as extra nodes): `agent:` ref, `files` that prove it, `prompt`, `model`, `runtime`, `resources`, operations shown by code or config. Label ≤ 18 chars.
+- **Edge** = what passes and how: `flow` (then), `call` (waits for an answer), `spawn` (starts a subagent), `handoff` (gives up control), `return` (result or loop back, label the cap), `data` (reads / writes a store). Label what travels or when. Object form for `protocol`, `async: true`, `group` (exactly one taken).
+- **Link** = an edge between layers, in top-level `links` as `layer.node`. Never copy a node into another layer to draw an edge.
+- **Nested tower** = the inside of one node, via `tower:` (on the node or its agent): a subsystem with > ~5 internal steps, its own layers, reuse, or separate ownership. The parent keeps one node (input, output, limits); the sub-tower holds the steps, from an `entry` to an `output`. Never draw the same steps in both. 2–3 steps stay in the parent.
+
 ## Layer playbook (top → bottom, keep only what exists)
 
 | Layer | Typical nodes |

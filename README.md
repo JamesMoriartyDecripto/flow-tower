@@ -76,7 +76,7 @@ links:
   - loop.lead -> tools.web_search [call]
 ```
 
-See the full **[schema reference](docs/schema.md)**. A generated JSON Schema (`schema/flow-tower.schema.json`) gives autocomplete in VS Code.
+See the full **[schema reference](docs/schema.md)**, and **[what goes where](docs/what-goes-where.md)** for what belongs in layers, nodes, edges and nested towers. A generated JSON Schema (`schema/flow-tower.schema.json`) gives autocomplete in VS Code.
 
 ## Examples
 

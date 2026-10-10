@@ -42,7 +42,7 @@ Collect facts before modelling. [reference.md](../skills/flow-tower/reference.md
 
 ### 3. Model the layers
 
-Pick layers top to bottom from [reference.md](../skills/flow-tower/reference.md) § Layer playbook, keeping only layers that have real content (3–10 nodes per layer is the sweet spot). In each layer, order nodes left to right as the flow actually runs.
+Read [what goes where](what-goes-where.md) first: what belongs in a layer, a node, an edge and a nested tower. Pick layers top to bottom from [reference.md](../skills/flow-tower/reference.md) § Layer playbook, keeping only layers that have real content (3–10 nodes per layer is the sweet spot). In each layer, order nodes left to right as the flow actually runs.
 
 - Agents go in the `agents:` registry. Use `from: .claude/agents/x.md` for Claude Code subagents instead of copying them.
 - Prompts that live in files go in `prompts:` with `file:`. Never paste long prompts inline.
