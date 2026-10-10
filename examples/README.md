@@ -40,12 +40,13 @@ Every example is a real, validated tower: each prompt, script, config and log it
 | [`invoicing-fic`](invoicing-fic) | 8 | Italian e-invoicing with Fatture in Cloud: fiscal checks, idempotent issue, SDI send-and-monitor sub-tower with rejection loop, dunning, passive cycle, 10-year retention |
 | [`release-auditor`](release-auditor) | 6 | Pre-release bug sweep, dogfooded on this repo: deterministic gates, Playwright sweep sub-tower, one finder per charter, adversarial verifier, test-first fixes; `root: ../..` so nodes open real repo files, scripts report live |
 
-## Beyond agents: study notes
+## Beyond agents: notes and playbooks
 
 | Folder | Layers | Use it as a model for |
 |---|---|---|
 | [`physics-notes`](physics-notes) | 4 | A method on top that routes to chapters below, formulas in descriptions, notes pages behind every node |
 | [`history-notes`](history-notes) | 5 | Phases in time order, cause and effect across layers, people as a supporting layer |
+| [`db-api-playbook`](db-api-playbook) | 6 | A playbook: decisions on top, one layer per phase, a request pipeline sub-tower with every early exit (401, 429, 412…) into one Problem Details output |
 
 ## Rules every example follows
 
