@@ -14,6 +14,8 @@ export interface AuthOptions {
   home: string;
   /** Hub mode as the caller knows it; defaults to FLOW_TOWER_HUB so the env var still works alone. */
   hub?: boolean;
+  /** --ingest-only is a public endpoint: every request is treated as remote, so all need a token. */
+  ingestOnly?: boolean;
 }
 
 export type Auth = { ok: true; sender?: string } | { ok: false };
@@ -60,7 +62,7 @@ function same(a: string, b: string): boolean {
   return timingSafeEqual(ha, hb);
 }
 
-export function authorize(req: IncomingMessage, { legacy, home, hub }: AuthOptions): Auth {
+export function authorize(req: IncomingMessage, { legacy, home, hub, ingestOnly }: AuthOptions): Auth {
   const token = presented(req);
   if (token) {
     // A presented token is always checked, locally too: its id is who sent the event, and a revoked or
@@ -70,6 +72,8 @@ export function authorize(req: IncomingMessage, { legacy, home, hub }: AuthOptio
     return hit ? { ok: true, sender: hit.id } : { ok: false };
   }
   // No token: a request from this machine is trusted as before #83 (the hub's own hooks keep working),
-  // unless FLOW_TOWER_TOKEN is set. Off-machine senders in hub mode always need a token.
-  return !legacy && !isRemote(req, { hub: hub ?? hubMode() }) ? { ok: true } : { ok: false };
+  // unless FLOW_TOWER_TOKEN is set. Off-machine senders in hub mode always need a token, and --ingest-only
+  // is public by design: there every sender, local included, is treated as remote.
+  const remote = ingestOnly || isRemote(req, { hub: hub ?? hubMode() });
+  return !legacy && !remote ? { ok: true } : { ok: false };
 }

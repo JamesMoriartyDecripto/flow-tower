@@ -27,12 +27,29 @@ export const hubOptionsFromEnv = (env: NodeJS.ProcessEnv = process.env): HubOpti
   legacy: env.FLOW_TOWER_TOKEN,
 });
 
+/**
+ * The path as a router sees it (#83). Connect matches mounts case-insensitively and by prefix, and the URL
+ * parser leaves repeated slashes and percent-escapes alone, so /API/file, /api//file and /api%2ffile all
+ * reached /api/file. Normalising before classifying makes the guard's decision match the route's behaviour.
+ */
+export function normalizePath(raw: string): string {
+  let path = raw;
+  try { path = decodeURIComponent(path); } catch { /* a malformed escape must not throw: classify it as sent */ }
+  return path
+    .replace(/\/{2,}/g, '/') // connect collapses nothing: /api//file still reached the route
+    .replace(/\.+(\/|$)/g, '$1') // some stacks strip a trailing dot before routing, a plain compare did not
+    .toLowerCase(); // mounts are matched case-insensitively
+}
+
 /** POST /api/events and the OTLP receivers: the only routes a remote sender may use. */
 const isIngest = (method: string | undefined, path: string) =>
   method === 'POST' && (path === '/api/events' || /^\/v1\/(logs|metrics|traces)\/?$/.test(path));
 
 /** Routes a remote viewer must never reach, whatever the method: they read host files or drive the mic. */
-const isSensitive = (path: string) => path === '/api/file' || path.startsWith('/api/file/') || path === '/api/voice' || path.startsWith('/api/voice/');
+const SENSITIVE = /^\/api\/(file|voice)(\/|\.|$)/;
+/** Vite's own file serving: /@fs/<abs path> reads any file on the host, so a remote viewer gets nothing. */
+const isViteFs = (path: string) => path === '/@fs' || path.startsWith('/@fs/');
+const isSensitive = (path: string) => SENSITIVE.test(path) || isViteFs(path);
 
 /** A remote read: the UI, its assets and every read endpoint (workspace, events, history, version). */
 const isViewing = (method: string | undefined, path: string) => (method === 'GET' || method === 'HEAD') && !isSensitive(path);
@@ -54,31 +71,54 @@ function viewers(home: string): string[] {
 let cache: { home: string; mtime: number; list: string[] } | undefined;
 
 /**
+ * The tailnet user behind this request, if it may view the hub (#83). Tailscale serve sets
+ * tailscale-user-login for the tailnet user and connects from loopback: the header is trusted only then,
+ * since on a --host bind anyone on the network could send it. Shared by the guard and the upgrade check.
+ */
+export function viewerOf(req: IncomingMessage, home: string): string | undefined {
+  const who = req.headers['tailscale-user-login'];
+  if (isLoopback(req.socket?.remoteAddress) && typeof who === 'string' && viewers(home).includes(who)) return who;
+  return undefined;
+}
+
+/** Is this request a listed viewer coming through the local proxy? */
+export const isViewer = (req: IncomingMessage, home: string): boolean => viewerOf(req, home) !== undefined;
+
+/**
+ * May this WebSocket upgrade proceed (#83)? Vite answers HMR/ws on the http server directly, so the
+ * connect middlewares never see it; the same rule as the guard decides here. The machine's own browser
+ * and a listed viewer through the local proxy are allowed; --ingest-only serves no UI at all, so no socket.
+ */
+export function allowUpgrade(req: IncomingMessage, opts: HubOptions): boolean {
+  if (opts.ingestOnly) return false;
+  if (!opts.hub) return true; // hub mode off: Vite's own dev behaviour, unchanged
+  if (!isRemote(req, { hub: true })) return true;
+  return isViewer(req, opts.home);
+}
+
+/**
  * The first middleware of the server in hub mode. It runs before every route and decides from the socket,
  * the proxy headers and the hub.json alone: one place to read for "what can a remote request do".
  */
 export function hubGuard(opts: HubOptions) {
   return (req: IncomingMessage, res: ServerResponse, next: () => void) => {
-    const path = new URL(req.url ?? '', 'http://local').pathname;
+    const path = normalizePath(new URL(req.url ?? '', 'http://local').pathname);
     const ingest = isIngest(req.method, path);
     // --ingest-only is a public fallback: it must serve nothing but ingest, to anyone, locally too.
     if (opts.ingestOnly && !ingest) return deny(res, 404, { error: 'not found' });
     if (ingest) {
       // A remote sender has no other identity than a token: the hub's own check would answer the same,
-      // but this keeps an unsigned body from being read at all.
-      if (opts.hub && isRemote(req, { hub: opts.hub })) {
-        const authz = authorize(req, { legacy: opts.legacy, home: opts.home, hub: opts.hub });
+      // but this keeps an unsigned body from being read at all. --ingest-only is public, so even a local
+      // request is treated as remote there: every ingest must carry a valid token.
+      if ((opts.hub && isRemote(req, { hub: opts.hub })) || opts.ingestOnly) {
+        const authz = authorize(req, { legacy: opts.legacy, home: opts.home, hub: opts.hub, ingestOnly: opts.ingestOnly });
         if (!authz.ok) return deny(res, 401, { error: 'bad or missing token' });
       }
       return next();
     }
     if (!isRemote(req, { hub: opts.hub })) return next(); // local requests keep today's behaviour
     if (isViewing(req.method, path)) {
-      // Tailscale serve sets tailscale-user-login for the tailnet user behind the request, and connects from
-      // loopback. The header is trusted only then: on a --host bind anyone on the network could send it.
-      const who = req.headers['tailscale-user-login'];
-      const viaLocalProxy = isLoopback(req.socket?.remoteAddress);
-      if (viaLocalProxy && typeof who === 'string' && viewers(opts.home).includes(who)) return next();
+      if (isViewer(req, opts.home)) return next();
       return deny(res, 403, { error: 'remote viewing is not allowed for this user (see viewers in hub.json on the hub)' });
     }
     return deny(res, 403, { error: 'remote requests may only ingest events' });

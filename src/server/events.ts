@@ -32,7 +32,7 @@ export interface HubLimits {
 export function createEventHub(getWorkspace: () => Workspace | undefined, broadcast: (events: FlowEvent[]) => void, auth: AuthOptions = { home: userHome() }, limits: HubLimits = {}) {
   const buffer: FlowEvent[] = [];
   const now = limits.clock ?? Date.now;
-  const bucket = limits.bucket ?? createBucket({ now });
+  const bucket = limits.bucket ?? createBucket({ now, burst: 2 * MAX_BATCH });
   const dedupe = limits.dedupe ?? createDedupe();
   let seq = 0;
 
@@ -75,7 +75,10 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     if (!authz.ok) return json(res, 401, { error: 'bad or missing token' });
     // A local hook without a token is trusted (the server is never exposed that way): only a sender
     // identity or a request that reached us from off this machine gets its own rate-limit bucket.
-    const key = authz.sender ?? (isRemote(req, { hub: auth.hub ?? hubMode() }) ? req.socket?.remoteAddress ?? 'remote' : undefined);
+    // The key must never be undefined for a remote/ingest-only request: fall back to the socket address,
+    // then to a fixed key, so a sender the request itself supplies nothing for is still rate limited.
+    const remote = auth.ingestOnly || isRemote(req, { hub: auth.hub ?? hubMode() });
+    const key = authz.sender ?? (remote ? req.socket?.remoteAddress ?? 'remote' : undefined);
     const encoding = encodingOf(req);
     if (!encoding) return json(res, 415, unknownEncoding());
 

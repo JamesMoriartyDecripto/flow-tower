@@ -22,7 +22,23 @@ const parse = (token: unknown): { id: string; token: string } | undefined => {
   return m ? { id: m[1], token } : undefined;
 };
 
-export function tokenStore(home = userHome()) {
+/**
+ * One store per home for the whole process (#83): authorize runs on every ingest request and must not
+ * re-read tokens.json each time. The store still stat()s the file on each verify, so `token add/revoke`
+ * in another process is picked up by the mtime check — this memoizes the object, not the file content.
+ */
+const stores = new Map<string, TokenStore>();
+
+export function tokenStore(home = userHome()): TokenStore {
+  const key = join(home, 'tokens.json');
+  const existing = stores.get(key);
+  if (existing) return existing;
+  const store = createTokenStore(home);
+  stores.set(key, store);
+  return store;
+}
+
+function createTokenStore(home: string) {
   const file = join(home, 'tokens.json');
   /** Owner only, where we may decide it; a file system that refuses chmod (EPERM) is not an error. */
   const ownerOnly = (path: string, mode: number) => { try { chmodSync(path, mode); } catch { /* best effort */ } };
@@ -101,4 +117,4 @@ export function tokenStore(home = userHome()) {
     },
   };
 }
-export type TokenStore = ReturnType<typeof tokenStore>;
+export type TokenStore = ReturnType<typeof createTokenStore>;

@@ -101,6 +101,21 @@ describe('ingest abuse limits (#83 phase 3)', () => {
     expect(hub.recent()).toHaveLength(3);
   });
 
+  it('lets a legitimate MAX_BATCH batch through the default bucket', async () => {
+    // The default burst must exceed MAX_BATCH: a full batch spends 1000 tokens at once (#83).
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-limits-batch-'));
+    const { token } = tokenStore(home).create('dana');
+    const hub = createEventHub(() => undefined, () => undefined, { home, hub: true });
+    const server = createServer((rq, rs) => hub.handle(rq, rs));
+    servers.push(server);
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/events`;
+    const batch = Array.from({ length: 1000 }, (_, i) => ({ kind: 'log', message: `m${i}` }));
+    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-flow-tower-token': token }, body: JSON.stringify(batch) });
+    expect(r.status).toBe(204);
+    expect(hub.recent()).toHaveLength(1000);
+  });
+
   it('drops duplicate event ids and out-of-window timestamps without changing the answer', () => {
     const c = clock();
     const hub = createEventHub(() => undefined, () => undefined, { home: mkdtempSync(join(tmpdir(), 'flow-tower-limits-')) }, {
