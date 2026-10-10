@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { identityFromAttributes, tokenAttr } from '../src/core/identity';
+import { identityFromAttributes, tokenAttr, IDENTITY_MAX } from '../src/core/identity';
 
 describe('identityFromAttributes', () => {
   // One rung per cascade: each case only sets the attribute under test.
@@ -51,6 +51,17 @@ describe('identityFromAttributes', () => {
     expect(identityFromAttributes({ 'service.name': 'claude-code-desktop', 'user.id': 'anon' }).user).toBe('anon');
     // For non-Claude runtimes user.id is a real identity, so it is not demoted.
     expect(identityFromAttributes({ 'service.name': 'codex', 'user.id': 'acct', 'user.email': 'a@b.c' }).user).toBe('a@b.c');
+  });
+
+  it('clips every field to IDENTITY_MAX (#82)', () => {
+    const long = 'x'.repeat(IDENTITY_MAX + 10);
+    const clipped = `${'x'.repeat(IDENTITY_MAX - 1)}…`;
+    const id = identityFromAttributes({
+      'enduser.id': long, 'host.name': long, 'service.name': long, project: long, 'session.id': long,
+    });
+    expect(id).toEqual({ user: clipped, host: clipped, runtime: clipped, project: clipped, session: clipped });
+    // Short values are untouched, including one at exactly the limit.
+    expect(identityFromAttributes({ 'enduser.id': 'x'.repeat(IDENTITY_MAX) }).user).toBe('x'.repeat(IDENTITY_MAX));
   });
 });
 

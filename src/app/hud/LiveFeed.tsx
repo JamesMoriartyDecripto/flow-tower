@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import { splitTarget, type FlowEvent } from '../../core/events';
 import { towerPath } from '../graph';
-import { formatUsage, useLive, usageOf } from '../live';
+import { formatUsage, useLive, usageOf, declaredRuntime } from '../live';
 import { useDescendants } from '../liveHooks';
 import { findNode, useStore, useTower } from '../store';
 
@@ -137,7 +137,7 @@ export function NodeLiveInfo({ nodeKey }: { nodeKey: string }) {
   if (!live || !findNode(tower, nodeKey)) return null;
   const where = live.where;
   // runtimeRef points at a runtime declared by the tower; its label reads better than the raw id.
-  const runtime = where && (tower?.runtimes?.[where.runtimeRef ?? '']?.label ?? where.runtime ?? where.runtimeRef);
+  const runtime = where && (declaredRuntime(tower, where.runtimeRef)?.label ?? where.runtime ?? where.runtimeRef);
   // "Running now on claude-code · gpu-1 · user ada"
   const parts = [runtime, where?.host, where?.user && `user ${where.user}`].filter(Boolean).join(' · ');
   return (

@@ -4,6 +4,8 @@
  * first attribute that is actually set so every event can carry who/where/what.
  */
 
+import { clip } from './adapters.ts';
+
 export type Identity = {
   user?: string;
   host?: string;
@@ -13,6 +15,9 @@ export type Identity = {
 };
 
 export type TokenKind = 'input' | 'output' | 'cache_read' | 'cache_write';
+
+/** Longest identity field kept: attributes come from outside, so they cannot bloat every event. */
+export const IDENTITY_MAX = 200;
 
 /** First attribute whose value is a non-empty string wins; non-strings are ignored. */
 function pick(a: Record<string, unknown>, keys: string[]): string | undefined {
@@ -62,7 +67,10 @@ export function identityFromAttributes(a: Record<string, unknown>): Identity {
 
   const session = pick(a, ['session.id', 'conversation.id', 'gen_ai.conversation.id']);
 
-  return { user, host, runtime, project, session };
+  return {
+    user: clip(user, IDENTITY_MAX), host: clip(host, IDENTITY_MAX), runtime: clip(runtime, IDENTITY_MAX),
+    project: clip(project, IDENTITY_MAX), session: clip(session, IDENTITY_MAX),
+  };
 }
 
 const TOKEN_KEYS: Record<TokenKind, string[]> = {

@@ -1,6 +1,5 @@
 import { claudeCode } from './claudeCode.ts';
 import type { FlowEventInput } from './events.ts';
-
 /**
  * Source adapters: map each runtime's native payload onto FlowEvent.
  * Field names follow the official docs (see docs/realtime.md for links and versions).
@@ -12,7 +11,7 @@ type Adapter = (raw: Raw) => FlowEventInput[];
 const str = (v: unknown) => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : undefined);
 const num = (v: unknown) => (typeof v === 'number' ? v : undefined);
 const obj = (v: unknown) => (v && typeof v === 'object' ? (v as Raw) : {});
-const clip = (v: unknown, n = 240) => {
+export const clip = (v: unknown, n = 240) => {
   const s = typeof v === 'string' ? v : v === undefined || v === null ? undefined : JSON.stringify(v);
   return s && s.length > n ? `${s.slice(0, n - 1)}…` : s;
 };

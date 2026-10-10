@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { tmpdir, hostname, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { IDENTITY_MAX, identityDefaults } from '../bin/identity.js';
 
 const CLI = resolve('bin/flow-tower.js');
 const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' });
@@ -57,6 +58,40 @@ describe('cli emit identity (#82)', () => {
     const { url, got } = await stub();
     await emitAsync(['--url', url], JSON.stringify({ kind: 'log', user: 'grace', host: 'custom-host' }));
     expect(got).toEqual([expect.objectContaining({ user: 'grace', host: 'custom-host' })]);
+  });
+
+  it('clips long identity fields', async () => {
+    const { url, got } = await stub();
+    await emitAsync(['--url', url, '--kind', 'log', '--user', 'u'.repeat(IDENTITY_MAX + 50)]);
+    expect(got).toEqual([expect.objectContaining({ user: `${'u'.repeat(IDENTITY_MAX - 1)}…` })]);
+  });
+});
+
+describe('emit identity defaults (#82)', () => {
+  const os = { username: 'ada', hostname: 'box-1' };
+
+  it.each(['http://127.0.0.1:5317', 'http://localhost:5317', 'http://[::1]:5317'])(
+    'adds the os user and hostname for the loopback target %s',
+    (url) => {
+      expect(identityDefaults(url, {}, os)).toEqual({ user: 'ada', host: 'box-1' });
+    },
+  );
+
+  it.each(['https://tower.example.com', 'http://10.0.0.7:5317', 'not a url'])(
+    'sends nothing by default to %s',
+    (url) => {
+      expect(identityDefaults(url, {}, os)).toEqual({ user: undefined, host: undefined });
+    },
+  );
+
+  it('sends what the env asks for, even to a remote host', () => {
+    expect(identityDefaults('https://tower.example.com', { FLOW_TOWER_USER: 'grace', FLOW_TOWER_MACHINE: 'box-2' }, os))
+      .toEqual({ user: 'grace', host: 'box-2' });
+  });
+
+  it('treats an empty FLOW_TOWER_USER as "no user", everywhere', () => {
+    expect(identityDefaults('http://127.0.0.1:5317', { FLOW_TOWER_USER: '' }, os)).toEqual({ user: undefined, host: 'box-1' });
+    expect(identityDefaults('https://tower.example.com', { FLOW_TOWER_USER: '' }, os)).toEqual({ user: undefined, host: undefined });
   });
 });
 

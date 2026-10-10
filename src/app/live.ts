@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { splitTarget, type FlowEvent } from '../core/events';
-import type { Workspace } from '../core/types';
+import type { ResolvedRuntime, ResolvedTower, Workspace } from '../core/types';
 import { keepAlive } from './scene/frameBudget';
 import { STATIC } from './staticData';
 
@@ -42,6 +42,15 @@ const addUsage = (u: Usage | undefined, e: FlowEvent): Usage => ({
 });
 
 export type LiveState = 'run' | 'done' | 'error' | 'flash' | 'idle';
+
+/**
+ * The runtime a `runtimeRef` points at, but only when the tower declares that exact id as an own key (#82):
+ * a ref like "constructor" or "__proto__" comes from an event, and must not resolve through the prototype.
+ */
+export function declaredRuntime(tower: ResolvedTower | undefined, ref: string | undefined): ResolvedRuntime | undefined {
+  if (!ref || !tower || !Object.hasOwn(tower.runtimes, ref)) return undefined;
+  return tower.runtimes[ref];
+}
 
 const FEED = 300;
 /** An agent that started and never reported back is considered idle after this. */

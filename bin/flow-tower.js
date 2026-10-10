@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
 import { parseArgs } from 'node:util';
+import { clipIdentity, identityDefaults } from './identity.js';
 
 const HELP = `flow-tower — 3D tower visualizer for agentic systems
 
@@ -30,6 +31,10 @@ Options
       --no-update-check  Do not ask GitHub once a day whether a newer release exists
                  (also FLOW_TOWER_NO_UPDATE_CHECK=1; always off in CI)
       --url      emit: server URL (default http://127.0.0.1:5317); a second server runs on another --port
+                 user and machine are added by default only for a loopback URL (127.0.0.1, ::1, localhost):
+                 to any other host they are sent only when given explicitly (--user/--machine, or
+                 FLOW_TOWER_USER / FLOW_TOWER_MACHINE set to a non-empty value). FLOW_TOWER_USER=''
+                 disables the user default everywhere.
       --tower    emit: only match towers whose id or name contains this (two versions in one library)
   -h, --help     Show this help`;
 
@@ -195,16 +200,10 @@ async function emit() {
     method: 'POST', headers, body: JSON.stringify(events), signal: AbortSignal.timeout(1500),
   }).catch(() => {});
 
-  // Defaults so identity is never empty; a payload or an explicit flag always wins (#82).
-  const defaults = {
-    user: env.FLOW_TOWER_USER || userInfo().username,
-    host: hostname(),
-  };
-  const withIdentity = (event) => {
-    const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
-    // defaults < payload < explicit flags
-    return { ...defaults, ...clean(event), ...clean(identity) };
-  };
+  // Defaults so identity is never empty on a loopback target; a payload or an explicit flag always wins (#82).
+  const defaults = identityDefaults(values.url, env, { username: userInfo().username, hostname: hostname() });
+  const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+  const withIdentity = (event) => clipIdentity({ ...defaults, ...clean(event), ...clean(identity) });
   const identity = {
     user: values.user, host: values.machine, runtime: values.runtime, session: values.session, project: values['project-name'],
   };
