@@ -96,6 +96,12 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       const opened = await openHistory(join(USER_HOME, 'history.db'));
       if ('disabled' in opened) server.config.logger.warn(`flow-tower: ${opened.disabled}`);
       const history = 'disabled' in opened ? undefined : createHistory(opened.db);
+      if (history) {
+        // Retention policy (#84): prune once on start, then hourly. unref() so the timer never keeps the
+        // dev server process alive on its own.
+        history.prune();
+        setInterval(() => history.prune(), 3_600_000).unref();
+      }
 
       const hub = createEventHub(
         () => state?.workspace,

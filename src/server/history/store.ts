@@ -3,6 +3,7 @@
  * daily rollups updated in the same transaction. Keeping events and rollups in one transaction means a
  * crash can never leave a counted event missing from its bucket.
  */
+import { env } from 'node:process';
 import type { DatabaseSync } from 'node:sqlite';
 import type { FlowEvent } from '../../core/events.ts';
 import { toRow, type Row } from './row.ts';
@@ -25,6 +26,22 @@ ON CONFLICT(bucket, user, project, runtime, model) DO UPDATE SET
   cost_usd_micros = cost_usd_micros + excluded.cost_usd_micros`;
 
 const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
+
+/**
+ * Retention (#84). Per-person raw events are kept briefly only: beyond 21 days that data must be watched
+ * through remote monitoring endpoints under Italian guidance, not in a local DB, so the cap is the policy.
+ * The rollups are aggregate and content-free, so they live long enough to chart a year.
+ */
+export const RETENTION = { minDays: 1, maxDays: 21, defaultDays: 14, hourlyDays: 90, dailyDays: 395 } as const;
+
+/** FLOW_TOWER_RETENTION_DAYS read and clamped to 1..21; a missing or unparsable value falls back to 14. */
+export function retentionDays(value: string | undefined = env.FLOW_TOWER_RETENTION_DAYS): number {
+  if (value === undefined || value.trim() === '') return RETENTION.defaultDays;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return RETENTION.defaultDays;
+  return Math.min(RETENTION.maxDays, Math.max(RETENTION.minDays, Math.trunc(n)));
+}
 
 /** Start of the UTC day holding `ts`. UTC, not local: the DB must not change meaning with TZ. */
 function dayStart(ts: number): number {
@@ -34,6 +51,8 @@ function dayStart(ts: number): number {
 
 export interface History {
   write(events: FlowEvent[]): void;
+  /** Drops rows older than the retention window; `now` is injectable so the policy is testable on a fake clock. */
+  prune(now?: number, opts?: { rawDays?: number }): void;
 }
 
 /**
@@ -69,5 +88,22 @@ export function createHistory(db: DatabaseSync): History {
     }
   };
 
-  return { write };
+  const prune = (now = Date.now(), opts: { rawDays?: number } = {}): void => {
+    const rawDays = Math.min(RETENTION.maxDays, Math.max(RETENTION.minDays, opts.rawDays ?? retentionDays()));
+    const cuts: [string, string, number][] = [
+      ['events', 'ts', now - rawDays * DAY],
+      ['rollup_hourly', 'bucket', now - RETENTION.hourlyDays * DAY],
+      ['rollup_daily', 'bucket', now - RETENTION.dailyDays * DAY],
+    ];
+    db.exec('BEGIN');
+    try {
+      for (const [table, col, limit] of cuts) db.prepare(`DELETE FROM ${table} WHERE ${col} < ?`).run(limit);
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  };
+
+  return { write, prune };
 }

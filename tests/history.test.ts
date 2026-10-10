@@ -7,7 +7,7 @@ import { FlowEventSchema, type FlowEvent } from '../src/core/events';
 import { openHistory } from '../src/server/history/db';
 import { toRow } from '../src/server/history/row';
 import { migrate } from '../src/server/history/schema';
-import { createHistory } from '../src/server/history/store';
+import { createHistory, retentionDays } from '../src/server/history/store';
 
 /**
  * History DB (#84). The file lives in a temp folder here, standing in for userHome(), never the repo.
@@ -120,5 +120,44 @@ describe('history scrub + writer (#84)', () => {
     history.write([ev({ kind: 'log' }, 5_000_000), ev({ kind: 'log' }, 5_000_001)]);
     expect(rows(res.db)).toHaveLength(2);
     expect(toRow(ev({ kind: 'log' }), 1_000_000)?.event_key).toBeNull();
+  });
+});
+
+const DAY = 24 * 3_600_000;
+
+describe('history retention (#84)', () => {
+  const seeded = async (now: number) => {
+    const res = await open();
+    if ('disabled' in res) return res;
+    const history = createHistory(res.db);
+    // One event and one bucket exactly at each table's limit, and one just past it.
+    const seed = (table: string, col: string, ageDays: number) =>
+      res.db.prepare(`INSERT INTO ${table} (${col}) VALUES (?)`).run(now - ageDays * DAY);
+    seed('events', 'ts', 14);
+    seed('events', 'ts', 15);
+    seed('rollup_hourly', 'bucket', 90);
+    seed('rollup_hourly', 'bucket', 91);
+    seed('rollup_daily', 'bucket', 395);
+    seed('rollup_daily', 'bucket', 396);
+    history.prune(now, { rawDays: 14 });
+    const count = (table: string) => (res.db.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n;
+    return { res, count };
+  };
+
+  it('prunes each table at its own limit', async () => {
+    const now = 1_700_000_000_000;
+    const s = await seeded(now);
+    if ('disabled' in s) return expect(s.disabled).toContain('Node >= 22.13');
+    expect(s.count('events')).toBe(1);
+    expect(s.count('rollup_hourly')).toBe(1);
+    expect(s.count('rollup_daily')).toBe(1);
+  });
+
+  it('clamps FLOW_TOWER_RETENTION_DAYS to 1..21', () => {
+    expect(retentionDays('30')).toBe(21);
+    expect(retentionDays('0')).toBe(1);
+    expect(retentionDays('7')).toBe(7);
+    expect(retentionDays(undefined)).toBe(14);
+    expect(retentionDays('nonsense')).toBe(14);
   });
 });
