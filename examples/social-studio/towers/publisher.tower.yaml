@@ -172,7 +172,7 @@ layers:
           - { kind: log, label: Publisher log, path: logs/publisher.log }
       - id: dlq
         type: output
-        label: Dead letter + alert
+        label: DLQ + alert
         description: After 3 failures the job parks with the API error and pings #social-approvals; a person re-queues or drops it.
         runtime: slack
     edges:

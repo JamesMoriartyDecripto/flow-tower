@@ -99,7 +99,7 @@ layers:
     description: Release-like build, then the emulator and one low-end phone. Three rounds, then escalate to the app lead.
     nodes:
       - id: gradle
-        label: Gradle release build
+        label: Gradle release
         description: "npx expo prebuild -p android --clean, then ./gradlew :app:assembleRelease with R8; size diff against main."
         runtime: mac
         limits: { timeout: 20m }

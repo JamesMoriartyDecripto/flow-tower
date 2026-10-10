@@ -133,7 +133,7 @@ layers:
           - { name: bible conflicts found, value: 2, target: 0, higher_is_better: false, illustrative: true }
       - id: bible_req
         type: output
-        label: Bible change request
+        label: Bible change
         description: New terms or facts the bible lacks go to the author as a request; the writer never edits the bible.
         runtime: orchestrator
     edges:

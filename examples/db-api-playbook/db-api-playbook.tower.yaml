@@ -98,7 +98,7 @@ layers:
     title: Run & Evolve
     description: Serve requests, watch them, and retire old versions without breaking clients.
     nodes:
-      - { id: requests, type: process, label: Request pipeline, description: "Every request: token, limits, validation, authorization, query, response.", tower: towers/request.tower.yaml, files: [notes/07-request.md] }
+      - { id: requests, type: process, label: Request flow, description: "Every request: token, limits, validation, authorization, query, response.", tower: towers/request.tower.yaml, files: [notes/07-request.md] }
       - { id: telemetry, type: tool, label: OpenTelemetry, description: Stable HTTP and database semantic conventions., files: [notes/06-run.md] }
       - { id: slo, type: decision, label: SLO burning?, files: [notes/06-run.md] }
       - { id: oldused, type: decision, label: Old version used?, files: [notes/06-run.md] }

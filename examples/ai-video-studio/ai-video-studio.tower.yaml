@@ -453,7 +453,7 @@ layers:
         runtime: render-box
         files: [pipeline/assemble.sh]
       - id: reframe
-        label: Reframe per platform
+        label: Platform reframe
         description: "9:16 1080x1920, 1:1 1080x1080, 16:9 1920x1080 with platform safe zones; subject-aware crop from the storyboard."
         runtime: render-box
         files: [pipeline/reframe.sh, config/platform-specs.yaml]

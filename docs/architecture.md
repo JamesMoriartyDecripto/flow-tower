@@ -42,7 +42,7 @@ The server only reads files under the tower roots. Workspace changes and live ev
 
 | File | Open it when |
 |---|---|
-| `src/app/store.ts` | Navigation state: stack, selection, focus, view, quality |
+| `src/app/store.ts` | Navigation state: stack, selection, focus, view, quality; applies a deep link on first load |
 | `src/app/settings.ts` | Persisted preferences (themes, fonts, interface size, animations, visibility, default view) |
 | `src/app/live.ts`, `liveHooks.ts` | Live store (copy-on-write, never mutate), polling, per-tower live state |
 | `src/app/keynav.ts`, `spatial.ts` | Keyboard navigation of the scene (arrows, layers, camera nudges, sub-towers) |
@@ -52,7 +52,7 @@ The server only reads files under the tower roots. Workspace changes and live ev
 | `src/app/exporter.ts`, `exportSvg.ts`, `scene/Snapshot.tsx` | Export packs (P / X): ZIP of every layer and map of the project and its sub-towers, as SVG diagrams or Full HD PNGs rasterized from them, plus the 3D snapshot (captured after post-processing) |
 | `src/app/staticData.ts`, `demo.ts` | Static demo mode (Vite mode `demo`): data from `data/`, in-browser live simulator, DEMO chip |
 | `src/app/theme.ts`, `themes.ts` | Node / edge styles and bloom colors; theme switching (shared colors mutated in place, scene remounted) |
-| `src/app/graph.ts` | Neighbours, related nodes, search, breadcrumb paths |
+| `src/app/graph.ts` | Neighbours, related nodes, search, breadcrumb paths, deep links (`?tower=&layer=&node=`) |
 
 ## Scene (three.js via react-three-fiber)
 

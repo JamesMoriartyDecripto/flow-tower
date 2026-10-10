@@ -475,7 +475,7 @@ layers:
       the gates run in CI against that URL, then an agent audits what automation misses.
     nodes:
       - id: preview
-        label: Preview + DB branch
+        label: Preview+DB branch
         description: Vercel preview per PR; Neon creates preview/<git-branch>, the build runs payload migrate and the seed script.
         runtime: vercel-fn
         files: [backend/seed.ts]

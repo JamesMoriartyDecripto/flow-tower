@@ -127,8 +127,8 @@ layers:
         files: [backend/checkout-route.ts]
       - id: webhook
         agent: be
-        label: /api/stripe/webhook
-        description: constructEvent signature check, idempotent by event id, creates the order.
+        label: Stripe webhook
+        description: /api/stripe/webhook. constructEvent signature check, idempotent by event id, creates the order.
         exactly_once: true
         runtime: vercel-fn
         files: [backend/stripe-webhook.ts]

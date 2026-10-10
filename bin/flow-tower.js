@@ -10,7 +10,7 @@ import { parseArgs } from 'node:util';
 const HELP = `flow-tower — 3D tower visualizer for agentic systems
 
 Usage
-  flow-tower <file.tower.yaml | dir> [more files or dirs...] [--port 5317] [--no-open]
+  flow-tower <file.tower.yaml | dir> [more files or dirs...] [--port 5317] [--no-open | --browser <app>]
   flow-tower init [file.tower.yaml]
   flow-tower emit --source <claude-code|codex|pi|hermes> [--tower t] < payload.json  (hooks; JSONL streams live)
   flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [-m text]
@@ -25,6 +25,7 @@ Usage
 Options
   -p, --port     Port to listen on (default 5317)
       --no-open  Do not open the browser
+      --browser  Open this browser instead of the default (firefox, "google chrome", safari...; also $BROWSER)
       --no-update-check  Do not ask GitHub once a day whether a newer release exists
                  (also FLOW_TOWER_NO_UPDATE_CHECK=1; always off in CI)
       --url      emit: server URL (default http://127.0.0.1:5317); a second server runs on another --port
@@ -83,6 +84,7 @@ const { values, positionals } = parseArgs({
   options: {
     port: { type: 'string', short: 'p', default: '5317' },
     'no-open': { type: 'boolean', default: false },
+    browser: { type: 'string' },
     'no-update-check': { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
     // emit
@@ -229,6 +231,8 @@ if (missing.length) {
 // The vite plugin reads its entries (and the update-check opt-out) from the environment of this process.
 env.FLOW_TOWER_ENTRIES = JSON.stringify(entries);
 if (values['no-update-check']) env.FLOW_TOWER_NO_UPDATE_CHECK = '1';
+// Vite opens the page with the `open` package, which reads $BROWSER.
+if (values.browser) env.BROWSER = values.browser;
 const { createServer } = await import('vite');
 const server = await createServer({
   root: pkgRoot,

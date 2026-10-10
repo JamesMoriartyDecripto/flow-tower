@@ -2,6 +2,7 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { parseDocument } from 'yaml';
+import type { z } from 'zod';
 import { TowerSchema, type TowerDef } from './schema.ts';
 import { parseEdge } from './edges.ts';
 import { pickOps, resolveAgent, resolvePromptDef, resolvePromptRef, type FileReader } from './resolve.ts';
@@ -15,6 +16,35 @@ export interface LoadResult {
   watched: Set<string>;
   /** Referenced files that do not exist yet: creating one must reload (its warning goes away). */
   missing: Set<string>;
+}
+
+/** Node labels longer than this are cut with an ellipsis on the node card (`fit` in scene/LayerNodes.tsx). */
+const MAX_LABEL = 18;
+/** Nodes that open a nested tower lose room to the tower badge. */
+const MAX_LABEL_NESTED = 13;
+
+const QUOTE = 'Hint: quote the value ("...") when it contains ": ", or a comma inside a one-line map.';
+/** YAML errors that almost always come from an unquoted ": " in a value. */
+const QUOTE_HINT = new Set(['BLOCK_AS_IMPLICIT_KEY', 'BLOCK_IN_FLOW']);
+
+/**
+ * Zod issues as tower issues, rewritten to point at the fix: a union that failed in every branch
+ * reports the branch the value was meant for (`fanout: { by }` → `fanout.max` is required, not "Invalid input").
+ */
+function schemaIssues(list: readonly z.core.$ZodIssue[], base: PropertyKey[] = []): Issue[] {
+  return list.flatMap((e): Issue[] => {
+    const path = [...base, ...e.path];
+    if (e.code === 'invalid_union') {
+      // Branches that failed only because the value has another type (a number vs a map) are not the one meant.
+      const meant = e.errors.filter((b) => !(b.length === 1 && b[0].code === 'invalid_type' && !b[0].path.length));
+      if (meant.length === 1) return schemaIssues(meant[0], path);
+    }
+    let message = e.message;
+    if (e.code === 'invalid_type' && message.endsWith('received undefined')) message = `required field missing (expected ${e.expected})`;
+    // Real keys never contain spaces: this is the rest of a value that an unquoted comma cut off.
+    if (e.code === 'unrecognized_keys' && e.keys.some((k) => /\s/.test(k))) message += `. ${QUOTE}`;
+    return [{ level: 'error', message, path: path.map(String).join('.') }];
+  });
 }
 
 /** Expands files and directories (scanned recursively) into a sorted list of tower files. */
@@ -142,13 +172,13 @@ async function loadTower(file: string, id: string, project: string, watched: Set
 
   const doc = parseDocument(raw);
   if (doc.errors.length) {
-    for (const e of doc.errors) issues.push({ level: 'error', message: e.message });
+    for (const e of doc.errors) issues.push({ level: 'error', message: e.message + (QUOTE_HINT.has(e.code) ? `\n${QUOTE}` : '') });
     return empty(dirname(file));
   }
 
   const parsed = TowerSchema.safeParse(doc.toJS());
   if (!parsed.success) {
-    for (const e of parsed.error.issues) issues.push({ level: 'error', message: e.message, path: e.path.join('.') });
+    issues.push(...schemaIssues(parsed.error.issues));
     return empty(dirname(file));
   }
 
@@ -225,10 +255,14 @@ export async function buildTower(
       const resources = [...(agent?.resources ?? []), ...(n.resources ?? [])];
       for (const r of n.resources ?? []) if (r.path && !exists(r.path)) issues.push({ level: 'warning', message: `resource not found: ${r.path}`, path: where });
 
+      const label = n.label ?? agent?.name ?? n.id;
+      const max = n.tower ?? agent?.tower ? MAX_LABEL_NESTED : MAX_LABEL;
+      if (label.length > max) issues.push({ level: 'warning', message: `label "${label}" has ${label.length} characters, the card shows ${max}${max === MAX_LABEL_NESTED ? ' (the nested-tower badge takes the rest)' : ''}: shorten it and move details to description`, path: where });
+
       layer.nodes.push({
         id: n.id, key: where, layer: l.id,
         type: n.type ?? (n.agent ? 'agent' : 'process'),
-        label: n.label ?? agent?.name ?? n.id,
+        label,
         description: n.description ?? agent?.description,
         agent,
         model: n.model ?? agent?.model,

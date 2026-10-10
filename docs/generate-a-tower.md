@@ -27,7 +27,11 @@ Find the system root: the folder that contains the agent code. If several indepe
 
 ### 2. Inventory (read-only)
 
-Collect facts before modelling. [reference.md](../skills/flow-tower/reference.md) § Signals lists what to search per framework. Note, for each item, the file that proves it. Capture:
+Collect facts before modelling. [reference.md](../skills/flow-tower/reference.md) § Signals lists what to search per framework. Note, for each item, the file **and line** that proves it.
+
+**Read in full what decides the flow:** rule and protocol docs, the bodies of agent and command files, hook **code**, route and middleware registration, the loop that calls the model. Headers, frontmatter, comments and file names are not enough: they are where the first draft goes wrong, and frontmatter can even contradict the body.
+
+Capture:
 
 - entry points: CLI, webhook, cron, chat UI;
 - orchestrator and routing logic;
@@ -39,6 +43,8 @@ Collect facts before modelling. [reference.md](../skills/flow-tower/reference.md
 - loops and their caps;
 - where each part runs (laptop, container, server, CI, SaaS);
 - logs, scripts and dashboards.
+
+Not an agent system? An HTTP API, a middleware chain or a set of workers maps just as well: see [what goes where § Services without agents](what-goes-where.md#services-without-agents).
 
 ### 3. Model the layers
 
@@ -53,11 +59,21 @@ Read [what goes where](what-goes-where.md) first: what belongs in a layer, a nod
 - `resources:` point to real log files, scripts and dashboard URLs found in the repo. Never invent URLs.
 - `status: planned | experimental | deprecated` only when the code or docs say so (TODOs, feature flags, deprecation notes).
 - Operational fields ([schema § Operations](schema.md#operations)) only when the code or config shows them: `trigger` (cron schedules, webhooks, queues), `approval` (human gates, their timeouts), `budget` / `limits` (max_turns, budget_usd, timeouts, retries, loop caps), `fanout` (parallel subagents), `data` (PII, region, retention), `sandbox`, `credentials`, `evals` (only real measured values, or targets the repo states). Wire protocols on edges (`protocol: mcp | a2a | http | webhook | queue`) when the transport is explicit.
-- Labels have at most 18 characters. Details go in `description`. If something is inferred rather than explicit, say so: `(inferred from …)`.
+- **Every exit, not only the happy path.** Errors, rejections, early returns and timeouts are edges too. When many checks can reject, draw one `output` node for the rejection with labelled edges (`401`, `429`) rather than an edge from every check to the main reply.
+- **Who invokes whom.** For every agent → skill / tool / subagent edge, find the file that names the owner and check the direction: a skill can invoke an agent, not the other way round.
+- **Hooks: classify them from their code, not their name.** Say in the description whether the hook blocks (exit 2, `deny`), asks (`ask`), only adds a reminder (`additionalContext`), or prints something nobody sees (stderr with exit 0). Hooks under different matchers are independent and fire side by side: do not chain them.
+- **When the sources disagree, write it down** instead of picking a side silently: `CLAUDE.md says X; agents/foo.md says Y; this tower follows Y (the code)`.
+- Labels have at most 18 characters (13 on a node that opens a nested tower): `validate` warns above that. Details go in `description`. If something is inferred rather than explicit, say so: `(inferred from …)`.
+- Write labels and descriptions in the **language of the system you map** (its README, comments and UI), not necessarily English. Ask if it is unclear.
 
 ### 4. Write the YAML
 
-First line: `# yaml-language-server: $schema=<relative path or URL to flow-tower.schema.json>` when the schema is reachable (the public URL is `https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json`). Quote any value containing `:` `,` `#` `{` `}` `[` `]` in one-line maps.
+First line: `# yaml-language-server: $schema=<relative path or URL to flow-tower.schema.json>` when the schema is reachable (the public URL is `https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json`).
+
+Quote values that YAML would read differently:
+
+- any value containing `: ` or ` #`, anywhere (block or one-line map): `description: "Gate: blocks the PR"`. Unquoted, the first is a parse error and the second silently cuts the text at `#`;
+- in one-line maps, also any value containing `,` `{` `}` `[` `]`: `{ id: a, description: "Search, then read" }`.
 
 ### 5. Validate and fix until clean
 
@@ -70,7 +86,19 @@ node <flow-tower>/bin/flow-tower.js validate <tower-file> --json
 - Fix `info: node has no connections` by connecting the node, or remove it if it is not part of the flow.
 - Re-run until it reports no errors and no warnings. The exit code is 1 only on errors, so read the report: warnings still exit 0.
 
-### 6. Live wiring (offer, don't force)
+### 6. Verify against the code
+
+`validate` proves the YAML is consistent, not that it is **true**. A tower modelled from comments and file names validates clean and is still wrong: gates drawn in sequence that run in parallel, a hook drawn as blocking that only reminds, a logger drawn writing to the wrong store, missing error exits. Before reporting, check the tower against the sources:
+
+- **Edges:** for each edge, find the line that proves the order or the direction (call order, middleware mount order, `add_edge`, who spawns whom). Fix or drop edges with no proof.
+- **Exits:** for each node, list every way out in the code (errors, rejections, early returns, retries) and check each one is drawn or deliberately left out.
+- **Traces:** follow at least one full run per entry point through the code, start to end, and compare it with the path in the tower. Watch for code that runs somewhere other than where it is registered, such as a wrapper around the response that runs last although it is mounted first.
+- **Gates and loops:** sequence or parallel, mandatory or conditional, where a failure goes, what caps the loop.
+- **Fresh eyes for big systems.** Above ~40 nodes or with several nested towers, split the check: reviewers with a fresh context (subagents, if your harness has them), read-only, one per layer group or nested tower, each comparing its part line by line with the sources and returning the discrepancies.
+
+Fix what the check finds, validate again, and keep two lists for the report: what you **traced** in the code and what you only **inferred**.
+
+### 7. Live wiring (offer, don't force)
 
 If the system runs on a supported harness, add `match:` rules where node names differ from runtime agent or tool names, and point the user to the ready-made config:
 
@@ -85,13 +113,13 @@ If the system runs on a supported harness, add `match:` rules where node names d
 
 Event format and matching rules: [realtime.md](realtime.md).
 
-### 7. Report
+### 8. Report
 
 Tell the user, briefly:
 
 - files written;
 - layers, nodes and nested towers;
-- what was inferred and what is uncertain;
+- what was traced in the code, what was only inferred, and where the sources disagree;
 - how to open it: `node <flow-tower>/bin/flow-tower.js <tower-file>` (or a folder, for the library view). It serves on `http://127.0.0.1:5317` and opens a browser; add `--no-open` in headless environments, and `--port 5318` if another tower is already open (live events go to the port the hooks point at).
 
 ## Updating an existing tower

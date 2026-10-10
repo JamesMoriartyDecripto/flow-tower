@@ -7,6 +7,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Added
 - `db-api-playbook` example: how to build and run an HTTP API over a database (approach, contract, data access, security, shipping, operations), with a request-pipeline sub-tower and notes pages citing current standards (OWASP API Top 10 2023, OpenAPI 3.2, RFC 9457, RFC 9700, RFC 9745), checked on 2026-10-10.
+- `validate` warns about node labels the card cuts (over 18 characters, 13 on a node with a nested tower) (#56).
+- Deep links: `?tower=…&layer=…&node=…` opens a tower (nested ones too), focuses a layer or selects a node (#7).
+- `--browser <app>` opens the page in another browser; `$BROWSER` works too (#56).
+- Skill and docs: a "Verify against the code" step after validate (prove each edge, list every exit, trace a run per entry point, fresh-context reviewers for big systems); read rule docs, agent bodies and hook code in full; classify hooks from their code; record source conflicts; towers in the mapped system's language; a "Services without agents" guide for HTTP APIs and workers (#56, #7).
+
+### Changed
+- `validate` errors point at the fix: a value that fits no form of a field names the missing part (`fanout.max: required field missing`, not `Invalid input`), and YAML errors from an unquoted `: ` or comma say to quote the value (#56).
+- Examples: 78 node labels that the card cut are shorter; exact identifiers moved to the description.
 
 ## [0.3.0] - 2026-10-10
 

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { NodeType } from '../core/schema';
 import type { ResolvedNode, ResolvedTower, Workspace } from '../core/types';
+import { deepLink } from './graph';
 
 export type Quality = 'eco' | 'balanced' | 'high';
 
@@ -112,6 +113,7 @@ export const useStore = create<State>()((set, get) => ({
     const moved = stack.length !== get().stack.length || !tower;
     const { selected, focusedLayer, file } = get();
     const nodeGone = selected !== undefined && !tower?.layers.some((l) => l.nodes.some((n) => n.key === selected));
+    const link = first ? deepLink(ws, location.search) : undefined;
     set({
       workspace: ws,
       error: undefined,
@@ -122,6 +124,7 @@ export const useStore = create<State>()((set, get) => ({
       owners: moved ? [] : get().owners,
       library: first ? ws.projects.length > 1 : get().library,
       revision: get().revision + 1,
+      ...(link && { ...link, owners: [], library: false }),
     });
   },
   setError: (error) => set({ error }),

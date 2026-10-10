@@ -148,8 +148,8 @@ layers:
       - id: before_agent
         runtime: agent_engine
         type: hook
-        label: before_agent_callback
-        description: "First turn only: fetch every card in BURGER_SELLER_AGENT_URL / PIZZA_SELLER_AGENT_URL; skip unreachable sellers."
+        label: before_agent hook
+        description: "before_agent_callback. First turn only: fetch every card in BURGER_SELLER_AGENT_URL / PIZZA_SELLER_AGENT_URL; skip unreachable sellers."
         files: [purchasing_concierge/purchasing_agent.py]
       - id: instruction
         runtime: agent_engine
@@ -245,10 +245,10 @@ layers:
     nodes:
       - id: burger
         agent: burger
-        label: Burger seller (CrewAI)
+        label: Burger seller
       - id: pizza
         agent: pizza
-        label: Pizza seller (LangGraph)
+        label: Pizza seller
       - id: orders
         type: memory
         runtime: burger_run
@@ -284,12 +284,12 @@ layers:
       - id: flash_lite
         runtime: vertex
         type: model
-        label: gemini-2.5-flash-lite
+        label: Gemini Flash-Lite
         model: gemini-2.5-flash-lite
         description: "Both sellers: vertex_ai/gemini-2.5-flash-lite via LiteLLM in CrewAI, ChatVertexAI in LangGraph."
       - id: deploy_engine
         runtime: agent_engine
-        label: Agent Engine deploy
+        label: Deploy to Engine
         description: "agent_engines.create(AdkApp, requirements google-adk==1.15.1, a2a-sdk==0.2.16, env seller URLs)."
         files: [deploy_to_agent_engine.py]
       - id: deploy_run

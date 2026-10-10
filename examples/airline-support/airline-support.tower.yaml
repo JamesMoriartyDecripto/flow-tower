@@ -201,7 +201,7 @@ layers:
         runtime: console
         status: planned
         type: human
-        label: Human-agent console
+        label: Human agent UI
         description: "Escalated chats with the last 20 messages and the public context; the human replies in the same thread."
         files: [python-backend/airline/approvals.py]
         approval: { by: "Tier-2 customer care", via: "Human-agent console", actions: [respond], timeout: 15m, on_timeout: escalate }
@@ -241,13 +241,13 @@ layers:
         files: [python-backend/main.py, python-backend/airline_server.py]
       - id: state_stream
         runtime: backend
-        label: /chatkit/state/stream
-        description: "SSE: initial snapshot, then events_delta for every handoff, tool call and context change."
+        label: State stream
+        description: "/chatkit/state/stream. SSE: initial snapshot, then events_delta for every handoff, tool call and context change."
         files: [python-backend/main.py, python-backend/airline_server.py]
       - id: runner
         runtime: backend
-        label: Runner.run_streamed
-        description: "Starts at state.current_agent_name, not always Triage: the last specialist keeps the floor."
+        label: run_streamed
+        description: "Runner.run_streamed. Starts at state.current_agent_name, not always Triage: the last specialist keeps the floor."
         files: [python-backend/airline_server.py]
         budget: { turns: 10, on_exceed: stop }
         resources:
@@ -382,8 +382,8 @@ layers:
       - id: matching_flights
         runtime: backend
         type: tool
-        label: get_matching_flights
-        description: "Rebooking options (NY950, NY982) for a disrupted segment."
+        label: Matching flights
+        description: "get_matching_flights. Rebooking options (NY950, NY982) for a disrupted segment."
         files: [python-backend/airline/tools.py]
       - id: book_new_flight
         runtime: backend
@@ -405,7 +405,7 @@ layers:
       - id: special_seat
         runtime: backend
         type: tool
-        label: special_service_seat
+        label: Special seat
         description: "assign_special_service_seat: front row 1A/2A for medical needs; writes special_service_note."
         files: [python-backend/airline/services.py]
         data: { sensitivity: phi, retention: none, description: "Free-text medical reason, kept in the in-memory context." }
@@ -459,8 +459,8 @@ layers:
       - id: airline_ctx
         runtime: backend
         type: memory
-        label: AirlineAgentContext
-        description: "passenger_name, confirmation, flight, seat, account_number, itinerary, vouchers, case id."
+        label: Agent context
+        description: "AirlineAgentContext. passenger_name, confirmation, flight, seat, account_number, itinerary, vouchers, case id."
         files: [python-backend/airline/context.py]
         data: { sensitivity: pii, retention: none }
       - id: thread_store
@@ -491,7 +491,7 @@ layers:
       - id: deps
         runtime: backend
         type: tool
-        label: Agents SDK + ChatKit
+        label: SDK + ChatKit
         description: "openai-agents, openai-chatkit, fastapi, uvicorn, pydantic."
         files: [python-backend/requirements.txt]
       - id: gpt52

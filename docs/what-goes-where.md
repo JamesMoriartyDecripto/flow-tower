@@ -46,7 +46,7 @@ What belongs **on** a node (not in a separate node):
 - **`model`, `runtime`** where it thinks and where it runs.
 - **`resources`** logs, scripts and dashboards for this step.
 - **Operations** (`trigger`, `approval`, `budget`, `limits`, `fanout`, `data`, `evals`, `sla`, `sandbox`…) only when config or code shows them. They describe *this node*. Run-wide budgets go at the top level of the tower.
-- **`label`** at most ~18 characters. Details go in `description`.
+- **`label`** at most 18 characters (13 on a node that opens a nested tower: the badge takes the rest); `validate` warns above that. Details go in `description`.
 
 ## Edges and links
 
@@ -83,6 +83,42 @@ Rules:
 - Shared things (models, MCP servers, memory) appear in the sub-tower only where its steps use them. Declare its own `runtimes`, `agents` and `prompts`: a nested tower is a separate file with its own registries and `root`.
 - Nested towers live in `towers/` next to the parent, and can nest further. Two levels are usually enough.
 - If a "subsystem" has only two or three steps, keep them as nodes in the parent instead.
+
+## Services without agents
+
+An HTTP API, a middleware chain or a set of workers is a tower too: the question is still how a request moves through it.
+
+- **Layers:** one per surface (`Public API`, `Admin API`), plus the shared ones: ingress (TLS, auth, rate limits), data (stores, queues), jobs (cron, workers) and CI. A model call inside, if any, is one `agent` or `tool` node where it runs.
+- **Order is mount order**, as the code registers it (`app.use`, `router.use`, route-level middleware), with one exception: something that wraps the response (a `res.json` interceptor, an output filter) runs **last**, although it is mounted early. Draw it just before the reply, and say where it is mounted in its `description`.
+- **Many early exits:** every guard can reject. Draw one `output` node for the rejection and give it labelled edges (`401`, `403`, `429`), instead of an edge from every guard to the main reply.
+- **The error branch** (the error middleware, the terminal handler, the error logger) is a `hook` with an edge to the rejection output: thrown errors go there, not through the happy path.
+- **Per-item loops:** if a step runs for each item (an LLM call per row), the steps inside the loop sit between the `decision` and its `[return]` edge, not after it.
+
+```yaml
+- id: ingress
+  title: Ingress
+  nodes:
+    - { id: request, type: entry, label: HTTP request }
+    - { id: auth, type: guard, label: Verify token }
+    - { id: limit, type: guard, label: Rate limit }
+    - { id: handler, type: process, label: Route handler }
+    - { id: filter, type: guard, label: Field filter, description: "Wraps res.json, so it runs last; mounted in app.ts before the routes." }
+    - { id: reply, type: output, label: 2xx reply }
+    - { id: errors, type: hook, label: Error handler }
+    - { id: rejected, type: output, label: Error reply }
+  edges:
+    - request -> auth
+    - auth -> limit
+    - limit -> handler
+    - handler -> filter
+    - filter -> reply
+    - "auth -> rejected: 401"
+    - "limit -> rejected: 429"
+    - "handler -> errors: throws"
+    - "errors -> rejected: 500"
+```
+
+The `request` sub-tower of [`examples/db-api-playbook`](../examples/db-api-playbook/towers/request.tower.yaml) is a larger example: every check in order, and one Problem Details output with a labelled edge for each rejection. More towers without agents (study notes, playbooks) are in [examples § Beyond agents](../examples/README.md#beyond-agents-notes-and-playbooks).
 
 ## Do and don't
 

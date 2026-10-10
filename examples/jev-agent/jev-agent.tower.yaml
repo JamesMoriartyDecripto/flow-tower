@@ -199,6 +199,7 @@ layers:
         sandbox: { network: allowlist, allow: [registry.npmjs.org], filesystem: workspace }
         limits: { timeout: 120s }
       - id: browser
+        label: Browser
         agent: browser
       - id: next
         runtime: jev

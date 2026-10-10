@@ -136,7 +136,7 @@ layers:
         files: [pipelines/unreal/anim_blueprint.py]
       - id: montages
         runtime: render-farm
-        label: Montages & notifies
+        label: Montages+notifies
         description: Attack, rekindle and interact montages with sound and VFX notifies for the audio pass.
       - id: sequencer
         runtime: render-farm

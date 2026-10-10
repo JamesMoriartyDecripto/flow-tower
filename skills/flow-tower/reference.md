@@ -103,11 +103,16 @@ Full guide with examples: `docs/what-goes-where.md` in the flow-tower repo.
 | Models | one `model` node per model used, linked from agents with `[call]` |
 | Deploy & Ops | CI jobs, schedulers, log sinks (only if relevant to the flow) |
 
+## Services (no agents)
+
+HTTP APIs, middleware chains and workers: one layer per surface (public API, admin API) plus shared ingress, data, jobs and CI layers. Nodes in **mount order**, except response wrappers (`res.json` interceptors), which run last. One `output` for rejections with labelled edges (`401`, `403`, `429`) from the guards; the error middleware as a `hook` feeding it. Full guide and example: `docs/what-goes-where.md` § Services without agents.
+
 ## Signals: where to look
 
 | Framework | Search for | Maps to |
 |---|---|---|
-| Claude Code | `.claude/agents/*.md`, `.claude/commands/`, `.claude/skills/`, `CLAUDE.md`, `.mcp.json`, `.claude/settings.json` (`hooks`, `permissions`) | subagents via `from:`, tools/MCP, hooks, memory |
+| Claude Code | `.claude/agents/*.md` (bodies, not only frontmatter), `.claude/commands/`, `.claude/skills/`, `CLAUDE.md`, `.mcp.json`, `.claude/settings.json` (`hooks`, `permissions`) | subagents via `from:`, tools/MCP, hooks, memory; `maxTurns` → `budget: { turns, on_exceed: stop }`; human gates → `approval` |
+| Claude Code hooks | the hook script, not its name: exit code 2 or `permissionDecision: deny` (blocks), `ask` (asks), `additionalContext` (reminds), stderr with exit 0 (nobody sees it); its `matcher`; once per session or every call | `hook` nodes, one per matcher group, side by side (they are independent), the description saying which of the four it does |
 | Claude Agent SDK | `query(` with `options.agents`, `mcpServers`, `hooks`, `allowedTools`, `model`, `maxTurns`, `createSdkMcpServer` | agents, tools, hooks, harness |
 | Anthropic API loops | `messages.create`, `tool_use` handling, `while`/`for` loops around calls | agent + loop decision + tools |
 | OpenAI Agents SDK | `Agent(name=, instructions=, tools=, handoffs=)`, `Runner.run` | agents, `[handoff]` edges |
@@ -116,6 +121,7 @@ Full guide with examples: `docs/what-goes-where.md` in the flow-tower repo.
 | AutoGen / AG2 | `AssistantAgent`, `UserProxyAgent`, `GroupChat`, `GroupChatManager` | agents, human, orchestrator |
 | Pi | `~/.pi/agent/extensions/`, `pi.on(`, session JSONL | agent + extensions as hooks |
 | Hermes Agent | `~/.hermes/config.yaml` (`hooks`, `skills`, `tools`), `HOOK.yaml` | agent, hooks, tools |
+| HTTP services | `app.use(` / `router.use(` in registration order, route-level middleware, error middleware `(err, req, res, next)`, `res.json =` wrappers, FastAPI `Depends` / middleware, cron, queue consumers | ingress guards, rejection `output` with labelled edges, error `hook`, jobs layer |
 | Prompts | `prompts/`, `*.prompt.md`, `system_prompt =`, `instructions=` | `prompts:` registry |
 | Runtimes | `Dockerfile`, `docker-compose*.yml`, `k8s/`, `.github/workflows/`, `vercel.json`, `serverless.yml`, `wrangler.toml`, crontab, README "deploy" | `runtimes:` |
 | Resources | `logs/`, `*.log`, logger config, `scripts/`, Grafana/Datadog/Langfuse URLs in docs | `resources:` |

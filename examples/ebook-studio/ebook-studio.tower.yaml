@@ -322,6 +322,7 @@ layers:
         resources:
           - { kind: log, label: Drafting log, path: logs/drafting.log }
       - id: writer
+        label: Writer
         agent: writer
         evals:
           - { name: chapters within word budget (±10%), value: 11, target: 12, illustrative: true }
@@ -349,7 +350,7 @@ layers:
         sla: 42d
         data: { sensitivity: confidential }
       - id: assemble
-        label: Assemble manuscript
+        label: Build manuscript
         description: Joins approved chapters into manuscript v1, resolves cross-references and figure ids, tags the version in git.
         runtime: orchestrator
     edges:
@@ -400,7 +401,7 @@ layers:
           - { name: overall similarity, value: 2.1, target: 5, higher_is_better: false, unit: "%", illustrative: true }
       - id: rights
         type: guard
-        label: Rights & permissions
+        label: Rights clearance
         description: Every quote, epigraph, photo and diagram needs a source and a licence line in the permissions log. Song lyrics and poems always need written permission.
         runtime: orchestrator
         files: [checklists/permissions-log.md]
@@ -444,7 +445,7 @@ layers:
         evals:
           - { name: figures with alt text, value: 1, target: 1, illustrative: true }
       - id: matter
-        label: Front & back matter
+        label: Front/back matter
         description: Title page, copyright page (edition, ISBN, AI statement), dedication, nav TOC, index from author-tagged terms, about the author, newsletter page.
         runtime: orchestrator
         files: [build/front-matter.md]

@@ -37,6 +37,7 @@ node bin/flow-tower.js path/to/agent.tower.yaml
 node bin/flow-tower.js ~/projects            # every *.tower.yaml found, as a library
 node bin/flow-tower.js init my-agent.tower.yaml   # starter file
 node bin/flow-tower.js other.tower.yaml --port 5318  # a second server next to the first
+node bin/flow-tower.js my.tower.yaml --browser firefox   # another browser (or set $BROWSER)
 ```
 
 Requires Node 22.12 or newer. The app runs locally on `127.0.0.1`. Nothing is uploaded.
@@ -157,6 +158,8 @@ Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [
 Everything works without a mouse: **Tab** moves between HUD buttons, **Enter / Space** press them.
 
 The bottom bar toggles orbit, flow particles and the rendering quality (`eco` / `balanced` / `high`), and has the PNG / SVG export buttons. You can also force a preset with `?quality=eco`.
+
+Links can open a tower, a layer or a node directly: `?tower=request` (the id, the file name without `.tower.yaml`, or the name), `&layer=security` (focuses the layer), `&node=handle.problem` (selects the node). Handy for sharing and for screenshots.
 
 ## Performance
 

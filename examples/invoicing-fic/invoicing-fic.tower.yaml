@@ -315,7 +315,7 @@ layers:
         files: [scripts/fiscal_checks.py, rules/vat-fiscal-rules.md]
       - id: numbering
         type: guard
-        label: Numbering & 12 days
+        label: "Numbering, 12 days"
         runtime: workers
         description: One numeration per series, no gaps, invoice date never after transmission (00403). Immediate invoices within 12 days of effettuazione; deferred (TD24) by the 15th of the following month.
         files: [scripts/fiscal_checks.py, rules/vat-fiscal-rules.md]

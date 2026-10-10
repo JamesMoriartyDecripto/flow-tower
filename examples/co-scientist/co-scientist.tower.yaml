@@ -310,7 +310,7 @@ layers:
         files: [src/proximity_graph.py]
       - id: ranking
         agent: ranking
-        label: Elo tournament
+        label: Tournament
         evals:
           - { name: GPQA diamond top-1 (top Elo), value: 0.784, target: 0.75, description: "Value reported in the paper for the top-Elo answer per question; target illustrative." }
           - { name: top hypothesis Elo, value: 1512, unit: Elo, illustrative: true, description: "From logs/tournament.log; Elo is a relative auto-evaluation, not ground truth." }
