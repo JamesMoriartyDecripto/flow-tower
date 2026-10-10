@@ -1,0 +1,291 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Voice Commands
+tags: [voice, speech-to-text, openrouter, whisper, browser, dogfooding]
+description: >-
+  The voice-command widget of Flow Tower itself (issue #62), mapped from its code. Press V (or MIC),
+  speak a command in Italian or English ("apri dev squad", "livello 2", "vai al nodo triage"): the browser
+  cuts a short clip at the end of speech, the local flow-tower server sends it to OpenRouter's Whisper
+  endpoint with zero data retention, and a local parser (no LLM) turns the transcript into the same store
+  calls as the keyboard. The other speech engines that were weighed are drawn as planned alternatives,
+  each opening the page that says why it was not chosen. Paths are relative to the repository root, so
+  every reference opens the real file.
+root: ../..
+
+runtimes:
+  browser:
+    kind: browser
+    label: Your browser
+    description: "The Flow Tower page: Firefox, Chrome, Edge or Safari. Mic, end-of-speech detection, parser and actions all run here. The static demo has no server, so it hides the MIC button."
+  server:
+    kind: local
+    label: flow-tower server
+    description: "The local Vite dev server started by bin/flow-tower.js, with the flowTower plugin's middleware. Holds the OpenRouter key."
+    host: 127.0.0.1:5317
+  openrouter:
+    kind: saas
+    label: OpenRouter
+    description: "Speech-to-text endpoint /api/v1/audio/transcriptions, routed to providers OpenRouter lists as zero data retention."
+    provider: openrouter
+    url: https://openrouter.ai/docs/guides/overview/multimodal/stt
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: capture
+    title: Capture
+    description: Turn speech into short compressed clips, one per command, without a push-to-talk button.
+    nodes:
+      - id: hotkey
+        type: entry
+        label: V key / MIC
+        runtime: browser
+        description: "V toggles voice in the tower and in the library (App.tsx); the MIC button in the top bar and the library header does the same. A second press stops listening."
+        trigger: { kind: manual, source: V key or MIC button }
+        files: [src/app/App.tsx, src/app/hud/Voice.tsx, src/app/hud/Chrome.tsx, src/app/hud/Library.tsx]
+      - id: start
+        type: decision
+        label: Key configured?
+        runtime: browser
+        description: "start() asks GET /api/voice whether the server has OPENROUTER_API_KEY ({ cloud, model }, never the key). No key: the caption says how to add it; no answer (static demo, server down): it says the local server is not reachable. Either way the mic is never opened."
+        decision: { output: binary, candidates: [yes, no], fail: closed }
+        files: [src/app/voice/voice.ts]
+      - id: mic
+        type: process
+        label: Mic + speech end
+        runtime: browser
+        description: >-
+          getUserMedia (echo cancellation, noise suppression, mono) feeds a MediaRecorder that runs all the time and an
+          AnalyserNode sampled every 40 ms. Speech above an adaptive noise floor followed by ~0.6 s of silence cuts the
+          clip; a new recorder starts at once, so the next command loses no syllable. Under 0.2 s of speech is dropped
+          (a click, a cough); idle silence is discarded every 5 s.
+        limits: { timeout: 8s, description: "A clip is cut after at most 8 s of speech." }
+        files: [src/app/voice/mic.ts]
+      - id: clip
+        type: memory
+        label: Audio clip
+        runtime: browser
+        description: "Opus in WebM or Ogg (Chrome, Edge, Firefox) or AAC in MP4 (Safari), 32 kbps: a 2 s command is ~10 KB. Kept in memory only; clips are transcribed one at a time, in order."
+        data: { sensitivity: pii, retention: none, description: "A voice recording. Sent once to the local server and on to OpenRouter with ZDR routing; never written to disk." }
+        files: [src/app/voice/mic.ts]
+    edges:
+      - "hotkey -> start: toggle on"
+      - "start -> mic: yes"
+      - "mic -> clip: ~0.6 s silence"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: transcription
+    title: Transcription
+    description: Which engine turns the clip into text. One is wired; the others were weighed and are kept here with the reason they lost.
+    nodes:
+      - id: engine
+        type: decision
+        label: Speech engine
+        description: >-
+          A design choice made once in code, not at run time. OpenRouter STT won: the same path in every browser,
+          Firefox included, no model download, about a second per command. The dashed alternatives open the page that
+          says why each was not chosen.
+        decision: { output: choice, candidates: [openrouter-stt, web-speech-local, web-speech-cloud, whisper-browser] }
+        files: [examples/voice-commands/README.md]
+      - id: send
+        type: process
+        label: Upload clip
+        runtime: browser
+        description: "transcribe(): base64 of the clip and its format (read from what the browser recorded) as JSON to POST /api/voice. No language hint: Whisper detects the language from the clip. Any error reply or network failure goes to the caption; an empty transcript does nothing."
+        files: [src/app/voice/voice.ts]
+      - id: stt
+        type: tool
+        label: OpenRouter STT
+        runtime: openrouter
+        model: openai/whisper-large-v3-turbo
+        description: "Measured once: ~1.2 s and ~$0.000005 for a ~10 KB Italian command (illustrative). With provider.zdr it is routed only to endpoints OpenRouter lists as zero retention (DeepInfra or Groq for this model)."
+        data: { sensitivity: pii, description: "Zero data retention per OpenRouter's recorded provider policies; not independently verified." }
+        files: [examples/voice-commands/options/openrouter-stt.md, src/server/voice.ts]
+      - id: local
+        type: tool
+        label: Web Speech local
+        status: planned
+        runtime: browser
+        description: "Why not: on-device SpeechRecognition (processLocally) exists only in Chrome 139+ and needs a language pack installed first; Safari has no processLocally and Firefox release has no SpeechRecognition at all."
+        files: [examples/voice-commands/options/web-speech-local.md]
+      - id: cloud
+        type: tool
+        label: Web Speech cloud
+        status: planned
+        runtime: browser
+        description: "Why not: Chrome sends the audio to Google's service and the page can neither choose the provider nor ask for zero retention; Safari needs Siri/Dictation enabled, and Firefox release has no SpeechRecognition (Nightly only)."
+        files: [examples/voice-commands/options/web-speech-cloud.md]
+      - id: whisper
+        type: tool
+        label: Whisper in browser
+        status: planned
+        runtime: browser
+        description: "Why not: transformers.js downloads ~41 MB (tiny q8) to ~564 MB (large-v3-turbo q4f16) before the first command, and Firefox on Intel Macs and Linux has no WebGPU, so it falls back to slower WASM."
+        files: [examples/voice-commands/options/whisper-browser.md]
+    edges:
+      - { from: engine, to: send, group: stt, label: OpenRouter (active) }
+      - { from: engine, to: local, group: stt, label: on-device }
+      - { from: engine, to: cloud, group: stt, label: browser cloud }
+      - { from: engine, to: whisper, group: stt, label: WebGPU model }
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: understanding
+    title: Understanding
+    description: Transcript to action without an LLM. The parser matches the words against the names on screen, instantly and offline.
+    nodes:
+      - id: pick
+        type: decision
+        label: Pending pick?
+        runtime: browser
+        description: "run(): if the last command offered a numbered choice and this phrase says \"one\", \"due\", \"il terzo\"... (up to 4), that option is taken without parsing."
+        decision: { output: binary, candidates: [pick, parse] }
+        files: [src/app/voice/voice.ts]
+      - id: parser
+        type: process
+        label: Local parser
+        runtime: browser
+        description: >-
+          parseCommand(): normalise (lowercase, no accents), drop stop words and command verbs, then fixed phrases
+          (mic off, library, back, overview, map, tower view, enter, close), layer numbers and ordinals, and fuzzy
+          names of projects, layers and nodes (edit distance for misheard words). Italian and English.
+        files: [src/app/voice/commands.ts, tests/voice-commands.test.ts]
+      - id: ambiguous
+        type: decision
+        label: Ambiguous?
+        runtime: browser
+        description: "best(): candidates scoring >= 0.5; those within 0.05 of the top are a tie. One wins: an action. Several: a numbered choice of up to 4. None: unknown."
+        decision: { output: choice, candidates: [one, several, none], threshold: 0.5 }
+        files: [src/app/voice/commands.ts]
+      - id: llm
+        type: agent
+        label: LLM intent
+        status: planned
+        runtime: server
+        description: "Planned for free-form requests the parser returns as unknown: transcript and on-screen names to an OpenRouter chat model with a strict json_schema reply and ZDR. Not now: every command would pay a second round trip. Next: #63 turns it into a conversational agent with tower tools and spoken replies."
+        files: [examples/voice-commands/options/llm-intent.md]
+    edges:
+      - "pick -> parser: parse"
+      - parser -> ambiguous
+      - "ambiguous -> pick [return]: several, say 1-4"
+      - "parser -> llm: unknown (planned)"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: actions
+    title: Actions
+    description: The action runs through the same store calls as the keyboard, and the caption says what was heard and what it did.
+    nodes:
+      - id: execute
+        type: process
+        label: Run action
+        runtime: browser
+        description: "execute(): library, open a tower, focus a layer, select a node (opening its tower first), map or tower view, overview, back, enter a sub-tower, close, mic off. Returns the text for the caption."
+        files: [src/app/voice/voice.ts]
+      - id: store
+        type: memory
+        label: App store
+        runtime: browser
+        description: "showLibrary, openPath, select, focusLayer, resetView, enterTower, goTo; towerPath builds the deep link to a tower; chooseView switches map and tower. Copy-on-write zustand state."
+        files: [src/app/store.ts, src/app/graph.ts, src/app/settings.ts]
+      - id: caption
+        type: output
+        label: Caption
+        runtime: browser
+        description: "VoiceCaption: status, “heard” → did, the numbered choice, \"Not understood\", or the error. role=status, aria-live polite. The CLOUD STT chip says audio leaves the machine."
+        files: [src/app/hud/Voice.tsx]
+      - id: idle
+        type: guard
+        label: Idle stop
+        runtime: browser
+        description: "Listening stops by itself after 2 minutes without a transcript (privacy, battery). Armed when the mic opens and re-armed only by an understood command: noise transcribed as text (Grazie.) or errors do not keep the mic alive."
+        limits: { timeout: 120s }
+        files: [src/app/voice/voice.ts]
+      - id: off
+        type: output
+        label: Mic off
+        runtime: browser
+        description: "stop(): closes the recorder, stops the tracks, closes the AudioContext and drops a pending choice."
+        files: [src/app/voice/voice.ts, src/app/voice/mic.ts]
+    edges:
+      - "execute -> store [call]: same as keys"
+      - "execute -> caption: did"
+      - "execute -> off: mic off"
+      - "idle -> off: 2 min silence"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: server
+    title: Server & Secrets
+    description: The only part with the key. A JSON-only route on the local server, with every rejection a JSON error the caption shows.
+    nodes:
+      - id: secrets
+        type: memory
+        label: Local secrets
+        runtime: server
+        description: "At startup plugin.ts loads the git-ignored dotenv file in the flow-tower folder, if present; real environment variables win. FLOW_TOWER_VOICE_MODEL picks another model, FLOW_TOWER_VOICE_ZDR=0 turns the ZDR filter off."
+        data: { sensitivity: secret }
+        meta: { secret: OPENROUTER_API_KEY, model: FLOW_TOWER_VOICE_MODEL, zdr: FLOW_TOWER_VOICE_ZDR }
+        files: [src/server/plugin.ts, .gitignore]
+      - id: route
+        type: process
+        label: /api/voice
+        runtime: server
+        description: "Mounted by the flowTower plugin. GET answers { cloud, model }: whether a key is set, never the key. POST transcribes."
+        files: [src/server/plugin.ts, src/server/voice.ts]
+      - id: guards
+        type: guard
+        label: Request guards
+        runtime: server
+        description: "In order: GET or POST only (405), Content-Type application/json so other web pages cannot post (415), a key (503), body under 2 MB (413) and valid JSON (400), audio as base64 and format webm, ogg, m4a, wav or mp3 (400)."
+        limits: { description: "Body capped at 2 MB: a spoken command is ~10 KB." }
+        files: [src/server/voice.ts]
+      - id: forward
+        type: process
+        label: Forward to STT
+        runtime: server
+        description: "Bearer key, model, input_audio { data, format }, a language only if a caller sends one (the widget does not), and provider.zdr unless turned off. Answers { text, ms, cost }."
+        credentials: service
+        limits: { timeout: 30s }
+        files: [src/server/voice.ts]
+      - id: rejected
+        type: output
+        label: Error reply
+        runtime: server
+        description: "JSON { error } with the status. 502 covers an OpenRouter error status, an unreachable endpoint and the 30 s timeout."
+        files: [src/server/voice.ts]
+      - id: tests
+        type: tool
+        label: vitest
+        runtime: server
+        description: "voice-server.test.ts starts the handler with a fake fetch: GET never shows the key; POST sends key, ZDR and language; 503, 415 and 400 refusals. voice-commands.test.ts covers the parser (Italian, English, misheard, ties, unknown)."
+        files: [tests/voice-server.test.ts, tests/voice-commands.test.ts]
+    edges:
+      - "secrets -> route [data]: key at startup"
+      - "route -> guards: POST"
+      - "guards -> forward: valid clip"
+      - "guards -> rejected: 503 no key"
+      - "guards -> rejected: 405 415 413 400"
+      - "forward -> rejected: 502"
+      - "tests -> route [call]: fake fetch"
+
+links:
+  # Start: the client asks before it opens the mic.
+  - { from: capture.start, to: server.route, kind: call, protocol: http, label: GET }
+  - "server.route -> capture.start [return]: { cloud, model }"
+  - { from: capture.start, to: actions.caption, label: "no: needs key" }
+  - "capture.mic -> actions.caption: mic denied"
+  - "capture.mic -> actions.idle: arm"
+  - "capture.hotkey -> actions.off: toggle off"
+  # Transcription through the server.
+  - "capture.clip -> transcription.engine: clip"
+  - { from: transcription.send, to: server.route, kind: call, protocol: http, label: POST base64 clip }
+  - { from: server.forward, to: transcription.stt, kind: call, protocol: http, label: input_audio + zdr }
+  - "transcription.stt -> server.forward [return]: text + cost"
+  - "server.forward -> transcription.send [return]: { text, ms, cost }"
+  - "server.rejected -> actions.caption [return]: error"
+  - "transcription.send -> understanding.pick: transcript"
+  - "transcription.send -> actions.idle: understood, re-arm"
+  # Understanding to action.
+  - "understanding.pick -> actions.execute: picked option"
+  - "understanding.ambiguous -> actions.execute: one"
+  - { from: understanding.ambiguous, to: actions.caption, label: "several: Which one?" }
+  - { from: understanding.ambiguous, to: actions.caption, label: "none: Not understood" }
+  - "understanding.llm -> actions.execute: command (planned)"
+  - "server.tests -> understanding.parser [call]: unit tests"

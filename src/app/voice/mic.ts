@@ -26,7 +26,7 @@ export async function openMic(on: MicEvents): Promise<Mic> {
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
   });
-  const [mimeType, format] = TYPES.find(([t]) => MediaRecorder.isTypeSupported(t)) ?? ['', 'webm'];
+  const mimeType = TYPES.find(([t]) => MediaRecorder.isTypeSupported(t))?.[0];
   const ctx = new AudioContext();
   await ctx.resume(); // Safari starts suspended even after the click
   const analyser = ctx.createAnalyser();
@@ -39,7 +39,12 @@ export async function openMic(on: MicEvents): Promise<Mic> {
     const chunks: Blob[] = [];
     const clip = { keep: false, at: performance.now() };
     rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    rec.onstop = () => { if (clip.keep && chunks.length) on.clip(new Blob(chunks, { type: rec.mimeType }), format); };
+    rec.onstop = () => {
+      if (!clip.keep || !chunks.length) return;
+      // Label the clip with what the browser recorded (known once it ran), not with what was asked for.
+      const type = chunks[0].type || rec.mimeType;
+      on.clip(new Blob(chunks, { type }), TYPES.find(([t]) => type.startsWith(t.split(';')[0]))?.[1] ?? 'webm');
+    };
     rec.start();
     return { rec, clip };
   };

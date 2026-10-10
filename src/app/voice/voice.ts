@@ -25,6 +25,7 @@ let queue = Promise.resolve();
 let idle: ReturnType<typeof setTimeout> | undefined;
 /** Listening stops by itself after this long without a command (privacy, battery). */
 const IDLE_OFF_MS = 120_000;
+const NOT_UNDERSTOOD = 'Not understood';
 const PICK: Record<string, number> = { primo: 0, prima: 0, uno: 0, first: 0, one: 0, secondo: 1, seconda: 1, due: 1, second: 1, two: 1, terzo: 2, terza: 2, tre: 2, third: 2, three: 2, quarto: 3, quattro: 3, fourth: 3, four: 3 };
 
 export const useVoice = create<VoiceState>((set, get) => ({
@@ -53,7 +54,8 @@ async function start() {
   set({ status: 'starting', error: undefined, did: undefined, heard: undefined });
   const config = await fetch('/api/voice').then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined) as { cloud: boolean } | undefined;
   set({ cloud: config?.cloud });
-  if (!config?.cloud) {
+  if (!config) return set({ status: 'off', error: 'Voice commands need the local flow-tower server, which this page cannot reach.' });
+  if (!config.cloud) {
     return set({ status: 'off', error: 'Voice commands need OPENROUTER_API_KEY in flow-tower/.env (git-ignored), then a restart.' });
   }
   try {
@@ -87,13 +89,14 @@ async function transcribe(audio: Blob, format: string) {
     const r = await fetch('/api/voice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audio: await base64(audio), format, language: navigator.language.slice(0, 2).toLowerCase() }),
+      // No language hint: the browser's UI language is not the speaker's; Whisper detects it from the clip.
+      body: JSON.stringify({ audio: await base64(audio), format }),
     });
     const out = (await r.json()) as { text?: string; error?: string };
     if (!r.ok) throw new Error(out.error ?? `HTTP ${r.status}`);
     // Whisper writes something even for noise ("Grazie.", "Thank you."): those name nothing and fall to "unknown".
-    if (out.text) useVoice.getState().run(out.text);
-    armIdle();
+    // Only an understood command keeps the mic alive, so a noisy room still times out.
+    if (out.text && useVoice.getState().run(out.text) !== NOT_UNDERSTOOD) armIdle();
   } catch (err) {
     useVoice.setState({ error: (err as Error).message });
   } finally {
@@ -117,7 +120,8 @@ function execute(a: VoiceAction): string {
     case 'library': s.showLibrary(true); return 'Library';
     case 'tower': {
       const path = towerPath(ws, a.id);
-      if (path) s.openPath(path);
+      if (!path) return `${ws.towers[a.id].name} is not reachable from the library`;
+      s.openPath(path);
       return ws.towers[a.id].name;
     }
     case 'layer': {
@@ -152,6 +156,6 @@ function execute(a: VoiceAction): string {
     case 'close': s.openFile(undefined); s.select(undefined); return 'Closed';
     case 'mic-off': setTimeout(stop); return 'Microphone off';
     case 'ambiguous': return `Which one? ${a.options.map((o, i) => `${i + 1}. ${o.label}`).join('  ')}`;
-    case 'unknown': return 'Not understood';
+    case 'unknown': return NOT_UNDERSTOOD;
   }
 }
