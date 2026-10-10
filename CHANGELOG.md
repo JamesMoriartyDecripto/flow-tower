@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-10
+
 ### Added
 - Voice agent (#63): ask about the tower on screen ("cosa c'è nel secondo livello?", "what is the triage connected to?", "open the first file") and it answers out loud in your language, focusing, selecting, highlighting and opening what it talks about. An LLM (default `google/gemini-3.1-flash-lite`) with twelve tools that read and act on the tower in the page; replies spoken by OpenRouter text-to-speech (default `elevenlabs/eleven-flash-v2.5`, one multilingual voice); barge-in; echo filter. Plain commands stay instant with the local parser. Settings → Voice → Spoken replies.
 - Voice language in Settings (Auto, Italiano, English), sent to transcription as a hint; command words forgive one misheard letter and more Italian verbs are understood (aprimi, portami, vediamo, andiamo…).
@@ -212,7 +214,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/JamesMoriartyDecripto/flow-tower/releases/tag/v0.1.0

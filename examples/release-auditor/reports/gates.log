@@ -1,8 +1,8 @@
-# gates.sh on 01d03e3 (2026-10-10T11:24Z)
+# gates.sh on 25ca740 (2026-10-10T15:16Z)
 ok  tsc --noEmit  (3s)
-ok  vitest  (14s)
-ok  validate examples (0 errors, 0 warnings)  (3s)
-ok  semgrep p/javascript p/typescript p/react p/nodejs p/secrets  (34s)
-ok  npm audit (high and critical)  (3s)
+ok  vitest  (12s)
+ok  validate examples (0 errors, 0 warnings)  (1s)
+ok  semgrep p/javascript p/typescript p/react p/nodejs p/secrets  (31s)
+ok  npm audit (high and critical)  (1s)
 ok  gitleaks over the whole git history  (3s)
 0 gate(s) failed

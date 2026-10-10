@@ -6,7 +6,7 @@
 
 <sub>Full video (27 s, higher quality): [docs/demo.mp4](docs/demo.mp4). Recorded with the live simulator running.</sub>
 
-**[Try the live demo →](https://jamesmoriartydecripto.github.io/flow-tower/)** All 27 example projects in your browser, with simulated live events. Nothing to install. Press `?` for the keyboard shortcuts.
+**[Try the live demo →](https://jamesmoriartydecripto.github.io/flow-tower/)** All 30 example projects in your browser, with simulated live events. Nothing to install. Press `?` for the keyboard shortcuts.
 
 - **One YAML file per system.** It is easy to write and review, and it lives in the same repo as the agent.
 - **Tower of layers.** Stack layers like intake, orchestration, specialists, tools, guardrails, memory and models. Cross-layer links show who calls whom.
@@ -17,6 +17,8 @@
 - **How it runs in production.** Triggers, human approvals with timeouts, budgets, limits, fan-out, data sensitivity, evals, rollouts and SLAs show on the nodes and in the node panel.
 - **Library.** Point it at a folder and browse every project you work on. Switch between a stacked tower and a top-down map.
 - **Keyboard first.** Arrows walk nodes and layers, Enter dives into sub-towers or the node panel, `?` lists every shortcut. Settings cover themes, fonts, interface size and animations.
+- **Voice.** Press V and talk to the tower, in Italian, English or any language: "open dev squad", "explain the flow of the first layer", "show me this node's files", "spiegami questo file". It answers out loud and shows what it talks about ([details](#voice-commands)).
+- **Node list.** Focus a layer and its nodes are listed on the right in flow order, readable however far the cards are.
 - **Live.** Save the YAML, or any referenced file, and the tower updates.
 - **Generate towers with any coding agent.** Claude Code, Codex, Pi, Hermes, Cursor or any other agent reads an agentic codebase and writes a validated tower. It maps Claude Code, the Agent SDK, LangGraph, CrewAI, OpenAI Agents, Pi, Hermes and more.
 - **Realtime agents.** Connect Claude Code, the Agent SDK, Codex, Pi, Hermes or your own loops. Active nodes light up, errors flash, and a live feed shows every step. See [docs/realtime.md](docs/realtime.md).
@@ -235,7 +237,7 @@ Flow Tower runs on your machine: the server listens on `127.0.0.1` only, reads o
 ```
 bin/            CLI: serve, init, validate, emit, guide, install-skill
 src/core/       schema (zod), YAML loader, validation, live-event adapters and matching
-src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /api/events, /api/voice, live reload
+src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /api/events, /api/voice (speech, agent, spoken replies), live reload
 src/app/        React + three.js app: scene/ (3D) and hud/ (overlay UI)
 src/cli/        TypeScript CLI commands (validate)
 schema/         generated JSON Schema
