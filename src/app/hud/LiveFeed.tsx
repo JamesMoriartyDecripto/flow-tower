@@ -31,6 +31,7 @@ function FeedPanel() {
   const tower = useTower();
   const ws = useStore((s) => s.workspace);
   const inspecting = useStore((s) => !!s.selected);
+  const listing = useStore((s) => !s.selected && s.focusedLayer !== undefined);
   const [scope, setScope] = useState<'tower' | 'all'>('tower');
   const usageMap = useLive((s) => s.usage);
   const desc = useDescendants();
@@ -66,7 +67,7 @@ function FeedPanel() {
   }, [where, tower, ws]);
 
   return (
-    <aside className={`panel livefeed ${inspecting ? 'shifted' : ''}`}>
+    <aside className={`panel livefeed ${inspecting ? 'shifted' : listing ? 'beside-list' : ''}`}>
       <header>
         <span className="title">Live · {events.length}{errors ? <em className="err-count"> · {errors} err</em> : null}</span>
         {usage && <span className="feed-usage mono" title={`Reported by live telemetry, from the events the local server keeps (the last 2000), for this tower and its sub-towers: ${usage.calls} model calls`}>{formatUsage(usage)}</span>}

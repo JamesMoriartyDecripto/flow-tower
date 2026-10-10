@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Node list: with a layer focused and no node selected, a panel on the right lists the layer's nodes in flow order (type tag, name, sub-tower, live state). The names stay readable however small or far the cards are; a click selects the node and the inspector takes its place.
+- Voice commands (#62): press V or the MIC button (top bar, library header) and speak, in Italian or English, to open a project, focus a layer by number or name, select a node or agent, switch to map or tower view, go to the overview, go back, open the library or turn the microphone off. Clips end after ~0.6 s of silence and are transcribed by OpenRouter (`openai/whisper-large-v3-turbo`, override with `FLOW_TOWER_VOICE_MODEL`); commands are matched locally against the names on screen, tolerate misheard words, and offer a numbered choice when a name is ambiguous. A caption under the top bar shows what was heard and done. Listening stops after 2 minutes without a command. Needs `OPENROUTER_API_KEY`; not available in the static demo.
+- `voice-commands` example: the tower of the voice widget itself, with the speech engines it weighed (Web Speech on-device and cloud, Whisper in the browser, OpenRouter) and a planned LLM intent step.
 - `db-api-playbook` example: how to build and run an HTTP API over a database (approach, contract, data access, security, shipping, operations), with a request-pipeline sub-tower and notes pages citing current standards (OWASP API Top 10 2023, OpenAPI 3.2, RFC 9457, RFC 9700, RFC 9745), checked on 2026-10-10.
 - `validate` warns about node labels the card cuts (over 18 characters, 13 on a node with a nested tower) (#56).
 - Deep links: `?tower=…&layer=…&node=…` opens a tower (nested ones too), focuses a layer or selects a node (#7).
@@ -19,6 +22,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Fixed
 - `dev-squad` example: the sample code now does what its tower shows, and the tower shows what the code does (found by the #7 evaluation run). The lead can request plan approval and the pipeline polls and resumes it; `open_pr`, `run_tests` and `request_approval` run in the issue worktree, not the process directory; any throw or the $15 issue budget comments on the issue and logs the run (new "Run stopped" output); a red suite or an unmet criterion holds the verifier; a review round passes on blocking findings only; the `squad:skip` opt-out wins over the policy upgrade; the reviewer's bash guard and the area rules reach `runAgent` sessions; headless runs deny `ask` permissions explicitly; quick fixes get a CHANGELOG entry and PR body; bad webhook JSON gets a 400; the unused Redis queue and the serverless receiver are gone (the receiver runs in the container); sample logs match the code.
+
+### Security
+- Voice commands (#62): `OPENROUTER_API_KEY` stays on the local server (read from the environment or from the `.env` file in the flow-tower folder, which is git-ignored) and never reaches the page; `GET /api/voice` only says whether a key is set. Transcription requests ask OpenRouter for zero data retention (`provider.zdr`; `FLOW_TOWER_VOICE_ZDR=0` turns it off). `/api/voice` accepts JSON only, so other web pages cannot post to it, and caps the body at 2 MB.
 
 ## [0.3.0] - 2026-10-10
 

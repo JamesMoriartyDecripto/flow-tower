@@ -12,6 +12,7 @@ import { Shortcuts } from './hud/Shortcuts';
 import { cycleConnection, jumpBack } from './hud/Connections';
 import { focusInspector, panelKey, panelOf } from './hud/focusNav';
 import { Tooltip } from './hud/Tooltip';
+import { NodeList } from './hud/NodeList';
 import { VoiceCaption } from './hud/Voice';
 import { useVoice } from './voice/voice';
 import { chooseView, usePrefs, viewFor } from './settings';
@@ -69,6 +70,7 @@ export function App() {
           <div className="hint">DRAG rotate · SHIFT+DRAG pan · SCROLL zoom · CLICK inspect · DBL-CLICK enter · ARROWS move · M map · ESC back · ? all keys</div>
         )}
         <Inspector />
+        <NodeList />
         <LiveFeed />
         {(showIssues || broken) && <Issues onClose={() => setShowIssues(false)} />}
       </div>

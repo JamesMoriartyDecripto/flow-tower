@@ -6,7 +6,7 @@
 
 <sub>Full video (27 s, higher quality): [docs/demo.mp4](docs/demo.mp4). Recorded with the live simulator running.</sub>
 
-**[Try the live demo →](https://jamesmoriartydecripto.github.io/flow-tower/)** All 26 example projects in your browser, with simulated live events. Nothing to install. Press `?` for the keyboard shortcuts.
+**[Try the live demo →](https://jamesmoriartydecripto.github.io/flow-tower/)** All 27 example projects in your browser, with simulated live events. Nothing to install. Press `?` for the keyboard shortcuts.
 
 - **One YAML file per system.** It is easy to write and review, and it lives in the same repo as the agent.
 - **Tower of layers.** Stack layers like intake, orchestration, specialists, tools, guardrails, memory and models. Cross-layer links show who calls whom.
@@ -152,6 +152,7 @@ Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [
 | **Shift / Alt + arrows**, **+ / −** | Orbit / pan / zoom the camera |
 | **[ ]** | Previous / next tab of the selected node |
 | **F**, **O** | Live feed, auto-orbit |
+| **V** | Voice commands: start / stop listening (also in the library); see [Voice commands](#voice-commands) |
 | **P**, **X** | Download a ZIP of every layer and the map of the project and its sub-towers: Full HD PNGs (plus the 3D view), or editable SVGs |
 | **?** | Every keyboard shortcut |
 
@@ -160,6 +161,32 @@ Everything works without a mouse: **Tab** moves between HUD buttons, **Enter / S
 The bottom bar toggles orbit, flow particles and the rendering quality (`eco` / `balanced` / `high`), and has the PNG / SVG export buttons. You can also force a preset with `?quality=eco`.
 
 Links can open a tower, a layer or a node directly: `?tower=request` (the id, the file name without `.tower.yaml`, or the name), `&layer=security` (focuses the layer), `&node=handle.problem` (selects the node). Handy for sharing and for screenshots.
+
+## Voice commands
+
+Press **V** or the **MIC** button (top bar or library header) and say where to go. When you stop speaking (about 0.6 s of silence), the browser sends the clip to the local server, which has it transcribed; the command is then matched in the page. A caption under the top bar shows what it heard and what it did.
+
+**Setup.** Voice needs an [OpenRouter](https://openrouter.ai) API key. Put `OPENROUTER_API_KEY=...` in the `.env` file in your flow-tower folder (it is git-ignored), or export it in your shell, then restart Flow Tower. The key stays on the local server and never reaches the page. The online demo has no server, so it has no voice.
+
+| Italian | English | Does |
+|---|---|---|
+| "apri dev squad" | "open dev squad" | Open a project |
+| "livello 3", "il terzo livello", "ultimo livello" | "layer 3", "third layer", "last layer" | Focus a layer by number |
+| "livello memoria" | "memory layer" | Focus a layer by name |
+| "vai al nodo triage", "agente reviewer" | "node triage", "agent reviewer" | Select a node or an agent |
+| "vista mappa", "vista torre" | "map view", "tower view" | Switch view |
+| "panoramica" | "overview" | The whole tower |
+| "indietro" | "back" | Go back, like Esc |
+| "libreria" | "library" | Project library |
+| "spegni il microfono" | "stop listening" | Microphone off |
+
+A name alone works too ("triage"). Names come from what is on screen: projects, layers, nodes and agents. They match loosely, so a misheard word still finds its target. When a name fits several things, the caption numbers them: say "il primo" or "two" to pick. "Entra" / "enter" opens the selected node's sub-tower, "chiudi" / "close" closes the panel. Listening stops by itself after 2 minutes without a command.
+
+**Privacy.** Only clips with speech are sent (silence is dropped), only while the microphone is on. They go to OpenRouter (`openai/whisper-large-v3-turbo`), routed only to providers with zero data retention (`provider.zdr`). Commands are matched locally; no tower content is sent. Nothing else leaves your machine. `FLOW_TOWER_VOICE_MODEL` picks another model; `FLOW_TOWER_VOICE_ZDR=0` drops the zero-retention requirement.
+
+**Cost.** OpenRouter bills speech-to-text per second of audio. A command is a second or two, a fraction of a cent. Measured once (illustrative): an Italian command was transcribed in about 1.2 s for about $0.000005.
+
+**Browsers.** Firefox, Chrome, Safari and Edge behave the same: recording uses `MediaRecorder`, not the browser's own speech recognition.
 
 ## Performance
 
@@ -180,14 +207,14 @@ Flow Tower is meant to run next to busy agents, so it is frugal by design:
 
 ## Privacy and updates
 
-Flow Tower runs on your machine: the server listens on `127.0.0.1` only, reads only inside your projects, and live events never leave your computer. Its only outbound call is an **update check**: once a day it asks GitHub for the latest release (`api.github.com/repos/JamesMoriartyDecripto/flow-tower/releases/latest`, nothing about you or your towers is sent). When a newer version exists, the terminal prints how to update and the top bar shows a small `↑ vX.Y.Z` link to the release notes. Turn it off with `--no-update-check` or `FLOW_TOWER_NO_UPDATE_CHECK=1`; it is always off in CI and in the online demo.
+Flow Tower runs on your machine: the server listens on `127.0.0.1` only, reads only inside your projects, and live events never leave your computer. It calls out in two cases only. **Voice commands** send speech clips to OpenRouter, only when you use them and have set a key ([details](#voice-commands)). The **update check** runs once a day: it asks GitHub for the latest release (`api.github.com/repos/JamesMoriartyDecripto/flow-tower/releases/latest`, nothing about you or your towers is sent). When a newer version exists, the terminal prints how to update and the top bar shows a small `↑ vX.Y.Z` link to the release notes. Turn it off with `--no-update-check` or `FLOW_TOWER_NO_UPDATE_CHECK=1`; it is always off in CI and in the online demo.
 
 ## Project layout
 
 ```
 bin/            CLI: serve, init, validate, emit, guide, install-skill
 src/core/       schema (zod), YAML loader, validation, live-event adapters and matching
-src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /api/events, live reload
+src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /api/events, /api/voice, live reload
 src/app/        React + three.js app: scene/ (3D) and hud/ (overlay UI)
 src/cli/        TypeScript CLI commands (validate)
 schema/         generated JSON Schema

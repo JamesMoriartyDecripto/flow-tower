@@ -7,12 +7,14 @@ Read this before changing code. Open only the files for the task at hand: each r
 ```
 *.tower.yaml ──► src/core (zod schema → loader → resolve → validate) ──► Workspace JSON
                                                                            │
-            src/server/plugin.ts  /api/workspace · /api/file · /api/events · Vite websocket push
+            src/server/plugin.ts  /api/workspace · /api/file · /api/events · /api/voice · Vite websocket push
                                                                            ▼
 src/app: store (UI state) + live (events) ──► scene/ (three.js, batched per layer) + hud/ (React DOM)
 ```
 
 The server only reads files under the tower roots. Workspace changes and live events are pushed over the Vite websocket (`flow-tower:update`, `flow-tower:events`). Events arrive at `/api/events`, are normalized by `src/core/adapters.ts`, and the scene samples the live store at 4 Hz.
+
+Voice commands: the browser records a clip, posts it to `/api/voice`, the server forwards it to OpenRouter speech-to-text, and the transcript is matched to a command in the browser (`src/app/voice/`).
 
 ## Core (Node and browser)
 
@@ -30,9 +32,10 @@ The server only reads files under the tower roots. Workspace changes and live ev
 
 | File | Open it when |
 |---|---|
-| `src/server/plugin.ts` | API routes, file sandbox, live reload |
+| `src/server/plugin.ts` | API routes, file sandbox, live reload, local secrets (the git-ignored `.env` file in the flow-tower folder) |
 | `src/server/events.ts` | Event hub (ring buffer, 204 empty responses for Claude Code hooks) |
 | `src/server/update.ts` | Daily update check against GitHub releases (cache, opt-out), served as `/api/version` |
+| `src/server/voice.ts` | `/api/voice`: GET says whether a key is set (never the key); POST forwards a clip to OpenRouter speech-to-text with zero data retention. JSON only, 2 MB cap |
 | `src/server/files.ts` | Reading one referenced file inside its tower root (shared by `/api/file` and the demo build) |
 | `scripts/build-demo.ts` | Static demo for GitHub Pages: freezes the workspace and referenced files into `data/`, then builds the app in `demo` mode |
 | `bin/flow-tower.js` | CLI commands: serve, init, validate, emit, guide, install-skill |
@@ -53,6 +56,9 @@ The server only reads files under the tower roots. Workspace changes and live ev
 | `src/app/staticData.ts`, `demo.ts` | Static demo mode (Vite mode `demo`): data from `data/`, in-browser live simulator, DEMO chip |
 | `src/app/theme.ts`, `themes.ts` | Node / edge styles and bloom colors; theme switching (shared colors mutated in place, scene remounted) |
 | `src/app/graph.ts` | Neighbours, related nodes, search, breadcrumb paths, deep links (`?tower=&layer=&node=`) |
+| `src/app/voice/commands.ts` | Voice command parser, Italian and English: matches the transcript against project, layer, node and agent names, tolerates misheard words, returns a numbered choice when ambiguous. Pure, tested in `tests/voice-commands.test.ts` |
+| `src/app/voice/mic.ts` | Microphone in every browser: `MediaRecorder` clips cut at end of speech (~0.6 s silence), adaptive noise floor |
+| `src/app/voice/voice.ts` | Voice store: start / stop, upload to `/api/voice`, numbered picks, stop after 2 minutes idle; runs commands with the same store calls as the keyboard |
 
 ## Scene (three.js via react-three-fiber)
 
@@ -77,11 +83,13 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 |---|---|
 | `hud/Chrome.tsx` | Top bar, Layers panel (with sub-towers list), legend, bottom controls |
 | `hud/Inspector.tsx`, `Connections.tsx`, `OpsInfo.tsx` | Node panel: overview, connections, operations / data / evals, prompt, tools, files |
+| `hud/NodeList.tsx` | Right panel while no node is selected: the nodes of the focused layer in flow order |
 | `hud/Library.tsx` | Project gallery |
 | `hud/LiveFeed.tsx`, `LiveChips.tsx` | Live feed and chips |
 | `hud/Settings.tsx`, `Shortcuts.tsx` | Settings page, keyboard overlay |
 | `hud/FileViewer.tsx` | File popup with syntax highlighting (shiki), focus restored on close |
 | `hud/MarkdownView.tsx` | Formatted Markdown: no raw HTML, links to the node's files, math in `$$…$$` (KaTeX) |
+| `hud/Voice.tsx` | MIC button (top bar, library header) and the voice caption under the top bar; hidden in the static demo |
 | `hud/focusNav.ts`, `Tooltip.tsx` | Keyboard focus inside panels, HUD tooltips |
 | `src/app/App.tsx` | Global keyboard handler, panel composition |
 | `src/app/styles.css` | All HUD styles (CSS variables per theme; `--ui-scale` zooms the HUD) |

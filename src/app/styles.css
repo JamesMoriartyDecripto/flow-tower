@@ -470,3 +470,18 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .voice-heard { font: 500 15px var(--ui); }
 .voice-heard b { color: var(--orange); font-weight: 600; }
 .voice-error { color: var(--error); font-size: 13px; }
+
+/* Nodes of the focused layer, in the inspector's place while nothing is selected. */
+.nodelist { top: 80px; right: 14px; width: 280px; max-height: calc(100% - 170px); overflow: auto; padding: 14px 10px 10px; animation: slidein .25s ease-out; }
+.nodelist .title { display: flex; align-items: baseline; gap: 6px; padding: 0 6px 6px; }
+.nodelist .title .idx { font: 600 11px var(--display); color: var(--orange); }
+.nodelist .title .count { margin-left: auto; font: 11px var(--mono); color: var(--dim); }
+.nodelist-desc { margin: 0 6px 8px; font-size: 13px; color: var(--dim); }
+.nodelist button { display: grid; grid-template-columns: 40px 1fr auto auto; align-items: center; gap: 4px; width: 100%; padding: 6px; text-align: left; border-left: 2px solid transparent; }
+.nodelist button:hover, .nodelist button.hot { background: color-mix(in srgb, var(--orange) 10%, transparent); border-left-color: var(--orange); }
+.nodelist .tag { font: 600 10px var(--mono); color: var(--amber); }
+.nodelist .name { font: 600 15px var(--ui); letter-spacing: 0.03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nodelist .sub { color: var(--orange); }
+.nodelist button.muted { opacity: .45; }
+.nodelist button.status .name { font-style: italic; color: var(--dim); }
+.livefeed.beside-list { right: 308px; }
