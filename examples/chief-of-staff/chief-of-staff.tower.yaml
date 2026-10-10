@@ -365,7 +365,7 @@ layers:
     nodes:
       - { id: drafter, agent: email-drafter, label: email-drafter }
       - { id: scheduler, agent: scheduler, label: scheduler }
-      - { id: analyst, agent: financial-analyst, label: financial-analyst }
+      - { id: analyst, agent: financial-analyst, label: Fin. analyst }
       - { id: recruiter, agent: recruiter, label: recruiter }
       - id: scripts
         runtime: worker
@@ -390,7 +390,7 @@ layers:
       - id: send
         runtime: google
         type: tool
-        label: send_email / invite
+        label: send_email/invite
         description: "Gmail messages.send and Calendar events.insert(sendUpdates='all'), as the user."
         files: [ambient/workspace_tools.py]
         credentials: user
@@ -445,7 +445,7 @@ layers:
       - id: send_gate
         runtime: worker
         type: hook
-        label: PreToolUse send gate
+        label: PreToolUse gate
         description: "send_email / send_invite denied unless review_id is an approved card."
         files: [.claude/hooks/send-gate.py]
       - id: post_bash
@@ -457,14 +457,14 @@ layers:
       - id: post_write
         runtime: worker
         type: hook
-        label: PostToolUse Write|Edit
-        description: "report-tracker.py -> audit/report_history.json (last 50). Fixes the cookbook's broken Edit matcher."
+        label: Post Write|Edit
+        description: "PostToolUse on Write|Edit. report-tracker.py -> audit/report_history.json (last 50). Fixes the cookbook's broken Edit matcher."
         files: [.claude/hooks/report-tracker.py]
       - id: post_action
         runtime: worker
         type: hook
-        label: PostToolUse actions
-        description: "action-audit.py: one JSON line per inbox or workspace call; email bodies only as a hash."
+        label: Post-action hook
+        description: "PostToolUse. action-audit.py: one JSON line per inbox or workspace call; email bodies only as a hash."
         files: [.claude/hooks/action-audit.py]
       - id: audit
         runtime: worker

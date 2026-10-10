@@ -183,6 +183,7 @@ layers:
           - { kind: log, label: Ingest log, path: logs/ingest.log }
           - { kind: queue, label: dd-ingest-eu (SQS), url: https://eu-central-1.console.aws.amazon.com/sqs }
       - id: classifier
+        label: Doc classifier
         agent: classifier
       - id: privilege
         type: guard
@@ -227,7 +228,7 @@ layers:
         files: [src/pipeline.ts]
       - id: coc
         agent: clause-reviewer
-        label: Change of control
+        label: CoC review
         description: Consent vs notice vs termination right vs acceleration; definition of Control and Affiliate.
       - id: assign
         agent: clause-reviewer
@@ -261,6 +262,7 @@ layers:
         files: [samples/review-table.csv, templates/review-columns.yaml]
         data: { sensitivity: confidential, region: eu, retention: 180d, retention_after: matter close }
       - id: consistency
+        label: Consistency
         agent: consistency
       - id: table_review
         type: human

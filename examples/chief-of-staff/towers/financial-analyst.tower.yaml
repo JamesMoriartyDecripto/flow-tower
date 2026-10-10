@@ -58,7 +58,8 @@ layers:
       - id: revenue
         runtime: worker
         type: memory
-        label: revenue_forecast.json
+        label: Revenue forecast
+        description: revenue_forecast.json.
         files: [financial_data/revenue_forecast.json]
     edges:
       - "brief -> snapshot [data]: context"
@@ -85,8 +86,8 @@ layers:
       - id: forecast
         runtime: worker
         type: tool
-        label: financial_forecast.py
-        description: "12-month MRR, net burn and cash; base, conservative and aggressive growth."
+        label: Forecast script
+        description: "financial_forecast.py. 12-month MRR, net burn and cash; base, conservative and aggressive growth."
         files: [scripts/financial_forecast.py]
       - id: matrix
         runtime: worker
@@ -103,7 +104,7 @@ layers:
       - id: logger
         runtime: worker
         type: hook
-        label: script-usage-logger
+        label: Usage logger
         description: "PostToolUse on Bash: every scripts/*.py run lands in audit/script_usage_log.json."
         files: [.claude/hooks/script-usage-logger.py, audit/script_usage_log.json]
     edges:

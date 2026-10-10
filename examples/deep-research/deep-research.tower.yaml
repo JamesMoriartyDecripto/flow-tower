@@ -383,7 +383,7 @@ layers:
           - { name: tool efficiency, value: 0.71, target: 0.75, illustrative: true }
       - id: bench
         runtime: app
-        label: Deep Research Bench
+        label: DeepResearch Bench
         description: >-
           100 PhD-level tasks (50 EN, 50 ZH) scored by RACE against expert reports. open_deep_research
           reported 0.4344 (Aug 2025); the values here are illustrative targets for this system.

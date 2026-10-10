@@ -344,8 +344,8 @@ layers:
       - id: decisions
         runtime: atlas
         type: memory
-        label: transaction_decisions
-        description: decision_id, decision, confidence_score, reviewed_by (agent / human), created_at.
+        label: Decisions table
+        description: transaction_decisions table. decision_id, decision, confidence_score, reviewed_by (agent / human), created_at.
         files: [src/handlers.py]
       - id: audit
         runtime: atlas

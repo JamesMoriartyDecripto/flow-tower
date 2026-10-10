@@ -161,7 +161,7 @@ layers:
         label: Lead auditor
       - id: charters
         type: memory
-        label: Charters + threat model
+        label: Charters + threats
         description: One charter per finder (area, goal, out of scope), trust boundaries, severity rubric, false-positive rules.
         files:
           - examples/release-auditor/config/charters.md
@@ -279,7 +279,7 @@ layers:
         label: Docs
       - id: dedupe
         type: process
-        label: Dedupe + scope check
+        label: Dedupe + scope
         description: Merge duplicates across finders; drop anything outside the charters (style, policy, wishes).
     edges:
       - "correctness -> dedupe [return]: candidates"
@@ -295,11 +295,11 @@ layers:
     nodes:
       - id: verifier
         agent: verifier
-        label: Adversarial verifier
+        label: Adversarial check
         limits: { max_iterations: 2 }
       - id: rules
         type: guard
-        label: False-positive rules
+        label: False positives
         description: Known non-issues and precedents (local-only server, dev-only hooks, illustrative example data).
         files: [examples/release-auditor/config/false-positives.md]
       - id: real
@@ -308,7 +308,7 @@ layers:
         decision: { output: binary, candidates: [yes, no], fail: closed, description: "Kept only with a reproduction; never \"probably\"." }
       - id: dropped
         type: output
-        label: Rejected, with reason
+        label: Rejected + reason
         description: Kept in the report so the next sweep does not raise them again.
     edges:
       - "rules -> verifier [data]"
@@ -351,7 +351,7 @@ layers:
         approval: { by: maintainer, via: PR review, actions: [approve, reject, edit] }
       - id: release
         type: output
-        label: Tag + release notes
+        label: Tag + notes
         runtime: github
         description: Tag v0.1.0 with notes from CHANGELOG.md and the audit report.
         files: [CHANGELOG.md, examples/release-auditor/reports/v0.1.0.md]

@@ -561,7 +561,7 @@ layers:
         limits: { timeout: 60m, retries: 1 }
         files: [app/eas.json]
       - id: beta
-        label: TestFlight + Play beta
+        label: TestFlight + Play
         description: TestFlight external group (beta review on first build) and Play closed testing. The release manager summarizes feedback and crashes from TestFlight.
         runtime: testers
         sla: 5d
@@ -645,7 +645,7 @@ layers:
         version: 2.4.0
         rollout: { strategy: staged, percent: 5, steps: [1, 2, 5, 10, 20, 50, 100], metric: crash-free sessions, guard: "crash-free sessions < 99.5%", previous: 2.3.2 }
       - id: staged
-        label: Play staged rollout
+        label: Staged rollout
         description: "userFraction per step, then completed; each step needs 24 h of healthy data."
         runtime: play
         version: 2.4.0
@@ -719,7 +719,7 @@ layers:
         files: [samples/review-digest.md]
       - id: backlog
         type: memory
-        label: Next-version backlog
+        label: Backlog (next)
         description: GitHub issues from crashes, reviews and funnel drops, ranked by the studio lead each sprint.
         runtime: github
         files: [samples/crash-digest.md]

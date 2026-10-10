@@ -25,7 +25,7 @@ layers:
     nodes:
       - id: pr
         type: entry
-        label: PR opened / updated
+        label: PR opened/updated
         files: [.github/workflows/review.yml]
         trigger: { kind: webhook, source: "GitHub pull_request (opened, synchronize)" }
       - { id: diff, type: process, label: Fetch diff, runtime: gha }

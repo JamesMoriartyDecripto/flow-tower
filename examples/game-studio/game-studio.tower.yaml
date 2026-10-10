@@ -664,7 +664,7 @@ layers:
         files: [src/departments/art.ts, config/asset-budgets.yaml]
       - id: modeler
         agent: blender-modeler
-        label: Blender modeler
+        label: 3D modeler
       - id: retopo
         runtime: artist-ws
         label: Retopo & UV
@@ -726,6 +726,7 @@ layers:
     description: Assets enter Unreal through editor Python; animation, lighting and audio passes run in parallel on top.
     nodes:
       - id: integration_lead
+        label: Integration
         agent: integration-lead
       - id: import
         runtime: render-farm
@@ -1132,6 +1133,7 @@ layers:
     description: Positioning first, then website, trailer, store page and social in parallel. Nothing is published without a human.
     nodes:
       - id: marketing_lead
+        label: Marketing
         agent: marketing-lead
       - id: positioning
         runtime: studio-cluster

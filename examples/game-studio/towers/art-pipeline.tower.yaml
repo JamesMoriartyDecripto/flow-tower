@@ -151,7 +151,7 @@ layers:
         files: [src/departments/art.ts]
       - id: materials
         agent: materials
-        label: Material artist
+        label: Materials
       - id: rigger
         agent: rigger
         label: Rigger

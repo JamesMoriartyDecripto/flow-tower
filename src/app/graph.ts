@@ -68,3 +68,26 @@ export function towerPath(ws: Workspace, towerId: string): string[] | undefined 
     for (const l of ws.towers[id]?.layers ?? []) for (const n of l.nodes) if (n.tower) queue.push([...path, n.tower]);
   }
 }
+
+/**
+ * `?tower=…&layer=…&node=…` on page load, for shared links and screenshots. `tower` is the id
+ * (`db-api-playbook/towers/request.tower.yaml`), the file name without `.tower.yaml`, or the name;
+ * without it, the first project. `layer` (id) focuses a layer; `node` (`layer.node`) selects a node and focuses its layer.
+ */
+export function deepLink(ws: Workspace, search: string) {
+  const q = new URLSearchParams(search);
+  const want = q.get('tower');
+  const layerId = q.get('layer');
+  const nodeKey = q.get('node');
+  if (!want && !layerId && !nodeKey) return undefined;
+  const towers = Object.values(ws.towers);
+  const tower = !want ? ws.towers[ws.projects[0]] : ws.towers[want]
+    ?? towers.find((t) => t.id === `${want}.tower.yaml` || t.id.endsWith(`/${want}.tower.yaml`))
+    ?? towers.find((t) => t.name.toLowerCase() === want.toLowerCase());
+  const stack = tower && towerPath(ws, tower.id);
+  if (!tower || !stack) return undefined;
+  const at = (id: string | null) => (id ? tower.layers.findIndex((l) => l.id === id) : -1);
+  const node = nodeKey ? tower.layers.flatMap((l) => l.nodes).find((n) => n.key === nodeKey) : undefined;
+  const layer = node ? at(node.layer) : at(layerId);
+  return { stack, selected: node?.key, focusedLayer: layer < 0 ? undefined : layer };
+}

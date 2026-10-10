@@ -409,7 +409,7 @@ layers:
     nodes:
       - id: paid
         agent: paid
-        label: Paid media lead
+        label: Paid media
         evals:
           - { name: pipeline ROAS, value: 3.4, target: 3.0, illustrative: true, description: "Qualified pipeline EUR / media EUR, trailing 90 days." }
           - { name: budget pacing error, value: 3.1, target: 5, higher_is_better: false, unit: "%", illustrative: true }
@@ -422,7 +422,7 @@ layers:
           - { name: Meta CTR, value: 0.94, target: 1.0, unit: "%", illustrative: true }
       - id: policy
         type: guard
-        label: Policy + disclosure
+        label: Policy+disclosure
         runtime: orchestrator
         description: Ad-policy checklist per platform, brand safety exclusions, AI-generated imagery labelled, claims only from the register.
         files: [ads/ad-policy-checklist.md, strategy/claims-register.yaml]
@@ -433,7 +433,7 @@ layers:
         runtime: slack
         approval: { by: legal counsel, via: Slack, actions: [approve, edit, reject], timeout: 72h, on_timeout: reject, when: "a new quantified, comparative or compliance claim", per: variant }
       - id: audiences
-        label: Consented audiences
+        label: Opt-in audiences
         runtime: gcp
         description: HubSpot lists with marketing consent only, normalized and SHA-256 hashed, to Customer Match / Meta custom audiences / LinkedIn matched audiences.
         data: { sensitivity: pii, region: eu, retention: 540d, lawful_basis: consent }
@@ -602,7 +602,7 @@ layers:
         evals:
           - { name: lead response p90, value: 42, target: 60, higher_is_better: false, unit: min, illustrative: true }
       - id: offline
-        label: Offline conversions
+        label: CRM conversions
         runtime: gcp
         description: MQL, SQL and closed-won sent back as Google enhanced conversions for leads (hashed email + GCLID) and Meta Conversions API events (shared event_id).
         trigger: { kind: cron, schedule: "30 * * * *" }
@@ -711,7 +711,7 @@ layers:
         budget: { usd: 900, per: month, for: model, on_exceed: downgrade }
       - id: changelog
         type: memory
-        label: Change + approval log
+        label: Change & approvals
         runtime: gcp
         description: Append-only log of every platform mutation and approval (who, what, before, after, reason).
         resources:

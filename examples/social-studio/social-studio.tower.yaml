@@ -367,7 +367,7 @@ layers:
         data: { disclosure: [Instagram is_ai_generated, TikTok is_aigc, YouTube containsSyntheticMedia, Meta AI label, EU AI Act Art. 50 label] }
       - id: rights
         type: guard
-        label: Rights & disclosure
+        label: Rights+disclosure
         description: "Written permission for every UGC repost, licensed music only, paid-partnership flags for creator content, no promo watermark on TikTok."
         runtime: studio
         files: [config/approval-policy.yaml]

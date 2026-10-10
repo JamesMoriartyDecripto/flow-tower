@@ -131,7 +131,7 @@ layers:
         label: Chaos bot
       - id: coop
         agent: bot
-        label: Co-op host bot
+        label: Co-op bot
         description: Hosts a 4-player session with three follower bots; tests join, desync and host leave.
       - id: run_playtest
         runtime: gpu-cloud

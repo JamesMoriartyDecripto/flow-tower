@@ -357,7 +357,7 @@ layers:
     nodes:
       - id: sequencer
         agent: sequencer
-        label: Sequence engine
+        label: Sequencer
         version: v3-pain-led
         rollout: { strategy: ab, percent: 50, arms: [v3-pain-led, v2-case-study], previous: v2-case-study }
         evals:
@@ -388,7 +388,7 @@ layers:
         limits: { retries: 3, backoff: "exponential 2s..2m", concurrency: 2 }
       - id: rep_tasks
         type: human
-        label: Rep calls + LinkedIn
+        label: Calls + LinkedIn
         runtime: rep-browser
         description: "HubSpot tasks: call (number RPO-checked), LinkedIn connection or message written and sent by the rep. Drafts are suggestions."
         credentials: user
@@ -679,7 +679,7 @@ layers:
         approval: { by: accounts receivable manager, via: "Slack #billing", actions: [approve, edit, reject, snooze], timeout: 72h, on_timeout: wait }
       - id: invoicing_fic
         type: output
-        label: invoicing-fic preset
+        label: invoicing-fic
         runtime: workers
         status: planned
         description: Full workflow (credit notes, SDI rejections, reconciliation, accountant export) in examples/invoicing-fic.

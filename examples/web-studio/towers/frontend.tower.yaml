@@ -93,8 +93,8 @@ layers:
         runtime: laptop
       - id: map
         type: tool
-        label: add_code_connect_map
-        description: Maps the new component back to its Figma node so designers and future pages reuse it.
+        label: Code Connect map
+        description: add_code_connect_map. Maps the new component back to its Figma node so designers and future pages reuse it.
         runtime: figma
     edges:
       - "exists -> build: no"

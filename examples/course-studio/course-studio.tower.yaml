@@ -470,7 +470,7 @@ layers:
     nodes:
       - id: media
         agent: media
-        label: Media producer
+        label: Media agent
       - id: script
         agent: script-writer
         label: Script writer
@@ -538,7 +538,7 @@ layers:
     nodes:
       - id: assessor
         agent: assessor
-        label: Assessment author
+        label: Assessments
       - id: blueprint
         label: Test blueprint
         description: Table of specifications. Objective x Bloom level x item count x weight.

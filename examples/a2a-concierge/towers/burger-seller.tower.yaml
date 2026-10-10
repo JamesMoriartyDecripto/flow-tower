@@ -82,11 +82,11 @@ layers:
     nodes:
       - id: seller
         agent: seller
-        label: Burger Seller Agent
+        label: Burger seller
       - id: confirmed
         runtime: burger_run
         type: decision
-        label: Confirmed in query?
+        label: Order confirmed?
         description: "Items and total confirmed in the incoming text? If not, answer with the total and a confirmation question."
         files: [prompts/burger-seller.md]
         decision: { output: binary }
@@ -100,7 +100,7 @@ layers:
       - id: model
         runtime: vertex
         type: model
-        label: gemini-2.5-flash-lite
+        label: Gemini Flash-Lite
         model: gemini-2.5-flash-lite
         description: "LLM('vertex_ai/gemini-2.5-flash-lite') through LiteLLM."
     edges:

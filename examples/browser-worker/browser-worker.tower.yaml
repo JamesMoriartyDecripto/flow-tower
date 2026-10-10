@@ -187,8 +187,8 @@ layers:
         files: [src/session.py]
       - id: start
         runtime: browser
-        label: StartBrowserSession
-        description: "sessionTimeoutSeconds 900 (AgentCore default), viewport 1456x819. The microVM is destroyed at TTL."
+        label: Start session
+        description: "StartBrowserSession. sessionTimeoutSeconds 900 (AgentCore default), viewport 1456x819. The microVM is destroyed at TTL."
         files: [src/session.py, config/browser.yaml]
         limits: { ttl: 15m, retries: 2, backoff: "exponential 1s..8s" }
       - id: start_batch
@@ -349,7 +349,7 @@ layers:
       - id: writeback
         runtime: policycenter
         type: output
-        label: PolicyCenter update
+        label: PolicyCenter write
         description: "Confirmation number and recording link added to the activity; the activity is closed."
         files: [logs/worker.log]
     edges:

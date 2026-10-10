@@ -61,6 +61,7 @@ export const ApprovalSchema = z.strictObject({
   when: z.string().optional().describe('Condition that requires it, e.g. "refund > 500 EUR" or "discount > 10%". Without it: always.'),
   per: z.string().optional().describe('Asked per item instead of once, e.g. "flag", "row", "invoice".'),
   rounds: z.number().int().positive().optional().describe('Revision rounds included before it must be approved or rejected.'),
+  description: z.string().optional(),
 });
 
 const BudgetItemSchema = z.strictObject({

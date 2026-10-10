@@ -32,8 +32,8 @@ layers:
         limits: { timeout: 3m, concurrency: 3, retries: 0 }
       - id: workspace
         type: process
-        label: loadLibrary(examples)
-        description: The tests import the real loader, so a new example gets a test without editing the suite.
+        label: loadLibrary()
+        description: loadLibrary(examples). The tests import the real loader, so a new example gets a test without editing the suite.
         files: [e2e/fixtures.ts, src/core/loader.ts]
       - id: hook
         type: tool
@@ -42,7 +42,7 @@ layers:
         files: [src/app/main.tsx]
       - id: errors
         type: guard
-        label: Console + page errors
+        label: Console errors
         description: Auto fixture. Any uncaught exception or console.error fails the test that caused it.
         files: [e2e/fixtures.ts]
     edges:
@@ -76,7 +76,7 @@ layers:
         description: S selects each sub-tower node, Enter dives in, Backspace must land back on the owner node. Recursive.
       - id: files
         type: tool
-        label: /api/file for every reference
+        label: /api/file refs
         runtime: devserver
         description: Every file and resource path of every tower is served; paths outside the root are refused.
         files: [src/server/plugin.ts]
@@ -121,7 +121,7 @@ layers:
         fanout: 7
       - id: axe
         type: tool
-        label: axe-core (WCAG 2 A/AA)
+        label: axe-core WCAG
         runtime: chrome
         description: Library, HUD and the Settings dialog; the WebGL canvas is excluded because axe cannot see inside it.
         files: [e2e/layout.spec.ts]
@@ -133,7 +133,7 @@ layers:
     nodes:
       - id: traces
         type: memory
-        label: Traces + screenshots
+        label: Traces + shots
         description: Kept only for failing tests (trace retain-on-failure, screenshot only-on-failure).
       - id: report
         type: output

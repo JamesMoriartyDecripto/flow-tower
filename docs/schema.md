@@ -10,7 +10,7 @@ Unknown keys are **errors**, so typos never fail silently.
 
 This page lists every field. For what belongs in a layer, a node, an edge or a nested tower, see [what goes where](what-goes-where.md).
 
-> **YAML gotcha:** inside one-line maps (`{ ... }`) a comma ends the value. Quote any text that contains commas: `{ id: a, description: "plans, routes and reviews" }`. Otherwise the rest becomes a bogus key and validation reports it.
+> **YAML gotchas:** inside one-line maps (`{ ... }`) a comma ends the value. Quote any text that contains commas: `{ id: a, description: "plans, routes and reviews" }`. Otherwise the rest becomes a bogus key and validation reports it. Anywhere, quote values that contain `: ` (otherwise a parse error) or ` #` (otherwise the rest is silently dropped as a comment).
 
 ## Top level
 
@@ -124,18 +124,18 @@ Optional fields on agents and nodes that describe **how a step runs in productio
 
 | Key | Values |
 |---|---|
-| `trigger` | `kind`: `manual` `cron` `webhook` `event` `queue` `chat` `email` `file`; `schedule` (cron expression), `timezone` (IANA, e.g. `Europe/Rome`), `hours` (`Mon-Fri 09:00-18:00`, `business days`), `source`, `description` |
-| `approval` | `by`, `via` (one channel or a list), `actions` (`approve` `edit` `reject` `respond` `snooze` `dismiss` `takeover`: a human takes the session over while automation pauses), `timeout`, `on_timeout` (`approve` `reject` `escalate` `wait`), `escalate_to` (backup approver), `when` (condition: `refund > 500 EUR`; without it, always), `per` (asked per item: `flag`, `row`, `invoice`), `rounds` (revision rounds included), `relayed_by` (agent that carries the request) |
+| `trigger` | `kind` (**required**): `manual` `cron` `webhook` `event` `queue` `chat` `email` `file`; `schedule` (cron expression), `timezone` (IANA, e.g. `Europe/Rome`), `hours` (`Mon-Fri 09:00-18:00`, `business days`), `source`, `description` |
+| `approval` | `by`, `via` (one channel or a list), `actions` (`approve` `edit` `reject` `respond` `snooze` `dismiss` `takeover`: a human takes the session over while automation pauses), `timeout`, `on_timeout` (`approve` `reject` `escalate` `wait`), `escalate_to` (backup approver), `when` (condition: `refund > 500 EUR`; without it, always), `per` (asked per item: `flag`, `row`, `invoice`), `rounds` (revision rounds included), `relayed_by` (agent that carries the request), `description` |
 | `budget` | one budget or a list (e.g. model and media spend apart): `usd`, or `amount` + `currency` (ISO 4217); `tokens`, `turns`, `per` (`call` `run` `session` `item` `copy` `day` `week` `month` `year`), `for` (`model`, `media`, `ads`...), `rate` (unit price, `0.40 USD/s`), `on_exceed` (`pause` `stop` `escalate` `downgrade`), `description` |
 | `limits` | `timeout`, `ttl` (session / sandbox lifetime), `retries`, `backoff`, `max_iterations` (loop bound), `concurrency`, `rate` (quotas: `100/24h` or a list `["300/5m", "15000/d"]`), `description` |
-| `fanout` | a number ≥ 2, or `{ min, max, by, from, pick }`: parallel copies. `by` can be a list of dimensions that multiply (`[store, locale, device]`); `from` lists the agents copies are picked from (a supervisor queue), `pick` says how |
+| `fanout` | a number ≥ 2, or `{ max, min, by, from, pick }` (`max` **required**): parallel copies. `by` can be a list of dimensions that multiply (`[store, locale, device]`); `from` lists the agents copies are picked from (a supervisor queue), `pick` says how. No cap in the code: leave `fanout` out and describe the count in `description`; a concurrency cap goes in `limits.concurrency` |
 | `data` | `sensitivity` (`public` `internal` `confidential` `pii` `phi` `pci` `biometric` `secret`), `region`, `retention` (a duration, or `none` = in memory only), `retention_after` (event it runs from: `matter close`), `lawful_basis` (GDPR: `consent` `contract` `legal_obligation` `vital_interests` `public_task` `legitimate_interests`), `disclosure` (labels and provenance on outputs: `C2PA`, `AI-generated label`), `description` |
-| `evals` | list of `{ name, value, target, higher_is_better, unit, illustrative, description, url }`; value vs target is colored. Relative scores (Elo, rank) need no target; `illustrative: true` marks example numbers |
-| `version`, `rollout` | `rollout.strategy`: `all` `canary` `staged` `ab` `shadow` `blue-green` `rainbow`; `percent`, `steps` (`[1, 5, 25, 100]`), `metric`, `guard` (halt condition), `arms` (A/B), `sample`, `previous` |
+| `evals` | list of `{ name (**required**), value, target, higher_is_better, unit, illustrative, description, url }`; value vs target is colored. Relative scores (Elo, rank) need no target; `illustrative: true` marks example numbers |
+| `version`, `rollout` | `rollout.strategy` (**required**): `all` `canary` `staged` `ab` `shadow` `blue-green` `rainbow`; `percent`, `steps` (`[1, 5, 25, 100]`), `metric`, `guard` (halt condition), `arms` (A/B), `sample`, `previous` |
 | `sla` | a duration (`72h`), or `{ within, after, before, by, business, external, description }`: relative to an event (`5d` `after: SDI rejection`), before one (`before: release`), an absolute date (`by: 2026-12-31`), in business days, or an external wait (store review) rather than our processing time |
-| `async` | the result comes back later: `{ mode: poll / callback / both, interval, timeout, description }` |
+| `async` | the result comes back later: `{ mode (**required**): poll / callback / both, interval, timeout, description }` |
 | `exactly_once` | `true`: must never run twice for an item (payouts, filings); retries are idempotent. Marker `1×` |
-| `decision` | typed output of a decision (decision models): `{ output: binary / choice / score / ranking, candidates, threshold, confidence, model (pinned version), fail: open / closed, description }` |
+| `decision` | typed output of a decision (decision models): `{ output (**required**): binary / choice / score / ranking, candidates, threshold, confidence, model (pinned version), fail: open / closed, description }` |
 | `credentials` | whose credentials tools use: `service`, `author` or `user` |
 | `sandbox` | `network` (`none` `allowlist` `open`), `allow` (hosts), `filesystem` (`none` `read-only` `workspace` `full`) |
 
@@ -176,7 +176,7 @@ layers:
 |---|---|
 | `id` | Unique within the layer. Globally addressed as `layer.node`. |
 | `type` | `entry` `output` `agent` `process` `decision` `tool` `model` `memory` `human` `guard` `hook`. Defaults to `agent` when `agent` is set, else `process`. |
-| `label` | Short display name (≈18 chars). Defaults to the agent name or the id. |
+| `label` | Short display name: at most 18 characters, 13 on a node with `tower` (longer ones are cut, and `validate` warns). Defaults to the agent name or the id. |
 | `description` | Long text, shown in the inspector. |
 | `agent` | Reference to the `agents` registry. The node inherits model, prompt, tools, files and tower. |
 | `runtime` | Reference to `runtimes`. Inherited from the agent. |
