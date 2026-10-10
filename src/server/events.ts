@@ -4,7 +4,9 @@ import { FlowEventSchema, resolveRuntime, resolveTargets, splitTarget, type Flow
 import { normalize } from '../core/adapters.ts';
 import { otlpLogsToEvents } from '../core/otlp.ts';
 import type { Workspace } from '../core/types.ts';
+import { authorize, type AuthOptions } from './auth.ts';
 import { crossSite, isJson } from './guard.ts';
+import { userHome } from '../core/secrets.ts';
 
 export const EVENTS_EVENT = 'flow-tower:events';
 const MAX_BODY = 1_000_000;
@@ -18,12 +20,12 @@ const MAX_OTLP_BODY = 4_000_000;
  * In-memory live event hub: validates, normalizes and maps incoming events onto tower nodes,
  * keeps the last KEEP for late joiners and hands new ones to `broadcast`.
  */
-export function createEventHub(getWorkspace: () => Workspace | undefined, broadcast: (events: FlowEvent[]) => void, token?: string) {
+export function createEventHub(getWorkspace: () => Workspace | undefined, broadcast: (events: FlowEvent[]) => void, auth: AuthOptions = { home: userHome() }) {
   const buffer: FlowEvent[] = [];
   let seq = 0;
 
   /** `tower`: restricts matching for events that do not say it themselves (?tower= on hook URLs). */
-  const ingest = (raw: unknown, source?: string, tower?: string): { accepted: number; rejected: number } => {
+  const ingest = (raw: unknown, source?: string, tower?: string, sender?: string): { accepted: number; rejected: number } => {
     const ws = getWorkspace();
     const items = Array.isArray(raw) ? raw : [raw];
     const out: FlowEvent[] = [];
@@ -33,7 +35,9 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
       if (!parsed.success) { rejected++; continue; }
       const e = parsed.data;
       const targets = ws ? resolveTargets(ws, e) : [];
-      out.push({ ...e, id: ++seq, ts: e.ts ?? Date.now(), targets, runtimeRef: ws ? runtimeRefOf(ws, e, targets) : undefined });
+      // The token identity wins over the payload: a sender cannot claim to be someone else.
+      const who = sender ? { sender, user: sender } : {};
+      out.push({ ...e, ...who, id: ++seq, ts: e.ts ?? Date.now(), targets, runtimeRef: ws ? runtimeRefOf(ws, e, targets) : undefined });
     }
     buffer.push(...out);
     if (buffer.length > KEEP) buffer.splice(0, buffer.length - KEEP);
@@ -50,7 +54,8 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     // A JSON content type forces a CORS preflight, and other sites are refused outright (src/server/guard.ts).
     if (!isJson(req)) return json(res, 415, { error: 'content-type must be application/json' });
     if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
-    if (token && req.headers['x-flow-tower-token'] !== token) return json(res, 401, { error: 'bad or missing x-flow-tower-token' });
+    const authz = authorize(req, auth);
+    if (!authz.ok) return json(res, 401, { error: 'bad or missing token' });
     const encoding = encodingOf(req);
     if (!encoding) return json(res, 415, unknownEncoding());
 
@@ -59,7 +64,7 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
       try {
         const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if (Array.isArray(body) && body.length > MAX_BATCH) return json(res, 413, { error: `at most ${MAX_BATCH} events per request` });
-        const result = ingest(body, sourceOf(req, url), url.searchParams.get('tower') ?? undefined);
+        const result = ingest(body, sourceOf(req, url), url.searchParams.get('tower') ?? undefined, authz.sender);
         // Claude Code HTTP hooks read a JSON body as a hook decision: answer with an empty 204 by default.
         if (url.searchParams.has('verbose')) json(res, 202, result);
         else { res.statusCode = 204; res.end(); }
@@ -79,14 +84,15 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     if (type.includes('protobuf')) return json(res, 415, { error: 'set OTEL_EXPORTER_OTLP_PROTOCOL=http/json (protobuf is not supported)' });
     if (!isJson(req)) return json(res, 415, { error: 'content-type must be application/json' });
     if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
-    if (token && req.headers['x-flow-tower-token'] !== token) return json(res, 401, { error: 'bad or missing x-flow-tower-token' });
+    const authz = authorize(req, auth);
+    if (!authz.ok) return json(res, 401, { error: 'bad or missing token' });
     const encoding = encodingOf(req);
     if (!encoding) return json(res, 415, unknownEncoding());
     void readBody(req, res, MAX_OTLP_BODY, encoding).then((chunks) => {
       if (!chunks) return; // the response was already sent (413, 400)
       try {
         const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        if (signal === 'logs') ingest(otlpLogsToEvents(body).slice(0, MAX_BATCH));
+        if (signal === 'logs') ingest(otlpLogsToEvents(body).slice(0, MAX_BATCH), undefined, undefined, authz.sender);
         json(res, 200, {}); // ExportLogsServiceResponse / ExportMetricsServiceResponse / ExportTraceServiceResponse
       } catch {
         json(res, 400, { error: 'invalid JSON' });

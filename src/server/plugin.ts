@@ -73,7 +73,8 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       const hub = createEventHub(
         () => state?.workspace,
         (events) => server.ws.send(EVENTS_EVENT, events),
-        env.FLOW_TOWER_TOKEN,
+        // The user folder holds the per-sender tokens (#83); FLOW_TOWER_TOKEN stays the shared legacy secret.
+        { legacy: env.FLOW_TOWER_TOKEN, home: userHome() },
       );
       server.middlewares.use('/api/events', hub.handle);
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.

@@ -1,12 +1,72 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import type { IncomingMessage } from 'node:http';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { readTowerFile } from '../src/server/files';
 import { crossSite, isJson } from '../src/server/guard';
+import { createEventHub } from '../src/server/events';
+import { tokenStore } from '../src/server/tokens';
 
 const req = (headers: Record<string, string>) => ({ headers: { host: '127.0.0.1:5317', ...headers } }) as unknown as IncomingMessage;
+
+/** Auth on ingest (#83): the hub answers as before without a secret, and holds tokens when there are any. */
+describe('auth on ingest (#83)', () => {
+  const servers: ReturnType<typeof createServer>[] = [];
+  afterAll(() => servers.forEach((s) => s.close()));
+
+  /** A hub over a temp user folder, listening on a real port: only a real server can test headers. */
+  async function start(opts: { legacy?: string; home?: string } = {}) {
+    const home = opts.home ?? mkdtempSync(join(tmpdir(), 'flow-tower-auth-'));
+    const hub = createEventHub(() => undefined, () => undefined, { legacy: opts.legacy, home });
+    const server = createServer((rq, rs) => hub.handle(rq, rs));
+    servers.push(server);
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/events`, hub, home };
+  }
+  const post = (url: string, body: unknown, headers: Record<string, string> = {}) =>
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+
+  it('accepts an unsigned event when no token exists anywhere (local only)', async () => {
+    const { url, hub } = await start();
+    const r = await post(url, { kind: 'log', message: 'hi' });
+    expect(r.status).toBe(204);
+    expect(await r.text()).toBe(''); // Claude Code hooks read the body: it must stay empty
+    expect(hub.recent().at(-1)).toMatchObject({ kind: 'log', message: 'hi' });
+    expect(hub.recent().at(-1)!.sender).toBeUndefined();
+  });
+
+  it('accepts the legacy token and refuses a wrong one', async () => {
+    const { url, hub } = await start({ legacy: 'shared-secret' });
+    expect((await post(url, { kind: 'log' }, { 'x-flow-tower-token': 'shared-secret' })).status).toBe(204);
+    expect(hub.recent().at(-1)).toMatchObject({ sender: 'default', user: 'default' });
+    // Bearer works too (the OTel Collector and proxies set it that way).
+    expect((await post(url, { kind: 'log' }, { Authorization: 'Bearer shared-secret' })).status).toBe(204);
+    expect((await post(url, { kind: 'log' })).status).toBe(401);
+    expect((await post(url, { kind: 'log' }, { 'x-flow-tower-token': 'nope' })).status).toBe(401);
+  });
+
+  it('lets a per-sender token through and makes its id win over the payload', async () => {
+    const { url, hub, home } = await start();
+    const { token } = tokenStore(home).create('alice');
+    const r = await post(url, { kind: 'log', user: 'bob', sender: 'mallory' }, { 'x-flow-tower-token': token });
+    expect(r.status).toBe(204);
+    expect(await r.text()).toBe('');
+    expect(hub.recent().at(-1)).toMatchObject({ sender: 'alice', user: 'alice' });
+  });
+
+  it('refuses a revoked token with 401 and ingests nothing', async () => {
+    const { url, hub, home } = await start();
+    const store = tokenStore(home);
+    const { token } = store.create('carol');
+    store.revoke('carol');
+    const r = await post(url, { kind: 'log' }, { 'x-flow-tower-token': token });
+    expect(r.status).toBe(401);
+    expect(hub.recent()).toHaveLength(0);
+  });
+});
 
 describe('server guards (security review of #62)', () => {
   it('reads the content type by its exact essence', () => {
