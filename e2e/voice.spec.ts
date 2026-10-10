@@ -95,3 +95,47 @@ test('voice journal: turns are written, a correction marks the last one, accepte
   await page.locator('.voice-caption .voice-close').click();
   await expect(page.locator('.voice-caption')).toHaveCount(0);
 });
+
+test('voice: Esc silences the reply still being written, and the turn is journaled as interrupted', async ({ page }) => {
+  const id = ws.projects.find((p) => p.startsWith('dev-squad/'))!;
+  const entries: { outcome: string }[] = [];
+  let speak = 0;
+  let chat = 0;
+  let release!: () => void;
+  const held = new Promise<void>((r) => { release = r; });
+  const sse = (chunks: object[]) => `${chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join('')}data: [DONE]\n\n`;
+  // Every voice route answered here: nothing is billed, nothing reaches a user folder.
+  await page.route(/\/api\/voice(\/|\?|$)/, async (r) => {
+    const path = new URL(r.request().url()).pathname;
+    if (path === '/api/voice/journal') { const b = r.request().postDataJSON(); if (b.entry) entries.push(b.entry); return r.fulfill({ json: { ok: true } }); }
+    if (path === '/api/voice/memory') return r.fulfill({ json: { memory: { aliases: [], notes: [], pending: [], reviewedUpTo: 0 }, stats: {} } });
+    // Speech is still being synthesized when Esc comes: Esc cancels it (no audio in this test).
+    if (path === '/api/voice/speak') { speak++; await held; return r.fulfill({ status: 204 }).catch(() => undefined); }
+    if (path === '/api/voice/chat') {
+      // Step 1: a first sentence (spoken at once) and a tool call. Step 2 is held until Esc was pressed.
+      if (++chat === 1) {
+        return r.fulfill({ contentType: 'text/event-stream', body: sse([{ choices: [{ delta: { content: 'Ecco il primo livello del progetto. ', tool_calls: [{ index: 0, id: 'c1', function: { name: 'focus_layer', arguments: '{"layer":1}' } }] } }] }]) });
+      }
+      await held;
+      return r.fulfill({ contentType: 'text/event-stream', body: sse([{ choices: [{ delta: { content: 'Riceve le issue. Poi il triage le smista. ' } }] }]) });
+    }
+    return r.fulfill({ json: { cloud: true, model: 'stt', agent: 'test-model', tts: 'test-tts', journal: true } });
+  });
+
+  await openProject(page, id);
+  await page.evaluate(async () => {
+    const { useVoice } = await import(String('/src/app/voice/voice.ts'));
+    const { usePrefs } = await import(String('/src/app/settings.ts'));
+    usePrefs.getState().set({ voiceReplies: true, voiceJournal: true });
+    useVoice.setState({ status: 'listening', agent: true });
+  });
+  const turn = page.evaluate(() => (window as unknown as Hear).__flowTower.hear('Spiegami il primo livello.'));
+  await expect.poll(() => chat).toBe(2); // the first sentence went to speech, the tool ran, step 2 waits
+  expect(speak).toBe(1);
+  await page.keyboard.press('Escape');
+  release();
+  await turn;
+  expect(speak).toBe(1); // nothing more of this reply was spoken
+  expect((await state(page)).focusedLayer).toBe(0); // Esc silenced the reply instead of leaving the layer
+  await expect.poll(() => entries.map((e) => e.outcome)).toEqual(['interrupted']);
+});

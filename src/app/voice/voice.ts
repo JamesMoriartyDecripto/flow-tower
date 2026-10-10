@@ -53,6 +53,10 @@ let pending = 0;
 let speaking = false;
 let idle: ReturnType<typeof setTimeout> | undefined;
 let hideError: ReturnType<typeof setTimeout> | undefined;
+/** The agent turn in flight: hush() mutes the rest of its reply, and it is recorded as interrupted. */
+let turnNow: { muted: boolean; spoke: boolean } | undefined;
+/** The "wait after the reply" hint is shown once per listening session. */
+let tailHinted = false;
 /** Cancels the agent turn in flight: stopping the mic stops its tools from moving the view. */
 let turnAbort = new AbortController();
 
@@ -88,9 +92,13 @@ export const useVoice = create<VoiceState>((set, get) => ({
     set({ error: undefined, ...(get().status === 'off' && { suggestions: undefined }) });
   },
   hush() {
-    if (!isSpeaking()) return false;
+    const t = turnNow;
+    if (!isSpeaking() && !(t?.spoke && !t.muted)) return false;
     stopSpeaking();
-    interrupted();
+    // The turn still streaming: say nothing more of it, and record it as interrupted. A turn already
+    // recorded (its reply still playing) is marked instead.
+    if (t) t.muted = true;
+    else interrupted();
     return true;
   },
 }));
@@ -126,6 +134,7 @@ async function start() {
   // A fresh session: no count or queue left over from a stopped one (its fetch may still be in flight).
   pending = 0;
   queue = Promise.resolve();
+  tailHinted = false;
   clearTimeout(hideError);
   set({ status: 'starting', error: undefined, did: undefined, heard: undefined });
   const config = await fetch('/api/voice').then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined) as { cloud: boolean; agent?: string } | undefined;
@@ -146,7 +155,11 @@ async function start() {
         if (mine !== session) return; // the recorder's last clip can land just after a stop
         // Decided on when it was recorded, not when it would be transcribed: a clip recorded while the
         // reply played is the reply itself (laptop speakers), unless the user turned on interrupting by voice.
-        if (!keepClip(at, usePrefs.getState().voiceBargeIn)) return;
+        if (!keepClip(at, usePrefs.getState().voiceBargeIn)) {
+          // Started just after the reply ended (not during it): the user was quick, tell them why it was missed.
+          if (!playedDuring(at, 0) && !tailHinted) { tailHinted = true; flash('Wait a moment after the reply, or press Esc to interrupt it.'); }
+          return;
+        }
         pending++;
         set({ status: status() });
         queue = queue.then(() => transcribe(audio, format, mine, at)).finally(() => {
@@ -209,8 +222,9 @@ async function transcribe(audio: Blob, format: string, mine: number, at: Recorde
     // Our own reply caught by the mic, or what Whisper writes for noise ("Grazie.", "Thank you."): dropped
     // before anything handles or journals it.
     if (!text || isEcho(text, at) || isHallucination(text)) return;
-    if (playedDuring(at)) {
-      // Barge-in (only with "Interrupt by voice" on): real words stop the reply; a cough or "ok" does not.
+    if (playedDuring(at, 0)) {
+      // Barge-in (only with "Interrupt by voice" on), for clips over the reply itself (not its tail):
+      // real words stop the reply; a cough or "ok" does not.
       const kind = bargeIn(text);
       if (kind === 'ignore') return;
       if (isSpeaking()) { stopSpeaking(); interrupted(); }
@@ -248,6 +262,8 @@ async function handle(heard: string, mine: number) {
   clearAgentSearch();
   turnAbort = new AbortController();
   const voice = usePrefs.getState().voiceReplies;
+  const t = { muted: false, spoke: false };
+  turnNow = t;
   const live = (did: string) => { if (mine === session) useVoice.setState({ did }); };
   // Streamed: the caption shows each tool step and then the reply as it is written; each finished
   // sentence is spoken while the next one is still being generated.
@@ -256,23 +272,25 @@ async function handle(heard: string, mine: number) {
     turn = await converse(text, {
       step: live,
       text: live,
-      sentence: (s) => { if (voice && mine === session) say(s); },
+      sentence: (s) => { if (voice && mine === session && !t.muted) { t.spoke = true; say(s); } },
     }, turnAbort.signal, notesForAgent());
   } catch (err) {
+    if (turnNow === t) turnNow = undefined;
     if (mine === session) {
       useVoice.setState({ did: `No answer: ${(err as Error).message}` });
       record({ heard, route: 'agent', did: (err as Error).message, outcome: 'error', tower });
     }
     return;
   }
-  if (mine !== session) return;
+  if (mine !== session) { if (turnNow === t) turnNow = undefined; return; }
   useVoice.setState({ did: turn.reply });
   armIdle();
   // Time to first audio: what the user waits in silence. The last sentence may still be on its way to
   // the speech model, so the entry waits for it (the next transcript waits in the queue anyway).
-  const audioAt = voice ? await firstAudio() : undefined;
+  const audioAt = voice && !t.muted ? await firstAudio() : undefined;
+  if (turnNow === t) turnNow = undefined;
   record({
-    heard, route: 'agent', did: turn.reply, outcome: 'done', tower, tools: turn.tools, ms: turn.ms, cost: turn.cost,
+    heard, route: 'agent', did: turn.reply, outcome: t.muted ? 'interrupted' : 'done', tower, tools: turn.tools, ms: turn.ms, cost: turn.cost,
     ...(audioAt !== undefined && { firstAudioMs: Math.round(audioAt - heardAt) }),
   });
 }

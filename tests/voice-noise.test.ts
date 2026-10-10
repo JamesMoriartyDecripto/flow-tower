@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { flatness, isHallucination, isSpeech, SENSITIVITY } from '../src/app/voice/noise';
+import { dbToPower, FLOOR_MAX, FLOOR_MIN, flatness, isHallucination, isSpeech, SENSITIVITY, updateFloor } from '../src/app/voice/noise';
 
 /** A fan is not a voice: voice-band power over its floor AND a peaky (not flat) spectrum. */
 describe('speech or noise', () => {
@@ -52,5 +52,40 @@ describe('Whisper hallucinations on noise', () => {
     for (const t of ['grazie, apri il livello due', 'thank you, show the triage node', 'vai al nodo triage', 'livello 3']) {
       expect(isHallucination(t), t).toBe(false);
     }
+  });
+});
+
+describe('noise floor', () => {
+  const room = dbToPower(-80);
+  const voice = dbToPower(-62);
+  const bins = 8;
+  const tick = (p: number) => new Array(bins).fill(p);
+
+  it('learns the room, not a voice heard during calibration', () => {
+    const floor = new Float64Array(bins);
+    updateFloor(floor, tick(voice), 'seed'); // the user talks as the mic opens
+    for (const p of [voice, room * 1.2, voice, room, voice]) updateFloor(floor, tick(p), 'min'); // syllables and gaps
+    expect([...floor]).toEqual(tick(room));
+    // So the first command after calibration is heard.
+    expect(isSpeech(voice, room, 0.2)).toBe(true);
+  });
+
+  it('is never 0, even on digital silence, and can rise again', () => {
+    const floor = new Float64Array(bins);
+    updateFloor(floor, tick(dbToPower(-Infinity)), 'seed');
+    expect(floor.every((f) => f === FLOOR_MIN)).toBe(true);
+    for (let i = 0; i < 400; i++) updateFloor(floor, tick(room), 0.05); // a fan comes on: 16 s
+    expect(floor[0]).toBeCloseTo(room, 12);
+  });
+
+  it('caps what calibration can learn, and follows the room slowly', () => {
+    const floor = new Float64Array(bins);
+    updateFloor(floor, tick(dbToPower(-20)), 'seed'); // someone shouting into the mic
+    expect(floor[0]).toBe(FLOOR_MAX);
+    updateFloor(floor.fill(room), tick(voice), 0.05); // one loud tick: at most 4x, at this rate much less
+    expect(floor[0]).toBeLessThan(room * 4);
+    expect(floor[0]).toBeGreaterThan(room);
+    updateFloor(floor, [NaN, ...tick(room).slice(1)], 0.05);
+    expect(Number.isFinite(floor[0])).toBe(true);
   });
 });

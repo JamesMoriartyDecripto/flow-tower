@@ -10,7 +10,11 @@ export const TAIL_MS = 700;
 /** When the speech in a clip started and when the clip was cut (performance.now()). */
 export interface Recorded { from: number; to: number }
 
-/** Playback spans of spoken replies, oldest first; the last one is open (to = Infinity) while playing. */
+/**
+ * Spans while a reply was active (synthesizing or playing: agent.ts isSpeaking), oldest first; the last
+ * one is open (to = Infinity) while it is. One definition of "the agent is talking" for the caption,
+ * Esc and this gate.
+ */
 const spans: { from: number; to: number }[] = [];
 
 export function playbackOn(at = performance.now()) {
@@ -23,8 +27,8 @@ export function playbackOff(at = performance.now()) {
   if (last?.to === Infinity) last.to = at;
 }
 
-/** Was a reply playing (or just ending) at any moment of this recording? */
-export const playedDuring = (at: Recorded) => spans.some((s) => s.from <= at.to && s.to + TAIL_MS >= at.from);
+/** Was a reply active at any moment of this recording, or within `tail` ms after it ended? */
+export const playedDuring = (at: Recorded, tail = TAIL_MS) => spans.some((s) => s.from <= at.to && s.to + tail >= at.from);
 
 /**
  * Half-duplex unless the user turned on "Interrupt by voice": a clip recorded while a reply played is

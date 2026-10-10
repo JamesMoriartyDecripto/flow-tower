@@ -15,17 +15,18 @@ describe('voice journal store', () => {
   const store = voiceStore(dir);
 
   it('appends turns, corrects outcomes later, and counts them', () => {
-    store.append({ ts: 1000, heard: 'vai al triaje', route: 'parser', did: 'Not understood', outcome: 'not_understood', tower: 't' });
-    store.append({ ts: 2000, heard: 'livello 2', route: 'parser', did: 'L02', outcome: 'done' });
-    store.mark(2000, 'undone');
+    const t = Date.now() - 60_000;
+    store.append({ ts: t + 1000, heard: 'vai al triaje', route: 'parser', did: 'Not understood', outcome: 'not_understood', tower: 't' });
+    store.append({ ts: t + 2000, heard: 'livello 2', route: 'parser', did: 'L02', outcome: 'done' });
+    store.mark(t + 2000, 'undone');
     const all = store.read();
     expect(all.map((e) => e.outcome)).toEqual(['not_understood', 'undone']);
-    expect(store.read(1000)).toHaveLength(1);
+    expect(store.read(t + 1000)).toHaveLength(1);
     // Time to first audio: a number, kept; anything else, dropped; averaged in the stats.
-    store.append({ ts: 3000, heard: 'spiegami', route: 'agent', did: 'Ok.', outcome: 'done', ms: 900, firstAudioMs: 1234.4 });
-    store.append({ ts: 4000, heard: 'e poi', route: 'agent', did: 'Ok.', outcome: 'done', ms: 900, firstAudioMs: '5' });
-    expect(store.read(2000).map((e) => e.firstAudioMs)).toEqual([1234, undefined]);
-    expect(store.stats(365_000).firstAudioMs).toBe(1234);
+    store.append({ ts: t + 3000, heard: 'spiegami', route: 'agent', did: 'Ok.', outcome: 'done', ms: 900, firstAudioMs: 1234.4 });
+    store.append({ ts: t + 4000, heard: 'e poi', route: 'agent', did: 'Ok.', outcome: 'done', ms: 900, firstAudioMs: '5' });
+    expect(store.read(t + 2000).map((e) => e.firstAudioMs)).toEqual([1234, undefined]);
+    expect(store.stats().firstAudioMs).toBe(1234);
     // Personal: readable by the owner only.
     expect(statSync(join(dir, 'voice-journal.jsonl')).mode & 0o777).toBe(0o600);
   });
@@ -40,6 +41,35 @@ describe('voice journal store', () => {
     store.forget();
     expect(store.read()).toEqual([]);
     expect(store.memory().aliases).toEqual([]);
+  });
+
+  it('takes a turn time from the page only within [now - 1 day, now + 1 min]', () => {
+    const now = Date.now();
+    const at = (ts: unknown) => {
+      store.forget();
+      return store.append({ ts, heard: 'x', route: 'parser', did: 'x', outcome: 'done' })!.ts;
+    };
+    expect(at(now - 5000)).toBe(now - 5000);
+    for (const ts of [1000, now + 3_600_000, 'soon']) expect(Math.abs(at(ts) - now), String(ts)).toBeLessThan(5000);
+    store.forget();
+  });
+
+  it('caps accepted notes, removes by value, and keeps the folder and files owner-only', () => {
+    const m = store.memory();
+    for (let i = 0; i < 20; i++) m.notes.push({ kind: 'rule', text: `rule ${i}` });
+    m.aliases.push({ heard: 'triaje', means: 'Triage router' }, { heard: 'emme ci pi', means: 'MCP' });
+    m.pending.push({ id: 'n21', kind: 'rule', text: 'one more', why: '', evidence: 1 });
+    expect(() => store.decide(m, { accept: 'n21' })).toThrow(/at most 20 notes/);
+    store.save(store.decide(m, { remove: { alias: 'triaje', note: 'rule 3' } }));
+    const after = store.memory();
+    expect(after.aliases.map((a) => a.heard)).toEqual(['emme ci pi']);
+    expect(after.notes.map((n) => n.text)).not.toContain('rule 3');
+    expect(statSync(dir).mode & 0o777).toBe(0o700);
+    expect(statSync(join(dir, 'voice-memory.json')).mode & 0o777).toBe(0o600);
+    // A hand-edited file with junk in it: the junk is dropped, the rest survives.
+    writeFileSync(join(dir, 'voice-memory.json'), JSON.stringify({ aliases: [null, 3, { heard: 'x1y', means: 'Y' }], notes: 'no', pending: [{}] }));
+    expect(store.memory()).toEqual({ aliases: [{ heard: 'x1y', means: 'Y' }], notes: [], pending: [], reviewedUpTo: 0 });
+    store.forget();
   });
 });
 
@@ -129,7 +159,8 @@ describe('voice journal routes', () => {
 
   it('reviews the oldest unreviewed entries first, so none is skipped', async () => {
     const store = voiceStore(mkdtempSync(join(tmpdir(), 'flow-tower-home-')));
-    for (let i = 1; i <= 205; i++) store.append({ ts: i, heard: `turno ${i}`, route: 'parser', did: 'x', outcome: 'done' });
+    const t = Date.now() - 300_000;
+    for (let i = 1; i <= 205; i++) store.append({ ts: t + i, heard: `turno ${i}`, route: 'parser', did: 'x', outcome: 'done' });
     const sizes: number[] = [];
     const fake = (async (_: string, init: RequestInit) => {
       const user = JSON.parse(String(init.body)).messages[1].content;
@@ -138,7 +169,7 @@ describe('voice journal routes', () => {
     }) as unknown as typeof fetch;
     const post = poster(await start('sk-or-test', fake, store));
     expect((await (await post('/review', {})).json()).reviewed).toBe(200);
-    expect(store.memory().reviewedUpTo).toBe(200);
+    expect(store.memory().reviewedUpTo).toBe(t + 200);
     expect((await (await post('/review', {})).json()).reviewed).toBe(5);
     expect(sizes).toEqual([200, 5]);
   });
@@ -150,6 +181,28 @@ describe('voice journal routes', () => {
     await post('/journal', heardOnce);
     const r = await (await post('/review', {})).json();
     expect(r.pending.map((p: { heard: string }) => p.heard)).toEqual(['triaje']);
+  });
+
+  it('refuses an alias that is a word of the name it means, or of another real name', async () => {
+    const aliases = [['triage', 'Triage router'], ['router', 'Dev Squad'], ['dev squad', 'Triage router'], ['triaje', 'Triage router']]
+      .map(([heard, means]) => ({ kind: 'alias', heard, means, text: '', why: '', evidence: 3 }));
+    const post = poster(await start('sk-or-test', (async () => reply(JSON.stringify({ suggestions: aliases }))) as unknown as typeof fetch));
+    await post('/journal', heardOnce);
+    const r = await (await post('/review', {})).json();
+    expect(r.pending.map((p: { heard: string }) => p.heard)).toEqual(['triaje']);
+  });
+
+  it('answers a refused decision with an error, not a memory', async () => {
+    const store = voiceStore(mkdtempSync(join(tmpdir(), 'flow-tower-home-')));
+    const m = store.memory();
+    for (let i = 0; i < 20; i++) m.notes.push({ kind: 'rule', text: `rule ${i}` });
+    m.pending.push({ id: 'n21', kind: 'rule', text: 'one more', why: '', evidence: 1 });
+    store.save(m);
+    const post = poster(await start(undefined, undefined, store));
+    const r = await post('/memory', { accept: 'n21' });
+    expect(r.status).toBe(409);
+    expect(await r.json()).toEqual({ error: expect.stringMatching(/at most 20 notes/) });
+    expect(store.memory().pending).toHaveLength(1);
   });
 });
 
@@ -171,10 +224,58 @@ describe('the user folder is never served (#68)', () => {
 });
 
 describe('aliases in the page', () => {
-  let applyAliases: typeof import('../src/app/voice/journal').applyAliases;
+  let journal: typeof import('../src/app/voice/journal');
+  let applyAliases: typeof journal.applyAliases;
   beforeAll(async () => {
     vi.stubGlobal('location', { search: '' });
-    ({ applyAliases } = await import('../src/app/voice/journal'));
+    journal = await import('../src/app/voice/journal');
+    ({ applyAliases } = journal);
+  });
+  afterAll(() => vi.unstubAllGlobals());
+
+  it('never rewrite inside the name they mean, keep "$" in names as text, and ignore accents', () => {
+    expect(applyAliases('vai al nodo triage router', [{ heard: 'router', means: 'triage router' }])).toBe('vai al nodo triage router');
+    expect(applyAliases('router e poi triage router', [{ heard: 'router', means: 'triage router' }])).toBe('triage router e poi triage router');
+    expect(applyAliases('apri il costo', [{ heard: 'costo', means: 'Cost $& $1 tracker' }])).toBe('apri il Cost $& $1 tracker');
+    expect(applyAliases('vai al nodo perché', [{ heard: 'perche', means: 'Why node' }])).toBe('vai al nodo Why node');
+    expect(applyAliases('Vai al TRIAJÉ', [{ heard: 'triaje', means: 'triage' }])).toBe('Vai al triage');
+  });
+
+  it('survive a bad memory: an error body never becomes the memory', async () => {
+    expect(applyAliases('ciao', [null, { heard: 3 }] as never)).toBe('ciao');
+    expect(applyAliases('ciao', 'junk' as never)).toBe('ciao');
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ error: 'at most 20 notes' }), { status: 409 }));
+    await expect(journal.decide({ accept: 'x' })).rejects.toThrow('at most 20 notes');
+    expect(journal.memory.aliases).toEqual([]);
+    expect(journal.notesForAgent()).toBe('');
+  });
+
+  it('cap the notes the agent sees', async () => {
+    const notes = Array.from({ length: 30 }, (_, i) => ({ kind: 'rule', text: `${'x'.repeat(150)} ${i}` }));
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ memory: { aliases: [], notes, pending: [] }, stats: {} })));
+    await journal.loadMemory();
+    const lines = journal.notesForAgent().split('\n');
+    expect(lines.length).toBeLessThanOrEqual(20);
+    expect(lines.join('').length).toBeLessThanOrEqual(2000 + 3 * 20);
+  });
+
+  it('take "no, …" as a correction, but not a command that starts with "non"', async () => {
+    const { usePrefs } = await import('../src/app/settings');
+    usePrefs.getState().set({ voiceJournal: true });
+    const marks: unknown[] = [];
+    vi.stubGlobal('fetch', async (_: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      if (body.mark) marks.push(body.mark.outcome);
+      return new Response('{}');
+    });
+    journal.record({ heard: 'livello due', route: 'parser', did: 'L02', outcome: 'done' });
+    journal.judgeLast('non mostrare i nodi');
+    journal.judgeLast('nodo triage');
+    expect(marks).toEqual([]);
+    // A barge-in, then "no, the other one": interrupted, and still corrected.
+    journal.interrupted();
+    journal.judgeLast('No, il terzo');
+    expect(marks).toEqual(['interrupted', 'corrected']);
   });
 
   it('replace whole words only, ignoring case and accents around them', () => {

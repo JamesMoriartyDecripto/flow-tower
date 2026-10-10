@@ -190,7 +190,7 @@ export function Settings() {
           </section>
 
           {!STATIC && (
-            <section>
+            <section id="settings-voice">
               <h3>Voice</h3>
               <Row label="Spoken language" hint="Voice commands (V). Auto detects it from each clip; picking one helps short commands. Commands work in Italian and English.">
                 <Seg<VoiceLanguage> value={prefs.voiceLanguage} options={[['auto', 'Auto'], ['it', 'Italiano'], ['en', 'English']]} onChange={(voiceLanguage) => prefs.set({ voiceLanguage })} />

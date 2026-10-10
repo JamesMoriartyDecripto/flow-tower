@@ -186,6 +186,8 @@ Press **V** or the **MIC** button (top bar or library header) and say where to g
 
 A name alone works too ("triage"). Names come from what is on screen: projects, layers, nodes and agents. They match loosely, so a misheard word still finds its target. When a name fits several things, the caption numbers them: say "il primo" or "two" to pick. "Entra" / "enter" opens the selected node's sub-tower, "chiudi" / "close" closes the panel. Listening stops by itself after 2 minutes without a command.
 
+**Noise.** The microphone tells a voice from a fan by the shape of the sound, not only its loudness, after measuring the room in its first 0.7 s. If a laptop fan still starts clips by itself, set **Settings → Voice → Microphone sensitivity** to Low and speak a little louder; High suits quiet rooms and soft voices. A transcript that is only "Grazie." or "Thank you." is what the recognizer writes for noise, so it is ignored.
+
 **Privacy.** Only clips with speech are sent (silence is dropped), only while the microphone is on. They go to OpenRouter (`openai/whisper-large-v3-turbo`), routed only to providers with zero data retention (`provider.zdr`). Commands are matched locally; no tower content is sent. Nothing else leaves your machine. `FLOW_TOWER_VOICE_MODEL` picks another model; `FLOW_TOWER_VOICE_ZDR=0` drops the zero-retention requirement.
 
 **Cost.** OpenRouter bills speech-to-text per second of audio. A command is a second or two, a fraction of a cent. Measured once (illustrative): an Italian command was transcribed in about 1.2 s for about $0.000005.
@@ -204,7 +206,9 @@ Questions, and anything the commands above do not cover, go to a voice agent tha
 | "how many MCP servers are there?" | the count and names, highlighted on screen |
 | "what does the fresh verifier do?" | its role, model and tools |
 
-The agent reads the tower on screen through a dozen tools (layers, nodes, connections, files, search) and acts with the same commands as the keyboard, so its answers come from the tower, not from guesses. It keeps the last few exchanges, so "this node" and "the first one" work. Speaking while it answers interrupts it.
+The agent reads the tower on screen through a dozen tools (layers, nodes, connections, files, search) and acts with the same commands as the keyboard, so its answers come from the tower, not from guesses. It keeps the last few exchanges, so "this node" and "the first one" work.
+
+**Interrupting.** While it answers, the microphone ignores what it hears, so laptop speakers cannot make the agent answer itself. Stop a reply with **Esc** (the microphone stays on), **V** or **✕** (both turn it off). With headphones, turn on **Settings → Voice → Interrupt by voice**: three words or "stop" then cut the reply short.
 
 - **Models** (OpenRouter, zero data retention): `google/gemini-3.1-flash-lite` for the answers and `elevenlabs/eleven-flash-v2.5` for the voice, one voice for every language. Change them with `FLOW_TOWER_AGENT_MODEL`, `FLOW_TOWER_TTS_MODEL` and `FLOW_TOWER_TTS_VOICE`.
 - **Settings → Voice → Spoken replies**: off shows the answers in the caption only.
@@ -216,7 +220,7 @@ The agent reads the tower on screen through a dozen tools (layers, nodes, connec
 Voice can learn from how you use it. It is off by default: turn it on in **Settings → Voice → Learn from my sessions**.
 
 - **What is recorded.** Text only, never audio. One line per turn: what was heard, what happened, and how it went.
-- **Outcome marks.** The outcome is corrected from what you do next: "no, the other one" marks the last turn *corrected*, "back" right after marks it *undone*, speaking over a reply marks it *interrupted*.
+- **Outcome marks.** The outcome is corrected from what you do next: "no, the other one" marks the last turn *corrected*, "back" right after marks it *undone*, stopping a reply (Esc, or by voice) marks it *interrupted*.
 - **Review.** After 20 new turns, a review runs when the microphone turns off. It costs about a cent with the default model. **Review now** runs one at any time.
 - **Suggestions.** The review proposes aliases for names the recognizer mishears ("triaje" → triage), rules for the agent, and reply style. They change nothing until you accept them in Settings. The caption shows how many are waiting.
 - **Forget everything** deletes the journal and all it learned. Each accepted item can also be removed alone.

@@ -38,3 +38,43 @@ describe('server guards (security review of #62)', () => {
     for (const p of ['.claude/agents/coder.md', '.mcp.json', 'src/config.ts', 'docs/keys.md']) expect(isSecretPath(p), p).toBe(false);
   });
 });
+
+describe('the loader never reads secrets or the user folder (#68 security review)', () => {
+  it('reports a prompt file that is a key file or lives in the user folder, and does not read it', async () => {
+    const { loadLibrary } = await import('../src/core/loader');
+    const { env } = await import('node:process');
+    const { mkdirSync } = await import('node:fs');
+    const project = mkdtempSync(join(tmpdir(), 'flow-tower-project-'));
+    mkdirSync(join(project, 'home'));
+    writeFileSync(join(project, 'home', 'voice-journal.jsonl'), 'PERSONAL TRANSCRIPT');
+    writeFileSync(join(project, 'api.key'), 'SECRET KEY');
+    writeFileSync(join(project, 'ok.md'), 'A real prompt.');
+    writeFileSync(join(project, 't.tower.yaml'), [
+      'name: T',
+      'prompts:',
+      '  journal: { file: home/voice-journal.jsonl }',
+      '  key: { file: api.key }',
+      '  ok: { file: ok.md }',
+      'layers:',
+      '  - id: l',
+      '    title: L',
+      '    nodes:',
+      '      - { id: a, label: A, prompt: journal }',
+      '      - { id: b, label: B, prompt: key }',
+      '      - { id: c, label: C, prompt: ok }',
+    ].join('\n'));
+    const saved = env.FLOW_TOWER_HOME;
+    env.FLOW_TOWER_HOME = join(project, 'home');
+    try {
+      const { workspace } = await loadLibrary([project]);
+      const json = JSON.stringify(workspace);
+      expect(json).not.toContain('PERSONAL TRANSCRIPT');
+      expect(json).not.toContain('SECRET KEY');
+      expect(json).toContain('A real prompt.');
+      const issues = Object.values(workspace.towers).flatMap((t) => t.issues.map((i) => i.message));
+      expect(issues.filter((m) => m.includes('secret file or in the user folder'))).toHaveLength(2);
+    } finally {
+      if (saved === undefined) delete env.FLOW_TOWER_HOME; else env.FLOW_TOWER_HOME = saved;
+    }
+  });
+});

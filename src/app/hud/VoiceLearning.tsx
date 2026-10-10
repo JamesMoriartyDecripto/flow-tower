@@ -13,13 +13,21 @@ export function VoiceLearning() {
   const on = usePrefs((s) => s.voiceJournal);
   const [data, setData] = useState<{ memory: Memory; stats: Stats }>();
   const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
   useEffect(() => { void loadMemory().then(setData); }, [on]);
 
   const act = async (label: string, run: () => Promise<{ memory: Memory; stats: Stats } | undefined>) => {
     setBusy(label);
-    try { const out = await run(); if (out) setData(out); } catch (err) { setBusy(`Failed: ${(err as Error).message}`); return; }
-    setBusy('');
-    useVoice.setState({ suggestions: undefined });
+    setError('');
+    try {
+      const out = await run();
+      if (out) setData(out);
+      useVoice.setState({ suggestions: out?.memory.pending.length || undefined });
+    } catch (err) {
+      setError(`Failed: ${(err as Error).message}`); // shown in the hint; the buttons work again
+    } finally {
+      setBusy('');
+    }
   };
   const s = data?.stats;
   const m = data?.memory;
@@ -56,22 +64,22 @@ export function VoiceLearning() {
       {m && (m.aliases.length > 0 || m.notes.length > 0) && (
         <div className="voice-suggestions">
           <div className="set-label">Learned</div>
-          {m.aliases.map((a, i) => (
-            <div key={`a${i}`} className="voice-suggestion">
+          {m.aliases.map((a) => (
+            <div key={`a:${a.heard}`} className="voice-suggestion">
               <span>“{a.heard}” → <b>{a.means}</b></span>
-              <button className="btn" title="Forget this alias" onClick={() => act('Saving…', () => decide({ remove: { alias: i } }))}>✕</button>
+              <button className="btn" title="Forget this alias" onClick={() => act('Saving…', () => decide({ remove: { alias: a.heard } }))}>✕</button>
             </div>
           ))}
-          {m.notes.map((n, i) => (
-            <div key={`n${i}`} className="voice-suggestion">
+          {m.notes.map((n) => (
+            <div key={`n:${n.text}`} className="voice-suggestion">
               <span><i>{n.kind}</i> {n.text}</span>
-              <button className="btn" title="Forget this note" onClick={() => act('Saving…', () => decide({ remove: { note: i } }))}>✕</button>
+              <button className="btn" title="Forget this note" onClick={() => act('Saving…', () => decide({ remove: { note: n.text } }))}>✕</button>
             </div>
           ))}
         </div>
       )}
       {(on || (s && s.turns > 0)) && (
-        <Row label="Journal" hint={busy || 'Reviews run by themselves after 20 new turns, when the microphone turns off.'}>
+        <Row label="Journal" hint={busy || error || 'Reviews run by themselves after 20 new turns, when the microphone turns off.'}>
           <button className="btn" disabled={!!busy || !on} onClick={() => act('Reviewing…', async () => { await review(); return loadMemory(); })}>Review now</button>
           <button className="btn" disabled={!!busy} title="Delete the journal and everything learned" onClick={() => {
             if (window.confirm('Delete the voice journal and everything it learned?')) void act('Deleting…', () => decide({ forget: true }));

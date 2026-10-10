@@ -3,7 +3,7 @@ version: 1
 name: Voice Commands
 tags: [voice, speech-to-text, text-to-speech, voice-agent, openrouter, whisper, browser, learning, dogfooding]
 description: >-
-  The voice widget of Flow Tower itself (issues #62, #63 and #68), mapped from its code. Press V (or MIC) and
+  The voice widget of Flow Tower itself (issues #62, #63, #68 and #72-#74), mapped from its code. Press V (or MIC) and
   speak in Italian or English. Navigation ("apri dev squad", "livello 2", "vai al nodo triage") goes to a
   local parser (no LLM) and runs the same store calls as the keyboard. Questions and references to the
   screen ("cosa c'è nel secondo livello?", "a cosa è collegato questo nodo") go to a conversational agent:
@@ -58,15 +58,28 @@ layers:
   # 1 ───────────────────────────────────────────────────────────────
   - id: capture
     title: Capture
-    description: Turn speech into short compressed clips, one per command, without a push-to-talk button.
+    description: "Turn speech into short compressed clips, one per command, without a push-to-talk button: tell a voice from a fan, and drop what was recorded over the agent's own reply before it costs a transcription."
     nodes:
       - id: hotkey
         type: entry
         label: V key / MIC
         runtime: browser
-        description: "V toggles voice in the tower and in the library (App.tsx); the MIC button in the top bar and the library header does the same. A second press stops listening."
+        description: "V toggles voice in the tower and in the library (App.tsx); the MIC button in the top bar and the library header does the same. A second press (or ✕ on the caption) stops listening, and with it any reply being spoken."
         trigger: { kind: manual, source: V key or MIC button }
         files: [src/app/App.tsx, src/app/hud/Voice.tsx, src/app/hud/Chrome.tsx, src/app/hud/Library.tsx]
+      - id: esc
+        type: entry
+        label: Esc key
+        runtime: browser
+        description: "Esc first calls hush() (App.tsx, before any other Esc action): if a reply is being spoken it stops it and marks the last turn interrupted, and the mic stays on. With nothing playing, Esc does its usual job (closes help or Settings, goes back)."
+        trigger: { kind: manual, source: Esc key }
+        files: [src/app/App.tsx, src/app/voice/voice.ts]
+      - id: prefs
+        type: memory
+        label: Voice settings
+        runtime: browser
+        description: "Settings > Voice, saved with the browser's preferences. Microphone sensitivity: Low (noisy laptops: a fan that opens clips by itself; speak a little louder), Normal (default) or High (quiet rooms, soft voices), read at every tick so a change applies at once. Interrupt by voice: off by default, so laptop speakers cannot make the agent answer itself; on, with headphones, words spoken over a reply can cut it."
+        files: [src/app/settings.ts, src/app/hud/Settings.tsx]
       - id: start
         type: decision
         label: Key configured?
@@ -76,27 +89,59 @@ layers:
         files: [src/app/voice/voice.ts]
       - id: mic
         type: process
-        label: Mic + speech end
+        label: Mic + recorder
         runtime: browser
         description: >-
-          getUserMedia (echo cancellation, noise suppression, mono) feeds a MediaRecorder that runs all the time and an
-          AnalyserNode sampled every 40 ms. Speech above an adaptive noise floor followed by ~0.6 s of silence cuts the
-          clip; a new recorder starts at once, so the next command loses no syllable. Under 0.2 s of speech is dropped
-          (a click, a cough); idle silence is discarded every 5 s. Echo cancellation also removes the agent's own
-          voice, because it plays through an <audio> element.
-        limits: { timeout: 8s, description: "A clip is cut after at most 8 s of speech." }
+          getUserMedia (echo cancellation, noise suppression, auto gain, mono) feeds a MediaRecorder that runs all the
+          time and an AnalyserNode (fftSize 2048) read every 40 ms. When speech ends the recorder is cut and a new one
+          starts at once, so the next command loses no syllable. Without speech the recording is thrown away every
+          1.5 s, so a clip holds the command and little else (billed per second; Whisper invents words in long
+          silences). Echo cancellation removes most of the agent's own voice, which plays through an <audio> element;
+          the half-duplex gate drops what gets through.
         files: [src/app/voice/mic.ts]
+      - id: floor
+        type: memory
+        label: Noise floor
+        runtime: browser
+        description: "One noise level per frequency bin of the voice band. Calibrated from 200 to 700 ms after the mic opens (the analyser's smoothing starts from silence, so the first 200 ms would understate it); no speech is accepted meanwhile. Then it follows the room: 5% per tick while quiet, 0.2% while speaking, never more than 4x in one tick, so a fan spinning up raises it instead of counting as speech."
+        files: [src/app/voice/mic.ts]
+      - id: detect
+        type: decision
+        label: Speech or noise?
+        runtime: browser
+        description: >-
+          isSpeech() on each 40 ms tick, over 300-3400 Hz: the band must be louder than its floor (power ratio 10, 6
+          or 3 for Low, Normal, High) and than an absolute minimum (-60, -66 or -72 dB), and its spectrum, divided bin
+          by bin by the floor (whitened), must be peaky. Spectral flatness under 0.3, 0.4 or 0.5: a fan or hiss whitens
+          to about 0.65-0.95, voiced speech to 0.13-0.25 (figures from a simulation of the analyser, in noise.ts).
+          Speech followed by ~0.6 s of silence, or 8 s of speech, cuts the clip; under 0.2 s of speech (a click, a
+          cough) is dropped.
+        decision: { output: binary, candidates: [speech, noise] }
+        limits: { timeout: 8s, description: "A clip is cut after at most 8 s of speech." }
+        files: [src/app/voice/noise.ts, src/app/voice/mic.ts, tests/voice-noise.test.ts]
       - id: clip
         type: memory
         label: Audio clip
         runtime: browser
-        description: "Opus in WebM or Ogg (Chrome, Edge, Firefox) or AAC in MP4 (Safari), 32 kbps: a 2 s command is ~10 KB. Kept in memory only; clips are transcribed and handled one at a time, in order."
+        description: "Opus in WebM or Ogg (Chrome, Edge, Firefox) or AAC in MP4 (Safari), 32 kbps: a 2 s command is ~10 KB. It carries its recording time (when the speech started, when the clip was cut), so every later decision about it uses when it was recorded, not when its transcript comes back. Kept in memory only; clips are transcribed and handled one at a time, in order."
         data: { sensitivity: pii, retention: none, description: "A voice recording. Sent once to the local server and on to OpenRouter with ZDR routing; never written to disk." }
-        files: [src/app/voice/mic.ts]
+        files: [src/app/voice/mic.ts, src/app/voice/duplex.ts]
+      - id: duplex
+        type: guard
+        label: Half-duplex gate
+        runtime: browser
+        description: "keepClip(): a clip recorded while a reply was playing, or up to 700 ms after it ended (the room still rings, the recorder lags), is the reply itself coming out of laptop speakers: it is dropped before transcription, so it costs nothing and cannot start a loop. With Interrupt by voice on (headphones) it is kept for the barge-in check. While a reply plays, the caption does not show hearing either."
+        files: [src/app/voice/duplex.ts, src/app/voice/voice.ts, tests/voice-duplex.test.ts]
     edges:
       - "hotkey -> start: toggle on"
       - "start -> mic: yes"
-      - "mic -> clip: ~0.6 s silence"
+      - "mic -> floor [data]: first 0.7 s"
+      - "mic -> detect [data]: spectrum, 40 ms"
+      - "floor -> detect [data]: whitening"
+      - "prefs -> detect [data]: sensitivity"
+      - "detect -> clip: speech, ~0.6 s silence"
+      - "clip -> duplex: recording time"
+      - "prefs -> duplex [data]: interrupt by voice"
 
   # 2 ───────────────────────────────────────────────────────────────
   - id: transcription
@@ -162,15 +207,21 @@ layers:
         type: guard
         label: Echo filter
         runtime: browser
-        description: "isEcho(): while the reply plays and for 0.8 s after it, a transcript whose words (3+ letters) are at least 60% words of the reply is the agent hearing itself, missed by the browser's echo cancellation: dropped without a trace."
-        files: [src/app/voice/agent.ts, src/app/voice/voice.ts]
+        description: "isEcho(): only for a clip recorded while a reply played or within 700 ms after it (judged on the recording time, not on when the transcript came back), a transcript whose words (3+ letters or digits) are at least 60% words of the reply is the agent hearing itself, missed by the browser's echo cancellation: dropped without a trace. With half-duplex on (the default) such clips never get here."
+        files: [src/app/voice/duplex.ts, src/app/voice/agent.ts, src/app/voice/voice.ts, tests/voice-duplex.test.ts]
+      - id: noise
+        type: guard
+        label: Whisper noise
+        runtime: browser
+        description: "isHallucination(): what Whisper writes for noise or silence, having learned from subtitled video. A transcript that is only \"Grazie.\", \"Grazie a tutti\", \"Thank you.\", \"Thanks for watching\", \"you\", a subtitle credit (Amara.org, Sottotitoli...), \"[Musica]\" or punctuation is dropped before it is handled or journaled. Compared without case, accents or punctuation; \"grazie, apri il livello due\" still runs."
+        files: [src/app/voice/noise.ts, src/app/voice/voice.ts, tests/voice-noise.test.ts]
       - id: bargein
         type: decision
         label: Barge-in?
         runtime: browser
-        description: "Only while a reply is playing. A stop word (stop, basta, ferma, zitto, silenzio, enough, quiet...) stops the reply and ends there; fewer than 3 words (a cough, \"ok\") are ignored and the reply goes on; 3 or more words stop the reply and are handled as a new request (Pipecat's minimum-words rule)."
-        decision: { output: choice, candidates: [not speaking, stop word, under 3 words, 3+ words] }
-        files: [src/app/voice/voice.ts]
+        description: "Only for a clip recorded while a reply played, which needs Interrupt by voice on: otherwise the half-duplex gate dropped it already. A stop word (stop, basta, ferma, zitto, silenzio, enough, quiet...) stops the reply and ends there; fewer than 3 words (a cough, \"ok\") are ignored and the reply goes on; 3 or more words stop the reply and are handled as a new request (Pipecat's minimum-words rule)."
+        decision: { output: choice, candidates: [not during a reply, stop word, under 3 words, 3+ words] }
+        files: [src/app/voice/duplex.ts, src/app/voice/voice.ts, tests/voice-duplex.test.ts]
       - id: route
         type: decision
         label: Agent or parser?
@@ -202,8 +253,9 @@ layers:
         decision: { output: choice, candidates: [one, several, none], threshold: 0.5 }
         files: [src/app/voice/commands.ts, src/app/voice/voice.ts]
     edges:
-      - "echo -> bargein: not an echo"
-      - "bargein -> route: silent or 3+ words"
+      - "echo -> noise: not an echo"
+      - "noise -> bargein: real words"
+      - "bargein -> route: no reply, or 3+ words"
       - "route -> pick: navigation"
       - "pick -> parser: parse"
       - parser -> ambiguous
@@ -257,7 +309,7 @@ layers:
         type: process
         label: Spoken reply
         runtime: browser
-        description: "Only with Settings > Spoken replies on (default on); off, the answer is only in the caption. say(): every finished sentence of the streamed reply is POSTed to /api/voice/speak at once (in parallel) and played in order, one <audio> element at a time (the browser's echo cancellation covers media elements), so the voice starts on the first sentence. A sentence whose speech request fails is skipped; if the browser refuses to play (NotAllowedError, autoplay blocked), the caption says so once and the next sentence is still tried. stopSpeaking() pauses it and drops the queue: barge-in, mic off, or a new reply."
+        description: "Only with Settings > Spoken replies on (default on); off, the answer is only in the caption. say(): each finished sentence of the streamed reply is queued and synthesized shortly before its turn (POST /api/voice/speak: one sentence ahead while waiting for audio, two once it plays, since /speak shares the server's 6 slots with the chat stream and transcription; a 429 is retried once after 0.5 s), then played in order, one <audio> element at a time, so the voice starts on the first sentence. Playback start and end are recorded as spans for the half-duplex gate and the echo filter. A sentence whose speech request fails is skipped; if the browser refuses to play (NotAllowedError, autoplay blocked), the caption says so once and the next sentence is still tried. stopSpeaking() pauses it and drops the queue: Esc, barge-in, mic off, or a new reply."
         data: { retention: none, description: "The reply audio lives in a blob URL until playback ends." }
         files: [src/app/voice/agent.ts, src/app/voice/voice.ts, src/app/hud/Settings.tsx, src/app/settings.ts]
       - id: tts
@@ -304,7 +356,7 @@ layers:
         type: guard
         label: Idle stop
         runtime: browser
-        description: "Listening stops by itself after 2 minutes without an understood command or an agent answer (privacy, battery). Armed when the mic opens and re-armed only by those two: noise transcribed as text (Grazie.) or errors do not keep the mic alive."
+        description: "Listening stops by itself after 2 minutes without an understood command or an agent answer (privacy, battery). Armed when the mic opens and re-armed only by those two: dropped clips, Whisper noise or errors do not keep the mic alive."
         limits: { timeout: 120s }
         files: [src/app/voice/voice.ts]
       - id: off
@@ -366,23 +418,23 @@ layers:
         label: Journal review
         runtime: server
         description: >-
-          POST /api/voice/review (needs the key). Takes the journal entries after the last review, the latest 200,
+          POST /api/voice/review (needs the key). Takes the journal entries after the last review, the oldest 200 first,
           and the real names of the towers they mention (every project, plus the layers, nodes and agents of those
           towers, up to 600). One chat completion with the review prompt: names, accepted aliases and notes, waiting
           suggestions and the compact entries (heard, route, what happened, outcome). Strict json_schema reply,
           max_tokens 1200, usage included, same chat model with ZDR and require_parameters. One review at a time
           (409). The review and its cost are logged; if Forget everything ran meanwhile, nothing is written back.
           The memory is read again after the call, so decisions made meanwhile stay, and the reviewed mark moves to
-          the last entry read. An OpenRouter error or an unreadable reply answers 502, and the same entries go to
-          the next review.
-        limits: { description: "At most 200 new entries per review: with more, the older unreviewed ones are skipped for good." }
+          the last entry read, so what did not fit goes to the next review. An OpenRouter error or an unreadable reply
+          answers 502, and the same entries go to the next review.
+        limits: { description: "At most 200 new entries per review, the oldest first; the rest wait for the next one, never skipped." }
         data: { sensitivity: pii, description: "The new journal text goes to OpenRouter (ZDR endpoints)." }
         files: [src/server/voice-learning.ts, src/server/plugin.ts]
       - id: filter
         type: guard
         label: Real names only
         runtime: server
-        description: "accept(): at most 8 suggestions. An alias must point at one of the real names (any case; the name's own spelling is kept), differ from what was heard and be new; a rule or style note must be non-empty and new. Duplicates of accepted or waiting ones are dropped; text is cut at 300 characters."
+        description: "accept(): at most 8 suggestions. An alias must point at one of the real names (any case; the name's own spelling is kept), differ from what was heard, be new, and match a real word: at least 3 characters and not only common words (il, la, the, open, layer, node...), which would rewrite every transcript; a rule or style note must be non-empty and new. Duplicates of accepted or waiting ones are dropped; text is cut at 300 characters."
         files: [src/server/voice-learning.ts, tests/voice-journal.test.ts]
       - id: memory
         type: memory
@@ -395,20 +447,20 @@ layers:
         type: human
         label: Settings panel
         runtime: browser
-        description: "VoiceLearning in Settings > Voice: the toggle; the last 7 days (turns, % not understood, corrected, interrupted, average agent time, time to first audio, cost, reviews and their cost); Suggestions with Accept and Reject; Learned, with ✕ to remove one; Review now; Forget everything, after a confirm, deletes the journal and the memory. Each decision is a POST /api/voice/memory."
+        description: "VoiceLearning in Settings > Voice: the toggle; the last 7 days (turns, % not understood, corrected, undone, interrupted, average agent time, time to first audio, cost, reviews and their cost); Suggestions with Accept and Reject; Learned, with ✕ to remove one; Review now; Forget everything, after a confirm, deletes the journal and the memory. Each decision is a POST /api/voice/memory."
         approval: { by: the user, actions: [approve, reject], via: Settings > Voice, on_timeout: wait, description: "Nothing a review proposes applies until it is accepted here." }
         files: [src/app/hud/VoiceLearning.tsx, src/app/hud/Settings.tsx]
       - id: chip
         type: output
         label: Suggestions chip
         runtime: browser
-        description: "N SUGGESTIONS in the caption while suggestions wait; a click opens Settings. The count comes from the memory at every start and from an automatic review; any decision in the panel clears it. The caption hides while the mic is off, so a review run at mic off shows at the next start."
+        description: "N SUGGESTIONS in the caption while suggestions wait; a click opens Settings. The count comes from the memory at every start and from an automatic review; any decision in the panel clears it. With suggestions waiting the caption stays while the mic is off, so a review run at mic off shows at once; ✕ dismisses it."
         files: [src/app/hud/Voice.tsx, src/app/voice/voice.ts]
       - id: aliases
         type: process
         label: Apply aliases
         runtime: browser
-        description: "applyAliases() at the start of handle(), before the route: each accepted alias replaces the misheard phrase with the real name, whole words only, any case, Unicode letters (\"triaje\" becomes \"triage\"). The parser and the agent both get the corrected text; the journal keeps the raw one."
+        description: "applyAliases() at the start of handle(), before the route: each accepted alias replaces the misheard phrase with the real name, whole words only, any case, Unicode letters (\"triaje\" becomes \"triage\"); an alias under 3 characters is skipped. The parser and the agent both get the corrected text; the journal keeps the raw one."
         files: [src/app/voice/journal.ts, src/app/voice/voice.ts, tests/voice-journal.test.ts]
       - id: notes
         type: memory
@@ -423,7 +475,7 @@ layers:
       - "marks -> journal [data]: mark line"
       - "toggle -> due: on"
       - "due -> review [call]: 20+ turns"
-      - "journal -> review [data]: latest 200"
+      - "journal -> review [data]: oldest 200"
       - "review -> filter: max 8"
       - "filter -> memory [data]: pending"
       - "memory -> panel [data]: suggestions"
@@ -474,7 +526,7 @@ layers:
         type: process
         label: Forward to chat
         runtime: server
-        description: "Checks messages (1 to 60) and tools (up to 20) (400), then sends model, messages, tools, max_tokens 500, tool_choice (none when answer is true) and provider { zdr, require_parameters }. With stream: true (what the page sends) it asks for a stream with usage and pipes the server-sent events through as they arrive; otherwise it answers { message, ms, cost }."
+        description: "Checks messages (1 to 60) and tools (up to 20) (400), then sends model, messages, tools, max_tokens 500, tool_choice (none when answer is true) and provider { zdr, require_parameters }. With stream: true (what the page sends) it asks for a stream with usage and pipes the server-sent events through as they arrive (if the upstream drops after the headers went out, the response just ends); otherwise it answers { message, ms, cost }."
         credentials: service
         limits: { timeout: 30s }
         files: [src/server/voice.ts]
@@ -502,8 +554,8 @@ layers:
         type: tool
         label: vitest
         runtime: server
-        description: "voice-server.test.ts starts the handler with a fake fetch: GET never shows the key; POST sends key, ZDR and language; an agent step with tool_choice none and require_parameters; speech as audio/mpeg; 404, 503, 415, 403 and 400 refusals. voice-journal.test.ts: the journal store (marks, 0600, forget), the routes (keyless journal, cross-site GET refused, review keeps only real aliases) and applyAliases. voice-commands.test.ts covers the parser, voice-agent.test.ts the agent-or-parser routing, voice-tools.test.ts the tools on the real dev-squad tower."
-        files: [tests/voice-server.test.ts, tests/voice-journal.test.ts, tests/voice-commands.test.ts, tests/voice-agent.test.ts, tests/voice-tools.test.ts]
+        description: "voice-server.test.ts starts the handler with a fake fetch: GET never shows the key; POST sends key, ZDR and language; an agent step with tool_choice none and require_parameters; speech as audio/mpeg; 404, 503, 415, 403 and 400 refusals. voice-journal.test.ts: the journal store (marks, 0600, forget), the routes (keyless journal, cross-site GET refused, review keeps only real aliases) and applyAliases. voice-commands.test.ts covers the parser, voice-agent.test.ts the agent-or-parser routing, voice-tools.test.ts the tools on the real dev-squad tower, voice-noise.test.ts speech against a fan and the Whisper noise list, voice-duplex.test.ts the half-duplex gate, the echo filter and barge-in."
+        files: [tests/voice-server.test.ts, tests/voice-journal.test.ts, tests/voice-commands.test.ts, tests/voice-agent.test.ts, tests/voice-tools.test.ts, tests/voice-noise.test.ts, tests/voice-duplex.test.ts]
     edges:
       - "secrets -> route [data]: key at startup"
       - "route -> guards: GET, POST"
@@ -528,7 +580,7 @@ links:
   - "capture.mic -> actions.idle: arm"
   - "capture.hotkey -> actions.off: toggle off"
   # Transcription through the server.
-  - "capture.clip -> transcription.engine: clip"
+  - "capture.duplex -> transcription.engine: kept clip"
   - { from: transcription.send, to: server.route, kind: call, protocol: http, label: POST base64 clip }
   - { from: server.forward, to: transcription.stt, kind: call, protocol: http, label: input_audio + zdr }
   - "transcription.stt -> server.forward [return]: text + cost"
@@ -537,6 +589,9 @@ links:
   - "transcription.send -> understanding.echo: transcript"
   # Turn-taking and routing.
   - "understanding.bargein -> conversation.speak [call]: stopSpeaking"
+  - "capture.esc -> conversation.speak [call]: stopSpeaking"
+  - "conversation.speak -> capture.duplex [data]: playback spans"
+  - "conversation.speak -> understanding.echo [data]: reply words"
   - "understanding.route -> conversation.agent: question"
   # Parser to action.
   - "understanding.pick -> actions.execute: picked option"
@@ -566,6 +621,7 @@ links:
   - "conversation.step -> learning.record [data]: agent turn"
   - "conversation.agent -> learning.record [data]: agent error"
   - "understanding.bargein -> learning.marks [call]: interrupted"
+  - "capture.esc -> learning.marks [call]: interrupted"
   - "understanding.route -> learning.marks [call]: next words"
   - { from: learning.record, to: server.route, kind: call, protocol: http, label: POST /journal }
   - { from: learning.marks, to: server.route, kind: call, protocol: http, label: POST mark }
@@ -590,3 +646,6 @@ links:
   - "server.tests -> conversation.tools [call]: dev-squad tower"
   - "server.tests -> learning.filter [call]: fake review"
   - "server.tests -> learning.aliases [call]: unit tests"
+  - "server.tests -> capture.detect [call]: fan vs voice"
+  - "server.tests -> capture.duplex [call]: playback spans"
+  - "server.tests -> understanding.noise [call]: Whisper noise"

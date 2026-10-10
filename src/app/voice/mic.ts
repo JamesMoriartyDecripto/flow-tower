@@ -1,5 +1,5 @@
 import type { Recorded } from './duplex';
-import { dbToPower, flatness, isSpeech, VOICE_BAND, type Sensitivity } from './noise';
+import { dbToPower, flatness, isSpeech, updateFloor, VOICE_BAND, type Sensitivity } from './noise';
 
 /**
  * Microphone with end-of-speech detection, in every browser. A MediaRecorder runs all the time;
@@ -80,11 +80,12 @@ export async function openMic(on: MicEvents, sensitivity: () => Sensitivity = ()
     };
     stream.getAudioTracks().forEach((t) => t.addEventListener('ended', () => { if (!closed) on.ended(); }));
 
-    // Adaptive floor, per bin: measured during the first CALIBRATE_MS, then following the room (a fan
-    // spinning up raises it instead of counting as speech). It adapts slowly while "speaking" too, so
-    // steady noise does not keep cutting 8 s clips; one tick can raise it 4× at most.
+    // Adaptive floor, per bin (noise.ts updateFloor): seeded at once, calibrated as the per-bin minimum
+    // during the first CALIBRATE_MS, then following the room (a fan spinning up raises it instead of
+    // counting as speech). It adapts slowly while "speaking" too, so steady noise does not keep cutting
+    // 8 s clips; one tick can raise it 4× at most.
     const opened = performance.now();
-    let ticks = 0;
+    let minimum = false;
     let speaking = false;
     let start = 0;
     let lastLoud = 0;
@@ -97,17 +98,17 @@ export async function openMic(on: MicEvents, sensitivity: () => Sensitivity = ()
         band[i] = dbToPower(spectrum[lo + i]);
         power += band[i];
         floorPower += floor[i];
-        ratio[i] = band[i] / Math.max(floor[i], 1e-16);
+        ratio[i] = band[i] / Math.max(floor[i], 1e-16); // floor is 0 only before the first tick
       }
       power /= band.length;
       floorPower /= band.length;
       const calibrating = now - opened < CALIBRATE_MS;
       const loud = !calibrating && isSpeech(power, floorPower, flatness(ratio), sensitivity());
-      // The analyser's smoothing starts from silence: its first 200 ms would understate the floor.
-      const rate = calibrating ? (now - opened < 200 ? 0 : 1 / ++ticks) : speaking ? 0.002 : 0.05;
-      for (let i = 0; i < band.length; i++) {
-        floor[i] += rate * ((calibrating ? band[i] : Math.min(band[i], floor[i] * 4)) - floor[i]);
-      }
+      // The analyser's smoothing starts from silence: its first 200 ms understate the room, so they only
+      // seed the floor; the minimum starts from the first tick after them.
+      const settled = now - opened >= 200;
+      updateFloor(floor, band, !calibrating ? (speaking ? 0.002 : 0.05) : settled && minimum ? 'min' : 'seed');
+      if (settled) minimum = true;
       if (loud) {
         lastLoud = now;
         if (!speaking) { speaking = true; start = now; on.speaking(true); }

@@ -71,7 +71,8 @@ export function learningRoutes(d: LearningDeps) {
       get: (res: ServerResponse) => send(res, 200, { memory: store.memory(), stats: store.stats() }),
       async run(res: ServerResponse, body: Record<string, unknown>) {
         if (body.forget === true) { store.forget(); return send(res, 200, { memory: store.memory(), stats: store.stats() }); }
-        const m = store.decide(store.memory(), body as Parameters<VoiceStore['decide']>[1]);
+        let m;
+        try { m = store.decide(store.memory(), body as Parameters<VoiceStore['decide']>[1]); } catch (err) { return send(res, 409, { error: (err as Error).message }); }
         store.save(m);
         send(res, 200, { memory: m, stats: store.stats() });
       },
@@ -130,6 +131,13 @@ const STOP_WORDS = new Set(('il lo la le li gli i un uno una di del della dei de
   'go vai apri open show mostra livello layer level nodo node torna back').split(' '));
 /** An alias needs a real word to match: at least 3 characters, and not only common words. */
 export const tooCommon = (heard: string) => heard.length < 3 || heard.split(/\s+/).every((w) => STOP_WORDS.has(w));
+/** Lowercase, no accents, words separated by single spaces: how names and aliases are compared. */
+const fold = (s: string) => ` ${s.toLowerCase().normalize('NFKD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
+/**
+ * "triage" → "Triage router" would turn every "triage router" into "Triage router router": an alias may
+ * not hear a whole word or phrase of the name it means, nor of any other real name.
+ */
+export const partOfAName = (heard: string, names: string[]) => names.some((n) => fold(n).includes(fold(heard)));
 
 interface RawSuggestion { kind: string; heard: string; means: string; text: string; why: string; evidence: number }
 
@@ -155,7 +163,7 @@ function accept(list: RawSuggestion[], names: string[], known: Memory[], id: () 
     if (s.kind === 'alias') {
       const heard = String(s.heard ?? '').toLowerCase().trim().slice(0, 60);
       const means = real.get(String(s.means ?? '').toLowerCase().trim());
-      if (!heard || !means || heard === means.toLowerCase() || seen.has(`alias:${heard}`) || tooCommon(heard)) continue;
+      if (!heard || !means || heard === means.toLowerCase() || seen.has(`alias:${heard}`) || tooCommon(heard) || partOfAName(heard, names)) continue;
       seen.add(`alias:${heard}`);
       out.push({ id: id(), kind: 'alias', heard, means, why, evidence });
     } else if (s.kind === 'rule' || s.kind === 'style') {

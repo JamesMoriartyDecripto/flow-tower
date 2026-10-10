@@ -48,6 +48,31 @@ export function isSpeech(bandPower: number, floor: number, flat: number, sensiti
 export const dbToPower = (db: number) => 10 ** (Math.max(db, -160) / 10);
 
 /**
+ * The per-bin noise floor stays in [-120, -55] dB: never 0 (the 4× rise per tick could not lift it), and
+ * never as loud as a voice close to the mic (speech at 0.02 RMS is about -65 dB, so a cap at -55 dB
+ * only bites when calibration heard someone talking loudly).
+ */
+export const FLOOR_MIN = dbToPower(-120);
+export const FLOOR_MAX = dbToPower(-55);
+const clampFloor = (p: number) => Math.min(FLOOR_MAX, Math.max(FLOOR_MIN, Number.isFinite(p) ? p : FLOOR_MIN));
+
+/**
+ * One tick of the per-bin floor, in place:
+ * - 'seed': take this tick as the floor (the first ticks, so it is never 0);
+ * - 'min': calibration, keep the per-bin minimum: speech has gaps between syllables and only raises
+ *   bins for a moment, so the minimum is the room, not the voice (an average would learn the voice);
+ * - a rate: follow the room; one tick can raise a bin 4× at most, so a voice is not learned as noise.
+ */
+export function updateFloor(floor: Float64Array, band: ArrayLike<number>, step: 'seed' | 'min' | number) {
+  for (let i = 0; i < floor.length; i++) {
+    const b = clampFloor(band[i]);
+    if (step === 'seed') floor[i] = b;
+    else if (step === 'min') floor[i] = Math.min(clampFloor(floor[i]), b);
+    else floor[i] = clampFloor(floor[i] + step * (Math.min(b, floor[i] * 4) - floor[i]));
+  }
+}
+
+/**
  * What Whisper writes for noise or silence (it was trained on subtitled video): a transcript that is only
  * one of these is dropped before it is handled or journaled. Compared without case, accents or punctuation.
  */

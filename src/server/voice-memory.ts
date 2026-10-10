@@ -1,7 +1,8 @@
-import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { userHome } from './home.ts';
+import { pid } from 'node:process';
+import { userHome } from '../core/secrets.ts';
 
 /**
  * The voice journal and the voice memory (#68). Opt-in, text only, never audio, on this machine:
@@ -37,17 +38,36 @@ export type Suggestion = { id: string; why: string; evidence: number } & ({ kind
 export interface Memory { aliases: Alias[]; notes: Note[]; pending: Suggestion[]; reviewedUpTo: number }
 
 const MAX_JOURNAL_BYTES = 5_000_000;
+/** Accepted notes join every agent prompt: a few short ones, not a second system prompt (the page caps them too). */
+export const MAX_NOTES = 20;
+export const MAX_NOTES_CHARS = 2000;
+/** A turn's time comes from the page: anything outside [now - 1 day, now + 1 min] is replaced by now. */
+const turnTime = (ts: unknown, now = Date.now()) => {
+  const n = Number(ts);
+  return Number.isFinite(n) && n >= now - 86_400_000 && n <= now + 60_000 ? n : now;
+};
+const list = <T>(v: unknown, ok: (x: T) => boolean): T[] => (Array.isArray(v) ? (v as T[]).filter((x) => !!x && typeof x === 'object' && ok(x)) : []);
 const empty = (): Memory => ({ aliases: [], notes: [], pending: [], reviewedUpTo: 0 });
 const clean = (s: unknown, max = 300) => String(s ?? '').replace(/[\r\n]+/g, ' ').trim().slice(0, max);
 
 export function voiceStore(dir = userHome()) {
   const journal = join(dir, 'voice-journal.jsonl');
   const memoryFile = join(dir, 'voice-memory.json');
-  const ensure = () => { if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 }); };
+  const ensure = () => {
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
+    chmodSync(dir, 0o700); // an existing folder too: transcripts are personal, owner only
+  };
   const write = (file: string, text: string, append = false) => {
     ensure();
-    if (append) appendFileSync(file, text, { mode: 0o600 }); else writeFileSync(file, text, { mode: 0o600 });
-    chmodSync(file, 0o600); // transcripts are personal: owner only
+    if (append) {
+      appendFileSync(file, text, { mode: 0o600 });
+      chmodSync(file, 0o600);
+      return;
+    }
+    // Whole-file writes (memory, rotation) go through a temp file and a rename: a crash never leaves half a file.
+    const tmp = `${file}.${pid}.${randomUUID().slice(0, 8)}.tmp`;
+    writeFileSync(tmp, text, { mode: 0o600 });
+    renameSync(tmp, file);
   };
 
   /** Keeps the journal bounded: past the cap, the older half goes. */
@@ -79,7 +99,7 @@ export function voiceStore(dir = userHome()) {
       const outcome = OUTCOMES.includes(raw.outcome as Outcome) ? raw.outcome as Outcome : 'done';
       const route = raw.route === 'agent' || raw.route === 'pick' ? raw.route : 'parser';
       const entry: JournalEntry = {
-        ts: Number(raw.ts) || Date.now(), heard: clean(raw.heard), route, did: clean(raw.did, 600), outcome,
+        ts: turnTime(raw.ts), heard: clean(raw.heard), route, did: clean(raw.did, 600), outcome,
         ...(raw.tower ? { tower: clean(raw.tower, 120) } : {}),
         ...(typeof raw.language === 'string' ? { language: clean(raw.language, 8) } : {}),
         ...(Array.isArray(raw.tools) ? { tools: raw.tools.slice(0, 12).map((t) => clean(t, 40)) } : {}),
@@ -103,12 +123,31 @@ export function voiceStore(dir = userHome()) {
     },
     read(since = 0): JournalEntry[] { return parse().entries.filter((e) => e.ts > since); },
     reviews(since = 0): ReviewRecord[] { return parse().reviews.filter((r) => r.review > since); },
+    /** What is on disk, with anything malformed dropped (a hand-edited file must not break the routes). */
     memory(): Memory {
-      try { return { ...empty(), ...JSON.parse(readFileSync(memoryFile, 'utf8')) as Partial<Memory> }; } catch { return empty(); }
+      try {
+        const m = JSON.parse(readFileSync(memoryFile, 'utf8')) as Partial<Memory>;
+        const str = (...v: unknown[]) => v.every((x) => typeof x === 'string');
+        return {
+          aliases: list<Alias>(m.aliases, (a) => str(a.heard, a.means)),
+          notes: list<Note>(m.notes, (n) => str(n.text) && (n.kind === 'rule' || n.kind === 'style')),
+          pending: list<Suggestion>(m.pending, (p) => str(p.id) && (p.kind === 'alias' ? str(p.heard, p.means) : str(p.text))),
+          reviewedUpTo: Number(m.reviewedUpTo) || 0,
+        };
+      } catch { return empty(); }
     },
     save(m: Memory) { write(memoryFile, `${JSON.stringify(m, null, 2)}\n`); },
-    /** Accept or reject a pending suggestion; remove an accepted alias or note. */
-    decide(m: Memory, body: { accept?: string; reject?: string; remove?: { alias?: number; note?: number } }) {
+    /**
+     * Accept or reject a pending suggestion; remove an accepted alias (by what it hears) or note (by its
+     * text): values, not positions, so a decision made on a stale list cannot remove the wrong one.
+     * Throws when accepting one more note would pass the cap.
+     */
+    decide(m: Memory, body: { accept?: string; reject?: string; remove?: { alias?: string; note?: string } }) {
+      const next = m.pending.find((p) => p.id === body.accept);
+      if (next && next.kind !== 'alias') {
+        const chars = m.notes.reduce((a, n) => a + n.text.length, 0) + next.text.length;
+        if (m.notes.length >= MAX_NOTES || chars > MAX_NOTES_CHARS) throw new Error(`at most ${MAX_NOTES} notes and ${MAX_NOTES_CHARS} characters: remove one first`);
+      }
       const take = (id?: string) => {
         const i = m.pending.findIndex((p) => p.id === id);
         return i < 0 ? undefined : m.pending.splice(i, 1)[0];
@@ -117,8 +156,8 @@ export function voiceStore(dir = userHome()) {
       if (accepted?.kind === 'alias') m.aliases.push({ heard: accepted.heard, means: accepted.means });
       else if (accepted) m.notes.push({ kind: accepted.kind, text: accepted.text });
       take(body.reject);
-      if (body.remove?.alias !== undefined) m.aliases.splice(body.remove.alias, 1);
-      if (body.remove?.note !== undefined) m.notes.splice(body.remove.note, 1);
+      if (typeof body.remove?.alias === 'string') m.aliases = m.aliases.filter((a) => a.heard !== body.remove!.alias);
+      if (typeof body.remove?.note === 'string') m.notes = m.notes.filter((n) => n.text !== body.remove!.note);
       return m;
     },
     /** Last `days` days, for the Settings panel: is it getting better? */

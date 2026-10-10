@@ -5,6 +5,7 @@ import { parseDocument } from 'yaml';
 import type { z } from 'zod';
 import { TowerSchema, type TowerDef } from './schema.ts';
 import { parseEdge } from './edges.ts';
+import { isForbidden } from './secrets.ts';
 import { pickOps, resolveAgent, resolvePromptDef, resolvePromptRef, type FileReader } from './resolve.ts';
 import type { Issue, ResolvedAgent, ResolvedEdge, ResolvedLayer, ResolvedPrompt, ResolvedTower, Workspace } from './types.ts';
 
@@ -195,6 +196,7 @@ async function loadTower(file: string, id: string, project: string, watched: Set
 
   const def = parsed.data;
   const outside = (path: string) => issues.push({ level: 'error', message: `${path} is outside the project (${project}): not read` });
+  const secret = (path: string) => issues.push({ level: 'error', message: `${path} is a secret file or in the user folder (~/.config/flow-tower): not read` });
   let root = resolve(dirname(file), def.root ?? '.');
   if (!safeJoin(project, root)) {
     outside(`root ${def.root}`);
@@ -204,6 +206,8 @@ async function loadTower(file: string, id: string, project: string, watched: Set
     async read(path) {
       const abs = await inside(project, root, path);
       if (!abs) { outside(path); return undefined; }
+      // A prompt or an agent file is shown in /api/workspace: never a key file, nor the user's journal.
+      if (await isForbidden(await realpath(abs).catch(() => abs), path)) { secret(path); return undefined; }
       watched.add(abs);
       try { return await readFile(abs, 'utf8'); } catch { missing.add(abs); return undefined; }
     },
@@ -219,8 +223,9 @@ async function loadTower(file: string, id: string, project: string, watched: Set
   const nested = [];
   for (const ref of refs) {
     const abs = await inside(project, root, ref);
-    if (abs) nested.push({ ref, abs });
-    else outside(`tower ${ref}`);
+    if (!abs) outside(`tower ${ref}`);
+    else if (await isForbidden(await realpath(abs).catch(() => abs), ref)) secret(`tower ${ref}`);
+    else nested.push({ ref, abs });
   }
   tower.updatedAt = await stat(file).then((st) => st.mtime.toISOString(), () => undefined);
   return { tower, root, nested };

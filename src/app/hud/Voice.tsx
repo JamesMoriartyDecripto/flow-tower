@@ -21,6 +21,12 @@ export function MicButton() {
   );
 }
 
+/** Settings, scrolled to Voice where the suggestions wait (after the dialog has focused its first control). */
+function openVoiceSettings() {
+  usePrefs.getState().set({ open: true });
+  setTimeout(() => document.getElementById('settings-voice')?.scrollIntoView({ block: 'start' }), 50);
+}
+
 /** What was heard and what it did, under the top bar, above the library too. */
 export function VoiceCaption() {
   const { status, heard, did, error, cloud, suggestions, toggle, dismiss } = useVoice();
@@ -32,7 +38,7 @@ export function VoiceCaption() {
       <div className="voice-state">
         <i />{status === 'off' ? 'Voice off' : STATUS[status]}
         {cloud && <span className="chip" title="OpenRouter (zero data retention) transcribes the audio, answers questions and speaks the replies; plain navigation is matched in the page">CLOUD STT</span>}
-        {!!suggestions && <button className="chip voice-chip" title="Suggestions from the voice journal: accept or reject them in Settings > Voice" onClick={() => usePrefs.getState().set({ open: true })}>{suggestions} SUGGESTION{suggestions > 1 ? 'S' : ''}</button>}
+        {!!suggestions && <button className="chip voice-chip" title="Suggestions from the voice journal: accept or reject them in Settings > Voice" onClick={openVoiceSettings}>{suggestions} SUGGESTION{suggestions > 1 ? 'S' : ''}</button>}
       </div>
       {heard && <div className="voice-heard">“{heard}” <b>→ {did}</b></div>}
       {!heard && status === 'listening' && <div className="dim">“apri dev squad” · “livello 2” · “vai al nodo triage” · “vista mappa” · “indietro”</div>}

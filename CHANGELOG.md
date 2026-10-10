@@ -11,6 +11,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Settings → Voice → Learning: the journal toggle, last-7-days stats (turns, not understood, corrected, interrupted, answer time, cost), suggestions to accept or reject, what was learned (removable one by one), **Review now** and **Forget everything**.
 - E2E of the voice path (`e2e/voice.spec.ts`): transcripts go in through `__flowTower.hear()`, OpenRouter is answered by route interception (no cost), and the journal goes to a temporary `FLOW_TOWER_HOME`.
 
+### Fixed
+- Voice no longer answers itself through laptop speakers (#72). Half-duplex by default: a clip recorded while a reply plays, or within 700 ms after, is dropped before transcription (no cost, no loop). **Settings → Voice → Interrupt by voice** (off by default, for headphones) brings barge-in back. The echo filter judges a clip by when it was recorded, not when its transcript returns. Esc stops a reply first and keeps the mic on; V and ✕ stop it too.
+- A laptop fan no longer opens clips by itself (#73). Speech is detected on the 300–3400 Hz spectrum, divided bin by bin by a noise floor measured 200–700 ms after the mic opens: a voice is louder than the floor and peaky, a fan is flat. **Settings → Voice → Microphone sensitivity** (Low for noisy laptops, Normal, High for quiet rooms). Transcripts that are only Whisper's noise text ("Grazie.", "Thank you.", subtitle credits) are dropped.
+- Voice robustness (#74): spoken replies are synthesized one or two sentences ahead, not all at once, and a 429 is retried once, so long replies no longer lose sentences; a chat stream that fails after its headers ends cleanly; a review reads the oldest 200 new entries first, so none are skipped; aliases on short or common words ("il", "the", "open") are refused; the suggestions chip shows right after a review at mic off; the 7-day stats show % undone.
+
 ### Security
 - The user's own data lives outside the repo, in `~/.config/flow-tower` (or `FLOW_TOWER_HOME`): the key file, the voice journal and the voice memory, created readable by the owner only. `OPENROUTER_API_KEY` is read from the environment, then the user folder, then the git-ignored `.env` in the flow-tower folder (a fallback). Nothing personal is written in the repo.
 - `/api/file` never serves the user folder, even when a tower root contains it.

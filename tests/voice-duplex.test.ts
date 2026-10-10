@@ -17,6 +17,13 @@ describe('half-duplex voice', () => {
     expect(keepClip({ from: 200, to: 900 }, false)).toBe(true); // before it
   });
 
+  it('tells the reply itself from its tail (barge-in rule, hint)', () => {
+    const tailOnly = { from: 4000 + TAIL_MS - 100, to: 5600 };
+    expect(playedDuring(tailOnly)).toBe(true);
+    expect(playedDuring(tailOnly, 0)).toBe(false);
+    expect(playedDuring({ from: 3500, to: 4500 }, 0)).toBe(true);
+  });
+
   it('treats a reply still playing as open-ended', () => {
     playbackOn(10_000);
     expect(playedDuring({ from: 60_000, to: 61_000 })).toBe(true);
