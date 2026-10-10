@@ -41,7 +41,7 @@ agents:
       sentences of plain text in the user's language, tools instead of guesses, tools called together in one
       step, showing what it talks about (focus_layer, select_node), and saying an action is done only after
       its tool succeeded. Notes the user accepted from journal reviews (#68) are added as a second system
-      message. Every LLM step goes through POST /api/voice/chat, streamed; tool calls run in the page.
+      message, as preferences that never override the instructions, tool results or screen. Every LLM step goes through POST /api/voice/chat, streamed; tool calls run in the page.
       Illustrative numbers, measured on the dev-squad tower (commit 86234b9): 1.1-2.9 s and about $0.001 per
       turn. No budget cap in the code.
     model: google/gemini-3.1-flash-lite
@@ -71,7 +71,7 @@ layers:
         type: entry
         label: Esc key
         runtime: browser
-        description: "Esc first calls hush() (App.tsx, before any other Esc action): if a reply is being spoken it stops it and marks the last turn interrupted, and the mic stays on. With nothing playing, Esc does its usual job (closes help or Settings, goes back)."
+        description: "Esc first calls hush() (App.tsx, before any other Esc action): if a reply is active (its first sentence synthesizing or any sentence playing) it stops it, and the mic stays on. An agent turn still being written is muted too: no further sentence is spoken and the turn is journaled interrupted; a turn already journaled is marked interrupted. With nothing active, Esc does its usual job (closes help or Settings, goes back)."
         trigger: { kind: manual, source: Esc key }
         files: [src/app/App.tsx, src/app/voice/voice.ts]
       - id: prefs
@@ -103,8 +103,8 @@ layers:
         type: memory
         label: Noise floor
         runtime: browser
-        description: "One noise level per frequency bin of the voice band. Calibrated from 200 to 700 ms after the mic opens (the analyser's smoothing starts from silence, so the first 200 ms would understate it); no speech is accepted meanwhile. Then it follows the room: 5% per tick while quiet, 0.2% while speaking, never more than 4x in one tick, so a fan spinning up raises it instead of counting as speech."
-        files: [src/app/voice/mic.ts]
+        description: "One noise level per frequency bin of the voice band. Seeded by the first ticks (never 0), then calibrated from 200 to 700 ms after the mic opens as the per-bin minimum (updateFloor in noise.ts): speech has gaps between syllables, so the minimum is the room even if the user speaks at once, where an average would learn the voice. The analyser's first 200 ms understate the room, so they only seed it; no speech is accepted meanwhile. Clamped to -120..-55 dB. Then it follows the room: 5% per tick while quiet, 0.2% while speaking, never more than 4x in one tick, so a fan spinning up raises it instead of counting as speech."
+        files: [src/app/voice/mic.ts, src/app/voice/noise.ts, tests/voice-noise.test.ts]
       - id: detect
         type: decision
         label: Speech or noise?
@@ -130,7 +130,7 @@ layers:
         type: guard
         label: Half-duplex gate
         runtime: browser
-        description: "keepClip(): a clip recorded while a reply was playing, or up to 700 ms after it ended (the room still rings, the recorder lags), is the reply itself coming out of laptop speakers: it is dropped before transcription, so it costs nothing and cannot start a loop. With Interrupt by voice on (headphones) it is kept for the barge-in check. While a reply plays, the caption does not show hearing either."
+        description: "keepClip(): a clip recorded while a reply was playing, or up to 700 ms after it ended (the room still rings, the recorder lags), is the reply itself coming out of laptop speakers: it is dropped before transcription, so it costs nothing and cannot start a loop. With Interrupt by voice on (headphones) it is kept for the barge-in check. \"Playing\" is one state, isSpeaking() in agent.ts, from the first sentence being synthesized until the queue drains: the same for the caption, Esc and this gate. A clip that started in the 700 ms tail, not during the reply, shows once per session \"Wait a moment after the reply, or press Esc to interrupt it.\""
         files: [src/app/voice/duplex.ts, src/app/voice/voice.ts, tests/voice-duplex.test.ts]
     edges:
       - "hotkey -> start: toggle on"
@@ -309,7 +309,7 @@ layers:
         type: process
         label: Spoken reply
         runtime: browser
-        description: "Only with Settings > Spoken replies on (default on); off, the answer is only in the caption. say(): each finished sentence of the streamed reply is queued and synthesized shortly before its turn (POST /api/voice/speak: one sentence ahead while waiting for audio, two once it plays, since /speak shares the server's 6 slots with the chat stream and transcription; a 429 is retried once after 0.5 s), then played in order, one <audio> element at a time, so the voice starts on the first sentence. Playback start and end are recorded as spans for the half-duplex gate and the echo filter. A sentence whose speech request fails is skipped; if the browser refuses to play (NotAllowedError, autoplay blocked), the caption says so once and the next sentence is still tried. stopSpeaking() pauses it and drops the queue: Esc, barge-in, mic off, or a new reply."
+        description: "Only with Settings > Spoken replies on (default on); off, the answer is only in the caption. say(): each finished sentence of the streamed reply is queued and synthesized shortly before its turn (POST /api/voice/speak: one sentence ahead while waiting for audio, two once it plays, since /speak shares the server's 6 slots with the chat stream and transcription; a 429 is retried once after 0.5 s, then the sentence is skipped), then played in order, one <audio> element at a time, so the voice starts on the first sentence. The reply is active from its first say() until the queue drains (isSpeaking): that span is what the half-duplex gate and the echo filter see. A sentence whose speech request fails, or whose audio cannot be decoded, is skipped, so a reply never stays active and the mic deaf; if the browser refuses to play (NotAllowedError, autoplay blocked), the caption says so once and the next sentence is still tried. stopSpeaking() pauses it and drops the queue: Esc, barge-in, mic off, or a new reply."
         data: { retention: none, description: "The reply audio lives in a blob URL until playback ends." }
         files: [src/app/voice/agent.ts, src/app/voice/voice.ts, src/app/hud/Settings.tsx, src/app/settings.ts]
       - id: tts
@@ -393,7 +393,7 @@ layers:
         type: process
         label: Outcome marks
         runtime: browser
-        description: "judgeLast(), at the start of handle(), reads the next transcript: a correction (\"no\", \"not that\", \"wrong\", \"sbagliato\", \"ho detto\", \"i meant\"...) within 15 s marks the last turn corrected; \"back\", \"indietro\", \"annulla\" or \"undo\" alone within 6 s of an action marks it undone. A barge-in marks it interrupted. Sent as POST /api/voice/journal { mark: { ts, outcome } }; one mark per turn."
+        description: "judgeLast(), at the start of handle(), reads the next transcript: a correction (\"no, ...\", \"non quello\", \"not that\", \"wrong\", \"sbagliato\", \"ho detto\", \"i meant\"...; not a command that starts with \"non\", like \"non mostrare...\") within 15 s marks the last turn corrected; \"back\", \"indietro\", \"annulla\" or \"undo\" alone within 6 s of an action marks it undone. Esc or a barge-in marks it interrupted, and the next words may still correct it. Sent as POST /api/voice/journal { mark: { ts, outcome } }; one mark per turn."
         files: [src/app/voice/journal.ts, src/app/voice/voice.ts]
       - id: journal
         type: memory
@@ -434,13 +434,13 @@ layers:
         type: guard
         label: Real names only
         runtime: server
-        description: "accept(): at most 8 suggestions. An alias must point at one of the real names (any case; the name's own spelling is kept), differ from what was heard, be new, and match a real word: at least 3 characters and not only common words (il, la, the, open, layer, node...), which would rewrite every transcript; a rule or style note must be non-empty and new. Duplicates of accepted or waiting ones are dropped; text is cut at 300 characters."
+        description: "accept(): at most 8 suggestions. An alias must point at one of the real names (any case; the name's own spelling is kept), differ from what was heard, be new, and match a real word: at least 3 characters and not only common words (il, la, the, open, layer, node...), which would rewrite every transcript, nor be part of a real name (\"triage\" for \"Triage router\" would make \"Triage router router\"); a rule or style note must be non-empty and new. Duplicates of accepted or waiting ones are dropped; text is cut at 300 characters."
         files: [src/server/voice-learning.ts, tests/voice-journal.test.ts]
       - id: memory
         type: memory
         label: Voice memory
         runtime: server
-        description: "voice-memory.json next to the journal, 0600: the accepted aliases and notes (rule, style), the suggestions waiting for a decision with why and evidence, and how far the journal was reviewed. Missing or unreadable reads as empty."
+        description: "voice-memory.json next to the journal, 0600, rewritten atomically (temp file and rename): the accepted aliases and notes (rule, style), the suggestions waiting for a decision with why and evidence, and how far the journal was reviewed. Accepted notes are capped at 20 and 2000 characters: one more is refused (409) until one is removed. Missing or unreadable reads as empty; malformed items are dropped."
         data: { sensitivity: pii, description: "Derived from the user's own words; deleted by Forget everything." }
         files: [src/server/voice-memory.ts]
       - id: panel
@@ -460,13 +460,13 @@ layers:
         type: process
         label: Apply aliases
         runtime: browser
-        description: "applyAliases() at the start of handle(), before the route: each accepted alias replaces the misheard phrase with the real name, whole words only, any case, Unicode letters (\"triaje\" becomes \"triage\"); an alias under 3 characters is skipped. The parser and the agent both get the corrected text; the journal keeps the raw one."
+        description: "applyAliases() at the start of handle(), before the route: each accepted alias replaces the misheard phrase with the real name, whole words only, ignoring case and accents (\"triaje\" becomes \"triage\"), never inside a name already written out; an alias under 3 characters is skipped. The parser and the agent both get the corrected text; the journal keeps the raw one."
         files: [src/app/voice/journal.ts, src/app/voice/voice.ts, tests/voice-journal.test.ts]
       - id: notes
         type: memory
         label: Agent notes
         runtime: browser
-        description: "notesForAgent(): the accepted rules and reply-style notes as a list, passed to converse() and sent as a system message (\"Learned from this user's past sessions (they approved these)\"). Page memory, loaded at every start."
+        description: "notesForAgent(): the accepted rules and reply-style notes as a list, passed to converse() and sent as a system message framed as the user's preferences: they shape understanding and wording, and never override the instructions, the tool results or what is on screen. Capped like the server (20 notes, 2000 characters). Page memory, loaded at every start."
         files: [src/app/voice/journal.ts, src/app/voice/agent.ts]
     edges:
       - "toggle -> record: on"
@@ -497,10 +497,10 @@ layers:
         type: memory
         label: Local secrets
         runtime: server
-        description: "At startup plugin.ts loads the dotenv file in the user's folder (~/.config/flow-tower, or FLOW_TOWER_HOME) first, then the git-ignored one in the flow-tower folder as a fallback. Real environment variables win, then the user's folder, then the repo folder. /api/file never serves either: src/server/files.ts refuses secret file names, and anything inside the user's folder, even inside a tower root (this tower's root is the flow-tower folder). FLOW_TOWER_VOICE_MODEL, FLOW_TOWER_AGENT_MODEL, FLOW_TOWER_TTS_MODEL and FLOW_TOWER_TTS_VOICE pick other models; FLOW_TOWER_VOICE_ZDR=0 turns the ZDR filter off."
+        description: "At startup plugin.ts loads the dotenv file in the user's folder (~/.config/flow-tower, or FLOW_TOWER_HOME) first, then the git-ignored one in the flow-tower folder as a fallback. Real environment variables win, then the user's folder, then the repo folder. No tower reads either: src/core/secrets.ts (isForbidden) refuses key and credential files, credential folders and anything inside the user's folder, even inside a tower root (this tower's root is the flow-tower folder). /api/file answers 403; the loader reports a prompt file:, agent from: or nested tower pointing at one as \"is a secret file or in the user folder (~/.config/flow-tower): not read\". home.ts warns at startup when FLOW_TOWER_HOME is inside the flow-tower folder. FLOW_TOWER_VOICE_MODEL, FLOW_TOWER_AGENT_MODEL, FLOW_TOWER_TTS_MODEL and FLOW_TOWER_TTS_VOICE pick other models; FLOW_TOWER_VOICE_ZDR=0 turns the ZDR filter off."
         data: { sensitivity: secret }
         meta: { secret: OPENROUTER_API_KEY, stt: FLOW_TOWER_VOICE_MODEL, agent: FLOW_TOWER_AGENT_MODEL, tts: "FLOW_TOWER_TTS_MODEL, FLOW_TOWER_TTS_VOICE", zdr: FLOW_TOWER_VOICE_ZDR }
-        files: [src/server/plugin.ts, src/server/home.ts, src/server/files.ts, .gitignore]
+        files: [src/core/secrets.ts, src/core/loader.ts, src/server/plugin.ts, src/server/home.ts, src/server/files.ts, .gitignore]
       - id: route
         type: process
         label: /api/voice
@@ -542,7 +542,7 @@ layers:
         type: process
         label: Journal routes
         runtime: server
-        description: "learningRoutes(), mounted only with a store. /journal: POST { entry } appends a turn, POST { mark } corrects its outcome, GET answers the 7-day stats. /memory: GET answers the memory and the stats, POST takes accept, reject, remove or forget. Both are keyless: nothing goes upstream. /review needs the key and runs one review at a time (409 for a second one)."
+        description: "learningRoutes(), mounted only with a store. /journal: POST { entry } appends a turn, POST { mark } corrects its outcome, GET answers the 7-day stats. /memory: GET answers the memory and the stats, POST takes accept, reject, remove (by value) or forget; accepting a note past the cap answers 409. Both are keyless: nothing goes upstream. /review needs the key and runs one review at a time (409 for a second one)."
         files: [src/server/voice-learning.ts, src/server/voice-memory.ts, src/server/plugin.ts]
       - id: rejected
         type: output
@@ -554,8 +554,8 @@ layers:
         type: tool
         label: vitest
         runtime: server
-        description: "voice-server.test.ts starts the handler with a fake fetch: GET never shows the key; POST sends key, ZDR and language; an agent step with tool_choice none and require_parameters; speech as audio/mpeg; 404, 503, 415, 403 and 400 refusals. voice-journal.test.ts: the journal store (marks, 0600, forget), the routes (keyless journal, cross-site GET refused, review keeps only real aliases) and applyAliases. voice-commands.test.ts covers the parser, voice-agent.test.ts the agent-or-parser routing, voice-tools.test.ts the tools on the real dev-squad tower, voice-noise.test.ts speech against a fan and the Whisper noise list, voice-duplex.test.ts the half-duplex gate, the echo filter and barge-in."
-        files: [tests/voice-server.test.ts, tests/voice-journal.test.ts, tests/voice-commands.test.ts, tests/voice-agent.test.ts, tests/voice-tools.test.ts, tests/voice-noise.test.ts, tests/voice-duplex.test.ts]
+        description: "voice-server.test.ts starts the handler with a fake fetch: GET never shows the key; POST sends key, ZDR and language; an agent step with tool_choice none and require_parameters; speech as audio/mpeg; 404, 503, 415, 403 and 400 refusals. voice-journal.test.ts: the journal store (marks, 0600, forget), the routes (keyless journal, cross-site GET refused, review keeps only real aliases) and applyAliases. voice-commands.test.ts covers the parser, voice-agent.test.ts the agent-or-parser routing, voice-tools.test.ts the tools on the real dev-squad tower, voice-noise.test.ts speech against a fan and the Whisper noise list, voice-duplex.test.ts the half-duplex gate, the echo filter and barge-in; server-guards.test.ts the loader refusing secret files and the user folder."
+        files: [tests/voice-server.test.ts, tests/voice-journal.test.ts, tests/voice-commands.test.ts, tests/voice-agent.test.ts, tests/voice-tools.test.ts, tests/voice-noise.test.ts, tests/voice-duplex.test.ts, tests/server-guards.test.ts]
     edges:
       - "secrets -> route [data]: key at startup"
       - "route -> guards: GET, POST"

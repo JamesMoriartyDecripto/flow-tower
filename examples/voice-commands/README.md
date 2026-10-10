@@ -25,7 +25,7 @@ the microphone is never opened.
 | Conversation | The voice agent: screen and history per turn, the LLM step, the tool-calls decision with its 4-step cap, the 13 tower tools, the spoken reply and the TTS model |
 | Actions | The same store calls as the keyboard, the caption, the 2-minute idle stop, mic off |
 | Learning | The opt-in journal: the toggle, each turn recorded, outcome marks (corrected, undone, interrupted), the journal file, the review that runs at mic off after 20 turns, the real-names filter, the voice memory, the Settings panel where you accept or reject, the SUGGESTIONS chip, and what accepted items change: aliases before the parser and the agent, notes in the agent's prompt |
-| Server & Secrets | The key loaded at startup (user folder first), `/api/voice` with `/chat`, `/speak` and the journal routes, the guards (JSON only, cross-site reads refused, per-route body limits, 6 requests at once), the three forwards to OpenRouter with ZDR, error replies, the tests |
+| Server & Secrets | The key loaded at startup (user folder first) and the shared guard that keeps secret files and the user folder from every tower (`src/core/secrets.ts`), `/api/voice` with `/chat`, `/speak` and the journal routes, the guards (JSON only, cross-site reads refused, per-route body limits, 6 requests at once), the three forwards to OpenRouter with ZDR, error replies, the tests |
 
 Every exit is drawn: no key, microphone denied, request refused (404, 405, 415, 403, 429, 413, 400, 503), OpenRouter
 error (502), a review already running (409), a tie (numbered choice), an unknown command (on to the agent, or "Not
@@ -35,8 +35,8 @@ noise, and a barge-in stop word.
 
 ## How a turn runs
 
-1. Every 40 ms the mic compares the 300-3400 Hz spectrum with a per-bin noise floor measured in its first 0.7 s: speech is louder than the floor and peaky, a fan is flat once divided by its floor. Settings > Voice > Microphone sensitivity sets how much louder and peakier (Low for noisy laptops).
-2. Half-duplex: a clip recorded while a reply plays, or 700 ms after, is dropped before transcription. **Interrupt by voice** (off by default, for headphones) keeps it. Esc, V or ✕ always stop a reply.
+1. Every 40 ms the mic compares the 300-3400 Hz spectrum with a per-bin noise floor measured in its first 0.7 s as the per-bin minimum (speech has gaps between syllables, so words spoken at once are not learned as noise): speech is louder than the floor and peaky, a fan is flat once divided by its floor. Settings > Voice > Microphone sensitivity sets how much louder and peakier (Low for noisy laptops).
+2. Half-duplex: a clip recorded while a reply plays, or 700 ms after, is dropped before transcription. **Interrupt by voice** (off by default, for headphones) keeps it. A reply counts as playing from its first sentence until the last one ends: one state for the caption, Esc and this gate. A command that starts in the 700 ms tail shows once "Wait a moment after the reply, or press Esc to interrupt it." Esc, V or ✕ always stop a reply; Esc while the reply is still being written mutes the rest of the turn, and the journal records it *interrupted*.
 3. The clip is transcribed (`POST /api/voice`). A transcript that repeats the reply it was recorded over is dropped (echo), and so is Whisper's noise text ("Grazie.", "Thank you." alone). With Interrupt by voice on, words recorded over a reply: a stop word stops it, fewer than 3 words are ignored, 3 or more stop it and count as a new request (barge-in).
 4. Accepted aliases replace misheard names ("triaje" becomes "triage"). Then `wantsAgent()` routes: a question or a reference to the screen ("questo", "this", "file", "collegato", "il primo") goes to the agent; the rest to the parser, and what the parser does not understand goes on to the agent.
 5. The agent loop: the prompt, the accepted notes, the last 12 messages, the screen state and the transcript to `POST /api/voice/chat`, streamed; tool calls run in the page and go back; at most 4 steps, the last with `tool_choice: none`.
@@ -48,9 +48,9 @@ noise, and a barge-in stop word.
 Off by default: Settings > Voice > **Learn from my sessions**.
 
 - **What is written.** One line of text per turn: what was heard, the route, what the app did, the outcome, the tower, and for agent turns the tools, time, cost and time to first audio. Never audio.
-- **Outcomes learned later.** "no", "not that", "sbagliato", "i meant" within 15 s mark the last turn *corrected*; "back", "indietro", "undo" alone within 6 s of an action mark it *undone*; a barge-in marks it *interrupted*.
-- **The review.** At mic off, after 20 or more new turns in this page (or with Review now), the server sends the oldest 200 unreviewed entries (the rest wait for the next review) to the same chat model (ZDR) with the real names of the towers they mention. It keeps at most 8 suggestions: aliases for misheard names, which must match a real name and not common words, and rules or reply-style notes for the agent. One review runs at a time; its cost shows in the stats.
-- **Nothing applies until you accept it.** Suggestions wait in Settings > Voice; a SUGGESTIONS chip in the caption points there. Accepted aliases rewrite the transcript before the parser and the agent; accepted notes join the agent's prompt as a system message. Each can be removed; **Forget everything** deletes the journal and the memory.
+- **Outcomes learned later.** "no, …", "non quello", "not that", "sbagliato", "i meant" within 15 s mark the last turn *corrected* (a command such as "non mostrare…" does not); "back", "indietro", "undo" alone within 6 s of an action mark it *undone*; Esc or a barge-in marks it *interrupted*.
+- **The review.** At mic off, after 20 or more new turns in this page (or with Review now), the server sends the oldest 200 unreviewed entries (the rest wait for the next review) to the same chat model (ZDR) with the real names of the towers they mention. It keeps at most 8 suggestions: aliases for misheard names, which must match a real name, not be common words and not be part of a real name, and rules or reply-style notes for the agent. One review runs at a time; its cost shows in the stats.
+- **Nothing applies until you accept it.** Suggestions wait in Settings > Voice; a SUGGESTIONS chip in the caption points there. Accepted aliases rewrite the transcript before the parser and the agent; accepted notes join the agent's prompt as a system message, framed as preferences that never override its instructions, the tool results or the screen. Notes are capped at 20 and 2000 characters (the server answers 409 past the cap: remove one first). Each can be removed; **Forget everything** deletes the journal and the memory.
 
 ### Where your data lives
 
@@ -62,7 +62,10 @@ Outside the repository, in your user folder: `~/.config/flow-tower/` (or the fol
 | `voice-journal.jsonl` | The journal, owner-only (0600) in an owner-only folder; past 5 MB the older half is dropped |
 | `voice-memory.json` | Accepted aliases and notes, waiting suggestions, how far the journal was reviewed (0600) |
 
-`/api/file` never serves anything from that folder, even when a tower's root contains it, and the Playwright tests set
+No tower reads that folder or a secret file, even when a tower's root contains it (`src/core/secrets.ts`): `/api/file`
+answers 403, and the loader refuses a prompt `file:`, agent `from:` or nested tower that points there ("is a secret
+file or in the user folder (~/.config/flow-tower): not read"). The memory is rewritten atomically, and the server warns
+at startup when `FLOW_TOWER_HOME` is inside the flow-tower folder. The Playwright tests set
 `FLOW_TOWER_HOME` to a temporary folder so they never touch yours. The tower's nodes point at the code, never at those
 files: a journal is personal and is not part of the example.
 
