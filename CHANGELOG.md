@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-10
+
 ### Added
 - Study-notes examples: `physics-notes` (mechanics) and `history-notes` (the French Revolution), small towers that are not agent systems.
 - Math in Markdown files: `$$…$$` is rendered by KaTeX in the file viewer (single dollars stay text, for prices).
@@ -13,6 +15,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Fixed
 - Edge labels no longer sit under the nodes before and after them: the layout reserves room for each label and places it next to its edge, in the 3D scene and in the SVG / PNG export (where long labels are no longer cut).
+
+### Security
+- KaTeX stays on 0.16: `npm audit` reports a low-severity advisory (GHSA-238p-pmpm-9mq7) that needs an existing prototype pollution and the `trust` option, which the viewer does not set. The fix is the 0.19 major.
 
 ## [0.2.0] - 2026-10-10
 
@@ -180,6 +185,7 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/JamesMoriartyDecripto/flow-tower/releases/tag/v0.1.0

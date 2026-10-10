@@ -1,6 +1,6 @@
 # Next session: handoff
 
-Status on 2026-10-10: **v0.2.0 released** (gates and E2E 44 / 44 in `examples/release-auditor/reports/v0.2.0.md`). Since v0.1.0: export packs (ZIP of every layer and map, project and sub-towers, SVG or Full HD PNG), OTLP tokens and cost per node, update notice, online demo on GitHub Pages, schema gaps (#31), Claude Code adapter verified with real hooks (#4, #44), file viewer wrap and formatted Markdown, the [what goes where](docs/what-goes-where.md) guide. Hermes verified live (#6).
+Status on 2026-10-10: **v0.3.0 released** (gates and E2E in `examples/release-auditor/reports/v0.3.0.md`). Since v0.2.0: study-notes examples (`physics-notes`, `history-notes`), KaTeX math (`$$…$$`) in the Markdown viewer, `?tower=` on `/api/events` and docs for a second server with `--port` (#52), edge labels placed by ELK clear of the nodes.
 
 Source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**. Where code lives: [docs/architecture.md](docs/architecture.md).
 
