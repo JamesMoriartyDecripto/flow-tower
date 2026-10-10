@@ -237,6 +237,9 @@ const { createServer } = await import('vite');
 const server = await createServer({
   root: pkgRoot,
   configFile: join(pkgRoot, 'vite.config.ts'),
+  // One dependency cache per port: two servers from this checkout (a second --port, or the e2e server) would
+  // otherwise re-optimize the same files under each other, and an open page fails to load renamed chunks.
+  cacheDir: join(pkgRoot, 'node_modules', '.vite', `port-${values.port}`),
   logLevel: 'warn',
   server: { port: Number(values.port), open: !values['no-open'] },
 });
