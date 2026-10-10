@@ -1,9 +1,11 @@
 import { mkdtempSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { FlowEventSchema, type FlowEvent } from '../src/core/events';
+import { historyHandler } from '../src/server/history/api';
 import { openHistory } from '../src/server/history/db';
 import { toRow } from '../src/server/history/row';
 import { migrate } from '../src/server/history/schema';
@@ -159,5 +161,103 @@ describe('history retention (#84)', () => {
     expect(retentionDays('7')).toBe(7);
     expect(retentionDays(undefined)).toBe(14);
     expect(retentionDays('nonsense')).toBe(14);
+  });
+});
+
+describe('history queries (#84 phase 4)', () => {
+  /** Two events, two users, two projects: enough to tell a group-by from a plain sum. */
+  const seeded = async () => {
+    const res = await open();
+    if ('disabled' in res) return res;
+    const ts = 1_700_000_000_000;
+    createHistory(res.db).write([
+      ev({ kind: 'usage', user: 'alice', project: 'tower', runtime: 'claude', tokens_detail: { input: 10, output: 5, cache_read: 2 }, cost_usd: 0.25, status: 'error' }, ts),
+      ev({ kind: 'usage', user: 'bob', project: 'other', runtime: 'codex', tokens_detail: { input: 1, output: 1 }, cost_usd: 0.5 }, ts + 1),
+      ev({ kind: 'usage', user: 'alice', project: 'tower', runtime: 'claude', tokens: 7, cost_usd: 0.25 }, ts + 2),
+    ]);
+    return { res, ts, history: createHistory(res.db) };
+  };
+
+  it('totals groups by user and sums each column', async () => {
+    const s = await seeded();
+    if ('disabled' in s) return expect(s.disabled).toContain('Node >= 22.13');
+    const rows = s.history.totals({ from: s.ts, to: s.ts + 1000, by: ['user'] });
+    expect(rows).toEqual([
+      { user: 'alice', events: 2, errors: 1, in_tok: 17, out_tok: 5, cache_read: 2, cache_write: 0, cost_usd: 0.5 },
+      { user: 'bob', events: 1, errors: 0, in_tok: 1, out_tok: 1, cache_read: 0, cache_write: 0, cost_usd: 0.5 },
+    ]);
+  });
+
+  it('totals groups by project and runtime together', async () => {
+    const s = await seeded();
+    if ('disabled' in s) return;
+    const rows = s.history.totals({ from: s.ts, to: s.ts + 1000, by: ['project', 'runtime'] });
+    expect(rows.map((r) => [r.project, r.runtime, r.events])).toEqual([['other', 'codex', 1], ['tower', 'claude', 2]]);
+  });
+
+  it('reads the hourly rollup inside 90 days and the daily one beyond it', async () => {
+    const a = await seeded();
+    if ('disabled' in a) return;
+    // A marker in rollup_daily: if a short range answered from it, the sums would be wrong.
+    a.res.db.exec('UPDATE rollup_daily SET events = 999, in_tok = 999');
+    const within = a.history.totals({ from: a.ts, to: a.ts + 1000, by: [] });
+    expect(within).toEqual([{ events: 3, errors: 1, in_tok: 18, out_tok: 6, cache_read: 2, cache_write: 0, cost_usd: 1 }]);
+
+    const b = await seeded();
+    if ('disabled' in b) return;
+    // Past 90 days the hourly rows are pruned, so a long range must fall back to rollup_daily.
+    b.res.db.exec('DELETE FROM rollup_hourly');
+    const beyond = b.history.totals({ from: b.ts, to: b.ts + 100 * DAY, by: [] });
+    expect(beyond).toEqual([{ events: 3, errors: 1, in_tok: 18, out_tok: 6, cache_read: 2, cache_write: 0, cost_usd: 1 }]);
+  });
+});
+
+/** Minimal request/response doubles: the handlers only read the URL and the headers and call end(). */
+const req = (url: string, headers: Record<string, string> = {}) => ({ url, headers }) as never;
+const res = () => {
+  const out = { status: 0, body: undefined as unknown };
+  return {
+    out,
+    setHeader: () => undefined,
+    end: (b: string) => { out.body = b === '' ? undefined : JSON.parse(b); },
+    get statusCode() { return out.status; },
+    set statusCode(v: number) { out.status = v; },
+  } as unknown as ServerResponse & { out: { status: number; body: unknown } };
+};
+
+describe('history API (#84 phase 4)', () => {
+  const call = (handler: (rq: IncomingMessage, rs: ServerResponse) => void, url: string) => {
+    const r = res();
+    handler(req(url), r);
+    return r.out;
+  };
+
+  it('answers the disabled shape as 200, not an error', () => {
+    const h = historyHandler(undefined);
+    expect(call(h.totals, '/api/history')).toEqual({ status: 200, body: { disabled: expect.stringContaining('Node >= 22.13') } });
+    expect(call(h.info, '/api/history/info')).toEqual({ status: 200, body: { disabled: expect.stringContaining('Node >= 22.13') } });
+  });
+
+  it('rejects an unknown by with 400 and names the allow-list', async () => {
+    const opened = await open();
+    if ('disabled' in opened) return;
+    const h = historyHandler(createHistory(opened.db));
+    const out = call(h.totals, '/api/history?by=user,password');
+    expect(out.status).toBe(400);
+    expect(JSON.stringify(out.body)).toContain('password');
+    expect(call(h.totals, '/api/history?by=user,project').status).toBe(200);
+  });
+
+  it('defaults the range to the last 7 days and refuses cross-site reads', async () => {
+    const opened = await open();
+    if ('disabled' in opened) return;
+    const h = historyHandler(createHistory(opened.db));
+    const body = call(h.totals, '/api/history').body as { from: number; to: number; by: string[] };
+    expect(body.by).toEqual([]);
+    expect(Math.round((body.to - body.from) / DAY)).toBe(7);
+    expect(call(h.totals, '/api/history').status).toBe(200);
+    const r = res();
+    h.totals(req('/api/history', { 'sec-fetch-site': 'cross-site' }), r);
+    expect(r.out.status).toBe(403);
   });
 });

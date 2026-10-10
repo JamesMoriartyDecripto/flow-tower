@@ -17,6 +17,7 @@ import { isRemote } from './auth.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 import { openHistory } from './history/db.ts';
 import { createHistory } from './history/store.ts';
+import { historyHandler } from './history/api.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
@@ -103,13 +104,18 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         setInterval(() => history.prune(), 3_600_000).unref();
       }
 
-      const hub = createEventHub(
-        () => state?.workspace,
+      const hub = createEventHub(        () => state?.workspace,
         (events) => server.ws.send(EVENTS_EVENT, events),
         // The user folder holds the per-sender tokens (#83); FLOW_TOWER_TOKEN stays the shared legacy secret.
         { legacy: env.FLOW_TOWER_TOKEN, home: userHome(), hub: hubOpts.hub, ingestOnly: hubOpts.ingestOnly },
         { onAccepted: (events) => history?.write(events) },
       );
+      // History reads (#84 phase 4): a viewing route like /api/workspace, so hub mode's remote-viewer
+      // rule decides who sees it and crossSite keeps other pages on this machine out.
+      const views = historyHandler(history);
+      server.middlewares.use('/api/history/info', views.info);
+      server.middlewares.use('/api/history', views.totals);
+
       server.middlewares.use('/api/events', hub.handle);
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.
       server.middlewares.use('/v1/logs', hub.otlp('logs'));

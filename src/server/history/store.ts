@@ -28,6 +28,29 @@ ON CONFLICT(bucket, user, project, runtime, model) DO UPDATE SET
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
+/** The group-by columns a caller may ask for: the key columns of both rollups, and nothing else. */
+export const TOTAL_KEYS = ['user', 'project', 'runtime', 'model'] as const;
+export type TotalKey = (typeof TOTAL_KEYS)[number];
+export const isTotalKey = (v: string): v is TotalKey => (TOTAL_KEYS as readonly string[]).includes(v);
+
+/** One aggregated row: the requested key fields (`''` means unknown) plus the sums, cost already in dollars. */
+export type TotalsRow = { [K in TotalKey]?: string } & {
+  events: number;
+  errors: number;
+  in_tok: number;
+  out_tok: number;
+  cache_read: number;
+  cache_write: number;
+  cost_usd: number;
+};
+
+export interface TotalsQuery {
+  from: number;
+  to: number;
+  /** Empty means "one row for the whole range". */
+  by: TotalKey[];
+}
+
 /**
  * Retention (#84). Per-person raw events are kept briefly only: beyond 21 days that data must be watched
  * through remote monitoring endpoints under Italian guidance, not in a local DB, so the cap is the policy.
@@ -53,6 +76,19 @@ export interface History {
   write(events: FlowEvent[]): void;
   /** Drops rows older than the retention window; `now` is injectable so the policy is testable on a fake clock. */
   prune(now?: number, opts?: { rawDays?: number }): void;
+  /** Aggregates the rollups over a range, grouped by the requested key columns (#84 phase 4). */
+  totals(query: TotalsQuery): TotalsRow[];
+  /** What the DB currently holds: retention window, oldest raw event, row count. */
+  info(): HistoryInfo;
+}
+
+/** Shape of GET /api/history/info: enough for a UI to say how far back the charts go. */
+export interface HistoryInfo {
+  enabled: true;
+  rawDays: number;
+  /** Epoch milliseconds of the oldest raw event, or null when there is none. */
+  oldest: number | null;
+  rows: number;
 }
 
 /**
@@ -105,5 +141,44 @@ export function createHistory(db: DatabaseSync): History {
     }
   };
 
-  return { write, prune };
+  /**
+   * Reads one rollup table (#84 phase 4): the hourly one while the range fits its 90-day retention,
+   * the daily one beyond that (the hourly rows would already be pruned). Every column name here comes
+   * from TOTAL_KEYS, never from the query string, and every value is bound, so nothing is interpolated
+   * from the request.
+   */
+  const totals = ({ from, to, by }: TotalsQuery): TotalsRow[] => {
+    const hourly = to - from <= RETENTION.hourlyDays * DAY;
+    const table = hourly ? 'rollup_hourly' : 'rollup_daily';
+    const step = hourly ? HOUR : DAY;
+    // Both rollups store a bucket as its start, so align the range to the grid: a bucket is an aggregate
+    // over its whole interval, there is no way to slice the partial hours at the range ends.
+    const [lo, hi] = [Math.floor(from / step) * step, Math.ceil(to / step) * step];
+    const cols = TOTAL_KEYS.filter((k) => by.includes(k));
+    const sums = 'SUM(events) AS events, SUM(errors) AS errors, SUM(in_tok) AS in_tok, SUM(out_tok) AS out_tok, SUM(cache_read) AS cache_read, SUM(cache_write) AS cache_write, SUM(cost_usd_micros) AS micros';
+    const sql = `SELECT ${cols.length ? `${cols.join(', ')}, ` : ''}${sums} FROM ${table} WHERE bucket >= ? AND bucket <= ?`
+      + (cols.length ? ` GROUP BY ${cols.join(', ')} ORDER BY ${cols.join(', ')}` : '');
+    const rows = db.prepare(sql).all(lo, hi) as Record<string, string | number>[];
+    return rows.map((r) => {
+      const out = {} as TotalsRow;
+      for (const c of cols) out[c] = String(r[c] ?? '');
+      out.events = Number(r.events);
+      out.errors = Number(r.errors);
+      out.in_tok = Number(r.in_tok);
+      out.out_tok = Number(r.out_tok);
+      out.cache_read = Number(r.cache_read);
+      out.cache_write = Number(r.cache_write);
+      // Money is stored in integer micros; the API speaks dollars, per the read contract.
+      out.cost_usd = Number(r.micros) / 1_000_000;
+      return out;
+    });
+  };
+
+  const info = (): HistoryInfo => {
+    const oldest = (db.prepare('SELECT MIN(ts) AS ts FROM events').get() as { ts: number | null }).ts;
+    const rows = (db.prepare('SELECT COUNT(*) AS n FROM events').get() as { n: number }).n;
+    return { enabled: true, rawDays: retentionDays(), oldest: oldest ?? null, rows };
+  };
+
+  return { write, prune, totals, info };
 }
