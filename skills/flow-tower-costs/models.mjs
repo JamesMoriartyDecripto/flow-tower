@@ -8,12 +8,22 @@ const args = argv.slice(2);
 const tools = args.includes('--tools');
 const sinceAt = args.indexOf('--since');
 const since = sinceAt >= 0 ? Date.parse(args[sinceAt + 1]) / 1000 : 0;
+// A bad date would silently filter out every model: say so instead.
+if (Number.isNaN(since)) { console.error('--since needs a date, YYYY-MM-DD'); exit(1); }
 const filterArg = args.find((a, i) => !a.startsWith('--') && (sinceAt < 0 || i !== sinceAt + 1));
-const filter = filterArg ? new RegExp(filterArg, 'i') : null;
+let filter = null;
+try { filter = filterArg ? new RegExp(filterArg, 'i') : null; } catch { console.error(`not a valid regex: ${filterArg}`); exit(1); }
 
-const res = await fetch('https://openrouter.ai/api/v1/models');
-if (!res.ok) { console.error(`OpenRouter: HTTP ${res.status}`); exit(1); }
-const { data } = await res.json();
+// One public, rate-limited request: run it once and reuse the output, do not poll it.
+let data;
+try {
+  const res = await fetch('https://openrouter.ai/api/v1/models', { signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  ({ data } = await res.json());
+} catch (err) {
+  console.error(`OpenRouter models list unavailable: ${err.message}`);
+  exit(1);
+}
 
 // Prices come as USD per token strings; per million tokens is what pricing pages show.
 const perM = (p) => (p == null || p === '' ? null : Number(p) * 1e6);
