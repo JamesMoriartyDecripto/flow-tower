@@ -27,7 +27,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Security
 - Voice commands (#62): `OPENROUTER_API_KEY` stays on the local server (read from the environment or from the `.env` file in the flow-tower folder, which is git-ignored) and never reaches the page; `GET /api/voice` only says whether a key is set. Transcription requests ask OpenRouter for zero data retention (`provider.zdr`; `FLOW_TOWER_VOICE_ZDR=0` turns it off). `/api/voice` only answers this app's page: an exact `application/json` content type, no cross-site `Origin` / `Sec-Fetch-Site`, and the page's own `x-flow-tower-voice` header; the body is capped at 2 MB and at most 2 transcriptions run at once.
 - `/api/events` and the OTLP endpoints check the content type by its exact essence and refuse cross-site browser requests. Before, `text/plain;x=application/json` passed the substring check while browsers send it without a CORS preflight (found by the dev-squad security review of #62).
-- `/api/file` never serves secret files (`.env*`, private keys, `.npmrc`, `.netrc`, `.git/`), even inside a tower root. Dogfood towers with `root: ../..` have the flow-tower folder as their root, where the local key file lives.
+- `/api/file`, `/api/workspace` and the events buffer refuse cross-site browser reads. Vite's default CORS lets pages on other localhost ports read them.
+- `/api/file` never serves secret files (`.env*`, `.envrc`, `.git-credentials`, private keys, `.npmrc`, `.netrc`, `*.tfvars`; anything under `.git`, `.ssh`, `.aws`, `.gnupg`, `.docker`, `.kube`), even inside a tower root. Dogfood towers with `root: ../..` have the flow-tower folder as their root, where the local key file lives.
 
 ## [0.3.0] - 2026-10-10
 

@@ -9,6 +9,7 @@ import { readTowerFile } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
 import { checkForUpdate, updateCheckDisabled, type UpdateInfo } from './update.ts';
 import { DEFAULT_VOICE_MODEL, voiceHandler } from './voice.ts';
+import { crossSite } from './guard.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
@@ -56,7 +57,9 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       server.watcher.on('add', onFsEvent);
       server.watcher.on('unlink', onFsEvent);
 
-      server.middlewares.use('/api/workspace', (_req, res) => {
+      // Reads are for this page only: Vite's default CORS would let a page on another localhost port read them.
+      server.middlewares.use('/api/workspace', (req, res) => {
+        if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
         if (!state?.workspace.projects.length) return send(res, 404, { error: 'no tower files found: run `flow-tower <file.tower.yaml | dir>`' });
         send(res, 200, state.workspace);
       });
@@ -104,6 +107,7 @@ function existingDirs(files: Set<string>): string[] {
 }
 
 async function serveFile(req: IncomingMessage, res: ServerResponse, state?: LoadResult) {
+  if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
   const url = new URL(req.url ?? '', 'http://local');
   const tower = url.searchParams.get('tower') ?? '';
   const path = url.searchParams.get('path') ?? '';

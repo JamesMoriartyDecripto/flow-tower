@@ -58,7 +58,7 @@ export async function openMic(on: MicEvents): Promise<Mic> {
     let current = record();
     const cut = (keep: boolean) => {
       current.clip.keep = keep;
-      current.rec.stop();
+      if (current.rec.state !== 'inactive') current.rec.stop(); // a failed recorder is already inactive
       current = record();
     };
     stream.getAudioTracks().forEach((t) => t.addEventListener('ended', () => { if (!closed) on.ended(); }));

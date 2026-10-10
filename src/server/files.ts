@@ -8,8 +8,13 @@ const MAX_FILE_BYTES = 1_000_000;
  * flow-tower folder as its root, and that is where the local key file lives. Mirrors Vite's server.fs.deny
  * plus common key and credential files.
  */
-const SECRET = /^(\.env(\..*)?|\.npmrc|\.netrc|\.pgpass|id_(rsa|dsa|ecdsa|ed25519)(\.pub)?|.*\.(pem|key|crt|p12|pfx|jks|keystore))$/i;
-export const isSecretPath = (path: string) => SECRET.test(basename(path)) || path.split(/[\\/]/).includes('.git');
+const SECRET = /^(\.env(\..*)?|\.envrc|\.dev\.vars|\.git-credentials|\.npmrc|\.netrc|\.pgpass|\.pypirc|credentials(\.json)?|id_(rsa|dsa|ecdsa|ed25519)(\.pub)?|.*\.(pem|key|crt|p12|pfx|jks|keystore|tfvars))$/i;
+/** Folders that only hold credentials: nothing inside them is served. */
+const SECRET_DIRS = new Set(['.git', '.ssh', '.aws', '.gnupg', '.docker', '.kube', '.azure', '.config/gcloud']);
+export const isSecretPath = (path: string) => {
+  const parts = path.split(/[\\/]/).map((p) => p.toLowerCase());
+  return SECRET.test(basename(path)) || parts.some((p, i) => SECRET_DIRS.has(p) || SECRET_DIRS.has(`${p}/${parts[i + 1]}`));
+};
 
 export type FileResult =
   | { status: 200; body: { path: string; ext: string; content: string } }

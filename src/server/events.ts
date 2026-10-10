@@ -42,6 +42,7 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
   /** POST /api/events (JSON object or array; ?source= picks an adapter, ?tower= restricts matching). GET returns the buffer. */
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '', 'http://local');
+    if (req.method === 'GET' && crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
     if (req.method === 'GET') return json(res, 200, buffer.filter((e) => e.id > Number(url.searchParams.get('since') ?? 0)));
     if (req.method !== 'POST') return json(res, 405, { error: 'use GET or POST' });
     // A JSON content type forces a CORS preflight, and other sites are refused outright (src/server/guard.ts).

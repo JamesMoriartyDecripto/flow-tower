@@ -81,6 +81,13 @@ useStore.subscribe((s, prev) => {
 
 const status = (): VoiceStatus => (speaking ? 'hearing' : pending ? 'thinking' : 'listening');
 
+/** An error while listening: shown, then faded, without stopping the mic. */
+function flash(error: string) {
+  clearTimeout(hideError);
+  useVoice.setState({ error });
+  hideError = setTimeout(() => useVoice.setState({ error: undefined }), 8000);
+}
+
 /** A failure that ends listening (no key, no server, no mic): shown, then faded; the caption can close it too. */
 function fail(error: string) {
   clearTimeout(hideError);
@@ -91,6 +98,9 @@ function fail(error: string) {
 async function start() {
   const set = useVoice.setState;
   const mine = ++session;
+  // A fresh session: no count or queue left over from a stopped one (its fetch may still be in flight).
+  pending = 0;
+  queue = Promise.resolve();
   clearTimeout(hideError);
   set({ status: 'starting', error: undefined, did: undefined, heard: undefined });
   const config = await fetch('/api/voice').then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined) as { cloud: boolean } | undefined;
@@ -105,11 +115,13 @@ async function start() {
         if (mine === session) set({ status: status() });
       },
       clip: (audio, format) => {
+        if (mine !== session) return; // the recorder's last clip can land just after a stop
         pending++;
         set({ status: status() });
         queue = queue.then(() => transcribe(audio, format, mine)).finally(() => {
+          if (mine !== session) return;
           pending--;
-          if (mine === session) set({ status: status() });
+          set({ status: status() });
         });
       },
       ended: () => {
@@ -158,7 +170,7 @@ async function transcribe(audio: Blob, format: string, mine: number) {
     // Only an understood command keeps the mic alive, so a noisy room still times out.
     if (out.text && useVoice.getState().run(out.text) !== NOT_UNDERSTOOD) armIdle();
   } catch (err) {
-    if (mine === session) useVoice.setState({ error: (err as Error).message });
+    if (mine === session) flash((err as Error).message);
   }
 }
 

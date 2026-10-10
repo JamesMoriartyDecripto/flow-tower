@@ -26,7 +26,7 @@ export function VoiceCaption() {
   if (STATIC || (status === 'off' && !error)) return null;
   return (
     <div className={`panel voice-caption ${status}`} role="status" aria-live="polite">
-      <button className="voice-close" onClick={status === 'off' ? dismiss : toggle} aria-label={status === 'off' ? 'Dismiss' : 'Stop listening'} title={status === 'off' ? 'Dismiss' : 'Stop listening (V)'}>✕</button>
+      <button className="voice-close" onClick={error || status === 'off' ? dismiss : toggle} aria-label={error || status === 'off' ? 'Dismiss' : 'Stop listening'} title={error || status === 'off' ? 'Dismiss' : 'Stop listening (V)'}>✕</button>
       <div className="voice-state">
         <i />{status === 'off' ? 'Voice off' : STATUS[status]}
         {cloud && <span className="chip" title="Audio is transcribed by OpenRouter (zero data retention); commands are matched locally">CLOUD STT</span>}

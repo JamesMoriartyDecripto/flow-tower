@@ -29,4 +29,12 @@ describe('server guards (security review of #62)', () => {
     }
     expect((await readTowerFile(dir, 'notes.md')).status).toBe(200);
   });
+
+  it('knows the usual credential files and folders (round 2)', async () => {
+    const { isSecretPath } = await import('../src/server/files');
+    for (const p of ['.envrc', '.git-credentials', '.dev.vars', '.aws/credentials', 'home/.ssh/config', '.kube/config', 'prod.tfvars', '.config/gcloud/x.json']) {
+      expect(isSecretPath(p), p).toBe(true);
+    }
+    for (const p of ['.claude/agents/coder.md', '.mcp.json', 'src/config.ts', 'docs/keys.md']) expect(isSecretPath(p), p).toBe(false);
+  });
 });

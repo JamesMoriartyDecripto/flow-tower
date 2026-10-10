@@ -36,19 +36,27 @@ export function voiceHandler(cfg: VoiceConfig) {
     if (crossSite(req) || req.headers[VOICE_HEADER] !== '1') return json(res, 403, { error: 'only the Flow Tower page can use /api/voice' });
     if (!cfg.key) return json(res, 503, { error: 'Voice commands need OPENROUTER_API_KEY: put it in flow-tower/.env (git-ignored) or the environment, then restart.' });
 
-    let body: { audio?: unknown; format?: unknown; language?: unknown };
-    try {
-      body = JSON.parse(await readBody(req));
-    } catch (err) {
-      return json(res, (err as Error).message === 'too large' ? 413 : 400, { error: 'body must be JSON under 2 MB' });
-    }
-    const { audio, format, language } = body;
-    if (typeof audio !== 'string' || !audio || typeof format !== 'string' || !FORMATS.has(format)) {
-      return json(res, 400, { error: `send { audio: base64, format: ${[...FORMATS].join(' | ')} }` });
-    }
-
+    // Reserved before the body is read, so parallel requests cannot each buffer 2 MB first.
     if (inFlight >= MAX_IN_FLIGHT) return json(res, 429, { error: 'a transcription is already running' });
     inFlight++;
+    try {
+      let body: { audio?: unknown; format?: unknown; language?: unknown };
+      try {
+        body = JSON.parse(await readBody(req));
+      } catch (err) {
+        return json(res, (err as Error).message === 'too large' ? 413 : 400, { error: 'body must be JSON under 2 MB' });
+      }
+      const { audio, format, language } = body;
+      if (typeof audio !== 'string' || !audio || typeof format !== 'string' || !FORMATS.has(format)) {
+        return json(res, 400, { error: `send { audio: base64, format: ${[...FORMATS].join(' | ')} }` });
+      }
+      return await transcribe(res, audio, format, language);
+    } finally {
+      inFlight--;
+    }
+  };
+
+  async function transcribe(res: ServerResponse, audio: string, format: string, language: unknown) {
     const started = Date.now();
     try {
       const r = await call(OPENROUTER_STT, {
@@ -67,10 +75,8 @@ export function voiceHandler(cfg: VoiceConfig) {
       json(res, 200, { text: (out.text ?? '').trim(), ms: Date.now() - started, cost: out.usage?.cost });
     } catch (err) {
       json(res, 502, { error: `OpenRouter unreachable: ${(err as Error).message}` });
-    } finally {
-      inFlight--;
     }
-  };
+  }
 }
 
 function readBody(req: IncomingMessage): Promise<string> {
