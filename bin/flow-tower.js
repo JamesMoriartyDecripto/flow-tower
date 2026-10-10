@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { hostname, homedir, userInfo } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
@@ -14,6 +14,7 @@ Usage
   flow-tower init [file.tower.yaml]
   flow-tower emit --source <claude-code|codex|pi|hermes> [--tower t] < payload.json  (hooks; JSONL streams live)
   flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [-m text]
+                     [--user u] [--machine m] [--runtime r] [--session s] [--project-name p]
   flow-tower validate <file.tower.yaml | dir>... [--json]
   flow-tower guide                                      print the procedure to generate a tower from a codebase
   flow-tower install-skill [--target <t>] [--project]   install it as an Agent Skill for your coding agent
@@ -107,6 +108,13 @@ const { values, positionals } = parseArgs({
     tower: { type: 'string' },
     status: { type: 'string' },
     message: { type: 'string', short: 'm' },
+    // Identity (#82): who/where/what on every event. `--machine` maps to host, `--project-name` to project:
+    // `--host` is reserved for the bind address (#83) and `--project` is install-skill's boolean.
+    user: { type: 'string' },
+    machine: { type: 'string' },
+    runtime: { type: 'string' },
+    session: { type: 'string' },
+    'project-name': { type: 'string' },
     json: { type: 'boolean', default: false },
     project: { type: 'boolean', default: false },
     target: { type: 'string', default: 'claude' },
@@ -187,11 +195,25 @@ async function emit() {
     method: 'POST', headers, body: JSON.stringify(events), signal: AbortSignal.timeout(1500),
   }).catch(() => {});
 
+  // Defaults so identity is never empty; a payload or an explicit flag always wins (#82).
+  const defaults = {
+    user: env.FLOW_TOWER_USER || userInfo().username,
+    host: hostname(),
+  };
+  const withIdentity = (event) => {
+    const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+    // defaults < payload < explicit flags
+    return { ...defaults, ...clean(event), ...clean(identity) };
+  };
+  const identity = {
+    user: values.user, host: values.machine, runtime: values.runtime, session: values.session, project: values['project-name'],
+  };
+
   if (values.kind) {
     const { kind, source = 'custom', agent, tool, node, tower, status, message } = values;
-    await post([{ kind, source, agent, tool, node, tower, status, message }]);
+    await post([withIdentity({ ...identity, kind, source, agent, tool, node, tower, status, message })]);
   } else if (!process.stdin.isTTY) {
-    await streamStdin(post);
+    await streamStdin((events) => post(events.map(withIdentity)));
   }
 }
 

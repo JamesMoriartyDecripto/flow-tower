@@ -165,13 +165,29 @@ const ADAPTERS: Record<string, Adapter> = { 'claude-code': claudeCode, 'agent-sd
 
 export const SOURCES = Object.keys(ADAPTERS);
 
+/**
+ * Identity is orthogonal to the event kind: a payload may carry who/where/what on the envelope,
+ * and every event mapped from it must keep it (#82). Undefined values are dropped so events
+ * keep the exact shape each adapter produced.
+ */
+const IDENTITY_KEYS = ['user', 'host', 'runtime', 'project'] as const;
+const identity = (r: Raw) => {
+  const id: Raw = {};
+  for (const k of IDENTITY_KEYS) {
+    const v = str(r[k]);
+    if (v !== undefined) id[k] = v;
+  }
+  return id;
+};
+
 /** Turns a raw payload from `source` into normalized events. Already-normalized events pass through. */
 export function normalize(source: string | undefined, raw: unknown): unknown[] {
   if (!raw || typeof raw !== 'object') return [];
   const r = raw as Raw;
   const src = source ?? str(r.source);
   if ('kind' in r) return [{ ...r, source: src ?? 'custom' }];
-  if (src && ADAPTERS[src]) return ADAPTERS[src](r);
-  if ('hook_event_name' in r) return claudeCode(r);
-  return [];
+  const events = src && ADAPTERS[src] ? ADAPTERS[src](r) : 'hook_event_name' in r ? claudeCode(r) : [];
+  const id = identity(r);
+  // Envelope identity first, event fields last: an event's own value (if any) wins.
+  return events.map((e) => ({ ...id, ...e }));
 }
