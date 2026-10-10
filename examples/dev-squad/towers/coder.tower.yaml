@@ -31,7 +31,7 @@ agents:
   coder:
     runtime: vps
     from: .claude/agents/coder.md
-    model: deepseek/deepseek-v4-pro-0813
+    model: deepseek/deepseek-v4.1-flash
     harness: { provider: openrouter, max_steps: 60, max_attempts: 3, context: isolated }
     files: [src/openrouter-agent.ts]
 
@@ -142,9 +142,9 @@ layers:
       - id: model
         runtime: openrouter
         type: model
-        label: DeepSeek V4 Pro
-        model: deepseek/deepseek-v4-pro-0813
-        description: Default coder model, through OpenRouter. The review loop swaps in Claude Opus for the last fix round.
+        label: DeepSeek 4.1 Flash
+        model: deepseek/deepseek-v4.1-flash
+        description: Default coder model, through OpenRouter, at low effort. The review loop swaps in Claude Opus for the last fix round.
         files: [src/config.ts]
       - id: done
         runtime: vps

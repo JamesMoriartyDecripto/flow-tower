@@ -42,9 +42,9 @@ arbitrates and verifies; cheaper models from other families code and review thro
 | Role | Provider | Model | $ in / out per M tokens |
 |---|---|---|---|
 | Lead, architect, fresh verifier, last-round fixer | Claude Agent SDK | `claude-opus-5-5` | Claude account |
-| Coder | OpenRouter | `deepseek/deepseek-v4-pro-0813` | 0.66 / 1.98 |
+| Coder | OpenRouter | `deepseek/deepseek-v4.1-flash` | 0.30 / 1.20 |
 | Reviewer (read-only) | OpenRouter | `z-ai/glm-5.3-flashx` | 0.37 / 1.25 |
-| Security auditor (read-only) | OpenRouter | `deepseek/deepseek-v4-pro-0813` | 0.66 / 1.98 |
+| Security auditor (read-only) | OpenRouter | `deepseek/deepseek-v4.1-flash` | 0.30 / 1.20 |
 | Researcher, tester / triage, doc-writer | Claude Agent SDK | Sonnet 5.5 / Haiku 5.5 | Claude account |
 
 Prices as of 2026-10-10, from `https://openrouter.ai/api/v1/models`. Field numbers from issue #70
@@ -55,7 +55,8 @@ reasoned 1-2.5 min per step and timed out at step 9 ($0.24), so the squad uses i
 The OpenRouter roles run in `src/openrouter-agent.ts`, an OpenAI-style tool loop (sample code: the
 real runner is session tooling outside this repo). Claude Code hooks do not run there, so the fences
 are in code: read tools for every role, `edit_file` / `write_file` for the coder only and only under
-`src/`, `tests/`, `e2e/`, a command whitelist instead of a shell, a secret-path deny list, a step and
+`src/`, `tests/`, `e2e/`, a command whitelist instead of a shell, a secret-path deny list, low reasoning effort,
+a `session_id` per run (OpenRouter keeps it on the provider that holds its prompt cache), a step and
 dollar cap, and a live tower event per tool call. SDK subagents are Claude only, so the lead reaches
 the coder through the `run_coder` tool (`src/tools/run-coder.ts`).
 

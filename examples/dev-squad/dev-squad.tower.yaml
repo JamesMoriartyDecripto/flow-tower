@@ -116,7 +116,7 @@ agents:
   coder:
     runtime: vps
     from: .claude/agents/coder.md
-    model: deepseek/deepseek-v4-pro-0813
+    model: deepseek/deepseek-v4.1-flash
     tower: towers/coder.tower.yaml
     harness: { provider: openrouter, max_steps: 60, writes: [src/, tests/, e2e/], escalate_model_on_round: 3, escalate_to: claude-opus-5-5 }
     files: [src/openrouter-agent.ts, src/tools/run-coder.ts]
@@ -140,7 +140,7 @@ agents:
   security:
     runtime: vps
     from: .claude/agents/security-auditor.md
-    model: deepseek/deepseek-v4-pro-0813
+    model: deepseek/deepseek-v4.1-flash
     harness: { provider: openrouter, max_steps: 25, blocks_on: [critical, high], read_only: true }
     budget: { usd: 1.5, on_exceed: stop }
     files: [src/loop/review-loop.ts, src/openrouter-agent.ts]
@@ -624,9 +624,9 @@ layers:
       - id: deepseek
         runtime: openrouter
         type: model
-        label: DeepSeek V4 Pro
-        model: deepseek/deepseek-v4-pro-0813
-        description: "Coder and security auditor. $0.66 in / $1.98 out per M tokens (2026-10-10). Round 1 of #70: 50 steps, $0.13."
+        label: DeepSeek 4.1 Flash
+        model: deepseek/deepseek-v4.1-flash
+        description: "Coder and security auditor, at low effort. $0.30 in / $1.20 out per M tokens (2026-10-10); prompt cache automatic (cached input 0.1x). On #70: V4 Pro coded round 1 (50 steps, $0.13); 4.1 Flash took over (about $0.001 per step, 66-74% of the prompt from cache)."
       - id: glm
         runtime: openrouter
         type: model

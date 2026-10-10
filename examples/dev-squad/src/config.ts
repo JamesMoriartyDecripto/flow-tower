@@ -11,7 +11,8 @@ export const MODELS = {
   opus: 'claude-opus-5-5',
   sonnet: 'claude-sonnet-5-5',
   haiku: 'claude-haiku-5-5',
-  deepseek: 'deepseek/deepseek-v4-pro-0813',
+  // Flash, at low effort: quick passes, the review rounds re-check the work (V4 Pro coded round 1 of #70).
+  deepseek: 'deepseek/deepseek-v4.1-flash',
   // The fast variant: full GLM 5.3 reasoned 1-2.5 min per step and timed out on #70; FlashX reviewed in 6 steps.
   glm: 'z-ai/glm-5.3-flashx',
 } as const;
