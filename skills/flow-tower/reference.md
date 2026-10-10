@@ -14,6 +14,7 @@ runtimes:                                 # where things run
   # kind: local | server | cloud | container | serverless | saas | edge | ci | browser | device
 prompts:
   lead: { file: prompts/lead.md, description: Orchestrator system prompt }
+  supervisor: { file: src/prompts.py, description: "lead_researcher_prompt, line 80" }   # several prompts in one code file: name and line in description
 agents:
   lead:
     name: Lead
@@ -53,7 +54,7 @@ Operational fields (optional, on agents or nodes; nodes inherit from their agent
         trigger: { kind: cron, schedule: "0 9 * * 1-5", timezone: Europe/Rome, hours: "Mon-Fri 09:00-18:00" }  # manual cron webhook event queue chat email file
       - id: searcher
         agent: searcher
-        fanout: { min: 3, max: 5, by: query complexity }     # or a number: 4; by: [store, locale] multiplies; from: [agent ids] picked from a queue
+        fanout: { min: 3, max: 5, by: query complexity }     # max is required, or a number: 4 (no cap in the code: leave fanout out, say it in description); by: [store, locale] multiplies; from: [agent ids] picked from a queue
         budget: { usd: 2, turns: 30, on_exceed: pause }       # or amount + currency: EUR, per: run|item|month..., for: model|media; a list for several
         limits: { timeout: 10m, retries: 2, max_iterations: 3, rate: "100/24h" }   # rate: quotas, one or a list
         data: { sensitivity: pii, region: eu, retention: 30d, lawful_basis: consent }  # public internal confidential pii phi pci biometric secret; retention: none = memory only; retention_after: matter close; disclosure: [C2PA]
@@ -101,6 +102,7 @@ Full guide with examples: `docs/what-goes-where.md` in the flow-tower repo.
 | Harness & Guardrails | hooks (`hook`), permission rules and validators (`guard`), budgets |
 | Memory & Context | CLAUDE.md / memory files / DBs / vector stores (`memory`) |
 | Models | one `model` node per model used, linked from agents with `[call]` |
+| Evaluation | a second entry point: offline eval harness, benchmark runs, LLM judges, result export |
 | Deploy & Ops | CI jobs, schedulers, log sinks (only if relevant to the flow) |
 
 ## Services (no agents)
@@ -116,13 +118,15 @@ HTTP APIs, middleware chains and workers: one layer per surface (public API, adm
 | Claude Agent SDK | `query(` with `options.agents`, `mcpServers`, `hooks`, `allowedTools`, `model`, `maxTurns`, `createSdkMcpServer` | agents, tools, hooks, harness |
 | Anthropic API loops | `messages.create`, `tool_use` handling, `while`/`for` loops around calls | agent + loop decision + tools |
 | OpenAI Agents SDK | `Agent(name=, instructions=, tools=, handoffs=)`, `Runner.run` | agents, `[handoff]` edges |
-| LangGraph | `StateGraph`, `add_node`, `add_edge`, `add_conditional_edges`, `interrupt` | nodes/edges directly; conditionals → decision; interrupt → human |
+| LangGraph | `StateGraph`, `add_node`, `add_edge`, `add_conditional_edges`, `interrupt`, `Command(goto=…)` returns (targets in the `Literal[...]` return hint), a compiled subgraph used as a node, a subgraph `ainvoke`d inside a tool, `with_retry` | nodes/edges directly; conditionals and `Command` routing → decision; interrupt → human; subgraph with > ~5 steps → nested tower; subgraph started per tool call → `spawn` + `fanout` |
 | CrewAI | `Agent(role=, goal=)`, `Task(`, `Crew(process=Process.sequential\|hierarchical)` | agents, task flow, manager agent |
 | AutoGen / AG2 | `AssistantAgent`, `UserProxyAgent`, `GroupChat`, `GroupChatManager` | agents, human, orchestrator |
 | Pi | `~/.pi/agent/extensions/`, `pi.on(`, session JSONL | agent + extensions as hooks |
 | Hermes Agent | `~/.hermes/config.yaml` (`hooks`, `skills`, `tools`), `HOOK.yaml` | agent, hooks, tools |
 | HTTP services | `app.use(` / `router.use(` in registration order, route-level middleware, error middleware `(err, req, res, next)`, `res.json =` wrappers, FastAPI `Depends` / middleware, cron, queue consumers | ingress guards, rejection `output` with labelled edges, error `hook`, jobs layer |
 | Prompts | `prompts/`, `*.prompt.md`, `system_prompt =`, `instructions=` | `prompts:` registry |
+| Retries and caps | `stop_after_attempt=N`, `max_attempts=N`, `max_retries=N`, loop counters and their comparison (`>` vs `>=`) | `limits.retries` counts **retries**: N attempts = `retries: N-1`; a cap checked with `>` allows one more round |
+| Models chosen at runtime | `init_chat_model("provider:model")`, config defaults, env vars that override them | the default model on the agent, "configurable: …" in its description |
 | Runtimes | `Dockerfile`, `docker-compose*.yml`, `k8s/`, `.github/workflows/`, `vercel.json`, `serverless.yml`, `wrangler.toml`, crontab, README "deploy" | `runtimes:` |
 | Resources | `logs/`, `*.log`, logger config, `scripts/`, Grafana/Datadog/Langfuse URLs in docs | `resources:` |
 
