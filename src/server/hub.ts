@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { authorize, hubMode, isRemote } from './auth.ts';
+import { authorize, hubMode, isLoopback, isRemote } from './auth.ts';
 import { userHome } from '../core/secrets.ts';
 
 /**
@@ -74,10 +74,12 @@ export function hubGuard(opts: HubOptions) {
     }
     if (!isRemote(req, { hub: opts.hub })) return next(); // local requests keep today's behaviour
     if (isViewing(req.method, path)) {
-      // Tailscale serve sets tailscale-user-login for the tailnet user behind the request.
+      // Tailscale serve sets tailscale-user-login for the tailnet user behind the request, and connects from
+      // loopback. The header is trusted only then: on a --host bind anyone on the network could send it.
       const who = req.headers['tailscale-user-login'];
-      if (typeof who === 'string' && viewers(opts.home).includes(who)) return next();
-      return deny(res, 403, { error: `remote viewing is not allowed for this user: add it to "viewers" in ${join(opts.home, 'hub.json')}` });
+      const viaLocalProxy = isLoopback(req.socket?.remoteAddress);
+      if (viaLocalProxy && typeof who === 'string' && viewers(opts.home).includes(who)) return next();
+      return deny(res, 403, { error: 'remote viewing is not allowed for this user (see viewers in hub.json on the hub)' });
     }
     return deny(res, 403, { error: 'remote requests may only ingest events' });
   };

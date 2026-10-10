@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { afterAll, describe, expect, it } from 'vitest';
-import { isRemote } from '../src/server/auth';
+import { authorize, isRemote } from '../src/server/auth';
 import { hubGuard, type HubOptions } from '../src/server/hub';
 import { createEventHub } from '../src/server/events';
 import { tokenStore } from '../src/server/tokens';
@@ -138,5 +138,26 @@ describe('cli hub flags (#83)', () => {
     const r = run('--hub');
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('flow-tower token add');
+  });
+});
+
+describe("hub guard: lead review fixes (#83)", () => {
+  it("trusts tailscale-user-login only from the local proxy, never on a direct off-host socket", () => {
+    expect(run(opts, forwarded("GET", "/", { "tailscale-user-login": "alice@example.com" })).status).toBe(200);
+    expect(run(opts, remote("GET", "/", { "tailscale-user-login": "alice@example.com" })).status).toBe(403);
+    expect(run(opts, forwarded("GET", "/", { "tailscale-user-login": "mallory@example.com" })).status).toBe(403);
+  });
+
+  it("does not tell a remote prober where the user folder is", () => {
+    expect(run(opts, remote("GET", "/")).body).not.toContain(home);
+  });
+
+  it("lets the hub machine's own hooks ingest without a token, but never an off-host sender", () => {
+    const req = (r: Req) => r as unknown as IncomingMessage;
+    expect(authorize(req(local("POST", "/api/events")), { home, hub: true }).ok).toBe(true);
+    expect(authorize(req(forwarded("POST", "/api/events")), { home, hub: true }).ok).toBe(false);
+    expect(authorize(req(remote("POST", "/api/events", { "x-flow-tower-token": token })), { home, hub: true })).toEqual({ ok: true, sender: "dana" });
+    // FLOW_TOWER_TOKEN set: everyone needs it, as before #83.
+    expect(authorize(req(local("POST", "/api/events")), { home, hub: true, legacy: "s3cret" }).ok).toBe(false);
   });
 });

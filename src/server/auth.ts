@@ -29,7 +29,7 @@ export const hubMode = () => /^(1|true|yes)$/i.test(env.FLOW_TOWER_HUB ?? '');
 const PROXY_HEADERS = ['x-forwarded-for', 'forwarded', 'x-real-ip', 'tailscale-user-login'] as const;
 
 /** 127.0.0.0/8, ::1, and the IPv4-mapped form Node reports for a loopback peer on a dual-stack socket. */
-function isLoopback(addr: string | undefined): boolean {
+export function isLoopback(addr: string | undefined): boolean {
   return !!addr && (addr === '::1' || addr.startsWith('127.') || addr.startsWith('::ffff:127.'));
 }
 
@@ -61,13 +61,15 @@ function same(a: string, b: string): boolean {
 }
 
 export function authorize(req: IncomingMessage, { legacy, home, hub }: AuthOptions): Auth {
-  const store = tokenStore(home);
-  const entries = store.list();
-  // Nothing to check against and not a hub: keep today's behaviour (a local hook needs no token).
-  if (!legacy && !entries.length && !(hub ?? hubMode())) return { ok: true };
   const token = presented(req);
-  if (token && legacy && same(token, legacy)) return { ok: true, sender: 'default' };
-  const hit = token ? store.verify(token) : undefined;
-  // A revoked or paused token is gone from verify(): the sender cannot borrow another identity either.
-  return hit ? { ok: true, sender: hit.id } : { ok: false };
+  if (token) {
+    // A presented token is always checked, locally too: its id is who sent the event, and a revoked or
+    // paused one (gone from verify) must fail rather than fall back to "trusted local".
+    if (legacy && same(token, legacy)) return { ok: true, sender: 'default' };
+    const hit = tokenStore(home).verify(token);
+    return hit ? { ok: true, sender: hit.id } : { ok: false };
+  }
+  // No token: a request from this machine is trusted as before #83 (the hub's own hooks keep working),
+  // unless FLOW_TOWER_TOKEN is set. Off-machine senders in hub mode always need a token.
+  return !legacy && !isRemote(req, { hub: hub ?? hubMode() }) ? { ok: true } : { ok: false };
 }
