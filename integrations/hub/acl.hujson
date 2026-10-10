@@ -1,0 +1,20 @@
+// Tailnet ACL for a Flow Tower hub. Merge into your policy file (tailscale.com/kb/1018/acls).
+// tag:flow-hub    = the machine running flow-tower (its tailnet name is the --allowed-host).
+// tag:flow-sender = machines/CI that only send events; tag:ci is the ephemeral GitHub Actions tag.
+// group:team      = the humans who may view the UI through tailscale serve.
+{
+  "tagOwners": {
+    "tag:flow-hub": ["group:team"],
+    "tag:flow-sender": ["group:team"],
+    "tag:ci": ["group:team"]
+  },
+  "acls": [
+    // Senders and CI reach only the hub's HTTPS port (tailscale serve on 443).
+    { "action": "accept", "src": ["tag:flow-sender", "tag:ci"], "dst": ["tag:flow-hub:443"] },
+    // Teammates may view the UI (the same HTTPS port); everything else stays closed.
+    { "action": "accept", "src": ["group:team"], "dst": ["tag:flow-hub:443"] },
+    // An untagged, ephemeral CI node cannot use the tailnet at all: tag it explicitly.
+    { "action": "accept", "src": ["tag:ci"], "dst": ["tag:flow-hub:443"] }
+  ],
+  "ssh": []
+}

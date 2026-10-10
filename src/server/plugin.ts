@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env, loadEnvFile } from 'node:process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { Duplex } from 'node:stream';
 import type { Plugin, ViteDevServer } from 'vite';
 import { loadLibrary, type LoadResult } from '../core/loader.ts';
 import { readTowerFile } from './files.ts';
@@ -12,6 +13,8 @@ import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
 import { userHome, warnIfInRepo } from './home.ts';
 import { crossSite } from './guard.ts';
+import { isRemote } from './auth.ts';
+import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
@@ -62,6 +65,22 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       server.watcher.on('add', onFsEvent);
       server.watcher.on('unlink', onFsEvent);
 
+      // Hub mode (#83) goes first, before any route: a remote request is checked from the socket and the
+      // proxy headers alone, so no endpoint is reached (not even the static UI) before that decision.
+      const hubOpts = hubOptionsFromEnv();
+      if (hubOpts.hub || hubOpts.ingestOnly) server.middlewares.use(hubGuard(hubOpts));
+
+      // WebSocket upgrades (#83) never reach the middlewares: Vite answers HMR/ws itself on the http
+      // server's 'upgrade' event. A remote stranger could open the socket and then receive the live event
+      // broadcasts, so the same rule is enforced here. prependListener runs us before Vite's own handler:
+      // without that, Vite would already have accepted the handshake for a request we mean to refuse.
+      if (hubOpts.hub || hubOpts.ingestOnly) {
+        server.httpServer?.prependListener('upgrade', (req: IncomingMessage, socket: Duplex) => {
+          if (allowUpgrade(req, hubOpts)) return;
+          socket.destroy();
+        });
+      }
+
       // Reads are for this page only: Vite's default CORS would let a page on another localhost port read them.
       server.middlewares.use('/api/workspace', (req, res) => {
         if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
@@ -73,7 +92,8 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       const hub = createEventHub(
         () => state?.workspace,
         (events) => server.ws.send(EVENTS_EVENT, events),
-        env.FLOW_TOWER_TOKEN,
+        // The user folder holds the per-sender tokens (#83); FLOW_TOWER_TOKEN stays the shared legacy secret.
+        { legacy: env.FLOW_TOWER_TOKEN, home: userHome(), hub: hubOpts.hub, ingestOnly: hubOpts.ingestOnly },
       );
       server.middlewares.use('/api/events', hub.handle);
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.
@@ -100,9 +120,18 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         // The journal lives in ~/.config/flow-tower; the page writes to it only when the user turned it on.
         learning: { store: voiceStore(USER_HOME), names: (ids) => namesOf(state, ids) },
       }));
-      server.middlewares.use('/api/version', (_req, res) => send(res, 200, { ...update, command: UPDATE_COMMAND }));
+      server.middlewares.use('/api/version', (req, res) => {
+        // The update command embeds this checkout's absolute path: a remote viewer has no use for it.
+        const remote = isRemote(req, { hub: hubOpts.hub });
+        send(res, 200, versionPayload(update, remote));
+      });
     },
   };
+}
+
+/** The version payload: everything except the update command, which embeds this checkout's path. */
+export function versionPayload(update: UpdateInfo, remote: boolean): Record<string, unknown> {
+  return remote ? { ...update } : { ...update, command: UPDATE_COMMAND };
 }
 
 /** Names a voice alias may point at: projects, layers, nodes and agents of the given towers. */
