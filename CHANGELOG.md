@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Fixed
+- Update check: a cached "latest release" older than the running version is ignored, so `/api/version` no longer reports an older release for up to 24 h after an update, and a newer release is noticed at once (#71, reported by @CryptoLordHodlerSqvad).
+
 ## [0.4.0] - 2026-10-10
 
 ### Added

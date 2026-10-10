@@ -47,6 +47,20 @@ describe('update notice', () => {
     expect((await checkForUpdate({ current: '0.1.0', cacheFile: file, fetchImpl: failing })).newer).toBe(false);
   });
 
+  it('ignores a cache written before the running version (#71)', async () => {
+    const file = cacheFile();
+    // Cached on v0.1.0 day; the checkout has since been updated to 0.4.0 and v0.4.0 is out.
+    writeFileSync(file, JSON.stringify({ checkedAt: 1_000, latest: 'v0.1.0', url: 'https://github.com/x/releases/tag/v0.1.0' }));
+    let calls = 0;
+    const counting = (async (...a: Parameters<typeof fetch>) => { calls++; return release('v0.4.0')(...a); }) as typeof fetch;
+    expect(await checkForUpdate({ current: '0.4.0', cacheFile: file, fetchImpl: counting, now: 1_000 + 60_000 }))
+      .toMatchObject({ latest: 'v0.4.0', newer: false });
+    expect(calls).toBe(1);
+    // Offline right after an update: no stale "latest" older than what runs.
+    writeFileSync(file, JSON.stringify({ checkedAt: 1_000, latest: 'v0.1.0', url: 'https://github.com/x/releases/tag/v0.1.0' }));
+    expect(await checkForUpdate({ current: '0.4.0', cacheFile: file, fetchImpl: failing, now: 1_000 + 60_000 })).toEqual({ current: '0.4.0', newer: false });
+  });
+
   it('is off with the opt-out variable and in CI', () => {
     expect(updateCheckDisabled({})).toBe(false);
     expect(updateCheckDisabled({ FLOW_TOWER_NO_UPDATE_CHECK: '1' })).toBe(true);
