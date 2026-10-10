@@ -135,6 +135,37 @@ describe('cli token (#83)', () => {
   });
 });
 
+describe('cli serve guards (#83)', () => {
+  const home = mkdtempSync(join(tmpdir(), 'flow-tower-cli-serve-'));
+  afterAll(() => rmSync(home, { recursive: true, force: true }));
+  // An empty FLOW_TOWER_HOME (and no FLOW_TOWER_TOKEN) means no active per-sender token exists.
+  const serve = (...args: string[]) =>
+    spawnSync(process.execPath, [CLI, 'serve', ...args], {
+      encoding: 'utf8',
+      env: { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_ALLOWED_HOSTS: '' },
+    });
+
+  it('refuses --allowed-host without --hub', () => {
+    const r = serve('--allowed-host', 'hub.tailnet-xyz.ts.net', '--no-open');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('reachable through a proxy');
+
+    // The env var behaves the same as the flag.
+    const viaEnv = spawnSync(process.execPath, [CLI, 'serve', '--no-open'], {
+      encoding: 'utf8',
+      env: { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_ALLOWED_HOSTS: 'hub.tailnet-xyz.ts.net' },
+    });
+    expect(viaEnv.status).toBe(1);
+    expect(viaEnv.stderr).toContain('add --hub (and a token)');
+  });
+
+  it('refuses --ingest-only without any token, like --hub', () => {
+    const r = serve('--ingest-only', '--no-open');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('--ingest-only needs a token');
+  });
+});
+
 describe('cli validate', () => {
   it('passes on the examples and reports JSON', () => {
     const r = run('validate', 'examples/dev-squad', '--json');

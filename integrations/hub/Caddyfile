@@ -1,18 +1,20 @@
 # Public ingest-only fallback: Caddy in front of `flow-tower --ingest-only`.
 # Use this only where a Tailscale tailnet is not an option (AWS Lambda, a CI runner): the endpoint is on
-# the public internet, so a per-sender token (flow-tower token add) and the edge rate limit below are
-# mandatory. Bind flow-tower to loopback and let Caddy terminate TLS for your domain.
+# the public internet, so a per-sender token (flow-tower token add) is mandatory, and the hub's own
+# ingest rate limit applies. Bind flow-tower to loopback and let Caddy terminate TLS for your domain.
 #
 #   flow-tower ~/towers --ingest-only --host 127.0.0.1
 #   caddy run --config integrations/hub/Caddyfile
 events.tailnet-xyz.example.com {
-	# An edge rate limit, whatever the token's own bucket already enforces.
-	rate_limit {
-		zone ingest
-		key {remote_host}
-		events 120
-		window 1m
-	}
+	# An edge rate limit would need the caddy-ratelimit plugin (not in stock Caddy, which rejects the
+	# `rate_limit` directive). The hub rate-limits ingest itself, per token and per sender, so this is
+	# only a second line of defense if you have the plugin; uncomment then.
+	# rate_limit {
+	# 	zone ingest
+	# 	key {remote_host}
+	# 	events 120
+	# 	window 1m
+	# }
 
 	# Only the ingest routes exist here. /api/events and the OTLP receivers.
 	@ingest {

@@ -34,9 +34,11 @@ Options
       --hub      Hub mode: a shared server (also FLOW_TOWER_HUB=1). Remote requests may only ingest events
                  with a per-sender token (flow-tower token add <id>); the UI needs a listed viewer.
       --host     Bind address (default 127.0.0.1). A non-loopback address requires --hub.
-      --ingest-only  Serve nothing but the ingest routes, even locally (also FLOW_TOWER_INGEST_ONLY=1)
+      --ingest-only  Serve nothing but the ingest routes, even locally (also FLOW_TOWER_INGEST_ONLY=1);
+                 every request needs a token like --hub (the command exits 1 without one)
       --allowed-host Name the Vite server accepts in Host, e.g. hub.tailnet-xyz.ts.net (repeatable; needed
-                 when tailscale serve or a proxy forwards with its own Host; also FLOW_TOWER_ALLOWED_HOSTS, comma list)
+                 when tailscale serve or a proxy forwards with its own Host; also FLOW_TOWER_ALLOWED_HOSTS, comma list).
+                 Reaching the server through a proxy means hub mode: requires --hub
       --no-update-check  Do not ask GitHub once a day whether a newer release exists
                  (also FLOW_TOWER_NO_UPDATE_CHECK=1; always off in CI)
       --url      emit: server URL (default http://127.0.0.1:5317); a second server runs on another --port
@@ -306,8 +308,15 @@ if (!hub && !isLoopbackHost(bindHost)) {
 To serve a shared hub, run: flow-tower <files> --hub --host ${bindHost}`);
   process.exit(1);
 }
-if (hub && !env.FLOW_TOWER_TOKEN && !hasActiveToken()) {
-  console.error(`hub mode needs a token to accept any event.
+// An allowed host is only reachable through a proxy (Tailscale serve, Caddy): that is a hub, not a local server.
+const allowedHosts = [...(values['allowed-host'] ?? []), ...(env.FLOW_TOWER_ALLOWED_HOSTS ?? '').split(',')]
+  .map((h) => h.trim()).filter(Boolean);
+if (!hub && allowedHosts.length) {
+  console.error(`an allowed host means the server is reachable through a proxy: add --hub (and a token)`);
+  process.exit(1);
+}
+if ((hub || ingestOnly) && !env.FLOW_TOWER_TOKEN && !hasActiveToken()) {
+  console.error(`${hub ? 'hub mode' : '--ingest-only'} needs a token to accept any event.
 create one: flow-tower token add <id>\nThen send it as x-flow-tower-token (or FLOW_TOWER_TOKEN for a shared secret).`);
   process.exit(1);
 }
@@ -318,10 +327,6 @@ function hasActiveToken() {
   const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, 'list'], { encoding: 'utf8' });
   return /\bactive\b/.test(r.stdout ?? '');
 }
-
-// Tailscale serve (or any proxy) forwards with its own Host header: Vite would refuse it without this list.
-const allowedHosts = [...(values['allowed-host'] ?? []), ...(env.FLOW_TOWER_ALLOWED_HOSTS ?? '').split(',')]
-  .map((h) => h.trim()).filter(Boolean);
 
 // The vite plugin reads its entries (and the update-check opt-out) from the environment of this process.
 env.FLOW_TOWER_ENTRIES = JSON.stringify(entries);

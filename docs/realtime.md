@@ -118,6 +118,7 @@ The feed marks events that matched nothing as *unmapped*, which helps when writi
 - The server binds to `127.0.0.1`.
 - `/api/events` only accepts an exact `application/json` content type (a variant such as `text/plain;x=application/json` is refused), which forces a CORS preflight, and it refuses browser requests whose `Origin` or `Sec-Fetch-Site` says they come from another site. Web pages open in your browser cannot inject events; local tools (hooks, `emit`, curl, OTLP exporters) send neither header and pass.
 - Set `FLOW_TOWER_TOKEN` when starting flow-tower to also require an `x-flow-tower-token` header; `emit` sends it automatically from the same variable.
+- `--allowed-host` (or `FLOW_TOWER_ALLOWED_HOSTS`) requires `--hub`: naming a proxy's host means the server is reachable through that proxy, so the hub guards (and its token) apply. Without `--hub` the CLI exits 1.
 - Events live in memory only, capped at 2,000.
 
 The above is the local-only default. Sharing the server with other machines adds hub mode: see
@@ -159,7 +160,8 @@ under [`integrations/hub/`](../integrations/hub/): ACLs, GitHub Actions, Docker 
 
 **Public ingest-only (Fallback).** When a Tailscale tailnet is not an option (AWS Lambda, a CI runner),
 run `flow-tower --ingest-only` behind Caddy or Cloudflare Tunnel. That mode serves **nothing but** the
-ingest routes to anyone, locally too; it must never be exposed without one of those proxies in front, and
+ingest routes, needs a token for every request (like hub mode), and 404s everything else even locally; it
+must never be exposed without one of those proxies in front, and
 it is a last resort, not the default. See [`integrations/hub/Caddyfile`](../integrations/hub/Caddyfile).
 
 ### Recipe: a second computer
@@ -211,14 +213,16 @@ Lambda has no loopback and its own filesystem is read-only, so pick one:
   ([tailscale.com/kb/1113/aws-lambda](https://tailscale.com/kb/1113/aws-lambda)), forwarding OTLP to the hub; or
 - send **OTLP/HTTP directly** to the public ingest-only endpoint (`--ingest-only` behind Caddy or Cloudflare
   Tunnel), with `x-flow-tower-token` on every request. Direct is simplest but exposes an ingest endpoint to
-  the internet, so a token and an edge rate limit are mandatory.
+  the internet, so a token is mandatory (the hub rate-limits ingest itself).
 
 ## Security model
 
 Hub mode changes what the server accepts, so state it once, here:
 
-- **Binding.** Without `--hub` the server refuses a non-loopback `--host`; with `--hub` it still runs on
-  `127.0.0.1` and is reached only through `tailscale serve` (TLS on the tailnet). Never Funnel.
+- **Binding.** Without `--hub` the server refuses a non-loopback `--host`, and `--allowed-host` (a proxy's
+  own Host header means the server is reachable through that proxy) is refused too: the CLI exits 1 and says
+  to add `--hub`. With `--hub` it still runs on `127.0.0.1` and is reached only through `tailscale serve`
+  (TLS on the tailnet). Never Funnel.
 - **Sender identity.** A per-sender token (`flow-tower token add|list|revoke|pause|resume`) is stored as
   its **sha256** in `~/.config/flow-tower/tokens.json` (0600), never the plaintext. The **token decides who
   sent it**: the id in `ft_<id>_<secret>` is the sender, and events are attributed to it. `revoke` /
@@ -229,8 +233,13 @@ Hub mode changes what the server accepts, so state it once, here:
   write: those routes answer 403 to a remote request. Anything the socket or the proxy headers say came
   from off the machine is treated as remote.
 - **Public fallback.** `--ingest-only` serves only `/api/events` and `/v1/*`, to anyone, and 404s
-  everything else including locally. Put Caddy or Cloudflare Tunnel in front with an edge rate limit; it is
+  everything else including locally. It needs a token for **every** request, like hub mode: the CLI exits 1
+  without `FLOW_TOWER_TOKEN` or an active per-sender token. Put Caddy or Cloudflare Tunnel in front; it is
   for Lambda and CI, never for a workstation hub.
+- **Viewing is gated everywhere it reaches the host.** A WebSocket upgrade (Vite HMR/ws) is checked the
+  same way as a page view: only loopback, or a listed viewer through the local proxy, may open it, so a
+  remote stranger cannot subscribe to the live event stream. A remote viewer also never reaches Vite's
+  `/@fs/` (which would read any file on the host) nor the file and voice routes (`/api/file`, `/api/voice`).
 - **Abuse limits.** Per-sender token bucket (20 events/s, burst 200; 429 with `Retry-After`), an LRU
   dedupe of event ids (50,000) so a retrying sender cannot replay the same event, and a ±24 h window around
   now so a skewed or backdated timestamp is dropped. All in memory: a restart forgets them.
