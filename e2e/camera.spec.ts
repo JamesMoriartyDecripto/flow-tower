@@ -33,14 +33,6 @@ test('selecting a node zooms in on it and the camera follows the next ones', asy
   expect(Math.abs((await targetX(page)) - x0), 'the camera moved along with the selection').toBeGreaterThan(5);
 });
 
-test('with zoom to selection off, selecting keeps the distance', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('flow-tower:prefs', JSON.stringify({ zoomToSelection: false })));
-  await openProject(page, DEV);
-  const before = await selectInLayer(page);
-  // Opening the inspector may only zoom out to keep the layer in the free area.
-  expect(await distance(page)).toBeGreaterThanOrEqual(before - 0.5);
-});
-
 test('zoom is kept when moving to the next node of the same layer', async ({ page }) => {
   await openProject(page, DEV);
   await pressUntil(page, 'PageDown', (s) => s.focusedLayer === 0);

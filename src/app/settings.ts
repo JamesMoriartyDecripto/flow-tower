@@ -44,8 +44,6 @@ interface Prefs {
   /** File viewer: wrap long lines; show Markdown as source instead of formatted. */
   viewerWrap: boolean;
   markdownSource: boolean;
-  /** Selecting a node centers the camera on it and zooms in. */
-  zoomToSelection: boolean;
   defaultView: DefaultView;
   /** HUD scale (text and panels together), for small laptops up to 4K screens. */
   uiScale: number;
@@ -63,7 +61,7 @@ interface Prefs {
 const KEY = 'flow-tower:prefs';
 
 interface Saved {
-  theme?: string; bloom?: number; plateOpacity?: number; flowNodes?: Partial<Flow>; flowLayers?: Partial<Flow>; show?: Partial<Visibility>; chips?: boolean; hints?: boolean; viewerWrap?: boolean; markdownSource?: boolean; zoomToSelection?: boolean; defaultView?: DefaultView; uiScale?: number; textFont?: TextFont; titleFont?: TitleFont;
+  theme?: string; bloom?: number; plateOpacity?: number; flowNodes?: Partial<Flow>; flowLayers?: Partial<Flow>; show?: Partial<Visibility>; chips?: boolean; hints?: boolean; viewerWrap?: boolean; markdownSource?: boolean; defaultView?: DefaultView; uiScale?: number; textFont?: TextFont; titleFont?: TitleFont;
   quality?: Quality; animations?: boolean; particles?: boolean; explode?: number; spotlight?: boolean; follow?: boolean;
 }
 
@@ -84,7 +82,6 @@ export const usePrefs = create<Prefs>()((set, get) => ({
   hints: saved.hints ?? true,
   viewerWrap: saved.viewerWrap ?? false,
   markdownSource: saved.markdownSource ?? false,
-  zoomToSelection: saved.zoomToSelection ?? true,
   defaultView: saved.defaultView ?? 'auto',
   uiScale: saved.uiScale ?? 1,
   textFont: saved.textFont ?? 'hud',
@@ -135,7 +132,7 @@ export function initPrefs() {
     const ui = useStore.getState();
     const live = useLive.getState();
     const data: Saved = {
-      theme: p.theme, bloom: p.bloom, plateOpacity: p.plateOpacity, flowNodes: p.flowNodes, flowLayers: p.flowLayers, show: p.show, chips: p.chips, hints: p.hints, viewerWrap: p.viewerWrap, markdownSource: p.markdownSource, zoomToSelection: p.zoomToSelection, defaultView: p.defaultView, uiScale: p.uiScale, textFont: p.textFont, titleFont: p.titleFont,
+      theme: p.theme, bloom: p.bloom, plateOpacity: p.plateOpacity, flowNodes: p.flowNodes, flowLayers: p.flowLayers, show: p.show, chips: p.chips, hints: p.hints, viewerWrap: p.viewerWrap, markdownSource: p.markdownSource, defaultView: p.defaultView, uiScale: p.uiScale, textFont: p.textFont, titleFont: p.titleFont,
       quality: ui.quality, animations: ui.animations, particles: ui.particles, explode: ui.explode,
       spotlight: live.spotlight, follow: live.follow,
     };

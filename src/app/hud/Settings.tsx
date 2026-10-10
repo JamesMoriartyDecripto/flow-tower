@@ -169,9 +169,6 @@ export function Settings() {
             <Row label="Layer spacing" hint="Tower view only.">
               <Slider min={0.4} max={2.5} step={0.05} value={ui.explode} onChange={(e) => ui.set({ explode: Number(e.target.value) })} />
             </Row>
-            <Row label="Zoom to selection" hint="Selecting a node centers it and moves in close enough to read it and its neighbours. Off: the camera only moves when the node is hidden under a panel.">
-              <Toggle on={prefs.zoomToSelection} onChange={(zoomToSelection) => prefs.set({ zoomToSelection })} />
-            </Row>
             <Row label="Auto-orbit" hint="Slowly rotates the tower (keeps rendering while on).">
               <Toggle on={ui.autoRotate} onChange={(autoRotate) => ui.set({ autoRotate })} />
             </Row>
