@@ -11,7 +11,7 @@
 - **One YAML file per system.** It is easy to write and review, and it lives in the same repo as the agent.
 - **Tower of layers.** Stack layers like intake, orchestration, specialists, tools, guardrails, memory and models. Cross-layer links show who calls whom.
 - **Nested towers.** An agent can contain its own tower. Double-click it to dive in, as deep as you need.
-- **Real files.** Prompts, code, configs and logs open in a syntax-highlighted viewer. Existing Claude Code agents (`.claude/agents/*.md`) import as they are.
+- **Real files.** Prompts, code, configs and logs open in a syntax-highlighted viewer; Markdown is formatted, with math in `$$…$$` rendered by KaTeX. Existing Claude Code agents (`.claude/agents/*.md`) import as they are.
 - **Hybrid deployments.** `runtimes` show what runs on a laptop, a server, a CI job or a third-party service.
 - **Structural changes.** Mark nodes `planned`, `experimental` or `deprecated`.
 - **How it runs in production.** Triggers, human approvals with timeouts, budgets, limits, fan-out, data sensitivity, evals, rollouts and SLAs show on the nodes and in the node panel.
