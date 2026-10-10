@@ -35,6 +35,7 @@ export const LIMITS = {
   review: { maxTurns: 25, maxBudgetUsd: 1.5 },
   fix: { maxTurns: 40, maxBudgetUsd: 2 },
   verify: { maxTurns: 30, maxBudgetUsd: 1.5 },
+  docs: { maxTurns: 15, maxBudgetUsd: 0.3 },
   /** Whole-issue ceiling across every query; the pipeline aborts above it. */
   issueUsd: 15,
 } as const;
@@ -42,8 +43,8 @@ export const LIMITS = {
 /** Evaluator-optimizer loop: cap rounds, escalate the fixer to Opus on the last one. */
 export const REVIEW = { maxRounds: 3, escalateToOpusOnRound: 3 } as const;
 
-/** Plans above this size or with risk=high need a human sign-off before coding. */
-export const PLAN_GATE = { maxSteps: 6, approvalTimeoutMin: 240 } as const;
+/** Plans above this size or with risk=high need a human sign-off before coding; at most 2 revise rounds. */
+export const PLAN_GATE = { maxSteps: 6, approvalTimeoutMin: 240, maxRevisions: 2 } as const;
 
 export const PATHS = {
   agents: resolve(ROOT, '.claude/agents'),

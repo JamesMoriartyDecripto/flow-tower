@@ -1,8 +1,7 @@
-2026-10-08T07:41:06Z SessionStart context_pack chars=5210 patterns=9 recent_runs=5
-2026-10-08T07:41:06Z UserPromptSubmit secret-scan injection_flag=false secrets=0
-2026-10-08T07:52:01Z PreToolUse Edit src/billing/money.ts fence=allow secret-scan=allow
-2026-10-08T07:52:02Z PostToolUse format-lint prettier=fixed eslint=0 problems
-2026-10-08T07:58:40Z PreToolUse Bash "git push --force origin squad/482-invoice-rounding" bash-guard=deny
-2026-10-08T08:01:17Z PreToolUse Write /tmp/dev-squad/worktrees/480/src/x.ts fence=deny (outside worktree 482)
-2026-10-08T08:09:30Z Stop changelog-gate CHANGELOG.md entry=found -> allow
-2026-10-08T08:09:30Z Stop session-log appended issue=#482 outcome=ready_for_review
+2026-10-08T07:41:12Z [hook] SessionStart context chars=5210 areas=billing,api recent_runs=5
+2026-10-08T07:46:24Z [audit] coder Read toolu_01HbQ2vX
+2026-10-08T07:52:01Z [audit] coder Edit toolu_01Kp7sWe
+2026-10-08T07:58:40Z [hook] PreToolUse Bash deny "git push --force origin squad/482-invoice-rounding": Force push is disabled. Create a new commit instead.
+2026-10-08T08:01:17Z [hook] PreToolUse fence deny /tmp/dev-squad/worktrees/480/src/x.ts (outside /tmp/dev-squad/worktrees/482)
+2026-10-08T08:09:30Z [hook] Stop changelog-gate allow issue=#482 files=7
+2026-10-08T08:09:44Z [audit] reviewer Bash toolu_01Rv3mYc

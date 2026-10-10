@@ -4,6 +4,7 @@ import { LIMITS, PLAN_GATE, ROLE_MODEL, loadMcpServers, sdkEnv } from './config'
 import { buildHooks } from './hooks';
 import { recallPatterns } from './memory/store';
 import { renderPrompt, untrusted } from './prompts';
+import { headlessPermissions } from './run-agent';
 import { squadServer } from './tools';
 import type { Issue } from './main';
 import type { Triage } from './triage';
@@ -11,7 +12,7 @@ import type { Triage } from './triage';
 export interface Worktree { path: string; branch: string }
 
 export interface LeadReport {
-  status: 'ready_for_review' | 'blocked';
+  status: 'ready_for_review' | 'blocked' | 'awaiting_approval';
   plan: string;
   steps_done: string[];
   steps_skipped: string[];
@@ -26,8 +27,10 @@ export interface LeadReport {
  * Orchestrator-workers: an Opus lead plans with the architect, fans research out
  * in parallel, then walks the plan step by step with Sonnet coders. Each subagent
  * has its own context window; only its final report comes back to the lead.
+ * A risky plan ends the session with status `awaiting_approval`; the pipeline then resumes
+ * the same session (`resume`) with the human's answer as the next prompt.
  */
-export async function runLead(issue: Issue, triage: Triage, wt: Worktree): Promise<LeadReport> {
+export async function runLead(issue: Issue, triage: Triage, wt: Worktree, resume?: { sessionId: string; answer: string }): Promise<LeadReport> {
   const vars = {
     repo: issue.repo,
     issue_number: String(issue.number),
@@ -38,7 +41,7 @@ export async function runLead(issue: Issue, triage: Triage, wt: Worktree): Promi
   };
 
   const run = query({
-    prompt: renderPrompt('orchestrator', {
+    prompt: resume ? resume.answer : renderPrompt('orchestrator', {
       ...vars,
       kind: triage.kind,
       complexity: triage.complexity,
@@ -47,16 +50,19 @@ export async function runLead(issue: Issue, triage: Triage, wt: Worktree): Promi
       max_steps: PLAN_GATE.maxSteps,
     }),
     options: {
+      ...(resume && { resume: resume.sessionId }),
       cwd: wt.path,
       model: ROLE_MODEL.lead,
       fallbackModel: ROLE_MODEL.coder,
       // The lead coordinates; it cannot edit files or run shell commands itself.
       tools: ['Agent', 'Read', 'Grep', 'Glob', 'TodoWrite', 'mcp__squad__request_approval'],
-      allowedTools: ['Agent', 'Read', 'Grep', 'Glob', 'TodoWrite'],
+      allowedTools: ['Agent', 'Read', 'Grep', 'Glob', 'TodoWrite', 'mcp__squad__request_approval'],
+      // settings.json asks before request_approval (for interactive sessions); here the lead may always ask.
+      canUseTool: headlessPermissions(['mcp__squad__request_approval']),
       permissionMode: 'default',
       agents: leadTeam({ ...vars, triage: JSON.stringify(triage), patterns: recallPatterns(triage.areas) }),
-      mcpServers: { ...loadMcpServers(), squad: squadServer },
-      hooks: buildHooks({ worktree: wt.path, issue: issue.number }),
+      mcpServers: { ...loadMcpServers(), squad: squadServer(wt.path) },
+      hooks: buildHooks({ worktree: wt.path, issue: issue.number, areas: triage.areas, role: 'lead' }),
       settingSources: ['project'], // loads CLAUDE.md + .claude/settings.json permissions
       maxTurns: LIMITS.lead.maxTurns,
       maxBudgetUsd: LIMITS.lead.maxBudgetUsd,
@@ -74,7 +80,9 @@ export async function runLead(issue: Issue, triage: Triage, wt: Worktree): Promi
   if (result.subtype !== 'success') {
     return blocked(result.session_id, result.total_cost_usd, `lead stopped: ${result.subtype}`);
   }
-  return { ...parseReport(result.result), sessionId: result.session_id, costUsd: result.total_cost_usd };
+  const report = parseReport(result.result);
+  console.log(`[lead] report status=${report.status} tests=${report.tests} cost_usd=${result.total_cost_usd.toFixed(2)} turns=${result.num_turns}/${LIMITS.lead.maxTurns}`);
+  return { ...report, sessionId: result.session_id, costUsd: result.total_cost_usd };
 }
 
 function logDelegations(content: Array<{ type: string; name?: string; input?: unknown }>) {

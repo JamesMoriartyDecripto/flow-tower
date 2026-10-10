@@ -17,6 +17,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `validate` errors point at the fix: a value that fits no form of a field names the missing part (`fanout.max: required field missing`, not `Invalid input`), and YAML errors from an unquoted `: ` or comma say to quote the value (#56). Schema errors name layers and nodes by id (`review.gate.approval`), not by index (`layers.6.nodes.3.approval`).
 - Examples: 78 node labels that the card cut are shorter; exact identifiers moved to the description.
 
+### Fixed
+- `dev-squad` example: the sample code now does what its tower shows, and the tower shows what the code does (found by the #7 evaluation run). The lead can request plan approval and the pipeline polls and resumes it; `open_pr`, `run_tests` and `request_approval` run in the issue worktree, not the process directory; any throw or the $15 issue budget comments on the issue and logs the run (new "Run stopped" output); a red suite or an unmet criterion holds the verifier; a review round passes on blocking findings only; the `squad:skip` opt-out wins over the policy upgrade; the reviewer's bash guard and the area rules reach `runAgent` sessions; headless runs deny `ask` permissions explicitly; quick fixes get a CHANGELOG entry and PR body; bad webhook JSON gets a 400; the unused Redis queue and the serverless receiver are gone (the receiver runs in the container); sample logs match the code.
+
 ## [0.3.0] - 2026-10-10
 
 ### Added

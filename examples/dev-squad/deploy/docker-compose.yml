@@ -1,22 +1,17 @@
-# Dev Squad on a single VPS: orchestrator + a small queue. Webhooks arrive from a serverless receiver.
+# Dev Squad on a single VPS: one container runs the webhook receiver (src/main.ts serve),
+# the pipeline, the lead and every subagent. The VPS's TLS proxy forwards https://<host>/github here.
 services:
   squad:
     image: ghcr.io/example-org/dev-squad:${SQUAD_TAG:-latest}
     restart: unless-stopped
-    env_file: /srv/dev-squad/secrets.list      # ANTHROPIC_API_KEY, GITHUB_TOKEN, CONTEXT7_API_KEY, SEMGREP_APP_TOKEN
+    command: ["npx", "tsx", "src/main.ts", "serve", "--port", "8787"]
+    ports:
+      - "127.0.0.1:8787:8787"                   # only the local TLS proxy reaches it
+    env_file: /srv/dev-squad/secrets.list      # ANTHROPIC_API_KEY, GITHUB_TOKEN, GITHUB_WEBHOOK_SECRET, CONTEXT7_API_KEY, SEMGREP_APP_TOKEN
     environment:
       SQUAD_MAX_PARALLEL_ISSUES: "2"
-      SQUAD_QUEUE_URL: redis://queue:6379/0
     volumes:
       - worktrees:/tmp/dev-squad/worktrees
       - ./logs:/app/logs
-    depends_on: [queue]
-  queue:
-    image: redis:7.4-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - queue:/data
 volumes:
   worktrees:
-  queue:

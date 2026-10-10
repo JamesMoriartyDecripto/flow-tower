@@ -27,14 +27,17 @@ const pushesProtected = (cmd: string) =>
 /**
  * PreToolUse(Bash). Runs before permission rules, so a deny here wins even if a
  * permissive allow rule matches. Every decision is explained to the model.
+ * `role` is the agent of a runAgent() session (main thread, no agent_type); subagents of the lead carry agent_type.
+ * An `ask` needs a human: in headless pipeline runs, headlessPermissions() in run-agent.ts denies it.
  */
-export const bashGuard: HookCallback = async (input) => {
+export const bashGuard = (role?: string): HookCallback => async (input) => {
   const pre = input as PreToolUseHookInput;
   const command = String((pre.tool_input as { command?: string }).command ?? '');
 
-  const deny = (reason: string) => ({
-    hookSpecificOutput: { hookEventName: 'PreToolUse' as const, permissionDecision: 'deny' as const, permissionDecisionReason: reason },
-  });
+  const deny = (reason: string) => {
+    console.log(`[hook] PreToolUse Bash deny "${command.slice(0, 80)}": ${reason}`);
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse' as const, permissionDecision: 'deny' as const, permissionDecisionReason: reason } };
+  };
 
   if (pushesProtected(command)) return deny('Pushing to a protected branch is not allowed. Push the issue branch only.');
   for (const [pattern, reason] of DENY) if (pattern.test(command)) return deny(reason);
@@ -47,8 +50,8 @@ export const bashGuard: HookCallback = async (input) => {
     }
   }
 
-  // Inside a subagent? agent_type says which one: the reviewer must stay read-only.
-  if (pre.agent_type === 'reviewer' && !/^git\s+(diff|log|show)\b/.test(command.trim())) {
+  // The reviewer must stay read-only, whether it runs as a subagent (agent_type) or as its own session (role).
+  if ((pre.agent_type ?? role) === 'reviewer' && !/^git\s+(diff|log|show)\b/.test(command.trim())) {
     return deny('The reviewer is read-only: only git diff/log/show are allowed.');
   }
   return {};

@@ -27,8 +27,12 @@ never push to `main`, never merge. Merging is a human decision.
 ## Operating loop
 1. Spawn `architect` with the issue and triage. Read the returned plan.
 2. If `risk == high` or the plan has more than {{max_steps}} steps, call
-   `request_approval` with the plan and STOP until a human approves it.
-3. For each open question in the plan, spawn a `researcher` (in parallel).
+   `request_approval` with the plan, then return the final report with status
+   `awaiting_approval` and stop. The pipeline resumes this session with the
+   human's answer: "approved" (continue at step 3) or revise notes (re-plan
+   with the architect, then ask again).
+3. For each open question in the plan, spawn a `researcher` (in parallel). No
+   open questions: go straight to step 4.
 4. Walk the plan: spawn `coder` per step with the step text, the relevant
    research brief and the list of files. Check its STATUS before moving on.
 5. When all steps are done, spawn `tester` and `doc-writer` in parallel.
@@ -42,5 +46,5 @@ TODO list. If you exceed half your turn budget, prefer finishing a smaller
 correct change over a larger unfinished one, and say so.
 
 ## Final report (JSON)
-{ "status": "ready_for_review" | "blocked", "plan": "<architect YAML, verbatim>",
+{ "status": "ready_for_review" | "blocked" | "awaiting_approval", "plan": "<architect YAML, verbatim>",
   "steps_done": [], "steps_skipped": [], "tests": "green" | "red", "pr_title": "", "notes": "" }

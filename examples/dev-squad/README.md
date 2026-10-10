@@ -26,7 +26,8 @@ and **coder** nodes drill down into their own towers.
 | Evaluator-optimizer (max 3 rounds) | `src/loop/review-loop.ts` |
 | Prompt chaining with gates | `src/pipeline.ts` |
 | Fresh-context verifier | `src/loop/verify.ts` |
-| Human in the loop | `src/tools/request-approval.ts`, draft PRs, merge denied |
+| Human in the loop | `src/tools/request-approval.ts` + `src/loop/await-approval.ts` (the lead ends its session, the pipeline polls and resumes it), draft PRs, merge denied |
+| Failure path | `src/pipeline.ts`: any throw or the $15 issue budget comments on the issue and logs the run |
 | Lifecycle hooks | `src/hooks/` (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop) |
 | Least-privilege subagents | `.claude/agents/*.md` |
 | Memory | `CLAUDE.md`, `memory/patterns.md`, `memory/session-log.md` |

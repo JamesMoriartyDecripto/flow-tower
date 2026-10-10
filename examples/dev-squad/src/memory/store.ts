@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { PATHS } from '../config';
+import { recentEntries } from './session-log';
 
 /**
  * File-based long-term memory: memory/patterns.md holds DO/DON'T rules that the
@@ -51,4 +52,16 @@ export function rememberPattern(p: Pattern): boolean {
   const marker = '<!-- squad:append -->';
   writeFileSync(PATHS.patterns, file.includes(marker) ? file.replace(marker, `${line}\n${marker}`) : `${file.trimEnd()}\n${line}\n`);
   return true;
+}
+
+/**
+ * Called by the pipeline after the review loop. A blocking finding that an earlier run of
+ * another issue already logged becomes a DONT rule for these areas. Returns how many were added.
+ */
+export function promoteRecurring(findings: { issue: string }[], areas: string[], issue: number): number {
+  const norm = (s: string) => s.toLowerCase().replace(/\W+/g, ' ').trim();
+  const past = recentEntries(50).filter((e) => e.issue !== issue).map((e) => norm(e.lesson));
+  return findings.filter((f) => past.some((l) => l.includes(norm(f.issue))))
+    .filter((f) => rememberPattern({ kind: 'DONT', areas: areas.length ? areas : ['*'], text: f.issue, issue }))
+    .length;
 }

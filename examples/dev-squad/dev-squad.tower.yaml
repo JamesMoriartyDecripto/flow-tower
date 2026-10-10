@@ -18,16 +18,10 @@ runtimes:
   vps:
     kind: container
     label: "Squad container"
-    description: "Pipeline, lead and every subagent in one docker compose stack; worktrees on a volume."
+    description: "Webhook receiver, pipeline, lead and every subagent in one docker compose service; worktrees on a volume. The VPS TLS proxy forwards /github to it."
     host: "squad-01.example.com"
     provider: "hetzner"
     region: "fsn1"
-  webhook:
-    kind: serverless
-    label: "Webhook receiver"
-    description: "Cloudflare Worker that verifies the HMAC, dedupes deliveries and enqueues issues."
-    provider: "cloudflare"
-    url: "https://hooks.dev-squad.example.com/github"
   actions:
     kind: ci
     label: "GitHub Actions"
@@ -162,14 +156,15 @@ layers:
         description: An issue labelled `squad:go` by a maintainer. Humans always opt in.
         files: [src/main.ts]
       - id: webhook
-        runtime: webhook
+        runtime: vps
         resources:
           - { kind: log, label: "Webhook log", path: "logs/webhook.log" }
-          - { kind: endpoint, label: "Webhook URL", url: "https://hooks.dev-squad.example.com/github" }
+          - { kind: endpoint, label: "Webhook URL", url: "https://squad-01.example.com/github" }
+          - { kind: config, label: "docker compose", path: "deploy/docker-compose.yml" }
         label: Webhook receiver
-        description: Verifies the HMAC signature, acks in under 10s, dedupes redeliveries, caps parallel issues.
+        description: "`main.ts serve` in the squad container. Bad HMAC: 401; bad JSON: 400; otherwise acks 202 at once, ignores everything but the squad:go label, dedupes redeliveries in memory and caps issues in flight."
         files: [src/main.ts]
-        limits: { concurrency: 2, description: "At most 2 issues in flight." }
+        limits: { concurrency: 2, description: "SQUAD_MAX_PARALLEL_ISSUES (default 2) issues in flight." }
         meta: { endpoint: POST /github }
       - id: triage
         agent: triage
@@ -178,20 +173,20 @@ layers:
         runtime: vps
         type: decision
         label: Route?
-        description: Model proposes a route; deterministic policy upgrades sensitive quickfixes to full.
+        description: "Model proposes a route; deterministic policy decides last: the squad:skip label rejects first, then quickfixes with complexity > 2 or a sensitive area (auth, billing, payment...) are upgraded to full."
         decision: { output: choice, candidates: [quickfix, full, needs_info, reject] }
         files: [src/triage.ts]
       - id: quickfix
         runtime: vps
         status: deprecated
         label: Quick-fix path
-        description: "Deprecated. Complexity 1-2, one file, single coder run. Being folded into the full path with a one-step plan so every change gets a plan record."
+        description: "Deprecated. Complexity 1-2, one file: one coder run, then the doc-writer for the CHANGELOG entry and PR body, then the review loop. Being folded into the full path with a one-step plan so every change gets a plan record."
         files: [src/pipeline.ts]
       - id: needs_info
         runtime: github
         type: output
         label: Ask reporter
-        description: Comments the clarifying questions on the issue and stops. No worktree is created.
+        description: "needs_info: comments the clarifying questions; reject: comments the reason. Either way the run stops and no worktree is created."
         files: [src/pipeline.ts]
     edges:
       - issue -> webhook
@@ -226,8 +221,8 @@ layers:
         type: human
         label: Plan sign-off
         description: Before any code is written. Maintainer approves with the `squad:approved` label or comments `/squad revise <notes>`.
-        approval: { by: maintainer, via: [issue label, issue comment], actions: [approve, respond], when: "risk == high or steps > 6", timeout: 4h }
-        files: [src/tools/request-approval.ts, src/config.ts]
+        approval: { by: maintainer, via: [issue label, issue comment], actions: [approve, respond], when: "risk == high or steps > 6", timeout: 4h, on_timeout: reject, rounds: 2, description: "The lead asks and ends its session; the pipeline polls the issue every 2 min and resumes the same session with the answer. No answer in 4h, or a third revise, pauses the run." }
+        files: [src/loop/await-approval.ts, src/tools/request-approval.ts, src/config.ts]
       - id: dispatch
         runtime: vps
         label: Dispatch steps
@@ -245,7 +240,7 @@ layers:
       - { from: plan, to: signoff, kind: handoff, group: plan gate, label: high risk }
       - { from: plan, to: dispatch, group: plan gate, label: low risk }
       - "signoff -> dispatch: approved"
-      - "signoff -> architect [return]: revise"
+      - "signoff -> architect [return]: revise, max 2"
       - "integrate -> lead [return]: report"
 
   # 3 ───────────────────────────────────────────────────────────────
@@ -263,7 +258,7 @@ layers:
         runtime: vps
         type: decision
         label: Suite green?
-        description: Tester result. Red goes back to the coder at most 2 extra times before the lead reports blocked.
+        description: "Tester result. Red goes back to the coder at most 2 extra times before the lead reports blocked (a rule in the lead's prompt, not enforced in code)."
         decision: { output: binary, candidates: [green, red] }
         files: [.claude/agents/tester.md]
       - id: doc_writer
@@ -311,7 +306,7 @@ layers:
         runtime: vps
         type: decision
         label: All pass?
-        description: Approve AND pass. Only blocking findings (and critical/high security) fail the round.
+        description: "Passes when nothing blocks: the reviewer's blocking findings plus critical/high security findings. Lower security findings become follow-ups on the PR."
         decision: { output: binary, candidates: [approved, changes] }
         files: [src/loop/review-loop.ts]
       - id: round_cap
@@ -326,11 +321,12 @@ layers:
         runtime: github
         type: human
         label: Escalate
-        description: Loop did not converge. Open findings are posted on the issue for a maintainer.
+        description: "The loop did not converge, or the verifier held the change: open findings or gaps are posted on the issue for a maintainer."
         files: [src/pipeline.ts]
       - id: verifier
         agent: verifier
         label: Fresh verifier
+        description: "Only the issue and the branch. Ships when its verdict is ship, the suite is green and every criterion is met: checked in code, whatever the model says."
       - id: approval
         runtime: github
         resources:
@@ -348,15 +344,23 @@ layers:
         label: Merged PR
         description: Merged by a human. The run is recorded in the session log.
         files: [memory/session-log.md]
+      - id: stopped
+        runtime: github
+        type: output
+        label: Run stopped
+        description: "Any throw (gh, git worktree, an agent's JSON, open_pr) or the $15 issue budget ends here: a comment on the issue and a failed / over_budget entry in the session log. The worktree is kept for debugging."
+        files: [src/pipeline.ts]
     edges:
       - "fanout -> reviewer [spawn]: rubric"
       - "fanout -> security [spawn]: SAST"
       - "reviewer -> verdict [return]: verdict JSON"
       - "security -> verdict [return]: findings"
-      - "verdict -> verifier: approved"
-      - "verdict -> round_cap: changes"
+      - "verdict -> verifier: nothing blocks"
+      - "verdict -> round_cap: blocking findings"
       - "round_cap -> escalate [handoff]: cap hit"
       - "approval -> merged: approved"
+      - "verifier -> escalate: hold"
+      - "fanout -> stopped: verdict not JSON"
 
   # 5 ───────────────────────────────────────────────────────────────
   - id: tools
@@ -382,21 +386,21 @@ layers:
         runtime: vps
         type: tool
         label: run_tests
-        description: Vitest/Playwright with a JSON reporter, summarized to the first 10 failures to save context.
+        description: Vitest/Playwright with a JSON reporter in the issue worktree, summarized to the first 10 failures to save context.
         files: [src/tools/run-tests.ts]
       - id: open_pr
         runtime: vps
         type: tool
         label: open_pr
-        description: Pushes the issue branch and opens a DRAFT PR. Refuses protected branches; argv only, no shell.
+        description: "Pushes the issue branch and opens a DRAFT PR from the worktree. Refuses protected branches; argv only, no shell. The pipeline checks its error result."
         files: [src/tools/open-pr.ts]
       - id: request_approval
         runtime: vps
         type: tool
         label: request_approval
-        description: Labels + comments + review request. Returns immediately with a ticket, so no agent waits holding tokens.
-        async: { mode: poll, description: "The pipeline polls the label / review state and resumes the session when a human answers." }
-        files: [src/tools/request-approval.ts]
+        description: "Label + comment (+ review request for a merge). Returns at once with a ticket, so no agent waits holding tokens."
+        async: { mode: poll, interval: 2m, timeout: 4h, description: "Plan: the lead ends its session; src/loop/await-approval.ts polls the issue for squad:approved or /squad revise and resumes it. Merge: the maintainer merges, nothing resumes." }
+        files: [src/tools/request-approval.ts, src/loop/await-approval.ts]
       - id: github
         runtime: github
         type: tool
@@ -441,7 +445,7 @@ layers:
         runtime: vps
         type: hook
         label: SessionStart
-        description: Injects learned patterns and recent runs as additionalContext; re-injects after compaction.
+        description: "Injects learned patterns and recent runs as additionalContext; re-injects after compaction. Lead and quick-fix sessions get the issue's area rules, evaluator sessions the global [*] ones."
         files: [src/hooks/context-loader.ts]
       - id: prompt_submit
         runtime: vps
@@ -461,7 +465,7 @@ layers:
         runtime: vps
         type: guard
         label: Bash guard
-        description: Denies force-push, merge, rm -rf, curl|sh, publish, env dumps; asks for push and installs.
+        description: "Denies force-push, merge, rm -rf, curl|sh, publish, env dumps. Asks for push, installs and infra commands: in pipeline runs nobody can answer, so they are denied. Keeps the reviewer to git diff/log/show (role passed by runAgent)."
         files: [src/hooks/bash-guard.ts]
       - id: secret_scan
         runtime: vps
@@ -475,7 +479,7 @@ layers:
           - { kind: config, label: "Permission rules", path: ".claude/settings.json" }
         type: guard
         label: Permission rules
-        description: settings.json allow / ask / deny, evaluated after hooks. Merge, force-push and workflow edits are denied.
+        description: "settings.json allow / ask / deny, evaluated after hooks; ask rules come before allowedTools. In pipeline runs an ask falls through to a headless canUseTool that denies it, except request_approval for the lead. Merge, force-push and workflow edits are denied."
         files: [.claude/settings.json]
       - id: post_tool
         runtime: vps
@@ -495,7 +499,7 @@ layers:
           - { kind: dashboard, label: "Spend per issue", url: "https://grafana.dev-squad.example.com/d/spend/spend-per-issue" }
         type: guard
         label: Turn & $ caps
-        description: Enforces maxTurns and maxBudgetUsd per query (agent budgets) and the run budget and limits ($15 per issue, subagent depth 1, concurrency 4).
+        description: "maxTurns and maxBudgetUsd per query (the SDK ends that query), subagent depth 1 and concurrency 4 (env), and the $15 issue budget the pipeline checks after every stage."
         files: [src/config.ts]
     edges:
       - session_start -> prompt_submit
@@ -506,7 +510,6 @@ layers:
       - "secret_scan -> permissions: allow"
       - "permissions -> post_tool: executed"
       - post_tool -> stop
-      - "budget -> stop: limit hit"
 
   # 7 ───────────────────────────────────────────────────────────────
   - id: memory
@@ -538,8 +541,8 @@ layers:
         status: experimental
         type: decision
         label: Seen twice?
-        description: A finding that recurs across 2+ issues is promoted to a permanent rule (deduped).
-        files: [src/memory/store.ts]
+        description: "After each review loop, a blocking finding already in the log of another issue becomes a DONT rule for the issue's areas (promoteRecurring, deduped). Matching is plain text, hence experimental."
+        files: [src/memory/store.ts, src/pipeline.ts]
       - id: context_pack
         runtime: vps
         label: Context pack
@@ -591,6 +594,8 @@ links:
   # intake -> orchestration / specialists
   - "intake.route -> orchestration.worktree [handoff]: full"
   - "intake.quickfix -> specialists.coder [spawn]: one-liner"
+  - "intake.quickfix -> specialists.doc_writer [spawn]: changelog + PR body"
+  - "intake.quickfix -> quality.fanout: diff"
   - "intake.triage -> tools.github [call]: open issues"
   - "intake.webhook -> harness.prompt_submit: issue text"
   # orchestration -> specialists
@@ -602,9 +607,16 @@ links:
   - "orchestration.integrate -> quality.fanout [handoff]: candidate diff"
   - "quality.round_cap -> specialists.coder [return]: fix list"
   - "quality.verifier -> tools.open_pr [call]: ship"
-  - "tools.request_approval -> quality.approval [handoff]: notify"
+  - { from: tools.request_approval, to: quality.approval, label: notify, async: true }
   - "quality.escalate -> memory.session_log [data]: open findings"
   - "quality.merged -> memory.session_log [data]: outcome"
+  - "quality.stopped -> memory.session_log [data]: failed, over_budget"
+  - "intake.triage -> quality.stopped: throws"
+  - "orchestration.worktree -> quality.stopped: git fails"
+  - "orchestration.lead -> quality.stopped: no JSON report"
+  - "orchestration.signoff -> quality.stopped: no answer in 4h"
+  - "tools.open_pr -> quality.stopped: error result"
+  - "harness.budget -> quality.stopped: over $15"
   # specialists -> tools
   - "specialists.researcher -> tools.context7 [call]: docs"
   - "specialists.coder -> tools.builtin [call]: Edit, Bash"

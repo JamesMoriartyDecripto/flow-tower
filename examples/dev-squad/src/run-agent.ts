@@ -1,4 +1,4 @@
-import { query, type AgentDefinition, type Options } from '@anthropic-ai/claude-agent-sdk';
+import { query, type AgentDefinition, type CanUseTool, type Options } from '@anthropic-ai/claude-agent-sdk';
 import { loadMcpServers, sdkEnv } from './config';
 import { buildHooks } from './hooks';
 import { squadServer } from './tools';
@@ -6,16 +6,28 @@ import { squadServer } from './tools';
 export interface AgentRun { text: string; costUsd: number; sessionId: string; ok: boolean }
 
 /**
+ * Pipeline runs are headless: nobody answers a permission prompt. settings.json `ask` rules
+ * (and the bash guard's `ask`) are checked before allowedTools and fall through to this
+ * callback, which allows only the tools listed here and denies the rest with a reason.
+ */
+export function headlessPermissions(allow: string[] = []): CanUseTool {
+  return async (toolName, input) => allow.includes(toolName)
+    ? { behavior: 'allow', updatedInput: input }
+    : { behavior: 'deny', message: `No human is watching this run, so ${toolName} cannot be confirmed. Take a path that needs no approval.` };
+}
+
+/**
  * Runs ONE agent definition as the main thread of a brand-new session.
- * Used for the reviewer, security auditor, fixer and verifier: no parent
- * conversation leaks in, so each judgement is made with fresh context.
+ * Used for the quick-fix coder, reviewer, security auditor, fixer, verifier and
+ * doc-writer: no parent conversation leaks in, so each judgement is made with fresh context.
+ * `role` tells the hooks which agent this is (a main thread has no agent_type).
  */
 export async function runAgent(
   agent: AgentDefinition,
   prompt: string,
-  opts: { cwd: string; issue: number; maxTurns: number; maxBudgetUsd: number; resume?: string } & Partial<Options>,
+  opts: { cwd: string; issue: number; role: string; areas?: string[]; maxTurns: number; maxBudgetUsd: number } & Partial<Options>,
 ): Promise<AgentRun> {
-  const { cwd, issue, ...rest } = opts;
+  const { cwd, issue, role, areas, ...rest } = opts;
   const run = query({
     prompt,
     options: {
@@ -24,8 +36,9 @@ export async function runAgent(
       model: agent.model,
       tools: agent.tools,
       allowedTools: agent.tools, // least privilege: exactly the tools in the agent file
-      mcpServers: { ...loadMcpServers(), squad: squadServer },
-      hooks: buildHooks({ worktree: cwd, issue }),
+      mcpServers: { ...loadMcpServers(), squad: squadServer(cwd) },
+      hooks: buildHooks({ worktree: cwd, issue, role, areas }),
+      canUseTool: headlessPermissions(),
       settingSources: ['project'],
       env: sdkEnv({ SQUAD_ISSUE: String(issue) }),
       ...rest,

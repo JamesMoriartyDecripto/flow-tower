@@ -28,6 +28,7 @@ export function contextLoader(ctx: { issue: number; areas?: string[] }): HookCal
       recent || '- none yet',
     ].join('\n');
 
+    console.log(`[hook] SessionStart context chars=${Math.min(pack.length, MAX_CHARS)} areas=${ctx.areas?.join(',') || '*'} recent_runs=${recent ? recent.split('\n').length : 0}`);
     return {
       hookSpecificOutput: {
         hookEventName: 'SessionStart' as const,

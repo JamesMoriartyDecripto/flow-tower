@@ -18,9 +18,10 @@ export interface Issue { repo: string; number: number; title: string; body: stri
 
 const sh = promisify(execFile);
 const TRIGGER_LABEL = 'squad:go';
-const seen = new Set<string>(); // webhook redelivery dedupe (use Redis in production)
+// In memory: one container, one process. Redeliveries after a restart run again (the worktree add then fails loudly).
+const seen = new Set<string>();
 const queue: Promise<void>[] = [];
-const MAX_PARALLEL_ISSUES = 2;
+const MAX_PARALLEL_ISSUES = Number(env.SQUAD_MAX_PARALLEL_ISSUES ?? 2);
 
 async function fetchIssue(repo: string, number: number): Promise<Issue> {
   const { stdout } = await sh('gh', ['issue', 'view', String(number), '-R', repo, '--json', 'title,body,labels']);
@@ -42,15 +43,27 @@ function serve(port: number) {
     let body = '';
     for await (const chunk of req) body += chunk;
     if (body.length > 1_000_000) return res.writeHead(413).end();
-    if (!verifySignature(body, req.headers['x-hub-signature-256'] as string)) return res.writeHead(401).end();
-
     const delivery = String(req.headers['x-github-delivery']);
-    const event = JSON.parse(body);
+    const log = (msg: string) => console.log(`[webhook] ${new Date().toISOString()} delivery=${delivery} ${msg}`);
+    if (!verifySignature(body, req.headers['x-hub-signature-256'] as string)) {
+      log('sig=invalid -> 401');
+      return res.writeHead(401).end();
+    }
+
+    let event;
+    try {
+      event = JSON.parse(body);
+    } catch {
+      log('bad JSON -> 400');
+      return res.writeHead(400).end();
+    }
     res.writeHead(202).end(); // ack fast: GitHub times out after 10s, agents take minutes
 
     const labelled = event.action === 'labeled' && event.label?.name === TRIGGER_LABEL;
-    if (req.headers['x-github-event'] !== 'issues' || !labelled || seen.has(delivery)) return;
+    if (req.headers['x-github-event'] !== 'issues' || !labelled) return log(`${req.headers['x-github-event']}.${event.action} ignored -> 202`);
+    if (seen.has(delivery)) return log(`issue=#${event.issue.number} duplicate -> 202 (deduped)`);
     seen.add(delivery);
+    log(`issues.labeled issue=#${event.issue.number} label=${TRIGGER_LABEL} -> 202 running=${queue.length} max_parallel=${MAX_PARALLEL_ISSUES}`);
 
     const issue: Issue = {
       repo: event.repository.full_name,

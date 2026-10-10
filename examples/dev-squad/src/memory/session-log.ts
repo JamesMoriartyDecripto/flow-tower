@@ -8,7 +8,7 @@ import { PATHS } from '../config';
  */
 export interface SessionEntry {
   issue: number;
-  outcome: 'merged' | 'pr_open' | 'escalated' | 'needs_info' | 'blocked' | 'stopped';
+  outcome: 'merged' | 'pr_open' | 'escalated' | 'needs_info' | 'blocked' | 'rejected' | 'failed' | 'over_budget' | 'stopped';
   rounds: number;
   costUsd: number;
   lesson: string;
