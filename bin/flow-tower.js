@@ -12,6 +12,7 @@ const HELP = `flow-tower — 3D tower visualizer for agentic systems
 
 Usage
   flow-tower <file.tower.yaml | dir> [more files or dirs...] [--port 5317] [--no-open | --browser <app>]
+  flow-tower serve [...] [--hub] [--host <addr>] [--allowed-host <name>] [--ingest-only]
   flow-tower init [file.tower.yaml]
   flow-tower emit --source <claude-code|codex|pi|hermes> [--tower t] < payload.json  (hooks; JSONL streams live)
   flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [-m text]
@@ -30,6 +31,12 @@ Options
   -p, --port     Port to listen on (default 5317)
       --no-open  Do not open the browser
       --browser  Open this browser instead of the default (firefox, "google chrome", safari...; also $BROWSER)
+      --hub      Hub mode: a shared server (also FLOW_TOWER_HUB=1). Remote requests may only ingest events
+                 with a per-sender token (flow-tower token add <id>); the UI needs a listed viewer.
+      --host     Bind address (default 127.0.0.1). A non-loopback address requires --hub.
+      --ingest-only  Serve nothing but the ingest routes, even locally (also FLOW_TOWER_INGEST_ONLY=1)
+      --allowed-host Name the Vite server accepts in Host, e.g. hub.tailnet-xyz.ts.net (repeatable; needed
+                 when tailscale serve or a proxy forwards with its own Host; also FLOW_TOWER_ALLOWED_HOSTS, comma list)
       --no-update-check  Do not ask GitHub once a day whether a newer release exists
                  (also FLOW_TOWER_NO_UPDATE_CHECK=1; always off in CI)
       --url      emit: server URL (default http://127.0.0.1:5317); a second server runs on another --port
@@ -105,6 +112,11 @@ const { values, positionals } = parseArgs({
     browser: { type: 'string' },
     'no-update-check': { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
+    // Hub mode (#83): `--host` is the bind address (identity's --machine maps to host, see below).
+    hub: { type: 'boolean', default: false },
+    host: { type: 'string' },
+    'ingest-only': { type: 'boolean', default: false },
+    'allowed-host': { type: 'string', multiple: true },
     // emit
     url: { type: 'string', default: 'http://127.0.0.1:5317' },
     source: { type: 'string' },
@@ -272,16 +284,50 @@ if (positionals[0] === 'init') {
   process.exit(0);
 }
 
-const entries = positionals.map((p) => resolve(p));
+const entries = (positionals[0] === 'serve' ? positionals.slice(1) : positionals).map((p) => resolve(p));
 const missing = entries.filter((e) => !existsSync(e));
 if (missing.length) {
   console.error(`not found: ${missing.join(', ')}`);
   process.exit(1);
 }
 
+/**
+ * Hub mode (#83): the server may be reached from off this machine. Ingest then needs a token, viewing
+ * needs the tailnet user in <home>/hub.json, everything else is refused (src/server/hub.ts).
+ */
+const isLoopbackHost = (h) => h === 'localhost' || h === '::1' || h === '[::1]' || /^127\./.test(h);
+const truthy = (v) => /^(1|true|yes)$/i.test(v ?? '');
+const hub = values.hub || truthy(env.FLOW_TOWER_HUB);
+const ingestOnly = values['ingest-only'] || truthy(env.FLOW_TOWER_INGEST_ONLY);
+const bindHost = values.host ?? '127.0.0.1';
+
+if (!hub && !isLoopbackHost(bindHost)) {
+  console.error(`refusing to bind ${bindHost} without --hub: only loopback may run unguarded.
+To serve a shared hub, run: flow-tower <files> --hub --host ${bindHost}`);
+  process.exit(1);
+}
+if (hub && !env.FLOW_TOWER_TOKEN && !hasActiveToken()) {
+  console.error(`hub mode needs a token to accept any event.
+create one: flow-tower token add <id>\nThen send it as x-flow-tower-token (or FLOW_TOWER_TOKEN for a shared secret).`);
+  process.exit(1);
+}
+
+/** True when a per-sender token is active: the store is TypeScript, so ask its own CLI (as `token` does). */
+function hasActiveToken() {
+  const script = join(pkgRoot, 'src', 'cli', 'token.ts');
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, 'list'], { encoding: 'utf8' });
+  return /\bactive\b/.test(r.stdout ?? '');
+}
+
+// Tailscale serve (or any proxy) forwards with its own Host header: Vite would refuse it without this list.
+const allowedHosts = [...(values['allowed-host'] ?? []), ...(env.FLOW_TOWER_ALLOWED_HOSTS ?? '').split(',')]
+  .map((h) => h.trim()).filter(Boolean);
+
 // The vite plugin reads its entries (and the update-check opt-out) from the environment of this process.
 env.FLOW_TOWER_ENTRIES = JSON.stringify(entries);
 if (values['no-update-check']) env.FLOW_TOWER_NO_UPDATE_CHECK = '1';
+if (hub) env.FLOW_TOWER_HUB = '1';
+if (ingestOnly) env.FLOW_TOWER_INGEST_ONLY = '1';
 // Vite opens the page with the `open` package, which reads $BROWSER.
 if (values.browser) env.BROWSER = values.browser;
 const { createServer } = await import('vite');
@@ -292,8 +338,14 @@ const server = await createServer({
   // otherwise re-optimize the same files under each other, and an open page fails to load renamed chunks.
   cacheDir: join(pkgRoot, 'node_modules', '.vite', `port-${values.port}`),
   logLevel: 'warn',
-  server: { port: Number(values.port), open: !values['no-open'] },
+  server: {
+    port: Number(values.port),
+    host: bindHost,
+    open: !values['no-open'],
+    // Only when the user named hosts: an explicit list must not replace Vite's localhost/IP defaults for nothing.
+    ...(allowedHosts.length ? { allowedHosts } : {}),
+  },
 });
 await server.listen();
-console.log(`\n  FLOW//TOWER  ${entries.join('  ')}\n`);
+console.log(`\n  FLOW//TOWER  ${entries.join('  ')}${hub ? '  [hub]' : ''}${ingestOnly ? '  [ingest-only]' : ''}\n`);
 server.printUrls();

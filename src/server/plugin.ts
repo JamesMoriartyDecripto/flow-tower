@@ -12,6 +12,7 @@ import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
 import { userHome, warnIfInRepo } from './home.ts';
 import { crossSite } from './guard.ts';
+import { hubGuard, hubOptionsFromEnv } from './hub.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
@@ -62,6 +63,11 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       server.watcher.on('add', onFsEvent);
       server.watcher.on('unlink', onFsEvent);
 
+      // Hub mode (#83) goes first, before any route: a remote request is checked from the socket and the
+      // proxy headers alone, so no endpoint is reached (not even the static UI) before that decision.
+      const hubOpts = hubOptionsFromEnv();
+      if (hubOpts.hub || hubOpts.ingestOnly) server.middlewares.use(hubGuard(hubOpts));
+
       // Reads are for this page only: Vite's default CORS would let a page on another localhost port read them.
       server.middlewares.use('/api/workspace', (req, res) => {
         if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
@@ -74,7 +80,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         () => state?.workspace,
         (events) => server.ws.send(EVENTS_EVENT, events),
         // The user folder holds the per-sender tokens (#83); FLOW_TOWER_TOKEN stays the shared legacy secret.
-        { legacy: env.FLOW_TOWER_TOKEN, home: userHome() },
+        { legacy: env.FLOW_TOWER_TOKEN, home: userHome(), hub: hubOpts.hub },
       );
       server.middlewares.use('/api/events', hub.handle);
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.
