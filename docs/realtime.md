@@ -107,6 +107,8 @@ For anything else, add `match:` rules to a node or an agent. Rules use `field:pa
 
 The feed marks events that matched nothing as *unmapped*, which helps when writing rules.
 
+**Every tower in the library is matched.** Two versions of the same project opened together (the one in use and a proposed v2) light up together. To keep them apart, restrict events to one tower with `tower` (matched against the tower id or name): in the event, as `?tower=v2` on the hook URL (`/api/events?source=claude-code&tower=v2`), or `emit --tower v2`. Or open each version on its own server (`--port 5318`): events go only to the server on the port the hooks or `emit --url` point at.
+
 ## Security
 
 - The server binds to `127.0.0.1`.

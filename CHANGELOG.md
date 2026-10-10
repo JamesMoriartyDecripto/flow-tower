@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- Live events: `?tower=` on `/api/events` (and `emit --tower` with `--source` too) restricts matching to one tower, for two versions of the same project in one library (#52).
+- Docs: a second server with `--port`, and where live events go (#52).
+
 ### Fixed
 - Edge labels no longer sit under the nodes before and after them: the layout reserves room for each label and places it next to its edge, in the 3D scene and in the SVG / PNG export (where long labels are no longer cut).
 
