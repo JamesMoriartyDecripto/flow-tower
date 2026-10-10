@@ -107,6 +107,8 @@ describe('hub guard: path normalisation (#83)', () => {
     expect(normalizePath('/api/file.')).toBe('/api/file');
     expect(normalizePath('/api%2Ffile')).toBe('/api/file');
     expect(normalizePath('/%61pi/file')).toBe('/api/file');
+    expect(normalizePath('/api/./file')).toBe('/api/file');
+    expect(normalizePath('/api/file/.')).toBe('/api/file/');
   });
 
   it('refuses a remote viewer on the sensitive routes however they are spelled', () => {

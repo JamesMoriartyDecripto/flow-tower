@@ -223,6 +223,10 @@ Hub mode changes what the server accepts, so state it once, here:
   own Host header means the server is reachable through that proxy) is refused too: the CLI exits 1 and says
   to add `--hub`. With `--hub` it still runs on `127.0.0.1` and is reached only through `tailscale serve`
   (TLS on the tailnet). Never Funnel.
+- **Only a proxy that says so.** The hub tells a remote request from a local one by the socket and by the
+  proxy headers (`X-Forwarded-For`, `Forwarded`, `X-Real-IP`, `Tailscale-User-Login`). `tailscale serve` sets
+  them. Never put a forwarder that adds none in front of the hub port (`ssh -L`/`-R`, `socat`, a proxy told
+  to drop them): its requests would look local and skip every hub rule.
 - **Sender identity.** A per-sender token (`flow-tower token add|list|revoke|pause|resume`) is stored as
   its **sha256** in `~/.config/flow-tower/tokens.json` (0600), never the plaintext. The **token decides who
   sent it**: the id in `ft_<id>_<secret>` is the sender, and events are attributed to it. `revoke` /

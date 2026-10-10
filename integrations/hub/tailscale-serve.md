@@ -36,3 +36,5 @@ flow-tower emit --kind tool.start --agent claude-code -m "opened the repo"
 
 `flow-tower emit` reads both variables, so hooks and scripts need no change beyond the environment. A
 sender that is not a viewer can still ingest; it just cannot open the UI.
+
+Only `tailscale serve` (or another proxy that adds `X-Forwarded-For`) may front the hub port: an SSH tunnel or `socat` adds no header, so its requests would look local to the hub.

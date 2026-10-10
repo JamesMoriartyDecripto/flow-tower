@@ -114,6 +114,13 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
     const authz = authorize(req, auth);
     if (!authz.ok) return json(res, 401, { error: 'bad or missing token' });
+    // Same per-sender bucket as /api/events, one token per request before the (up to 4 MB) body is read.
+    const remote = auth.ingestOnly || isRemote(req, { hub: auth.hub ?? hubMode() });
+    const key = authz.sender ?? (remote ? req.socket?.remoteAddress ?? 'remote' : undefined);
+    if (key && !bucket.take(key, 1)) {
+      res.setHeader('Retry-After', String(bucket.retryAfter(key)));
+      return json(res, 429, { error: 'too many requests, retry later' });
+    }
     const encoding = encodingOf(req);
     if (!encoding) return json(res, 415, unknownEncoding());
     void readBody(req, res, MAX_OTLP_BODY, encoding).then((chunks) => {

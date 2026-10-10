@@ -35,10 +35,14 @@ export const hubOptionsFromEnv = (env: NodeJS.ProcessEnv = process.env): HubOpti
 export function normalizePath(raw: string): string {
   let path = raw;
   try { path = decodeURIComponent(path); } catch { /* a malformed escape must not throw: classify it as sent */ }
-  return path
-    .replace(/\/{2,}/g, '/') // connect collapses nothing: /api//file still reached the route
-    .replace(/\.+(\/|$)/g, '$1') // some stacks strip a trailing dot before routing, a plain compare did not
-    .toLowerCase(); // mounts are matched case-insensitively
+  // Until stable: removing a dot segment can leave a "//" behind (/api/./file), which must collapse too.
+  for (let prev = ''; prev !== path;) {
+    prev = path;
+    path = path
+      .replace(/\/{2,}/g, '/') // connect collapses nothing: /api//file still reached the route
+      .replace(/\.+(\/|$)/g, '$1'); // some stacks strip a trailing dot before routing, a plain compare did not
+  }
+  return path.toLowerCase(); // mounts are matched case-insensitively
 }
 
 /** POST /api/events and the OTLP receivers: the only routes a remote sender may use. */
