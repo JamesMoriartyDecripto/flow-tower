@@ -118,6 +118,13 @@ const FeedRow = memo(function FeedRow({ e, label, away, mapped, onJump }: {
         {!mapped && <em> unmapped</em>}
       </span>
       {e.message && <span className="msg" title={e.message}>{e.message}</span>}
+      {/* Who ran it and where: small chips, so a line stays readable even with long messages. */}
+      {(e.host || e.user) && (
+        <span className="feed-chips">
+          {e.host && <span className="chip" title={`host: ${e.host}`}>{e.host}</span>}
+          {e.user && <span className="chip" title={`user: ${e.user}`}>@{e.user}</span>}
+        </span>
+      )}
     </button>
   );
 }, (a, b) => a.e === b.e && a.label === b.label && a.away === b.away && a.mapped === b.mapped && a.onJump === b.onJump);
@@ -128,16 +135,23 @@ export function NodeLiveInfo({ nodeKey }: { nodeKey: string }) {
   useLive((s) => s.version); // re-render on new events
   const live = tower ? useLive.getState().nodes.get(`${tower.id}#${nodeKey}`) : undefined;
   if (!live || !findNode(tower, nodeKey)) return null;
+  const where = live.where;
+  // runtimeRef points at a runtime declared by the tower; its label reads better than the raw id.
+  const runtime = where && (tower?.runtimes?.[where.runtimeRef ?? '']?.label ?? where.runtime ?? where.runtimeRef);
+  // "Running now on claude-code · gpu-1 · user ada"
+  const parts = [runtime, where?.host, where?.user && `user ${where.user}`].filter(Boolean).join(' · ');
   return (
     <div className="section">
       <span className="title">Live</span>
       <dl className="kv">
         <dt>state</dt><dd className={live.open > 0 ? 'live-run' : ''}>{live.open > 0 ? `running (${live.open})` : 'idle'}</dd>
+        {/* Where the node ran last: whatever the last event that named a user, host or runtime said. */}
+        {where && parts && <><dt>where</dt><dd>Running now on {parts} <span className="dim">· {time(where.ts)}</span></dd></>}
         <dt>events</dt><dd>{live.count}</dd>
         <dt>last</dt><dd>{live.last ? `${time(live.last.ts)} · ${live.last.kind}${live.last.tool ? ` · ${live.last.tool}` : ''}` : '—'}</dd>
         {live.last?.message && <><dt>message</dt><dd>{live.last.message}</dd></>}
         {live.errorTs > 0 && <><dt>last error</dt><dd className="live-error">{time(live.errorTs)}</dd></>}
-        {live.usage && <><dt>usage</dt><dd>{formatUsage(live.usage)} · {live.usage.calls} model calls</dd></>}
+        {live.usage && <><dt>usage</dt><dd>{live.estimated ? '≈ ' : ''}{formatUsage(live.usage)} · {live.usage.calls} model calls</dd></>}
       </dl>
     </div>
   );

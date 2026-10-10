@@ -5,6 +5,16 @@ import type { Workspace } from '../core/types';
 import { keepAlive } from './scene/frameBudget';
 import { STATIC } from './staticData';
 
+/** Who/where a node last ran: copied from the last event that carried any of these. */
+export interface LiveWhere {
+  host?: string;
+  runtime?: string;
+  runtimeRef?: string;
+  user?: string;
+  /** Timestamp of the event that set this, so the UI can tell how fresh it is. */
+  ts: number;
+}
+
 /** Live activity of one node ("tower#layer.node"). Read every frame by the scene, so keep it flat. */
 export interface NodeLive {
   /** Open starts (tool/agent) not yet ended. */
@@ -17,6 +27,10 @@ export interface NodeLive {
   last?: FlowEvent;
   /** Summed from `usage` events (OTLP telemetry, Pi, Codex exec...). */
   usage?: Usage;
+  /** True when the usage above was estimated, not reported by the runtime: shown as "≈". */
+  estimated?: boolean;
+  /** Who/where the node last ran, from the last event that named a user, host or runtime. */
+  where?: LiveWhere;
 }
 
 export interface Usage { tokens: number; cost: number; calls: number }
@@ -111,7 +125,16 @@ export const useLive = create<LiveStore>()((set, get) => ({
         n.lastTs = Math.max(n.lastTs, e.ts);
         n.count++;
         n.last = e;
-        if (e.kind === 'usage') n.usage = addUsage(n.usage, e);
+        // Merge into a fresh object (copy-on-write): an event that only names the host must not wipe
+        // the runtime or user seen just before, and it is unknown fields, not a run end, that clears them.
+        if (e.host || e.runtime || e.runtimeRef || e.user) {
+          n.where = { host: e.host ?? n.where?.host, runtime: e.runtime ?? n.where?.runtime, runtimeRef: e.runtimeRef ?? n.where?.runtimeRef, user: e.user ?? n.where?.user, ts: e.ts };
+        }
+        if (e.kind === 'usage') {
+          n.usage = addUsage(n.usage, e);
+          // From the latest usage event only: an exact report replaces an estimated one.
+          n.estimated = e.estimated ?? false;
+        }
         nodes.set(key, n);
       }
     }
