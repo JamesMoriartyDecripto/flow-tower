@@ -49,7 +49,7 @@ test('voice: a command acts at once, a question gets a streamed answer that show
 
 test('voice journal: turns are written, a correction marks the last one, accepted aliases apply first (#68)', async ({ page }) => {
   const id = ws.projects.find((p) => p.startsWith('dev-squad/'))!;
-  const journal: { entry?: { ts: number; heard: string; route: string; did: string; outcome: string }; mark?: { ts: number; outcome: string } }[] = [];
+  const journal: { entry?: { ts: number; heard: string; route: string; did: string; outcome: string; node?: string; layer?: string }; mark?: { ts: number; outcome: string } }[] = [];
   const memory = { aliases: [{ heard: 'smistatore', means: 'Triage router' }], notes: [], pending: [], reviewedUpTo: 0 };
   const stats = { days: 7, turns: 0, agentTurns: 0, notUnderstood: 0, corrected: 0, undone: 0, interrupted: 0, cost: 0, reviews: 0, reviewCost: 0 };
   // Every voice route answered here: nothing is billed, nothing reaches the server's journal folder.
@@ -85,6 +85,8 @@ test('voice journal: turns are written, a correction marks the last one, accepte
   await hear('no, il terzo livello');
   await expect.poll(() => journal.find((j) => j.mark)?.mark).toEqual({ ts: first.ts, outcome: 'corrected' });
   await expect.poll(() => journal.filter((j) => j.entry).length).toBe(2);
+  // Where the user was when they said it: the node selected by the first command, and its layer.
+  expect(journal.filter((j) => j.entry)[1].entry).toMatchObject({ node: triage.key, layer: expect.any(String) });
 
   // Mic off with suggestions waiting (the review runs at mic-off): the caption stays with its chip; ✕ dismisses it.
   await page.evaluate(async () => {

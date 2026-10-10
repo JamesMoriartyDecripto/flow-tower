@@ -42,7 +42,8 @@ export function VoiceLearning() {
           Last {s.days} days: {s.turns} turns · {s.notUnderstood}% not understood · {s.corrected}% corrected · {s.undone}% undone · {s.interrupted}% interrupted
           {s.agentMs ? ` · answers in ${(s.agentMs / 1000).toFixed(1)} s` : ''}
           {s.firstAudioMs ? ` · first audio after ${(s.firstAudioMs / 1000).toFixed(1)} s` : ''}
-          {s.cost ? ` · $${s.cost.toFixed(4)}` : ''}
+          {s.sttMs ? ` · transcribed in ${(s.sttMs / 1000).toFixed(1)} s` : ''}
+          {s.cost ? ` · $${s.cost.toFixed(4)} ($${(s.costPerTurn ?? 0).toFixed(5)} a turn)` : ''}
           {s.reviews ? ` · ${s.reviews} review${s.reviews > 1 ? 's' : ''} $${s.reviewCost.toFixed(4)}` : ''}
         </p>
       )}

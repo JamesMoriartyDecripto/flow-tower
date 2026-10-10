@@ -52,7 +52,10 @@ export function isForbiddenSync(abs: string, path = abs) {
   return isSecretPath(path) || isSecretPath(abs) || isSecretPath(real) || within(h, abs) || within(h, real) || within(realOrSelf(h), real);
 }
 
-/** realpath, or the path itself when it does not exist. */
+/**
+ * realpath, or the path (resolved) when it does not exist. The native call returns the real case of each
+ * name on case-insensitive disks (macOS, Windows), so "MYHOME" and "myhome" compare equal.
+ */
 export function realOrSelf(path: string) {
-  try { return realpathSync(path); } catch { return path; }
+  try { return realpathSync.native(path); } catch { return resolve(path); }
 }

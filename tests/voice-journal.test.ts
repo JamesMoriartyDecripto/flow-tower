@@ -43,6 +43,25 @@ describe('voice journal store', () => {
     expect(store.memory().aliases).toEqual([]);
   });
 
+  it('keeps the cost and latency of each stage and where the user was, sanitized', () => {
+    const t = Date.now() - 10_000;
+    store.append({ ts: t, heard: 'spiegami', route: 'agent', did: 'Ok.', outcome: 'done', ms: 900, cost: 0.002, sttMs: 412.6, sttCost: 0.0005,
+      language: 'it', layer: 'intake\nlayer', node: 'triage' });
+    store.append({ ts: t + 1, heard: 'livello due', route: 'parser', did: 'L02', outcome: 'done', sttMs: -3, sttCost: 'free', layer: 42, node: '' });
+    store.append({ ts: t + 2, heard: 'livello tre', route: 'parser', did: 'L03', outcome: 'done', sttMs: 588, sttCost: 0.0005 });
+    const [a, b] = store.read(t - 1);
+    expect(a).toMatchObject({ sttMs: 413, sttCost: 0.0005, language: 'it', layer: 'intake layer', node: 'triage' });
+    expect(b).not.toHaveProperty('sttMs');
+    expect(b).not.toHaveProperty('sttCost');
+    expect(b).not.toHaveProperty('layer');
+    expect(b).not.toHaveProperty('node');
+    expect(store.stats()).toMatchObject({ sttMs: 501, cost: 0.003, costPerTurn: 0.001 });
+    expect(store.unreviewed()).toBe(3);
+    store.save({ ...store.memory(), reviewedUpTo: t });
+    expect(store.unreviewed()).toBe(2);
+    store.forget();
+  });
+
   it('takes a turn time from the page only within [now - 1 day, now + 1 min]', () => {
     const now = Date.now();
     const at = (ts: unknown) => {
@@ -183,6 +202,20 @@ describe('voice journal routes', () => {
     expect(r.pending.map((p: { heard: string }) => p.heard)).toEqual(['triaje']);
   });
 
+  it('counts unreviewed turns in its answers, and shows the reviewer where the user was', async () => {
+    const store = voiceStore(mkdtempSync(join(tmpdir(), 'flow-tower-home-')));
+    let sent = '';
+    const fake = (async (_: string, init: RequestInit) => { sent = JSON.parse(String(init.body)).messages[1].content; return reply('{"suggestions":[]}'); }) as unknown as typeof fetch;
+    const url = await start('sk-or-test', fake, store);
+    const post = poster(url);
+    const entry = { heard: 'vai al triaje', route: 'parser', did: 'Not understood', outcome: 'not_understood', tower: 't', layer: 'intake', node: 'triage' };
+    expect(await (await post('/journal', { entry })).json()).toEqual({ ok: true, unreviewed: 1 });
+    expect((await (await post('/journal', { entry: { ...entry, heard: 'e poi' } })).json()).unreviewed).toBe(2);
+    expect((await (await fetch(`${url}/memory`)).json()).unreviewed).toBe(2);
+    expect((await (await post('/review', {})).json()).unreviewed).toBe(0);
+    expect(JSON.parse(sent).journal[0]).toMatchObject({ heard: 'vai al triaje', layer: 'intake', node: 'triage' });
+  });
+
   it('refuses an alias that is a word of the name it means, or of another real name', async () => {
     const aliases = [['triage', 'Triage router'], ['router', 'Dev Squad'], ['dev squad', 'Triage router'], ['triaje', 'Triage router']]
       .map(([heard, means]) => ({ kind: 'alias', heard, means, text: '', why: '', evidence: 3 }));
@@ -292,29 +325,40 @@ describe('aliases in the page', () => {
     expect(marks).toEqual(['corrected', 'corrected', 'corrected', 'corrected']);
   });
 
-  it('run one review at a time, keep the turns recorded meanwhile, and back off after a failure', async () => {
-    const turn = () => journal.record({ heard: 'livello due', route: 'parser', did: 'L02', outcome: 'done' });
+  it('count unreviewed turns on the server (a reload keeps them), one review at a time, back off after a failure', async () => {
+    // A fake server: it counts the turns written since the last successful review.
+    let unreviewed = 0;
     let reviews = 0;
     let answer!: (r: Response) => void;
     vi.stubGlobal('fetch', async (url: string) => {
-      if (!String(url).endsWith('/review')) return new Response('{}');
+      const path = String(url);
+      if (path.endsWith('/memory')) return new Response(JSON.stringify({ memory: { aliases: [], notes: [], pending: [] }, stats: {}, unreviewed }));
+      if (path.endsWith('/journal')) return new Response(JSON.stringify({ ok: true, unreviewed: ++unreviewed }));
       reviews++;
       return new Promise<Response>((r) => { answer = r; });
     });
-    await journal.reviewIfDue(); // whatever earlier tests counted: start from a clean count
-    for (let i = 0; i < 20; i++) turn();
+    const turn = () => journal.record({ heard: 'livello due', route: 'parser', did: 'L02', outcome: 'done' });
+    const settle = () => new Promise((r) => setTimeout(r, 10)); // the journal POSTs answer asynchronously
+    // After a reload the page has recorded nothing, but the server has 25 turns waiting: a review is due.
+    unreviewed = 25;
+    await journal.loadMemory();
     const first = journal.reviewIfDue();
     expect(await journal.reviewIfDue()).toBe(0); // a second mic-off while the first runs
     for (let i = 0; i < 5; i++) turn(); // turns while it runs
+    await settle();
     await vi.waitFor(() => expect(reviews).toBe(1));
-    answer(new Response(JSON.stringify({ pending: [] })));
+    unreviewed = 5; // what the server still counts after the review: the 5 written meanwhile
+    answer(new Response(JSON.stringify({ pending: [], unreviewed })));
     await first;
     for (let i = 0; i < 15; i++) turn(); // 5 + 15 = 20: due again
+    await settle();
     const failed = journal.reviewIfDue();
     await vi.waitFor(() => expect(reviews).toBe(2));
     answer(new Response(JSON.stringify({ error: 'review failed: the model sent no readable suggestions' }), { status: 502 }));
     expect(await failed).toBe(0);
-    expect(await journal.reviewIfDue()).toBe(0); // no retry right away
+    turn();
+    await settle();
+    expect(await journal.reviewIfDue()).toBe(0); // no retry right away: 20 more turns first
     expect(reviews).toBe(2);
   });
 

@@ -88,8 +88,12 @@ export function voiceHandler(cfg: VoiceConfig) {
           ...(provider && { provider }),
         });
         if (!r.ok) return failed(res, r);
-        const out = (await r.json()) as { text?: string; usage?: { cost?: number } };
-        json(res, 200, { text: (out.text ?? '').trim(), ms: Date.now() - started, cost: out.usage?.cost });
+        const out = (await r.json()) as { text?: string; language?: unknown; usage?: { cost?: number } };
+        json(res, 200, {
+          text: (out.text ?? '').trim(), ms: Date.now() - started, cost: out.usage?.cost,
+          // The detected language, when the provider reports it (journaled with the turn).
+          ...(typeof out.language === 'string' && /^[a-z]{2,3}$/i.test(out.language) && { language: out.language.toLowerCase() }),
+        });
       },
     },
     '/chat': {

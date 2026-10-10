@@ -18,3 +18,10 @@ dist-demo/
 
 # Agent worktrees (Claude Code)
 .claude/worktrees/
+
+# The voice journal and memory live in ~/.config/flow-tower; if FLOW_TOWER_HOME ever points into a
+# checkout, they (and an interrupted atomic write) must still never be committed.
+**/voice-journal.jsonl
+**/voice-memory.json
+**/voice-memory.json.*.tmp
+**/voice-journal.jsonl.*.tmp

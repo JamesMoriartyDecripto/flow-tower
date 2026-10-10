@@ -114,3 +114,40 @@ describe('tower files themselves (#68 security review, round 2)', () => {
     }
   });
 });
+
+describe('folder scans (#68 final audit)', () => {
+  it('never follows symlinked folders: three links to ".." still scan quickly to the one tower', async () => {
+    const { findTowerFiles } = await import('../src/core/loader');
+    const { mkdirSync, symlinkSync } = await import('node:fs');
+    const project = mkdtempSync(join(tmpdir(), 'flow-tower-loops-'));
+    mkdirSync(join(project, 'd'));
+    for (const l of ['a', 'b', 'c']) symlinkSync('..', join(project, 'd', l));
+    writeFileSync(join(project, 'only.tower.yaml'), 'name: Only\nlayers: []\n');
+    const started = performance.now();
+    expect(findTowerFiles([project]).map((f) => f.slice(project.length + 1))).toEqual(['only.tower.yaml']);
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
+  it('knows the user folder whatever the case it is written in (case-insensitive disks)', async ({ skip }) => {
+    const { loadLibrary } = await import('../src/core/loader');
+    const { env } = await import('node:process');
+    const { existsSync, mkdirSync } = await import('node:fs');
+    const project = mkdtempSync(join(tmpdir(), 'flow-tower-case-'));
+    mkdirSync(join(project, 'myhome'));
+    if (!existsSync(join(project, 'MYHOME'))) skip(); // a case-sensitive disk: two different folders
+    writeFileSync(join(project, 'myhome', 'private.tower.yaml'), 'name: PRIVATE TOWER\nlayers: []\n');
+    writeFileSync(join(project, 'ok.tower.yaml'), 'name: OK\nlayers: []\n');
+    const saved = env.FLOW_TOWER_HOME;
+    env.FLOW_TOWER_HOME = join(project, 'MYHOME');
+    try {
+      const scanned = await loadLibrary([project]);
+      expect(Object.keys(scanned.workspace.towers)).toEqual(['ok.tower.yaml']);
+      const direct = await loadLibrary([join(project, 'myhome', 'private.tower.yaml')]);
+      const out = JSON.stringify(direct.workspace);
+      expect(out).not.toContain('PRIVATE TOWER');
+      expect(out).toContain('secret file or in the user folder');
+    } finally {
+      if (saved === undefined) delete env.FLOW_TOWER_HOME; else env.FLOW_TOWER_HOME = saved;
+    }
+  });
+});

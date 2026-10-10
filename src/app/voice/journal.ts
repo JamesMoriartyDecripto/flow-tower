@@ -13,7 +13,7 @@ export type Suggestion = { id: string; why: string; evidence: number } & ({ kind
 export interface Memory { aliases: Alias[]; notes: Note[]; pending: Suggestion[]; reviewedUpTo: number }
 export interface Stats {
   days: number; turns: number; agentTurns: number; notUnderstood: number; corrected: number; undone: number; interrupted: number;
-  agentMs?: number; firstAudioMs?: number; cost: number; reviews: number; reviewCost: number;
+  agentMs?: number; firstAudioMs?: number; sttMs?: number; cost: number; costPerTurn: number; reviews: number; reviewCost: number;
 }
 
 const HEADER = { 'Content-Type': 'application/json', 'x-flow-tower-voice': '1' };
@@ -39,6 +39,13 @@ function wellFormed(m: unknown): Memory {
   };
 }
 
+/** Journal turns the server has not reviewed yet (it counts them, so a reload does not reset the count). */
+let unreviewed = 0;
+const counted = (out: unknown) => {
+  const n = (out as { unreviewed?: unknown } | undefined)?.unreviewed;
+  if (typeof n === 'number' && Number.isFinite(n)) unreviewed = n;
+};
+
 const failure = async (r: Response) => new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? `HTTP ${r.status}`);
 
 export async function loadMemory(): Promise<{ memory: Memory; stats: Stats } | undefined> {
@@ -47,6 +54,7 @@ export async function loadMemory(): Promise<{ memory: Memory; stats: Stats } | u
   const out = (await r.json().catch(() => undefined)) as { memory?: unknown; stats: Stats } | undefined;
   if (!out) return undefined;
   memory = wellFormed(out.memory);
+  counted(out);
   return { memory, stats: out.stats };
 }
 
@@ -55,6 +63,7 @@ export async function decide(body: { accept?: string; reject?: string; remove?: 
   if (!r.ok) throw await failure(r);
   const out = (await r.json()) as { memory?: unknown; stats: Stats };
   memory = wellFormed(out.memory);
+  counted(out);
   return { memory, stats: out.stats };
 }
 
@@ -64,24 +73,28 @@ export async function review(): Promise<number> {
   if (!r.ok) throw await failure(r);
   const out = (await r.json()) as { pending?: unknown };
   memory = { ...memory, pending: wellFormed({ pending: out.pending }).pending };
+  counted(out);
   return memory.pending.length;
 }
 
 /** The last turn, so what the user does next can correct its outcome. */
 let last: { ts: number; at: number; acted: boolean } | undefined;
-let sinceReview = 0;
 /**
  * "no, the other one", "non quello", "not that", "I said…": a correction. Commands that merely start
  * with "non" ("non mostrare…") or with "no" inside a word ("nodo triage") are not.
  */
 const CORRECTION = /^(no([\s,.!?]|$)|non (quell|quest|è|e |era)|not (that|this|it)\b|wrong|sbagliato|ho detto|i said|intendevo|i meant)/;
 
-export function record(entry: { heard: string; route: 'parser' | 'agent' | 'pick'; did: string; outcome: Outcome; tower?: string; tools?: string[]; ms?: number; cost?: number; firstAudioMs?: number }) {
+export interface Turn {
+  heard: string; route: 'parser' | 'agent' | 'pick'; did: string; outcome: Outcome; tower?: string; tools?: string[];
+  ms?: number; cost?: number; firstAudioMs?: number; sttMs?: number; sttCost?: number; language?: string; layer?: string; node?: string;
+}
+
+export function record(entry: Turn) {
   const ts = Date.now();
   last = { ts, at: performance.now(), acted: entry.outcome === 'done' };
   if (!on()) return;
-  sinceReview++;
-  void post('/journal', { entry: { ts, ...entry } }).catch(() => undefined);
+  void post('/journal', { entry: { ts, ...entry } }).then((r) => r.json()).then(counted).catch(() => undefined);
 }
 
 /** Marks the last turn. `keep`: it can still be marked again (an interrupted turn may then be corrected). */
@@ -108,19 +121,23 @@ export function judgeLast(transcript: string) {
 export const interrupted = () => mark('interrupted', true);
 
 let reviewing = false;
+/** After a failed review (it may have been paid): not again before this many unreviewed turns. */
+let retryAt = 0;
 /**
- * At the end of a session with enough new turns, ask for suggestions in the background. One at a time;
- * the turns it covered are taken off the count, success or failure: turns recorded meanwhile still count,
- * and a failed review (it may have been paid) is not retried before `min` more turns.
+ * At the end of a session with enough unreviewed turns (counted by the server), ask for suggestions in
+ * the background. One at a time; after a failure, not before `min` more turns.
  */
 export async function reviewIfDue(min = 20): Promise<number> {
-  if (!on() || reviewing || sinceReview < min) return 0;
+  if (!on() || reviewing || unreviewed < Math.max(min, retryAt)) return 0;
   reviewing = true;
-  const covered = sinceReview;
   try {
-    return await review().catch(() => 0);
+    const n = await review();
+    retryAt = 0;
+    return n;
+  } catch {
+    retryAt = unreviewed + min;
+    return 0;
   } finally {
-    sinceReview = Math.max(0, sinceReview - covered);
     reviewing = false;
   }
 }

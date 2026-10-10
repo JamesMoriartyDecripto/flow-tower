@@ -70,15 +70,32 @@ export function findTowerFiles(entries: string[]): string[] {
     const realEntry = realOrSelf(abs);
     const home = userHome();
     if (within(home, abs) || within(realOrSelf(home), realEntry)) continue;
-    for (const f of readdirSync(abs, { recursive: true, encoding: 'utf8' })) {
-      const hidden = f.split(sep).some((seg) => seg === 'node_modules' || seg.startsWith('.'));
-      if (!f.endsWith('.tower.yaml') || hidden) continue;
-      const path = join(abs, f);
+    for (const path of walk(abs, new Set())) {
       if (!within(realEntry, realOrSelf(path)) || isForbiddenSync(path)) continue;
       out.add(path);
     }
   }
   return [...out].sort();
+}
+
+/**
+ * Tower files under `dir`, walked by hand: never into a symlinked folder (`a -> ..` three times made a
+ * recursive readdir explode), nor a folder already seen, nor node_modules or hidden folders.
+ */
+function walk(dir: string, seen: Set<string>, out: string[] = []): string[] {
+  const real = realOrSelf(dir);
+  if (seen.has(real)) return out;
+  seen.add(real);
+  let items;
+  try { items = readdirSync(dir, { withFileTypes: true }); } catch { return out; } // unreadable: skip it
+  for (const d of items) {
+    if (d.name === 'node_modules' || d.name.startsWith('.')) continue;
+    const path = join(dir, d.name);
+    if (d.isDirectory()) walk(path, seen, out);
+    // A symlinked tower file is listed: findTowerFiles and loadTower check where it really leads.
+    else if (d.name.endsWith('.tower.yaml') && (d.isFile() || d.isSymbolicLink())) out.push(path);
+  }
+  return out;
 }
 
 /**

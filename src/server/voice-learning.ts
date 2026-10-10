@@ -20,7 +20,7 @@ export interface LearningDeps {
 }
 
 const REVIEW_MAX = 200;
-const PROMPT = `You review the journal of the voice assistant of Flow Tower, an app that shows software systems as 3D towers of layers and nodes. Each entry: what the speech recognizer heard, the route (parser = instant command matcher, agent = LLM with tools, pick = a numbered choice), what the app did, and the outcome (done, not_understood, corrected, undone, interrupted, error).
+const PROMPT = `You review the journal of the voice assistant of Flow Tower, an app that shows software systems as 3D towers of layers and nodes. Each entry: what the speech recognizer heard, the route (parser = instant command matcher, agent = LLM with tools, pick = a numbered choice), what the app did, the outcome (done, not_understood, corrected, undone, interrupted, error), and when known the language and where the user was (layer = focused layer id, node = selected node id).
 Propose at most 8 improvements, only where the journal shows evidence:
 - alias: a word or phrase the recognizer keeps writing for a real name ("triaje" for "triage", "emme ci pi" for "MCP"). "means" must be exactly one of the names listed. heard is lowercase.
 - rule: an instruction for the agent about phrasings that failed or were corrected, e.g. which command the user meant.
@@ -58,23 +58,23 @@ export function learningRoutes(d: LearningDeps) {
   return {
     '/journal': {
       limit: 16_000, keyless: true,
-      get: (res: ServerResponse) => send(res, 200, { stats: store.stats() }),
+      get: (res: ServerResponse) => send(res, 200, { stats: store.stats(), unreviewed: store.unreviewed() }),
       async run(res: ServerResponse, body: Record<string, unknown>) {
         const mark = body.mark as { ts?: number; outcome?: Outcome } | undefined;
         if (mark) { store.mark(Number(mark.ts), mark.outcome as Outcome); return send(res, 200, { ok: true }); }
         const entry = store.append((body.entry ?? {}) as Record<string, unknown>);
-        send(res, entry ? 200 : 400, entry ? { ok: true } : { error: 'send { entry: { heard, route, did, outcome } }' });
+        send(res, entry ? 200 : 400, entry ? { ok: true, unreviewed: store.unreviewed() } : { error: 'send { entry: { heard, route, did, outcome } }' });
       },
     },
     '/memory': {
       limit: 8_000, keyless: true,
-      get: (res: ServerResponse) => send(res, 200, { memory: store.memory(), stats: store.stats() }),
+      get: (res: ServerResponse) => send(res, 200, { memory: store.memory(), stats: store.stats(), unreviewed: store.unreviewed() }),
       async run(res: ServerResponse, body: Record<string, unknown>) {
-        if (body.forget === true) { store.forget(); return send(res, 200, { memory: store.memory(), stats: store.stats() }); }
+        if (body.forget === true) { store.forget(); return send(res, 200, { memory: store.memory(), stats: store.stats(), unreviewed: 0 }); }
         let m;
         try { m = store.decide(store.memory(), body as Parameters<VoiceStore['decide']>[1]); } catch (err) { return send(res, 409, { error: (err as Error).message }); }
         store.save(m);
-        send(res, 200, { memory: m, stats: store.stats() });
+        send(res, 200, { memory: m, stats: store.stats(), unreviewed: store.unreviewed() });
       },
     },
     '/review': {
@@ -91,7 +91,7 @@ export function learningRoutes(d: LearningDeps) {
     const m = store.memory();
     // The oldest first: what does not fit is reviewed next time, never skipped.
     const entries = store.read(m.reviewedUpTo).slice(0, REVIEW_MAX);
-    if (!entries.length) return send(res, 200, { pending: m.pending, reviewed: 0 });
+    if (!entries.length) return send(res, 200, { pending: m.pending, reviewed: 0, unreviewed: 0 });
     const names = d.names([...new Set(entries.map((e) => e.tower).filter(Boolean) as string[])]);
     const forgets = store.forgets();
     const r = await d.complete({
@@ -120,7 +120,7 @@ export function learningRoutes(d: LearningDeps) {
     now.pending.push(...accept(raw.suggestions as RawSuggestion[], names, [now, m], store.newId));
     now.reviewedUpTo = Math.max(now.reviewedUpTo, entries[entries.length - 1].ts);
     store.save(now);
-    send(res, 200, { pending: now.pending, reviewed: entries.length });
+    send(res, 200, { pending: now.pending, reviewed: entries.length, unreviewed: store.unreviewed() });
   }
 }
 
@@ -141,7 +141,11 @@ export const partOfAName = (heard: string, names: string[]) => names.some((n) =>
 
 interface RawSuggestion { kind: string; heard: string; means: string; text: string; why: string; evidence: number }
 
-const compact = (e: JournalEntry) => ({ heard: e.heard, route: e.route, did: e.did.slice(0, 160), outcome: e.outcome, ...(e.language && { language: e.language }) });
+/** What the reviewer sees of a turn: what was heard and done, how it went, and where the user was. */
+const compact = (e: JournalEntry) => ({
+  heard: e.heard, route: e.route, did: e.did.slice(0, 160), outcome: e.outcome,
+  ...(e.language && { language: e.language }), ...(e.layer && { layer: e.layer }), ...(e.node && { node: e.node }),
+});
 
 /**
  * Keeps only suggestions that can work: an alias points at a real name and is new; notes are new. New

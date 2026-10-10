@@ -29,6 +29,12 @@ export interface JournalEntry {
   cost?: number;
   /** Agent turns: from the end of the transcript to the first spoken sentence. */
   firstAudioMs?: number;
+  /** Speech to text: how long the transcription took, and what it cost. */
+  sttMs?: number;
+  sttCost?: number;
+  /** Where the user was when they spoke: the focused layer and the selected node (ids). */
+  layer?: string;
+  node?: string;
 }
 /** One review of the journal: how many entries it read and what it cost. */
 export interface ReviewRecord { review: number; entries: number; cost?: number }
@@ -48,6 +54,8 @@ const turnTime = (ts: unknown, now = Date.now()) => {
   return Number.isFinite(n) && n >= now - 86_400_000 && n <= now + 60_000 ? n : now;
 };
 const list = <T>(v: unknown, ok: (x: T) => boolean): T[] => (Array.isArray(v) ? (v as T[]).filter((x) => !!x && typeof x === 'object' && ok(x)) : []);
+/** A duration from the page: a finite number of ms, at least 0, rounded; anything else is left out. */
+const ms = (key: string, v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? { [key]: Math.round(v) } : {});
 const empty = (): Memory => ({ aliases: [], notes: [], pending: [], reviewedUpTo: 0 });
 const clean = (s: unknown, max = 300) => String(s ?? '').replace(/[\r\n]+/g, ' ').trim().slice(0, max);
 
@@ -118,7 +126,10 @@ export function voiceStore(dir = userHome()) {
         ...(Array.isArray(raw.tools) ? { tools: raw.tools.slice(0, 12).map((t) => clean(t, 40)) } : {}),
         ...(Number.isFinite(raw.ms) ? { ms: Math.round(Number(raw.ms)) } : {}),
         ...(Number.isFinite(raw.cost) ? { cost: Number(raw.cost) } : {}),
-        ...(Number.isFinite(raw.firstAudioMs) && Number(raw.firstAudioMs) >= 0 ? { firstAudioMs: Math.round(Number(raw.firstAudioMs)) } : {}),
+        ...ms('firstAudioMs', raw.firstAudioMs), ...ms('sttMs', raw.sttMs),
+        ...(Number.isFinite(raw.sttCost) && Number(raw.sttCost) >= 0 ? { sttCost: Number(raw.sttCost) } : {}),
+        ...(typeof raw.layer === 'string' && raw.layer ? { layer: clean(raw.layer, 80) } : {}),
+        ...(typeof raw.node === 'string' && raw.node ? { node: clean(raw.node, 80) } : {}),
       };
       if (!entry.heard) return undefined;
       write(journal, `${JSON.stringify(entry)}\n`, true);
@@ -135,6 +146,8 @@ export function voiceStore(dir = userHome()) {
       write(journal, `${JSON.stringify({ review: Date.now(), entries, ...(Number.isFinite(cost) && { cost }) })}\n`, true);
     },
     read(since = 0): JournalEntry[] { return parse().entries.filter((e) => e.ts > since); },
+    /** Turns not reviewed yet: the page's automatic review counts these, so a reload does not reset it. */
+    unreviewed() { return this.read(this.memory().reviewedUpTo).length; },
     reviews(since = 0): ReviewRecord[] { return parse().reviews.filter((r) => r.review > since); },
     /** What is on disk, with anything malformed dropped (a hand-edited file must not break the routes). */
     memory(): Memory {
@@ -185,7 +198,10 @@ export function voiceStore(dir = userHome()) {
         notUnderstood: share('not_understood'), corrected: share('corrected'), undone: share('undone'), interrupted: share('interrupted'),
         agentMs: average(agent.map((t) => t.ms ?? 0)),
         firstAudioMs: average(turns.flatMap((t) => (t.firstAudioMs === undefined ? [] : [t.firstAudioMs]))),
-        cost: Number(turns.reduce((a, t) => a + (t.cost ?? 0), 0).toFixed(5)),
+        sttMs: average(turns.flatMap((t) => (t.sttMs === undefined ? [] : [t.sttMs]))),
+        // Every stage a turn paid for: transcription and the agent (speech synthesis reports no cost).
+        cost: Number(turns.reduce((a, t) => a + (t.cost ?? 0) + (t.sttCost ?? 0), 0).toFixed(5)),
+        costPerTurn: turns.length ? Number((turns.reduce((a, t) => a + (t.cost ?? 0) + (t.sttCost ?? 0), 0) / turns.length).toFixed(6)) : 0,
         reviews: reviews.length,
         reviewCost: Number(reviews.reduce((a, r) => a + (r.cost ?? 0), 0).toFixed(5)),
       };

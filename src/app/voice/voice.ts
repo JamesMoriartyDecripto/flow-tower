@@ -215,7 +215,7 @@ async function transcribe(audio: Blob, format: string, mine: number, at: Recorde
       // detects it from the clip. A hint helps short commands.
       body: JSON.stringify({ audio: await base64(audio), format, ...(language !== 'auto' && { language }) }),
     });
-    const out = (await r.json()) as { text?: string; error?: string };
+    const out = (await r.json()) as { text?: string; error?: string; ms?: number; cost?: number; language?: string };
     if (mine !== session) return; // stopped while transcribing: the command no longer applies
     if (!r.ok) throw new Error(out.error ?? `HTTP ${r.status}`);
     const text = out.text?.trim();
@@ -230,7 +230,8 @@ async function transcribe(audio: Blob, format: string, mine: number, at: Recorde
       if (isSpeaking()) { stopSpeaking(); interrupted(); }
       if (kind === 'stop') return;
     }
-    await handle(text, mine);
+    // What this stage took and cost, and the language: journaled with the turn.
+    await handle(text, mine, { sttMs: out.ms, sttCost: out.cost, language: out.language });
   } catch (err) {
     if (mine === session) flash((err as Error).message);
   }
@@ -241,19 +242,29 @@ async function transcribe(audio: Blob, format: string, mine: number, at: Recorde
  * understand goes to the agent too. Whisper writes something even for noise ("Grazie.", "Thank you."):
  * those name nothing, and only an understood command or an answer keeps the mic alive.
  */
-async function handle(heard: string, mine: number) {
+/** What the journal keeps of a transcription (all optional: hear() passes none). */
+interface Heard { sttMs?: number; sttCost?: number; language?: string }
+
+async function handle(heard: string, mine: number, stt: Heard = {}) {
   const heardAt = performance.now();
   judgeLast(heard); // "no, the other one" or "back" right after: the last turn was wrong
   // Aliases the user accepted from past reviews ("triaje" → "triage") apply before anything reads it.
   const text = applyAliases(heard);
   const s = useStore.getState();
   const tower = s.library ? undefined : s.stack[s.stack.length - 1];
+  // Where the user was when they spoke (before the command moves anything): for the journal and its review.
+  const layer = tower && s.focusedLayer !== undefined ? s.workspace?.towers[tower]?.layers[s.focusedLayer]?.id : undefined;
+  const pref = usePrefs.getState().voiceLanguage;
+  const context = {
+    heard, tower, ...stt, language: stt.language ?? (pref !== 'auto' ? pref : undefined),
+    ...(layer && { layer }), ...(tower && s.selected && { node: s.selected }),
+  };
   const { agent, options } = useVoice.getState();
   // A numbered choice is waiting: "il primo" / "the second" answer it, not the agent.
   const picking = !!options && pickOf(text) !== undefined;
   if (!agent || picking || !wantsAgent(text)) {
     const did = useVoice.getState().run(text);
-    if (did !== NOT_UNDERSTOOD || !agent) record({ heard, route: picking ? 'pick' : 'parser', did, outcome: did === NOT_UNDERSTOOD ? 'not_understood' : 'done', tower });
+    if (did !== NOT_UNDERSTOOD || !agent) record({ ...context, route: picking ? 'pick' : 'parser', did, outcome: did === NOT_UNDERSTOOD ? 'not_understood' : 'done' });
     if (did !== NOT_UNDERSTOOD) return armIdle();
     if (!agent) return;
   }
@@ -278,12 +289,12 @@ async function handle(heard: string, mine: number) {
     if (turnNow === t) turnNow = undefined;
     if (t.muted && mine === session) { // Esc while it was still being written
       useVoice.setState({ did: 'Stopped' });
-      record({ heard, route: 'agent', did: 'stopped (Esc)', outcome: 'interrupted', tower });
+      record({ ...context, route: 'agent', did: 'stopped (Esc)', outcome: 'interrupted' });
       return;
     }
     if (mine === session) {
       useVoice.setState({ did: `No answer: ${(err as Error).message}` });
-      record({ heard, route: 'agent', did: (err as Error).message, outcome: 'error', tower });
+      record({ ...context, route: 'agent', did: (err as Error).message, outcome: 'error' });
     }
     return;
   }
@@ -295,7 +306,7 @@ async function handle(heard: string, mine: number) {
   const audioAt = voice && !t.muted ? await firstAudio() : undefined;
   if (turnNow === t) turnNow = undefined;
   record({
-    heard, route: 'agent', did: turn.reply, outcome: t.muted ? 'interrupted' : 'done', tower, tools: turn.tools, ms: turn.ms, cost: turn.cost,
+    ...context, route: 'agent', did: turn.reply, outcome: t.muted ? 'interrupted' : 'done', tools: turn.tools, ms: turn.ms, cost: turn.cost,
     ...(audioAt !== undefined && { firstAudioMs: Math.round(audioAt - heardAt) }),
   });
 }
