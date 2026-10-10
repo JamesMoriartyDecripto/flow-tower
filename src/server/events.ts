@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createGunzip, createInflate } from 'node:zlib';
-import { FlowEventSchema, resolveTargets, type FlowEvent } from '../core/events.ts';
+import { FlowEventSchema, resolveRuntime, resolveTargets, splitTarget, type FlowEvent } from '../core/events.ts';
 import { normalize } from '../core/adapters.ts';
 import { otlpLogsToEvents } from '../core/otlp.ts';
 import type { Workspace } from '../core/types.ts';
@@ -32,7 +32,8 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
       const parsed = FlowEventSchema.safeParse(tower ? { tower, ...(item as object) } : item);
       if (!parsed.success) { rejected++; continue; }
       const e = parsed.data;
-      out.push({ ...e, id: ++seq, ts: e.ts ?? Date.now(), targets: ws ? resolveTargets(ws, e) : [] });
+      const targets = ws ? resolveTargets(ws, e) : [];
+      out.push({ ...e, id: ++seq, ts: e.ts ?? Date.now(), targets, runtimeRef: ws ? runtimeRefOf(ws, e, targets) : undefined });
     }
     buffer.push(...out);
     if (buffer.length > KEEP) buffer.splice(0, buffer.length - KEEP);
@@ -94,6 +95,19 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
   };
 
   return { ingest, handle, otlp, recent: () => buffer };
+}
+
+/**
+ * Runtime of the first tower the event landed on that recognizes its host/runtime. An event may hit
+ * several towers: the first match wins, so a runtimeRef is never set by a tower it does not touch.
+ */
+function runtimeRefOf(ws: Workspace, event: Parameters<typeof resolveRuntime>[1], targets: string[]): string | undefined {
+  for (const target of targets) {
+    const tower = ws.towers[splitTarget(target)[0]];
+    const ref = tower && resolveRuntime(tower, event);
+    if (ref) return ref;
+  }
+  return undefined;
 }
 
 /** Source from ?source=, or sniffed from headers (Hermes webhooks send X-Hermes-Event). */
