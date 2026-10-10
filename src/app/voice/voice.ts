@@ -4,7 +4,8 @@ import { chooseView, usePrefs } from '../settings';
 import { findNode, useStore } from '../store';
 import { norm, parseCommand, type VoiceAction } from './commands';
 import { openMic, type Mic } from './mic';
-import { converse, isEcho, isSpeaking, speak, stopSpeaking, wantsAgent } from './agent';
+import { converse, forget, isEcho, isSpeaking, newReply, say, stopSpeaking, wantsAgent } from './agent';
+import { clearAgentSearch } from './tools';
 
 export type VoiceStatus = 'off' | 'starting' | 'listening' | 'hearing' | 'thinking';
 
@@ -21,6 +22,8 @@ interface VoiceState {
   options?: { label: string; action: VoiceAction }[];
   toggle(): void;
   run(text: string): string;
+  /** Handles a transcript as if it had been heard: parser or agent, caption and voice (tests, dev hook). */
+  hear(text: string): Promise<void>;
   dismiss(): void;
 }
 
@@ -43,6 +46,8 @@ let pending = 0;
 let speaking = false;
 let idle: ReturnType<typeof setTimeout> | undefined;
 let hideError: ReturnType<typeof setTimeout> | undefined;
+/** Cancels the agent turn in flight: stopping the mic stops its tools from moving the view. */
+let turnAbort = new AbortController();
 
 /** "il secondo", "two", "3": a short answer that is only a pick. "livello tre" is a command, not a pick. */
 function pickOf(text: string): number | undefined {
@@ -70,6 +75,7 @@ export const useVoice = create<VoiceState>((set, get) => ({
     set({ heard: text, did, options: action.kind === 'ambiguous' ? action.options : undefined, error: undefined });
     return did;
   },
+  hear: (text) => handle(text, session),
   dismiss() {
     clearTimeout(hideError);
     set({ error: undefined });
@@ -144,7 +150,10 @@ async function start() {
 
 function stop() {
   session++;
+  turnAbort.abort();
   stopSpeaking();
+  forget(); // one listening session is one conversation
+  clearAgentSearch();
   mic?.close();
   mic = undefined;
   speaking = false;
@@ -193,17 +202,35 @@ async function transcribe(audio: Blob, format: string, mine: number) {
  * those name nothing, and only an understood command or an answer keeps the mic alive.
  */
 async function handle(text: string, mine: number) {
-  const { agent } = useVoice.getState();
-  if (!agent || !wantsAgent(text)) {
+  const { agent, options } = useVoice.getState();
+  // A numbered choice is waiting: "il primo" / "the second" answer it, not the agent.
+  const picking = !!options && pickOf(text) !== undefined;
+  if (!agent || picking || !wantsAgent(text)) {
     if (useVoice.getState().run(text) !== NOT_UNDERSTOOD) return armIdle();
     if (!agent) return;
   }
-  useVoice.setState({ heard: text, did: '…', options: undefined });
-  const turn = await converse(text);
+  useVoice.setState({ heard: text, did: 'Thinking…', options: undefined });
+  newReply();
+  clearAgentSearch();
+  turnAbort = new AbortController();
+  const voice = usePrefs.getState().voiceReplies;
+  const live = (did: string) => { if (mine === session) useVoice.setState({ did }); };
+  // Streamed: the caption shows each tool step and then the reply as it is written; each finished
+  // sentence is spoken while the next one is still being generated.
+  let turn;
+  try {
+    turn = await converse(text, {
+      step: live,
+      text: live,
+      sentence: (s) => { if (voice && mine === session) say(s); },
+    }, turnAbort.signal);
+  } catch (err) {
+    if (mine === session) useVoice.setState({ did: `No answer: ${(err as Error).message}` });
+    return;
+  }
   if (mine !== session) return;
   useVoice.setState({ did: turn.reply });
   armIdle();
-  if (usePrefs.getState().voiceReplies) await speak(turn.reply).catch((err: Error) => flash(`Spoken reply failed: ${err.message}`));
 }
 
 const base64 = (blob: Blob) => new Promise<string>((resolve, reject) => {

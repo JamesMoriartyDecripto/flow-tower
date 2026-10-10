@@ -16,7 +16,7 @@ import { converse } from './voice/agent';
 
 initPrefs();
 // Dev-only hook for the E2E sweep (e2e/): tests assert on app state, not on canvas pixels. App.tsx adds `three`.
-if (import.meta.env.DEV) Object.assign(window, { __flowTower: { store: useStore, voice: (text: string) => useVoice.getState().run(text), ask: (text: string) => converse(text) } });
+if (import.meta.env.DEV) Object.assign(window, { __flowTower: { store: useStore, voice: (text: string) => useVoice.getState().run(text), ask: (text: string) => converse(text), hear: (text: string) => useVoice.getState().hear(text) } });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

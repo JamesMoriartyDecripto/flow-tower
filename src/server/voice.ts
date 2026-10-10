@@ -14,8 +14,8 @@ export const VOICE_DEFAULTS = {
 const FORMATS = new Set(['webm', 'ogg', 'm4a', 'wav', 'mp3']);
 /** Sent by the app's own page. No simple (preflight-free) request can carry a custom header. */
 export const VOICE_HEADER = 'x-flow-tower-voice';
-/** Upstream calls at once (a turn can overlap transcription, chat and speech): a loop cannot run up the bill. */
-const MAX_IN_FLIGHT = 3;
+/** Upstream calls at once (a turn overlaps transcription, a streamed chat and a few sentences of speech): a loop cannot run up the bill. */
+const MAX_IN_FLIGHT = 6;
 /** Per route: a spoken command is ~10 KB of Opus; a conversation a few KB of JSON; a reply a few sentences. */
 const LIMITS = { stt: 2_000_000, chat: 256_000, speak: 8_000 } as const;
 const MAX_REPLY_CHARS = 800;
@@ -37,7 +37,7 @@ export interface VoiceConfig {
  * The voice server, all through OpenRouter with the key kept here:
  * - GET  /api/voice        → { cloud, model, agent, tts }: what is configured (never the key);
  * - POST /api/voice        { audio: base64, format, language? } → { text, ms, cost }   speech to text;
- * - POST /api/voice/chat   { messages, tools, answer? }         → { message, ms, cost } one LLM step;
+ * - POST /api/voice/chat   { messages, tools, answer?, stream? } → { message, ms, cost } one LLM step, or its SSE stream;
  * - POST /api/voice/speak  { text }                             → audio/mpeg            the spoken reply.
  * Each call spends the user's key, so only this app's page gets through: exact JSON content type,
  * no cross-site Origin, and the custom VOICE_HEADER (src/server/guard.ts).
@@ -82,7 +82,7 @@ export function voiceHandler(cfg: VoiceConfig) {
     },
     '/chat': {
       limit: LIMITS.chat,
-      async run(res, { messages, tools, answer }) {
+      async run(res, { messages, tools, answer, stream }) {
         if (!Array.isArray(messages) || !messages.length || messages.length > 60 || !Array.isArray(tools) || tools.length > 20) {
           return json(res, 400, { error: 'send { messages: [...] (max 60), tools: [...] (max 20) }' });
         }
@@ -93,8 +93,17 @@ export function voiceHandler(cfg: VoiceConfig) {
           tool_choice: answer === true ? 'none' : 'auto',
           // Only providers that support every parameter sent (tools above all), and keep no data.
           provider: { ...provider, require_parameters: true },
+          // Streamed: the page shows the reply as it is written and speaks its first sentence early.
+          ...(stream === true && { stream: true, usage: { include: true } }),
         });
         if (!r.ok) return failed(res, r);
+        if (stream === true && r.body) {
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-store');
+          for await (const chunk of r.body as unknown as AsyncIterable<Uint8Array>) res.write(chunk);
+          return void res.end();
+        }
         const out = (await r.json()) as { choices?: { message?: unknown }[]; usage?: { cost?: number } };
         json(res, 200, { message: out.choices?.[0]?.message ?? { role: 'assistant', content: '' }, ms: Date.now() - started, cost: out.usage?.cost });
       },
