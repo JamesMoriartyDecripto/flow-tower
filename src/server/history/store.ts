@@ -8,7 +8,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { FlowEvent } from '../../core/events.ts';
 import { toRow, type Row } from './row.ts';
 
-const COLUMNS = ['ts', 'sender', 'user', 'host', 'runtime', 'project', 'session', 'kind', 'tool', 'model', 'in_tok', 'out_tok', 'cache_read', 'cache_write', 'cost_usd_micros', 'estimated', 'duration_ms', 'status', 'auto', 'event_key'] as const;
+/** Exported so the CLI's export reads exactly the same allow-list: it can never print a column the writer never fills. */
+export const COLUMNS = ['ts', 'sender', 'user', 'host', 'runtime', 'project', 'session', 'kind', 'tool', 'model', 'in_tok', 'out_tok', 'cache_read', 'cache_write', 'cost_usd_micros', 'estimated', 'duration_ms', 'status', 'auto', 'event_key'] as const;
 
 const INSERT = `INSERT OR IGNORE INTO events (${COLUMNS.join(', ')}) VALUES (${COLUMNS.map(() => '?').join(', ')})`;
 

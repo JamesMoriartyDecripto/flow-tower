@@ -20,6 +20,9 @@ Usage
   flow-tower validate <file.tower.yaml | dir>... [--json]
   flow-tower token add <id> | list | revoke <id> | pause <id> | resume <id>
                                                         per-sender hub tokens stored under the user folder
+  flow-tower history export [--user <u>] | delete --user <u> | info
+                                                        content-free events and totals in the user folder:
+                                                        export prints JSONL, delete erases one user's rows
   flow-tower guide                                      print the procedure to generate a tower from a codebase
   flow-tower install-skill [--target <t>] [--project]   install it as an Agent Skill for your coding agent
                                                         <t>: claude (default), codex, pi, hermes, cursor, agents
@@ -166,6 +169,16 @@ if (positionals[0] === 'token') {
   // Same trick as validate: the token store is TypeScript, run it with Node's type stripping.
   const script = join(pkgRoot, 'src', 'cli', 'token.ts');
   const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...positionals.slice(1)], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'history') {
+  // Same trick as token: the history DB code is TypeScript, run it with Node's type stripping.
+  // `--user` is one of this parser's own options, so it is stripped from the positionals: append it back
+  // (with its exact value, the empty string included) or `history export|delete --user` would lose it.
+  const script = join(pkgRoot, 'src', 'cli', 'history.ts');
+  const args = [...positionals.slice(1), ...(values.user === undefined ? [] : ['--user', values.user])];
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
   process.exit(r.status ?? 1);
 }
 
