@@ -89,10 +89,12 @@ export interface TurnEvents {
 const SENTENCE = /[.!?…](\s+|$)/g;
 
 /** One conversational turn: streamed LLM steps with tool calls until it answers (capped). */
-export async function converse(text: string, on: TurnEvents = {}, signal?: AbortSignal): Promise<Turn> {
+export async function converse(text: string, on: TurnEvents = {}, signal?: AbortSignal, notes = ''): Promise<Turn> {
   const started = performance.now();
   const messages: Message[] = [
     { role: 'system', content: PROMPT },
+    // What this user accepted from reviews of past sessions (#68): their rules and reply style.
+    ...(notes ? [{ role: 'system' as const, content: `Learned from this user's past sessions (they approved these):\n${notes}` }] : []),
     ...history,
     { role: 'system', content: `Screen now: ${runTool('screen', {})}` },
     { role: 'user', content: text },

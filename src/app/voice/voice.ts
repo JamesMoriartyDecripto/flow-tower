@@ -6,6 +6,7 @@ import { norm, parseCommand, type VoiceAction } from './commands';
 import { openMic, type Mic } from './mic';
 import { converse, forget, isEcho, isSpeaking, newReply, say, stopSpeaking, wantsAgent } from './agent';
 import { clearAgentSearch } from './tools';
+import { applyAliases, interrupted, judgeLast, loadMemory, notesForAgent, record, reviewIfDue } from './journal';
 
 export type VoiceStatus = 'off' | 'starting' | 'listening' | 'hearing' | 'thinking';
 
@@ -18,6 +19,8 @@ interface VoiceState {
   heard?: string;
   did?: string;
   error?: string;
+  /** Suggestions from the journal review waiting in Settings > Voice (#68). */
+  suggestions?: number;
   /** A command that named several things: the next "one" / "two" / "il primo" picks. */
   options?: { label: string; action: VoiceAction }[];
   toggle(): void;
@@ -115,6 +118,8 @@ async function start() {
   const config = await fetch('/api/voice').then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined) as { cloud: boolean; agent?: string } | undefined;
   if (mine !== session) return; // stopped while asking
   set({ cloud: config?.cloud, agent: !!config?.agent });
+  // What the user accepted from past reviews: aliases for the parser, notes for the agent.
+  void loadMemory().then((m) => m && set({ suggestions: m.memory.pending.length || undefined }));
   if (!config) return fail('Voice commands need the local flow-tower server, which this page cannot reach.');
   if (!config.cloud) return fail('Voice commands need OPENROUTER_API_KEY in flow-tower/.env (git-ignored), then a restart.');
   try {
@@ -154,6 +159,8 @@ function stop() {
   stopSpeaking();
   forget(); // one listening session is one conversation
   clearAgentSearch();
+  // Enough new turns in the journal: ask for suggestions now, decided later in Settings.
+  void reviewIfDue().then((n) => { if (n) useVoice.setState({ suggestions: n }); });
   mic?.close();
   mic = undefined;
   speaking = false;
@@ -188,8 +195,10 @@ async function transcribe(audio: Blob, format: string, mine: number) {
       const stopWord = /^(stop|basta|ferma|fermati|zitto|silenzio|enough|quiet|shut up)\b/i.test(text);
       if (!stopWord && text.split(/\s+/).length < 3) return;
       stopSpeaking();
+      interrupted();
       if (stopWord) return;
     }
+    judgeLast(text); // "no, the other one" or "back" right after: the last turn was wrong
     await handle(text, mine);
   } catch (err) {
     if (mine === session) flash((err as Error).message);
@@ -201,12 +210,18 @@ async function transcribe(audio: Blob, format: string, mine: number) {
  * understand goes to the agent too. Whisper writes something even for noise ("Grazie.", "Thank you."):
  * those name nothing, and only an understood command or an answer keeps the mic alive.
  */
-async function handle(text: string, mine: number) {
+async function handle(heard: string, mine: number) {
+  // Aliases the user accepted from past reviews ("triaje" → "triage") apply before anything reads it.
+  const text = applyAliases(heard);
+  const s = useStore.getState();
+  const tower = s.library ? undefined : s.stack[s.stack.length - 1];
   const { agent, options } = useVoice.getState();
   // A numbered choice is waiting: "il primo" / "the second" answer it, not the agent.
   const picking = !!options && pickOf(text) !== undefined;
   if (!agent || picking || !wantsAgent(text)) {
-    if (useVoice.getState().run(text) !== NOT_UNDERSTOOD) return armIdle();
+    const did = useVoice.getState().run(text);
+    if (did !== NOT_UNDERSTOOD || !agent) record({ heard, route: picking ? 'pick' : 'parser', did, outcome: did === NOT_UNDERSTOOD ? 'not_understood' : 'done', tower });
+    if (did !== NOT_UNDERSTOOD) return armIdle();
     if (!agent) return;
   }
   useVoice.setState({ heard: text, did: 'Thinking…', options: undefined });
@@ -223,13 +238,17 @@ async function handle(text: string, mine: number) {
       step: live,
       text: live,
       sentence: (s) => { if (voice && mine === session) say(s); },
-    }, turnAbort.signal);
+    }, turnAbort.signal, notesForAgent());
   } catch (err) {
-    if (mine === session) useVoice.setState({ did: `No answer: ${(err as Error).message}` });
+    if (mine === session) {
+      useVoice.setState({ did: `No answer: ${(err as Error).message}` });
+      record({ heard, route: 'agent', did: (err as Error).message, outcome: 'error', tower });
+    }
     return;
   }
   if (mine !== session) return;
   useVoice.setState({ did: turn.reply });
+  record({ heard, route: 'agent', did: turn.reply, outcome: 'done', tower, tools: turn.tools, ms: turn.ms, cost: turn.cost });
   armIdle();
 }
 

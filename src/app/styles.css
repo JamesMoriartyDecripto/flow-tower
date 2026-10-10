@@ -493,3 +493,10 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
   .livefeed.beside-list { right: 14px; }
   .hud:has(.livefeed) .nodelist { max-height: calc(100 * var(--vh) - 76px - 42 * var(--vh) - 12px - 80px); }
 }
+
+/* Settings > Voice > Learning (#68) */
+.voice-stats { margin: 0 0 8px; }
+.voice-suggestions { display: grid; gap: 6px; margin: 4px 0 10px; }
+.voice-suggestion { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; font-size: 14px; }
+.voice-suggestion i { color: var(--amber); font-style: normal; text-transform: uppercase; font-size: 11px; margin-right: 4px; }
+.voice-chip { cursor: pointer; }
