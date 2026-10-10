@@ -99,7 +99,7 @@ Every example ships real prompt, agent, code, config and log files, so the popup
 
 ## Generate a tower from your code (any coding agent)
 
-Your coding agent reads the codebase and writes the tower. The procedure is harness-neutral: [docs/generate-a-tower.md](docs/generate-a-tower.md). Install it as an [Agent Skill](https://agentskills.io) for your agent:
+Your coding agent reads the codebase and writes the tower. The procedure is harness-neutral: [docs/generate-a-tower.md](docs/generate-a-tower.md). Install it as an [Agent Skill](https://agentskills.io) for your agent (a second skill, [flow-tower-costs](skills/flow-tower-costs/SKILL.md), uses the tower to cut model cost and latency with benchmarks on real cases):
 
 ```bash
 node bin/flow-tower.js install-skill                  # Claude Code: ~/.claude/skills
@@ -269,7 +269,7 @@ src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /
 src/app/        React + three.js app: scene/ (3D) and hud/ (overlay UI)
 src/cli/        TypeScript CLI commands (validate)
 schema/         generated JSON Schema
-skills/         Agent Skill (SKILL.md) that generates towers from a codebase
+skills/         Agent Skills: flow-tower (generates towers from a codebase), flow-tower-costs (model cost/latency)
 integrations/   live-event configs for Claude Code, Agent SDK, Codex, Pi, Hermes
 examples/       starters (1–3 layers) and researched presets, indexed by pattern in examples/README.md
 scripts/        schema, stress-tower and event-simulator scripts

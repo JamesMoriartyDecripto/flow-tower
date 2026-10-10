@@ -71,6 +71,16 @@ const SKILL_TARGETS = {
   agents: { user: ['.agents', 'skills'], project: ['.agents', 'skills'], note: 'shared .agents/skills folder, read by Codex, Pi, Cursor and other Agent Skills clients (Hermes: project only)' },
 };
 
+/**
+ * Rewrites the links of an installed skill so they keep working outside this repo.
+ * `../flow-tower/...` points at the sibling skill, which install-skill copies next to this one: it stays.
+ * `../../<path>` (docs/…, examples/…) only exists in the checkout, which is not shipped: point at it
+ * absolutely, keeping any `#anchor`.
+ */
+function absolutizeOutboundLinks(md) {
+  return md.replace(/\]\(\.\.\/\.\.\/([^)\s]+)\)/g, (_, rel) => `](${join(pkgRoot, rel)})`);
+}
+
 /** docs/generate-a-tower.md with the checkout path filled in and relative links made absolute. */
 function procedure() {
   const docs = join(pkgRoot, 'docs');
@@ -136,20 +146,31 @@ Other agents: use --target agents if they read .agents/skills (Agent Skills stan
 or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follow the procedure.`);
     process.exit(1);
   }
-  const target = join(values.project ? resolve('.') : homedir(), ...(values.project ? spec.project : spec.user), 'flow-tower');
+  const skills = values.project ? spec.project : spec.user;
+  const base = values.project ? resolve('.') : homedir();
+  const target = join(base, ...skills, 'flow-tower');
   mkdirSync(dirname(target), { recursive: true });
   cpSync(join(pkgRoot, 'skills', 'flow-tower'), target, { recursive: true });
   // The package is not on npm: bake the absolute CLI path into the installed skill,
   // and ship the procedure next to it so its links work outside the repo.
+  const cli = `node ${join(pkgRoot, 'bin', 'flow-tower.js')}`;
   const skillFile = join(target, 'SKILL.md');
   writeFileSync(
     skillFile,
     readFileSync(skillFile, 'utf8')
-      .replaceAll('{{FLOW_TOWER_CLI}}', `node ${join(pkgRoot, 'bin', 'flow-tower.js')}`)
+      .replaceAll('{{FLOW_TOWER_CLI}}', cli)
       .replaceAll('](../../docs/generate-a-tower.md)', '](procedure.md)'),
   );
   writeFileSync(join(target, 'procedure.md'), procedure().replaceAll(`](${join(pkgRoot, 'skills', 'flow-tower', 'reference.md')})`, '](reference.md)'));
-  console.log(`installed the flow-tower skill for ${values.target} in ${target}\n${spec.note}`);
+
+  // Install the costs skill next to flow-tower: its `../flow-tower/SKILL.md` link then resolves as is.
+  const costsTarget = join(base, ...skills, 'flow-tower-costs');
+  cpSync(join(pkgRoot, 'skills', 'flow-tower-costs'), costsTarget, { recursive: true });
+  for (const f of ['SKILL.md', 'reference.md']) {
+    const file = join(costsTarget, f);
+    writeFileSync(file, absolutizeOutboundLinks(readFileSync(file, 'utf8').replaceAll('{{FLOW_TOWER_CLI}}', cli)));
+  }
+  console.log(`installed the flow-tower and flow-tower-costs skills for ${values.target}:\n  ${target}\n  ${costsTarget}\n${spec.note}`);
   process.exit(0);
 }
 

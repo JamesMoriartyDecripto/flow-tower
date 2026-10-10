@@ -56,6 +56,15 @@ describe('cli install-skill', () => {
     const proc = readFileSync(join(skill, 'procedure.md'), 'utf8');
     expect(proc).toContain('](reference.md)');
     expect(proc).not.toContain('<flow-tower>/');
+
+    const costs = join(cwd, dir, 'flow-tower-costs');
+    for (const f of ['SKILL.md', 'reference.md', 'models.mjs']) expect(existsSync(join(costs, f))).toBe(true);
+    const costsMd = readFileSync(join(costs, 'SKILL.md'), 'utf8');
+    expect(costsMd).not.toContain('{{FLOW_TOWER_CLI}}');
+    expect(costsMd).not.toContain('](../../');
+    expect(costsMd).toContain('](../flow-tower/SKILL.md)');
+    expect(costsMd).toContain(`](${resolve('docs/realtime.md')})`);
+    expect(readFileSync(join(costs, 'reference.md'), 'utf8')).not.toContain('](../../');
   });
 
   it('rejects an unknown target', () => {
