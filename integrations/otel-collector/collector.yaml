@@ -1,0 +1,71 @@
+# One collector per host, forwarding agent telemetry to Flow Tower. See README.md.
+# Env: FLOW_TOWER_URL (default http://127.0.0.1:5317), FLOW_TOWER_TOKEN, FT_USER, FT_ENV.
+extensions:
+  file_storage:
+    directory: ${env:HOME}/.flow-tower/otel-queue
+    create_directory: true
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 127.0.0.1:4318
+      grpc:
+        endpoint: 127.0.0.1:4317
+
+processors:
+  # Claude Code sends no host.name: add it here. On a cloud host add its detector (docker, ec2, lambda,
+  # gcp, azure): each cloud detector off its cloud waits for a metadata timeout and slows startup.
+  resource_detection:
+    detectors: [env, system]
+    system:
+      hostname_sources: [os]
+    override: false
+  resource:
+    attributes:
+      - key: enduser.id
+        value: ${env:FT_USER}
+        action: insert
+      - key: deployment.environment.name
+        value: ${env:FT_ENV}
+        action: insert
+  # Defence in depth: drop prompt and tool content even if an agent was told to log it.
+  transform:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - delete_key(log.attributes, "prompt")
+          - delete_key(log.attributes, "tool_input")
+          - delete_matching_keys(log.attributes, "^gen_ai\\..*(content|message|prompt|completion).*")
+  batch: {}
+
+exporters:
+  otlp_http/flowtower:
+    endpoint: ${env:FLOW_TOWER_URL:-http://127.0.0.1:5317}
+    encoding: json
+    headers:
+      x-flow-tower-token: ${env:FLOW_TOWER_TOKEN}
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0 # keep retrying while the laptop is offline
+    sending_queue:
+      enabled: true
+      storage: file_storage
+
+service:
+  extensions: [file_storage]
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [resource_detection, resource, transform, batch]
+      exporters: [otlp_http/flowtower]
+    # Flow Tower acknowledges and drops metrics and traces; forwarded so agents exporting every signal stay quiet.
+    metrics:
+      receivers: [otlp]
+      processors: [resource_detection, resource, batch]
+      exporters: [otlp_http/flowtower]
+    traces:
+      receivers: [otlp]
+      processors: [resource_detection, resource, batch]
+      exporters: [otlp_http/flowtower]
