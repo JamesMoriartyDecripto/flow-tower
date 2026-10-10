@@ -15,7 +15,7 @@ CLI: `{{FLOW_TOWER_CLI}}`. If this still shows a placeholder, use `flow-tower` i
 
 1. **Scope:** system root, one tower per system, output `<root>/<system>.tower.yaml` (nested towers in `<root>/towers/`). Existing tower → update it, preserving manual choices.
 2. **Inventory, read-only:** entry points, orchestrator, agents (model, prompt, tools, limits), tools/MCP, hooks, memory, human checkpoints, loops and caps, runtimes, logs/scripts/dashboards. Note the file that proves each one.
-3. **Model layers** top to bottom, nodes left to right in run order; `agents:` and `prompts:` registries; cross-layer `links`; loops as decision + `[return]` with cap; nested `tower:` for big components; labels ≤ 18 chars. Add operational fields (`trigger`, `approval`, `budget`, `limits`, `fanout`, `data`, `evals`, `sla`, `sandbox`…) only when config or code shows them.
+3. **Model layers** (what goes in layers, nodes, edges and nested towers: [reference.md](reference.md) § What goes where) top to bottom, nodes left to right in run order; `agents:` and `prompts:` registries; cross-layer `links`; loops as decision + `[return]` with cap; nested `tower:` for big components; labels ≤ 18 chars. Add operational fields (`trigger`, `approval`, `budget`, `limits`, `fanout`, `data`, `evals`, `sla`, `sandbox`…) only when config or code shows them.
 4. **Write** the YAML with the `# yaml-language-server: $schema=…` header.
 5. **Validate** until no errors and no warnings: `{{FLOW_TOWER_CLI}} validate <tower-file> --json`.
 6. **Offer live wiring** (`match:` rules, `docs/realtime.md`, `integrations/` in the flow-tower repo).
