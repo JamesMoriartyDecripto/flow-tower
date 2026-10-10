@@ -9,13 +9,10 @@ import { argv, exit } from 'node:process';
 import { join } from 'node:path';
 import { userHome } from '../core/secrets.ts';
 import { openHistory } from '../server/history/db.ts';
-import { COLUMNS, createHistory, RETENTION } from '../server/history/store.ts';
+import { COLUMNS, createHistory, RETENTION, userFilter } from '../server/history/store.ts';
 import type { DatabaseSync } from 'node:sqlite';
 
 const USAGE = 'usage: flow-tower history export [--user <u>] | delete --user <u> | info';
-
-/** The three tables holding a user's data; every one is keyed by `user`, so a delete covers all of them. */
-const TABLES = ['events', 'rollup_hourly', 'rollup_daily'] as const;
 
 /**
  * `--user <u>`: presence is what matters, because the empty string is a real value (rows with no user).
@@ -28,28 +25,21 @@ function parseUser(args: string[]): { present: boolean; value: string } {
 
 /** One JSONL line per events row, oldest first: the export format is data, so it goes to stdout alone. */
 function exportEvents(db: DatabaseSync, user: string | undefined): void {
-  const sql = `SELECT ${COLUMNS.join(', ')} FROM events ${user === undefined ? '' : 'WHERE user = ? '}ORDER BY ts`;
-  const rows = db.prepare(sql).all(...(user === undefined ? [] : [user])) as Record<string, unknown>[];
+  const filter = user === undefined ? undefined : userFilter(user);
+  const sql = `SELECT ${COLUMNS.join(', ')} FROM events ${filter ? `WHERE ${filter.sql} ` : ''}ORDER BY ts`;
+  const rows = db.prepare(sql).all(...(filter?.args ?? [])) as Record<string, unknown>[];
   for (const row of rows) console.log(JSON.stringify(row));
 }
 
 /**
- * Erases one user's rows. Counts are read before the delete so the shell is told exactly how much went;
- * VACUUM runs after the transaction (it cannot run inside one) and is what actually shrinks the file.
+ * Erases one user's rows. The store does the work (one transaction, counts read inside it) so the CLI and
+ * the server share the same `user = ''` rule, NULL rows from an older build included; VACUUM then runs
+ * after the transaction, which is what actually shrinks the file.
  */
 function deleteUser(db: DatabaseSync, user: string): void {
-  const count = (table: string) => (db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE user = ?`).get(user) as { n: number }).n;
-  const before = TABLES.map(count);
-  db.exec('BEGIN');
-  try {
-    for (const table of TABLES) db.prepare(`DELETE FROM ${table} WHERE user = ?`).run(user);
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+  const { events, rollups } = createHistory(db).eraseUser(user);
   db.exec('VACUUM');
-  console.log(`deleted ${before[0]} events and ${before[1] + before[2]} rollup rows for user "${user}"`);
+  console.log(`deleted ${events} events and ${rollups} rollup rows for user "${user}"`);
 }
 
 /** What the DB holds right now: where it is, how many rows, who is in it, and how far back it goes. */

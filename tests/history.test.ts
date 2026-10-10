@@ -1,4 +1,4 @@
-import { mkdtempSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -51,6 +51,19 @@ describe('history schema (#84)', () => {
     expect(version(res.db)).toBe(1);
     // 0600 where the file system honours chmod (matches the token store's best-effort mode).
     expect(statSync(path).mode & 0o777).toBe(0o600);
+    // WAL sidecars hold the same telemetry, so they are locked down too when they exist.
+    for (const suffix of ['-wal', '-shm']) {
+      const file = `${path}${suffix}`;
+      if (existsSync(file)) expect(statSync(file).mode & 0o777, suffix).toBe(0o600);
+    }
+  });
+
+  it("stores '' (never NULL) for a missing user, host, runtime or project", async () => {
+    const res = await open();
+    if ('disabled' in res) return;
+    createHistory(res.db).write([ev({ kind: 'log' })]);
+    const [row] = rows(res.db);
+    for (const col of ['user', 'host', 'runtime', 'project']) expect(row[col], col).toBe('');
   });
 
   it('keys the rollups on NOT NULL columns, so NULL users cannot duplicate a row', async () => {
@@ -113,6 +126,26 @@ describe('history scrub + writer (#84)', () => {
     expect(rows(res.db)).toHaveLength(1);
     const rollup = res.db.prepare('SELECT events, in_tok FROM rollup_hourly').all();
     expect(rollup).toEqual([{ events: 1, in_tok: 7 }]);
+  });
+
+  it('reads the flat token fields out of data when tokens_detail is absent', async () => {
+    const res = await open();
+    if ('disabled' in res) return;
+    const history = createHistory(res.db);
+    // Codex's spelling (`cached_tokens`) for cache_read, Claude's for the cache write, plus a string count.
+    history.write([ev({ kind: 'usage', user: 'alice', data: { input_tokens: 1200, output_tokens: 300, cached_tokens: '40', cache_creation_tokens: 7 } })]);
+    const [row] = rows(res.db);
+    expect(row).toMatchObject({ in_tok: 1200, out_tok: 300, cache_read: 40, cache_write: 7 });
+    const rollup = res.db.prepare('SELECT in_tok, out_tok, cache_read, cache_write FROM rollup_hourly').all();
+    expect(rollup).toEqual([{ in_tok: 1200, out_tok: 300, cache_read: 40, cache_write: 7 }]);
+  });
+
+  it('falls back to the bare tokens total when data holds nothing usable', async () => {
+    const res = await open();
+    if ('disabled' in res) return;
+    const history = createHistory(res.db);
+    history.write([ev({ kind: 'usage', tokens: 50, data: { note: 'no counts here' } })]);
+    expect(rows(res.db)[0]).toMatchObject({ in_tok: 50, out_tok: 0 });
   });
 
   it('lets an event without any id through (no dedupe key) rather than dropping it', async () => {
@@ -246,6 +279,15 @@ describe('history API (#84 phase 4)', () => {
     expect(out.status).toBe(400);
     expect(JSON.stringify(out.body)).toContain('password');
     expect(call(h.totals, '/api/history?by=user,project').status).toBe(200);
+  });
+
+  it('clamps a negative from/to to 0 instead of rejecting it', async () => {
+    const opened = await open();
+    if ('disabled' in opened) return;
+    const h = historyHandler(createHistory(opened.db));
+    const body = call(h.totals, '/api/history?from=-100&to=-5').body as { from: number; to: number };
+    expect(body.from).toBe(0);
+    expect(body.to).toBe(0);
   });
 
   it('defaults the range to the last 7 days and refuses cross-site reads', async () => {

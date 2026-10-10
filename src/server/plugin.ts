@@ -32,6 +32,15 @@ for (const file of [join(USER_HOME, '.env'), join(PKG_ROOT, '.env')]) if (exists
 
 export const UPDATE_EVENT = 'flow-tower:update';
 
+/** Set once a history write has failed: one warning per process is enough to tell the user. */
+let historyWarned = false;
+const warnHistoryOnce = (server: ViteDevServer, err: unknown) => {
+  if (historyWarned) return;
+  historyWarned = true;
+  const reason = err instanceof Error ? err.message : String(err);
+  server.config.logger.warn(`flow-tower: history write failed (${reason}); ingest keeps running, history may be incomplete`);
+};
+
 /** Serves the resolved library + referenced files, and pushes live updates on change. */
 export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES ?? '[]')): Plugin {
   let state: LoadResult | undefined;
@@ -108,7 +117,9 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         (events) => server.ws.send(EVENTS_EVENT, events),
         // The user folder holds the per-sender tokens (#83); FLOW_TOWER_TOKEN stays the shared legacy secret.
         { legacy: env.FLOW_TOWER_TOKEN, home: userHome(), hub: hubOpts.hub, ingestOnly: hubOpts.ingestOnly },
-        { onAccepted: (events) => history?.write(events) },
+        // History must never break ingest: a full disk makes the INSERT throw, and the live view is what
+        // matters. Warn once, then stay quiet so a broken DB cannot flood the log.
+        { onAccepted: (events) => { try { history?.write(events); } catch (err) { warnHistoryOnce(server, err); } } },
       );
       // History reads (#84 phase 4): a viewing route like /api/workspace, so hub mode's remote-viewer
       // rule decides who sees it and crossSite keeps other pages on this machine out.

@@ -38,5 +38,9 @@ export async function openHistory(path: string): Promise<HistoryOpen> {
   db.exec('PRAGMA synchronous = NORMAL');
   ownerOnly(path, 0o600);
   migrate(db);
+  // WAL keeps recent writes in sidecar files that SQLite may have created with a wider mode; they hold the
+  // same telemetry as the DB, so they get the same 0600. Created lazily by SQLite, so best effort: absent
+  // files are simply not there to lock down yet.
+  for (const suffix of ['-wal', '-shm']) ownerOnly(`${path}${suffix}`, 0o600);
   return { db };
 }

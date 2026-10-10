@@ -79,8 +79,27 @@ export interface History {
   prune(now?: number, opts?: { rawDays?: number }): void;
   /** Aggregates the rollups over a range, grouped by the requested key columns (#84 phase 4). */
   totals(query: TotalsQuery): TotalsRow[];
+  /** Erases one user's rows (events and both rollups) and says how many went. */
+  eraseUser(user: string): EraseResult;
   /** What the DB currently holds: retention window, oldest raw event, row count. */
   info(): HistoryInfo;
+}
+
+export interface EraseResult {
+  events: number;
+  rollups: number;
+}
+
+/** The three tables holding a user's data; every one is keyed by `user`, so a delete covers all of them. */
+const TABLES = ['events', 'rollup_hourly', 'rollup_daily'] as const;
+
+/**
+ * Matching clause for one user. `''` means "the rows with no user", which must also cover the NULL rows an
+ * older build wrote before the writer used '' for unknown: the caller asks for one thing and gets it all.
+ * The clause is built here, never from the query, so the CLI's export and delete can share it.
+ */
+export function userFilter(user: string): { sql: string; args: string[] } {
+  return user === '' ? { sql: "(user = '' OR user IS NULL)", args: [] } : { sql: 'user = ?', args: [user] };
 }
 
 /** Shape of GET /api/history/info: enough for a UI to say how far back the charts go. */
@@ -112,7 +131,7 @@ export function createHistory(db: DatabaseSync): History {
         // rollups, or a duplicate would be counted once in events but twice in the buckets.
         const res = insert.run(...COLUMNS.map((c) => row[c]));
         if (Number(res.changes) === 0) continue;
-        const key: [string, string, string, string] = [row.user ?? '', row.project ?? '', row.runtime ?? '', row.model ?? ''];
+        const key: [string, string, string, string] = [row.user, row.project, row.runtime, row.model ?? ''];
         const totals = [row.in_tok, row.out_tok, row.cache_read, row.cache_write, row.cost_usd_micros];
         for (const [table, bucket] of [[hourly, Math.floor(row.ts / HOUR) * HOUR], [daily, dayStart(row.ts)]] as const) {
           table.run(bucket, ...key, 1, row.status === 'error' ? 1 : 0, ...totals);
@@ -175,11 +194,31 @@ export function createHistory(db: DatabaseSync): History {
     });
   };
 
+  /**
+   * Erases one user (#84). Counts are read inside the same transaction as the delete, so nothing can slip
+   * between the read and the write; VACUUM is the caller's business, it cannot run inside a transaction.
+   */
+  const eraseUser = (user: string): EraseResult => {
+    const { sql, args } = userFilter(user);
+    const count = (table: string) => (db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE ${sql}`).get(...args) as { n: number }).n;
+    db.exec('BEGIN');
+    try {
+      const events = count('events');
+      const rollups = count('rollup_hourly') + count('rollup_daily');
+      for (const table of TABLES) db.prepare(`DELETE FROM ${table} WHERE ${sql}`).run(...args);
+      db.exec('COMMIT');
+      return { events, rollups };
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  };
+
   const info = (): HistoryInfo => {
     const oldest = (db.prepare('SELECT MIN(ts) AS ts FROM events').get() as { ts: number | null }).ts;
     const rows = (db.prepare('SELECT COUNT(*) AS n FROM events').get() as { n: number }).n;
     return { enabled: true, rawDays: retentionDays(), oldest: oldest ?? null, rows };
   };
 
-  return { write, prune, totals, info };
+  return { write, prune, totals, eraseUser, info };
 }

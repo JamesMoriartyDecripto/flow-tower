@@ -4,16 +4,18 @@
  * by accident. `message`, `data`, `prompt`, file paths and command arguments are simply never touched.
  */
 import type { FlowEvent } from '../../core/events.ts';
+import { tokenAttr } from '../../core/identity.ts';
 import { eventIdOf } from '../limits.ts';
 
 /** The writable columns of `events`, in schema order. Content-free by construction. */
 export interface Row {
   ts: number;
   sender: string | null;
-  user: string | null;
-  host: string | null;
-  runtime: string | null;
-  project: string | null;
+  /** Identity fields are stored as '' (never NULL) when missing: `history delete --user ''` must match. */
+  user: string;
+  host: string;
+  runtime: string;
+  project: string;
   session: string | null;
   kind: string;
   tool: string | null;
@@ -32,6 +34,25 @@ export interface Row {
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+/** Same as `str` but never NULL: the identity columns use '' for "unknown", like the rollup keys. */
+const text = (v: unknown): string => str(v) ?? '';
+
+/**
+ * The same breakdown read off a flat `data` bag, using the attribute cascade from identity.ts so every
+ * spelling a source may use ("cached_tokens", "cache_read_input_tokens"...) is accepted. `data` is
+ * untrusted and may be anything, so a non-object simply has no tokens.
+ */
+function flatDetail(data: unknown): FlowEvent['tokens_detail'] {
+  if (typeof data !== 'object' || data === null) return undefined;
+  const a = data as Record<string, unknown>;
+  const input = tokenAttr(a, 'input');
+  const output = tokenAttr(a, 'output');
+  const cache_read = tokenAttr(a, 'cache_read');
+  const cache_write = tokenAttr(a, 'cache_write');
+  return input === undefined && output === undefined && cache_read === undefined && cache_write === undefined
+    ? undefined
+    : { input, output, cache_read, cache_write };
+}
 
 /**
  * Maps a normalized event onto a row. `now` fills a missing ts (an event straight from a caller that
@@ -41,16 +62,18 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 export function toRow(e: FlowEvent, now: number): Row | undefined {
   const ts = num(e.ts) ?? now;
   if (!Number.isFinite(ts)) return undefined;
-  // tokens_detail is the precise breakdown; a bare `tokens` total is the fallback, recorded as input.
-  const d = e.tokens_detail;
+  // tokens_detail is the precise breakdown; when it is missing, the flat fields a source put in `data`
+  // (Claude's `input_tokens`/`cache_creation_tokens`, Codex's `cached_tokens`) are just as good. A bare
+  // `tokens` total is the last resort, recorded as input.
+  const d = e.tokens_detail ?? flatDetail(e.data);
   const id = eventIdOf(e);
   return {
     ts,
     sender: str(e.sender),
-    user: str(e.user),
-    host: str(e.host),
-    runtime: str(e.runtime),
-    project: str(e.project),
+    user: text(e.user),
+    host: text(e.host),
+    runtime: text(e.runtime),
+    project: text(e.project),
     session: str(e.session),
     kind: e.kind,
     tool: str(e.tool),

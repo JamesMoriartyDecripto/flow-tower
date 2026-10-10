@@ -203,6 +203,30 @@ describe('cli history (#84)', () => {
     expect(r.status).toBe(2);
     expect(r.stderr).toContain('usage: flow-tower history');
   });
+
+  it("deletes the no-user rows with --user '', old NULL rows included", async () => {
+    if (!(await seed())) return;
+    const opened = await openHistory(path);
+    if ('disabled' in opened) return;
+    const ts = Date.now() + 5;
+    createHistory(opened.db).write([{ ...FlowEventSchema.parse({ kind: 'usage', model: 'gpt-5', call: 'seed-nouser', tokens: 5 }), id: 1, ts, targets: [] } as FlowEvent]);
+    // A row an older build wrote before the writer used '' for unknown: it must go with the same delete.
+    opened.db.prepare("INSERT INTO events (ts, user, kind) VALUES (?, NULL, 'log')").run(ts);
+    opened.db.close();
+
+    const del = history('delete', '--user', '');
+    expect(del.status).toBe(0);
+    expect(del.stdout).toContain('deleted 2 events');
+
+    const reopened = await openHistory(path);
+    if ('disabled' in reopened) return;
+    const left = reopened.db.prepare('SELECT user FROM events').all() as { user: string }[];
+    // '' and NULL are both gone from every table; the named users are never touched.
+    expect(left.map((r) => r.user).sort()).toEqual(['alice', 'bob']);
+    const rollups = (reopened.db.prepare("SELECT count(*) AS n FROM rollup_hourly WHERE user = '' OR user IS NULL").get() as { n: number }).n;
+    expect(rollups).toBe(0);
+    reopened.db.close();
+  });
 });
 
 describe('cli serve guards (#83)', () => {

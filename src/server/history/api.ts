@@ -38,8 +38,9 @@ export function historyHandler(history: History | undefined) {
     if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
     if (!history) return send(res, 200, off);
     const url = new URL(req.url ?? '', 'http://local');
-    const to = ms(url.searchParams.get('to')) ?? Date.now();
-    const from = ms(url.searchParams.get('from')) ?? to - DEFAULT_DAYS * DAY;
+    // A negative epoch has no meaning, and it would only buy the caller a nonsensical range: clamp to 0.
+    const to = Math.max(0, ms(url.searchParams.get('to')) ?? Date.now());
+    const from = Math.max(0, ms(url.searchParams.get('from')) ?? to - DEFAULT_DAYS * DAY);
     const raw = (url.searchParams.get('by') ?? '').trim();
     const parts = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : [];
     // An unknown group-by is a client error, never silently dropped: the answer must match the question.
