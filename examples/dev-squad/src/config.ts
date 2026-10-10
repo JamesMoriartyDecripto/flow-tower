@@ -6,31 +6,44 @@ import type { McpServerConfig } from '@anthropic-ai/claude-agent-sdk';
 /** Root of the Dev Squad package (prompts, agents, memory live here). */
 export const ROOT = resolve(import.meta.dirname, '..');
 
-/** One model per job: Opus thinks, Sonnet builds and judges, Haiku routes and writes. */
+/** Claude for judgment (lead, architect, verifier), other model families for the bulk work. */
 export const MODELS = {
   opus: 'claude-opus-5-5',
   sonnet: 'claude-sonnet-5-5',
   haiku: 'claude-haiku-5-5',
+  deepseek: 'deepseek/deepseek-v4-pro-0813',
+  glm: 'z-ai/glm-5.3',
 } as const;
 
+/** Where a role thinks: the Claude Agent SDK, or an OpenRouter tool loop (src/openrouter-agent.ts). */
+export interface RoleModel { provider: 'claude' | 'openrouter'; model: string }
+const claude = (model: string): RoleModel => ({ provider: 'claude', model });
+const openrouter = (model: string): RoleModel => ({ provider: 'openrouter', model });
+
+/**
+ * Cross-model review: GLM (Z.ai) reviews what DeepSeek wrote, so the evaluator does not share
+ * the coder's blind spots; Claude plans, arbitrates and verifies with a fresh context.
+ */
 export const ROLE_MODEL = {
-  triage: MODELS.haiku,
-  lead: MODELS.opus,
-  architect: MODELS.opus,
-  researcher: MODELS.sonnet,
-  coder: MODELS.sonnet,
-  tester: MODELS.sonnet,
-  reviewer: MODELS.sonnet,
-  'security-auditor': MODELS.sonnet,
-  verifier: MODELS.sonnet,
-  'doc-writer': MODELS.haiku,
-} as const;
+  triage: claude(MODELS.haiku),
+  lead: claude(MODELS.opus),
+  architect: claude(MODELS.opus),
+  researcher: claude(MODELS.sonnet),
+  coder: openrouter(MODELS.deepseek),
+  tester: claude(MODELS.sonnet),
+  reviewer: openrouter(MODELS.glm),
+  'security-auditor': openrouter(MODELS.deepseek),
+  verifier: claude(MODELS.opus),
+  'doc-writer': claude(MODELS.haiku),
+} satisfies Record<string, RoleModel>;
 export type Role = keyof typeof ROLE_MODEL;
 
 /** Hard caps per query(). The SDK stops with error_max_turns / error_max_budget_usd. */
 export const LIMITS = {
   triage: { maxTurns: 2, maxBudgetUsd: 0.05 },
   quickfix: { maxTurns: 25, maxBudgetUsd: 1 },
+  /** One plan step for an OpenRouter coder (run_coder): round 1 of #70 took 50 steps and $0.13. */
+  step: { maxTurns: 60, maxBudgetUsd: 1 },
   lead: { maxTurns: 80, maxBudgetUsd: 8 },
   review: { maxTurns: 25, maxBudgetUsd: 1.5 },
   fix: { maxTurns: 40, maxBudgetUsd: 2 },
@@ -40,8 +53,8 @@ export const LIMITS = {
   issueUsd: 15,
 } as const;
 
-/** Evaluator-optimizer loop: cap rounds, escalate the fixer to Opus on the last one. */
-export const REVIEW = { maxRounds: 3, escalateToOpusOnRound: 3 } as const;
+/** Evaluator-optimizer loop: cap rounds; the last fix round leaves OpenRouter for Claude Opus. */
+export const REVIEW = { maxRounds: 3, escalateOnRound: 3, escalateTo: claude(MODELS.opus) } as const;
 
 /** Plans above this size or with risk=high need a human sign-off before coding; at most 2 revise rounds. */
 export const PLAN_GATE = { maxSteps: 6, approvalTimeoutMin: 240, maxRevisions: 2 } as const;

@@ -1,15 +1,18 @@
 import { query, type SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import { leadTeam } from './agents';
-import { LIMITS, PLAN_GATE, ROLE_MODEL, loadMcpServers, sdkEnv } from './config';
+import { LIMITS, MODELS, PLAN_GATE, ROLE_MODEL, loadMcpServers, sdkEnv } from './config';
 import { buildHooks } from './hooks';
 import { recallPatterns } from './memory/store';
 import { renderPrompt, untrusted } from './prompts';
 import { headlessPermissions } from './run-agent';
 import { squadServer } from './tools';
+import { takeCoderSpend } from './tools/run-coder';
 import type { Issue } from './main';
 import type { Triage } from './triage';
 
 export interface Worktree { path: string; branch: string }
+
+const LEAD_TOOLS = ['Agent', 'Read', 'Grep', 'Glob', 'TodoWrite', 'mcp__squad__run_coder', 'mcp__squad__request_approval', 'mcp__squad__file_followup'];
 
 export interface LeadReport {
   status: 'ready_for_review' | 'blocked' | 'awaiting_approval';
@@ -25,7 +28,7 @@ export interface LeadReport {
 
 /**
  * Orchestrator-workers: an Opus lead plans with the architect, fans research out
- * in parallel, then walks the plan step by step with Sonnet coders. Each subagent
+ * in parallel, then walks the plan step by step with coders (DeepSeek via run_coder). Each subagent
  * has its own context window; only its final report comes back to the lead.
  * A risky plan ends the session with status `awaiting_approval`; the pipeline then resumes
  * the same session (`resume`) with the human's answer as the next prompt.
@@ -52,11 +55,11 @@ export async function runLead(issue: Issue, triage: Triage, wt: Worktree, resume
     options: {
       ...(resume && { resume: resume.sessionId }),
       cwd: wt.path,
-      model: ROLE_MODEL.lead,
-      fallbackModel: ROLE_MODEL.coder,
+      model: ROLE_MODEL.lead.model,
+      fallbackModel: MODELS.sonnet,
       // The lead coordinates; it cannot edit files or run shell commands itself.
-      tools: ['Agent', 'Read', 'Grep', 'Glob', 'TodoWrite', 'mcp__squad__request_approval', 'mcp__squad__file_followup'],
-      allowedTools: ['Agent', 'Read', 'Grep', 'Glob', 'TodoWrite', 'mcp__squad__request_approval', 'mcp__squad__file_followup'],
+      tools: LEAD_TOOLS,
+      allowedTools: LEAD_TOOLS,
       // settings.json asks before request_approval (for interactive sessions); here the lead may always ask.
       canUseTool: headlessPermissions(['mcp__squad__request_approval']),
       permissionMode: 'default',
@@ -78,11 +81,13 @@ export async function runLead(issue: Issue, triage: Triage, wt: Worktree, resume
   }
   if (!result) throw new Error('lead produced no result');
   if (result.subtype !== 'success') {
-    return blocked(result.session_id, result.total_cost_usd, `lead stopped: ${result.subtype}`);
+    return blocked(result.session_id, result.total_cost_usd + takeCoderSpend(wt.path), `lead stopped: ${result.subtype}`);
   }
   const report = parseReport(result.result);
-  console.log(`[lead] report status=${report.status} tests=${report.tests} cost_usd=${result.total_cost_usd.toFixed(2)} turns=${result.num_turns}/${LIMITS.lead.maxTurns}`);
-  return { ...report, sessionId: result.session_id, costUsd: result.total_cost_usd };
+  // OpenRouter coder runs are not in the SDK's total: add them, or the issue budget would miss them.
+  const costUsd = result.total_cost_usd + takeCoderSpend(wt.path);
+  console.log(`[lead] report status=${report.status} tests=${report.tests} cost_usd=${costUsd.toFixed(2)} turns=${result.num_turns}/${LIMITS.lead.maxTurns}`);
+  return { ...report, sessionId: result.session_id, costUsd };
 }
 
 function logDelegations(content: Array<{ type: string; name?: string; input?: unknown }>) {

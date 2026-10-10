@@ -33,10 +33,10 @@ Turn a GitHub issue labelled `squad:go` into a reviewed, tested, documented
 | Classify the issue | triage (prompt) | haiku |
 | Plan | architect (prompt) | opus |
 | Unknown API / version | researcher | sonnet |
-| Implement one step | coder | sonnet |
+| Implement one step | coder (`run_coder`) | deepseek-v4-pro (OpenRouter) |
 | Break it | tester | sonnet |
-| Grade it | reviewer + security-auditor (parallel) | sonnet |
-| Final check, fresh context | verifier | sonnet |
+| Grade it | reviewer + security-auditor (parallel) | glm-5.3 + deepseek-v4-pro (OpenRouter) |
+| Final check, fresh context | verifier | opus |
 | Changelog, docs, PR body | doc-writer | haiku |
 
 ## Memory
