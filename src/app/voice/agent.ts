@@ -1,4 +1,5 @@
 import { runTool, runToolAsync, TOOLS } from './tools';
+import { isEcho as echoOf, playbackOff, playbackOn, type Recorded } from './duplex';
 
 /**
  * The conversational voice agent (#63): the transcript goes to an LLM with the tools in tools.ts, which
@@ -155,15 +156,18 @@ export async function converse(text: string, on: TurnEvents = {}, signal?: Abort
 export const forget = () => { history.length = 0; };
 
 /**
- * Spoken replies, sentence by sentence: each sentence is synthesized as soon as it is written (in
- * parallel) and played in order through an <audio> element. Browsers cancel the echo of media elements
- * in the mic (getUserMedia echoCancellation), so the agent does not hear itself. stopSpeaking() is the barge-in.
+ * Spoken replies, sentence by sentence: each sentence is synthesized shortly before its turn and played
+ * in order through an <audio> element. At most AHEAD sentences are synthesized ahead of the one playing:
+ * /speak shares the server's upstream slots (MAX_IN_FLIGHT) with the chat stream, transcription and the
+ * journal, and a long reply sent all at once got 429s and lost sentences. While a reply plays the mic
+ * ignores what it hears unless "Interrupt by voice" is on (duplex.ts); stopSpeaking() is the barge-in.
  */
-let queue: Promise<Blob | undefined>[] = [];
+interface Sentence { text: string; blob?: Promise<Blob | undefined> }
+const AHEAD = 2;
+let queue: Sentence[] = [];
 let playing: HTMLAudioElement | undefined;
 let abort = new AbortController();
 let spokenText = '';
-let speakingUntil = 0;
 /** Told once when the browser refuses to play (autoplay blocked), until a sentence plays again. */
 let blocked: ((message: string) => void) | undefined;
 let blockedTold = false;
@@ -177,22 +181,45 @@ const deferred = () => {
 /** When the current reply's first sentence started playing (performance.now()); undefined if none did. */
 let firstPlay = deferred();
 
+/** One sentence to speech. A 429 (the server's slots are busy) is retried once, shortly after. */
+async function speak(text: string, signal: AbortSignal): Promise<Blob | undefined> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetch('/api/voice/speak', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', [VOICE_HEADER]: '1' }, body: JSON.stringify({ text }), signal,
+      });
+      if (r.ok) return await r.blob();
+      if (r.status !== 429) return undefined;
+      await new Promise((done) => setTimeout(done, 500));
+      if (signal.aborted) return undefined;
+    } catch { return undefined; }
+  }
+  return undefined;
+}
+
+/** Starts synthesis for the next `n` sentences that have none yet. */
+const prefetch = (signal: AbortSignal, n: number) => { for (const s of queue.slice(0, n)) s.blob ??= speak(s.text, signal); };
+
 export function say(sentence: string) {
   spokenText += ` ${sentence}`;
-  speakingUntil = Infinity;
   const signal = abort.signal;
-  queue.push(post('/speak', { text: sentence }, signal).then((r) => r.blob()).catch(() => undefined));
+  queue.push({ text: sentence });
   // One player at a time: set before the first blob arrives, or every sentence would start its own.
-  if (!draining) { draining = true; void playNext(signal); }
+  if (!draining) { draining = true; void playNext(signal); } else prefetch(signal, ahead);
 }
 
 let draining = false;
+/** Sentences to synthesize ahead: one while waiting for the current sentence's audio, AHEAD once it plays. */
+let ahead = 1;
 
 async function playNext(signal: AbortSignal) {
   if (signal.aborted) return; // stopSpeaking() already freed the player: the queue now belongs to the next reply
   const next = queue.shift();
-  if (!next) { draining = false; playing = undefined; speakingUntil = performance.now() + 800; firstPlay.resolve(undefined); return; }
-  const blob = await next;
+  if (!next) { draining = false; playing = undefined; playbackOff(); firstPlay.resolve(undefined); return; }
+  ahead = 1;
+  next.blob ??= speak(next.text, signal);
+  prefetch(signal, ahead);
+  const blob = await next.blob;
   if (signal.aborted) return;
   if (!blob) return playNext(signal); // a failed sentence is skipped, not fatal
   const url = URL.createObjectURL(blob);
@@ -201,8 +228,11 @@ async function playNext(signal: AbortSignal) {
   audio.onended = () => { URL.revokeObjectURL(url); void playNext(signal); };
   try {
     await audio.play();
+    playbackOn();
     firstPlay.resolve(performance.now()); // only the first call counts: a promise settles once
     blockedTold = false;
+    ahead = AHEAD;
+    prefetch(signal, ahead);
   } catch (err) {
     URL.revokeObjectURL(url);
     if (signal.aborted) return; // paused by a barge-in before it started
@@ -238,20 +268,13 @@ export function stopSpeaking() {
   draining = false;
   playing?.pause();
   playing = undefined;
-  speakingUntil = performance.now() + 800;
+  playbackOff();
 }
 
 export const isSpeaking = () => !!playing || queue.length > 0;
 
-/** A transcript of our own reply caught by the mic (echo the canceller missed): drop it. */
-export function isEcho(transcript: string) {
-  if (performance.now() > speakingUntil) return false;
-  const words = (s: string) => new Set(s.toLowerCase().split(/\W+/).filter((w) => w.length > 2));
-  const heard = words(transcript);
-  const said = words(spokenText);
-  if (!heard.size) return false;
-  return [...heard].filter((w) => said.has(w)).length / heard.size >= 0.6;
-}
+/** A transcript of our own reply caught by the mic (echo the canceller missed), judged on when it was recorded. */
+export const isEcho = (transcript: string, at: Recorded) => echoOf(transcript, spokenText, at);
 
 /** Questions and requests about the screen go to the agent; plain navigation stays with the parser. */
 export function wantsAgent(text: string) {

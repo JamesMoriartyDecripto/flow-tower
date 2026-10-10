@@ -1,6 +1,6 @@
 import { createContext, useContext, useRef, type InputHTMLAttributes, type ReactNode } from 'react';
 import { useLive } from '../live';
-import { chooseView, effectiveScale, resetPrefs, usePrefs, type DefaultView, type Flow, type TextFont, type TitleFont, type Visibility, type VoiceLanguage } from '../settings';
+import { chooseView, effectiveScale, resetPrefs, usePrefs, type DefaultView, type Flow, type TextFont, type TitleFont, type Visibility, type VoiceLanguage, type VoiceSensitivity } from '../settings';
 import { STATIC } from '../staticData';
 import type { FlowStyle } from '../scene/Particles';
 import { useStore, type Quality } from '../store';
@@ -197,6 +197,12 @@ export function Settings() {
               </Row>
               <Row label="Spoken replies" hint="Questions get an answer from the voice agent (#63). On: it is also spoken. Off: shown in the caption only.">
                 <Toggle on={prefs.voiceReplies} onChange={(voiceReplies) => prefs.set({ voiceReplies })} />
+              </Row>
+              <Row label="Microphone sensitivity" hint="How readily a sound counts as speech. Low: for noisy laptops (a fan that starts clips by itself); speak a little louder. High: for quiet rooms and soft voices.">
+                <Seg<VoiceSensitivity> value={prefs.voiceSensitivity} options={[['low', 'Low'], ['normal', 'Normal'], ['high', 'High']]} onChange={(voiceSensitivity) => prefs.set({ voiceSensitivity })} />
+              </Row>
+              <Row label="Interrupt by voice" hint="Off: while a reply is spoken the microphone ignores what it hears, so laptop speakers cannot make the agent answer itself. On (with headphones): three words or “stop” cut the reply short. V, Esc and ✕ always stop it.">
+                <Toggle on={prefs.voiceBargeIn} onChange={(voiceBargeIn) => prefs.set({ voiceBargeIn })} />
               </Row>
               <VoiceLearning />
             </section>

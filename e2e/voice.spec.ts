@@ -85,4 +85,13 @@ test('voice journal: turns are written, a correction marks the last one, accepte
   await hear('no, il terzo livello');
   await expect.poll(() => journal.find((j) => j.mark)?.mark).toEqual({ ts: first.ts, outcome: 'corrected' });
   await expect.poll(() => journal.filter((j) => j.entry).length).toBe(2);
+
+  // Mic off with suggestions waiting (the review runs at mic-off): the caption stays with its chip; ✕ dismisses it.
+  await page.evaluate(async () => {
+    const { useVoice } = await import(String('/src/app/voice/voice.ts'));
+    useVoice.setState({ status: 'off', suggestions: 2, heard: undefined, error: undefined });
+  });
+  await expect(page.locator('.voice-caption .voice-chip')).toHaveText('2 SUGGESTIONS');
+  await page.locator('.voice-caption .voice-close').click();
+  await expect(page.locator('.voice-caption')).toHaveCount(0);
 });

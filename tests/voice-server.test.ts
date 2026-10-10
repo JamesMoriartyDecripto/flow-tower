@@ -80,3 +80,17 @@ describe('/api/voice (#62)', () => {
     expect(calls.length).toBe(before);
   });
 });
+
+describe('/api/voice/chat streaming', () => {
+  it('ends the response cleanly when upstream fails halfway through the stream', async () => {
+    const first = new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Il primo livello. ' } }] })}\n\n`);
+    let pulls = 0;
+    const failing = (async () => new Response(new ReadableStream<Uint8Array>({
+      pull(c) { if (pulls++ === 0) c.enqueue(first); else c.error(new Error('connection reset')); },
+    }), { status: 200 })) as unknown as typeof fetch;
+    const url = await start({ key: 'sk-or-test', fetch: failing });
+    const r = await post(`${url}chat`, { messages: [{ role: 'user', content: 'ciao' }], tools: [], stream: true });
+    expect(r.status).toBe(200); // the headers were already sent
+    expect(await r.text()).toContain('Il primo livello.'); // what arrived, then a clean end, no crash
+  });
+});

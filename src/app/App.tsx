@@ -143,6 +143,7 @@ function useKeyboard() {
       // A focused HUD button keeps Enter / Space for itself.
       if ((e.key === 'Enter' || e.key === ' ') && t.closest('button, [role="button"], a')) return;
       if (e.metaKey || e.ctrlKey) return;
+      if (e.key === 'Escape' && useVoice.getState().hush()) return; // a reply is playing: Esc silences it first
       const s = useStore.getState();
       const prefs = usePrefs.getState();
       if (e.key === '?') { prefs.set({ help: !prefs.help }); return; }

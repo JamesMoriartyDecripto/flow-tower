@@ -88,7 +88,8 @@ export function learningRoutes(d: LearningDeps) {
 
   async function review(res: ServerResponse) {
     const m = store.memory();
-    const entries = store.read(m.reviewedUpTo).slice(-REVIEW_MAX);
+    // The oldest first: what does not fit is reviewed next time, never skipped.
+    const entries = store.read(m.reviewedUpTo).slice(0, REVIEW_MAX);
     if (!entries.length) return send(res, 200, { pending: m.pending, reviewed: 0 });
     const names = d.names([...new Set(entries.map((e) => e.tower).filter(Boolean) as string[])]);
     const forgets = store.forgets();
@@ -122,6 +123,14 @@ export function learningRoutes(d: LearningDeps) {
   }
 }
 
+/** Words in almost every command, in Italian and English: an alias on them would rewrite every transcript. */
+const STOP_WORDS = new Set(('il lo la le li gli i un uno una di del della dei delle degli da dal dalla in nel nella su sul sulla ' +
+  'a al alla ai alle per con tra fra e ed o che non mi ti si ci vi è ma come questo questa quello quella ' +
+  'the a an of to in on at by for with from and or but is are it its this that these those you me my what which ' +
+  'go vai apri open show mostra livello layer level nodo node torna back').split(' '));
+/** An alias needs a real word to match: at least 3 characters, and not only common words. */
+export const tooCommon = (heard: string) => heard.length < 3 || heard.split(/\s+/).every((w) => STOP_WORDS.has(w));
+
 interface RawSuggestion { kind: string; heard: string; means: string; text: string; why: string; evidence: number }
 
 const compact = (e: JournalEntry) => ({ heard: e.heard, route: e.route, did: e.did.slice(0, 160), outcome: e.outcome, ...(e.language && { language: e.language }) });
@@ -146,7 +155,7 @@ function accept(list: RawSuggestion[], names: string[], known: Memory[], id: () 
     if (s.kind === 'alias') {
       const heard = String(s.heard ?? '').toLowerCase().trim().slice(0, 60);
       const means = real.get(String(s.means ?? '').toLowerCase().trim());
-      if (!heard || !means || heard === means.toLowerCase() || seen.has(`alias:${heard}`)) continue;
+      if (!heard || !means || heard === means.toLowerCase() || seen.has(`alias:${heard}`) || tooCommon(heard)) continue;
       seen.add(`alias:${heard}`);
       out.push({ id: id(), kind: 'alias', heard, means, why, evidence });
     } else if (s.kind === 'rule' || s.kind === 'style') {

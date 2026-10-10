@@ -6,6 +6,8 @@ import { norm, parseCommand, type VoiceAction } from './commands';
 import { openMic, type Mic } from './mic';
 import { converse, firstAudio, forget, isEcho, isSpeaking, newReply, onPlaybackBlocked, say, stopSpeaking, wantsAgent } from './agent';
 import { clearAgentSearch } from './tools';
+import { bargeIn, keepClip, playedDuring, type Recorded } from './duplex';
+import { isHallucination } from './noise';
 import { applyAliases, interrupted, judgeLast, loadMemory, notesForAgent, record, reviewIfDue } from './journal';
 
 export type VoiceStatus = 'off' | 'starting' | 'listening' | 'hearing' | 'thinking';
@@ -28,6 +30,8 @@ interface VoiceState {
   /** Handles a transcript as if it had been heard: parser or agent, caption and voice (tests, dev hook). */
   hear(text: string): Promise<void>;
   dismiss(): void;
+  /** Stops the reply being spoken (Esc), without turning the mic off. False when nothing was playing. */
+  hush(): boolean;
 }
 
 /** Proves a request comes from this page: src/server/voice.ts refuses POSTs without it. */
@@ -81,7 +85,13 @@ export const useVoice = create<VoiceState>((set, get) => ({
   hear: (text) => handle(text, session),
   dismiss() {
     clearTimeout(hideError);
-    set({ error: undefined });
+    set({ error: undefined, ...(get().status === 'off' && { suggestions: undefined }) });
+  },
+  hush() {
+    if (!isSpeaking()) return false;
+    stopSpeaking();
+    interrupted();
+    return true;
   },
 }));
 
@@ -128,14 +138,18 @@ async function start() {
   try {
     const opened = await openMic({
       speaking: (on) => {
-        speaking = on;
+        // Half-duplex: our own reply in the speakers is not the user speaking.
+        speaking = on && (usePrefs.getState().voiceBargeIn || !isSpeaking());
         if (mine === session) set({ status: status() });
       },
-      clip: (audio, format) => {
+      clip: (audio, format, at) => {
         if (mine !== session) return; // the recorder's last clip can land just after a stop
+        // Decided on when it was recorded, not when it would be transcribed: a clip recorded while the
+        // reply played is the reply itself (laptop speakers), unless the user turned on interrupting by voice.
+        if (!keepClip(at, usePrefs.getState().voiceBargeIn)) return;
         pending++;
         set({ status: status() });
-        queue = queue.then(() => transcribe(audio, format, mine)).finally(() => {
+        queue = queue.then(() => transcribe(audio, format, mine, at)).finally(() => {
           if (mine !== session) return;
           pending--;
           set({ status: status() });
@@ -146,7 +160,7 @@ async function start() {
         stop();
         fail('The microphone stopped (unplugged, or taken by another app).');
       },
-    });
+    }, () => usePrefs.getState().voiceSensitivity);
     if (mine !== session) return opened.close(); // stopped while the permission prompt was open
     mic = opened;
     set({ status: 'listening' });
@@ -177,7 +191,7 @@ function armIdle() {
   idle = setTimeout(stop, IDLE_OFF_MS);
 }
 
-async function transcribe(audio: Blob, format: string, mine: number) {
+async function transcribe(audio: Blob, format: string, mine: number, at: Recorded) {
   if (mine !== session) return;
   const language = usePrefs.getState().voiceLanguage;
   try {
@@ -192,14 +206,15 @@ async function transcribe(audio: Blob, format: string, mine: number) {
     if (mine !== session) return; // stopped while transcribing: the command no longer applies
     if (!r.ok) throw new Error(out.error ?? `HTTP ${r.status}`);
     const text = out.text?.trim();
-    if (!text || isEcho(text)) return; // our own reply, caught by the mic
-    if (isSpeaking()) {
-      // Barge-in: real words stop the reply; a cough or "ok" while it talks does not (Pipecat: 3+ words).
-      const stopWord = /^(stop|basta|ferma|fermati|zitto|silenzio|enough|quiet|shut up)\b/i.test(text);
-      if (!stopWord && text.split(/\s+/).length < 3) return;
-      stopSpeaking();
-      interrupted();
-      if (stopWord) return;
+    // Our own reply caught by the mic, or what Whisper writes for noise ("Grazie.", "Thank you."): dropped
+    // before anything handles or journals it.
+    if (!text || isEcho(text, at) || isHallucination(text)) return;
+    if (playedDuring(at)) {
+      // Barge-in (only with "Interrupt by voice" on): real words stop the reply; a cough or "ok" does not.
+      const kind = bargeIn(text);
+      if (kind === 'ignore') return;
+      if (isSpeaking()) { stopSpeaking(); interrupted(); }
+      if (kind === 'stop') return;
     }
     await handle(text, mine);
   } catch (err) {

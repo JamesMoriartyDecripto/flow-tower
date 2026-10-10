@@ -24,7 +24,8 @@ export function MicButton() {
 /** What was heard and what it did, under the top bar, above the library too. */
 export function VoiceCaption() {
   const { status, heard, did, error, cloud, suggestions, toggle, dismiss } = useVoice();
-  if (STATIC || (status === 'off' && !error)) return null;
+  // Off, the caption stays for an error or for suggestions from the review that ran at mic-off (#68).
+  if (STATIC || (status === 'off' && !error && !suggestions)) return null;
   return (
     <div className={`panel voice-caption ${status}`} role="status" aria-live="polite">
       <button className="voice-close" onClick={error || status === 'off' ? dismiss : toggle} aria-label={error || status === 'off' ? 'Dismiss' : 'Stop listening'} title={error || status === 'off' ? 'Dismiss' : 'Stop listening (V)'}>✕</button>

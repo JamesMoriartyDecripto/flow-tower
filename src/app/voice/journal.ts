@@ -93,7 +93,7 @@ export function applyAliases(text: string, aliases: Alias[] = memory.aliases) {
   let out = text;
   for (const a of aliases) {
     const heard = a.heard.trim();
-    if (!heard) continue;
+    if (heard.length < 3) continue; // the server refuses these too (voice-learning.ts tooCommon)
     out = out.replace(new RegExp(`(^|[^\\p{L}\\p{N}])${heard.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^\\p{L}\\p{N}])`, 'giu'), `$1${a.means}`);
   }
   return out;

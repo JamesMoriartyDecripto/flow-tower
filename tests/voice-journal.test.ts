@@ -126,6 +126,31 @@ describe('voice journal routes', () => {
     expect(store.memory().reviewedUpTo).toBeGreaterThan(0);
     expect(store.stats()).toMatchObject({ reviews: 2, reviewCost: 0.0042, turns: 1, cost: 0 });
   });
+
+  it('reviews the oldest unreviewed entries first, so none is skipped', async () => {
+    const store = voiceStore(mkdtempSync(join(tmpdir(), 'flow-tower-home-')));
+    for (let i = 1; i <= 205; i++) store.append({ ts: i, heard: `turno ${i}`, route: 'parser', did: 'x', outcome: 'done' });
+    const sizes: number[] = [];
+    const fake = (async (_: string, init: RequestInit) => {
+      const user = JSON.parse(String(init.body)).messages[1].content;
+      sizes.push(JSON.parse(user).journal.length);
+      return reply(JSON.stringify({ suggestions: [] }));
+    }) as unknown as typeof fetch;
+    const post = poster(await start('sk-or-test', fake, store));
+    expect((await (await post('/review', {})).json()).reviewed).toBe(200);
+    expect(store.memory().reviewedUpTo).toBe(200);
+    expect((await (await post('/review', {})).json()).reviewed).toBe(5);
+    expect(sizes).toEqual([200, 5]);
+  });
+
+  it('refuses aliases on short or common words, which would rewrite every transcript', async () => {
+    const aliases = ['it', 'the', 'di', 'il nodo', 'del'].map((heard) => ({ kind: 'alias', heard, means: 'Triage router', text: '', why: '', evidence: 9 }));
+    const fake = (async () => reply(JSON.stringify({ suggestions: [...aliases, review.suggestions[0]] }))) as unknown as typeof fetch;
+    const post = poster(await start('sk-or-test', fake));
+    await post('/journal', heardOnce);
+    const r = await (await post('/review', {})).json();
+    expect(r.pending.map((p: { heard: string }) => p.heard)).toEqual(['triaje']);
+  });
 });
 
 describe('the user folder is never served (#68)', () => {

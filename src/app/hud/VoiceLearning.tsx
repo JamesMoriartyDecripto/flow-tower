@@ -31,7 +31,7 @@ export function VoiceLearning() {
       </Row>
       {s && s.turns > 0 && (
         <p className="set-hint voice-stats">
-          Last {s.days} days: {s.turns} turns · {s.notUnderstood}% not understood · {s.corrected}% corrected · {s.interrupted}% interrupted
+          Last {s.days} days: {s.turns} turns · {s.notUnderstood}% not understood · {s.corrected}% corrected · {s.undone}% undone · {s.interrupted}% interrupted
           {s.agentMs ? ` · answers in ${(s.agentMs / 1000).toFixed(1)} s` : ''}
           {s.firstAudioMs ? ` · first audio after ${(s.firstAudioMs / 1000).toFixed(1)} s` : ''}
           {s.cost ? ` · $${s.cost.toFixed(4)}` : ''}

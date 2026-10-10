@@ -187,6 +187,8 @@ function readBody(req: IncomingMessage, max: number): Promise<string> {
 
 function json(res: ServerResponse, status: number, body: unknown) {
   if (res.writableEnded) return;
+  // A stream that failed halfway (upstream dropped after the headers went out): end what was sent.
+  if (res.headersSent) return void res.end();
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store');
