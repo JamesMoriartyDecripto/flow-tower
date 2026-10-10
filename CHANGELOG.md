@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Study-notes examples: `physics-notes` (mechanics) and `history-notes` (the French Revolution), small towers that are not agent systems.
+- Math in Markdown files: `$$…$$` is rendered by KaTeX in the file viewer (single dollars stay text, for prices).
 - Live events: `?tower=` on `/api/events` (and `emit --tower` with `--source` too) restricts matching to one tower, for two versions of the same project in one library (#52).
 - Docs: a second server with `--port`, and where live events go (#52).
 

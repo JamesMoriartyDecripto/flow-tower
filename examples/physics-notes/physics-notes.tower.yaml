@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+# Study notes as a tower: the method on top, one layer per chapter below. Click a node to open its notes page.
+name: "Physics Notes: Mechanics"
+description: First-biennium mechanics at an Italian liceo scientifico. Kinematics, Newton's laws and energy, with the method that picks one of them for each problem.
+tags: [study-notes, physics, school]
+
+layers:
+  - id: method
+    title: Solving a Problem
+    description: The steps for any exercise. The choice in the middle sends you to one of the chapters below.
+    nodes:
+      - { id: problem, type: entry, label: Problem text, files: [notes/01-method.md] }
+      - { id: data, type: process, label: Data & unknowns, description: "Every quantity with its symbol, in SI units.", files: [notes/01-method.md] }
+      - { id: sketch, type: process, label: Sketch & forces, description: "A drawing, plus a free-body diagram when forces are involved.", files: [notes/01-method.md] }
+      - { id: choose, type: decision, label: Which approach?, files: [notes/01-method.md] }
+      - { id: solve, type: process, label: Solve with symbols, description: Numbers go in only at the end., files: [notes/01-method.md] }
+      - { id: check, type: guard, label: Units & magnitude, description: Same units on both sides and a result of a sensible size., files: [notes/01-method.md] }
+      - { id: answer, type: output, label: Result }
+    edges:
+      - problem -> data
+      - data -> sketch
+      - sketch -> choose
+      - "choose -> solve: law chosen"
+      - solve -> check
+      - "check -> solve [return]: units wrong"
+      - "check -> answer: ok"
+
+  - id: kinematics
+    title: Kinematics
+    description: Describing motion without asking what causes it.
+    nodes:
+      - { id: position, type: process, label: Position x(t), files: [notes/02-kinematics.md] }
+      - { id: velocity, type: process, label: Velocity Δx/Δt, files: [notes/02-kinematics.md] }
+      - { id: acceleration, type: process, label: Accel. Δv/Δt, files: [notes/02-kinematics.md] }
+      - { id: constant, type: decision, label: a constant?, files: [notes/02-kinematics.md] }
+      - { id: uniform, type: output, label: Uniform motion, description: "x = x₀ + v·t", files: [notes/02-kinematics.md] }
+      - { id: accelerated, type: output, label: Uniformly accel., description: "v = v₀ + a·t, x = x₀ + v₀·t + ½·a·t²", files: [notes/02-kinematics.md] }
+      - { id: freefall, type: output, label: Free fall, description: "Uniformly accelerated motion with a = g ≈ 9.81 m/s².", files: [notes/02-kinematics.md] }
+    edges:
+      - position -> velocity
+      - velocity -> acceleration
+      - acceleration -> constant
+      - "constant -> uniform: a = 0"
+      - "constant -> accelerated: a ≠ 0"
+      - "accelerated -> freefall: a = g"
+
+  - id: dynamics
+    title: Newton's Laws
+    description: Why bodies move the way they do. The net force decides which law applies.
+    nodes:
+      - { id: forces, type: process, label: Forces on a body, files: [notes/03-newton.md] }
+      - { id: catalogue, type: memory, label: Common forces, description: "Weight m·g, normal force, friction μ·N, spring −k·x.", files: [notes/03-newton.md] }
+      - { id: third, type: guard, label: 3rd law pairs, description: "Equal and opposite, on different bodies: they never cancel on the same body.", files: [notes/03-newton.md] }
+      - { id: net, type: process, label: Net force ΣF, files: [notes/03-newton.md] }
+      - { id: zero, type: decision, label: ΣF = 0?, files: [notes/03-newton.md] }
+      - { id: first, type: output, label: 1st law inertia, description: At rest or constant velocity., files: [notes/03-newton.md] }
+      - { id: second, type: output, label: 2nd law ΣF = ma, files: [notes/03-newton.md] }
+    edges:
+      - "forces -> catalogue [data]: which ones?"
+      - "forces -> third: only those on this body"
+      - third -> net
+      - net -> zero
+      - "zero -> first: yes"
+      - "zero -> second: no"
+
+  - id: energy
+    title: Work & Energy
+    description: The shortcut when heights and speeds matter and time does not.
+    nodes:
+      - { id: work, type: process, label: Work F·s·cosθ, files: [notes/04-energy.md] }
+      - { id: power, type: output, label: Power W/t, files: [notes/04-energy.md] }
+      - { id: theorem, type: process, label: W = ΔK, description: "Work-energy theorem, with kinetic energy K = ½·m·v².", files: [notes/04-energy.md] }
+      - { id: potential, type: process, label: Potential U = mgh, files: [notes/04-energy.md] }
+      - { id: conservative, type: decision, label: Only conservative?, description: Weight and springs are conservative; friction is not., files: [notes/04-energy.md] }
+      - { id: conserved, type: output, label: K + U constant, files: [notes/04-energy.md] }
+      - { id: lost, type: output, label: ΔE = W friction, files: [notes/04-energy.md] }
+    edges:
+      - "work -> power: per second"
+      - "work -> theorem: work of all forces"
+      - "theorem -> potential: weight's work = −ΔU"
+      - potential -> conservative
+      - "conservative -> conserved: yes"
+      - "conservative -> lost: friction"
+
+links:
+  - "method.choose -> kinematics.position [call]: motion only"
+  - "method.choose -> dynamics.forces [call]: forces given"
+  - "method.choose -> energy.work [call]: no time asked"
+  - "dynamics.second -> kinematics.accelerated [data]: a = ΣF / m"
+  - "kinematics.velocity -> energy.theorem [data]: v for K"
+  - "kinematics.freefall -> energy.potential [data]: same g"

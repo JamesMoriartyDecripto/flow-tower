@@ -81,6 +81,7 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 | `hud/LiveFeed.tsx`, `LiveChips.tsx` | Live feed and chips |
 | `hud/Settings.tsx`, `Shortcuts.tsx` | Settings page, keyboard overlay |
 | `hud/FileViewer.tsx` | File popup with syntax highlighting (shiki), focus restored on close |
+| `hud/MarkdownView.tsx` | Formatted Markdown: no raw HTML, links to the node's files, math in `$$…$$` (KaTeX) |
 | `hud/focusNav.ts`, `Tooltip.tsx` | Keyboard focus inside panels, HUD tooltips |
 | `src/app/App.tsx` | Global keyboard handler, panel composition |
 | `src/app/styles.css` | All HUD styles (CSS variables per theme; `--ui-scale` zooms the HUD) |

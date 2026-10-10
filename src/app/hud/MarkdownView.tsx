@@ -1,5 +1,8 @@
 import Markdown, { defaultUrlTransform, type Components } from 'react-markdown';
+import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import 'katex/dist/katex.min.css';
 import { parse as parseYaml } from 'yaml';
 
 /** Leading YAML frontmatter (agent and command files): shown as a small table, not as Markdown. */
@@ -18,7 +21,8 @@ function splitFrontmatter(source: string): { meta?: Record<string, unknown>; bod
  * Formatted view of a Markdown file. Files can come from a cloned third-party repository, so nothing
  * is injected as HTML: react-markdown builds React elements and ignores raw HTML, unsafe URL schemes
  * are dropped, remote images are not fetched (no tracking pixels) and links to other files of the
- * same node open in the viewer instead of the browser.
+ * same node open in the viewer instead of the browser. Math in `$$…$$` is
+ * rendered by KaTeX; single dollars stay text, since prompts and READMEs use them for prices.
  */
 export function MarkdownView({ source, path, files, onOpen }: { source: string; path: string; files: string[]; onOpen(file: string): void }) {
   const components: Components = {
@@ -45,7 +49,7 @@ export function MarkdownView({ source, path, files, onOpen }: { source: string; 
           ))}
         </dl>
       )}
-      <Markdown remarkPlugins={[remarkGfm]} components={components} urlTransform={(url) => defaultUrlTransform(url)} skipHtml>{body}</Markdown>
+      <Markdown remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]} rehypePlugins={[rehypeKatex]} components={components} urlTransform={(url) => defaultUrlTransform(url)} skipHtml>{body}</Markdown>
     </div>
   );
 }

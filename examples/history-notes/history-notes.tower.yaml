@@ -1,0 +1,99 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+# Study notes as a tower: one layer per phase in time order, the key figures as a supporting layer. Click a node to open its notes page.
+name: "History Notes: The French Revolution"
+description: Fourth-year history at an Italian liceo. From the crisis of the Ancien Régime (1789) to 18 Brumaire (1799), with cause and effect between phases and the people who drove them.
+tags: [study-notes, history, school]
+
+layers:
+  - id: causes
+    title: Ancien Régime Crisis
+    description: Why the king had to call the Estates-General.
+    nodes:
+      - { id: orders, type: entry, label: Society of orders, description: Clergy and nobility privileged; the Third Estate pays., files: [notes/01-causes.md] }
+      - { id: debt, type: process, label: Royal debt, description: "Wars, the American one above all; the privileged refuse to pay.", files: [notes/01-causes.md] }
+      - { id: ideas, type: process, label: Enlightenment, description: "Montesquieu, Rousseau, Voltaire.", files: [notes/01-causes.md] }
+      - { id: harvest, type: process, label: 1788 harvest, description: Bread prices peak in spring 1789., files: [notes/01-causes.md] }
+      - { id: cahiers, type: process, label: Cahiers, description: "Cahiers de doléances: lists of grievances.", files: [notes/01-causes.md] }
+      - { id: estates, type: output, label: Estates-General, description: "Versailles, 5 May 1789: the first since 1614.", files: [notes/01-causes.md] }
+    edges:
+      - "orders -> debt: tax burden on the Third"
+      - "debt -> estates: king needs new taxes"
+      - "ideas -> cahiers: rights, reason"
+      - "harvest -> cahiers: hunger"
+      - "cahiers -> estates: grievances"
+
+  - id: y1789
+    title: "1789: The Constituent"
+    description: In four months the Third Estate takes sovereignty and ends the privileges.
+    nodes:
+      - { id: vote, type: decision, label: By order or head?, description: By order the privileged win 2 to 1., files: [notes/02-1789.md] }
+      - { id: assembly, type: process, label: National Assembly, description: 17 June 1789., files: [notes/02-1789.md] }
+      - { id: oath, type: process, label: Tennis Court Oath, description: 20 June 1789., files: [notes/02-1789.md] }
+      - { id: bastille, type: process, label: Bastille, description: 14 July 1789., files: [notes/02-1789.md] }
+      - { id: august, type: process, label: End of privileges, description: 4 August 1789., files: [notes/02-1789.md] }
+      - { id: rights, type: output, label: Rights of Man, description: 26 August 1789., files: [notes/02-1789.md] }
+    edges:
+      - "vote -> assembly: deadlock"
+      - "assembly -> oath: locked out"
+      - oath -> bastille
+      - "bastille -> august: Great Fear"
+      - august -> rights
+
+  - id: monarchy
+    title: Monarchy to Republic
+    description: The constitutional monarchy fails between the king's flight and the war.
+    nodes:
+      - { id: clergy, type: process, label: Civil Constitution, description: "July 1790: the Church under the state.", files: [notes/03-monarchy.md] }
+      - { id: varennes, type: process, label: Varennes, description: "June 1791: the king flees and is stopped.", files: [notes/03-monarchy.md] }
+      - { id: constitution, type: process, label: Constitution 1791, description: Constitutional monarchy., files: [notes/03-monarchy.md] }
+      - { id: war, type: process, label: War on Austria, description: April 1792., files: [notes/03-monarchy.md] }
+      - { id: tuileries, type: process, label: 10 August 1792, description: The Tuileries stormed; the king suspended., files: [notes/03-monarchy.md] }
+      - { id: republic, type: process, label: Republic, description: September 1792., files: [notes/03-monarchy.md] }
+      - { id: execution, type: output, label: Louis XVI executed, description: 21 January 1793., files: [notes/03-monarchy.md] }
+    edges:
+      - "clergy -> varennes: the king's conscience"
+      - "varennes -> constitution: trust lost"
+      - constitution -> war
+      - "war -> tuileries: defeats, fear of betrayal"
+      - tuileries -> republic
+      - "republic -> execution: trial"
+
+  - id: terror
+    title: Terror & Directory
+    description: Emergency government, then the search for stability that ends in a coup.
+    nodes:
+      - { id: committee, type: process, label: Public Safety, description: "Committee of Public Safety, April 1793.", files: [notes/04-terror.md] }
+      - { id: reign, type: process, label: The Terror, description: September 1793 – July 1794., files: [notes/04-terror.md] }
+      - { id: thermidor, type: process, label: 9 Thermidor, description: "27 July 1794: Robespierre falls.", files: [notes/04-terror.md] }
+      - { id: directory, type: process, label: Directory, description: "1795: five directors, two councils.", files: [notes/04-terror.md] }
+      - { id: brumaire, type: process, label: 18 Brumaire, description: "9 November 1799: Bonaparte's coup.", files: [notes/04-terror.md] }
+      - { id: consulate, type: output, label: Consulate, description: The conventional end of the Revolution., files: [notes/04-terror.md] }
+    edges:
+      - "committee -> reign: war and Vendée"
+      - "reign -> thermidor: fear of the Convention"
+      - thermidor -> directory
+      - "directory -> brumaire: relies on the army"
+      - brumaire -> consulate
+
+  - id: figures
+    title: Key Figures
+    description: The people behind the events above.
+    nodes:
+      - { id: louis, type: human, label: Louis XVI, files: [notes/05-figures.md] }
+      - { id: sieyes, type: human, label: Sieyès, files: [notes/05-figures.md] }
+      - { id: sansculottes, type: human, label: Sans-culottes, files: [notes/05-figures.md] }
+      - { id: robespierre, type: human, label: Robespierre, files: [notes/05-figures.md] }
+      - { id: bonaparte, type: human, label: Bonaparte, files: [notes/05-figures.md] }
+
+links:
+  - "causes.estates -> y1789.vote: how to vote?"
+  - "y1789.rights -> monarchy.constitution [data]: preamble"
+  - "monarchy.execution -> terror.committee: Europe at war"
+  - "figures.louis -> causes.estates: calls them"
+  - "figures.louis -> monarchy.varennes: flees"
+  - "figures.sieyes -> y1789.assembly: What Is the Third Estate?"
+  - "figures.sieyes -> terror.brumaire: plots it"
+  - "figures.sansculottes -> y1789.bastille: storm it"
+  - "figures.sansculottes -> monarchy.tuileries: storm it"
+  - "figures.robespierre -> terror.reign: leads it"
+  - "figures.bonaparte -> terror.brumaire: leads it"
