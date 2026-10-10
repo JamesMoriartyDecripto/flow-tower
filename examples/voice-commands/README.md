@@ -22,7 +22,7 @@ the microphone is never opened.
 | Capture | V key or MIC button, Esc, the voice settings (sensitivity, Interrupt by voice), the key check (`GET /api/voice`), the always-on recorder, the per-bin noise floor calibrated at start, the speech-or-noise decision on the voice band, the clip with its recording time, the half-duplex gate |
 | Transcription | The speech-engine decision: OpenRouter STT (wired), and the three engines weighed and not chosen, dashed |
 | Understanding | Echo filter, Whisper noise ("Grazie.", "Thank you."), barge-in, the agent-or-parser route, the pending numbered pick, the local parser, "Ambiguous?" with its loop |
-| Conversation | The voice agent: screen and history per turn, the LLM step, the tool-calls decision with its 4-step cap, the 13 tower tools, the spoken reply and the TTS model |
+| Conversation | The voice agent: screen and history per turn, the LLM step, the tool-calls decision with its 4-step cap, the 13 tower tools, the acknowledgement (#70: a cached phrase 600 ms after the end of speech), the spoken reply and the TTS model |
 | Actions | The same store calls as the keyboard, the caption, the 2-minute idle stop, mic off |
 | Learning | The opt-in journal: the toggle, each turn recorded, outcome marks (corrected, undone, interrupted), the journal file, the review that runs at mic off after 20 turns, the real-names filter, the voice memory, the Settings panel where you accept or reject, the SUGGESTIONS chip, and what accepted items change: aliases before the parser and the agent, notes in the agent's prompt |
 | Server & Secrets | The key loaded at startup (user folder first) and the shared guard that keeps secret files and the user folder from every tower (`src/core/secrets.ts`), `/api/voice` with `/chat`, `/speak` and the journal routes, the guards (JSON only, cross-site reads refused, per-route body limits, 6 requests at once), the three forwards to OpenRouter with ZDR, error replies, the tests |
@@ -99,6 +99,7 @@ Single runs on this machine, not benchmarks:
 | Transcription, ~10 KB Italian command | ~1.2 s | ~$0.000005 |
 | Agent turn on the dev-squad tower | 1.1-2.9 s | ~$0.001 |
 | Spoken reply, two sentences | ~0.7 s | not measured (~$0.003 at list price) |
+| Time to first audio, agent turn, before / with the ack (#70) | 1.9-2.9 s / 0.60-0.65 s | ack phrases synthesized once at mic start |
 
 ## Voice-agent practice applied
 

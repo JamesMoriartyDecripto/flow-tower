@@ -305,6 +305,14 @@ layers:
           search so the matches are highlighted. Names are matched fuzzily, on screen first, then in the library; an
           omitted node or layer means the selection. Errors come back as JSON the model can recover from.
         files: [src/app/voice/tools.ts, tests/voice-tools.test.ts]
+      - id: ack
+        type: process
+        label: Acknowledgement
+        runtime: browser
+        description: "Filler for the silence before the first sentence (#70): 600 ms after the end of speech, if the agent has said nothing, a cached phrase (\"One moment.\", \"Let me see.\", in the user's language) plays through the reply player. Synthesized once when the mic starts; one per turn; 60 s cooldown after a failed synthesis. Measured first audio: 1.9-2.9 s down to 0.60-0.65 s."
+        evals:
+          - { name: first audio, value: 0.62, unit: s, higher_is_better: false, illustrative: true, description: "Measured: 1.9-2.9 s before, 0.60-0.65 s with the ack." }
+        files: [src/app/voice/ack.ts, tests/voice-agent.test.ts]
       - id: speak
         type: process
         label: Spoken reply
@@ -328,6 +336,8 @@ layers:
       - "tools -> agent [return]: results, max 4"
       - "step -> context [data]: words kept"
       - "step -> speak: answer, if on"
+      - "ack -> speak [data]: cached phrase"
+      - "agent -> ack [call]: silent 600 ms"
 
   # 5 ───────────────────────────────────────────────────────────────
   - id: actions
