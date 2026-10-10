@@ -5,6 +5,7 @@ import { useDescendants } from '../liveHooks';
 import { chooseView } from '../settings';
 import { useStore } from '../store';
 import { RUNTIME_ICON } from '../theme';
+import { MicButton } from './Voice';
 
 interface Stats {
   layers: number;
@@ -248,6 +249,7 @@ export function Library() {
             {liveNow > 0 && <span className="lib-livecount"> · {liveNow} live</span>}
           </h1>
         </div>
+        <MicButton />
         <label className="search" title="Filter by name, description, tag or model">
           <span className="dim">⌕</span>
           <input

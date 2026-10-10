@@ -3,6 +3,7 @@ import { FlowEventSchema, resolveTargets, type FlowEvent } from '../core/events.
 import { normalize } from '../core/adapters.ts';
 import { otlpLogsToEvents } from '../core/otlp.ts';
 import type { Workspace } from '../core/types.ts';
+import { crossSite, isJson } from './guard.ts';
 
 export const EVENTS_EVENT = 'flow-tower:events';
 const MAX_BODY = 1_000_000;
@@ -41,10 +42,12 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
   /** POST /api/events (JSON object or array; ?source= picks an adapter, ?tower= restricts matching). GET returns the buffer. */
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '', 'http://local');
+    if (req.method === 'GET' && crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
     if (req.method === 'GET') return json(res, 200, buffer.filter((e) => e.id > Number(url.searchParams.get('since') ?? 0)));
     if (req.method !== 'POST') return json(res, 405, { error: 'use GET or POST' });
-    // Requiring a JSON content type forces a CORS preflight, so random web pages cannot post here.
-    if (!req.headers['content-type']?.includes('application/json')) return json(res, 415, { error: 'content-type must be application/json' });
+    // A JSON content type forces a CORS preflight, and other sites are refused outright (src/server/guard.ts).
+    if (!isJson(req)) return json(res, 415, { error: 'content-type must be application/json' });
+    if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
     if (token && req.headers['x-flow-tower-token'] !== token) return json(res, 401, { error: 'bad or missing x-flow-tower-token' });
 
     let size = 0;
@@ -77,7 +80,8 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     if (req.method !== 'POST') return json(res, 405, { error: 'use POST' });
     const type = req.headers['content-type'] ?? '';
     if (type.includes('protobuf')) return json(res, 415, { error: 'set OTEL_EXPORTER_OTLP_PROTOCOL=http/json (protobuf is not supported)' });
-    if (!type.includes('application/json')) return json(res, 415, { error: 'content-type must be application/json' });
+    if (!isJson(req)) return json(res, 415, { error: 'content-type must be application/json' });
+    if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
     if (token && req.headers['x-flow-tower-token'] !== token) return json(res, 401, { error: 'bad or missing x-flow-tower-token' });
     let size = 0;
     const chunks: Buffer[] = [];

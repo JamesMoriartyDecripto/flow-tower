@@ -5,7 +5,7 @@ import { usePrefs } from '../settings';
  * to the scene. Sections are stops too (tabIndex -1), so plain information scrolls into view.
  */
 
-const PANELS = '.inspector, .layernav, .livefeed, .viewer, .legend, .issues';
+const PANELS = '.inspector, .nodelist, .layernav, .livefeed, .viewer, .legend, .issues';
 const STOPS = 'button:not(:disabled), a[href], [tabindex]:not([tabindex="-1"]), .section';
 const TABS = '.tabs, .legend-tabs, .files';
 

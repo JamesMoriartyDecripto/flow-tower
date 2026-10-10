@@ -1,18 +1,23 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { env } from 'node:process';
+import { env, loadEnvFile } from 'node:process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin, ViteDevServer } from 'vite';
 import { loadLibrary, type LoadResult } from '../core/loader.ts';
 import { readTowerFile } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
 import { checkForUpdate, updateCheckDisabled, type UpdateInfo } from './update.ts';
+import { DEFAULT_VOICE_MODEL, voiceHandler } from './voice.ts';
+import { crossSite } from './guard.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
 // A git checkout updates with git; anything else (a package install) points to the release page.
 const UPDATE_COMMAND = existsSync(join(PKG_ROOT, '.git')) ? `cd ${PKG_ROOT} && git pull && npm install` : undefined;
+// Local secrets (OPENROUTER_API_KEY) from the git-ignored file in the flow-tower folder; real env vars win.
+const SECRETS = join(PKG_ROOT, '.env');
+if (existsSync(SECRETS)) loadEnvFile(SECRETS);
 
 export const UPDATE_EVENT = 'flow-tower:update';
 
@@ -52,7 +57,9 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       server.watcher.on('add', onFsEvent);
       server.watcher.on('unlink', onFsEvent);
 
-      server.middlewares.use('/api/workspace', (_req, res) => {
+      // Reads are for this page only: Vite's default CORS would let a page on another localhost port read them.
+      server.middlewares.use('/api/workspace', (req, res) => {
+        if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
         if (!state?.workspace.projects.length) return send(res, 404, { error: 'no tower files found: run `flow-tower <file.tower.yaml | dir>`' });
         send(res, 200, state.workspace);
       });
@@ -77,6 +84,12 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
           if (u.newer) server.config.logger.warn(`\n  ↑ Flow Tower ${u.latest} is available (you have v${VERSION}): ${u.url}${UPDATE_COMMAND ? `\n    update: ${UPDATE_COMMAND}` : ''}\n`);
         });
       }
+      // Voice commands (#62): audio goes to OpenRouter only when OPENROUTER_API_KEY is set; the key stays here.
+      server.middlewares.use('/api/voice', voiceHandler({
+        key: env.OPENROUTER_API_KEY,
+        model: env.FLOW_TOWER_VOICE_MODEL ?? DEFAULT_VOICE_MODEL,
+        zdr: env.FLOW_TOWER_VOICE_ZDR !== '0',
+      }));
       server.middlewares.use('/api/version', (_req, res) => send(res, 200, { ...update, command: UPDATE_COMMAND }));
     },
   };
@@ -94,6 +107,7 @@ function existingDirs(files: Set<string>): string[] {
 }
 
 async function serveFile(req: IncomingMessage, res: ServerResponse, state?: LoadResult) {
+  if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
   const url = new URL(req.url ?? '', 'http://local');
   const tower = url.searchParams.get('tower') ?? '';
   const path = url.searchParams.get('path') ?? '';

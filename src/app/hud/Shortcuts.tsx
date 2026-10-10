@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { usePrefs } from '../settings';
+import { STATIC } from '../staticData';
 import { useDialogFocus } from './dialog';
 
 const GROUPS: [string, [string, string][]][] = [
@@ -31,6 +32,7 @@ const GROUPS: [string, [string, string][]][] = [
     ['I', 'Into the node panel: ↑ ↓ sections and buttons, ← → tabs, Enter press, Esc back to the scene'],
     ['[  ]', 'Previous / next tab of the selected node'],
     ['F', 'Live feed'],
+    ['V', 'Voice commands on / off: "open dev squad", "layer 2", "triage node", "map view", "back" (Italian too)'],
     ['L', 'Library (arrows move, Enter opens, T / M open as tower / map)'],
     [',', 'Settings'],
     ['?', 'This help'],
@@ -55,7 +57,7 @@ export function Shortcuts() {
           <button className="close" onClick={close} title="Close (Esc or ?)">✕</button>
         </header>
         <div className="keys">
-          {GROUPS.map(([title, keys]) => (
+          {GROUPS.map(([title, all]) => [title, all.filter(([k]) => k !== 'V' || !STATIC)] as const).map(([title, keys]) => (
             <section key={title}>
               <h3>{title}</h3>
               <dl>

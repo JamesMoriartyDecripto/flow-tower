@@ -112,7 +112,7 @@ The feed marks events that matched nothing as *unmapped*, which helps when writi
 ## Security
 
 - The server binds to `127.0.0.1`.
-- `/api/events` only accepts `application/json`. That forces a CORS preflight, so web pages open in your browser cannot inject events.
+- `/api/events` only accepts an exact `application/json` content type (a variant such as `text/plain;x=application/json` is refused), which forces a CORS preflight, and it refuses browser requests whose `Origin` or `Sec-Fetch-Site` says they come from another site. Web pages open in your browser cannot inject events; local tools (hooks, `emit`, curl, OTLP exporters) send neither header and pass.
 - Set `FLOW_TOWER_TOKEN` when starting flow-tower to also require an `x-flow-tower-token` header; `emit` sends it automatically from the same variable.
 - Events live in memory only, capped at 2,000.
 

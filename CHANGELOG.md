@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Voice language in Settings (Auto, Italiano, English), sent to transcription as a hint; command words forgive one misheard letter and more Italian verbs are understood (aprimi, portami, vediamo, andiamo…).
+- Node list: with a layer focused and no node selected, a panel on the right lists the layer's nodes in flow order (type tag, name, sub-tower, live state). The names stay readable however small or far the cards are; a click selects the node and the inspector takes its place.
+- Voice commands (#62): press V or the MIC button (top bar, library header) and speak, in Italian or English, to open a project, focus a layer by number or name, select a node or agent, switch to map or tower view, go to the overview, go back, open the library or turn the microphone off. Clips end after ~0.6 s of silence and are transcribed by OpenRouter (`openai/whisper-large-v3-turbo`, override with `FLOW_TOWER_VOICE_MODEL`); commands are matched locally against the names on screen, tolerate misheard words, and offer a numbered choice when a name is ambiguous. A caption under the top bar shows what was heard and done. Listening stops after 2 minutes without a command. Needs `OPENROUTER_API_KEY`; not available in the static demo.
+- `voice-commands` example: the tower of the voice widget itself, with the speech engines it weighed (Web Speech on-device and cloud, Whisper in the browser, OpenRouter) and a planned LLM intent step.
 - `db-api-playbook` example: how to build and run an HTTP API over a database (approach, contract, data access, security, shipping, operations), with a request-pipeline sub-tower and notes pages citing current standards (OWASP API Top 10 2023, OpenAPI 3.2, RFC 9457, RFC 9700, RFC 9745), checked on 2026-10-10.
 - `validate` warns about node labels the card cuts (over 18 characters, 13 on a node with a nested tower) (#56).
 - Deep links: `?tower=…&layer=…&node=…` opens a tower (nested ones too), focuses a layer or selects a node (#7).
@@ -18,7 +22,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Examples: 78 node labels that the card cut are shorter; exact identifiers moved to the description.
 
 ### Fixed
+- Two flow-tower servers started from the same checkout (a second `--port`, or the e2e server next to a dev server) no longer break each other: each port has its own Vite dependency cache. Before, an open page could fail with "error loading dynamically imported module".
 - `dev-squad` example: the sample code now does what its tower shows, and the tower shows what the code does (found by the #7 evaluation run). The lead can request plan approval and the pipeline polls and resumes it; `open_pr`, `run_tests` and `request_approval` run in the issue worktree, not the process directory; any throw or the $15 issue budget comments on the issue and logs the run (new "Run stopped" output); a red suite or an unmet criterion holds the verifier; a review round passes on blocking findings only; the `squad:skip` opt-out wins over the policy upgrade; the reviewer's bash guard and the area rules reach `runAgent` sessions; headless runs deny `ask` permissions explicitly; quick fixes get a CHANGELOG entry and PR body; bad webhook JSON gets a 400; the unused Redis queue and the serverless receiver are gone (the receiver runs in the container); sample logs match the code.
+
+### Security
+- Voice commands (#62): `OPENROUTER_API_KEY` stays on the local server (read from the environment or from the `.env` file in the flow-tower folder, which is git-ignored) and never reaches the page; `GET /api/voice` only says whether a key is set. Transcription requests ask OpenRouter for zero data retention (`provider.zdr`; `FLOW_TOWER_VOICE_ZDR=0` turns it off). `/api/voice` only answers this app's page: an exact `application/json` content type, no cross-site `Origin` / `Sec-Fetch-Site`, and the page's own `x-flow-tower-voice` header; the body is capped at 2 MB and at most 2 transcriptions run at once.
+- `/api/events` and the OTLP endpoints check the content type by its exact essence and refuse cross-site browser requests. Before, `text/plain;x=application/json` passed the substring check while browsers send it without a CORS preflight (found by the dev-squad security review of #62).
+- `/api/file`, `/api/workspace` and the events buffer refuse cross-site browser reads. Vite's default CORS lets pages on other localhost ports read them.
+- `/api/file` never serves secret files (`.env*`, `.envrc`, `.git-credentials`, private keys, `.npmrc`, `.netrc`, `*.tfvars`; anything under `.git`, `.ssh`, `.aws`, `.gnupg`, `.docker`, `.kube`), even inside a tower root. Dogfood towers with `root: ../..` have the flow-tower folder as their root, where the local key file lives.
 
 ## [0.3.0] - 2026-10-10
 

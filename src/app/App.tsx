@@ -12,6 +12,10 @@ import { Shortcuts } from './hud/Shortcuts';
 import { cycleConnection, jumpBack } from './hud/Connections';
 import { focusInspector, panelKey, panelOf } from './hud/focusNav';
 import { Tooltip } from './hud/Tooltip';
+import { NodeList } from './hud/NodeList';
+import { VoiceCaption } from './hud/Voice';
+import { useVoice } from './voice/voice';
+import { STATIC } from './staticData';
 import { chooseView, usePrefs, viewFor } from './settings';
 import { useLive, useLiveSync } from './live';
 import { useDemoSimulator } from './demo';
@@ -47,7 +51,7 @@ export function App() {
         gl={{ antialias: quality === 'eco', powerPreference: 'high-performance' }}
         frameloop="demand"
         onPointerMissed={() => useStore.getState().select(undefined)}
-        onCreated={(state) => { if (import.meta.env.DEV) Object.assign(window, { __flowTower: { store: useStore, three: state } }); }}
+        onCreated={(state) => { if (import.meta.env.DEV) Object.assign(window, { __flowTower: { store: useStore, three: state, voice: (text: string) => useVoice.getState().run(text) } }); }}
       >
         <Suspense fallback={null}>
           <TowerScene key={themeRev} />
@@ -67,6 +71,7 @@ export function App() {
           <div className="hint">DRAG rotate · SHIFT+DRAG pan · SCROLL zoom · CLICK inspect · DBL-CLICK enter · ARROWS move · M map · ESC back · ? all keys</div>
         )}
         <Inspector />
+        <NodeList />
         <LiveFeed />
         {(showIssues || broken) && <Issues onClose={() => setShowIssues(false)} />}
       </div>
@@ -75,6 +80,7 @@ export function App() {
       <Shortcuts />
       <Tooltip />
       <Library />
+      <VoiceCaption />
       {!tower && (
         <div className="boot">
           <div>
@@ -144,6 +150,7 @@ function useKeyboard() {
       if (e.key === ',') { e.preventDefault(); prefs.set({ open: true }); return; }
       if (s.library) {
         if (e.key === 'Escape' && s.stack.length) s.showLibrary(false);
+        else if ((e.key === 'v' || e.key === 'V') && !e.repeat && !STATIC) useVoice.getState().toggle(); // held V must not flip the mic on and off
         else libraryKey(e);
         return;
       }
@@ -187,6 +194,8 @@ function useKeyboard() {
         chooseView(s.view === 'map' ? 'tower' : 'map');
       } else if (key === 'o') {
         s.set({ autoRotate: !s.autoRotate });
+      } else if (key === 'v' && !e.repeat && !STATIC) {
+        useVoice.getState().toggle();
       } else if (key === 'f') {
         useLive.getState().toggleFeed();
       } else if (key === '+' || key === '=') {

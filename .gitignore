@@ -12,5 +12,9 @@ playwright-report/
 !examples/**/*.log
 dist-demo/
 
+# Local secrets (OPENROUTER_API_KEY for cloud voice transcription)
+.env
+.env.*
+
 # Agent worktrees (Claude Code)
 .claude/worktrees/
