@@ -454,3 +454,19 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .md-view .md-meta div { display: contents; }
 .md-view .md-meta dt { color: var(--dim); }
 .md-view .md-meta dd { margin: 0; color: var(--white); }
+
+/* Voice commands (#62): mic toggle and caption. */
+.mic { display: flex; align-items: center; gap: 6px; font: 600 10px var(--display); letter-spacing: 0.2em; }
+.mic i { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.mic:not(.off) { color: var(--live-run); border-color: var(--live-run); }
+.mic:not(.off) i { background: var(--live-run); box-shadow: 0 0 10px var(--live-run); animation: pulse 1.2s infinite; }
+.mic.hearing i { animation-duration: .4s; }
+.voice-caption { position: fixed; top: 76px; left: 50%; transform: translateX(-50%); z-index: 6; pointer-events: auto;
+  max-width: min(640px, calc(100 * var(--vw) - 32px)); padding: 8px 16px; display: grid; gap: 4px; animation: fade .2s; }
+.voice-state { display: flex; align-items: center; gap: 8px; font: 600 11px var(--display); letter-spacing: .12em; color: var(--live-run); }
+.voice-state i { width: 8px; height: 8px; border-radius: 50%; background: var(--live-run); animation: pulse 1.2s infinite; }
+.voice-caption.off .voice-state { color: var(--dim); }
+.voice-caption.off .voice-state i { background: var(--dim); animation: none; }
+.voice-heard { font: 500 15px var(--ui); }
+.voice-heard b { color: var(--orange); font-weight: 600; }
+.voice-error { color: var(--error); font-size: 13px; }

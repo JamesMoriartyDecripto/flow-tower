@@ -10,6 +10,7 @@ import { STATIC } from '../staticData';
 import { useCurrentTowerLive } from '../liveHooks';
 import { useStore, useTower } from '../store';
 import { EDGE_STYLE, NODE_STYLE, RUNTIME_ICON } from '../theme';
+import { MicButton } from './Voice';
 
 /** Logo, breadcrumb through nested towers, search, validation badge and live-reload indicator. */
 export function TopBar({ onIssues }: { onIssues(): void }) {
@@ -86,6 +87,7 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
       </button>
       <DemoChip />
       <UpdateChip />
+      <MicButton />
       <LiveButton flash={flash} />
       <button className="btn gear" onClick={() => usePrefs.getState().set({ open: true })} title="Settings (,)">⚙</button>
     </header>

@@ -31,6 +31,7 @@ const GROUPS: [string, [string, string][]][] = [
     ['I', 'Into the node panel: ↑ ↓ sections and buttons, ← → tabs, Enter press, Esc back to the scene'],
     ['[  ]', 'Previous / next tab of the selected node'],
     ['F', 'Live feed'],
+    ['V', 'Voice commands on / off: "open dev squad", "layer 2", "triage node", "map view", "back" (Italian too)'],
     ['L', 'Library (arrows move, Enter opens, T / M open as tower / map)'],
     [',', 'Settings'],
     ['?', 'This help'],
