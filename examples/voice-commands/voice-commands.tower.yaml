@@ -1,33 +1,55 @@
 # yaml-language-server: $schema=../../schema/flow-tower.schema.json
 version: 1
 name: Voice Commands
-tags: [voice, speech-to-text, openrouter, whisper, browser, dogfooding]
+tags: [voice, speech-to-text, text-to-speech, voice-agent, openrouter, whisper, browser, dogfooding]
 description: >-
-  The voice-command widget of Flow Tower itself (issue #62), mapped from its code. Press V (or MIC),
-  speak a command in Italian or English ("apri dev squad", "livello 2", "vai al nodo triage"): the browser
-  cuts a short clip at the end of speech, the local flow-tower server sends it to OpenRouter's Whisper
-  endpoint with zero data retention, and a local parser (no LLM) turns the transcript into the same store
-  calls as the keyboard. The other speech engines that were weighed are drawn as planned alternatives,
-  each opening the page that says why it was not chosen. Paths are relative to the repository root, so
-  every reference opens the real file.
+  The voice widget of Flow Tower itself (issues #62 and #63), mapped from its code. Press V (or MIC) and
+  speak in Italian or English. Navigation ("apri dev squad", "livello 2", "vai al nodo triage") goes to a
+  local parser (no LLM) and runs the same store calls as the keyboard. Questions and references to the
+  screen ("cosa c'è nel secondo livello?", "a cosa è collegato questo nodo") go to a conversational agent:
+  an OpenRouter chat model with 12 tools that run in the page on the tower on screen, whose short reply is
+  shown in the caption and spoken. Audio goes to the local flow-tower server and on to OpenRouter with zero
+  data retention. The speech engines that were weighed are drawn as planned alternatives; the model choices
+  for the agent and the voice open their own pages. Paths are relative to the repository root, so every
+  reference opens the real file.
 root: ../..
 
 runtimes:
   browser:
     kind: browser
     label: Your browser
-    description: "The Flow Tower page: Firefox, Chrome, Edge or Safari. Mic, end-of-speech detection, parser and actions all run here. The static demo has no server, so it hides the MIC button."
+    description: "The Flow Tower page: Firefox, Chrome, Edge or Safari. Mic, end-of-speech detection, routing, parser, the agent loop, its tools and the <audio> playback all run here. The static demo has no server, so it hides the MIC button."
   server:
     kind: local
     label: flow-tower server
-    description: "The local Vite dev server started by bin/flow-tower.js, with the flowTower plugin's middleware. Holds the OpenRouter key."
+    description: "The local Vite dev server started by bin/flow-tower.js, with the flowTower plugin's middleware. Holds the OpenRouter key; the page never sees it."
     host: 127.0.0.1:5317
   openrouter:
     kind: saas
     label: OpenRouter
-    description: "Speech-to-text endpoint /api/v1/audio/transcriptions, routed to providers OpenRouter lists as zero data retention."
+    description: "Three endpoints: /audio/transcriptions (speech to text), /chat/completions (one agent step) and /audio/speech (the spoken reply), each routed with provider.zdr to providers OpenRouter lists as zero data retention."
     provider: openrouter
     url: https://openrouter.ai/docs/guides/overview/multimodal/stt
+
+agents:
+  guide:
+    name: Voice guide
+    description: >-
+      converse() in agent.ts. The system prompt (PROMPT, in the same file) asks for one or two short spoken
+      sentences of plain text in the user's language, tools instead of guesses, tools called together in one
+      step, showing what it talks about (focus_layer, select_node), and saying an action is done only after
+      its tool succeeded. Every LLM step goes through POST /api/voice/chat; tool calls run in the page.
+      Illustrative numbers, measured on the dev-squad tower (commit 86234b9): 1.1-2.9 s and about $0.001 per
+      turn. No budget cap in the code.
+    model: google/gemini-3.1-flash-lite
+    tools: [screen, list_layers, layer_nodes, search, node_info, connections, node_files, read_file, focus_layer, select_node, open_file, open_project, navigate]
+    runtime: browser
+    files: [src/app/voice/agent.ts, src/app/voice/tools.ts, examples/voice-commands/options/llm-intent.md]
+    limits: { max_iterations: 4, description: "At most 4 LLM steps per turn; the last one is sent with answer: true, so the server asks for tool_choice none and the model must answer with what it has." }
+    data: { retention: none, description: "Transcript text, the screen state and tool results go to OpenRouter (ZDR endpoints); no audio. The last 12 messages, text only, stay in page memory until reload." }
+    evals:
+      - { name: turn time, value: 2.9, unit: s, higher_is_better: false, illustrative: true, description: "1.1-2.9 s per agent turn on dev-squad, measured once (slowest shown)." }
+      - { name: cost per turn, value: 0.001, unit: USD, higher_is_better: false, illustrative: true, description: "About $0.001 per turn on dev-squad, measured once." }
 
 layers:
   # 1 ───────────────────────────────────────────────────────────────
@@ -46,7 +68,7 @@ layers:
         type: decision
         label: Key configured?
         runtime: browser
-        description: "start() asks GET /api/voice whether the server has OPENROUTER_API_KEY ({ cloud, model }, never the key). No key: the caption says how to add it; no answer (server down): it says the local server is not reachable. Either way the mic is never opened; the error fades after 8 s or closes with ✕. The static demo has no MIC at all."
+        description: "start() asks GET /api/voice what the server has ({ cloud, model, agent, tts }, never the key) and keeps whether an agent model is set. No key: the caption says how to add it; no answer (server down): it says the local server is not reachable. Either way the mic is never opened; the error fades after 8 s or closes with ✕. The static demo has no MIC at all."
         decision: { output: binary, candidates: [yes, no], fail: closed }
         files: [src/app/voice/voice.ts]
       - id: mic
@@ -57,14 +79,15 @@ layers:
           getUserMedia (echo cancellation, noise suppression, mono) feeds a MediaRecorder that runs all the time and an
           AnalyserNode sampled every 40 ms. Speech above an adaptive noise floor followed by ~0.6 s of silence cuts the
           clip; a new recorder starts at once, so the next command loses no syllable. Under 0.2 s of speech is dropped
-          (a click, a cough); idle silence is discarded every 5 s.
+          (a click, a cough); idle silence is discarded every 5 s. Echo cancellation also removes the agent's own
+          voice, because it plays through an <audio> element.
         limits: { timeout: 8s, description: "A clip is cut after at most 8 s of speech." }
         files: [src/app/voice/mic.ts]
       - id: clip
         type: memory
         label: Audio clip
         runtime: browser
-        description: "Opus in WebM or Ogg (Chrome, Edge, Firefox) or AAC in MP4 (Safari), 32 kbps: a 2 s command is ~10 KB. Kept in memory only; clips are transcribed one at a time, in order."
+        description: "Opus in WebM or Ogg (Chrome, Edge, Firefox) or AAC in MP4 (Safari), 32 kbps: a 2 s command is ~10 KB. Kept in memory only; clips are transcribed and handled one at a time, in order."
         data: { sensitivity: pii, retention: none, description: "A voice recording. Sent once to the local server and on to OpenRouter with ZDR routing; never written to disk." }
         files: [src/app/voice/mic.ts]
     edges:
@@ -90,7 +113,7 @@ layers:
         type: process
         label: Upload clip
         runtime: browser
-        description: "transcribe(): base64 of the clip and its format (read from what the browser recorded) as JSON to POST /api/voice. The language set in Settings (Voice: Auto, Italiano, English), or none on Auto, where Whisper detects it from the clip. Any error reply or network failure goes to the caption; an empty transcript does nothing."
+        description: "transcribe(): base64 of the clip and its format (read from what the browser recorded) as JSON to POST /api/voice. The language set in Settings (Spoken language: Auto, Italiano, English), or none on Auto, where Whisper detects it from the clip. Any error reply or network failure goes to the caption; an empty transcript does nothing."
         files: [src/app/voice/voice.ts, src/app/hud/Settings.tsx]
       - id: stt
         type: tool
@@ -130,13 +153,33 @@ layers:
   # 3 ───────────────────────────────────────────────────────────────
   - id: understanding
     title: Understanding
-    description: Transcript to action without an LLM. The parser matches the words against the names on screen, instantly and offline.
+    description: "Turn-taking gates, then the route: questions go to the agent, navigation to the local parser, which matches the words against the names on screen instantly and offline."
     nodes:
+      - id: echo
+        type: guard
+        label: Echo filter
+        runtime: browser
+        description: "isEcho(): while the reply plays and for 0.8 s after it, a transcript whose words (3+ letters) are at least 60% words of the reply is the agent hearing itself, missed by the browser's echo cancellation: dropped without a trace."
+        files: [src/app/voice/agent.ts, src/app/voice/voice.ts]
+      - id: bargein
+        type: decision
+        label: Barge-in?
+        runtime: browser
+        description: "Only while a reply is playing. A stop word (stop, basta, ferma, zitto, silenzio, enough, quiet...) stops the reply and ends there; fewer than 3 words (a cough, \"ok\") are ignored and the reply goes on; 3 or more words stop the reply and are handled as a new request (Pipecat's minimum-words rule)."
+        decision: { output: choice, candidates: [not speaking, stop word, under 3 words, 3+ words] }
+        files: [src/app/voice/voice.ts]
+      - id: route
+        type: decision
+        label: Agent or parser?
+        runtime: browser
+        description: "handle() with wantsAgent(): a question mark, a question word at the start (cosa, quanti, what, which...), a request (dimmi, spiega, explain, tell...) or a reference to the screen (questo, this, file, collegato, connected, il primo, the first, aprilo...) goes to the agent. Everything else goes to the parser first. Without an agent model on the server, everything goes to the parser."
+        decision: { output: binary, candidates: [agent, parser] }
+        files: [src/app/voice/agent.ts, src/app/voice/voice.ts, tests/voice-agent.test.ts]
       - id: pick
         type: decision
         label: Pending pick?
         runtime: browser
-        description: "run(): if the last command offered a numbered choice and this phrase says \"one\", \"due\", \"il terzo\"... (up to 4), that option is taken without parsing."
+        description: "run(): if the last command offered a numbered choice and this phrase is only a pick (\"one\", \"due\", \"3\"; up to 4), that option is taken without parsing. With the agent on, \"il primo\", \"la prima\", \"il secondo\", \"the first\", \"the second\" match wantsAgent and go to the agent instead, which does not see the parser's numbered list."
         decision: { output: binary, candidates: [pick, parse] }
         files: [src/app/voice/voice.ts]
       - id: parser
@@ -152,26 +195,89 @@ layers:
         type: decision
         label: Ambiguous?
         runtime: browser
-        description: "best(): candidates scoring >= 0.5; those within 0.05 of the top are a tie. One wins: an action. Several: a numbered choice of up to 4. None: unknown."
+        description: "best(): candidates scoring >= 0.5; those within 0.05 of the top are a tie. One wins: an action. Several: a numbered choice of up to 4. None: \"Not understood\", which goes on to the agent when there is one."
         decision: { output: choice, candidates: [one, several, none], threshold: 0.5 }
-        files: [src/app/voice/commands.ts]
-      - id: llm
-        type: agent
-        label: LLM intent
-        status: planned
-        runtime: server
-        description: "Planned for free-form requests the parser returns as unknown: transcript and on-screen names to an OpenRouter chat model with a strict json_schema reply and ZDR. Not now: every command would pay a second round trip. Next: #63 turns it into a conversational agent with tower tools and spoken replies."
-        files: [examples/voice-commands/options/llm-intent.md]
+        files: [src/app/voice/commands.ts, src/app/voice/voice.ts]
     edges:
+      - "echo -> bargein: not an echo"
+      - "bargein -> route: silent or 3+ words"
+      - "route -> pick: navigation"
       - "pick -> parser: parse"
       - parser -> ambiguous
       - "ambiguous -> pick [return]: several, say 1-4"
-      - "parser -> llm: unknown (planned)"
 
   # 4 ───────────────────────────────────────────────────────────────
+  - id: conversation
+    title: Conversation
+    description: "The voice agent (#63): an LLM step on the server, tool calls in the page, at most 4 steps; the short answer is shown and spoken."
+    nodes:
+      - id: context
+        type: memory
+        label: Screen + history
+        runtime: browser
+        description: "Each turn sends the system prompt, the last 12 messages (user words and replies only, no tool traffic), a fresh \"Screen now\" from the screen tool (library or tower, focused layer, selected node, open file, view) and the transcript. forget() would clear the history, but nothing calls it: it lasts until the page reloads, across mic sessions and projects."
+        data: { retention: none, description: "Page memory only." }
+        files: [src/app/voice/agent.ts]
+      - id: agent
+        agent: guide
+        label: Voice guide
+        description: "converse(): posts { messages, tools, answer, stream: true } to /api/voice/chat and reads the reply as it streams (each tool step and the text appear in the caption), appends the assistant message, runs every tool call it carries and loops; a message without tool calls is the reply (… if empty). An error reply or network failure throws and the caption shows it. Not cancelled by a mic stop."
+      - id: llm
+        type: model
+        label: Gemini Flash-Lite
+        runtime: openrouter
+        model: google/gemini-3.1-flash-lite
+        description: "One chat completion per step: max_tokens 500, tool_choice auto (none on the last step), provider { zdr, require_parameters } so only endpoints that support tools and keep no data serve it. FLOW_TOWER_AGENT_MODEL picks another model (Claude Haiku 5.5 or Mistral Small 4: see the options page); there is no automatic fallback."
+        files: [examples/voice-commands/options/llm-intent.md, src/server/voice.ts]
+      - id: step
+        type: decision
+        label: Tool calls?
+        runtime: browser
+        description: "Tool calls: run them and take another step. None: the content is the answer. Step 4 is sent with answer: true, so it cannot call tools any more."
+        decision: { output: choice, candidates: [tool calls, answer] }
+        limits: { max_iterations: 4 }
+        files: [src/app/voice/agent.ts]
+      - id: tools
+        type: tool
+        label: Tower tools
+        runtime: browser
+        tools: [screen, list_layers, layer_nodes, search, node_info, connections, node_files, read_file, focus_layer, select_node, open_file, open_project, navigate]
+        description: >-
+          runTool(): 13 tools that run in the page on the workspace on screen, so answers are true to the tower. Read:
+          screen, list_layers, layer_nodes (with the layer's flow), node_info, connections, node_files, read_file (the
+          file text through /api/file, same guards as the viewer, to explain a file). Act (same store calls as the keyboard):
+          focus_layer, select_node, open_file, open_project, navigate. search reads and acts: it also fills the top-bar
+          search so the matches are highlighted. Names are matched fuzzily, on screen first, then in the library; an
+          omitted node or layer means the selection. Errors come back as JSON the model can recover from.
+        files: [src/app/voice/tools.ts, tests/voice-tools.test.ts]
+      - id: speak
+        type: process
+        label: Spoken reply
+        runtime: browser
+        description: "Only with Settings > Spoken replies on (default on); off, the answer is only in the caption. say(): every finished sentence of the streamed reply is POSTed to /api/voice/speak at once (in parallel) and played in order, one <audio> element at a time (the browser's echo cancellation covers media elements), so the voice starts on the first sentence. stopSpeaking() pauses it and drops the queue: barge-in, mic off, or a new reply."
+        data: { retention: none, description: "The reply audio lives in a blob URL until playback ends." }
+        files: [src/app/voice/agent.ts, src/app/voice/voice.ts, src/app/hud/Settings.tsx, src/app/settings.ts]
+      - id: tts
+        type: tool
+        label: ElevenLabs TTS
+        runtime: openrouter
+        model: elevenlabs/eleven-flash-v2.5
+        description: "One multilingual voice (alice) for every language, so the reply follows the user's language; mp3, ZDR. FLOW_TOWER_TTS_MODEL and FLOW_TOWER_TTS_VOICE pick others. Alternatives on the options page."
+        evals:
+          - { name: speech time, value: 0.7, unit: s, higher_is_better: false, illustrative: true, description: "About 0.7 s for a two-sentence reply, measured once." }
+        files: [examples/voice-commands/options/tts.md, src/server/voice.ts]
+    edges:
+      - "context -> agent [data]: screen + 12 msgs"
+      - "agent -> step: message"
+      - "step -> tools [call]: tool calls"
+      - "tools -> agent [return]: results, max 4"
+      - "step -> context [data]: words kept"
+      - "step -> speak: answer, if on"
+
+  # 5 ───────────────────────────────────────────────────────────────
   - id: actions
     title: Actions
-    description: The action runs through the same store calls as the keyboard, and the caption says what was heard and what it did.
+    description: Parser commands and agent tools run through the same store calls as the keyboard, and the caption says what was heard and what it did.
     nodes:
       - id: execute
         type: process
@@ -183,64 +289,81 @@ layers:
         type: memory
         label: App store
         runtime: browser
-        description: "showLibrary, openPath, select, focusLayer, resetView, enterTower, goTo; towerPath builds the deep link to a tower; chooseView switches map and tower. Copy-on-write zustand state."
+        description: "showLibrary, openPath, select, focusLayer, resetView, enterTower, goTo, openFile, set({ search }); towerPath builds the deep link to a tower; chooseView switches map and tower. Copy-on-write zustand state."
         files: [src/app/store.ts, src/app/graph.ts, src/app/settings.ts]
       - id: caption
         type: output
         label: Caption
         runtime: browser
-        description: "VoiceCaption: status, “heard” → did, the numbered choice, \"Not understood\", or the error. role=status, aria-live polite. The CLOUD STT chip says audio leaves the machine."
+        description: "VoiceCaption: status, “heard” → did (the action, \"…\" while the agent works, then its answer), the numbered choice, \"Not understood\", or the error. role=status, aria-live polite, so screen readers announce it without interrupting. The CLOUD STT chip says audio leaves the machine."
         files: [src/app/hud/Voice.tsx]
       - id: idle
         type: guard
         label: Idle stop
         runtime: browser
-        description: "Listening stops by itself after 2 minutes without an understood command (privacy, battery). Armed when the mic opens and re-armed only by an understood command: noise transcribed as text (Grazie.) or errors do not keep the mic alive."
+        description: "Listening stops by itself after 2 minutes without an understood command or an agent answer (privacy, battery). Armed when the mic opens and re-armed only by those two: noise transcribed as text (Grazie.) or errors do not keep the mic alive."
         limits: { timeout: 120s }
         files: [src/app/voice/voice.ts]
       - id: off
         type: output
         label: Mic off
         runtime: browser
-        description: "stop(): closes the recorder, stops the tracks, closes the AudioContext and drops a pending choice."
+        description: "stop(): stops a spoken reply, closes the recorder, stops the tracks, closes the AudioContext and drops a pending choice."
         files: [src/app/voice/voice.ts, src/app/voice/mic.ts]
     edges:
       - "execute -> store [call]: same as keys"
       - "execute -> caption: did"
+      - "execute -> idle: understood, re-arm"
       - "execute -> off: mic off"
       - "idle -> off: 2 min silence"
 
-  # 5 ───────────────────────────────────────────────────────────────
+  # 6 ───────────────────────────────────────────────────────────────
   - id: server
     title: Server & Secrets
-    description: The only part with the key. A JSON-only route on the local server, with every rejection a JSON error the caption shows.
+    description: The only part with the key. Three JSON-only routes on the local server, with every rejection a JSON error the caption shows.
     nodes:
       - id: secrets
         type: memory
         label: Local secrets
         runtime: server
-        description: "At startup plugin.ts loads the git-ignored dotenv file in the flow-tower folder, if present; real environment variables win. /api/file never serves it (src/server/files.ts refuses secret files even inside a tower root, which matters for this tower: its root is the flow-tower folder). FLOW_TOWER_VOICE_MODEL picks another model, FLOW_TOWER_VOICE_ZDR=0 turns the ZDR filter off."
+        description: "At startup plugin.ts loads the git-ignored dotenv file in the flow-tower folder, if present; real environment variables win. /api/file never serves it (src/server/files.ts refuses secret files even inside a tower root, which matters for this tower: its root is the flow-tower folder). FLOW_TOWER_VOICE_MODEL, FLOW_TOWER_AGENT_MODEL, FLOW_TOWER_TTS_MODEL and FLOW_TOWER_TTS_VOICE pick other models; FLOW_TOWER_VOICE_ZDR=0 turns the ZDR filter off."
         data: { sensitivity: secret }
-        meta: { secret: OPENROUTER_API_KEY, model: FLOW_TOWER_VOICE_MODEL, zdr: FLOW_TOWER_VOICE_ZDR }
+        meta: { secret: OPENROUTER_API_KEY, stt: FLOW_TOWER_VOICE_MODEL, agent: FLOW_TOWER_AGENT_MODEL, tts: "FLOW_TOWER_TTS_MODEL, FLOW_TOWER_TTS_VOICE", zdr: FLOW_TOWER_VOICE_ZDR }
         files: [src/server/plugin.ts, src/server/files.ts, .gitignore]
       - id: route
         type: process
         label: /api/voice
         runtime: server
-        description: "Mounted by the flowTower plugin. GET answers { cloud, model }: whether a key is set, never the key. POST transcribes."
+        description: "Mounted by the flowTower plugin, with sub-routes / (speech to text), /chat (one agent step) and /speak (the spoken reply). GET answers { cloud, model, agent, tts }: whether a key is set, never the key, and the models in use. POST runs the route."
         files: [src/server/plugin.ts, src/server/voice.ts]
       - id: guards
         type: guard
         label: Request guards
         runtime: server
-        description: "In order: GET or POST only (405), an exact application/json content type (415), no cross-site Origin or Sec-Fetch-Site and the page's own x-flow-tower-voice header, so other web pages cannot spend the key (403), a key (503), body under 2 MB (413) and valid JSON (400), audio as base64 and format webm, ogg, m4a, wav or mp3 (400), at most 2 transcriptions at once (429)."
-        limits: { description: "Body capped at 2 MB: a spoken command is ~10 KB." }
+        description: "In order: a known route (404), GET or POST only (405), an exact application/json content type (415), no cross-site Origin or Sec-Fetch-Site and the page's own x-flow-tower-voice header, so other web pages cannot spend the key (403), a key (503), at most 3 upstream calls at once across the three routes (429), a body under the route's limit (413) and valid JSON (400)."
+        limits: { concurrency: 3, description: "Body limits per route: 2 MB for a clip (~10 KB per command), 256 KB for a conversation, 8 KB for a reply." }
         files: [src/server/voice.ts, src/server/guard.ts, tests/server-guards.test.ts]
       - id: forward
         type: process
         label: Forward to STT
         runtime: server
-        description: "Bearer key, model, input_audio { data, format }, the language when Settings picks one, and provider.zdr unless turned off. Answers { text, ms, cost }."
+        description: "Checks audio as base64 and format webm, ogg, m4a, wav or mp3 (400), then sends the Bearer key, model, input_audio { data, format }, the language when Settings picks one, and provider.zdr unless turned off. Answers { text, ms, cost }."
+        credentials: service
+        limits: { timeout: 30s }
+        files: [src/server/voice.ts]
+      - id: chat
+        type: process
+        label: Forward to chat
+        runtime: server
+        description: "Checks messages (1 to 60) and tools (up to 20) (400), then sends model, messages, tools, max_tokens 500, tool_choice (none when answer is true) and provider { zdr, require_parameters }. Answers { message, ms, cost }."
+        credentials: service
+        limits: { timeout: 30s }
+        files: [src/server/voice.ts]
+      - id: speech
+        type: process
+        label: Forward to TTS
+        runtime: server
+        description: "Checks a non-empty text (400), then sends model, voice, input (cut at 800 characters), response_format mp3 and provider.zdr. Answers the audio as audio/mpeg, no-store."
         credentials: service
         limits: { timeout: 30s }
         files: [src/server/voice.ts]
@@ -248,27 +371,31 @@ layers:
         type: output
         label: Error reply
         runtime: server
-        description: "JSON { error } with the status. 502 covers an OpenRouter error status, an unreachable endpoint and the 30 s timeout."
+        description: "JSON { error } with the status. 502 covers an OpenRouter error status, an unreachable endpoint and the 30 s timeout, on all three routes."
         files: [src/server/voice.ts]
       - id: tests
         type: tool
         label: vitest
         runtime: server
-        description: "voice-server.test.ts starts the handler with a fake fetch: GET never shows the key; POST sends key, ZDR and language; 503, 415 and 400 refusals. voice-commands.test.ts covers the parser (Italian, English, misheard, ties, unknown)."
-        files: [tests/voice-server.test.ts, tests/voice-commands.test.ts]
+        description: "voice-server.test.ts starts the handler with a fake fetch: GET never shows the key; POST sends key, ZDR and language; an agent step with tool_choice none and require_parameters; speech as audio/mpeg; 404, 503, 415 and 400 refusals. voice-commands.test.ts covers the parser, voice-agent.test.ts the agent-or-parser routing, voice-tools.test.ts the tools on the real dev-squad tower."
+        files: [tests/voice-server.test.ts, tests/voice-commands.test.ts, tests/voice-agent.test.ts, tests/voice-tools.test.ts]
     edges:
       - "secrets -> route [data]: key at startup"
       - "route -> guards: POST"
-      - "guards -> forward: valid clip"
+      - "guards -> forward: / clip"
+      - "guards -> chat: /chat"
+      - "guards -> speech: /speak"
       - "guards -> rejected: 503 no key"
-      - "guards -> rejected: 405 415 403 413 400 429"
-      - "forward -> rejected: 502"
+      - "guards -> rejected: 404 405 415 403 429 413 400"
+      - "forward -> rejected: 400, 502"
+      - "chat -> rejected: 400, 502"
+      - "speech -> rejected: 400, 502"
       - "tests -> route [call]: fake fetch"
 
 links:
   # Start: the client asks before it opens the mic.
   - { from: capture.start, to: server.route, kind: call, protocol: http, label: GET }
-  - "server.route -> capture.start [return]: { cloud, model }"
+  - "server.route -> capture.start [return]: { cloud, agent }"
   - { from: capture.start, to: actions.caption, label: "no: needs key" }
   - "capture.mic -> actions.caption: mic denied"
   - "capture.mic -> actions.idle: arm"
@@ -280,12 +407,34 @@ links:
   - "transcription.stt -> server.forward [return]: text + cost"
   - "server.forward -> transcription.send [return]: { text, ms, cost }"
   - "server.rejected -> actions.caption [return]: error"
-  - "transcription.send -> understanding.pick: transcript"
-  - "transcription.send -> actions.idle: understood, re-arm"
-  # Understanding to action.
+  - "transcription.send -> understanding.echo: transcript"
+  # Turn-taking and routing.
+  - "understanding.bargein -> conversation.speak [call]: stopSpeaking"
+  - "understanding.route -> conversation.agent: question"
+  # Parser to action.
   - "understanding.pick -> actions.execute: picked option"
   - "understanding.ambiguous -> actions.execute: one"
   - { from: understanding.ambiguous, to: actions.caption, label: "several: Which one?" }
-  - { from: understanding.ambiguous, to: actions.caption, label: "none: Not understood" }
-  - "understanding.llm -> actions.execute: command (planned)"
+  - { from: understanding.ambiguous, to: conversation.agent, label: "none: ask agent" }
+  - { from: understanding.ambiguous, to: actions.caption, label: "none, no agent" }
+  # The agent loop through the server.
+  - "actions.store -> conversation.context [data]: screen each turn"
+  - { from: conversation.agent, to: server.route, kind: call, protocol: http, label: POST /chat }
+  - { from: server.chat, to: conversation.llm, kind: call, protocol: http, label: tools + zdr }
+  - "conversation.llm -> server.chat [return]: message + cost"
+  - "server.chat -> conversation.agent [return]: { message, cost }"
+  - "conversation.agent -> actions.caption: error"
+  - "conversation.tools -> actions.store [call]: same as keys"
+  - "conversation.step -> actions.caption: answer"
+  - "conversation.step -> actions.idle: answer, re-arm"
+  # The spoken reply.
+  - { from: conversation.speak, to: server.route, kind: call, protocol: http, label: POST /speak }
+  - { from: server.speech, to: conversation.tts, kind: call, protocol: http, label: text + voice }
+  - "conversation.tts -> server.speech [return]: mp3"
+  - "server.speech -> conversation.speak [return]: audio/mpeg"
+  - "conversation.speak -> actions.caption: reply failed"
+  - "actions.off -> conversation.speak [call]: stop audio"
+  # Tests.
   - "server.tests -> understanding.parser [call]: unit tests"
+  - "server.tests -> understanding.route [call]: routing cases"
+  - "server.tests -> conversation.tools [call]: dev-squad tower"

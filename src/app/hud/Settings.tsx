@@ -194,6 +194,9 @@ export function Settings() {
               <Row label="Spoken language" hint="Voice commands (V). Auto detects it from each clip; picking one helps short commands. Commands work in Italian and English.">
                 <Seg<VoiceLanguage> value={prefs.voiceLanguage} options={[['auto', 'Auto'], ['it', 'Italiano'], ['en', 'English']]} onChange={(voiceLanguage) => prefs.set({ voiceLanguage })} />
               </Row>
+              <Row label="Spoken replies" hint="Questions get an answer from the voice agent (#63). On: it is also spoken. Off: shown in the caption only.">
+                <Toggle on={prefs.voiceReplies} onChange={(voiceReplies) => prefs.set({ voiceReplies })} />
+              </Row>
             </section>
           )}
 

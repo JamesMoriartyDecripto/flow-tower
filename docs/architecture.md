@@ -35,7 +35,7 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 | `src/server/plugin.ts` | API routes, file sandbox, live reload, local secrets (the git-ignored `.env` file in the flow-tower folder) |
 | `src/server/events.ts` | Event hub (ring buffer, 204 empty responses for Claude Code hooks) |
 | `src/server/update.ts` | Daily update check against GitHub releases (cache, opt-out), served as `/api/version` |
-| `src/server/voice.ts` | `/api/voice`: GET says whether a key is set (never the key); POST forwards a clip to OpenRouter speech-to-text with zero data retention. JSON only, 2 MB cap |
+| `src/server/voice.ts` | `/api/voice` (speech to text), `/api/voice/chat` (one agent step with tools) and `/api/voice/speak` (the spoken reply, mp3), all through OpenRouter with zero data retention and the key kept here. GET says what is configured (never the key). Only this page gets through (`guard.ts`), with per-route body caps and 3 calls at once |
 | `src/server/files.ts` | Reading one referenced file inside its tower root (shared by `/api/file` and the demo build) |
 | `scripts/build-demo.ts` | Static demo for GitHub Pages: freezes the workspace and referenced files into `data/`, then builds the app in `demo` mode |
 | `bin/flow-tower.js` | CLI commands: serve, init, validate, emit, guide, install-skill |
@@ -59,6 +59,8 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 | `src/app/voice/commands.ts` | Voice command parser, Italian and English: matches the transcript against project, layer, node and agent names, tolerates misheard words, returns a numbered choice when ambiguous. Pure, tested in `tests/voice-commands.test.ts` |
 | `src/app/voice/mic.ts` | Microphone in every browser: `MediaRecorder` clips cut at end of speech (~0.6 s silence), adaptive noise floor |
 | `src/app/voice/voice.ts` | Voice store: start / stop, upload to `/api/voice`, numbered picks, stop after 2 minutes idle; runs commands with the same store calls as the keyboard |
+| `src/app/voice/agent.ts` | Voice agent (#63): routing (questions to the agent, navigation to the parser), the LLM loop through `/api/voice/chat` (max 4 steps), spoken replies through `<audio>` (`/api/voice/speak`), barge-in and the echo filter |
+| `src/app/voice/tools.ts` | The agent's tools, run in the page on the tower on screen: read (screen, layers, nodes, connections, files, search) and act (focus, select, open file, open project, navigate) |
 
 ## Scene (three.js via react-three-fiber)
 

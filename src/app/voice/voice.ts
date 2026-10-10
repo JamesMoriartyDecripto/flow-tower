@@ -4,6 +4,8 @@ import { chooseView, usePrefs } from '../settings';
 import { findNode, useStore } from '../store';
 import { norm, parseCommand, type VoiceAction } from './commands';
 import { openMic, type Mic } from './mic';
+import { converse, forget, isEcho, isSpeaking, newReply, say, stopSpeaking, wantsAgent } from './agent';
+import { clearAgentSearch } from './tools';
 
 export type VoiceStatus = 'off' | 'starting' | 'listening' | 'hearing' | 'thinking';
 
@@ -11,6 +13,8 @@ interface VoiceState {
   status: VoiceStatus;
   /** The server has OPENROUTER_API_KEY (GET /api/voice). */
   cloud?: boolean;
+  /** The server has an agent model: questions and unknown commands get a spoken answer (#63). */
+  agent?: boolean;
   heard?: string;
   did?: string;
   error?: string;
@@ -18,6 +22,8 @@ interface VoiceState {
   options?: { label: string; action: VoiceAction }[];
   toggle(): void;
   run(text: string): string;
+  /** Handles a transcript as if it had been heard: parser or agent, caption and voice (tests, dev hook). */
+  hear(text: string): Promise<void>;
   dismiss(): void;
 }
 
@@ -40,6 +46,8 @@ let pending = 0;
 let speaking = false;
 let idle: ReturnType<typeof setTimeout> | undefined;
 let hideError: ReturnType<typeof setTimeout> | undefined;
+/** Cancels the agent turn in flight: stopping the mic stops its tools from moving the view. */
+let turnAbort = new AbortController();
 
 /** "il secondo", "two", "3": a short answer that is only a pick. "livello tre" is a command, not a pick. */
 function pickOf(text: string): number | undefined {
@@ -67,6 +75,7 @@ export const useVoice = create<VoiceState>((set, get) => ({
     set({ heard: text, did, options: action.kind === 'ambiguous' ? action.options : undefined, error: undefined });
     return did;
   },
+  hear: (text) => handle(text, session),
   dismiss() {
     clearTimeout(hideError);
     set({ error: undefined });
@@ -103,9 +112,9 @@ async function start() {
   queue = Promise.resolve();
   clearTimeout(hideError);
   set({ status: 'starting', error: undefined, did: undefined, heard: undefined });
-  const config = await fetch('/api/voice').then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined) as { cloud: boolean } | undefined;
+  const config = await fetch('/api/voice').then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined) as { cloud: boolean; agent?: string } | undefined;
   if (mine !== session) return; // stopped while asking
-  set({ cloud: config?.cloud });
+  set({ cloud: config?.cloud, agent: !!config?.agent });
   if (!config) return fail('Voice commands need the local flow-tower server, which this page cannot reach.');
   if (!config.cloud) return fail('Voice commands need OPENROUTER_API_KEY in flow-tower/.env (git-ignored), then a restart.');
   try {
@@ -141,6 +150,10 @@ async function start() {
 
 function stop() {
   session++;
+  turnAbort.abort();
+  stopSpeaking();
+  forget(); // one listening session is one conversation
+  clearAgentSearch();
   mic?.close();
   mic = undefined;
   speaking = false;
@@ -168,12 +181,56 @@ async function transcribe(audio: Blob, format: string, mine: number) {
     const out = (await r.json()) as { text?: string; error?: string };
     if (mine !== session) return; // stopped while transcribing: the command no longer applies
     if (!r.ok) throw new Error(out.error ?? `HTTP ${r.status}`);
-    // Whisper writes something even for noise ("Grazie.", "Thank you."): those name nothing and fall to "unknown".
-    // Only an understood command keeps the mic alive, so a noisy room still times out.
-    if (out.text && useVoice.getState().run(out.text) !== NOT_UNDERSTOOD) armIdle();
+    const text = out.text?.trim();
+    if (!text || isEcho(text)) return; // our own reply, caught by the mic
+    if (isSpeaking()) {
+      // Barge-in: real words stop the reply; a cough or "ok" while it talks does not (Pipecat: 3+ words).
+      const stopWord = /^(stop|basta|ferma|fermati|zitto|silenzio|enough|quiet|shut up)\b/i.test(text);
+      if (!stopWord && text.split(/\s+/).length < 3) return;
+      stopSpeaking();
+      if (stopWord) return;
+    }
+    await handle(text, mine);
   } catch (err) {
     if (mine === session) flash((err as Error).message);
   }
+}
+
+/**
+ * Questions go to the agent; navigation the parser understands stays instant, and what it does not
+ * understand goes to the agent too. Whisper writes something even for noise ("Grazie.", "Thank you."):
+ * those name nothing, and only an understood command or an answer keeps the mic alive.
+ */
+async function handle(text: string, mine: number) {
+  const { agent, options } = useVoice.getState();
+  // A numbered choice is waiting: "il primo" / "the second" answer it, not the agent.
+  const picking = !!options && pickOf(text) !== undefined;
+  if (!agent || picking || !wantsAgent(text)) {
+    if (useVoice.getState().run(text) !== NOT_UNDERSTOOD) return armIdle();
+    if (!agent) return;
+  }
+  useVoice.setState({ heard: text, did: 'Thinking…', options: undefined });
+  newReply();
+  clearAgentSearch();
+  turnAbort = new AbortController();
+  const voice = usePrefs.getState().voiceReplies;
+  const live = (did: string) => { if (mine === session) useVoice.setState({ did }); };
+  // Streamed: the caption shows each tool step and then the reply as it is written; each finished
+  // sentence is spoken while the next one is still being generated.
+  let turn;
+  try {
+    turn = await converse(text, {
+      step: live,
+      text: live,
+      sentence: (s) => { if (voice && mine === session) say(s); },
+    }, turnAbort.signal);
+  } catch (err) {
+    if (mine === session) useVoice.setState({ did: `No answer: ${(err as Error).message}` });
+    return;
+  }
+  if (mine !== session) return;
+  useVoice.setState({ did: turn.reply });
+  armIdle();
 }
 
 const base64 = (blob: Blob) => new Promise<string>((resolve, reject) => {

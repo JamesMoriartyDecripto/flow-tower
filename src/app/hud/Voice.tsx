@@ -6,7 +6,7 @@ const STATUS = {
   starting: 'Starting the microphone…',
   listening: 'Listening: say a command (V to stop)',
   hearing: 'Hearing you…',
-  thinking: 'Transcribing…',
+  thinking: 'Working…',
 } as const;
 
 /** Mic toggle, in the top bar and in the library header. The static demo has no server, so no voice. */
@@ -29,7 +29,7 @@ export function VoiceCaption() {
       <button className="voice-close" onClick={error || status === 'off' ? dismiss : toggle} aria-label={error || status === 'off' ? 'Dismiss' : 'Stop listening'} title={error || status === 'off' ? 'Dismiss' : 'Stop listening (V)'}>✕</button>
       <div className="voice-state">
         <i />{status === 'off' ? 'Voice off' : STATUS[status]}
-        {cloud && <span className="chip" title="Audio is transcribed by OpenRouter (zero data retention); commands are matched locally">CLOUD STT</span>}
+        {cloud && <span className="chip" title="OpenRouter (zero data retention) transcribes the audio, answers questions and speaks the replies; plain navigation is matched in the page">CLOUD STT</span>}
       </div>
       {heard && <div className="voice-heard">“{heard}” <b>→ {did}</b></div>}
       {!heard && status === 'listening' && <div className="dim">“apri dev squad” · “livello 2” · “vai al nodo triage” · “vista mappa” · “indietro”</div>}
