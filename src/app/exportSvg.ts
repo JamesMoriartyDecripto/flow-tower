@@ -59,17 +59,8 @@ function drawLayer(layer: ResolvedLayer, ll: LayerLayout, x0: number, y0: number
     const d = e.points.map(([x, z], k) => `${k ? 'L' : 'M'}${X(x).toFixed(1)} ${Y(z).toFixed(1)}`).join(' ');
     parts.push(`<path d="${d}" fill="none" stroke="${color}" stroke-width="${Math.max(1, style.width).toFixed(1)}"${style.dashed ? ' stroke-dasharray="6 4"' : ''} marker-end="url(#arrow-${e.kind})"/>`);
     const text = edgeText(e);
-    if (text) {
-      // On the longest segment, like the 3D labels.
-      let best = 0;
-      let at: [number, number] = e.points[0];
-      for (let k = 1; k < e.points.length; k++) {
-        const [ax, az] = e.points[k - 1];
-        const [bx, bz] = e.points[k];
-        const len = Math.hypot(bx - ax, bz - az);
-        if (len > best) { best = len; at = [(ax + bx) / 2, (az + bz) / 2]; }
-      }
-      parts.push(`<text x="${X(at[0]).toFixed(1)}" y="${(Y(at[1]) - 5).toFixed(1)}" text-anchor="middle" font-family="${MONO}" font-size="10" fill="${p.accent2}">${esc(fit(text, 160, 6))}</text>`);
+    if (text && e.labelAt) {
+      parts.push(`<text x="${X(e.labelAt[0]).toFixed(1)}" y="${(Y(e.labelAt[1]) + 3.5).toFixed(1)}" text-anchor="middle" font-family="${MONO}" font-size="10" fill="${p.accent2}">${esc(text)}</text>`);
     }
   }
 

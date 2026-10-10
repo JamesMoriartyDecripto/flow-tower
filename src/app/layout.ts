@@ -7,11 +7,14 @@ import { NODE_H, NODE_W, SCALE } from './theme';
 export type XZ = [number, number];
 
 export interface NodeBox { key: string; x: number; z: number; w: number; d: number }
-export interface EdgePath { id: string; kind: EdgeKind; from: string; to: string; label?: string; protocol?: Protocol; version?: string; async?: boolean; group?: string; points: XZ[] }
+export interface EdgePath { id: string; kind: EdgeKind; from: string; to: string; label?: string; protocol?: Protocol; version?: string; async?: boolean; group?: string; points: XZ[]; /** Center of the label, placed by ELK clear of the nodes. */ labelAt?: XZ }
 export interface LayerLayout { index: number; width: number; depth: number; nodes: Record<string, NodeBox>; edges: EdgePath[] }
 export interface TowerLayout { layers: LayerLayout[]; width: number; depth: number }
 
 const elk = new ELK();
+
+/** Edge label box in ELK pixels: monospace at the size the scene and the SVG draw it. */
+export const LABEL = { char: 6, h: 14 };
 
 const OPTIONS = {
   'elk.algorithm': 'layered',
@@ -32,7 +35,11 @@ async function layoutLayer(layer: ResolvedLayer): Promise<LayerLayout> {
     id: layer.id,
     layoutOptions: OPTIONS,
     children: layer.nodes.map((n) => ({ id: n.key, width: NODE_W, height: NODE_H })),
-    edges: layer.edges.map((e) => ({ id: e.id, sources: [e.from], targets: [e.to] })),
+    // Labels are sized for ELK, which reserves room for them: they never sit under a node.
+    edges: layer.edges.map((e) => {
+      const text = edgeText(e);
+      return { id: e.id, sources: [e.from], targets: [e.to], labels: text ? [{ text, width: text.length * LABEL.char + 8, height: LABEL.h }] : [] };
+    }),
   };
   const out = await elk.layout(graph);
   const w = (out.width ?? 0) * SCALE;
@@ -46,11 +53,14 @@ async function layoutLayer(layer: ResolvedLayer): Promise<LayerLayout> {
   }
 
   const edges = layer.edges.map((e): EdgePath => {
-    const s = out.edges?.find((o) => o.id === e.id)?.sections?.[0];
+    const o = out.edges?.find((x) => x.id === e.id);
+    const s = o?.sections?.[0];
+    const l = o?.labels?.[0];
     const points = s
       ? [s.startPoint, ...(s.bendPoints ?? []), s.endPoint].map((p) => toWorld(p.x, p.y))
       : [[nodes[e.from].x, nodes[e.from].z], [nodes[e.to].x, nodes[e.to].z]] as XZ[];
-    return { id: e.id, kind: e.kind, from: e.from, to: e.to, label: e.label, protocol: e.protocol, version: e.version, async: e.async, group: e.group, points };
+    const labelAt = l?.x !== undefined && l.y !== undefined ? toWorld(l.x + (l.width ?? 0) / 2, l.y + (l.height ?? 0) / 2) : undefined;
+    return { id: e.id, kind: e.kind, from: e.from, to: e.to, label: e.label, protocol: e.protocol, version: e.version, async: e.async, group: e.group, points, labelAt };
   });
 
   return { index: layer.index, width: w, depth: d, nodes, edges };
