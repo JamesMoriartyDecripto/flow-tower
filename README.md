@@ -150,7 +150,7 @@ Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [
 | **Shift / Alt + arrows**, **+ / −** | Orbit / pan / zoom the camera |
 | **[ ]** | Previous / next tab of the selected node |
 | **F**, **O** | Live feed, auto-orbit |
-| **P**, **X** | Download the 3D view as PNG; the focused layer (or every layer) as an editable SVG diagram |
+| **P**, **X** | Download a ZIP of every layer and the map of the project and its sub-towers: Full HD PNGs (plus the 3D view), or editable SVGs |
 | **?** | Every keyboard shortcut |
 
 Everything works without a mouse: **Tab** moves between HUD buttons, **Enter / Space** press them.
