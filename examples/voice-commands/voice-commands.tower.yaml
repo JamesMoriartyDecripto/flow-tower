@@ -44,7 +44,7 @@ agents:
       message, as preferences that never override the instructions, tool results or screen. Every LLM step goes through POST /api/voice/chat, streamed; tool calls run in the page.
       Illustrative numbers, measured on the dev-squad tower (commit 86234b9): 1.1-2.9 s and about $0.001 per
       turn. No budget cap in the code.
-    model: google/gemini-3.1-flash-lite
+    model: google/gemini-3.5-flash-lite
     tools: [screen, list_layers, layer_nodes, search, node_info, connections, node_files, read_file, focus_layer, select_node, open_file, open_project, navigate]
     runtime: browser
     files: [src/app/voice/agent.ts, src/app/voice/tools.ts, examples/voice-commands/options/llm-intent.md]
@@ -281,8 +281,8 @@ layers:
         type: model
         label: Gemini Flash-Lite
         runtime: openrouter
-        model: google/gemini-3.1-flash-lite
-        description: "One chat completion per step: max_tokens 500, tool_choice auto (none on the last step), provider { zdr, require_parameters } so only endpoints that support tools and keep no data serve it. FLOW_TOWER_AGENT_MODEL picks another model (Claude Haiku 5.5 or Mistral Small 4: see the options page); there is no automatic fallback."
+        model: google/gemini-3.5-flash-lite
+        description: "Chosen by a benchmark of six models on this tool loop (2026-10-10): first real sentence 1.8 s on average against 2.4 s for Gemini 3.1 Flash-Lite, every answer right in two steps. One chat completion per step: max_tokens 500, tool_choice auto (none on the last step), provider { zdr, require_parameters } so only endpoints that support tools and keep no data serve it. FLOW_TOWER_AGENT_MODEL picks another model (Claude Haiku 5.5 or Mistral Small 4: see the options page); there is no automatic fallback."
         files: [examples/voice-commands/options/llm-intent.md, src/server/voice.ts]
       - id: step
         type: decision

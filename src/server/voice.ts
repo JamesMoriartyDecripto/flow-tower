@@ -4,10 +4,13 @@ import { learningRoutes, type LearningDeps } from './voice-learning.ts';
 
 export const OPENROUTER = 'https://openrouter.ai/api/v1';
 export const OPENROUTER_STT = `${OPENROUTER}/audio/transcriptions`;
-/** Defaults picked on 2026-10-10 (examples/voice-commands/options): fast, cheap, multilingual, zero data retention. */
+/**
+ * Defaults picked on 2026-10-10 (examples/voice-commands/options): fast, cheap, multilingual, zero data retention.
+ * The agent model won a benchmark of six on the real tool loop: first real sentence 1.8 s, always right, two steps.
+ */
 export const VOICE_DEFAULTS = {
   stt: 'openai/whisper-large-v3-turbo',
-  chat: 'google/gemini-3.1-flash-lite',
+  chat: 'google/gemini-3.5-flash-lite',
   tts: 'elevenlabs/eleven-flash-v2.5',
   /** One voice that speaks every language the model knows: the reply follows the user's language. */
   voice: 'alice',

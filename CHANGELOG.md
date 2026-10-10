@@ -12,6 +12,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Settings → Voice → Learning: the journal toggle, last-7-days stats (turns, not understood, corrected, interrupted, answer time, cost), suggestions to accept or reject, what was learned (removable one by one), **Review now** and **Forget everything**.
 - E2E of the voice path (`e2e/voice.spec.ts`): transcripts go in through `__flowTower.hear()`, OpenRouter is answered by route interception (no cost), and the journal goes to a temporary `FLOW_TOWER_HOME`.
 
+### Changed
+- The voice agent now runs on `google/gemini-3.5-flash-lite` (was `google/gemini-3.1-flash-lite`): in a benchmark of six models on the real tool loop it gave the first real sentence in 1.8 s instead of 2.4 s, every answer right in two steps, for about $0.0006 more per turn (`examples/voice-commands/options/llm-intent.md`). `FLOW_TOWER_AGENT_MODEL` still overrides it.
+
 ### Fixed
 - Update check: a cached "latest release" older than the running version is ignored, so `/api/version` no longer reports an older release for up to 24 h after an update, and a newer release is noticed at once (#71, reported by @CryptoLordHodlerSqvad).
 - A `node_modules` symlink committed by mistake in the previous fix is gone, and `.gitignore` now ignores `node_modules` as a file too (a checkout replaced the local dependency folder with it).
