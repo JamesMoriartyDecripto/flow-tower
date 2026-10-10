@@ -190,6 +190,25 @@ A name alone works too ("triage"). Names come from what is on screen: projects, 
 
 **Browsers.** Firefox, Chrome, Safari and Edge behave the same: recording uses `MediaRecorder`, not the browser's own speech recognition.
 
+### Talking with the tower
+
+Questions, and anything the commands above do not cover, go to a voice agent that answers out loud in the language you spoke, and shows what it talks about:
+
+| You say | It answers and shows |
+|---|---|
+| "cosa c'è nel secondo livello?" | the layer's nodes, and focuses it |
+| "a cosa è collegato il triage?" | its incoming and outgoing edges, and selects it |
+| "fammi vedere i file di questo nodo" → "apri il primo" | how many files there are, and opens the first in the viewer |
+| "how many MCP servers are there?" | the count and names, highlighted on screen |
+| "what does the fresh verifier do?" | its role, model and tools |
+
+The agent reads the tower on screen through a dozen tools (layers, nodes, connections, files, search) and acts with the same commands as the keyboard, so its answers come from the tower, not from guesses. It keeps the last few exchanges, so "this node" and "the first one" work. Speaking while it answers interrupts it.
+
+- **Models** (OpenRouter, zero data retention): `google/gemini-3.1-flash-lite` for the answers and `elevenlabs/eleven-flash-v2.5` for the voice, one voice for every language. Change them with `FLOW_TOWER_AGENT_MODEL`, `FLOW_TOWER_TTS_MODEL` and `FLOW_TOWER_TTS_VOICE`.
+- **Settings → Voice → Spoken replies**: off shows the answers in the caption only.
+- **Cost and speed** (measured once on dev-squad, illustrative): an answer took 1.1–2.9 s and about $0.001, and speaking it about 0.7 s more. Plain commands never reach the agent and stay instant.
+- **Privacy:** the transcript, what is on screen and the tool results go to the model; no audio is kept, nothing is logged.
+
 ## Performance
 
 Flow Tower is meant to run next to busy agents, so it is frugal by design:
