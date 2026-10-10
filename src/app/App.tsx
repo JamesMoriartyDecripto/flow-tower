@@ -213,7 +213,7 @@ function useKeyboard() {
       } else if (key === 'p' && tower) {
         void exportPng();
       } else if (key === 'x' && tower) {
-        exportSvg();
+        void exportSvg();
       }
     };
     window.addEventListener('keydown', onKey);

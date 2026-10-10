@@ -4,7 +4,7 @@ import { search as rank } from '../graph';
 import { useLive } from '../live';
 import { chooseView, usePrefs } from '../settings';
 import { useDemo } from '../demo';
-import { exportPng, exportSvg } from '../exporter';
+import { exportPng, exportSvg, useExport } from '../exporter';
 import { budgetsText, limitsText } from '../ops';
 import { STATIC } from '../staticData';
 import { useCurrentTowerLive } from '../liveHooks';
@@ -283,6 +283,8 @@ export function Legend() {
 
 export function Controls() {
   const { explode, autoRotate, particles, quality, view, set, resetView } = useStore();
+  const { busy, done, total } = useExport();
+  const progress = total ? ` ${done}/${total}` : '…';
   const next = { high: 'eco', balanced: 'high', eco: 'balanced' } as const;
   return (
     <div className="panel controls">
@@ -295,8 +297,8 @@ export function Controls() {
       <button className={`btn ${particles ? 'on' : ''}`} onClick={() => set({ particles: !particles })} title="Show or hide the dots travelling along the edges (needs ambient animations)">Flow</button>
       <button className="btn" onClick={() => set({ quality: next[quality] })} title="Rendering: eco (20 fps cap, no post-processing) / balanced (30 fps) / high (60 fps, full effects)">FX {quality}</button>
       <button className="btn" onClick={resetView} title="Reset the camera to the overview (0)">Reset</button>
-      <button className="btn" onClick={() => void exportPng()} title="Download the 3D view as a PNG image (P)">PNG</button>
-      <button className="btn" onClick={exportSvg} title="Download the focused layer, or every layer, as an editable SVG diagram (X)">SVG</button>
+      <button className="btn" onClick={() => void exportPng()} disabled={!!busy} title="Download a ZIP of Full HD PNGs: every layer, the map of each tower and its sub-towers, and the 3D view (P)">{busy === 'png' ? `PNG${progress}` : 'PNG'}</button>
+      <button className="btn" onClick={() => void exportSvg()} disabled={!!busy} title="Download a ZIP of editable SVG diagrams: every layer and the map of each tower and its sub-towers (X)">{busy === 'svg' ? `SVG${progress}` : 'SVG'}</button>
     </div>
   );
 }
