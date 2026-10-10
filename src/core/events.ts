@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ResolvedNode, Workspace } from './types.ts';
+import type { ResolvedNode, ResolvedTower, Workspace } from './types.ts';
 
 /** What happened. Kept small on purpose: every source is normalized onto these. */
 export const EVENT_KINDS = [
@@ -13,6 +13,18 @@ export const FlowEventSchema = z.looseObject({
   source: z.string().default('custom').describe('claude-code, agent-sdk, codex, pi, hermes, otel, custom...'),
   ts: z.number().optional().describe('Epoch milliseconds; filled in by the server when missing.'),
   session: z.string().optional(),
+  user: z.string().optional().describe('Human or account the run belongs to.'),
+  host: z.string().optional().describe('Machine/container the run executed on.'),
+  runtime: z.string().optional().describe('Agent runtime, e.g. "claude-code".'),
+  project: z.string().optional().describe('Repository or project the run belongs to.'),
+  runtimeRef: z.string().optional().describe('Id of the tower runtime the event was matched to (filled in by ingest).'),
+  estimated: z.boolean().optional().describe('True when tokens/cost were estimated, not reported.'),
+  tokens_detail: z.object({
+    input: z.number().optional(),
+    output: z.number().optional(),
+    cache_read: z.number().optional(),
+    cache_write: z.number().optional(),
+  }).optional(),
   agent: z.string().optional().describe('Agent or subagent name/type.'),
   parent: z.string().optional().describe('Parent agent/session id, for subagents.'),
   tool: z.string().optional(),
@@ -90,6 +102,26 @@ export function eventMatches(node: ResolvedNode, event: z.output<typeof FlowEven
   // MCP tools arrive as mcp__<server>__<tool>: match the server too.
   const server = event.tool.startsWith('mcp__') ? event.tool.split('__')[1] : undefined;
   return names.some((n) => like(event.tool, n) || (server !== undefined && like(server, n)));
+}
+
+/**
+ * Id of the tower's runtime the event ran in, if any. `host` wins (it is the precise machine);
+ * otherwise `runtime` is matched against the runtime id/label, and against its part before "/"
+ * ("claude-code/aws" -> "claude-code"). Pure: ingest stores the result in `runtimeRef`.
+ */
+export function resolveRuntime(tower: ResolvedTower, event: z.output<typeof FlowEventSchema>): string | undefined {
+  const runtimes = Object.values(tower.runtimes ?? {});
+  if (!runtimes.length) return undefined;
+  if (event.host) {
+    // A runtime that declares a host is matched by that only; otherwise its id/label may name the machine.
+    const hit = runtimes.find((r) => (r.host !== undefined ? r.host === event.host : r.id === event.host || r.label === event.host));
+    if (hit) return hit.id;
+  }
+  // A source may report "id/label" or "runtime/region": compare both halves.
+  const names = event.runtime?.split('/').map((s) => norm(s)).filter(Boolean) ?? [];
+  if (!names.length) return undefined;
+  const hit = runtimes.find((r) => names.some((n) => norm(r.id) === n || (r.label !== undefined && norm(r.label) === n)));
+  return hit?.id;
 }
 
 /** Every "tower#node" the event lands on, across all towers of the library. */

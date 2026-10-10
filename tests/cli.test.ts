@@ -1,11 +1,99 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { createServer } from 'node:http';
+import { tmpdir, hostname, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { IDENTITY_MAX, identityDefaults } from '../bin/identity.js';
 
 const CLI = resolve('bin/flow-tower.js');
 const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' });
+
+describe('cli emit identity (#82)', () => {
+  const servers: ReturnType<typeof createServer>[] = [];
+  afterAll(() => servers.forEach((s) => s.close()));
+
+  /** A stub that answers 204 and records the JSON bodies the CLI POSTs. */
+  async function stub() {
+    const got: unknown[][] = [];
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        try { got.push(...(JSON.parse(body) as unknown[][])); } catch { /* ignore */ }
+        res.writeHead(204).end();
+      });
+    });
+    servers.push(server);
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const addr = server.address() as { port: number };
+    return { url: `http://127.0.0.1:${addr.port}`, got };
+  }
+
+  // Async spawn: a synchronous child would block this process, and the stub server could never answer.
+  const emitAsync = (args: string[], input?: string) =>
+    new Promise<void>((done, fail) => {
+      const child = spawn(process.execPath, [CLI, 'emit', ...args], { stdio: ['pipe', 'ignore', 'inherit'] });
+      child.on('error', fail);
+      child.on('close', () => done());
+      child.stdin.end(input ?? '');
+    });
+
+  it('forwards the identity flags as event fields', async () => {
+    const { url, got } = await stub();
+    await emitAsync([
+      '--url', url, '--kind', 'log',
+      '--user', 'ada', '--machine', 'box-1', '--runtime', 'claude-code/aws', '--session', 's1', '--project-name', 'flow',
+    ]);
+    expect(got).toEqual([expect.objectContaining({ kind: 'log', user: 'ada', host: 'box-1', runtime: 'claude-code/aws', session: 's1', project: 'flow' })]);
+  });
+
+  it('fills user and host defaults when the event carries none', async () => {
+    const { url, got } = await stub();
+    await emitAsync(['--url', url, '--kind', 'log']);
+    expect(got).toEqual([expect.objectContaining({ user: userInfo().username, host: hostname() })]);
+  });
+
+  it('lets a payload user win over the default', async () => {
+    const { url, got } = await stub();
+    await emitAsync(['--url', url], JSON.stringify({ kind: 'log', user: 'grace', host: 'custom-host' }));
+    expect(got).toEqual([expect.objectContaining({ user: 'grace', host: 'custom-host' })]);
+  });
+
+  it('clips long identity fields', async () => {
+    const { url, got } = await stub();
+    await emitAsync(['--url', url, '--kind', 'log', '--user', 'u'.repeat(IDENTITY_MAX + 50)]);
+    expect(got).toEqual([expect.objectContaining({ user: `${'u'.repeat(IDENTITY_MAX - 1)}…` })]);
+  });
+});
+
+describe('emit identity defaults (#82)', () => {
+  const os = { username: 'ada', hostname: 'box-1' };
+
+  it.each(['http://127.0.0.1:5317', 'http://localhost:5317', 'http://[::1]:5317'])(
+    'adds the os user and hostname for the loopback target %s',
+    (url) => {
+      expect(identityDefaults(url, {}, os)).toEqual({ user: 'ada', host: 'box-1' });
+    },
+  );
+
+  it.each(['https://tower.example.com', 'http://10.0.0.7:5317', 'not a url'])(
+    'sends nothing by default to %s',
+    (url) => {
+      expect(identityDefaults(url, {}, os)).toEqual({ user: undefined, host: undefined });
+    },
+  );
+
+  it('sends what the env asks for, even to a remote host', () => {
+    expect(identityDefaults('https://tower.example.com', { FLOW_TOWER_USER: 'grace', FLOW_TOWER_MACHINE: 'box-2' }, os))
+      .toEqual({ user: 'grace', host: 'box-2' });
+  });
+
+  it('treats an empty FLOW_TOWER_USER as "no user", everywhere', () => {
+    expect(identityDefaults('http://127.0.0.1:5317', { FLOW_TOWER_USER: '' }, os)).toEqual({ user: undefined, host: 'box-1' });
+    expect(identityDefaults('https://tower.example.com', { FLOW_TOWER_USER: '' }, os)).toEqual({ user: undefined, host: undefined });
+  });
+});
 
 describe('cli validate', () => {
   it('passes on the examples and reports JSON', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalize } from '../src/core/adapters';
-import { eventMatches, FlowEventSchema, resolveTargets } from '../src/core/events';
+import { eventMatches, FlowEventSchema, resolveRuntime, resolveTargets } from '../src/core/events';
 import { buildTower } from '../src/core/loader';
 import { TowerSchema } from '../src/core/schema';
 import type { Workspace } from '../src/core/types';
@@ -60,6 +60,15 @@ describe('adapters', () => {
     })).toEqual([{ kind: 'agent.end', source: 'codex', agent: 'codex', session: 'b5f6c1c2', status: 'ok', message: 'Rename complete.' }]);
   });
 
+  it('accepts the identity/tokens fields and stays permissive', () => {
+    const e = FlowEventSchema.parse({
+      kind: 'usage', user: 'u', host: 'h', runtime: 'claude-code/aws', project: 'p',
+      estimated: true, tokens_detail: { input: 1, cache_read: 2 }, whatever: 'kept',
+    });
+    expect(e).toEqual(expect.objectContaining({ user: 'u', host: 'h', runtime: 'claude-code/aws', project: 'p', estimated: true }));
+    expect(FlowEventSchema.parse({ kind: 'log', unknown: 1 })).toEqual(expect.objectContaining({ unknown: 1 }));
+  });
+
   it('passes normalized events through and drops junk', () => {
     expect(normalize(undefined, { kind: 'log', message: 'hi' })).toEqual([{ kind: 'log', message: 'hi', source: 'custom' }]);
     expect(normalize(undefined, 'nope')).toEqual([]);
@@ -94,6 +103,30 @@ describe('matching', async () => {
   });
 });
 
+describe('resolveRuntime', () => {
+  // Runtimes are plain objects on the resolved tower: no need for the loader here.
+  const tower = { runtimes: {
+    laptop: { id: 'laptop', kind: 'local', label: 'Dev laptop' },
+    vps: { id: 'vps', kind: 'server', host: 'vps-01' },
+    gha: { id: 'gha', kind: 'ci', label: 'GitHub Actions' },
+  } } as unknown as Parameters<typeof resolveRuntime>[0];
+
+  it('matches the runtime whose host is the event host', () => {
+    expect(resolveRuntime(tower, ev({ kind: 'log', host: 'vps-01' }))).toBe('vps');
+    expect(resolveRuntime(tower, ev({ kind: 'log', host: 'other' }))).toBeUndefined();
+  });
+  it('matches the runtime id or label, ignoring case and the part after "/"', () => {
+    expect(resolveRuntime(tower, ev({ kind: 'log', runtime: 'LAPTOP' }))).toBe('laptop');
+    expect(resolveRuntime(tower, ev({ kind: 'log', runtime: 'github actions' }))).toBe('gha');
+    expect(resolveRuntime(tower, ev({ kind: 'log', runtime: 'claude-code/vps' }))).toBe('vps');
+  });
+  it('returns undefined for no match and for a tower without runtimes', () => {
+    expect(resolveRuntime(tower, ev({ kind: 'log', runtime: 'nope' }))).toBeUndefined();
+    expect(resolveRuntime(tower, ev({ kind: 'log', host: 'x', runtime: 'y' }))).toBeUndefined();
+    expect(resolveRuntime({ runtimes: {} } as unknown as Parameters<typeof resolveRuntime>[0], ev({ kind: 'log', host: 'vps-01' }))).toBeUndefined();
+  });
+});
+
 describe('?tower= on /api/events', () => {
   it('restricts matching to one of two versions of the same project', async () => {
     const def = TowerSchema.parse({ name: 'Squad', layers: [{ id: 'a', title: 'A', nodes: [{ id: 'coder', label: 'Coder', match: ['agent:coder'] }] }] });
@@ -105,5 +138,14 @@ describe('?tower= on /api/events', () => {
     const [both, only] = hub.recent();
     expect(both.targets).toEqual(['v1.tower.yaml#a.coder', 'v2.tower.yaml#a.coder']);
     expect(only.targets).toEqual(['v2.tower.yaml#a.coder']);
+  });
+
+  it('records the runtime the event matched on the ingested event', () => {
+    const def = TowerSchema.parse({ name: 'T', runtimes: { vps: { kind: 'server', host: 'vps-01' } }, layers: [{ id: 'a', title: 'A', nodes: [{ id: 'coder', match: ['agent:coder'] }] }] });
+    return buildTower(def, 'x.tower.yaml', { read: async () => undefined }, []).then((t) => {
+      const hub = createEventHub(() => ({ projects: ['x.tower.yaml'], towers: { 'x.tower.yaml': t }, loadedAt: '' }), () => undefined);
+      hub.ingest({ kind: 'agent.start', agent: 'coder', host: 'vps-01' });
+      expect(hub.recent()[0].runtimeRef).toBe('vps');
+    });
   });
 });

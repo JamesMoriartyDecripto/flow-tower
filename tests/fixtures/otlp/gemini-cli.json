@@ -1,0 +1,22 @@
+{
+  "resourceLogs": [{
+    "resource": {
+      "attributes": [
+        { "key": "service.name", "value": { "stringValue": "gemini-cli" } },
+        { "key": "service.namespace", "value": { "stringValue": "my-project" } },
+        { "key": "session.id", "value": { "stringValue": "g-sess" } }
+      ]
+    },
+    "scopeLogs": [{
+      "logRecords": [{
+        "timeUnixNano": "1760000000000000000",
+        "body": { "stringValue": "gemini_cli.api_response" },
+        "attributes": [
+          { "key": "gen_ai.response.model", "value": { "stringValue": "gemini-2.5-pro" } },
+          { "key": "input_token_count", "value": { "intValue": "100" } },
+          { "key": "output_token_count", "value": { "intValue": "40" } }
+        ]
+      }]
+    }]
+  }]
+}

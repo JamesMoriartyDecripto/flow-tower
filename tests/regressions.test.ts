@@ -156,6 +156,25 @@ describe('live feed', () => {
     useLive.getState().apply(buffer, true); // React StrictMode runs the effect twice in development
     expect(usageOf(useLive.getState().usage, new Set(['t']))?.calls).toBe(500);
   });
+
+  it('records where a node last ran, copy-on-write, from the last event that carries it', async () => {
+    vi.stubGlobal('location', { search: '' });
+    const { useLive } = await import('../src/app/live');
+    useLive.getState().clear();
+    useLive.setState({ lastId: 0, firstId: Infinity });
+    const ev = (id: number, extra: Record<string, unknown>) => ({ id, ts: id, kind: 'agent.start' as const, source: 't', targets: ['t#l.n'], ...extra });
+    useLive.getState().apply([ev(1, { host: 'gpu-1', runtime: 'claude-code' })]);
+    const before = useLive.getState().nodes.get('t#l.n')!;
+    expect(before.where).toEqual({ host: 'gpu-1', runtime: 'claude-code', runtimeRef: undefined, user: undefined, ts: 1 });
+    expect(before.estimated).toBeUndefined();
+    useLive.getState().apply([ev(2, { user: 'ada' })]);
+    const after = useLive.getState().nodes.get('t#l.n')!;
+    // The newer event only named the user: host and runtime stay, the timestamp moves on.
+    expect(after.where).toMatchObject({ host: 'gpu-1', runtime: 'claude-code', user: 'ada', ts: 2 });
+    // Copy-on-write: the previous state object must be untouched (selectors compare by identity).
+    expect(before.where).toMatchObject({ user: undefined, ts: 1 });
+    expect(useLive.getState().nodes.get('t#l.n')).not.toBe(before);
+  });
 });
 
 describe('live targets', () => {
