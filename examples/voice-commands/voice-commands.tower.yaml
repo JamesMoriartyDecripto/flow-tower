@@ -71,7 +71,7 @@ layers:
         type: entry
         label: Esc key
         runtime: browser
-        description: "Esc first calls hush() (App.tsx, before any other Esc action): if a reply is active (its first sentence synthesizing or any sentence playing) it stops it, and the mic stays on. An agent turn still being written is muted too: no further sentence is spoken and the turn is journaled interrupted; a turn already journaled is marked interrupted. With nothing active, Esc does its usual job (closes help or Settings, goes back)."
+        description: "Esc first calls hush() (App.tsx, before any other Esc action): if a reply is active (its first sentence synthesizing or any sentence playing) it stops it, and the mic stays on. An agent turn still being written is muted too: no further sentence is spoken, its stream is aborted so no later tool call moves the view, the caption says Stopped and the turn is journaled interrupted; a turn already journaled is marked interrupted. With nothing active, Esc does its usual job (closes help or Settings, goes back)."
         trigger: { kind: manual, source: Esc key }
         files: [src/app/App.tsx, src/app/voice/voice.ts]
       - id: prefs
@@ -103,7 +103,7 @@ layers:
         type: memory
         label: Noise floor
         runtime: browser
-        description: "One noise level per frequency bin of the voice band. Seeded by the first ticks (never 0), then calibrated from 200 to 700 ms after the mic opens as the per-bin minimum (updateFloor in noise.ts): speech has gaps between syllables, so the minimum is the room even if the user speaks at once, where an average would learn the voice. The analyser's first 200 ms understate the room, so they only seed it; no speech is accepted meanwhile. Clamped to -120..-55 dB. Then it follows the room: 5% per tick while quiet, 0.2% while speaking, never more than 4x in one tick, so a fan spinning up raises it instead of counting as speech."
+        description: "One noise level per frequency bin of the voice band. Seeded by the first ticks (never 0), then calibrated from 200 to 700 ms after the mic opens as the per-bin minimum (updateFloor in noise.ts): speech has gaps between syllables, so the minimum is the room even if the user speaks at once, where an average would learn the voice. A minimum sits below the room's average, so calibration keeps a x1.5 margin over it (+1.8 dB): a fan wobbling just above it does not count as loud. The analyser's first 200 ms understate the room, so they only seed it; no speech is accepted meanwhile. Clamped to -120..-55 dB. Then it follows the room: 5% per tick while quiet, 0.2% while speaking, never more than 4x in one tick, so a fan spinning up raises it instead of counting as speech."
         files: [src/app/voice/mic.ts, src/app/voice/noise.ts, tests/voice-noise.test.ts]
       - id: detect
         type: decision
@@ -130,7 +130,7 @@ layers:
         type: guard
         label: Half-duplex gate
         runtime: browser
-        description: "keepClip(): a clip recorded while a reply was playing, or up to 700 ms after it ended (the room still rings, the recorder lags), is the reply itself coming out of laptop speakers: it is dropped before transcription, so it costs nothing and cannot start a loop. With Interrupt by voice on (headphones) it is kept for the barge-in check. \"Playing\" is one state, isSpeaking() in agent.ts, from the first sentence being synthesized until the queue drains: the same for the caption, Esc and this gate. A clip that started in the 700 ms tail, not during the reply, shows once per session \"Wait a moment after the reply, or press Esc to interrupt it.\""
+        description: "keepClip(): a clip recorded while a reply was playing, or up to 700 ms after it ended (the room still rings, the recorder lags), is the reply itself coming out of laptop speakers: it is dropped before transcription, so it costs nothing and cannot start a loop. With Interrupt by voice on (headphones) it is kept for the barge-in check. \"Playing\" is one state, isSpeaking() in agent.ts, from the first sentence being synthesized until the queue drains: the active span, the same for the caption, Esc and this gate. A second kind, the audible span, covers only sentences coming out of the speakers: the barge-in rule looks at that one, so with Interrupt by voice on a clip during the silent wait for synthesis is a normal command. A clip that started in the 700 ms tail, not during the reply, shows once per session \"Wait a moment after the reply, or press Esc to interrupt it.\""
         files: [src/app/voice/duplex.ts, src/app/voice/voice.ts, tests/voice-duplex.test.ts]
     edges:
       - "hotkey -> start: toggle on"
@@ -219,7 +219,7 @@ layers:
         type: decision
         label: Barge-in?
         runtime: browser
-        description: "Only for a clip recorded while a reply played, which needs Interrupt by voice on: otherwise the half-duplex gate dropped it already. A stop word (stop, basta, ferma, zitto, silenzio, enough, quiet...) stops the reply and ends there; fewer than 3 words (a cough, \"ok\") are ignored and the reply goes on; 3 or more words stop the reply and are handled as a new request (Pipecat's minimum-words rule)."
+        description: "Only for a clip recorded while a reply was audible (a sentence coming out of the speakers, not the silent wait for synthesis), which needs Interrupt by voice on: otherwise the half-duplex gate dropped it already. A stop word (stop, basta, ferma, zitto, silenzio, enough, quiet...) stops the reply and ends there; fewer than 3 words (a cough, \"ok\") are ignored and the reply goes on; 3 or more words stop the reply and are handled as a new request (Pipecat's minimum-words rule)."
         decision: { output: choice, candidates: [not during a reply, stop word, under 3 words, 3+ words] }
         files: [src/app/voice/duplex.ts, src/app/voice/voice.ts, tests/voice-duplex.test.ts]
       - id: route
@@ -309,7 +309,7 @@ layers:
         type: process
         label: Spoken reply
         runtime: browser
-        description: "Only with Settings > Spoken replies on (default on); off, the answer is only in the caption. say(): each finished sentence of the streamed reply is queued and synthesized shortly before its turn (POST /api/voice/speak: one sentence ahead while waiting for audio, two once it plays, since /speak shares the server's 6 slots with the chat stream and transcription; a 429 is retried once after 0.5 s, then the sentence is skipped), then played in order, one <audio> element at a time, so the voice starts on the first sentence. The reply is active from its first say() until the queue drains (isSpeaking): that span is what the half-duplex gate and the echo filter see. A sentence whose speech request fails, or whose audio cannot be decoded, is skipped, so a reply never stays active and the mic deaf; if the browser refuses to play (NotAllowedError, autoplay blocked), the caption says so once and the next sentence is still tried. stopSpeaking() pauses it and drops the queue: Esc, barge-in, mic off, or a new reply."
+        description: "Only with Settings > Spoken replies on (default on); off, the answer is only in the caption. say(): each finished sentence of the streamed reply is queued and synthesized shortly before its turn (POST /api/voice/speak: one sentence ahead while waiting for audio, two once it plays, since /speak shares the server's 6 slots with the chat stream and transcription; a 429 is retried once after 0.5 s, then the sentence is skipped, and so is one whose speech takes over 8 s), then played in order, one <audio> element at a time, so the voice starts on the first sentence. The reply is active from its first say() until the queue drains (isSpeaking): that span is what the half-duplex gate and the echo filter see; each sentence while it plays is an audible span, what barge-in sees. A sentence whose speech request fails, or whose audio cannot be decoded, is skipped, so a reply never stays active and the mic deaf; if the browser refuses to play (NotAllowedError, autoplay blocked), the caption says so once and the reply ends at once, so it does not hold the half-duplex gate. stopSpeaking() pauses it and drops the queue: Esc, barge-in, mic off, or a new reply."
         data: { retention: none, description: "The reply audio lives in a blob URL until playback ends." }
         files: [src/app/voice/agent.ts, src/app/voice/voice.ts, src/app/hud/Settings.tsx, src/app/settings.ts]
       - id: tts
@@ -393,7 +393,7 @@ layers:
         type: process
         label: Outcome marks
         runtime: browser
-        description: "judgeLast(), at the start of handle(), reads the next transcript: a correction (\"no, ...\", \"non quello\", \"not that\", \"wrong\", \"sbagliato\", \"ho detto\", \"i meant\"...; not a command that starts with \"non\", like \"non mostrare...\") within 15 s marks the last turn corrected; \"back\", \"indietro\", \"annulla\" or \"undo\" alone within 6 s of an action marks it undone. Esc or a barge-in marks it interrupted, and the next words may still correct it. Sent as POST /api/voice/journal { mark: { ts, outcome } }; one mark per turn."
+        description: "judgeLast(), at the start of handle(), reads the next transcript: a correction (\"no, ...\", \"non quello\", \"not that\", \"wrong\", \"sbagliato\", \"ho detto\", \"i meant\"...; not a command that starts with \"non\", like \"non mostrare...\") within 15 s marks the last turn corrected (the transcript is normalized first: NFC, leading quotes and punctuation dropped, so «No, quello» counts); \"back\", \"indietro\", \"annulla\" or \"undo\" alone within 6 s of an action marks it undone. Esc or a barge-in marks it interrupted, and the next words may still correct it. Sent as POST /api/voice/journal { mark: { ts, outcome } }; one mark per turn."
         files: [src/app/voice/journal.ts, src/app/voice/voice.ts]
       - id: journal
         type: memory
@@ -403,14 +403,14 @@ layers:
           voice-journal.jsonl in the user's folder (~/.config/flow-tower, or FLOW_TOWER_HOME), outside every repo.
           One JSON line per turn: time, what was heard, route (parser, agent, pick), what happened, outcome, tower,
           tools, ms, cost, time to first audio; text flattened to one line and cut. Marks are appended and applied
-          when read, and each review adds a line with how many entries it read and its cost; a torn line is skipped. Folder 0700, file 0600 (owner only). Past 5 MB the older half is dropped. Never audio.
+          when read, and each review adds a line with how many entries it read and its cost; a torn line is skipped. The default folder 0700 (an existing FLOW_TOWER_HOME keeps its permissions), file 0600 (owner only). Past 5 MB the older half is dropped. Never audio.
         data: { sensitivity: pii, description: "What the user said and what the app did, as text. Kept on this machine until rotation or Forget everything; the review sends the new part to OpenRouter (ZDR endpoints)." }
         files: [src/server/voice-memory.ts, tests/voice-journal.test.ts]
       - id: due
         type: decision
         label: Review due?
         runtime: browser
-        description: "reviewIfDue() at mic off: the journal is on and 20 or more turns were recorded since the last review in this page (the count starts again on reload). Otherwise nothing is sent. Review now in Settings asks at once."
+        description: "reviewIfDue() at mic off: the journal is on and 20 or more turns were recorded since the last review in this page (the count starts again on reload). Otherwise nothing is sent. One at a time; the turns a review covered come off the count, success or failure, so a failed one (maybe paid) waits for 20 more turns. Review now in Settings asks at once."
         decision: { output: binary, candidates: [review, wait], threshold: 20 }
         files: [src/app/voice/journal.ts, src/app/voice/voice.ts]
       - id: review
@@ -497,7 +497,7 @@ layers:
         type: memory
         label: Local secrets
         runtime: server
-        description: "At startup plugin.ts loads the dotenv file in the user's folder (~/.config/flow-tower, or FLOW_TOWER_HOME) first, then the git-ignored one in the flow-tower folder as a fallback. Real environment variables win, then the user's folder, then the repo folder. No tower reads either: src/core/secrets.ts (isForbidden) refuses key and credential files, credential folders and anything inside the user's folder, even inside a tower root (this tower's root is the flow-tower folder). /api/file answers 403; the loader reports a prompt file:, agent from: or nested tower pointing at one as \"is a secret file or in the user folder (~/.config/flow-tower): not read\". home.ts warns at startup when FLOW_TOWER_HOME is inside the flow-tower folder. FLOW_TOWER_VOICE_MODEL, FLOW_TOWER_AGENT_MODEL, FLOW_TOWER_TTS_MODEL and FLOW_TOWER_TTS_VOICE pick other models; FLOW_TOWER_VOICE_ZDR=0 turns the ZDR filter off."
+        description: "At startup plugin.ts loads the dotenv file in the user's folder (~/.config/flow-tower, or FLOW_TOWER_HOME) first, then the git-ignored one in the flow-tower folder as a fallback. Real environment variables win, then the user's folder, then the repo folder. No tower reads either: src/core/secrets.ts (isForbidden) refuses key and credential files, credential folders and anything inside the user's folder, even inside a tower root (this tower's root is the flow-tower folder). /api/file answers 403; the loader reports a prompt file:, agent from: or nested tower pointing at one as \"is a secret file or in the user folder (~/.config/flow-tower): not read\", without checking whether it exists. The tower file itself is checked by its real path before it is read (a repository could ship x.tower.yaml linked to the voice journal, and YAML errors quote the lines they fail on), and folder scans skip symlinks that leave the scanned folder or enter the user's folder. home.ts warns at startup when FLOW_TOWER_HOME is inside the flow-tower folder, symlinks followed. FLOW_TOWER_VOICE_MODEL, FLOW_TOWER_AGENT_MODEL, FLOW_TOWER_TTS_MODEL and FLOW_TOWER_TTS_VOICE pick other models; FLOW_TOWER_VOICE_ZDR=0 turns the ZDR filter off."
         data: { sensitivity: secret }
         meta: { secret: OPENROUTER_API_KEY, stt: FLOW_TOWER_VOICE_MODEL, agent: FLOW_TOWER_AGENT_MODEL, tts: "FLOW_TOWER_TTS_MODEL, FLOW_TOWER_TTS_VOICE", zdr: FLOW_TOWER_VOICE_ZDR }
         files: [src/core/secrets.ts, src/core/loader.ts, src/server/plugin.ts, src/server/home.ts, src/server/files.ts, .gitignore]

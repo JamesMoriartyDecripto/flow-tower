@@ -208,7 +208,7 @@ Questions, and anything the commands above do not cover, go to a voice agent tha
 
 The agent reads the tower on screen through a dozen tools (layers, nodes, connections, files, search) and acts with the same commands as the keyboard, so its answers come from the tower, not from guesses. It keeps the last few exchanges, so "this node" and "the first one" work.
 
-**Interrupting.** While it answers, and for 0.7 s after, the microphone ignores what it hears, so laptop speakers cannot make the agent answer itself. If you speak in that moment just after a reply, the caption says once "Wait a moment after the reply, or press Esc to interrupt it." Stop a reply with **Esc** (the microphone stays on), **V** or **✕** (both turn it off). Esc while the reply is still being written silences the rest of it too. With headphones, turn on **Settings → Voice → Interrupt by voice**: three words or "stop" then cut the reply short.
+**Interrupting.** While it answers, and for 0.7 s after, the microphone ignores what it hears, so laptop speakers cannot make the agent answer itself. If you speak in that moment just after a reply, the caption says once "Wait a moment after the reply, or press Esc to interrupt it." Stop a reply with **Esc** (the microphone stays on), **V** or **✕** (both turn it off). Esc while the reply is still being written silences the rest of it and stops its tool calls too (the caption says "Stopped"). With headphones, turn on **Settings → Voice → Interrupt by voice**: three words or "stop" then cut the reply short while it is heard; before its first sentence plays, what you say is a normal command.
 
 - **Models** (OpenRouter, zero data retention): `google/gemini-3.1-flash-lite` for the answers and `elevenlabs/eleven-flash-v2.5` for the voice, one voice for every language. Change them with `FLOW_TOWER_AGENT_MODEL`, `FLOW_TOWER_TTS_MODEL` and `FLOW_TOWER_TTS_VOICE`.
 - **Settings → Voice → Spoken replies**: off shows the answers in the caption only.
@@ -221,7 +221,7 @@ Voice can learn from how you use it. It is off by default: turn it on in **Setti
 
 - **What is recorded.** Text only, never audio. One line per turn: what was heard, what happened, and how it went.
 - **Outcome marks.** The outcome is corrected from what you do next: "no, the other one" marks the last turn *corrected*, "back" right after marks it *undone*, stopping a reply (Esc, or by voice) marks it *interrupted*.
-- **Review.** After 20 new turns, a review runs when the microphone turns off. It costs about a cent with the default model. **Review now** runs one at any time.
+- **Review.** After 20 new turns, a review runs when the microphone turns off. It costs about a cent with the default model. One runs at a time, and a failed one waits for 20 more turns. **Review now** runs one at any time.
 - **Suggestions.** The review proposes aliases for names the recognizer mishears ("triaje" → triage), rules for the agent, and reply style. They change nothing until you accept them in Settings. The caption shows how many are waiting. Accepted rules and style notes are capped at 20 and 2000 characters in all (remove one to accept another), and the agent treats them as preferences: they never override its instructions, the tool results or what is on screen.
 - **Forget everything** deletes the journal and all it learned. Each accepted item can also be removed alone.
 - **Privacy.** Reviews send journal text to OpenRouter with zero data retention: transcripts and replies, which can quote tower names and file text.
@@ -236,7 +236,7 @@ Your own things stay in your user folder, never in a repo: `~/.config/flow-tower
 | `voice-journal.jsonl` | the voice journal (only when learning is on) |
 | `voice-memory.json` | accepted aliases and notes, waiting suggestions |
 
-Flow Tower creates the folder, the journal and the memory readable by you only, and rewrites the memory in one step (a crash never leaves half a file). No tower can read this folder or a secret file (key files, credentials, `.ssh`, `.git`…): `/api/file` never serves them, and a prompt `file:`, agent `from:` or nested tower pointing at one is refused by `validate` and the app ("is a secret file or in the user folder: not read"). If `FLOW_TOWER_HOME` points inside the flow-tower folder, the server warns at startup. The `.env` file in the flow-tower folder is only a git-ignored fallback for the key. Nothing personal is written in the repo.
+Flow Tower creates the folder, the journal and the memory readable by you only (a `FLOW_TOWER_HOME` folder you made yourself keeps its permissions), and rewrites the memory in one step (a crash never leaves half a file). No tower can read this folder or a secret file (key files, credentials, `.ssh`, `.git`…): `/api/file` never serves them, and a prompt `file:`, agent `from:` or nested tower pointing at one is refused by `validate` and the app ("is a secret file or in the user folder: not read"). Symlinks do not get around it: a tower file is checked by its real path before it is read, and folder scans skip links that leave the folder. If `FLOW_TOWER_HOME` points inside the flow-tower folder, the server warns at startup. The `.env` file in the flow-tower folder is only a git-ignored fallback for the key. Nothing personal is written in the repo.
 
 ## Performance
 
