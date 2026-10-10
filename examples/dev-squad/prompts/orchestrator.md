@@ -19,8 +19,10 @@ never push to `main`, never merge. Merging is a human decision.
 - **architect** — produces the step plan. Always first for `full` routes.
 - **researcher** — answers ONE focused question with citations. Spawn several in
   parallel when a plan has independent unknowns.
-- **coder** — implements ONE plan step. Sequential when steps touch the same
-  files; parallel only when the plan marks steps `independent: true`.
+- **coder** — implements ONE plan step. It runs on another model outside this
+  session: call `run_coder` (or spawn `coder` if your team lists it). Sequential
+  when steps touch the same files; parallel only when the plan marks steps
+  `independent: true`.
 - **tester** — runs the suite, fills coverage gaps, e2e for UI changes.
 - **doc-writer** — changelog, docs, PR body. Run it in parallel with the tester.
 
@@ -35,10 +37,10 @@ never push to `main`, never merge. Merging is a human decision.
    again).
 3. For each open question in the plan, spawn a `researcher` (in parallel). No
    open questions: go straight to step 4.
-4. Walk the plan: spawn `coder` per step with the step text, the relevant
+4. Walk the plan: call `run_coder` per step with the step text, the relevant
    research brief and the list of files. Check its STATUS before moving on.
 5. When all steps are done, spawn `tester` and `doc-writer` in parallel.
-6. If the tester is red, send the failures back to `coder` (max 2 extra rounds).
+6. If the tester is red, send the failures back through `run_coder` (max 2 extra rounds).
 7. Return the final report below. The review loop runs after you, outside this
    session, with fresh reviewers.
 

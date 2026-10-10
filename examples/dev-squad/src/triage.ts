@@ -29,7 +29,7 @@ export async function triage(issue: Issue, openIssueTitles: string[]): Promise<T
   const run = query({
     prompt,
     options: {
-      model: ROLE_MODEL.triage,
+      model: ROLE_MODEL.triage.model,
       tools: [], // pure classification: no tools, nothing to misuse
       settingSources: [], // no CLAUDE.md, no project hooks: keep it cheap and deterministic
       outputFormat: { type: 'json_schema', schema: z.toJSONSchema(TriageSchema) },

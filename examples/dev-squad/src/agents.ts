@@ -22,7 +22,7 @@ export function loadAgentFiles(): Record<string, AgentDefinition> {
       description: meta.description,
       prompt: match[2].trim(),
       tools: meta.tools.split(',').map((t) => t.trim()),
-      model: ROLE_MODEL[meta.name as Role] ?? meta.model,
+      model: ROLE_MODEL[meta.name as Role]?.model ?? meta.model,
     };
   }
   return agents;
@@ -34,18 +34,21 @@ export function architectAgent(vars: Record<string, string>): AgentDefinition {
     description: 'Planner. Use FIRST on every full-route issue to produce the step plan (YAML). Read-only.',
     prompt: renderPrompt('architect', vars),
     tools: ['Read', 'Grep', 'Glob'],
-    model: ROLE_MODEL.architect,
+    model: ROLE_MODEL.architect.model,
     maxTurns: 30,
   };
 }
 
-/** Agents the lead may delegate to. Reviewers are deliberately absent: they run later, fresh. */
+/**
+ * Agents the lead may delegate to. Reviewers are deliberately absent: they run later, fresh.
+ * SDK subagents are Claude only, so an OpenRouter coder is reached through mcp__squad__run_coder.
+ */
 export function leadTeam(architectVars: Record<string, string>) {
   const { researcher, coder, tester, 'doc-writer': docWriter } = loadAgentFiles();
   return {
     architect: architectAgent(architectVars),
     researcher,
-    coder: { ...coder, permissionMode: 'acceptEdits' as const },
+    ...(ROLE_MODEL.coder.provider === 'claude' && { coder: { ...coder, permissionMode: 'acceptEdits' as const } }),
     tester,
     'doc-writer': docWriter,
   } satisfies Record<string, AgentDefinition>;

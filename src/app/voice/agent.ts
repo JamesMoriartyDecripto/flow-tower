@@ -163,7 +163,14 @@ export const forget = () => { history.length = 0; };
  * journal, and a long reply sent all at once got 429s and lost sentences. While a reply plays the mic
  * ignores what it hears unless "Interrupt by voice" is on (duplex.ts); stopSpeaking() is the barge-in.
  */
-interface Sentence { text: string; blob?: Promise<Blob | undefined> }
+interface Sentence {
+  text: string;
+  blob?: Promise<Blob | undefined>;
+  /** A blob already synthesized (the acknowledgement): the player never asks for it again. */
+  ready?: Blob;
+  /** Called when this sentence actually started playing, never when it was skipped or stopped. */
+  onPlay?: () => void;
+}
 const AHEAD = 2;
 let queue: Sentence[] = [];
 let playing: HTMLAudioElement | undefined;
@@ -179,8 +186,10 @@ const deferred = () => {
   const promise = new Promise<number | undefined>((r) => { resolve = r; });
   return { promise, resolve };
 };
-/** When the current reply's first sentence started playing (performance.now()); undefined if none did. */
+/** When the current reply's first audible sound started (the cached ack counts); undefined if none did. */
 let firstPlay = deferred();
+/** When the current reply's first REAL sentence started (the ack does not count); undefined if none did. */
+let firstAnswer = deferred();
 
 /** A sentence that takes longer than this to synthesize is skipped: a hung /speak must not keep the mic deaf. */
 const SPEAK_TIMEOUT_MS = 8000;
@@ -203,13 +212,15 @@ export async function speak(text: string, signal: AbortSignal, timeoutMs = SPEAK
   return undefined;
 }
 
-/** Starts synthesis for the next `n` sentences that have none yet. */
-const prefetch = (signal: AbortSignal, n: number) => { for (const s of queue.slice(0, n)) s.blob ??= speak(s.text, signal); };
+/** Starts synthesis for the next `n` sentences that have none yet; a cached one (the ack) is left alone. */
+const prefetch = (signal: AbortSignal, n: number) => {
+  for (const s of queue.slice(0, n)) if (!s.ready) s.blob ??= speak(s.text, signal);
+};
 
 export function say(sentence: string) {
   spokenText += ` ${sentence}`;
   const signal = abort.signal;
-  queue.push({ text: sentence });
+  queue.push({ text: sentence, onPlay: () => firstAnswer.resolve(performance.now()) });
   // One player at a time: set before the first blob arrives, or every sentence would start its own.
   // From here until the queue drains the reply is active: the caption, Esc and the half-duplex gate
   // all go by this one state (isSpeaking), synthesis included.
@@ -224,9 +235,13 @@ let ahead = 1;
 async function playNext(signal: AbortSignal) {
   if (signal.aborted) return; // stopSpeaking() already freed the player: the queue now belongs to the next reply
   const next = queue.shift();
-  if (!next) { draining = false; playing = undefined; playbackOff(); firstPlay.resolve(undefined); return; }
+  // Nothing left: the reply is over. The first-audio/first-answer deferreds stay pending: they belong
+  // to the whole turn (reset by newReply()/stopSpeaking()) and resolving them here would lose the ack's
+  // start when the queue drains before the first real sentence (#70). firstAudio()/firstAnswerAudio()
+  // answer "not spoken" themselves when called with nothing draining.
+  if (!next) { draining = false; playing = undefined; playbackOff(); return; }
   ahead = 1;
-  next.blob ??= speak(next.text, signal);
+  next.blob ??= next.ready ? Promise.resolve(next.ready) : speak(next.text, signal);
   prefetch(signal, ahead);
   const blob = await next.blob;
   if (signal.aborted) return;
@@ -251,6 +266,7 @@ async function playNext(signal: AbortSignal) {
     await audio.play();
     playbackOn(performance.now(), 'audible');
     firstPlay.resolve(performance.now()); // only the first call counts: a promise settles once
+    next.onPlay?.();
     blockedTold = false;
     ahead = AHEAD;
     prefetch(signal, ahead);
@@ -277,6 +293,16 @@ export function firstAudio(maxMs = 10_000): Promise<number | undefined> {
   return Promise.race([firstPlay.promise, new Promise<undefined>((r) => setTimeout(r, maxMs))]);
 }
 
+/**
+ * Resolves with when the first real sentence of the reply started playing (performance.now()), or
+ * undefined when none was spoken. The cached acknowledgement does not count, so the LLM and synthesis
+ * latency of the actual answer stays measurable even though the ack broke the silence sooner.
+ */
+export function firstAnswerAudio(maxMs = 10_000): Promise<number | undefined> {
+  if (!draining) firstAnswer.resolve(undefined);
+  return Promise.race([firstAnswer.promise, new Promise<undefined>((r) => setTimeout(r, maxMs))]);
+}
+
 /** A new reply: forget what the last one said (the echo filter compares with this reply only). */
 export function newReply() {
   stopSpeaking();
@@ -286,6 +312,8 @@ export function newReply() {
 export function stopSpeaking() {
   firstPlay.resolve(undefined);
   firstPlay = deferred();
+  firstAnswer.resolve(undefined);
+  firstAnswer = deferred();
   abort.abort();
   abort = new AbortController();
   queue = [];
@@ -307,4 +335,16 @@ export function wantsAgent(text: string) {
   return /\?|^\s*(cosa|che|quali|quanti|quante|come|perch|chi|dove|quando|what|which|how|why|who|where|when|is there|are there)\b/i.test(text)
     || /\b(spieg|descriv|raccont|riassum|illustr|dimmi|parlami|elenc|explain|describe|tell me|summar|walk me|list )/i.test(text)
     || /\b(questo|questa|this|file|files|collegat|connected|connection|connessi|flusso|flow|funziona|works|il primo|la prima|il secondo|the first|the second|open it|aprilo|aprila)\b/i.test(text);
+}
+
+/**
+ * Queues an already synthesized sentence (the acknowledgement, in ack.ts) through the same player as
+ * replies, without ever asking /speak again. ack.ts owns the phrases and the cache, so this low-level
+ * function is the only way it touches the queue.
+ */
+export function enqueueReady(text: string, blob: Blob, onPlay?: () => void) {
+  spokenText += ` ${text}`;
+  const signal = abort.signal;
+  queue.push({ text, ready: blob, onPlay });
+  if (!draining) { draining = true; playbackOn(); void playNext(signal); } else prefetch(signal, ahead);
 }

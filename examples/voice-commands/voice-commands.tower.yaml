@@ -44,7 +44,7 @@ agents:
       message, as preferences that never override the instructions, tool results or screen. Every LLM step goes through POST /api/voice/chat, streamed; tool calls run in the page.
       Illustrative numbers, measured on the dev-squad tower (commit 86234b9): 1.1-2.9 s and about $0.001 per
       turn. No budget cap in the code.
-    model: google/gemini-3.1-flash-lite
+    model: google/gemini-3.5-flash-lite
     tools: [screen, list_layers, layer_nodes, search, node_info, connections, node_files, read_file, focus_layer, select_node, open_file, open_project, navigate]
     runtime: browser
     files: [src/app/voice/agent.ts, src/app/voice/tools.ts, examples/voice-commands/options/llm-intent.md]
@@ -281,8 +281,8 @@ layers:
         type: model
         label: Gemini Flash-Lite
         runtime: openrouter
-        model: google/gemini-3.1-flash-lite
-        description: "One chat completion per step: max_tokens 500, tool_choice auto (none on the last step), provider { zdr, require_parameters } so only endpoints that support tools and keep no data serve it. FLOW_TOWER_AGENT_MODEL picks another model (Claude Haiku 5.5 or Mistral Small 4: see the options page); there is no automatic fallback."
+        model: google/gemini-3.5-flash-lite
+        description: "Chosen by a benchmark of six models on this tool loop (2026-10-10): first real sentence 1.8 s on average against 2.4 s for Gemini 3.1 Flash-Lite, every answer right in two steps. One chat completion per step: max_tokens 500, tool_choice auto (none on the last step), provider { zdr, require_parameters } so only endpoints that support tools and keep no data serve it. FLOW_TOWER_AGENT_MODEL picks another model (Claude Haiku 5.5 or Mistral Small 4: see the options page); there is no automatic fallback."
         files: [examples/voice-commands/options/llm-intent.md, src/server/voice.ts]
       - id: step
         type: decision
@@ -305,6 +305,14 @@ layers:
           search so the matches are highlighted. Names are matched fuzzily, on screen first, then in the library; an
           omitted node or layer means the selection. Errors come back as JSON the model can recover from.
         files: [src/app/voice/tools.ts, tests/voice-tools.test.ts]
+      - id: ack
+        type: process
+        label: Acknowledgement
+        runtime: browser
+        description: "Filler for the silence before the first sentence (#70): 600 ms after the end of speech, if the agent has said nothing, a cached phrase (\"One moment.\", \"Let me see.\", in the user's language) plays through the reply player. Synthesized once when the mic starts; one per turn; 60 s cooldown after a failed synthesis. Measured first audio: 1.9-2.9 s down to 0.60-0.65 s."
+        evals:
+          - { name: first audio, value: 0.62, unit: s, higher_is_better: false, illustrative: true, description: "Measured: 1.9-2.9 s before, 0.60-0.65 s with the ack." }
+        files: [src/app/voice/ack.ts, tests/voice-agent.test.ts]
       - id: speak
         type: process
         label: Spoken reply
@@ -328,6 +336,8 @@ layers:
       - "tools -> agent [return]: results, max 4"
       - "step -> context [data]: words kept"
       - "step -> speak: answer, if on"
+      - "ack -> speak [data]: cached phrase"
+      - "agent -> ack [call]: silent 600 ms"
 
   # 5 ───────────────────────────────────────────────────────────────
   - id: actions

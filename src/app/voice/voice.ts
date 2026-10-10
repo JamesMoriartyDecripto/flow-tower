@@ -4,7 +4,8 @@ import { chooseView, usePrefs } from '../settings';
 import { findNode, useStore } from '../store';
 import { norm, parseCommand, type VoiceAction } from './commands';
 import { openMic, type Mic } from './mic';
-import { converse, firstAudio, forget, isEcho, isSpeaking, newReply, onPlaybackBlocked, say, stopSpeaking, wantsAgent } from './agent';
+import { ackLanguage, armAck, warmAck } from './ack';
+import { firstAnswerAudio, firstAudio, converse, forget, isEcho, isSpeaking, newReply, onPlaybackBlocked, say, stopSpeaking, wantsAgent } from './agent';
 import { clearAgentSearch } from './tools';
 import { bargeIn, keepClip, playedDuring, type Recorded } from './duplex';
 import { isHallucination } from './noise';
@@ -59,6 +60,8 @@ let turnNow: { muted: boolean; spoke: boolean } | undefined;
 let tailHinted = false;
 /** Cancels the agent turn in flight: stopping the mic stops its tools from moving the view. */
 let turnAbort = new AbortController();
+/** Cancels the pending "one moment" arming of the agent turn in flight (#70). */
+let cancelAck: (() => void) | undefined;
 
 /** "il secondo", "two", "3": a short answer that is only a pick. "livello tre" is a command, not a pick. */
 function pickOf(text: string): number | undefined {
@@ -128,6 +131,9 @@ function fail(error: string) {
   hideError = setTimeout(() => useVoice.setState({ error: undefined }), 8000);
 }
 
+/** Cancels the pending ack arming, if any: a turn has at most one timer, and a stop drops it. */
+const disarmAck = () => { cancelAck?.(); cancelAck = undefined; };
+
 async function start() {
   const set = useVoice.setState;
   const mine = ++session;
@@ -177,6 +183,11 @@ async function start() {
     if (mine !== session) return opened.close(); // stopped while the permission prompt was open
     mic = opened;
     set({ status: 'listening' });
+    // The acknowledgement phrases are cached before they are ever needed: they must already be there
+    // when the first agent turn reaches ACK_DELAY_MS (#70). Only with spoken replies AND a server agent:
+    // without one no turn reaches the ack, so warming would only hit a possibly-down TTS for nothing.
+    const prefs = usePrefs.getState();
+    if (prefs.voiceReplies && config.agent) warmAck(ackLanguage(undefined, prefs.voiceLanguage, navigator.language));
     armIdle();
   } catch (err) {
     if (mine === session) fail(`Microphone not available: ${(err as Error).message}`);
@@ -186,6 +197,7 @@ async function start() {
 function stop() {
   session++;
   turnAbort.abort();
+  disarmAck();
   stopSpeaking();
   forget(); // one listening session is one conversation
   clearAgentSearch();
@@ -230,8 +242,9 @@ async function transcribe(audio: Blob, format: string, mine: number, at: Recorde
       if (isSpeaking()) { stopSpeaking(); interrupted(); }
       if (kind === 'stop') return;
     }
-    // What this stage took and cost, and the language: journaled with the turn.
-    await handle(text, mine, { sttMs: out.ms, sttCost: out.cost, language: out.language });
+    // What this stage took and cost, the language, and when the speech ended: journaled with the turn,
+    // and the end of speech is what the acknowledgement timer counts from (#70).
+    await handle(text, mine, { sttMs: out.ms, sttCost: out.cost, language: out.language }, at.to);
   } catch (err) {
     if (mine === session) flash((err as Error).message);
   }
@@ -245,7 +258,7 @@ async function transcribe(audio: Blob, format: string, mine: number, at: Recorde
 /** What the journal keeps of a transcription (all optional: hear() passes none). */
 interface Heard { sttMs?: number; sttCost?: number; language?: string }
 
-async function handle(heard: string, mine: number, stt: Heard = {}) {
+async function handle(heard: string, mine: number, stt: Heard = {}, endOfSpeech?: number) {
   const heardAt = performance.now();
   judgeLast(heard); // "no, the other one" or "back" right after: the last turn was wrong
   // Aliases the user accepted from past reviews ("triaje" → "triage") apply before anything reads it.
@@ -255,8 +268,9 @@ async function handle(heard: string, mine: number, stt: Heard = {}) {
   // Where the user was when they spoke (before the command moves anything): for the journal and its review.
   const layer = tower && s.focusedLayer !== undefined ? s.workspace?.towers[tower]?.layers[s.focusedLayer]?.id : undefined;
   const pref = usePrefs.getState().voiceLanguage;
+  const lang = stt.language ?? (pref !== 'auto' ? pref : undefined);
   const context = {
-    heard, tower, ...stt, language: stt.language ?? (pref !== 'auto' ? pref : undefined),
+    heard, tower, ...stt, language: lang,
     ...(layer && { layer }), ...(tower && s.selected && { node: s.selected }),
   };
   const { agent, options } = useVoice.getState();
@@ -275,6 +289,18 @@ async function handle(heard: string, mine: number, stt: Heard = {}) {
   const voice = usePrefs.getState().voiceReplies;
   const t = { muted: false, spoke: false };
   turnNow = t;
+  // The cached "one moment" (#70): ack.ts owns phrases/cache and arms the one timer ACK_DELAY_MS after
+  // the END OF SPEECH (the transcription must not eat into the silence gap). Only with spoken replies.
+  let acked = false;
+  disarmAck();
+  // live: nothing spoken yet, not hushed, still the current turn; acked only once the sound starts.
+  if (voice) {
+    cancelAck = armAck({
+      endOfSpeech, language: ackLanguage(stt.language, usePrefs.getState().voiceLanguage, navigator.language),
+      live: () => mine === session && turnNow === t && !t.muted && !t.spoke && !turnAbort.signal.aborted,
+      onPlay: () => { acked = true; },
+    });
+  }
   const live = (did: string) => { if (mine === session) useVoice.setState({ did }); };
   // Streamed: the caption shows each tool step and then the reply as it is written; each finished
   // sentence is spoken while the next one is still being generated.
@@ -283,9 +309,10 @@ async function handle(heard: string, mine: number, stt: Heard = {}) {
     turn = await converse(text, {
       step: live,
       text: live,
-      sentence: (s) => { if (voice && mine === session && !t.muted) { t.spoke = true; say(s); } },
+      sentence: (s) => { if (voice && mine === session && !t.muted) { disarmAck(); t.spoke = true; say(s); } },
     }, turnAbort.signal, notesForAgent());
   } catch (err) {
+    disarmAck();
     if (turnNow === t) turnNow = undefined;
     if (t.muted && mine === session) { // Esc while it was still being written
       useVoice.setState({ did: 'Stopped' });
@@ -298,16 +325,22 @@ async function handle(heard: string, mine: number, stt: Heard = {}) {
     }
     return;
   }
-  if (mine !== session) { if (turnNow === t) turnNow = undefined; return; }
+  if (mine !== session) { if (turnNow === t) turnNow = undefined; disarmAck(); return; }
   useVoice.setState({ did: turn.reply });
   armIdle();
-  // Time to first audio: what the user waits in silence. The last sentence may still be on its way to
-  // the speech model, so the entry waits for it (the next transcript waits in the queue anyway).
+  // Time to first audio: what the user waits in silence (the ack counts, and it is the number the
+  // caption's "first audio" has always meant). The last sentence may still be on its way to the speech
+  // model, so the entry waits for it (the next transcript waits in the queue anyway).
   const audioAt = voice && !t.muted ? await firstAudio() : undefined;
+  // Time to the first real sentence: what the LLM and the synthesis took, the ack excluded (#70).
+  const answerAt = voice && !t.muted && t.spoke ? await firstAnswerAudio() : undefined;
   if (turnNow === t) turnNow = undefined;
+  disarmAck();
   record({
     ...context, route: 'agent', did: turn.reply, outcome: t.muted ? 'interrupted' : 'done', tools: turn.tools, ms: turn.ms, cost: turn.cost,
     ...(audioAt !== undefined && { firstAudioMs: Math.round(audioAt - heardAt) }),
+    ...(answerAt !== undefined && { firstAnswerMs: Math.round(answerAt - heardAt) }),
+    ...(acked ? { ack: true } : {}),
   });
 }
 

@@ -46,6 +46,12 @@ runtimes:
     description: "Opus, Sonnet and Haiku 5.5 plus server-side web search."
     provider: "anthropic"
     url: "https://console.anthropic.com"
+  openrouter:
+    kind: saas
+    label: "OpenRouter"
+    description: "One OpenAI-style API in front of DeepSeek and Z.ai: the coder, reviewer and security auditor run here."
+    provider: "openrouter"
+    url: "https://openrouter.ai"
 
 prompts:
   triage:
@@ -110,8 +116,10 @@ agents:
   coder:
     runtime: vps
     from: .claude/agents/coder.md
+    model: deepseek/deepseek-v4.1-flash
     tower: towers/coder.tower.yaml
-    harness: { permission_mode: acceptEdits, max_attempts: 3, escalate_model_on_round: 3 }
+    harness: { provider: openrouter, max_steps: 60, writes: [src/, tests/, e2e/], escalate_model_on_round: 3, escalate_to: claude-opus-5-5 }
+    files: [src/openrouter-agent.ts, src/tools/run-coder.ts]
   tester:
     runtime: vps
     from: .claude/agents/tester.md
@@ -124,19 +132,22 @@ agents:
     resources:
       - { kind: log, label: "Review loop log", path: "logs/review-loop.log" }
     from: .claude/agents/reviewer.md
-    harness: { max_turns: 25, fresh_session_each_round: true }
+    model: z-ai/glm-5.3-flashx
+    harness: { provider: openrouter, max_steps: 25, fresh_session_each_round: true, read_only: true }
     budget: { usd: 1.5, on_exceed: stop }
-    files: [src/loop/review-loop.ts]
-    meta: { pattern: evaluator-optimizer, role: evaluator }
+    files: [src/loop/review-loop.ts, src/openrouter-agent.ts]
+    meta: { pattern: evaluator-optimizer, role: evaluator, cross_model: "GLM reviews DeepSeek's code" }
   security:
     runtime: vps
     from: .claude/agents/security-auditor.md
-    harness: { max_turns: 25, blocks_on: [critical, high] }
+    model: deepseek/deepseek-v4.1-flash
+    harness: { provider: openrouter, max_steps: 25, blocks_on: [critical, high], read_only: true }
     budget: { usd: 1.5, on_exceed: stop }
-    files: [src/loop/review-loop.ts]
+    files: [src/loop/review-loop.ts, src/openrouter-agent.ts]
   verifier:
     runtime: vps
     from: .claude/agents/verifier.md
+    model: claude-opus-5-5
     harness: { max_turns: 30, permission_mode: dontAsk, context: fresh }
     budget: { usd: 1.5, on_exceed: stop }
     files: [src/loop/verify.ts]
@@ -382,6 +393,12 @@ layers:
         label: squad MCP
         description: createSdkMcpServer in-process. Tools surface as mcp__squad__<name>.
         files: [src/tools/index.ts]
+      - id: run_coder
+        runtime: vps
+        type: tool
+        label: run_coder
+        description: "The lead's way to an OpenRouter coder: SDK subagents are Claude only, so each plan step runs as its own tool loop and only the coder's STATUS report comes back. Its cost is added to the lead's."
+        files: [src/tools/run-coder.ts]
       - id: run_tests
         runtime: vps
         type: tool
@@ -435,6 +452,7 @@ layers:
         description: SAST rulesets p/default, p/owasp-top-ten, p/secrets for the security auditor.
         files: [.mcp.json]
     edges:
+      - "squad_mcp -> run_coder [call]"
       - "squad_mcp -> run_tests [call]"
       - "squad_mcp -> open_pr [call]"
       - "squad_mcp -> request_approval [call]"
@@ -566,37 +584,62 @@ layers:
   # 8 ───────────────────────────────────────────────────────────────
   - id: models
     title: Models
-    description: Right-size every call. Opus where judgment compounds, Sonnet for the work, Haiku for routing and prose.
+    description: >-
+      Mixed models. Claude Opus plans, arbitrates and verifies; DeepSeek codes and audits and GLM reviews
+      through OpenRouter (cross-model review); Sonnet researches and tests, Haiku routes and writes.
     nodes:
       - id: policy
         runtime: vps
         resources:
           - { kind: config, label: "Model policy", path: "src/config.ts" }
         label: Model policy
-        description: ROLE_MODEL map plus escalation to Opus on the last fix round and Sonnet as fallback for the lead.
+        description: "ROLE_MODEL: a provider (claude or openrouter) and a model per role. The coder is reviewed by another model family (GLM), Claude verifies; the last fix round escalates the coder to Opus, Sonnet is the lead's fallback."
         files: [src/config.ts]
       - id: opus
         runtime: anthropic
         type: model
         label: Opus 5.5
         model: claude-opus-5-5
-        description: Lead, architect, and the escalated last-round fixer.
+        description: Lead, architect, fresh verifier, and the escalated last-round fixer.
       - id: sonnet
         runtime: anthropic
         type: model
         label: Sonnet 5.5
         model: claude-sonnet-5-5
-        description: Researcher, coder, tester, reviewer, security auditor, verifier.
+        description: Researcher and tester; fallback model for the lead.
       - id: haiku
         runtime: anthropic
         type: model
         label: Haiku 5.5
         model: claude-haiku-5-5
         description: Triage router and doc writer. Cents per issue.
+      - id: openrouter
+        runtime: openrouter
+        resources:
+          - { kind: doc, label: "Model list + prices", url: "https://openrouter.ai/api/v1/models" }
+        type: tool
+        label: OpenRouter
+        description: "src/openrouter-agent.ts: an OpenAI-style tool loop over /chat/completions with usage (cost per call), require_parameters and data_collection deny. Read tools for all, edit/write in src/ tests/ e2e/ for the coder only, a command whitelist, a secret-path deny list, a step cap; every tool call is a live event."
+        files: [src/openrouter-agent.ts, src/config.ts]
+      - id: deepseek
+        runtime: openrouter
+        type: model
+        label: DeepSeek 4.1 Flash
+        model: deepseek/deepseek-v4.1-flash
+        description: "Coder and security auditor, at low effort. $0.30 in / $1.20 out per M tokens (2026-10-10); prompt cache automatic (cached input 0.1x). On #70: V4 Pro coded round 1 (50 steps, $0.13); 4.1 Flash took over (about $0.001 per step, 66-74% of the prompt from cache)."
+      - id: glm
+        runtime: openrouter
+        type: model
+        label: GLM 5.3 FlashX
+        model: z-ai/glm-5.3-flashx
+        description: "Reviewer: a different model family from the coder's. $0.37 in / $1.25 out per M tokens (2026-10-10). Review of #70: 6 steps, $0.085, found the blocking bug. Full GLM 5.3 reasoned 1-2.5 min per step and timed out at step 9 ($0.24): too slow for a review loop."
     edges:
-      - "policy -> opus: plan, lead"
-      - "policy -> sonnet: build, judge"
+      - "policy -> opus: plan, verify"
+      - "policy -> sonnet: research, test"
       - "policy -> haiku: route, docs"
+      - "policy -> openrouter: code, review"
+      - "openrouter -> deepseek [call]: code, audit"
+      - "openrouter -> glm [call]: review"
 
 links:
   # intake -> orchestration / specialists
@@ -608,7 +651,8 @@ links:
   - "intake.webhook -> harness.prompt_submit: issue text"
   # orchestration -> specialists
   - "orchestration.dispatch -> specialists.researcher [spawn]: questions"
-  - "orchestration.dispatch -> specialists.coder [spawn]: step N"
+  - "orchestration.dispatch -> tools.run_coder [call]: step N"
+  - "tools.run_coder -> specialists.coder [spawn]: step N"
   - "specialists.doc_writer -> orchestration.integrate [return]: docs + PR body"
   - "orchestration.lead -> tools.request_approval [call]: plan review"
   - "orchestration.lead -> tools.file_followup [call]: moved out of scope"
@@ -640,3 +684,9 @@ links:
   # models
   - "orchestration.lead -> models.policy [call]: role"
   - "intake.triage -> models.haiku [call]"
+  - "orchestration.lead -> models.opus [call]: plan, arbitrate"
+  - "quality.verifier -> models.opus [call]: verify"
+  - "quality.round_cap -> models.opus: escalate fixer"
+  - "specialists.coder -> models.openrouter [call]: DeepSeek"
+  - "quality.reviewer -> models.openrouter [call]: GLM"
+  - "quality.security -> models.openrouter [call]: DeepSeek"

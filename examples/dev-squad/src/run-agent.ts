@@ -1,6 +1,7 @@
 import { query, type AgentDefinition, type CanUseTool, type Options } from '@anthropic-ai/claude-agent-sdk';
-import { loadMcpServers, sdkEnv } from './config';
+import { ROLE_MODEL, loadMcpServers, sdkEnv, type Role, type RoleModel } from './config';
 import { buildHooks } from './hooks';
+import { runOpenRouterAgent } from './openrouter-agent';
 import { squadServer } from './tools';
 
 export interface AgentRun { text: string; costUsd: number; sessionId: string; ok: boolean }
@@ -20,20 +21,26 @@ export function headlessPermissions(allow: string[] = []): CanUseTool {
  * Runs ONE agent definition as the main thread of a brand-new session.
  * Used for the quick-fix coder, reviewer, security auditor, fixer, verifier and
  * doc-writer: no parent conversation leaks in, so each judgement is made with fresh context.
- * `role` tells the hooks which agent this is (a main thread has no agent_type).
+ * `role` tells the hooks which agent this is (a main thread has no agent_type) and picks
+ * the provider from ROLE_MODEL; `route` overrides it (the escalated last fix round).
  */
 export async function runAgent(
   agent: AgentDefinition,
   prompt: string,
-  opts: { cwd: string; issue: number; role: string; areas?: string[]; maxTurns: number; maxBudgetUsd: number } & Partial<Options>,
+  opts: { cwd: string; issue: number; role: string; areas?: string[]; maxTurns: number; maxBudgetUsd: number; route?: RoleModel } & Partial<Options>,
 ): Promise<AgentRun> {
-  const { cwd, issue, role, areas, ...rest } = opts;
+  const { cwd, issue, role, areas, route = ROLE_MODEL[role as Role] ?? { provider: 'claude', model: agent.model }, ...rest } = opts;
+  if (route.provider === 'openrouter') {
+    // Same prompt and caps, own tool loop: SDK hooks do not run there, its fences are in code.
+    return runOpenRouterAgent({ role, model: route.model, system: agent.prompt, prompt, cwd,
+      canWrite: role === 'coder', maxSteps: rest.maxTurns, maxBudgetUsd: rest.maxBudgetUsd });
+  }
   const run = query({
     prompt,
     options: {
       cwd,
       systemPrompt: agent.prompt,
-      model: agent.model,
+      model: route.model,
       tools: agent.tools,
       allowedTools: agent.tools, // least privilege: exactly the tools in the agent file
       mcpServers: { ...loadMcpServers(), squad: squadServer(cwd) },

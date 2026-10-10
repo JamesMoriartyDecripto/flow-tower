@@ -1,5 +1,5 @@
 import { loadAgentFiles } from '../agents';
-import { LIMITS, MODELS, REVIEW } from '../config';
+import { LIMITS, REVIEW, ROLE_MODEL } from '../config';
 import { renderPrompt } from '../prompts';
 import { lastJson, runAgent } from '../run-agent';
 import type { Worktree } from '../orchestrator';
@@ -20,7 +20,8 @@ export interface LoopResult {
 
 /**
  * Evaluator-optimizer. Each round:
- *   1. reviewer + security-auditor grade the diff IN PARALLEL (sectioning),
+ *   1. reviewer (GLM) + security-auditor (DeepSeek) grade the diff IN PARALLEL (sectioning);
+ *      a different model family than the coder's reviews it, Claude verifies at the end,
  *   2. the round passes when nothing blocks: the reviewer's blocking findings plus critical/high
  *      security findings. Lower security findings become follow-ups, never an empty fix list.
  *   3. otherwise the coder fixes ONLY the blocking findings,
@@ -65,15 +66,15 @@ export async function reviewLoop(issue: number, plan: string, wt: Worktree): Pro
     if (!blocking.length) return { outcome: 'approved', rounds: round, costUsd, followUps, open: [], seen };
     if (round === REVIEW.maxRounds) return { outcome: 'escalate', rounds: round, costUsd, followUps, open: blocking, seen };
 
-    // Optimizer step. The last fix round gets the bigger model: cheap first, smart when stuck.
-    const fixer = { ...agents.coder, model: round + 1 >= REVIEW.escalateToOpusOnRound ? MODELS.opus : agents.coder.model };
-    const fix = await runAgent(fixer, renderPrompt('fix-round', {
+    // Optimizer step. The last fix round leaves DeepSeek for Claude Opus: cheap first, smart when stuck.
+    const route = round + 1 >= REVIEW.escalateOnRound ? REVIEW.escalateTo : ROLE_MODEL.coder;
+    const fix = await runAgent(agents.coder, renderPrompt('fix-round', {
       branch: wt.branch,
       round,
       max_rounds: REVIEW.maxRounds,
       blocking_findings: blocking.map((f, i) => `F${i + 1}. ${f.file}:${f.line} — ${f.issue}\n    fix: ${f.fix}`).join('\n'),
-    }), { cwd: wt.path, issue, role: 'coder', permissionMode: 'acceptEdits', ...LIMITS.fix });
-    console.log(`[fix] round=${round} model=${fixer.model} ok=${fix.ok}`);
+    }), { cwd: wt.path, issue, role: 'coder', route, permissionMode: 'acceptEdits', ...LIMITS.fix });
+    console.log(`[fix] round=${round} model=${route.model} ok=${fix.ok}`);
     costUsd += fix.costUsd;
     previous = blocking;
   }

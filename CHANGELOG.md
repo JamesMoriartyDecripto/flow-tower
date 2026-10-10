@@ -6,10 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Faster first audio (#70): when an agent turn has said nothing 600 ms after the end of speech, a short cached acknowledgement ("Un attimo.", "One moment."; es, fr, de, pt too) plays through the reply player, rotated and once per turn. Phrases are synthesized once when the mic starts; language from the transcription, else Settings, else the browser. Time to first audio: 1.9–2.9 s → 0.60–0.65 s. The journal adds `firstAnswerMs` (first real sentence); `firstAudioMs` counts the ack.
 - `dev-squad` example, from a field run on #68: personal data counts as a sensitive area (a full route in a sensitive area gets risk high, so its plan needs a human sign-off), and the maintainer can approve a plan with changes (`/squad approve <notes>`); parts moved out of scope become follow-up issues through the new `file_followup` tool.
 - Voice journal and self-improvement (#68). Opt-in, text only, never audio: each turn records what was heard, what happened and how it went. Outcomes are corrected from what you do next ("no, …" = corrected, "back" right after = undone, stopping a reply with Esc or by voice = interrupted). After 20 new turns a review runs when the microphone turns off (about a cent with the default model): an LLM proposes aliases for misheard names (only real names on screen), rules for the agent and reply style. Nothing applies until accepted. Accepted aliases rewrite the transcript before the parser and the agent; accepted notes join the agent's prompt. The caption shows how many suggestions wait.
 - Settings → Voice → Learning: the journal toggle, last-7-days stats (turns, not understood, corrected, interrupted, answer time, cost), suggestions to accept or reject, what was learned (removable one by one), **Review now** and **Forget everything**.
 - E2E of the voice path (`e2e/voice.spec.ts`): transcripts go in through `__flowTower.hear()`, OpenRouter is answered by route interception (no cost), and the journal goes to a temporary `FLOW_TOWER_HOME`.
+
+### Changed
+- The voice agent now runs on `google/gemini-3.5-flash-lite` (was `google/gemini-3.1-flash-lite`): in a benchmark of six models on the real tool loop it gave the first real sentence in 1.8 s instead of 2.4 s, every answer right in two steps, for about $0.0006 more per turn (`examples/voice-commands/options/llm-intent.md`). `FLOW_TOWER_AGENT_MODEL` still overrides it.
 
 ### Fixed
 - Update check: a cached "latest release" older than the running version is ignored, so `/api/version` no longer reports an older release for up to 24 h after an update, and a newer release is noticed at once (#71, reported by @CryptoLordHodlerSqvad).
