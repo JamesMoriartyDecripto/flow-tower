@@ -15,6 +15,7 @@ import { Tooltip } from './hud/Tooltip';
 import { NodeList } from './hud/NodeList';
 import { VoiceCaption } from './hud/Voice';
 import { useVoice } from './voice/voice';
+import { converse } from './voice/agent';
 import { STATIC } from './staticData';
 import { chooseView, usePrefs, viewFor } from './settings';
 import { useLive, useLiveSync } from './live';
@@ -51,7 +52,7 @@ export function App() {
         gl={{ antialias: quality === 'eco', powerPreference: 'high-performance' }}
         frameloop="demand"
         onPointerMissed={() => useStore.getState().select(undefined)}
-        onCreated={(state) => { if (import.meta.env.DEV) Object.assign(window, { __flowTower: { store: useStore, three: state, voice: (text: string) => useVoice.getState().run(text) } }); }}
+        onCreated={(state) => { if (import.meta.env.DEV) Object.assign(window, { __flowTower: { store: useStore, three: state, voice: (text: string) => useVoice.getState().run(text), ask: (text: string) => converse(text) } }); }}
       >
         <Suspense fallback={null}>
           <TowerScene key={themeRev} />

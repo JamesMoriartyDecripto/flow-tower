@@ -8,7 +8,7 @@ import { loadLibrary, type LoadResult } from '../core/loader.ts';
 import { readTowerFile } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
 import { checkForUpdate, updateCheckDisabled, type UpdateInfo } from './update.ts';
-import { DEFAULT_VOICE_MODEL, voiceHandler } from './voice.ts';
+import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { crossSite } from './guard.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -87,7 +87,10 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       // Voice commands (#62): audio goes to OpenRouter only when OPENROUTER_API_KEY is set; the key stays here.
       server.middlewares.use('/api/voice', voiceHandler({
         key: env.OPENROUTER_API_KEY,
-        model: env.FLOW_TOWER_VOICE_MODEL ?? DEFAULT_VOICE_MODEL,
+        model: env.FLOW_TOWER_VOICE_MODEL ?? VOICE_DEFAULTS.stt,
+        chatModel: env.FLOW_TOWER_AGENT_MODEL,
+        ttsModel: env.FLOW_TOWER_TTS_MODEL,
+        voice: env.FLOW_TOWER_TTS_VOICE,
         zdr: env.FLOW_TOWER_VOICE_ZDR !== '0',
       }));
       server.middlewares.use('/api/version', (_req, res) => send(res, 200, { ...update, command: UPDATE_COMMAND }));

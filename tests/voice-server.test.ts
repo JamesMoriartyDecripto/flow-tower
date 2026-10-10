@@ -25,7 +25,7 @@ describe('/api/voice (#62)', () => {
   it('says whether cloud transcription is configured, never the key', async () => {
     const url = await start({ key: 'sk-or-test' });
     const body = await (await fetch(url)).json();
-    expect(body).toEqual({ cloud: true, model: 'openai/whisper-large-v3-turbo' });
+    expect(body).toMatchObject({ cloud: true, model: 'openai/whisper-large-v3-turbo' });
     expect(JSON.stringify(body)).not.toContain('sk-or');
   });
 
@@ -47,6 +47,26 @@ describe('/api/voice (#62)', () => {
     const url = await start({ key: 'sk-or-test' });
     expect((await post(url, { audio: 'AAAA', format: 'webm' }, 'text/plain')).status).toBe(415);
     expect((await post(url, { audio: 'AAAA', format: 'exe' })).status).toBe(400);
+  });
+
+  it('runs an agent step and speaks the reply (#63)', async () => {
+    const fetchFake = (async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return url.endsWith('/chat/completions')
+        ? new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'Ecco.' } }], usage: { cost: 0.001 } }))
+        : new Response(new Uint8Array([0x49, 0x44, 0x33]), { headers: { 'Content-Type': 'audio/mpeg' } });
+    }) as unknown as typeof fetch;
+    const url = await start({ key: 'sk-or-test', fetch: fetchFake, chatModel: 'google/gemini-3.1-flash-lite', ttsModel: 'elevenlabs/eleven-flash-v2.5', voice: 'alice' });
+    const chat = await post(`${url}chat`, { messages: [{ role: 'user', content: 'ciao' }], tools: [], answer: true });
+    expect(await chat.json()).toMatchObject({ message: { content: 'Ecco.' }, cost: 0.001 });
+    expect(JSON.parse(calls.at(-1)!.init.body as string)).toMatchObject({
+      model: 'google/gemini-3.1-flash-lite', tool_choice: 'none', provider: { zdr: true, require_parameters: true },
+    });
+    const speech = await post(`${url}speak`, { text: 'Ecco.' });
+    expect(speech.headers.get('content-type')).toBe('audio/mpeg');
+    expect(JSON.parse(calls.at(-1)!.init.body as string)).toMatchObject({ model: 'elevenlabs/eleven-flash-v2.5', voice: 'alice', input: 'Ecco.', response_format: 'mp3' });
+    expect((await post(`${url}nope`, {})).status).toBe(404);
+    expect((await post(`${url}chat`, { messages: 'x' })).status).toBe(400);
   });
 
   it('refuses what a web page on another site could send (CSRF)', async () => {

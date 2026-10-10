@@ -1,91 +1,155 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { crossSite, isJson } from './guard.ts';
 
-export const OPENROUTER_STT = 'https://openrouter.ai/api/v1/audio/transcriptions';
-export const DEFAULT_VOICE_MODEL = 'openai/whisper-large-v3-turbo';
-/** A spoken command is a few seconds of Opus: ~1 MB of base64 is minutes of audio. */
-const MAX_BODY = 2_000_000;
+export const OPENROUTER = 'https://openrouter.ai/api/v1';
+export const OPENROUTER_STT = `${OPENROUTER}/audio/transcriptions`;
+/** Defaults picked on 2026-10-10 (examples/voice-commands/options): fast, cheap, multilingual, zero data retention. */
+export const VOICE_DEFAULTS = {
+  stt: 'openai/whisper-large-v3-turbo',
+  chat: 'google/gemini-3.1-flash-lite',
+  tts: 'elevenlabs/eleven-flash-v2.5',
+  /** One voice that speaks every language the model knows: the reply follows the user's language. */
+  voice: 'alice',
+};
 const FORMATS = new Set(['webm', 'ogg', 'm4a', 'wav', 'mp3']);
 /** Sent by the app's own page. No simple (preflight-free) request can carry a custom header. */
 export const VOICE_HEADER = 'x-flow-tower-voice';
-/** Upstream calls at once: a stuck page or a loop cannot run up the bill in parallel. */
-const MAX_IN_FLIGHT = 2;
+/** Upstream calls at once (a turn can overlap transcription, chat and speech): a loop cannot run up the bill. */
+const MAX_IN_FLIGHT = 3;
+/** Per route: a spoken command is ~10 KB of Opus; a conversation a few KB of JSON; a reply a few sentences. */
+const LIMITS = { stt: 2_000_000, chat: 256_000, speak: 8_000 } as const;
+const MAX_REPLY_CHARS = 800;
 
 export interface VoiceConfig {
   /** OPENROUTER_API_KEY. It stays on this server: the browser never sees it. */
   key?: string;
+  /** Speech-to-text model (kept as `model` for the transcription-only callers). */
   model: string;
+  chatModel?: string;
+  ttsModel?: string;
+  voice?: string;
   /** Route only to providers that keep no data (OpenRouter `provider.zdr`). */
   zdr: boolean;
   fetch?: typeof fetch;
 }
 
 /**
- * GET /api/voice → { cloud, model }: whether transcription is configured (never the key).
- * POST /api/voice { audio: base64, format, language? } → { text, ms, cost } via OpenRouter's
- * speech-to-text endpoint. Each call spends the user's key, so only this app's page gets through:
- * exact JSON content type, no cross-site Origin, and the custom VOICE_HEADER (src/server/guard.ts).
+ * The voice server, all through OpenRouter with the key kept here:
+ * - GET  /api/voice        → { cloud, model, agent, tts }: what is configured (never the key);
+ * - POST /api/voice        { audio: base64, format, language? } → { text, ms, cost }   speech to text;
+ * - POST /api/voice/chat   { messages, tools, answer? }         → { message, ms, cost } one LLM step;
+ * - POST /api/voice/speak  { text }                             → audio/mpeg            the spoken reply.
+ * Each call spends the user's key, so only this app's page gets through: exact JSON content type,
+ * no cross-site Origin, and the custom VOICE_HEADER (src/server/guard.ts).
  */
 export function voiceHandler(cfg: VoiceConfig) {
   const call = cfg.fetch ?? fetch;
+  const chatModel = cfg.chatModel ?? VOICE_DEFAULTS.chat;
+  const ttsModel = cfg.ttsModel ?? VOICE_DEFAULTS.tts;
+  const voice = cfg.voice ?? VOICE_DEFAULTS.voice;
+  const provider = cfg.zdr ? { zdr: true } : undefined;
   let inFlight = 0;
+
+  const upstream = (path: string, body: object) => call(`${OPENROUTER}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${cfg.key}`, 'Content-Type': 'application/json', 'X-Title': 'Flow Tower' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const failed = async (res: ServerResponse, r: Response) => {
+    const out = (await r.json().catch(() => ({}))) as { error?: { message?: string } };
+    json(res, 502, { error: `OpenRouter ${r.status}: ${out.error?.message ?? 'request failed'}` });
+  };
+
+  const routes: Record<string, { limit: number; run(res: ServerResponse, body: Record<string, unknown>): Promise<void> }> = {
+    '/': {
+      limit: LIMITS.stt,
+      async run(res, { audio, format, language }) {
+        if (typeof audio !== 'string' || !audio || typeof format !== 'string' || !FORMATS.has(format)) {
+          return json(res, 400, { error: `send { audio: base64, format: ${[...FORMATS].join(' | ')} }` });
+        }
+        const started = Date.now();
+        const r = await upstream('/audio/transcriptions', {
+          model: cfg.model,
+          input_audio: { data: audio, format },
+          ...(typeof language === 'string' && /^[a-z]{2}$/.test(language) ? { language } : {}),
+          ...(provider && { provider }),
+        });
+        if (!r.ok) return failed(res, r);
+        const out = (await r.json()) as { text?: string; usage?: { cost?: number } };
+        json(res, 200, { text: (out.text ?? '').trim(), ms: Date.now() - started, cost: out.usage?.cost });
+      },
+    },
+    '/chat': {
+      limit: LIMITS.chat,
+      async run(res, { messages, tools, answer }) {
+        if (!Array.isArray(messages) || !messages.length || messages.length > 60 || !Array.isArray(tools) || tools.length > 20) {
+          return json(res, 400, { error: 'send { messages: [...] (max 60), tools: [...] (max 20) }' });
+        }
+        const started = Date.now();
+        const r = await upstream('/chat/completions', {
+          model: chatModel, messages, tools, max_tokens: 500,
+          // The last step of a turn must answer with what it has: no more tool calls.
+          tool_choice: answer === true ? 'none' : 'auto',
+          // Only providers that support every parameter sent (tools above all), and keep no data.
+          provider: { ...provider, require_parameters: true },
+        });
+        if (!r.ok) return failed(res, r);
+        const out = (await r.json()) as { choices?: { message?: unknown }[]; usage?: { cost?: number } };
+        json(res, 200, { message: out.choices?.[0]?.message ?? { role: 'assistant', content: '' }, ms: Date.now() - started, cost: out.usage?.cost });
+      },
+    },
+    '/speak': {
+      limit: LIMITS.speak,
+      async run(res, { text }) {
+        if (typeof text !== 'string' || !text.trim()) return json(res, 400, { error: 'send { text }' });
+        const r = await upstream('/audio/speech', {
+          model: ttsModel, voice, input: text.slice(0, MAX_REPLY_CHARS), response_format: 'mp3', ...(provider && { provider }),
+        });
+        if (!r.ok) return failed(res, r);
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Cache-Control', 'no-store');
+        res.end(Buffer.from(await r.arrayBuffer()));
+      },
+    },
+  };
+
   return async (req: IncomingMessage, res: ServerResponse) => {
-    if (req.method === 'GET') return json(res, 200, { cloud: !!cfg.key, model: cfg.model });
+    const route = routes[(req.url ?? '/').split('?')[0].replace(/\/$/, '') || '/'];
+    if (!route) return json(res, 404, { error: 'unknown voice route' });
+    if (req.method === 'GET') return json(res, 200, { cloud: !!cfg.key, model: cfg.model, agent: chatModel, tts: ttsModel });
     if (req.method !== 'POST') return json(res, 405, { error: 'use GET or POST' });
     if (!isJson(req)) return json(res, 415, { error: 'content-type must be application/json' });
     if (crossSite(req) || req.headers[VOICE_HEADER] !== '1') return json(res, 403, { error: 'only the Flow Tower page can use /api/voice' });
     if (!cfg.key) return json(res, 503, { error: 'Voice commands need OPENROUTER_API_KEY: put it in flow-tower/.env (git-ignored) or the environment, then restart.' });
 
-    // Reserved before the body is read, so parallel requests cannot each buffer 2 MB first.
-    if (inFlight >= MAX_IN_FLIGHT) return json(res, 429, { error: 'a transcription is already running' });
+    // Reserved before the body is read, so parallel requests cannot each buffer a body first.
+    if (inFlight >= MAX_IN_FLIGHT) return json(res, 429, { error: 'too many voice requests at once' });
     inFlight++;
     try {
-      let body: { audio?: unknown; format?: unknown; language?: unknown };
+      let body: Record<string, unknown>;
       try {
-        body = JSON.parse(await readBody(req));
+        body = JSON.parse(await readBody(req, route.limit));
       } catch (err) {
-        return json(res, (err as Error).message === 'too large' ? 413 : 400, { error: 'body must be JSON under 2 MB' });
+        return json(res, (err as Error).message === 'too large' ? 413 : 400, { error: `body must be JSON under ${route.limit} bytes` });
       }
-      const { audio, format, language } = body;
-      if (typeof audio !== 'string' || !audio || typeof format !== 'string' || !FORMATS.has(format)) {
-        return json(res, 400, { error: `send { audio: base64, format: ${[...FORMATS].join(' | ')} }` });
-      }
-      return await transcribe(res, audio, format, language);
+      await route.run(res, body ?? {});
+    } catch (err) {
+      json(res, 502, { error: `OpenRouter unreachable: ${(err as Error).message}` });
     } finally {
       inFlight--;
     }
   };
-
-  async function transcribe(res: ServerResponse, audio: string, format: string, language: unknown) {
-    const started = Date.now();
-    try {
-      const r = await call(OPENROUTER_STT, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${cfg.key}`, 'Content-Type': 'application/json', 'X-Title': 'Flow Tower' },
-        body: JSON.stringify({
-          model: cfg.model,
-          input_audio: { data: audio, format },
-          ...(typeof language === 'string' && /^[a-z]{2}$/.test(language) ? { language } : {}),
-          ...(cfg.zdr ? { provider: { zdr: true } } : {}),
-        }),
-        signal: AbortSignal.timeout(30_000),
-      });
-      const out = (await r.json().catch(() => ({}))) as { text?: string; usage?: { cost?: number }; error?: { message?: string } };
-      if (!r.ok) return json(res, 502, { error: `OpenRouter ${r.status}: ${out.error?.message ?? 'transcription failed'}` });
-      json(res, 200, { text: (out.text ?? '').trim(), ms: Date.now() - started, cost: out.usage?.cost });
-    } catch (err) {
-      json(res, 502, { error: `OpenRouter unreachable: ${(err as Error).message}` });
-    }
-  }
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
+function readBody(req: IncomingMessage, max: number): Promise<string> {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks: Buffer[] = [];
     req.on('data', (c: Buffer) => {
       size += c.length;
-      if (size > MAX_BODY) { reject(new Error('too large')); req.destroy(); return; }
+      if (size > max) { reject(new Error('too large')); req.destroy(); return; }
       chunks.push(c);
     });
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));

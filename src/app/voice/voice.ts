@@ -4,6 +4,7 @@ import { chooseView, usePrefs } from '../settings';
 import { findNode, useStore } from '../store';
 import { norm, parseCommand, type VoiceAction } from './commands';
 import { openMic, type Mic } from './mic';
+import { converse, isEcho, isSpeaking, speak, stopSpeaking, wantsAgent } from './agent';
 
 export type VoiceStatus = 'off' | 'starting' | 'listening' | 'hearing' | 'thinking';
 
@@ -11,6 +12,8 @@ interface VoiceState {
   status: VoiceStatus;
   /** The server has OPENROUTER_API_KEY (GET /api/voice). */
   cloud?: boolean;
+  /** The server has an agent model: questions and unknown commands get a spoken answer (#63). */
+  agent?: boolean;
   heard?: string;
   did?: string;
   error?: string;
@@ -103,9 +106,9 @@ async function start() {
   queue = Promise.resolve();
   clearTimeout(hideError);
   set({ status: 'starting', error: undefined, did: undefined, heard: undefined });
-  const config = await fetch('/api/voice').then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined) as { cloud: boolean } | undefined;
+  const config = await fetch('/api/voice').then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined) as { cloud: boolean; agent?: string } | undefined;
   if (mine !== session) return; // stopped while asking
-  set({ cloud: config?.cloud });
+  set({ cloud: config?.cloud, agent: !!config?.agent });
   if (!config) return fail('Voice commands need the local flow-tower server, which this page cannot reach.');
   if (!config.cloud) return fail('Voice commands need OPENROUTER_API_KEY in flow-tower/.env (git-ignored), then a restart.');
   try {
@@ -141,6 +144,7 @@ async function start() {
 
 function stop() {
   session++;
+  stopSpeaking();
   mic?.close();
   mic = undefined;
   speaking = false;
@@ -168,12 +172,38 @@ async function transcribe(audio: Blob, format: string, mine: number) {
     const out = (await r.json()) as { text?: string; error?: string };
     if (mine !== session) return; // stopped while transcribing: the command no longer applies
     if (!r.ok) throw new Error(out.error ?? `HTTP ${r.status}`);
-    // Whisper writes something even for noise ("Grazie.", "Thank you."): those name nothing and fall to "unknown".
-    // Only an understood command keeps the mic alive, so a noisy room still times out.
-    if (out.text && useVoice.getState().run(out.text) !== NOT_UNDERSTOOD) armIdle();
+    const text = out.text?.trim();
+    if (!text || isEcho(text)) return; // our own reply, caught by the mic
+    if (isSpeaking()) {
+      // Barge-in: real words stop the reply; a cough or "ok" while it talks does not (Pipecat: 3+ words).
+      const stopWord = /^(stop|basta|ferma|fermati|zitto|silenzio|enough|quiet|shut up)\b/i.test(text);
+      if (!stopWord && text.split(/\s+/).length < 3) return;
+      stopSpeaking();
+      if (stopWord) return;
+    }
+    await handle(text, mine);
   } catch (err) {
     if (mine === session) flash((err as Error).message);
   }
+}
+
+/**
+ * Questions go to the agent; navigation the parser understands stays instant, and what it does not
+ * understand goes to the agent too. Whisper writes something even for noise ("Grazie.", "Thank you."):
+ * those name nothing, and only an understood command or an answer keeps the mic alive.
+ */
+async function handle(text: string, mine: number) {
+  const { agent } = useVoice.getState();
+  if (!agent || !wantsAgent(text)) {
+    if (useVoice.getState().run(text) !== NOT_UNDERSTOOD) return armIdle();
+    if (!agent) return;
+  }
+  useVoice.setState({ heard: text, did: '…', options: undefined });
+  const turn = await converse(text);
+  if (mine !== session) return;
+  useVoice.setState({ did: turn.reply });
+  armIdle();
+  if (usePrefs.getState().voiceReplies) await speak(turn.reply).catch((err: Error) => flash(`Spoken reply failed: ${err.message}`));
 }
 
 const base64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
