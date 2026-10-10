@@ -4,8 +4,9 @@ import { FlowEventSchema, resolveRuntime, resolveTargets, splitTarget, type Flow
 import { normalize } from '../core/adapters.ts';
 import { otlpLogsToEvents } from '../core/otlp.ts';
 import type { Workspace } from '../core/types.ts';
-import { authorize, type AuthOptions } from './auth.ts';
+import { authorize, hubMode, isRemote, type AuthOptions } from './auth.ts';
 import { crossSite, isJson } from './guard.ts';
+import { createBucket, createDedupe, eventIdOf, inTimeWindow, type Bucket, type Dedupe } from './limits.ts';
 import { userHome } from '../core/secrets.ts';
 
 export const EVENTS_EVENT = 'flow-tower:events';
@@ -16,17 +17,29 @@ const MAX_BATCH = 1000;
 /** OTLP batches carry many records we ignore (prompts, tool results): allow more bytes, keep only usage. */
 const MAX_OTLP_BODY = 4_000_000;
 
+/** Abuse limits (#83 phase 3), injectable so tests can drive them with a fake clock. */
+export interface HubLimits {
+  bucket?: Bucket;
+  dedupe?: Dedupe;
+  /** Injectable clock (tests): epoch milliseconds. */
+  clock?: () => number;
+}
+
 /**
  * In-memory live event hub: validates, normalizes and maps incoming events onto tower nodes,
  * keeps the last KEEP for late joiners and hands new ones to `broadcast`.
  */
-export function createEventHub(getWorkspace: () => Workspace | undefined, broadcast: (events: FlowEvent[]) => void, auth: AuthOptions = { home: userHome() }) {
+export function createEventHub(getWorkspace: () => Workspace | undefined, broadcast: (events: FlowEvent[]) => void, auth: AuthOptions = { home: userHome() }, limits: HubLimits = {}) {
   const buffer: FlowEvent[] = [];
+  const now = limits.clock ?? Date.now;
+  const bucket = limits.bucket ?? createBucket({ now });
+  const dedupe = limits.dedupe ?? createDedupe();
   let seq = 0;
 
   /** `tower`: restricts matching for events that do not say it themselves (?tower= on hook URLs). */
   const ingest = (raw: unknown, source?: string, tower?: string, sender?: string): { accepted: number; rejected: number } => {
     const ws = getWorkspace();
+    const at = now();
     const items = Array.isArray(raw) ? raw : [raw];
     const out: FlowEvent[] = [];
     let rejected = 0;
@@ -34,10 +47,14 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
       const parsed = FlowEventSchema.safeParse(tower ? { tower, ...(item as object) } : item);
       if (!parsed.success) { rejected++; continue; }
       const e = parsed.data;
+      // A replayed or backdated event must not rewrite history: drop it, still answering as usual.
+      if (!inTimeWindow(e.ts, at)) { rejected++; continue; }
+      const id = eventIdOf(item);
+      if (id && dedupe.seen(`${sender ?? ''}:${id}`)) { rejected++; continue; }
       const targets = ws ? resolveTargets(ws, e) : [];
       // The token identity wins over the payload: a sender cannot claim to be someone else.
       const who = sender ? { sender, user: sender } : {};
-      out.push({ ...e, ...who, id: ++seq, ts: e.ts ?? Date.now(), targets, runtimeRef: ws ? runtimeRefOf(ws, e, targets) : undefined });
+      out.push({ ...e, ...who, id: ++seq, ts: e.ts ?? at, targets, runtimeRef: ws ? runtimeRefOf(ws, e, targets) : undefined });
     }
     buffer.push(...out);
     if (buffer.length > KEEP) buffer.splice(0, buffer.length - KEEP);
@@ -56,6 +73,9 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
     const authz = authorize(req, auth);
     if (!authz.ok) return json(res, 401, { error: 'bad or missing token' });
+    // A local hook without a token is trusted (the server is never exposed that way): only a sender
+    // identity or a request that reached us from off this machine gets its own rate-limit bucket.
+    const key = authz.sender ?? (isRemote(req, { hub: auth.hub ?? hubMode() }) ? req.socket?.remoteAddress ?? 'remote' : undefined);
     const encoding = encodingOf(req);
     if (!encoding) return json(res, 415, unknownEncoding());
 
@@ -64,6 +84,11 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
       try {
         const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if (Array.isArray(body) && body.length > MAX_BATCH) return json(res, 413, { error: `at most ${MAX_BATCH} events per request` });
+        // Counted per event, not per request: a huge batch must not slip through as one token.
+        if (key && !bucket.take(key, Array.isArray(body) ? body.length : 1)) {
+          res.setHeader('Retry-After', String(bucket.retryAfter(key)));
+          return json(res, 429, { error: 'too many events, retry later' });
+        }
         const result = ingest(body, sourceOf(req, url), url.searchParams.get('tower') ?? undefined, authz.sender);
         // Claude Code HTTP hooks read a JSON body as a hook decision: answer with an empty 204 by default.
         if (url.searchParams.has('verbose')) json(res, 202, result);
