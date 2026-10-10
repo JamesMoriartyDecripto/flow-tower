@@ -53,7 +53,10 @@ export async function checkForUpdate({
   current, cacheFile = defaultCacheFile(), fetchImpl = fetch, now = Date.now(),
 }: { current: string; cacheFile?: string; fetchImpl?: typeof fetch; now?: number }): Promise<UpdateInfo> {
   const result = (c?: Cache): UpdateInfo => (c ? { current, latest: c.latest, url: c.url, newer: isNewer(c.latest, current) } : { current, newer: false });
-  const cached = readCache(cacheFile);
+  // A cache older than the running version was written before an update (#71): it knows nothing about
+  // releases since, so it is neither fresh nor a fallback.
+  const read = readCache(cacheFile);
+  const cached = read && !isNewer(current, read.latest) ? read : undefined;
   if (cached && now - cached.checkedAt < DAY) return result(cached);
   try {
     const res = await fetchImpl(RELEASES_API, {
