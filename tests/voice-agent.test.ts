@@ -87,6 +87,76 @@ describe('spoken replies', () => {
   });
 });
 
+/** The short "one moment" acknowledgement (#70): synthesized once, played from the cache, throttled. */
+describe('the "one moment" acknowledgement', () => {
+  it('plays the cached blob through the reply player, nothing when it is not cached yet', async () => {
+    const started: string[] = [];
+    class FakeAudio {
+      onended: (() => void) | null = null;
+      constructor(readonly src: string) { started.push(this.src); }
+      async play() { setTimeout(() => this.onended?.(), 10); }
+      pause() {}
+    }
+    vi.stubGlobal('Audio', FakeAudio);
+    let n = 0;
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => `blob:${++n}`, revokeObjectURL: () => {} }));
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => new Response(new Blob([JSON.parse(init.body as string).text])));
+    const agent = await import('../src/app/voice/agent');
+    agent.resetAck();
+    agent.newReply();
+    // Before synthesis resolves there is nothing to play: ack does nothing and never waits.
+    agent.warmAck('en');
+    expect(agent.ack('en')).toBe(false);
+    expect(started).toEqual([]);
+    // Once the blob is cached, the ack plays on its own, through the same queue/player as a reply.
+    await vi.waitFor(() => expect(agent.ack('en')).toBe(true));
+    await vi.waitFor(() => expect(started).toHaveLength(1));
+    // A second ack right after a quick follow-up is swallowed: never twice in a row.
+    expect(agent.ack('en')).toBe(false);
+    expect(started).toHaveLength(1);
+  });
+
+  it('counts for the echo filter: its own words are not the user', async () => {
+    class FakeAudio {
+      onended: (() => void) | null = null;
+      async play() { setTimeout(() => this.onended?.(), 10); }
+      pause() {}
+    }
+    vi.stubGlobal('Audio', FakeAudio);
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:ack', revokeObjectURL: () => {} }));
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => new Response(new Blob([JSON.parse(init.body as string).text])));
+    const agent = await import('../src/app/voice/agent');
+    agent.resetAck();
+    agent.newReply();
+    agent.warmAck('it');
+    await vi.waitFor(() => expect(agent.ack('it')).toBe(true));
+    // The ack's text is our own reply: the echo filter must hear "un attimo" as ours, not the user's.
+    expect(agent.isEcho('un attimo', { from: performance.now(), to: performance.now() })).toBe(true);
+  });
+
+  it('stopSpeaking() silences an ack halfway and nothing else of it plays', async () => {
+    let paused = false;
+    class FakeAudio {
+      onended: (() => void) | null = null;
+      constructor(readonly src: string) {}
+      async play() { /* still speaking */ }
+      pause() { paused = true; }
+    }
+    vi.stubGlobal('Audio', FakeAudio);
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:ack', revokeObjectURL: () => {} }));
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => new Response(new Blob([JSON.parse(init.body as string).text])));
+    const agent = await import('../src/app/voice/agent');
+    agent.resetAck();
+    agent.newReply();
+    agent.warmAck('de');
+    await vi.waitFor(() => expect(agent.ack('de')).toBe(true));
+    await vi.waitFor(() => expect(agent.isSpeaking()).toBe(true));
+    agent.stopSpeaking();
+    expect(paused).toBe(true);
+    expect(agent.isSpeaking()).toBe(false);
+  });
+});
+
 /** Questions reach the agent (#63); plain navigation stays with the instant local parser (#62). */
 describe('voice agent routing', () => {
   it('sends questions and references to the screen to the agent', () => {

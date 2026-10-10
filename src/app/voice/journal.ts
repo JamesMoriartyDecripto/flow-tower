@@ -88,6 +88,7 @@ const CORRECTION = /^(no([\s,.!?]|$)|non (quell|quest|è|e |era)|not (that|this|
 export interface Turn {
   heard: string; route: 'parser' | 'agent' | 'pick'; did: string; outcome: Outcome; tower?: string; tools?: string[];
   ms?: number; cost?: number; firstAudioMs?: number; sttMs?: number; sttCost?: number; language?: string; layer?: string; node?: string;
+  ack?: boolean;
 }
 
 export function record(entry: Turn) {

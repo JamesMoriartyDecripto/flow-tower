@@ -27,6 +27,10 @@ describe('voice journal store', () => {
     store.append({ ts: t + 4000, heard: 'e poi', route: 'agent', did: 'Ok.', outcome: 'done', ms: 900, firstAudioMs: '5' });
     expect(store.read(t + 2000).map((e) => e.firstAudioMs)).toEqual([1234, undefined]);
     expect(store.stats().firstAudioMs).toBe(1234);
+    // The "one moment" acknowledgement (#70): kept only when exactly true.
+    store.append({ ts: t + 5000, heard: 'e poi', route: 'agent', did: 'Ok.', outcome: 'done', ms: 900, ack: true });
+    store.append({ ts: t + 6000, heard: 'e poi', route: 'agent', did: 'Ok.', outcome: 'done', ms: 900, ack: 'yes' });
+    expect(store.read(t + 4000).map((e) => e.ack)).toEqual([true, undefined]);
     // Personal: readable by the owner only.
     expect(statSync(join(dir, 'voice-journal.jsonl')).mode & 0o777).toBe(0o600);
   });

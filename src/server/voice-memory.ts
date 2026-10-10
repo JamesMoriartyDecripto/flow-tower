@@ -29,6 +29,8 @@ export interface JournalEntry {
   cost?: number;
   /** Agent turns: from the end of the transcript to the first spoken sentence. */
   firstAudioMs?: number;
+  /** Agent turns: the short "one moment" acknowledgement played before the first sentence (#70). */
+  ack?: boolean;
   /** Speech to text: how long the transcription took, and what it cost. */
   sttMs?: number;
   sttCost?: number;
@@ -127,6 +129,7 @@ export function voiceStore(dir = userHome()) {
         ...(Number.isFinite(raw.ms) ? { ms: Math.round(Number(raw.ms)) } : {}),
         ...(Number.isFinite(raw.cost) ? { cost: Number(raw.cost) } : {}),
         ...ms('firstAudioMs', raw.firstAudioMs), ...ms('sttMs', raw.sttMs),
+        ...(raw.ack === true ? { ack: true } : {}),
         ...(Number.isFinite(raw.sttCost) && Number(raw.sttCost) >= 0 ? { sttCost: Number(raw.sttCost) } : {}),
         ...(typeof raw.layer === 'string' && raw.layer ? { layer: clean(raw.layer, 80) } : {}),
         ...(typeof raw.node === 'string' && raw.node ? { node: clean(raw.node, 80) } : {}),
