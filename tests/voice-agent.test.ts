@@ -89,8 +89,11 @@ describe('spoken replies', () => {
 
 /** The short "one moment" acknowledgement (#70): synthesized once, played from the cache, throttled. */
 describe('the "one moment" acknowledgement', () => {
-  it('plays the cached blob through the reply player, nothing when it is not cached yet', async () => {
-    const started: string[] = [];
+  /**
+   * A page whose /speak is counted, so a test can prove what was synthesized and what was replayed.
+   * `texts` records every text sent to /speak, `started` every audio element that began playing.
+   */
+  const fakePage = (started: string[], texts: string[], n: { value: number }) => {
     class FakeAudio {
       onended: (() => void) | null = null;
       constructor(readonly src: string) { started.push(this.src); }
@@ -98,9 +101,18 @@ describe('the "one moment" acknowledgement', () => {
       pause() {}
     }
     vi.stubGlobal('Audio', FakeAudio);
-    let n = 0;
-    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => `blob:${++n}`, revokeObjectURL: () => {} }));
-    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => new Response(new Blob([JSON.parse(init.body as string).text])));
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => `blob:${++n.value}`, revokeObjectURL: () => {} }));
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      const text = JSON.parse(init.body as string).text as string;
+      texts.push(text);
+      return new Response(new Blob([text]));
+    });
+  };
+
+  it('plays the cached blob through the reply player, nothing when it is not cached yet', async () => {
+    const started: string[] = [];
+    const texts: string[] = [];
+    fakePage(started, texts, { value: 0 });
     const agent = await import('../src/app/voice/agent');
     agent.resetAck();
     agent.newReply();
@@ -114,6 +126,89 @@ describe('the "one moment" acknowledgement', () => {
     // A second ack right after a quick follow-up is swallowed: never twice in a row.
     expect(agent.ack('en')).toBe(false);
     expect(started).toHaveLength(1);
+    // Played from the cache: exactly one synthesis, and the ack is what was synthesized.
+    expect(texts).toEqual(['One moment.']);
+  });
+
+  it('replays the cached blob without synthesizing again, and only once per turn', async () => {
+    const started: string[] = [];
+    const texts: string[] = [];
+    fakePage(started, texts, { value: 0 });
+    const agent = await import('../src/app/voice/agent');
+    agent.resetAck();
+    agent.newReply();
+    agent.warmAck('it');
+    await vi.waitFor(() => expect(texts).toHaveLength(1));
+    // Warming again does nothing while the blob is cached: no second /speak, ever.
+    agent.warmAck('it');
+    await vi.waitFor(() => expect(agent.ack('it')).toBe(true));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(texts).toEqual(['Un attimo.']);
+    // The throttle swallows a second ack right after: one per turn, never twice in a row.
+    expect(agent.ack('it')).toBe(false);
+    expect(texts).toHaveLength(1);
+  });
+
+  it('plays the ack before a sentence queued after it', async () => {
+    const started: string[] = [];
+    const texts: string[] = [];
+    fakePage(started, texts, { value: 0 });
+    const agent = await import('../src/app/voice/agent');
+    agent.resetAck();
+    agent.newReply();
+    agent.warmAck('en');
+    await vi.waitFor(() => expect(agent.ack('en')).toBe(true));
+    agent.say('Here is the answer.');
+    await vi.waitFor(() => expect(started).toHaveLength(2));
+    // In order: the ack's synth is first, then the sentence's, and no second ack was made.
+    expect(texts).toEqual(['One moment.', 'Here is the answer.']);
+    expect(started[0]).toBe('blob:1');
+  });
+
+  it('retries a failed synthesis on a later warm, not in the same turn', async () => {
+    let fail = true;
+    let calls = 0;
+    class FakeAudio {
+      onended: (() => void) | null = null;
+      async play() { setTimeout(() => this.onended?.(), 5); }
+      pause() {}
+    }
+    vi.stubGlobal('Audio', FakeAudio);
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:ack', revokeObjectURL: () => {} }));
+    vi.stubGlobal('fetch', async () => {
+      calls++;
+      return fail ? new Response('{}', { status: 500 }) : new Response(new Blob(['Un attimo.']));
+    });
+    const agent = await import('../src/app/voice/agent');
+    agent.resetAck();
+    agent.newReply();
+    agent.warmAck('it');
+    await new Promise((r) => setTimeout(r, 10)); // the failed synthesis has settled
+    // A failed synthesis leaves nothing cached, so ack() has nothing to play and does not retry.
+    expect(agent.ack('it')).toBe(false);
+    expect(calls).toBe(1);
+    // The next turn warms again (one attempt this turn), and this time it works.
+    fail = false;
+    agent.warmAck('it');
+    await vi.waitFor(() => expect(agent.ack('it')).toBe(true));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(calls).toBe(2); // one attempt per turn, never a retry loop
+  });
+
+  it('leaves a ready blob alone when the reply prefetches ahead', async () => {
+    const started: string[] = [];
+    const texts: string[] = [];
+    fakePage(started, texts, { value: 0 });
+    const agent = await import('../src/app/voice/agent');
+    agent.resetAck();
+    agent.newReply();
+    // The ack is synthesized once and then queued: prefetch must reuse its blob, never ask for it again.
+    agent.warmAck('en');
+    await vi.waitFor(() => expect(agent.ack('en')).toBe(true));
+    agent.say('Second sentence here.');
+    agent.say('Third sentence here.');
+    await vi.waitFor(() => expect(started).toHaveLength(3));
+    expect(texts.filter((t) => t === 'One moment.')).toHaveLength(1);
   });
 
   it('counts for the echo filter: its own words are not the user', async () => {
@@ -154,6 +249,86 @@ describe('the "one moment" acknowledgement', () => {
     agent.stopSpeaking();
     expect(paused).toBe(true);
     expect(agent.isSpeaking()).toBe(false);
+  });
+
+  it('reports the ack as played only once its sound starts, not when stopped first', async () => {
+    const texts: string[] = [];
+    // play() never resolves: the sound never starts, so onPlay must never fire.
+    class StuckAudio {
+      onended: (() => void) | null = null;
+      constructor(readonly src: string) {}
+      play() { return new Promise<void>(() => {}); }
+      pause() {}
+    }
+    vi.stubGlobal('Audio', StuckAudio);
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:ack', revokeObjectURL: () => {} }));
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      texts.push(JSON.parse(init.body as string).text);
+      return new Response(new Blob(['Un attimo.']));
+    });
+    const agent = await import('../src/app/voice/agent');
+    agent.resetAck();
+    agent.newReply();
+    agent.warmAck('it');
+    let heard = false;
+    await vi.waitFor(() => expect(agent.ack('it', () => { heard = true; })).toBe(true));
+    agent.stopSpeaking(); // Esc before it was heard
+    await new Promise((r) => setTimeout(r, 20));
+    expect(heard).toBe(false);
+  });
+});
+
+/** The ack's language and delay (#70): providers report languages differently, and the timer counts
+ *  from the end of speech, not from when the transcription came back. Pure decisions, unit-tested here. */
+describe('the ack language and delay', () => {
+  it('normalizes the codes and names providers report', async () => {
+    const { ackCode } = await import('../src/app/voice/agent');
+    // The six ack languages, in every shape a provider may use, region and case included.
+    expect(ackCode('it')).toBe('it');
+    expect(ackCode('it-IT')).toBe('it');
+    expect(ackCode('ita')).toBe('it');
+    expect(ackCode('Italian')).toBe('it');
+    expect(ackCode('eng')).toBe('en');
+    expect(ackCode('deu')).toBe('de');
+    expect(ackCode('ger')).toBe('de');
+    expect(ackCode('fre')).toBe('fr');
+    expect(ackCode('fra')).toBe('fr');
+    expect(ackCode('spa')).toBe('es');
+    expect(ackCode('por')).toBe('pt');
+    expect(ackCode('english')).toBe('en');
+    // A language we have no ack for, or nothing at all.
+    expect(ackCode('ja')).toBeUndefined();
+    expect(ackCode('nld')).toBeUndefined();
+    expect(ackCode('')).toBeUndefined();
+    expect(ackCode(undefined)).toBeUndefined();
+  });
+
+  it('falls back from the transcription to Settings and then to the browser', async () => {
+    const { ackLanguage } = await import('../src/app/voice/agent');
+    // What the clip said wins over every hint.
+    expect(ackLanguage('ita', 'en', 'en-US')).toBe('it');
+    expect(ackLanguage(undefined, 'en', 'it-IT')).toBe('en');
+    // "auto" is not a language: the browser's is used, first two letters.
+    expect(ackLanguage(undefined, 'auto', 'it-IT')).toBe('it');
+    expect(ackLanguage(undefined, 'auto', 'Portuguese')).toBe('pt');
+    // The fallback only helps when it is an ack language too.
+    expect(ackLanguage(undefined, 'auto', 'ja-JP')).toBeUndefined();
+    expect(ackLanguage(undefined, undefined, undefined)).toBeUndefined();
+  });
+
+  it('counts the delay from the end of speech, never from when handle() runs', async () => {
+    const { ackDelay, ACK_DELAY_MS } = await import('../src/app/voice/agent');
+    const end = 10_000;
+    // Transcription took 200 ms: only the rest of the 600 ms window is left, so the ack still lands
+    // 600 ms after the speech ended instead of 800 ms.
+    expect(ackDelay(end, end + 200)).toBe(ACK_DELAY_MS - 200);
+    // Armed at `now`, so it fires at the end of speech + ACK_DELAY_MS.
+    expect(end + 200 + ackDelay(end, end + 200)).toBe(end + ACK_DELAY_MS);
+    // A transcription slower than the window: the ack plays at once, never with a negative delay.
+    expect(ackDelay(end, end + 900)).toBe(0);
+    expect(ackDelay(end, end + 3000)).toBe(0);
+    // No recorded clip (typed, hear() in tests): the full delay from handle().
+    expect(ackDelay(undefined, 5_000)).toBe(ACK_DELAY_MS);
   });
 });
 

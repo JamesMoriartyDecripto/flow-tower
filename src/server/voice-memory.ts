@@ -27,9 +27,11 @@ export interface JournalEntry {
   tools?: string[];
   ms?: number;
   cost?: number;
-  /** Agent turns: from the end of the transcript to the first spoken sentence. */
+  /** Agent turns: from the end of the transcript to the first audible sound (the ack counts). */
   firstAudioMs?: number;
-  /** Agent turns: the short "one moment" acknowledgement played before the first sentence (#70). */
+  /** Agent turns: from the end of the transcript to the first real spoken sentence (the ack excluded). */
+  firstAnswerMs?: number;
+  /** Agent turns: the short "one moment" acknowledgement actually started playing before the first sentence (#70). */
   ack?: boolean;
   /** Speech to text: how long the transcription took, and what it cost. */
   sttMs?: number;
@@ -128,7 +130,7 @@ export function voiceStore(dir = userHome()) {
         ...(Array.isArray(raw.tools) ? { tools: raw.tools.slice(0, 12).map((t) => clean(t, 40)) } : {}),
         ...(Number.isFinite(raw.ms) ? { ms: Math.round(Number(raw.ms)) } : {}),
         ...(Number.isFinite(raw.cost) ? { cost: Number(raw.cost) } : {}),
-        ...ms('firstAudioMs', raw.firstAudioMs), ...ms('sttMs', raw.sttMs),
+        ...ms('firstAudioMs', raw.firstAudioMs), ...ms('firstAnswerMs', raw.firstAnswerMs), ...ms('sttMs', raw.sttMs),
         ...(raw.ack === true ? { ack: true } : {}),
         ...(Number.isFinite(raw.sttCost) && Number(raw.sttCost) >= 0 ? { sttCost: Number(raw.sttCost) } : {}),
         ...(typeof raw.layer === 'string' && raw.layer ? { layer: clean(raw.layer, 80) } : {}),
@@ -201,6 +203,8 @@ export function voiceStore(dir = userHome()) {
         notUnderstood: share('not_understood'), corrected: share('corrected'), undone: share('undone'), interrupted: share('interrupted'),
         agentMs: average(agent.map((t) => t.ms ?? 0)),
         firstAudioMs: average(turns.flatMap((t) => (t.firstAudioMs === undefined ? [] : [t.firstAudioMs]))),
+        // The same, up to the first real sentence: the ack shortens the silence, never the LLM+synthesis time.
+        firstAnswerMs: average(turns.flatMap((t) => (t.firstAnswerMs === undefined ? [] : [t.firstAnswerMs]))),
         sttMs: average(turns.flatMap((t) => (t.sttMs === undefined ? [] : [t.sttMs]))),
         // Every stage a turn paid for: transcription and the agent (speech synthesis reports no cost).
         cost: Number(turns.reduce((a, t) => a + (t.cost ?? 0) + (t.sttCost ?? 0), 0).toFixed(5)),

@@ -13,7 +13,7 @@ export type Suggestion = { id: string; why: string; evidence: number } & ({ kind
 export interface Memory { aliases: Alias[]; notes: Note[]; pending: Suggestion[]; reviewedUpTo: number }
 export interface Stats {
   days: number; turns: number; agentTurns: number; notUnderstood: number; corrected: number; undone: number; interrupted: number;
-  agentMs?: number; firstAudioMs?: number; sttMs?: number; cost: number; costPerTurn: number; reviews: number; reviewCost: number;
+  agentMs?: number; firstAudioMs?: number; firstAnswerMs?: number; sttMs?: number; cost: number; costPerTurn: number; reviews: number; reviewCost: number;
 }
 
 const HEADER = { 'Content-Type': 'application/json', 'x-flow-tower-voice': '1' };
@@ -88,6 +88,8 @@ const CORRECTION = /^(no([\s,.!?]|$)|non (quell|quest|è|e |era)|not (that|this|
 export interface Turn {
   heard: string; route: 'parser' | 'agent' | 'pick'; did: string; outcome: Outcome; tower?: string; tools?: string[];
   ms?: number; cost?: number; firstAudioMs?: number; sttMs?: number; sttCost?: number; language?: string; layer?: string; node?: string;
+  /** Agent turns: from the end of the transcript to the first REAL spoken sentence (the ack excluded). */
+  firstAnswerMs?: number;
   ack?: boolean;
 }
 

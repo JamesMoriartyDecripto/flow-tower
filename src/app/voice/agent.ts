@@ -163,7 +163,16 @@ export const forget = () => { history.length = 0; };
  * journal, and a long reply sent all at once got 429s and lost sentences. While a reply plays the mic
  * ignores what it hears unless "Interrupt by voice" is on (duplex.ts); stopSpeaking() is the barge-in.
  */
-interface Sentence { text: string; blob?: Promise<Blob | undefined>; ready?: Blob }
+interface Sentence {
+  text: string;
+  blob?: Promise<Blob | undefined>;
+  /** A blob already synthesized (the acknowledgement): the player never asks for it again. */
+  ready?: Blob;
+  /** The cached acknowledgement: it does not count as the reply's first real sentence. */
+  ack?: true;
+  /** Called when this sentence actually started playing, never when it was skipped or stopped. */
+  onPlay?: () => void;
+}
 const AHEAD = 2;
 let queue: Sentence[] = [];
 let playing: HTMLAudioElement | undefined;
@@ -179,8 +188,10 @@ const deferred = () => {
   const promise = new Promise<number | undefined>((r) => { resolve = r; });
   return { promise, resolve };
 };
-/** When the current reply's first sentence started playing (performance.now()); undefined if none did. */
+/** When the current reply's first audible sound started (the cached ack counts); undefined if none did. */
 let firstPlay = deferred();
+/** When the current reply's first REAL sentence started (the ack does not count); undefined if none did. */
+let firstAnswer = deferred();
 
 /** A sentence that takes longer than this to synthesize is skipped: a hung /speak must not keep the mic deaf. */
 const SPEAK_TIMEOUT_MS = 8000;
@@ -203,13 +214,15 @@ export async function speak(text: string, signal: AbortSignal, timeoutMs = SPEAK
   return undefined;
 }
 
-/** Starts synthesis for the next `n` sentences that have none yet. */
-const prefetch = (signal: AbortSignal, n: number) => { for (const s of queue.slice(0, n)) s.blob ??= speak(s.text, signal); };
+/** Starts synthesis for the next `n` sentences that have none yet; a cached one (the ack) is left alone. */
+const prefetch = (signal: AbortSignal, n: number) => {
+  for (const s of queue.slice(0, n)) if (!s.ready) s.blob ??= speak(s.text, signal);
+};
 
 export function say(sentence: string) {
   spokenText += ` ${sentence}`;
   const signal = abort.signal;
-  queue.push({ text: sentence });
+  queue.push({ text: sentence, onPlay: () => firstAnswer.resolve(performance.now()) });
   // One player at a time: set before the first blob arrives, or every sentence would start its own.
   // From here until the queue drains the reply is active: the caption, Esc and the half-duplex gate
   // all go by this one state (isSpeaking), synthesis included.
@@ -224,7 +237,7 @@ let ahead = 1;
 async function playNext(signal: AbortSignal) {
   if (signal.aborted) return; // stopSpeaking() already freed the player: the queue now belongs to the next reply
   const next = queue.shift();
-  if (!next) { draining = false; playing = undefined; playbackOff(); firstPlay.resolve(undefined); return; }
+  if (!next) { draining = false; playing = undefined; playbackOff(); firstPlay.resolve(undefined); firstAnswer.resolve(undefined); return; }
   ahead = 1;
   next.blob ??= next.ready ? Promise.resolve(next.ready) : speak(next.text, signal);
   prefetch(signal, ahead);
@@ -251,6 +264,7 @@ async function playNext(signal: AbortSignal) {
     await audio.play();
     playbackOn(performance.now(), 'audible');
     firstPlay.resolve(performance.now()); // only the first call counts: a promise settles once
+    next.onPlay?.();
     blockedTold = false;
     ahead = AHEAD;
     prefetch(signal, ahead);
@@ -277,6 +291,16 @@ export function firstAudio(maxMs = 10_000): Promise<number | undefined> {
   return Promise.race([firstPlay.promise, new Promise<undefined>((r) => setTimeout(r, maxMs))]);
 }
 
+/**
+ * Resolves with when the first real sentence of the reply started playing (performance.now()), or
+ * undefined when none was spoken. The cached acknowledgement does not count, so the LLM and synthesis
+ * latency of the actual answer stays measurable even though the ack broke the silence sooner.
+ */
+export function firstAnswerAudio(maxMs = 10_000): Promise<number | undefined> {
+  if (!draining) firstAnswer.resolve(undefined);
+  return Promise.race([firstAnswer.promise, new Promise<undefined>((r) => setTimeout(r, maxMs))]);
+}
+
 /** A new reply: forget what the last one said (the echo filter compares with this reply only). */
 export function newReply() {
   stopSpeaking();
@@ -286,6 +310,8 @@ export function newReply() {
 export function stopSpeaking() {
   firstPlay.resolve(undefined);
   firstPlay = deferred();
+  firstAnswer.resolve(undefined);
+  firstAnswer = deferred();
   abort.abort();
   abort = new AbortController();
   queue = [];
@@ -312,14 +338,54 @@ export function wantsAgent(text: string) {
 /**
  * A short spoken acknowledgement to fill the silence from the end of speech to the first real sentence
  * (#70): the agent's first LLM step and the first synthesis take ~2 s, and a tiny cached "one moment"
- * plays after 600 ms instead. One per turn, never twice in a row, and only when the language is known.
+ * plays after ACK_DELAY_MS instead. One per turn, never twice in a row, and only when the language is
+ * known (from the transcription, the Settings hint, or the browser).
  */
 const ACK: Record<string, string> = {
   it: 'Un attimo.', en: 'One moment.', es: 'Un momento.', fr: 'Un instant.', de: 'Einen Moment.', pt: 'Um momento.',
 };
-/** The last resolved blob per language (undefined while it still synthesizes or when it failed). */
-const ackReady = new Map<string, Blob | undefined>();
-/** Synthesis in flight per language, so warmAck() never starts it twice. */
+/** What a turn with nothing spoken yet waits, from the END OF SPEECH, before the ack plays. */
+export const ACK_DELAY_MS = 600;
+/**
+ * Providers report languages in different shapes: Whisper gives ISO 639-1, some give 639-2/3 codes
+ * ("ita", "eng") or full names ("italian"). All of them mean the same ack, so they are folded here.
+ */
+const ACK_ALIASES: Record<string, string> = {
+  ita: 'it', italian: 'it', eng: 'en', english: 'en', spa: 'es', spanish: 'es',
+  fra: 'fr', fre: 'fr', french: 'fr', deu: 'de', ger: 'de', german: 'de', por: 'pt', portuguese: 'pt',
+};
+
+/**
+ * The language of an acknowledgement, or undefined when it has none: lowercase, the region dropped
+ * ("it-IT" → "it"), the 639-2/3 codes and full names mapped, and only codes we have an ack for.
+ */
+export function ackCode(language?: string): string | undefined {
+  const raw = language?.trim().toLowerCase();
+  if (!raw) return undefined;
+  const base = raw.split(/[-_]/)[0];
+  const code = ACK_ALIASES[raw] ?? ACK_ALIASES[base] ?? base.slice(0, 2);
+  return ACK[code] ? code : undefined;
+}
+
+/**
+ * The language of this turn's ack: what the transcription detected, else the Settings hint, else the
+ * browser's language ("auto" has no language of its own, and most users speak their browser's).
+ */
+export function ackLanguage(stt?: string, pref?: string, browser?: string): string | undefined {
+  return ackCode(stt) ?? ackCode(pref && pref !== 'auto' ? pref : undefined) ?? ackCode(browser);
+}
+
+/**
+ * How long from `now` until the ack, so it lands ACK_DELAY_MS after the END OF SPEECH: the transcription
+ * takes 0.4–1.2 s, and arming the timer when handle() runs would play the ack 1–1.8 s too late.
+ * A turn with no recorded clip (typed, hear() in tests) has no end of speech: the full delay.
+ */
+export const ackDelay = (endOfSpeech: number | undefined, now: number) =>
+  endOfSpeech === undefined ? ACK_DELAY_MS : Math.max(0, ACK_DELAY_MS - (now - endOfSpeech));
+
+/** The last resolved blob per language; a failed synthesis leaves no entry, so a later turn retries. */
+const ackReady = new Map<string, Blob>();
+/** Synthesis in flight per language, so the warm-ups a single turn makes never start it twice. */
 const ackPending = new Map<string, Promise<Blob | undefined>>();
 /** When the last ack was played (performance.now()); a follow-up right after it stays silent. */
 let lastAckAt = -Infinity;
@@ -327,28 +393,37 @@ const ACK_THROTTLE_MS = 20_000;
 
 /** Starts synthesizing the acknowledgement for `language` if it is not cached yet (never waits for it). */
 export function warmAck(language?: string) {
-  if (!language || !ACK[language] || ackReady.has(language) || ackPending.has(language)) return;
-  const pending = speak(ACK[language], new AbortController().signal);
-  ackPending.set(language, pending);
-  // Only when it resolves does the ack become playable: never before, and a failed synthesis stays absent.
-  void pending.then((blob) => { ackReady.set(language, blob); ackPending.delete(language); });
+  const code = ackCode(language);
+  if (!code || ackReady.has(code) || ackPending.has(code)) return;
+  const pending = speak(ACK[code], new AbortController().signal);
+  ackPending.set(code, pending);
+  void pending.then((blob) => {
+    // Only a resolved blob is playable; a failure leaves no entry, so the next turn tries again (one
+    // attempt per language per turn: ackPending guards every warm-up while it is in flight).
+    if (blob) ackReady.set(code, blob);
+    else ackReady.delete(code);
+    ackPending.delete(code);
+  });
 }
 
 /** Tests only: forget the cached acknowledgements and the throttle. */
 export const resetAck = () => { ackReady.clear(); ackPending.clear(); lastAckAt = -Infinity; };
 
-/** Plays the cached acknowledgement through the same player/queue as replies; nothing when it is not ready. */
-export function ack(language?: string): boolean {
-  if (!language || performance.now() - lastAckAt < ACK_THROTTLE_MS) return false;
+/**
+ * Plays the cached acknowledgement through the same player/queue as replies; false when it is not cached.
+ * `onPlay` fires only once the sound actually starts, so a turn stopped before it played is not marked.
+ */
+export function ack(language?: string, onPlay?: () => void): boolean {
+  const code = ackCode(language);
+  if (!code || performance.now() - lastAckAt < ACK_THROTTLE_MS) return false;
   // Never wait: only a blob that already resolved is spoken, so a cold synthesis delays at most one turn.
-  if (!ackReady.has(language)) return false;
-  const blob = ackReady.get(language);
+  const blob = ackReady.get(code);
   if (!blob) return false;
   lastAckAt = performance.now();
   // say() would re-synthesize; push the resolved blob straight onto the queue so speech starts at once.
-  spokenText += ` ${ACK[language]}`;
+  spokenText += ` ${ACK[code]}`;
   const signal = abort.signal;
-  queue.push({ text: ACK[language], ready: blob });
+  queue.push({ text: ACK[code], ready: blob, onPlay });
   if (!draining) { draining = true; playbackOn(); void playNext(signal); } else prefetch(signal, ahead);
   return true;
 }

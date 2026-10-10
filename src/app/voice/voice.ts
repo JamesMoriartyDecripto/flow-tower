@@ -4,7 +4,7 @@ import { chooseView, usePrefs } from '../settings';
 import { findNode, useStore } from '../store';
 import { norm, parseCommand, type VoiceAction } from './commands';
 import { openMic, type Mic } from './mic';
-import { ack, warmAck, converse, firstAudio, forget, isEcho, isSpeaking, newReply, onPlaybackBlocked, say, stopSpeaking, wantsAgent } from './agent';
+import { ack, ackDelay, ackLanguage, firstAnswerAudio, firstAudio, warmAck, converse, forget, isEcho, isSpeaking, newReply, onPlaybackBlocked, say, stopSpeaking, wantsAgent } from './agent';
 import { clearAgentSearch } from './tools';
 import { bargeIn, keepClip, playedDuring, type Recorded } from './duplex';
 import { isHallucination } from './noise';
@@ -39,8 +39,6 @@ const VOICE_HEADER = 'x-flow-tower-voice';
 /** Listening stops by itself after this long without an understood command (privacy, battery). */
 const IDLE_OFF_MS = 120_000;
 const NOT_UNDERSTOOD = 'Not understood';
-/** An agent turn with nothing spoken after this long gets the short cached "one moment" (#70). */
-const ACK_DELAY_MS = 600;
 const PICK: Record<string, number> = {
   primo: 0, prima: 0, uno: 0, first: 0, one: 0, secondo: 1, seconda: 1, due: 1, second: 1, two: 1,
   terzo: 2, terza: 2, tre: 2, third: 2, three: 2, quarto: 3, quarta: 3, quattro: 3, fourth: 3, four: 3,
@@ -181,10 +179,10 @@ async function start() {
     if (mine !== session) return opened.close(); // stopped while the permission prompt was open
     mic = opened;
     set({ status: 'listening' });
-    // The acknowledgement is synthesized once, before it is ever needed: it must already be cached at
-    // 600 ms into the first agent turn, not started then (#70).
-    const lang = usePrefs.getState().voiceLanguage;
-    warmAck(lang !== 'auto' ? lang : undefined);
+    // The acknowledgement is synthesized once, before it is ever needed: it must already be cached when
+    // the first agent turn reaches ACK_DELAY_MS, not started then (#70). Only when replies are spoken.
+    const prefs = usePrefs.getState();
+    if (prefs.voiceReplies) warmAck(ackLanguage(undefined, prefs.voiceLanguage, navigator.language));
     armIdle();
   } catch (err) {
     if (mine === session) fail(`Microphone not available: ${(err as Error).message}`);
@@ -239,8 +237,9 @@ async function transcribe(audio: Blob, format: string, mine: number, at: Recorde
       if (isSpeaking()) { stopSpeaking(); interrupted(); }
       if (kind === 'stop') return;
     }
-    // What this stage took and cost, and the language: journaled with the turn.
-    await handle(text, mine, { sttMs: out.ms, sttCost: out.cost, language: out.language });
+    // What this stage took and cost, the language, and when the speech ended: journaled with the turn,
+    // and the end of speech is what the acknowledgement timer counts from (#70).
+    await handle(text, mine, { sttMs: out.ms, sttCost: out.cost, language: out.language }, at.to);
   } catch (err) {
     if (mine === session) flash((err as Error).message);
   }
@@ -254,7 +253,7 @@ async function transcribe(audio: Blob, format: string, mine: number, at: Recorde
 /** What the journal keeps of a transcription (all optional: hear() passes none). */
 interface Heard { sttMs?: number; sttCost?: number; language?: string }
 
-async function handle(heard: string, mine: number, stt: Heard = {}) {
+async function handle(heard: string, mine: number, stt: Heard = {}, endOfSpeech?: number) {
   const heardAt = performance.now();
   judgeLast(heard); // "no, the other one" or "back" right after: the last turn was wrong
   // Aliases the user accepted from past reviews ("triaje" → "triage") apply before anything reads it.
@@ -286,17 +285,22 @@ async function handle(heard: string, mine: number, stt: Heard = {}) {
   const t = { muted: false, spoke: false };
   turnNow = t;
   // The cached "one moment" (#70): synthesized now that the turn's language is known, and armed to play
-  // at ACK_DELAY_MS if no sentence has started by then. Only agent turns with spoken replies.
+  // ACK_DELAY_MS after the END OF SPEECH (the transcription must not eat into the silence gap). Only
+  // agent turns with spoken replies: with them off nothing is synthesized at all.
   let acked = false;
-  warmAck(lang);
   clearTimeout(ackTimer);
   ackTimer = undefined;
-  if (voice && lang) {
-    ackTimer = setTimeout(() => {
-      ackTimer = undefined;
-      // Nothing spoken yet, not hushed, not muted, still the current turn: fill the silence once.
-      if (mine === session && turnNow === t && !t.muted && !t.spoke && !turnAbort.signal.aborted) acked = ack(lang);
-    }, ACK_DELAY_MS);
+  if (voice) {
+    const ackLang = ackLanguage(stt.language, usePrefs.getState().voiceLanguage, navigator.language);
+    warmAck(ackLang);
+    if (ackLang) {
+      ackTimer = setTimeout(() => {
+        ackTimer = undefined;
+        // Nothing spoken yet, not hushed, not muted, still the current turn: fill the silence once.
+        // acked only when the sound starts: a turn stopped before that is not marked as having one.
+        if (mine === session && turnNow === t && !t.muted && !t.spoke && !turnAbort.signal.aborted) ack(ackLang, () => { acked = true; });
+      }, ackDelay(endOfSpeech, performance.now()));
+    }
   }
   const live = (did: string) => { if (mine === session) useVoice.setState({ did }); };
   // Streamed: the caption shows each tool step and then the reply as it is written; each finished
@@ -325,14 +329,18 @@ async function handle(heard: string, mine: number, stt: Heard = {}) {
   if (mine !== session) { if (turnNow === t) turnNow = undefined; clearTimeout(ackTimer); return; }
   useVoice.setState({ did: turn.reply });
   armIdle();
-  // Time to first audio: what the user waits in silence. The last sentence may still be on its way to
-  // the speech model, so the entry waits for it (the next transcript waits in the queue anyway).
+  // Time to first audio: what the user waits in silence (the ack counts, and it is the number the
+  // caption's "first audio" has always meant). The last sentence may still be on its way to the speech
+  // model, so the entry waits for it (the next transcript waits in the queue anyway).
   const audioAt = voice && !t.muted ? await firstAudio() : undefined;
+  // Time to the first real sentence: what the LLM and the synthesis took, the ack excluded (#70).
+  const answerAt = voice && !t.muted && t.spoke ? await firstAnswerAudio() : undefined;
   if (turnNow === t) turnNow = undefined;
   clearTimeout(ackTimer);
   record({
     ...context, route: 'agent', did: turn.reply, outcome: t.muted ? 'interrupted' : 'done', tools: turn.tools, ms: turn.ms, cost: turn.cost,
     ...(audioAt !== undefined && { firstAudioMs: Math.round(audioAt - heardAt) }),
+    ...(answerAt !== undefined && { firstAnswerMs: Math.round(answerAt - heardAt) }),
     ...(acked ? { ack: true } : {}),
   });
 }
