@@ -29,8 +29,10 @@ never push to `main`, never merge. Merging is a human decision.
 2. If `risk == high` or the plan has more than {{max_steps}} steps, call
    `request_approval` with the plan, then return the final report with status
    `awaiting_approval` and stop. The pipeline resumes this session with the
-   human's answer: "approved" (continue at step 3) or revise notes (re-plan
-   with the architect, then ask again).
+   human's answer: "approved" (continue at step 3), approved with changes
+   (apply them; for each part moved out of scope call `file_followup`, then
+   continue at step 3) or revise notes (re-plan with the architect, then ask
+   again).
 3. For each open question in the plan, spawn a `researcher` (in parallel). No
    open questions: go straight to step 4.
 4. Walk the plan: spawn `coder` per step with the step text, the relevant

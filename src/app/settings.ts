@@ -6,6 +6,7 @@ import type { FlowLook } from './scene/Particles';
 
 export type DefaultView = 'tower' | 'map' | 'auto';
 export type VoiceLanguage = 'auto' | 'it' | 'en';
+export type VoiceSensitivity = 'low' | 'normal' | 'high';
 export type TextFont = 'hud' | 'system';
 export type TitleFont = 'display' | 'text';
 
@@ -50,6 +51,12 @@ interface Prefs {
   voiceLanguage: VoiceLanguage;
   /** The agent speaks its answers (#63); off: they are only shown in the caption. */
   voiceReplies: boolean;
+  /** Keep a local journal of voice turns and learn from it (#68). Off by default: consent first. */
+  voiceJournal: boolean;
+  /** Words heard while a reply plays cut it short. Off (default): laptop speakers leak into the mic. */
+  voiceBargeIn: boolean;
+  /** How readily the mic takes a sound for speech (voice/noise.ts). Low for noisy laptops (fans). */
+  voiceSensitivity: VoiceSensitivity;
   /** HUD scale (text and panels together), for small laptops up to 4K screens. */
   uiScale: number;
   textFont: TextFont;
@@ -66,7 +73,7 @@ interface Prefs {
 const KEY = 'flow-tower:prefs';
 
 interface Saved {
-  theme?: string; bloom?: number; plateOpacity?: number; flowNodes?: Partial<Flow>; flowLayers?: Partial<Flow>; show?: Partial<Visibility>; chips?: boolean; hints?: boolean; viewerWrap?: boolean; markdownSource?: boolean; defaultView?: DefaultView; voiceLanguage?: VoiceLanguage; voiceReplies?: boolean; uiScale?: number; textFont?: TextFont; titleFont?: TitleFont;
+  theme?: string; bloom?: number; plateOpacity?: number; flowNodes?: Partial<Flow>; flowLayers?: Partial<Flow>; show?: Partial<Visibility>; chips?: boolean; hints?: boolean; viewerWrap?: boolean; markdownSource?: boolean; defaultView?: DefaultView; voiceLanguage?: VoiceLanguage; voiceReplies?: boolean; voiceJournal?: boolean; voiceBargeIn?: boolean; voiceSensitivity?: VoiceSensitivity; uiScale?: number; textFont?: TextFont; titleFont?: TitleFont;
   quality?: Quality; animations?: boolean; particles?: boolean; explode?: number; spotlight?: boolean; follow?: boolean;
 }
 
@@ -90,6 +97,9 @@ export const usePrefs = create<Prefs>()((set, get) => ({
   defaultView: saved.defaultView ?? 'auto',
   voiceLanguage: saved.voiceLanguage ?? 'auto',
   voiceReplies: saved.voiceReplies ?? true,
+  voiceJournal: saved.voiceJournal ?? false,
+  voiceBargeIn: saved.voiceBargeIn ?? false,
+  voiceSensitivity: saved.voiceSensitivity ?? 'normal',
   uiScale: saved.uiScale ?? 1,
   textFont: saved.textFont ?? 'hud',
   titleFont: saved.titleFont ?? 'display',
@@ -139,7 +149,7 @@ export function initPrefs() {
     const ui = useStore.getState();
     const live = useLive.getState();
     const data: Saved = {
-      theme: p.theme, bloom: p.bloom, plateOpacity: p.plateOpacity, flowNodes: p.flowNodes, flowLayers: p.flowLayers, show: p.show, chips: p.chips, hints: p.hints, viewerWrap: p.viewerWrap, markdownSource: p.markdownSource, defaultView: p.defaultView, voiceLanguage: p.voiceLanguage, voiceReplies: p.voiceReplies, uiScale: p.uiScale, textFont: p.textFont, titleFont: p.titleFont,
+      theme: p.theme, bloom: p.bloom, plateOpacity: p.plateOpacity, flowNodes: p.flowNodes, flowLayers: p.flowLayers, show: p.show, chips: p.chips, hints: p.hints, viewerWrap: p.viewerWrap, markdownSource: p.markdownSource, defaultView: p.defaultView, voiceLanguage: p.voiceLanguage, voiceReplies: p.voiceReplies, voiceJournal: p.voiceJournal, voiceBargeIn: p.voiceBargeIn, voiceSensitivity: p.voiceSensitivity, uiScale: p.uiScale, textFont: p.textFont, titleFont: p.titleFont,
       quality: ui.quality, animations: ui.animations, particles: ui.particles, explode: ui.explode,
       spotlight: live.spotlight, follow: live.follow,
     };

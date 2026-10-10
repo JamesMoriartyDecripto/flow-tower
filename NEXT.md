@@ -7,8 +7,11 @@ Status on 2026-10-10: **v0.4.0 released** (gates and E2E in `examples/release-au
 - **Skill and docs:** a verify-against-the-code step, a services guide, clearer `validate` errors, deep links and `--browser` (#56, #7).
 - **Examples:** `db-api-playbook` and `voice-commands`; dev-squad's sample code now matches its tower.
 
+Done on `feat/voice-journal` (not merged yet): **#68**, the voice journal and self-improvement loop (#63 part 2). Opt-in in Settings > Voice > Learning; reviews propose aliases, rules and reply style, applied only when accepted. The key, journal and memory live in `~/.config/flow-tower` (or `FLOW_TOWER_HOME`), never in the repo.
+
 Next:
-- #63 part 2: the conversation journal and self-improvement loop;
+- #69: vocabulary hints for transcription (tower names as an STT prompt);
+- #70: faster first audio of agent replies;
 - #65: PDF export;
 - #59: team hub;
 - #5: Pi live test, on the other machine.

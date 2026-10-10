@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { crossSite, isJson } from './guard.ts';
+import { learningRoutes, type LearningDeps } from './voice-learning.ts';
 
 export const OPENROUTER = 'https://openrouter.ai/api/v1';
 export const OPENROUTER_STT = `${OPENROUTER}/audio/transcriptions`;
@@ -31,6 +32,16 @@ export interface VoiceConfig {
   /** Route only to providers that keep no data (OpenRouter `provider.zdr`). */
   zdr: boolean;
   fetch?: typeof fetch;
+  /** The voice journal and memory (#68); without it, those routes are not mounted. */
+  learning?: Pick<LearningDeps, 'store' | 'names'>;
+}
+
+interface Route {
+  limit: number;
+  /** Works without OPENROUTER_API_KEY: nothing goes upstream. */
+  keyless?: boolean;
+  get?(res: ServerResponse): void;
+  run(res: ServerResponse, body: Record<string, unknown>): Promise<void>;
 }
 
 /**
@@ -38,7 +49,8 @@ export interface VoiceConfig {
  * - GET  /api/voice        → { cloud, model, agent, tts }: what is configured (never the key);
  * - POST /api/voice        { audio: base64, format, language? } → { text, ms, cost }   speech to text;
  * - POST /api/voice/chat   { messages, tools, answer?, stream? } → { message, ms, cost } one LLM step, or its SSE stream;
- * - POST /api/voice/speak  { text }                             → audio/mpeg            the spoken reply.
+ * - POST /api/voice/speak  { text }                             → audio/mpeg            the spoken reply;
+ * - /api/voice/journal, /memory, /review: the voice journal and what it learned (voice-learning.ts).
  * Each call spends the user's key, so only this app's page gets through: exact JSON content type,
  * no cross-site Origin, and the custom VOICE_HEADER (src/server/guard.ts).
  */
@@ -61,7 +73,7 @@ export function voiceHandler(cfg: VoiceConfig) {
     json(res, 502, { error: `OpenRouter ${r.status}: ${out.error?.message ?? 'request failed'}` });
   };
 
-  const routes: Record<string, { limit: number; run(res: ServerResponse, body: Record<string, unknown>): Promise<void> }> = {
+  const routes: Record<string, Route> = {
     '/': {
       limit: LIMITS.stt,
       async run(res, { audio, format, language }) {
@@ -76,8 +88,12 @@ export function voiceHandler(cfg: VoiceConfig) {
           ...(provider && { provider }),
         });
         if (!r.ok) return failed(res, r);
-        const out = (await r.json()) as { text?: string; usage?: { cost?: number } };
-        json(res, 200, { text: (out.text ?? '').trim(), ms: Date.now() - started, cost: out.usage?.cost });
+        const out = (await r.json()) as { text?: string; language?: unknown; usage?: { cost?: number } };
+        json(res, 200, {
+          text: (out.text ?? '').trim(), ms: Date.now() - started, cost: out.usage?.cost,
+          // The detected language, when the provider reports it (journaled with the turn).
+          ...(typeof out.language === 'string' && /^[a-z]{2,3}$/i.test(out.language) && { language: out.language.toLowerCase() }),
+        });
       },
     },
     '/chat': {
@@ -122,16 +138,23 @@ export function voiceHandler(cfg: VoiceConfig) {
         res.end(Buffer.from(await r.arrayBuffer()));
       },
     },
+    ...(cfg.learning && learningRoutes({
+      ...cfg.learning,
+      send: json,
+      complete: (body) => upstream('/chat/completions', { model: chatModel, ...body, provider: { ...provider, require_parameters: true } }),
+    })),
   };
 
   return async (req: IncomingMessage, res: ServerResponse) => {
     const route = routes[(req.url ?? '/').split('?')[0].replace(/\/$/, '') || '/'];
     if (!route) return json(res, 404, { error: 'unknown voice route' });
-    if (req.method === 'GET') return json(res, 200, { cloud: !!cfg.key, model: cfg.model, agent: chatModel, tts: ttsModel });
+    // Reads are personal too (memory, stats): only this page, like the other read endpoints.
+    if (req.method === 'GET' && crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
+    if (req.method === 'GET') return route.get ? route.get(res) : json(res, 200, { cloud: !!cfg.key, model: cfg.model, agent: chatModel, tts: ttsModel, journal: !!cfg.learning });
     if (req.method !== 'POST') return json(res, 405, { error: 'use GET or POST' });
     if (!isJson(req)) return json(res, 415, { error: 'content-type must be application/json' });
     if (crossSite(req) || req.headers[VOICE_HEADER] !== '1') return json(res, 403, { error: 'only the Flow Tower page can use /api/voice' });
-    if (!cfg.key) return json(res, 503, { error: 'Voice commands need OPENROUTER_API_KEY: put it in flow-tower/.env (git-ignored) or the environment, then restart.' });
+    if (!cfg.key && !route.keyless) return json(res, 503, { error: 'Voice commands need OPENROUTER_API_KEY: put it in ~/.config/flow-tower/.env (or, as a fallback, the git-ignored .env in the flow-tower folder) or the environment, then restart.' });
 
     // Reserved before the body is read, so parallel requests cannot each buffer a body first.
     if (inFlight >= MAX_IN_FLIGHT) return json(res, 429, { error: 'too many voice requests at once' });
@@ -168,6 +191,8 @@ function readBody(req: IncomingMessage, max: number): Promise<string> {
 
 function json(res: ServerResponse, status: number, body: unknown) {
   if (res.writableEnded) return;
+  // A stream that failed halfway (upstream dropped after the headers went out): end what was sent.
+  if (res.headersSent) return void res.end();
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store');

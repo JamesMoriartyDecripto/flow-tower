@@ -31,7 +31,7 @@ export const requestApproval = (cwd: string) => tool(
     await run('gh', [target[0], 'edit', target[1], '--add-label', label], { cwd });
     await run('gh', [target[0], 'comment', target[1], '--body',
       `### Dev Squad needs a human ${kind} approval\n\n${summary}\n\n` +
-      `Approve with the \`squad:approved\` label, or comment \`/squad revise <notes>\`. cc ${MAINTAINERS.join(' ')}`], { cwd });
+      `Approve with the \`squad:approved\` label, approve with changes with \`/squad approve <notes>\`, or ask for a new plan with \`/squad revise <notes>\`. cc ${MAINTAINERS.join(' ')}`], { cwd });
     if (kind === 'merge' && pr) {
       await run('gh', ['pr', 'edit', String(pr), '--add-reviewer', MAINTAINERS[0].slice(1)], { cwd });
     }

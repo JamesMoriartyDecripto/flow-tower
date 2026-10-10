@@ -1,16 +1,17 @@
 import { createContext, useContext, useRef, type InputHTMLAttributes, type ReactNode } from 'react';
 import { useLive } from '../live';
-import { chooseView, effectiveScale, resetPrefs, usePrefs, type DefaultView, type Flow, type TextFont, type TitleFont, type Visibility, type VoiceLanguage } from '../settings';
+import { chooseView, effectiveScale, resetPrefs, usePrefs, type DefaultView, type Flow, type TextFont, type TitleFont, type Visibility, type VoiceLanguage, type VoiceSensitivity } from '../settings';
 import { STATIC } from '../staticData';
 import type { FlowStyle } from '../scene/Particles';
 import { useStore, type Quality } from '../store';
 import { THEMES } from '../themes';
 import { useDialogFocus } from './dialog';
+import { VoiceLearning } from './VoiceLearning';
 
 /** The label of the row a control sits in: its accessible name (sliders and switches have no text). */
 const RowLabel = createContext('');
 
-function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <div className="set-row">
       <div><div className="set-label">{label}</div>{hint && <div className="set-hint">{hint}</div>}</div>
@@ -31,7 +32,7 @@ function Seg<T extends string>({ value, options, onChange }: { value: T; options
   );
 }
 
-function Toggle({ on, onChange }: { on: boolean; onChange(v: boolean): void }) {
+export function Toggle({ on, onChange }: { on: boolean; onChange(v: boolean): void }) {
   return <button className={`toggle ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-label={useContext(RowLabel)} onClick={() => onChange(!on)} title={on ? 'On: click to turn off' : 'Off: click to turn on'}><i /></button>;
 }
 
@@ -189,7 +190,7 @@ export function Settings() {
           </section>
 
           {!STATIC && (
-            <section>
+            <section id="settings-voice">
               <h3>Voice</h3>
               <Row label="Spoken language" hint="Voice commands (V). Auto detects it from each clip; picking one helps short commands. Commands work in Italian and English.">
                 <Seg<VoiceLanguage> value={prefs.voiceLanguage} options={[['auto', 'Auto'], ['it', 'Italiano'], ['en', 'English']]} onChange={(voiceLanguage) => prefs.set({ voiceLanguage })} />
@@ -197,6 +198,13 @@ export function Settings() {
               <Row label="Spoken replies" hint="Questions get an answer from the voice agent (#63). On: it is also spoken. Off: shown in the caption only.">
                 <Toggle on={prefs.voiceReplies} onChange={(voiceReplies) => prefs.set({ voiceReplies })} />
               </Row>
+              <Row label="Microphone sensitivity" hint="How readily a sound counts as speech. Low: for noisy laptops (a fan that starts clips by itself); speak a little louder. High: for quiet rooms and soft voices.">
+                <Seg<VoiceSensitivity> value={prefs.voiceSensitivity} options={[['low', 'Low'], ['normal', 'Normal'], ['high', 'High']]} onChange={(voiceSensitivity) => prefs.set({ voiceSensitivity })} />
+              </Row>
+              <Row label="Interrupt by voice" hint="Off: while a reply is spoken the microphone ignores what it hears, so laptop speakers cannot make the agent answer itself. On (with headphones): three words or “stop” cut the reply short. V, Esc and ✕ always stop it.">
+                <Toggle on={prefs.voiceBargeIn} onChange={(voiceBargeIn) => prefs.set({ voiceBargeIn })} />
+              </Row>
+              <VoiceLearning />
             </section>
           )}
 

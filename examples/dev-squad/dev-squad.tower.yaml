@@ -87,7 +87,7 @@ agents:
     description: Plans with the architect, fans out researchers, walks the plan with coders. Cannot edit files itself.
     model: claude-opus-5-5
     prompt: orchestrator
-    tools: [Agent, Read, Grep, Glob, TodoWrite, mcp__squad__request_approval]
+    tools: [Agent, Read, Grep, Glob, TodoWrite, mcp__squad__request_approval, mcp__squad__file_followup]
     harness: { max_turns: 80, permission_mode: default, effort: high, fallback_model: claude-sonnet-5-5, max_subagent_depth: 1, max_concurrent_subagents: 4 }
     budget: { usd: 8, on_exceed: stop }
     files: [src/orchestrator.ts, src/agents.ts, CLAUDE.md]
@@ -173,7 +173,7 @@ layers:
         runtime: vps
         type: decision
         label: Route?
-        description: "Model proposes a route; deterministic policy decides last: the squad:skip label rejects first, then quickfixes with complexity > 2 or a sensitive area (auth, billing, payment...) are upgraded to full."
+        description: "Model proposes a route; deterministic policy decides last: the squad:skip label rejects first, then quickfixes with complexity > 2 or a sensitive area (auth, billing, payment, privacy, personal data...) are upgraded to full, and a full route in a sensitive area gets risk high, so its plan always needs a human sign-off."
         decision: { output: choice, candidates: [quickfix, full, needs_info, reject] }
         files: [src/triage.ts]
       - id: quickfix
@@ -221,7 +221,7 @@ layers:
         type: human
         label: Plan sign-off
         description: Before any code is written. Maintainer approves with the `squad:approved` label or comments `/squad revise <notes>`.
-        approval: { by: maintainer, via: [issue label, issue comment], actions: [approve, respond], when: "risk == high or steps > 6", timeout: 4h, on_timeout: reject, rounds: 2, description: "The lead asks and ends its session; the pipeline polls the issue every 2 min and resumes the same session with the answer. No answer in 4h, or a third revise, pauses the run." }
+        approval: { by: maintainer, via: [issue label, issue comment], actions: [approve, edit, respond], when: "risk == high or steps > 6", timeout: 4h, on_timeout: reject, rounds: 2, description: "The lead asks and ends its session; the pipeline polls the issue every 2 min and resumes the same session with the answer: squad:approved, /squad approve <notes> (approved with changes: parts moved out of scope become follow-up issues) or /squad revise <notes>. No answer in 4h, or a third revise, pauses the run." }
         files: [src/loop/await-approval.ts, src/tools/request-approval.ts, src/config.ts]
       - id: dispatch
         runtime: vps
@@ -399,8 +399,14 @@ layers:
         type: tool
         label: request_approval
         description: "Label + comment (+ review request for a merge). Returns at once with a ticket, so no agent waits holding tokens."
-        async: { mode: poll, interval: 2m, timeout: 4h, description: "Plan: the lead ends its session; src/loop/await-approval.ts polls the issue for squad:approved or /squad revise and resumes it. Merge: the maintainer merges, nothing resumes." }
+        async: { mode: poll, interval: 2m, timeout: 4h, description: "Plan: the lead ends its session; src/loop/await-approval.ts polls the issue for squad:approved, /squad approve <notes> or /squad revise <notes> and resumes it. Merge: the maintainer merges, nothing resumes." }
         files: [src/tools/request-approval.ts, src/loop/await-approval.ts]
+      - id: file_followup
+        runtime: vps
+        type: tool
+        label: file_followup
+        description: "Opens a GitHub issue (label squad:followup) for a part the maintainer moved out of scope at the plan sign-off, linked back to the issue. The lead only; never to defer work in scope."
+        files: [src/tools/file-followup.ts]
       - id: github
         runtime: github
         type: tool
@@ -432,6 +438,8 @@ layers:
       - "squad_mcp -> run_tests [call]"
       - "squad_mcp -> open_pr [call]"
       - "squad_mcp -> request_approval [call]"
+      - "squad_mcp -> file_followup [call]"
+      - "file_followup -> github [data]: follow-up issue"
       - "open_pr -> github [data]: PR url"
 
   # 6 ───────────────────────────────────────────────────────────────
@@ -603,6 +611,7 @@ links:
   - "orchestration.dispatch -> specialists.coder [spawn]: step N"
   - "specialists.doc_writer -> orchestration.integrate [return]: docs + PR body"
   - "orchestration.lead -> tools.request_approval [call]: plan review"
+  - "orchestration.lead -> tools.file_followup [call]: moved out of scope"
   # specialists -> quality
   - "orchestration.integrate -> quality.fanout [handoff]: candidate diff"
   - "quality.round_cap -> specialists.coder [return]: fix list"

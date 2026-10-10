@@ -9,15 +9,20 @@ import { readTowerFile } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
 import { checkForUpdate, updateCheckDisabled, type UpdateInfo } from './update.ts';
 import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
+import { voiceStore } from './voice-memory.ts';
+import { userHome, warnIfInRepo } from './home.ts';
 import { crossSite } from './guard.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
 // A git checkout updates with git; anything else (a package install) points to the release page.
 const UPDATE_COMMAND = existsSync(join(PKG_ROOT, '.git')) ? `cd ${PKG_ROOT} && git pull && npm install` : undefined;
-// Local secrets (OPENROUTER_API_KEY) from the git-ignored file in the flow-tower folder; real env vars win.
-const SECRETS = join(PKG_ROOT, '.env');
-if (existsSync(SECRETS)) loadEnvFile(SECRETS);
+// The user's own things (OPENROUTER_API_KEY, voice journal and memory) live in their config folder, not in
+// the repo: ~/.config/flow-tower (or FLOW_TOWER_HOME). The git-ignored .env in the flow-tower folder is still
+// read as a fallback. Real environment variables win, then the user folder, then the repo folder.
+export const USER_HOME = userHome();
+warnIfInRepo(PKG_ROOT);
+for (const file of [join(USER_HOME, '.env'), join(PKG_ROOT, '.env')]) if (existsSync(file)) loadEnvFile(file);
 
 export const UPDATE_EVENT = 'flow-tower:update';
 
@@ -92,10 +97,29 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         ttsModel: env.FLOW_TOWER_TTS_MODEL,
         voice: env.FLOW_TOWER_TTS_VOICE,
         zdr: env.FLOW_TOWER_VOICE_ZDR !== '0',
+        // The journal lives in ~/.config/flow-tower; the page writes to it only when the user turned it on.
+        learning: { store: voiceStore(USER_HOME), names: (ids) => namesOf(state, ids) },
       }));
       server.middlewares.use('/api/version', (_req, res) => send(res, 200, { ...update, command: UPDATE_COMMAND }));
     },
   };
+}
+
+/** Names a voice alias may point at: projects, layers, nodes and agents of the given towers. */
+function namesOf(state: LoadResult | undefined, ids: string[]): string[] {
+  const ws = state?.workspace;
+  if (!ws) return [];
+  const names = new Set(ws.projects.map((id) => ws.towers[id].name));
+  for (const id of ids) {
+    const t = ws.towers[id];
+    if (!t) continue;
+    names.add(t.name);
+    for (const l of t.layers) {
+      names.add(l.title);
+      for (const n of l.nodes) { names.add(n.label); if (n.agent) names.add(n.agent.name); }
+    }
+  }
+  return [...names].slice(0, 600);
 }
 
 /** Nearest existing directory of each missing file: watching it reports the file when it appears. */

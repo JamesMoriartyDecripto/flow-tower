@@ -55,8 +55,8 @@ export async function runLead(issue: Issue, triage: Triage, wt: Worktree, resume
       model: ROLE_MODEL.lead,
       fallbackModel: ROLE_MODEL.coder,
       // The lead coordinates; it cannot edit files or run shell commands itself.
-      tools: ['Agent', 'Read', 'Grep', 'Glob', 'TodoWrite', 'mcp__squad__request_approval'],
-      allowedTools: ['Agent', 'Read', 'Grep', 'Glob', 'TodoWrite', 'mcp__squad__request_approval'],
+      tools: ['Agent', 'Read', 'Grep', 'Glob', 'TodoWrite', 'mcp__squad__request_approval', 'mcp__squad__file_followup'],
+      allowedTools: ['Agent', 'Read', 'Grep', 'Glob', 'TodoWrite', 'mcp__squad__request_approval', 'mcp__squad__file_followup'],
       // settings.json asks before request_approval (for interactive sessions); here the lead may always ask.
       canUseTool: headlessPermissions(['mcp__squad__request_approval']),
       permissionMode: 'default',

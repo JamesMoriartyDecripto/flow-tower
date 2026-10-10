@@ -1,20 +1,14 @@
 import { open, readFile, realpath, stat } from 'node:fs/promises';
-import { basename, extname } from 'node:path';
+import { extname } from 'node:path';
 import { safeJoin } from '../core/loader.ts';
+import { isForbidden, isSecretPath } from '../core/secrets.ts';
 
 const MAX_FILE_BYTES = 1_000_000;
 /**
  * Secrets are never served, even inside a tower root: a dogfood tower with `root: ../..` has the
- * flow-tower folder as its root, and that is where the local key file lives. Mirrors Vite's server.fs.deny
- * plus common key and credential files.
+ * flow-tower folder as its root, and that is where the local key file lives (src/core/secrets.ts).
  */
-const SECRET = /^(\.env(\..*)?|\.envrc|\.dev\.vars|\.git-credentials|\.npmrc|\.netrc|\.pgpass|\.pypirc|credentials(\.json)?|id_(rsa|dsa|ecdsa|ed25519)(\.pub)?|.*\.(pem|key|crt|p12|pfx|jks|keystore|tfvars))$/i;
-/** Folders that only hold credentials: nothing inside them is served. */
-const SECRET_DIRS = new Set(['.git', '.ssh', '.aws', '.gnupg', '.docker', '.kube', '.azure', '.config/gcloud']);
-export const isSecretPath = (path: string) => {
-  const parts = path.split(/[\\/]/).map((p) => p.toLowerCase());
-  return SECRET.test(basename(path)) || parts.some((p, i) => SECRET_DIRS.has(p) || SECRET_DIRS.has(`${p}/${parts[i + 1]}`));
-};
+export { isSecretPath };
 
 export type FileResult =
   | { status: 200; body: { path: string; ext: string; content: string } }
@@ -30,7 +24,7 @@ export async function readTowerFile(root: string, path: string): Promise<FileRes
     const candidate = safeJoin(realRoot, path);
     const abs = candidate && await realpath(candidate);
     if (!abs || !safeJoin(realRoot, abs)) return { status: 403, body: { error: 'path outside tower root' } };
-    if (isSecretPath(path) || isSecretPath(abs)) return { status: 403, body: { error: 'secret files are never served' } };
+    if (await isForbidden(abs, path)) return { status: 403, body: { error: 'secret files are never served' } };
     const { size } = await stat(abs);
     const isLog = /\.(log|jsonl|out|txt)$/.test(abs);
     if (size > MAX_FILE_BYTES && !isLog) return { status: 413, body: { error: 'file too large to preview' } };

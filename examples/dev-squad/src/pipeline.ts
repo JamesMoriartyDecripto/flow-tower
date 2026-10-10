@@ -85,7 +85,9 @@ async function stages(issue: Issue, run: { cost: number }): Promise<void> {
       since = new Date();
       lead = await runLead(issue, t, wt, {
         sessionId: lead.sessionId,
-        answer: answer.kind === 'approved' ? 'The plan is approved. Continue from step 3.' : `Revise the plan: ${answer.notes}`,
+        answer: answer.kind === 'revise' ? `Revise the plan: ${answer.notes}`
+          : answer.notes ? `The plan is approved with these changes: ${answer.notes}\nApply them; for each part moved out of scope, call file_followup. Then continue from step 3.`
+          : 'The plan is approved. Continue from step 3.',
       });
       spend(lead.costUsd);
     }
