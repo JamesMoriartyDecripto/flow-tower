@@ -15,6 +15,8 @@ import { userHome, warnIfInRepo } from './home.ts';
 import { crossSite } from './guard.ts';
 import { isRemote } from './auth.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
+import { openHistory } from './history/db.ts';
+import { createHistory } from './history/store.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
@@ -89,11 +91,18 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       });
       server.middlewares.use('/api/file', (req, res) => void serveFile(req, res, state));
 
+      // History (#84) lives in the user's folder, never the repo. An old Node without node:sqlite disables
+      // it with one message: the live view keeps working, the hub simply gets no onAccepted.
+      const opened = await openHistory(join(USER_HOME, 'history.db'));
+      if ('disabled' in opened) server.config.logger.warn(`flow-tower: ${opened.disabled}`);
+      const history = 'disabled' in opened ? undefined : createHistory(opened.db);
+
       const hub = createEventHub(
         () => state?.workspace,
         (events) => server.ws.send(EVENTS_EVENT, events),
         // The user folder holds the per-sender tokens (#83); FLOW_TOWER_TOKEN stays the shared legacy secret.
         { legacy: env.FLOW_TOWER_TOKEN, home: userHome(), hub: hubOpts.hub, ingestOnly: hubOpts.ingestOnly },
+        { onAccepted: (events) => history?.write(events) },
       );
       server.middlewares.use('/api/events', hub.handle);
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.

@@ -3,8 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
+import { FlowEventSchema, type FlowEvent } from '../src/core/events';
 import { openHistory } from '../src/server/history/db';
+import { toRow } from '../src/server/history/row';
 import { migrate } from '../src/server/history/schema';
+import { createHistory } from '../src/server/history/store';
 
 /**
  * History DB (#84). The file lives in a temp folder here, standing in for userHome(), never the repo.
@@ -58,5 +61,64 @@ describe('history schema (#84)', () => {
       expect(col.pk, c).toBeGreaterThan(0);
     }
     expect(cols.some((c) => c.name === 'cost_usd_micros')).toBe(true);
+  });
+});
+
+const ev = (x: object, ts = 1_000_000): FlowEvent => ({ ...FlowEventSchema.parse(x), id: 1, ts, targets: [] });
+
+const rows = (db: DatabaseSync) => db.prepare('SELECT * FROM events').all() as Record<string, unknown>[];
+
+describe('history scrub + writer (#84)', () => {
+  it('never copies content: no prompt, path or argument survives into any column', async () => {
+    const res = await open();
+    if ('disabled' in res) return;
+    const secrets = ['/home/u/secret/project/notes.md', 'refactor the auth module', 'rm -rf /tmp/x'];
+    const event = ev({
+      kind: 'tool.start', sender: 'alice', user: 'alice', tool: 'Bash', model: 'gpt-5', tokens: 120, cost_usd: 0.5,
+      message: secrets[1], prompt: secrets[1], path: secrets[0], command: secrets[2], arguments: { command: secrets[2] },
+      data: { prompt: secrets[1], file_path: secrets[0], command: secrets[2] },
+    });
+    createHistory(res.db).write([event]);
+    const raw = rows(res.db);
+    expect(raw).toHaveLength(1);
+    const flat = JSON.stringify(raw[0]);
+    for (const s of secrets) expect(flat).not.toContain(s);
+    // Nothing that looks like a prompt/path column exists at all: the row is the allow-listed set only.
+    expect(Object.keys(raw[0]).sort()).toEqual(['auto', 'cache_read', 'cache_write', 'cost_usd_micros', 'duration_ms', 'estimated', 'event_key', 'host', 'id', 'in_tok', 'kind', 'model', 'out_tok', 'project', 'runtime', 'sender', 'session', 'status', 'tool', 'ts', 'user']);
+    expect((raw[0] as { cost_usd_micros: number }).cost_usd_micros).toBe(500_000);
+  });
+
+  it('keeps totals across closing and reopening the file', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'flow-tower-history-'));
+    const path = join(dir, 'history.db');
+    const first = await openHistory(path);
+    if ('disabled' in first) return;
+    createHistory(first.db).write([ev({ kind: 'usage', user: 'alice', tokens_detail: { input: 10, output: 5 }, cost_usd: 0.25, status: 'error' })]);
+    first.db.close();
+
+    const second = await openHistory(path);
+    if ('disabled' in second) return;
+    const totals = second.db.prepare('SELECT events, errors, in_tok, out_tok, cost_usd_micros FROM rollup_hourly').all() as Record<string, number>[];
+    expect(totals).toEqual([{ events: 1, errors: 1, in_tok: 10, out_tok: 5, cost_usd_micros: 250_000 }]);
+  });
+
+  it('counts a duplicate event_key once in events and once in the rollups', async () => {
+    const res = await open();
+    if ('disabled' in res) return;
+    const history = createHistory(res.db);
+    const e = ev({ kind: 'usage', sender: 'alice', user: 'alice', model: 'gpt-5', tokens: 7, call: 'call_1' });
+    history.write([e, { ...e, id: 2 }]);
+    expect(rows(res.db)).toHaveLength(1);
+    const rollup = res.db.prepare('SELECT events, in_tok FROM rollup_hourly').all();
+    expect(rollup).toEqual([{ events: 1, in_tok: 7 }]);
+  });
+
+  it('lets an event without any id through (no dedupe key) rather than dropping it', async () => {
+    const res = await open();
+    if ('disabled' in res) return;
+    const history = createHistory(res.db);
+    history.write([ev({ kind: 'log' }, 5_000_000), ev({ kind: 'log' }, 5_000_001)]);
+    expect(rows(res.db)).toHaveLength(2);
+    expect(toRow(ev({ kind: 'log' }), 1_000_000)?.event_key).toBeNull();
   });
 });
