@@ -26,7 +26,8 @@ export interface VoiceContext { ws: Workspace; tower?: ResolvedTower; library?: 
 export const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 const STOP = new Set(('il lo la i gli le l un una uno del dello della dei degli delle di da al allo alla ai agli alle a in su per con ' +
-  'the a an of to on in at for and e ed please per favore mi ci fammi fai vedere').split(' '));
+  'the a an of to on in at for and e ed please per favore mi ci fammi fai vedere puoi potresti vorrei ' +
+  'me you can could would i like now just ok okay adesso ora').split(' '));
 // Command words are not part of a name: "vai al nodo del triage" names "triage".
 const VERBS = new Set(('apri aprire open mostra mostrami show vai andiamo passa passiamo spostati go goto select seleziona ' +
   'progetto project torre tower livello livelli layer level piano nodo node vista view voglio want see let s lets').split(' '));
@@ -118,17 +119,18 @@ export function parseCommand(transcript: string, { ws, tower, library }: VoiceCo
   const words = all.filter((w) => !STOP.has(w) && !VERBS.has(w));
 
   if (phrase(text, /\b(spegni|disattiva|ferma|stop|turn off)\b.*\b(microfono|ascolto|voce|mic|microphone|listening)\b|^stop listening$/)) return { kind: 'mic-off' };
-  if (has(all, 'libreria', 'library', 'home', 'progetti', 'projects') && words.length <= 2) return { kind: 'library' };
+  const saysNode = has(all, 'nodo', 'node', 'agente', 'agent');
+  // A node named "Home" or "Map view" must stay reachable: the shortcuts below yield to an explicit node.
+  if (!saysNode && has(all, 'libreria', 'library', 'home', 'progetti', 'projects') && words.length <= 2) return { kind: 'library' };
   if (phrase(text, /^(indietro|torna indietro|back|go back|esci|su)$/)) return { kind: 'back' };
   if (phrase(text, /\b(panoramica|overview|insieme|tutta la torre|whole tower|tutti i livelli|all layers)\b/)) return { kind: 'overview' };
-  if (has(all, 'mappa', 'map')) return { kind: 'view', view: 'map' };
+  if (!saysNode && has(all, 'mappa', 'map')) return { kind: 'view', view: 'map' };
   if (phrase(text, /\b(vista|view|modalita|mode) (torre|tower|3d)\b|\b(torre|tower) (view|3d)\b/)) return { kind: 'view', view: 'tower' };
   if (phrase(text, /^(entra|enter|dive in|apri la sotto ?torre|open the sub ?tower|dentro)$/)) return { kind: 'enter' };
   if (phrase(text, /^(chiudi|close|deseleziona|deselect|chiudi il pannello|close the panel)$/)) return { kind: 'close' };
 
   const saysTower = has(all, 'progetto', 'project', 'torre', 'tower', 'apri', 'open');
   const saysLayer = has(all, 'livello', 'layer', 'level', 'piano');
-  const saysNode = has(all, 'nodo', 'node', 'agente', 'agent');
 
   if (tower && saysLayer && !saysNode) {
     const n = layerNumber(words, tower);

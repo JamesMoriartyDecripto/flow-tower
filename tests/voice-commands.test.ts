@@ -24,6 +24,8 @@ describe('voice commands (#62)', () => {
     expect(say('vai al nodo del triage')).toEqual({ kind: 'node', tower: squad.id, key: 'intake.triage' });
     expect(say('go to the triaje node')).toEqual({ kind: 'node', tower: squad.id, key: 'intake.triage' });
     expect(say('fresh verifier')).toEqual({ kind: 'node', tower: squad.id, key: 'quality.verifier' });
+    expect(say('can you show me the triage node')).toEqual({ kind: 'node', tower: squad.id, key: 'intake.triage' });
+    expect(say('puoi andare al nodo del triage')).toEqual({ kind: 'node', tower: squad.id, key: 'intake.triage' });
   });
 
   it('understands views and navigation words', () => {
@@ -36,8 +38,9 @@ describe('voice commands (#62)', () => {
   });
 
   it('offers a choice when names tie, and admits when nothing matches', () => {
-    const r = say('vai al nodo coder');
-    expect(r.kind === 'node' || r.kind === 'ambiguous').toBe(true);
+    const r = say('vai al nodo MCP');
+    expect(r.kind).toBe('ambiguous');
+    expect(r.kind === 'ambiguous' && r.options.length).toBe(4);
     expect(say('ordina una pizza margherita')).toEqual({ kind: 'unknown' });
   });
 });

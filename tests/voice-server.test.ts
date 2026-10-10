@@ -18,8 +18,8 @@ async function start(cfg: Partial<VoiceConfig>) {
 }
 afterAll(() => servers.forEach((s) => s.close()));
 
-const post = (url: string, body: unknown, type = 'application/json') =>
-  fetch(url, { method: 'POST', headers: { 'Content-Type': type }, body: JSON.stringify(body) });
+const post = (url: string, body: unknown, type = 'application/json', extra: Record<string, string> = { 'x-flow-tower-voice': '1' }) =>
+  fetch(url, { method: 'POST', headers: { 'Content-Type': type, ...extra }, body: JSON.stringify(body) });
 
 describe('/api/voice (#62)', () => {
   it('says whether cloud transcription is configured, never the key', async () => {
@@ -47,5 +47,16 @@ describe('/api/voice (#62)', () => {
     const url = await start({ key: 'sk-or-test' });
     expect((await post(url, { audio: 'AAAA', format: 'webm' }, 'text/plain')).status).toBe(415);
     expect((await post(url, { audio: 'AAAA', format: 'exe' })).status).toBe(400);
+  });
+
+  it('refuses what a web page on another site could send (CSRF)', async () => {
+    const url = await start({ key: 'sk-or-test' });
+    const before = calls.length;
+    // CORS-safelisted: a browser sends this cross-site without a preflight.
+    expect((await post(url, { audio: 'AAAA', format: 'webm' }, 'text/plain;x=application/json')).status).toBe(415);
+    expect((await post(url, { audio: 'AAAA', format: 'webm' }, 'application/json', {})).status).toBe(403);
+    expect((await post(url, { audio: 'AAAA', format: 'webm' }, 'application/json', { 'x-flow-tower-voice': '1', Origin: 'https://evil.example' })).status).toBe(403);
+    expect((await post(url, { audio: 'AAAA', format: 'webm' }, 'application/json', { 'x-flow-tower-voice': '1', 'Sec-Fetch-Site': 'cross-site' })).status).toBe(403);
+    expect(calls.length).toBe(before);
   });
 });

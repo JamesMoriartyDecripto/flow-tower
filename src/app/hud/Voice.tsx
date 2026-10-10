@@ -22,10 +22,11 @@ export function MicButton() {
 
 /** What was heard and what it did, under the top bar, above the library too. */
 export function VoiceCaption() {
-  const { status, heard, did, error, cloud } = useVoice();
+  const { status, heard, did, error, cloud, toggle, dismiss } = useVoice();
   if (STATIC || (status === 'off' && !error)) return null;
   return (
     <div className={`panel voice-caption ${status}`} role="status" aria-live="polite">
+      <button className="voice-close" onClick={status === 'off' ? dismiss : toggle} aria-label={status === 'off' ? 'Dismiss' : 'Stop listening'} title={status === 'off' ? 'Dismiss' : 'Stop listening (V)'}>✕</button>
       <div className="voice-state">
         <i />{status === 'off' ? 'Voice off' : STATUS[status]}
         {cloud && <span className="chip" title="Audio is transcribed by OpenRouter (zero data retention); commands are matched locally">CLOUD STT</span>}

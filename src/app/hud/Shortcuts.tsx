@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { usePrefs } from '../settings';
+import { STATIC } from '../staticData';
 import { useDialogFocus } from './dialog';
 
 const GROUPS: [string, [string, string][]][] = [
@@ -56,7 +57,7 @@ export function Shortcuts() {
           <button className="close" onClick={close} title="Close (Esc or ?)">✕</button>
         </header>
         <div className="keys">
-          {GROUPS.map(([title, keys]) => (
+          {GROUPS.map(([title, all]) => [title, all.filter(([k]) => k !== 'V' || !STATIC)] as const).map(([title, keys]) => (
             <section key={title}>
               <h3>{title}</h3>
               <dl>

@@ -46,7 +46,7 @@ layers:
         type: decision
         label: Key configured?
         runtime: browser
-        description: "start() asks GET /api/voice whether the server has OPENROUTER_API_KEY ({ cloud, model }, never the key). No key: the caption says how to add it; no answer (static demo, server down): it says the local server is not reachable. Either way the mic is never opened."
+        description: "start() asks GET /api/voice whether the server has OPENROUTER_API_KEY ({ cloud, model }, never the key). No key: the caption says how to add it; no answer (server down): it says the local server is not reachable. Either way the mic is never opened; the error fades after 8 s or closes with ✕. The static demo has no MIC at all."
         decision: { output: binary, candidates: [yes, no], fail: closed }
         files: [src/app/voice/voice.ts]
       - id: mic
@@ -195,7 +195,7 @@ layers:
         type: guard
         label: Idle stop
         runtime: browser
-        description: "Listening stops by itself after 2 minutes without a transcript (privacy, battery). Armed when the mic opens and re-armed only by an understood command: noise transcribed as text (Grazie.) or errors do not keep the mic alive."
+        description: "Listening stops by itself after 2 minutes without an understood command (privacy, battery). Armed when the mic opens and re-armed only by an understood command: noise transcribed as text (Grazie.) or errors do not keep the mic alive."
         limits: { timeout: 120s }
         files: [src/app/voice/voice.ts]
       - id: off
@@ -219,10 +219,10 @@ layers:
         type: memory
         label: Local secrets
         runtime: server
-        description: "At startup plugin.ts loads the git-ignored dotenv file in the flow-tower folder, if present; real environment variables win. FLOW_TOWER_VOICE_MODEL picks another model, FLOW_TOWER_VOICE_ZDR=0 turns the ZDR filter off."
+        description: "At startup plugin.ts loads the git-ignored dotenv file in the flow-tower folder, if present; real environment variables win. /api/file never serves it (src/server/files.ts refuses secret files even inside a tower root, which matters for this tower: its root is the flow-tower folder). FLOW_TOWER_VOICE_MODEL picks another model, FLOW_TOWER_VOICE_ZDR=0 turns the ZDR filter off."
         data: { sensitivity: secret }
         meta: { secret: OPENROUTER_API_KEY, model: FLOW_TOWER_VOICE_MODEL, zdr: FLOW_TOWER_VOICE_ZDR }
-        files: [src/server/plugin.ts, .gitignore]
+        files: [src/server/plugin.ts, src/server/files.ts, .gitignore]
       - id: route
         type: process
         label: /api/voice
@@ -233,9 +233,9 @@ layers:
         type: guard
         label: Request guards
         runtime: server
-        description: "In order: GET or POST only (405), Content-Type application/json so other web pages cannot post (415), a key (503), body under 2 MB (413) and valid JSON (400), audio as base64 and format webm, ogg, m4a, wav or mp3 (400)."
+        description: "In order: GET or POST only (405), an exact application/json content type (415), no cross-site Origin or Sec-Fetch-Site and the page's own x-flow-tower-voice header, so other web pages cannot spend the key (403), a key (503), body under 2 MB (413) and valid JSON (400), audio as base64 and format webm, ogg, m4a, wav or mp3 (400), at most 2 transcriptions at once (429)."
         limits: { description: "Body capped at 2 MB: a spoken command is ~10 KB." }
-        files: [src/server/voice.ts]
+        files: [src/server/voice.ts, src/server/guard.ts, tests/server-guards.test.ts]
       - id: forward
         type: process
         label: Forward to STT
@@ -261,7 +261,7 @@ layers:
       - "route -> guards: POST"
       - "guards -> forward: valid clip"
       - "guards -> rejected: 503 no key"
-      - "guards -> rejected: 405 415 413 400"
+      - "guards -> rejected: 405 415 403 413 400 429"
       - "forward -> rejected: 502"
       - "tests -> route [call]: fake fetch"
 

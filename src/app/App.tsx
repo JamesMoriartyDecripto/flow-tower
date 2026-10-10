@@ -15,6 +15,7 @@ import { Tooltip } from './hud/Tooltip';
 import { NodeList } from './hud/NodeList';
 import { VoiceCaption } from './hud/Voice';
 import { useVoice } from './voice/voice';
+import { STATIC } from './staticData';
 import { chooseView, usePrefs, viewFor } from './settings';
 import { useLive, useLiveSync } from './live';
 import { useDemoSimulator } from './demo';
@@ -149,7 +150,7 @@ function useKeyboard() {
       if (e.key === ',') { e.preventDefault(); prefs.set({ open: true }); return; }
       if (s.library) {
         if (e.key === 'Escape' && s.stack.length) s.showLibrary(false);
-        else if (e.key === 'v' || e.key === 'V') useVoice.getState().toggle();
+        else if ((e.key === 'v' || e.key === 'V') && !e.repeat && !STATIC) useVoice.getState().toggle(); // held V must not flip the mic on and off
         else libraryKey(e);
         return;
       }
@@ -193,7 +194,7 @@ function useKeyboard() {
         chooseView(s.view === 'map' ? 'tower' : 'map');
       } else if (key === 'o') {
         s.set({ autoRotate: !s.autoRotate });
-      } else if (key === 'v') {
+      } else if (key === 'v' && !e.repeat && !STATIC) {
         useVoice.getState().toggle();
       } else if (key === 'f') {
         useLive.getState().toggleFeed();

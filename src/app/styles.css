@@ -461,6 +461,7 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .mic:not(.off) { color: var(--live-run); border-color: var(--live-run); }
 .mic:not(.off) i { background: var(--live-run); box-shadow: 0 0 10px var(--live-run); animation: pulse 1.2s infinite; }
 .mic.hearing i { animation-duration: .4s; }
+.voice-caption { zoom: var(--ui-scale, 1); }
 .voice-caption { position: fixed; top: 76px; left: 50%; transform: translateX(-50%); z-index: 6; pointer-events: auto;
   max-width: min(640px, calc(100 * var(--vw) - 32px)); padding: 8px 16px; display: grid; gap: 4px; animation: fade .2s; }
 .voice-state { display: flex; align-items: center; gap: 8px; font: 600 11px var(--display); letter-spacing: .12em; color: var(--live-run); }
@@ -470,6 +471,8 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .voice-heard { font: 500 15px var(--ui); }
 .voice-heard b { color: var(--orange); font-weight: 600; }
 .voice-error { color: var(--error); font-size: 13px; }
+.voice-close { position: absolute; top: 4px; right: 8px; color: var(--dim); font-size: 14px; }
+.voice-close:hover { color: var(--white); }
 
 /* Nodes of the focused layer, in the inspector's place while nothing is selected. */
 .nodelist { top: 80px; right: 14px; width: 280px; max-height: calc(100% - 170px); overflow: auto; padding: 14px 10px 10px; animation: slidein .25s ease-out; }
@@ -485,3 +488,8 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .nodelist button.muted { opacity: .45; }
 .nodelist button.status .name { font-style: italic; color: var(--dim); }
 .livefeed.beside-list { right: 308px; }
+/* Half-screen windows: stack the feed under the node list instead of over the Layers panel. */
+@media (max-width: 760px) {
+  .livefeed.beside-list { right: 14px; }
+  .hud:has(.livefeed) .nodelist { max-height: calc(100 * var(--vh) - 76px - 42 * var(--vh) - 12px - 80px); }
+}

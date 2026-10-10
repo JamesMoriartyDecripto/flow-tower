@@ -18,15 +18,35 @@ interface VoiceState {
   options?: { label: string; action: VoiceAction }[];
   toggle(): void;
   run(text: string): string;
+  dismiss(): void;
 }
 
-let mic: Mic | undefined;
-let queue = Promise.resolve();
-let idle: ReturnType<typeof setTimeout> | undefined;
-/** Listening stops by itself after this long without a command (privacy, battery). */
+/** Proves a request comes from this page: src/server/voice.ts refuses POSTs without it. */
+const VOICE_HEADER = 'x-flow-tower-voice';
+/** Listening stops by itself after this long without an understood command (privacy, battery). */
 const IDLE_OFF_MS = 120_000;
 const NOT_UNDERSTOOD = 'Not understood';
-const PICK: Record<string, number> = { primo: 0, prima: 0, uno: 0, first: 0, one: 0, secondo: 1, seconda: 1, due: 1, second: 1, two: 1, terzo: 2, terza: 2, tre: 2, third: 2, three: 2, quarto: 3, quattro: 3, fourth: 3, four: 3 };
+const PICK: Record<string, number> = {
+  primo: 0, prima: 0, uno: 0, first: 0, one: 0, secondo: 1, seconda: 1, due: 1, second: 1, two: 1,
+  terzo: 2, terza: 2, tre: 2, third: 2, three: 2, quarto: 3, quarta: 3, quattro: 3, fourth: 3, four: 3,
+};
+const FILLER = new Set(['il', 'la', 'l', 'lo', 'the', 'quello', 'quella', 'that', 'number', 'numero']);
+
+let mic: Mic | undefined;
+/** Bumped by every start and stop: a start or a transcription that outlives its session drops its result. */
+let session = 0;
+let queue = Promise.resolve();
+let pending = 0;
+let speaking = false;
+let idle: ReturnType<typeof setTimeout> | undefined;
+let hideError: ReturnType<typeof setTimeout> | undefined;
+
+/** "il secondo", "two", "3": a short answer that is only a pick. "livello tre" is a command, not a pick. */
+function pickOf(text: string): number | undefined {
+  const words = norm(text).split(' ').filter((w) => w && !FILLER.has(w));
+  if (words.length !== 1) return undefined;
+  return PICK[words[0]] ?? (/^[1-4]$/.test(words[0]) ? Number(words[0]) - 1 : undefined);
+}
 
 export const useVoice = create<VoiceState>((set, get) => ({
   status: 'off',
@@ -38,43 +58,83 @@ export const useVoice = create<VoiceState>((set, get) => ({
     const s = useStore.getState();
     const ws = s.workspace;
     if (!ws) return '';
-    const pending = get().options;
-    const pick = pending && norm(text).split(' ').map((w) => PICK[w]).find((i) => i !== undefined);
-    const action = pick !== undefined && pending![pick] ? pending![pick].action : parseCommand(text, {
+    const options = get().options;
+    const pick = options && pickOf(text);
+    const action = pick !== undefined && options![pick] ? options![pick].action : parseCommand(text, {
       ws, tower: ws.towers[s.stack[s.stack.length - 1]], library: s.library,
     });
     const did = execute(action);
     set({ heard: text, did, options: action.kind === 'ambiguous' ? action.options : undefined, error: undefined });
     return did;
   },
+  dismiss() {
+    clearTimeout(hideError);
+    set({ error: undefined });
+  },
 }));
+
+// A pending choice belongs to what was on screen when it was offered: moving anywhere else drops it.
+useStore.subscribe((s, prev) => {
+  if (s.stack === prev.stack && s.selected === prev.selected && s.focusedLayer === prev.focusedLayer && s.library === prev.library) return;
+  if (useVoice.getState().options) useVoice.setState({ options: undefined });
+});
+
+const status = (): VoiceStatus => (speaking ? 'hearing' : pending ? 'thinking' : 'listening');
+
+/** A failure that ends listening (no key, no server, no mic): shown, then faded; the caption can close it too. */
+function fail(error: string) {
+  clearTimeout(hideError);
+  useVoice.setState({ status: 'off', error });
+  hideError = setTimeout(() => useVoice.setState({ error: undefined }), 8000);
+}
 
 async function start() {
   const set = useVoice.setState;
+  const mine = ++session;
+  clearTimeout(hideError);
   set({ status: 'starting', error: undefined, did: undefined, heard: undefined });
   const config = await fetch('/api/voice').then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined) as { cloud: boolean } | undefined;
+  if (mine !== session) return; // stopped while asking
   set({ cloud: config?.cloud });
-  if (!config) return set({ status: 'off', error: 'Voice commands need the local flow-tower server, which this page cannot reach.' });
-  if (!config.cloud) {
-    return set({ status: 'off', error: 'Voice commands need OPENROUTER_API_KEY in flow-tower/.env (git-ignored), then a restart.' });
-  }
+  if (!config) return fail('Voice commands need the local flow-tower server, which this page cannot reach.');
+  if (!config.cloud) return fail('Voice commands need OPENROUTER_API_KEY in flow-tower/.env (git-ignored), then a restart.');
   try {
-    mic = await openMic({
-      speaking: (on) => set({ status: on ? 'hearing' : 'listening' }),
-      clip: (audio, format) => { queue = queue.then(() => transcribe(audio, format)); },
+    const opened = await openMic({
+      speaking: (on) => {
+        speaking = on;
+        if (mine === session) set({ status: status() });
+      },
+      clip: (audio, format) => {
+        pending++;
+        set({ status: status() });
+        queue = queue.then(() => transcribe(audio, format, mine)).finally(() => {
+          pending--;
+          if (mine === session) set({ status: status() });
+        });
+      },
+      ended: () => {
+        if (mine !== session) return;
+        stop();
+        fail('The microphone stopped (unplugged, or taken by another app).');
+      },
     });
+    if (mine !== session) return opened.close(); // stopped while the permission prompt was open
+    mic = opened;
     set({ status: 'listening' });
     armIdle();
   } catch (err) {
-    set({ status: 'off', error: `Microphone not available: ${(err as Error).message}` });
+    if (mine === session) fail(`Microphone not available: ${(err as Error).message}`);
   }
 }
 
 function stop() {
+  session++;
   mic?.close();
   mic = undefined;
+  speaking = false;
   clearTimeout(idle);
-  useVoice.setState({ status: 'off', options: undefined });
+  clearTimeout(hideError);
+  useVoice.setState({ status: 'off', options: undefined, error: undefined });
 }
 
 function armIdle() {
@@ -82,25 +142,23 @@ function armIdle() {
   idle = setTimeout(stop, IDLE_OFF_MS);
 }
 
-async function transcribe(audio: Blob, format: string) {
-  if (!mic) return;
-  useVoice.setState({ status: 'thinking' });
+async function transcribe(audio: Blob, format: string, mine: number) {
+  if (mine !== session) return;
   try {
     const r = await fetch('/api/voice', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', [VOICE_HEADER]: '1' },
       // No language hint: the browser's UI language is not the speaker's; Whisper detects it from the clip.
       body: JSON.stringify({ audio: await base64(audio), format }),
     });
     const out = (await r.json()) as { text?: string; error?: string };
+    if (mine !== session) return; // stopped while transcribing: the command no longer applies
     if (!r.ok) throw new Error(out.error ?? `HTTP ${r.status}`);
     // Whisper writes something even for noise ("Grazie.", "Thank you."): those name nothing and fall to "unknown".
     // Only an understood command keeps the mic alive, so a noisy room still times out.
     if (out.text && useVoice.getState().run(out.text) !== NOT_UNDERSTOOD) armIdle();
   } catch (err) {
-    useVoice.setState({ error: (err as Error).message });
-  } finally {
-    if (mic) useVoice.setState({ status: 'listening' });
+    if (mine === session) useVoice.setState({ error: (err as Error).message });
   }
 }
 
@@ -125,21 +183,32 @@ function execute(a: VoiceAction): string {
       return ws.towers[a.id].name;
     }
     case 'layer': {
+      const layer = tower?.layers[a.index];
+      if (!layer) return NOT_UNDERSTOOD;
       if (s.library) s.showLibrary(false);
       s.select(undefined);
       s.focusLayer(a.index);
-      return `L${String(a.index + 1).padStart(2, '0')} ${tower.layers[a.index].title}`;
+      return `L${String(a.index + 1).padStart(2, '0')} ${layer.title}`;
     }
     case 'node': {
       const t = ws.towers[a.tower];
-      const layer = t.layers.findIndex((l) => l.nodes.some((n) => n.key === a.key));
+      const layer = t?.layers.findIndex((l) => l.nodes.some((n) => n.key === a.key)) ?? -1;
+      if (layer < 0) return NOT_UNDERSTOOD;
       if (s.library) s.showLibrary(false);
-      if (a.tower !== tower?.id) { const path = towerPath(ws, a.tower); if (path) s.openPath(path, a.key); } else s.select(a.key);
+      if (a.tower !== tower?.id) {
+        const path = towerPath(ws, a.tower);
+        if (!path) return `${t.name} is not reachable from the library`;
+        s.openPath(path, a.key);
+      } else s.select(a.key);
       useStore.getState().focusLayer(layer);
       return `${findNode(t, a.key)?.label} · ${t.layers[layer].title}`;
     }
     case 'view': chooseView(a.view); return a.view === 'map' ? 'Map view' : 'Tower view';
-    case 'overview': s.select(undefined); s.resetView(); return 'Overview';
+    case 'overview':
+      if (s.library) s.showLibrary(false);
+      s.select(undefined);
+      s.resetView();
+      return 'Overview';
     case 'back':
       if (s.library && s.stack.length) s.showLibrary(false);
       else if (s.file) s.openFile(undefined);
@@ -150,8 +219,10 @@ function execute(a: VoiceAction): string {
       return 'Back';
     case 'enter': {
       const node = findNode(tower, s.selected);
-      if (node?.tower) { s.enterTower(node.tower); return ws.towers[node.tower]?.name ?? 'Sub-tower'; }
-      return 'No sub-tower here';
+      if (!node?.tower) return 'No sub-tower here';
+      if (s.library) s.showLibrary(false);
+      s.enterTower(node.tower);
+      return ws.towers[node.tower]?.name ?? 'Sub-tower';
     }
     case 'close': s.openFile(undefined); s.select(undefined); return 'Closed';
     case 'mic-off': setTimeout(stop); return 'Microphone off';
