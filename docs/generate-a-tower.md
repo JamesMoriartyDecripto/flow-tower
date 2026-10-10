@@ -94,7 +94,9 @@ node <flow-tower>/bin/flow-tower.js validate <tower-file> --json
 - **Exits:** for each node, list every way out in the code (errors, rejections, early returns, retries) and check each one is drawn or deliberately left out.
 - **Traces:** follow at least one full run per entry point through the code, start to end, and compare it with the path in the tower. Watch for code that runs somewhere other than where it is registered, such as a wrapper around the response that runs last although it is mounted first.
 - **Gates and loops:** sequence or parallel, mandatory or conditional, where a failure goes, what caps the loop.
-- **Fresh eyes for big systems.** Above ~40 nodes or with several nested towers, split the check: reviewers with a fresh context (subagents, if your harness has them), read-only, one per layer group or nested tower, each comparing its part line by line with the sources and returning the discrepancies.
+- **Fresh eyes for big systems.** Above ~40 nodes or with several nested towers, split the check: reviewers with a fresh context (subagents, if your harness has them), read-only, one per layer group or nested tower, each comparing its part line by line with the sources and returning the discrepancies. On open_deep_research (54 nodes), self-review found 5 of the 24 problems; two fresh reviewers found the other 19. A prompt that works:
+
+  > Read-only review. Compare `<tower file>`, layers `<ids>`, with the code in `<paths>`. For every node, edge and description, find the line that proves it; for every node, list the exits in the code that the tower does not draw. Edge kinds are `flow call spawn handoff return data`; schema: `<flow-tower>/docs/schema.md`. Report each discrepancy as: what the tower says, what the code does, `file:line`. Do not edit anything.
 
 Fix what the check finds, validate again, and keep two lists for the report: what you **traced** in the code and what you only **inferred**.
 

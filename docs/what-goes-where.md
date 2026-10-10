@@ -65,6 +65,8 @@ An edge says **what passes between two nodes and how**. Choose the kind by what 
 - **Object form** for transport details: `protocol` (`mcp` `a2a` `http` `grpc` `webhook` `queue` `event` `stdio` `email` `manual`) when the wire matters, `async: true` when the source does not wait, and `group` when exactly one of several edges is taken.
 - **Edges inside a layer** go in the layer's `edges`. **Edges between layers** go in top-level `links` as `layer.node`: an agent calling a tool in `Tools & MCP`, an orchestrator spawning a specialist, an agent writing to `Memory & Context`.
 - **Loops are explicit**: a `decision` node plus a `[return]` edge labelled with the cap.
+- **An orchestrator that runs every step** (a lead agent that spawns each worker and decides what comes next): draw `[spawn]` links from the lead to each step and `[return]` links from each step back to the `decision` node that reads its result. The decisions are the lead's, so they sit next to it.
+- **Failures in a pipeline:** one `output` node for the failure (`Crash`, `Run failed`), with links from the steps whose failure a reader needs to see, labelled with what throws. Steps that fail the same uninteresting way are listed in that node's `description` (`any other throw: gh, JSON parse`) instead of one link each.
 - Draw the edges a reader needs to follow the run. Do not connect everything that technically touches something else: one `[data]` link to the memory store beats one per file.
 
 ## Nested towers
@@ -82,6 +84,7 @@ Rules:
 - The sub-tower starts with an `entry` that matches the parent node's input and ends with an `output` that matches what the parent's outgoing edges carry.
 - Shared things (models, MCP servers, memory) appear in the sub-tower only where its steps use them. Declare its own `runtimes`, `agents` and `prompts`: a nested tower is a separate file with its own registries and `root`.
 - Nested towers live in `towers/` next to the parent, and can nest further. Two levels are usually enough.
+- A sub-tower in `towers/` sets `root: ..`, so its `files` and prompts resolve from the system root like the parent's.
 - If a "subsystem" has only two or three steps, keep them as nodes in the parent instead.
 
 ## Services without agents

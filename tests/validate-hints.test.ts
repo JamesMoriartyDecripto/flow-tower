@@ -15,7 +15,7 @@ async function issuesOf(body: string) {
 describe('validate messages point at the fix (#56)', () => {
   it('names the missing field of a union, not "Invalid input"', async () => {
     const issues = await issuesOf('    nodes:\n      - { id: a, fanout: { by: query } }\n');
-    expect(issues).toEqual(['error layers.0.nodes.0.fanout.max: required field missing (expected number)']);
+    expect(issues).toEqual(['error l.a.fanout.max: required field missing (expected number)']);
   });
 
   it('hints at quoting when a comma cut a value into a bogus key', async () => {
@@ -44,5 +44,18 @@ describe('validate messages point at the fix (#56)', () => {
     expect(labels).toHaveLength(2);
     expect(labels[0]).toMatch(/^warning l\.b: label "Nineteen characters" has 19 characters, the card shows 18/);
     expect(labels[1]).toMatch(/^warning l\.d: .*shows 13 \(the nested-tower badge/);
+  });
+});
+
+describe('schema error paths', () => {
+  it('use layer and node ids, not indexes', async () => {
+    const issues = await issuesOf('    nodes:\n      - { id: gate, approval: { by: lead, note: x } }\n  - id: second\n    title: S\n    nodes: [{ id: b, colour: red }]\n    edges: [{ form: a }]\n');
+    expect(issues).toEqual([
+      'error l.gate.approval: Unrecognized key: "note"',
+      'error second.b: Unrecognized key: "colour"',
+      'error layers.second.edges.0.from: required field missing (expected string)',
+      'error layers.second.edges.0.to: required field missing (expected string)',
+      'error layers.second.edges.0: Unrecognized key: "form"',
+    ]);
   });
 });

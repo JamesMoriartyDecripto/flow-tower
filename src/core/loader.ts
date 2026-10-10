@@ -27,23 +27,33 @@ const QUOTE = 'Hint: quote the value ("...") when it contains ": ", or a comma i
 /** YAML errors that almost always come from an unquoted ": " in a value. */
 const QUOTE_HINT = new Set(['BLOCK_AS_IMPLICIT_KEY', 'BLOCK_IN_FLOW']);
 
+/** `layers.6.nodes.3.approval` → `review.gate.approval`: ids, as the other issues use, instead of indexes to count. */
+function readablePath(raw: unknown, path: PropertyKey[]): string {
+  const [top, li, nodes, ni, ...rest] = path;
+  const layer = top === 'layers' && typeof li === 'number' ? (raw as { layers?: { id?: unknown; nodes?: { id?: unknown }[] }[] })?.layers?.[li] : undefined;
+  if (typeof layer?.id !== 'string') return path.map(String).join('.');
+  const node = nodes === 'nodes' && typeof ni === 'number' ? layer.nodes?.[ni] : undefined;
+  if (typeof node?.id === 'string') return [layer.id, node.id, ...rest].map(String).join('.');
+  return ['layers', layer.id, ...path.slice(2)].map(String).join('.');
+}
+
 /**
  * Zod issues as tower issues, rewritten to point at the fix: a union that failed in every branch
  * reports the branch the value was meant for (`fanout: { by }` → `fanout.max` is required, not "Invalid input").
  */
-function schemaIssues(list: readonly z.core.$ZodIssue[], base: PropertyKey[] = []): Issue[] {
+function schemaIssues(list: readonly z.core.$ZodIssue[], raw: unknown, base: PropertyKey[] = []): Issue[] {
   return list.flatMap((e): Issue[] => {
     const path = [...base, ...e.path];
     if (e.code === 'invalid_union') {
       // Branches that failed only because the value has another type (a number vs a map) are not the one meant.
       const meant = e.errors.filter((b) => !(b.length === 1 && b[0].code === 'invalid_type' && !b[0].path.length));
-      if (meant.length === 1) return schemaIssues(meant[0], path);
+      if (meant.length === 1) return schemaIssues(meant[0], raw, path);
     }
     let message = e.message;
     if (e.code === 'invalid_type' && message.endsWith('received undefined')) message = `required field missing (expected ${e.expected})`;
     // Real keys never contain spaces: this is the rest of a value that an unquoted comma cut off.
     if (e.code === 'unrecognized_keys' && e.keys.some((k) => /\s/.test(k))) message += `. ${QUOTE}`;
-    return [{ level: 'error', message, path: path.map(String).join('.') }];
+    return [{ level: 'error', message, path: readablePath(raw, path) }];
   });
 }
 
@@ -176,9 +186,10 @@ async function loadTower(file: string, id: string, project: string, watched: Set
     return empty(dirname(file));
   }
 
-  const parsed = TowerSchema.safeParse(doc.toJS());
+  const input = doc.toJS();
+  const parsed = TowerSchema.safeParse(input);
   if (!parsed.success) {
-    issues.push(...schemaIssues(parsed.error.issues));
+    issues.push(...schemaIssues(parsed.error.issues, input));
     return empty(dirname(file));
   }
 

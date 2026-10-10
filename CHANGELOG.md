@@ -10,10 +10,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `validate` warns about node labels the card cuts (over 18 characters, 13 on a node with a nested tower) (#56).
 - Deep links: `?tower=…&layer=…&node=…` opens a tower (nested ones too), focuses a layer or selects a node (#7).
 - `--browser <app>` opens the page in another browser; `$BROWSER` works too (#56).
-- Skill and docs: a "Verify against the code" step after validate (prove each edge, list every exit, trace a run per entry point, fresh-context reviewers for big systems); read rule docs, agent bodies and hook code in full; classify hooks from their code; record source conflicts; towers in the mapped system's language; a "Services without agents" guide for HTTP APIs and workers (#56, #7).
+- `approval.description`, like the other operation fields; shown in the node panel.
+- Skill and docs: a "Verify against the code" step after validate (prove each edge, list every exit, trace a run per entry point, fresh-context reviewers for big systems); read rule docs, agent bodies and hook code in full; classify hooks from their code; record source conflicts; towers in the mapped system's language; a "Services without agents" guide for HTTP APIs and workers; guidance from two evaluation runs (dev-squad without its tower, langchain-ai/open_deep_research): LangGraph `Command` routing and subgraphs, attempts vs retries, orchestrator hubs, pipeline failures, hook wiring, a reviewer prompt (#56, #7).
 
 ### Changed
-- `validate` errors point at the fix: a value that fits no form of a field names the missing part (`fanout.max: required field missing`, not `Invalid input`), and YAML errors from an unquoted `: ` or comma say to quote the value (#56).
+- `validate` errors point at the fix: a value that fits no form of a field names the missing part (`fanout.max: required field missing`, not `Invalid input`), and YAML errors from an unquoted `: ` or comma say to quote the value (#56). Schema errors name layers and nodes by id (`review.gate.approval`), not by index (`layers.6.nodes.3.approval`).
 - Examples: 78 node labels that the card cut are shorter; exact identifiers moved to the description.
 
 ## [0.3.0] - 2026-10-10

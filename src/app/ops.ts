@@ -82,7 +82,7 @@ export function opsRows(ops: OpsDef): Record<string, string | undefined> {
     trigger: t && join([t.kind, t.schedule && `"${t.schedule}"`, t.hours, t.timezone && `(${t.timezone})`, t.source && `from ${t.source}`]),
     approval: a && join([a.by ?? 'human', a.when && `when ${a.when}`, a.per && `per ${a.per}`, list(a.via).length > 0 && `via ${list(a.via).join(' / ')}`,
       a.relayed_by && `relayed by ${a.relayed_by}`, a.actions && `(${a.actions.join(' / ')})`, a.rounds && `${a.rounds} revision rounds`,
-      a.timeout && `within ${a.timeout}${a.on_timeout ? ` else ${a.on_timeout}` : ''}`, a.escalate_to && `→ ${a.escalate_to}`]),
+      a.timeout && `within ${a.timeout}${a.on_timeout ? ` else ${a.on_timeout}` : ''}`, a.escalate_to && `→ ${a.escalate_to}`, a.description && `— ${a.description}`]),
     decision: d && join([d.output, d.candidates && `{${d.candidates.join(', ')}}`, d.threshold !== undefined && `threshold ${d.threshold}`,
       d.confidence && 'with confidence', d.model && `model ${d.model}`, d.fail && `fail-${d.fail}`, d.description && `— ${d.description}`]),
     budget: budgetsText(ops.budget),
