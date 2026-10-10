@@ -41,13 +41,8 @@ export function LayerEdges({ views, layerFade, detail, labels: showLabels }: { v
   const labels = useMemo<TextItem[]>(() => lines.flatMap((l) => {
     const text = edgeText(l.edge);
     if (!text) return [];
-    let best = 0;
-    let at = l.points[0];
-    for (let i = 1; i < l.points.length; i++) {
-      const len = l.points[i].distanceTo(l.points[i - 1]);
-      if (len > best) { best = len; at = l.points[i].clone().add(l.points[i - 1]).multiplyScalar(0.5); }
-    }
-    return [{ text, position: [at.x, Y + 0.02, at.z - 0.2], fontSize: 0.22, anchorX: 'center', color: COLORS.amber, opacity: l.fade * layerFade }];
+    const at = l.edge.labelAt ?? [l.points[0].x, l.points[0].z];
+    return [{ text, position: [at[0], Y + 0.02, at[1]], fontSize: 0.22, anchorX: 'center', color: COLORS.amber, opacity: l.fade * layerFade }];
   }), [lines, layerFade]);
 
   return (
