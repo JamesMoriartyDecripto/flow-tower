@@ -95,10 +95,10 @@ export const useVoice = create<VoiceState>((set, get) => ({
     const t = turnNow;
     if (!isSpeaking() && !(t?.spoke && !t.muted)) return false;
     stopSpeaking();
-    // The turn still streaming: say nothing more of it, and record it as interrupted. A turn already
-    // recorded (its reply still playing) is marked instead.
-    if (t) t.muted = true;
-    else interrupted();
+    // The turn still streaming: say nothing more of it, stop its stream (no later tool call may move the
+    // view after Esc), and record it as interrupted. A turn already recorded (its reply still playing) is
+    // marked instead.
+    if (t) { t.muted = true; turnAbort.abort(); } else interrupted();
     return true;
   },
 }));
@@ -222,9 +222,9 @@ async function transcribe(audio: Blob, format: string, mine: number, at: Recorde
     // Our own reply caught by the mic, or what Whisper writes for noise ("Grazie.", "Thank you."): dropped
     // before anything handles or journals it.
     if (!text || isEcho(text, at) || isHallucination(text)) return;
-    if (playedDuring(at, 0)) {
-      // Barge-in (only with "Interrupt by voice" on), for clips over the reply itself (not its tail):
-      // real words stop the reply; a cough or "ok" does not.
+    if (playedDuring(at, 0, 'audible')) {
+      // Barge-in (only with "Interrupt by voice" on), for clips over the reply actually coming out of the
+      // speakers (not its tail, not the silent wait for synthesis): real words stop it; a cough or "ok" does not.
       const kind = bargeIn(text);
       if (kind === 'ignore') return;
       if (isSpeaking()) { stopSpeaking(); interrupted(); }
@@ -276,6 +276,11 @@ async function handle(heard: string, mine: number) {
     }, turnAbort.signal, notesForAgent());
   } catch (err) {
     if (turnNow === t) turnNow = undefined;
+    if (t.muted && mine === session) { // Esc while it was still being written
+      useVoice.setState({ did: 'Stopped' });
+      record({ heard, route: 'agent', did: 'stopped (Esc)', outcome: 'interrupted', tower });
+      return;
+    }
     if (mine === session) {
       useVoice.setState({ did: `No answer: ${(err as Error).message}` });
       record({ heard, route: 'agent', did: (err as Error).message, outcome: 'error', tower });

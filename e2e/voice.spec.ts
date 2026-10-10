@@ -116,8 +116,8 @@ test('voice: Esc silences the reply still being written, and the turn is journal
       if (++chat === 1) {
         return r.fulfill({ contentType: 'text/event-stream', body: sse([{ choices: [{ delta: { content: 'Ecco il primo livello del progetto. ', tool_calls: [{ index: 0, id: 'c1', function: { name: 'focus_layer', arguments: '{"layer":1}' } }] } }] }]) });
       }
-      await held;
-      return r.fulfill({ contentType: 'text/event-stream', body: sse([{ choices: [{ delta: { content: 'Riceve le issue. Poi il triage le smista. ' } }] }]) });
+      await held; // Esc aborts this request: answering it then may fail, which is the point
+      return r.fulfill({ contentType: 'text/event-stream', body: sse([{ choices: [{ delta: { content: 'Riceve le issue. Poi il triage le smista. ' } }] }]) }).catch(() => undefined);
     }
     return r.fulfill({ json: { cloud: true, model: 'stt', agent: 'test-model', tts: 'test-tts', journal: true } });
   });

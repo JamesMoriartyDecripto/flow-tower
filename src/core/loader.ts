@@ -5,7 +5,7 @@ import { parseDocument } from 'yaml';
 import type { z } from 'zod';
 import { TowerSchema, type TowerDef } from './schema.ts';
 import { parseEdge } from './edges.ts';
-import { isForbidden } from './secrets.ts';
+import { isForbidden, isForbiddenSync, realOrSelf, userHome, within } from './secrets.ts';
 import { pickOps, resolveAgent, resolvePromptDef, resolvePromptRef, type FileReader } from './resolve.ts';
 import type { Issue, ResolvedAgent, ResolvedEdge, ResolvedLayer, ResolvedPrompt, ResolvedTower, Workspace } from './types.ts';
 
@@ -65,9 +65,17 @@ export function findTowerFiles(entries: string[]): string[] {
     const abs = resolve(entry);
     if (!existsSync(abs)) continue;
     if (!statSync(abs).isDirectory()) { out.add(abs); continue; }
+    // A symlink may lead out of the scanned folder (or into the user's own folder): those are not towers
+    // of this entry. loadTower checks every file again before reading it.
+    const realEntry = realOrSelf(abs);
+    const home = userHome();
+    if (within(home, abs) || within(realOrSelf(home), realEntry)) continue;
     for (const f of readdirSync(abs, { recursive: true, encoding: 'utf8' })) {
       const hidden = f.split(sep).some((seg) => seg === 'node_modules' || seg.startsWith('.'));
-      if (f.endsWith('.tower.yaml') && !hidden) out.add(join(abs, f));
+      if (!f.endsWith('.tower.yaml') || hidden) continue;
+      const path = join(abs, f);
+      if (!within(realEntry, realOrSelf(path)) || isForbiddenSync(path)) continue;
+      out.add(path);
     }
   }
   return [...out].sort();
@@ -175,6 +183,14 @@ async function loadTower(file: string, id: string, project: string, watched: Set
     tower: { id, name: id, tags: [], runtimes: {}, layers: [], links: [], issues } as ResolvedTower, root, nested: [],
   });
 
+  const outside = (path: string) => issues.push({ level: 'error', message: `${path} is outside the project (${project}): not read` });
+  const secret = (path: string) => issues.push({ level: 'error', message: `${path} is a secret file or in the user folder (~/.config/flow-tower): not read` });
+  // The tower file itself, through symlinks: a repository could ship `x.tower.yaml -> ~/.config/flow-tower/
+  // voice-journal.jsonl`, and YAML errors quote the lines they fail on.
+  const real = await realpath(file).catch(() => undefined);
+  if (real && !safeJoin(await realpath(project).catch(() => project), real)) { outside(file); return empty(dirname(file)); }
+  if (real && await isForbidden(real, file)) { secret(file); return empty(dirname(file)); }
+
   let raw: string;
   try { raw = await readFile(file, 'utf8'); } catch {
     issues.push({ level: 'error', message: `tower file not found: ${file}` });
@@ -195,8 +211,6 @@ async function loadTower(file: string, id: string, project: string, watched: Set
   }
 
   const def = parsed.data;
-  const outside = (path: string) => issues.push({ level: 'error', message: `${path} is outside the project (${project}): not read` });
-  const secret = (path: string) => issues.push({ level: 'error', message: `${path} is a secret file or in the user folder (~/.config/flow-tower): not read` });
   let root = resolve(dirname(file), def.root ?? '.');
   if (!safeJoin(project, root)) {
     outside(`root ${def.root}`);
@@ -215,6 +229,7 @@ async function loadTower(file: string, id: string, project: string, watched: Set
   const tower = await buildTower(def, id, fs, issues, (p) => {
     const abs = safeJoin(project, resolve(root, p));
     if (!abs) { outside(p); return false; }
+    if (isForbiddenSync(abs, p)) { secret(p); return false; } // not even whether it exists
     if (existsSync(abs)) return true;
     missing.add(abs);
     return false;

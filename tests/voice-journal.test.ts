@@ -278,6 +278,46 @@ describe('aliases in the page', () => {
     expect(marks).toEqual(['interrupted', 'corrected']);
   });
 
+  it('read a correction behind quotes and punctuation', async () => {
+    const marks: unknown[] = [];
+    vi.stubGlobal('fetch', async (_: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      if (body.mark) marks.push(body.mark.outcome);
+      return new Response('{}');
+    });
+    for (const said of ['«No, il secondo»', '"no quello"', '… non quello', 'Non e\u0300 quello']) {
+      journal.record({ heard: 'livello due', route: 'parser', did: 'L02', outcome: 'done' });
+      journal.judgeLast(said);
+    }
+    expect(marks).toEqual(['corrected', 'corrected', 'corrected', 'corrected']);
+  });
+
+  it('run one review at a time, keep the turns recorded meanwhile, and back off after a failure', async () => {
+    const turn = () => journal.record({ heard: 'livello due', route: 'parser', did: 'L02', outcome: 'done' });
+    let reviews = 0;
+    let answer!: (r: Response) => void;
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (!String(url).endsWith('/review')) return new Response('{}');
+      reviews++;
+      return new Promise<Response>((r) => { answer = r; });
+    });
+    await journal.reviewIfDue(); // whatever earlier tests counted: start from a clean count
+    for (let i = 0; i < 20; i++) turn();
+    const first = journal.reviewIfDue();
+    expect(await journal.reviewIfDue()).toBe(0); // a second mic-off while the first runs
+    for (let i = 0; i < 5; i++) turn(); // turns while it runs
+    await vi.waitFor(() => expect(reviews).toBe(1));
+    answer(new Response(JSON.stringify({ pending: [] })));
+    await first;
+    for (let i = 0; i < 15; i++) turn(); // 5 + 15 = 20: due again
+    const failed = journal.reviewIfDue();
+    await vi.waitFor(() => expect(reviews).toBe(2));
+    answer(new Response(JSON.stringify({ error: 'review failed: the model sent no readable suggestions' }), { status: 502 }));
+    expect(await failed).toBe(0);
+    expect(await journal.reviewIfDue()).toBe(0); // no retry right away
+    expect(reviews).toBe(2);
+  });
+
   it('replace whole words only, ignoring case and accents around them', () => {
     const aliases = [{ heard: 'triaje', means: 'triage' }, { heard: 'emme ci pi', means: 'MCP' }];
     expect(applyAliases('Vai al nodo del Triaje.', aliases)).toBe('Vai al nodo del triage.');

@@ -78,3 +78,39 @@ describe('the loader never reads secrets or the user folder (#68 security review
     }
   });
 });
+
+describe('tower files themselves (#68 security review, round 2)', () => {
+  it('never read a tower file that links into the user folder, nor scan a linked folder there', async () => {
+    const { loadLibrary } = await import('../src/core/loader');
+    const { env } = await import('node:process');
+    const { mkdirSync, symlinkSync } = await import('node:fs');
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-home-'));
+    const journal = 'heard: [PERSONAL TRANSCRIPT\n  - "ciao: x" ]: :\n';
+    writeFileSync(join(home, 'voice-journal.jsonl'), journal);
+    writeFileSync(join(home, 'private.tower.yaml'), 'name: PRIVATE TOWER\nlayers: []\n');
+    writeFileSync(join(home, 'api.key'), 'SECRET KEY');
+    const project = mkdtempSync(join(tmpdir(), 'flow-tower-project-'));
+    mkdirSync(join(project, '.git'));
+    symlinkSync(join(home, 'voice-journal.jsonl'), join(project, 'evil.tower.yaml'));
+    symlinkSync(home, join(project, 'linked'));
+    symlinkSync(join(home, 'api.key'), join(project, 'api.key'));
+    writeFileSync(join(project, 'ok.tower.yaml'), 'name: OK\nlayers:\n  - id: l\n    title: L\n    nodes:\n      - { id: a, label: A, files: [api.key] }\n');
+    const saved = env.FLOW_TOWER_HOME;
+    env.FLOW_TOWER_HOME = home;
+    try {
+      const scanned = await loadLibrary([project]);
+      expect(Object.keys(scanned.workspace.towers)).toEqual(['ok.tower.yaml']); // neither the link nor the linked folder
+      const json = JSON.stringify(scanned.workspace);
+      expect(json).not.toContain('PRIVATE TOWER');
+      // Existence of a secret file is not probed: reported as secret, not as present or missing.
+      expect(json).toContain('api.key is a secret file');
+      // Named directly, the linked file is refused before it is read: no YAML error quoting the journal.
+      const direct = await loadLibrary([join(project, 'evil.tower.yaml')]);
+      const out = JSON.stringify(direct.workspace);
+      expect(out).not.toContain('PERSONAL');
+      expect(out).toMatch(/secret file or in the user folder|outside the project/);
+    } finally {
+      if (saved === undefined) delete env.FLOW_TOWER_HOME; else env.FLOW_TOWER_HOME = saved;
+    }
+  });
+});

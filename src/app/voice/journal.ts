@@ -98,19 +98,31 @@ const mark = (outcome: Outcome, keep = false) => {
 export function judgeLast(transcript: string) {
   if (!last) return;
   const age = performance.now() - last.at;
-  if (age < 15_000 && CORRECTION.test(transcript.trim().toLowerCase())) mark('corrected');
+  // «No, quello», "No…", 'no': Whisper may open with quotes or punctuation, and write accents decomposed.
+  const said = transcript.normalize('NFC').toLowerCase().replace(/^[\s"'«»“”‘’„.,:;!?¡¿…\-–—]+/u, '');
+  if (age < 15_000 && CORRECTION.test(said)) mark('corrected');
   else if (age < 6_000 && last.acted && /^(indietro|torna indietro|back|go back|annulla|undo)$/.test(norm(transcript))) mark('undone');
 }
 
 /** A barge-in: the user cut the reply short. What they say next may still correct it ("no, the other one"). */
 export const interrupted = () => mark('interrupted', true);
 
-/** At the end of a session with enough new turns, ask for suggestions in the background. */
+let reviewing = false;
+/**
+ * At the end of a session with enough new turns, ask for suggestions in the background. One at a time;
+ * the turns it covered are taken off the count, success or failure: turns recorded meanwhile still count,
+ * and a failed review (it may have been paid) is not retried before `min` more turns.
+ */
 export async function reviewIfDue(min = 20): Promise<number> {
-  if (!on() || sinceReview < min) return 0;
-  const n = await review().catch(() => undefined);
-  if (n !== undefined) sinceReview = 0; // a failed review is retried at the next mic-off
-  return n ?? 0;
+  if (!on() || reviewing || sinceReview < min) return 0;
+  reviewing = true;
+  const covered = sinceReview;
+  try {
+    return await review().catch(() => 0);
+  } finally {
+    sinceReview = Math.max(0, sinceReview - covered);
+    reviewing = false;
+  }
 }
 
 /** Lowercase without accents, one code unit per code unit of the input, so match positions map back. */

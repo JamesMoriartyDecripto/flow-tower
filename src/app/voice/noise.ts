@@ -54,6 +54,8 @@ export const dbToPower = (db: number) => 10 ** (Math.max(db, -160) / 10);
  */
 export const FLOOR_MIN = dbToPower(-120);
 export const FLOOR_MAX = dbToPower(-55);
+/** ×1.5 in power (+1.8 dB) over the calibrated minimum. */
+export const CALIBRATION_MARGIN = 1.5;
 const clampFloor = (p: number) => Math.min(FLOOR_MAX, Math.max(FLOOR_MIN, Number.isFinite(p) ? p : FLOOR_MIN));
 
 /**
@@ -66,8 +68,10 @@ const clampFloor = (p: number) => Math.min(FLOOR_MAX, Math.max(FLOOR_MIN, Number
 export function updateFloor(floor: Float64Array, band: ArrayLike<number>, step: 'seed' | 'min' | number) {
   for (let i = 0; i < floor.length; i++) {
     const b = clampFloor(band[i]);
-    if (step === 'seed') floor[i] = b;
-    else if (step === 'min') floor[i] = Math.min(clampFloor(floor[i]), b);
+    // Calibration keeps a margin over what it measured: a minimum sits below the room's average, and a
+    // fan wobbling just above it would otherwise count as loud right after calibration.
+    if (step === 'seed') floor[i] = clampFloor(b * CALIBRATION_MARGIN);
+    else if (step === 'min') floor[i] = Math.min(clampFloor(floor[i]), clampFloor(b * CALIBRATION_MARGIN));
     else floor[i] = clampFloor(floor[i] + step * (Math.min(b, floor[i] * 4) - floor[i]));
   }
 }

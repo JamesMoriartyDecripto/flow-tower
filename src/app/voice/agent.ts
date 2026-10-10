@@ -182,12 +182,17 @@ const deferred = () => {
 /** When the current reply's first sentence started playing (performance.now()); undefined if none did. */
 let firstPlay = deferred();
 
+/** A sentence that takes longer than this to synthesize is skipped: a hung /speak must not keep the mic deaf. */
+const SPEAK_TIMEOUT_MS = 8000;
+
 /** One sentence to speech. A 429 (the server's slots are busy) is retried once, shortly after; then it is skipped. */
-async function speak(text: string, signal: AbortSignal): Promise<Blob | undefined> {
+export async function speak(text: string, signal: AbortSignal, timeoutMs = SPEAK_TIMEOUT_MS): Promise<Blob | undefined> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const r = await fetch('/api/voice/speak', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', [VOICE_HEADER]: '1' }, body: JSON.stringify({ text }), signal,
+        method: 'POST', headers: { 'Content-Type': 'application/json', [VOICE_HEADER]: '1' }, body: JSON.stringify({ text }),
+        // AbortSignal.any: Chrome 116, Safari 17.4, Firefox 124. Older browsers keep the reply's signal only.
+        signal: AbortSignal.any ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : signal,
       });
       if (r.ok) return await r.blob();
       if (r.status !== 429 || attempt > 0) return undefined;
@@ -236,6 +241,7 @@ async function playNext(signal: AbortSignal) {
     if (moved) return;
     moved = true;
     URL.revokeObjectURL(url);
+    playbackOff(performance.now(), 'audible');
     if (playing === audio) playing = undefined;
     void playNext(signal);
   };
@@ -243,17 +249,22 @@ async function playNext(signal: AbortSignal) {
   audio.onerror = moveOn;
   try {
     await audio.play();
+    playbackOn(performance.now(), 'audible');
     firstPlay.resolve(performance.now()); // only the first call counts: a promise settles once
     blockedTold = false;
     ahead = AHEAD;
     prefetch(signal, ahead);
   } catch (err) {
-    if (signal.aborted) return; // paused by a barge-in before it started
-    if ((err as Error).name === 'NotAllowedError' && !blockedTold) {
+    if (signal.aborted) { URL.revokeObjectURL(url); return; } // paused by a barge-in before it started
+    if ((err as Error).name === 'NotAllowedError') {
+      // Autoplay blocked: nothing of this reply will play, so it must not hold the half-duplex gate either.
+      if (!blockedTold) blocked?.('The browser blocked the spoken reply: click the page or allow sound for this site.');
       blockedTold = true;
-      blocked?.('The browser blocked the spoken reply: click the page or allow sound for this site.');
+      URL.revokeObjectURL(url);
+      stopSpeaking();
+      return;
     }
-    moveOn(); // the next sentence may still play
+    moveOn(); // a sentence that cannot play is skipped: the next one may
   }
 }
 

@@ -24,6 +24,16 @@ describe('half-duplex voice', () => {
     expect(playedDuring({ from: 3500, to: 4500 }, 0)).toBe(true);
   });
 
+  it('tells the silent wait for synthesis from audio actually playing (barge-in rule)', () => {
+    playbackOn(10_000); // a reply starts: its first sentence is being synthesized
+    playbackOn(11_000, 'audible'); // and plays from 11 s to 12 s
+    playbackOff(12_000, 'audible');
+    playbackOff(12_500);
+    expect(playedDuring({ from: 10_100, to: 10_800 }, 0)).toBe(true); // active: dropped in half-duplex
+    expect(playedDuring({ from: 10_100, to: 10_800 }, 0, 'audible')).toBe(false); // no 3-word rule with barge-in
+    expect(playedDuring({ from: 11_200, to: 11_800 }, 0, 'audible')).toBe(true);
+  });
+
   it('treats a reply still playing as open-ended', () => {
     playbackOn(10_000);
     expect(playedDuring({ from: 60_000, to: 61_000 })).toBe(true);

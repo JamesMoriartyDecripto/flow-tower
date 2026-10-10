@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, isAbsolute, join, relative, resolve } from 'node:path';
@@ -43,3 +44,15 @@ export async function inUserHome(abs: string) {
 
 /** A file no tower may read: `abs` is the resolved path, `path` what the tower wrote. */
 export const isForbidden = async (abs: string, path = abs) => isSecretPath(path) || isSecretPath(abs) || inUserHome(abs);
+
+/** The same check, synchronous (existence probes, folder scans): `abs` is resolved through symlinks here. */
+export function isForbiddenSync(abs: string, path = abs) {
+  const real = realOrSelf(abs);
+  const h = userHome();
+  return isSecretPath(path) || isSecretPath(abs) || isSecretPath(real) || within(h, abs) || within(h, real) || within(realOrSelf(h), real);
+}
+
+/** realpath, or the path itself when it does not exist. */
+export function realOrSelf(path: string) {
+  try { return realpathSync(path); } catch { return path; }
+}

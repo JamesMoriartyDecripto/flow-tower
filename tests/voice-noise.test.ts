@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dbToPower, FLOOR_MAX, FLOOR_MIN, flatness, isHallucination, isSpeech, SENSITIVITY, updateFloor } from '../src/app/voice/noise';
+import { CALIBRATION_MARGIN, dbToPower, FLOOR_MAX, FLOOR_MIN, flatness, isHallucination, isSpeech, SENSITIVITY, updateFloor } from '../src/app/voice/noise';
 
 /** A fan is not a voice: voice-band power over its floor AND a peaky (not flat) spectrum. */
 describe('speech or noise', () => {
@@ -65,15 +65,26 @@ describe('noise floor', () => {
     const floor = new Float64Array(bins);
     updateFloor(floor, tick(voice), 'seed'); // the user talks as the mic opens
     for (const p of [voice, room * 1.2, voice, room, voice]) updateFloor(floor, tick(p), 'min'); // syllables and gaps
-    expect([...floor]).toEqual(tick(room));
+    expect([...floor]).toEqual(tick(room * CALIBRATION_MARGIN));
     // So the first command after calibration is heard.
     expect(isSpeech(voice, room, 0.2)).toBe(true);
+  });
+
+  it('keeps a margin over the calibrated minimum, so a wobbling fan is not loud right after', () => {
+    const fan = dbToPower(-70);
+    const floor = new Float64Array(bins);
+    updateFloor(floor, tick(fan), 'seed');
+    for (const p of [fan * 0.5, fan, fan * 1.5]) updateFloor(floor, tick(p), 'min');
+    expect(floor[0]).toBeCloseTo(fan * 0.5 * CALIBRATION_MARGIN, 15);
+    // At high sensitivity (ratio 3) a fan peak at 2× its level would pass a bare minimum (0.5 × 3 = 1.5).
+    expect(isSpeech(fan * 2, floor[0], 0.45, 'high')).toBe(false);
+    expect(isSpeech(fan * 2, fan * 0.5, 0.45, 'high')).toBe(true);
   });
 
   it('is never 0, even on digital silence, and can rise again', () => {
     const floor = new Float64Array(bins);
     updateFloor(floor, tick(dbToPower(-Infinity)), 'seed');
-    expect(floor.every((f) => f === FLOOR_MIN)).toBe(true);
+    expect(floor.every((f) => f === FLOOR_MIN * CALIBRATION_MARGIN)).toBe(true);
     for (let i = 0; i < 400; i++) updateFloor(floor, tick(room), 0.05); // a fan comes on: 16 s
     expect(floor[0]).toBeCloseTo(room, 12);
   });

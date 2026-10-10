@@ -1,5 +1,6 @@
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { pid } from 'node:process';
 import { userHome } from '../core/secrets.ts';
@@ -53,21 +54,33 @@ const clean = (s: unknown, max = 300) => String(s ?? '').replace(/[\r\n]+/g, ' '
 export function voiceStore(dir = userHome()) {
   const journal = join(dir, 'voice-journal.jsonl');
   const memoryFile = join(dir, 'voice-memory.json');
+  /** Owner only, where we may decide it; a file system that refuses chmod (EPERM) is not an error. */
+  const ownerOnly = (path: string, mode: number) => { try { chmodSync(path, mode); } catch { /* best effort */ } };
   const ensure = () => {
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
-    chmodSync(dir, 0o700); // an existing folder too: transcripts are personal, owner only
+    // Created here, or our own default folder: owner only. A folder the user chose (FLOW_TOWER_HOME) that
+    // already exists keeps the permissions they gave it; the files inside are 0600 either way.
+    if (!existsSync(dir)) { mkdirSync(dir, { recursive: true, mode: 0o700 }); ownerOnly(dir, 0o700); }
+    else if (resolve(dir) === join(homedir(), '.config', 'flow-tower')) ownerOnly(dir, 0o700);
   };
   const write = (file: string, text: string, append = false) => {
     ensure();
     if (append) {
       appendFileSync(file, text, { mode: 0o600 });
-      chmodSync(file, 0o600);
+      ownerOnly(file, 0o600);
       return;
     }
-    // Whole-file writes (memory, rotation) go through a temp file and a rename: a crash never leaves half a file.
+    // Whole-file writes (memory, rotation) go through a temp file and a rename: a crash never leaves half
+    // a file. Windows can refuse a rename for a moment (EPERM/EBUSY: an antivirus, an indexer): one retry.
     const tmp = `${file}.${pid}.${randomUUID().slice(0, 8)}.tmp`;
-    writeFileSync(tmp, text, { mode: 0o600 });
-    renameSync(tmp, file);
+    try {
+      writeFileSync(tmp, text, { mode: 0o600 });
+      try { renameSync(tmp, file); } catch (err) {
+        if (!['EPERM', 'EBUSY'].includes((err as NodeJS.ErrnoException).code ?? '')) throw err;
+        renameSync(tmp, file);
+      }
+    } finally {
+      rmSync(tmp, { force: true }); // gone after a rename; removed after a failure
+    }
   };
 
   /** Keeps the journal bounded: past the cap, the older half goes. */
