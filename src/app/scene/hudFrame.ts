@@ -103,7 +103,9 @@ export function useHudFrame(controls: React.RefObject<CameraControls | null>, la
       const key = `${size.width}x${size.height}@${scale}|${selected ? 'inspector' : ''}|${feedOpen ? 'feed' : ''}`;
       const changed = settled && key !== lastRect.current;
       if (settled) lastRect.current = key;
-      const ext = changed && ctl ? contentExtent(camera, size, layout, layerIds) : undefined;
+      // While following a selection, the follow below sets the distance.
+      const following = !!selected && usePrefs.getState().zoomToSelection;
+      const ext = changed && ctl && !following ? contentExtent(camera, size, layout, layerIds) : undefined;
       if (ctl && ext) {
         const need = Math.max(ext.w / (r.w * 0.94), ext.h / (r.h * 0.94));
         if (need > 1.03) {
@@ -137,17 +139,37 @@ export function useHudFrame(controls: React.RefObject<CameraControls | null>, la
     keepAlive(120);
   });
 
-  // A node selected by keyboard (or from a list) that lands under a panel: bring it into view.
+  // Selecting a node (click, keys, lists, search): the camera follows it. With "zoom to selection" on,
+  // the node moves to the middle of the free area and the camera comes close enough to read it and its
+  // neighbours, never farther than the user already zoomed in. Off: only a node under a panel is
+  // brought into view. Angle stays as the user left it.
+  const prevSelected = useRef<string>(undefined);
   useEffect(() => {
     const ctl = controls.current;
+    const wasOpen = prevSelected.current !== undefined;
+    prevSelected.current = selected;
     if (!selected || !ctl) return;
     const t = setTimeout(() => {
       const layerId = selected.slice(0, selected.indexOf('.'));
       const group = layerGroups.get(layerId);
       const box = layout.layers[layerIds.indexOf(layerId)]?.nodes[selected];
-      if (!group || !box) return;
+      if (!group?.visible || !box) return;
       const r = freeRect(size.width, size.height);
       world.set(box.x, 0.2, box.z).applyMatrix4(group.matrixWorld);
+      // Where the camera is going, not where it is mid-flight (a layer focus may have just started).
+      ctl.getTarget(target, true);
+      ctl.getPosition(position, true);
+      if (usePrefs.getState().zoomToSelection) {
+        const offset = position.sub(target);
+        // World units per screen pixel at distance D is 2·D·tan(fov/2) / height: fit about four node
+        // widths across the free area (the node and its neighbours) and four depths down it.
+        const tan = Math.tan((camera.fov / 2) * (Math.PI / 180));
+        const near = (Math.max((box.w * 4) / (r.w * 0.9), (box.d * 4) / (r.h * 0.9)) * size.height) / (2 * tan);
+        offset.setLength(Math.min(offset.length(), near));
+        ctl.setLookAt(world.x + offset.x, world.y + offset.y, world.z + offset.z, world.x, world.y, world.z, true);
+        keepAlive(1200);
+        return;
+      }
       projected.copy(world).project(camera);
       const sx = ((projected.x + 1) / 2) * size.width;
       const sy = ((1 - projected.y) / 2) * size.height;
@@ -168,11 +190,9 @@ export function useHudFrame(controls: React.RefObject<CameraControls | null>, la
       // Moving the camera by d moves the node on screen by -J·d.
       const dx = -(j[1][1] * want.x - j[0][1] * want.y) / det;
       const dz = -(-j[1][0] * want.x + j[0][0] * want.y) / det;
-      ctl.getTarget(target);
-      ctl.getPosition(position);
       ctl.setLookAt(position.x + dx, position.y, position.z + dz, target.x + dx, target.y, target.z + dz, true);
       keepAlive(1200);
-    }, 350); // after the inspector has opened and the projection offset settled
+    }, wasOpen ? 30 : 350); // the first selection waits for the inspector to open and the projection to settle
     return () => clearTimeout(t);
   }, [selected]); // eslint-disable-line react-hooks/exhaustive-deps
 }

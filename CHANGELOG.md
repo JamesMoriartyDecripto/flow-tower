@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- Zoom to selection: selecting a node (click, arrows, lists, search) centers it in the free area and moves the camera in close enough to read it and its neighbours, following as you move between nodes, in tower and map view. A closer zoom of your own is kept. Settings → View → Zoom to selection turns it off (then the camera only moves when the node is under a panel).
+
 ## [0.2.0] - 2026-10-10
 
 ### Security
