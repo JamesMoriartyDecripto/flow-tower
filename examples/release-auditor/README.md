@@ -1,7 +1,7 @@
 # Release Auditor
 
 The pre-release bug sweep that gated Flow Tower v0.1.0 ([report](reports/v0.1.0.md)), modelled as a tower and run on this
-repository. Its gates run again before every release ([v0.2.0](reports/v0.2.0.md)).
+repository. Its gates run again before every release ([v0.2.0](reports/v0.2.0.md), [v0.3.0](reports/v0.3.0.md), [v0.4.0](reports/v0.4.0.md)).
 It is dogfooding: the tower sets `root: ../..`, so every node opens the real file it describes, and the
 scripts report to the tower while they run, so you can watch the audit in Flow Tower itself.
 

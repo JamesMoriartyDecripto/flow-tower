@@ -1,6 +1,17 @@
 # Next session: handoff
 
-Status on 2026-10-10: **v0.3.0 released** (gates and E2E in `examples/release-auditor/reports/v0.3.0.md`). Since v0.2.0: study-notes examples (`physics-notes`, `history-notes`), KaTeX math (`$$…$$`) in the Markdown viewer, `?tower=` on `/api/events` and docs for a second server with `--port` (#52), edge labels placed by ELK clear of the nodes.
+Status on 2026-10-10: **v0.4.0 released** (gates and E2E in `examples/release-auditor/reports/v0.4.0.md`). Since v0.3.0:
+- **Voice:** commands (#62) and a conversational voice agent that answers out loud and acts on the tower (#63 part 1). Both run through OpenRouter, with the key kept on the local server.
+- **Node list panel.**
+- **Server hardening:** exact content type, cross-site refusal, and secret files never served.
+- **Skill and docs:** a verify-against-the-code step, a services guide, clearer `validate` errors, deep links and `--browser` (#56, #7).
+- **Examples:** `db-api-playbook` and `voice-commands`; dev-squad's sample code now matches its tower.
+
+Next:
+- #63 part 2: the conversation journal and self-improvement loop;
+- #65: PDF export;
+- #59: team hub;
+- #5: Pi live test, on the other machine.
 
 Source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**. Where code lives: [docs/architecture.md](docs/architecture.md).
 
