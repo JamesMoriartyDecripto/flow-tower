@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+# The Request pipeline node of the playbook: the checks in the order they run, and where each one fails.
+name: Request Pipeline
+description: One API request from the gateway to the database and back. Every check fails fast with its status code as Problem Details.
+root: ..
+
+layers:
+  - id: checks
+    title: Inbound Checks
+    description: Cheap checks first, so a rejected request costs almost nothing.
+    nodes:
+      - { id: request, type: entry, label: HTTP request, files: [notes/07-request.md] }
+      - { id: gateway, type: guard, label: Gateway & TLS, description: "TLS, body size limit, CORS.", files: [notes/07-request.md] }
+      - { id: token, type: guard, label: Verify token, description: "Signature, issuer, audience, expiry, scopes.", files: [notes/07-request.md] }
+      - { id: ratelimit, type: guard, label: Rate limit, description: "429 + Retry-After; RateLimit headers are an IETF draft.", files: [notes/07-request.md] }
+      - { id: validate, type: guard, label: Validate input, description: Against the OpenAPI schema., files: [notes/07-request.md] }
+      - { id: objectauthz, type: guard, label: Object authz, description: "This caller, this object, these fields (OWASP API1 and API3).", files: [notes/07-request.md] }
+    edges:
+      - request -> gateway
+      - gateway -> token
+      - token -> ratelimit
+      - ratelimit -> validate
+      - validate -> objectauthz
+
+  - id: handle
+    title: Data & Response
+    description: Writes are safe to retry and never overwrite someone else's change.
+    nodes:
+      - { id: seen, type: decision, label: Key seen before?, description: Idempotency-Key on POST., files: [notes/07-request.md] }
+      - { id: precondition, type: decision, label: If-Match ok?, description: Optimistic concurrency with ETags (RFC 9110)., files: [notes/07-request.md] }
+      - { id: query, type: process, label: Query via pool, description: Keyset pagination for lists., files: [notes/07-request.md] }
+      - { id: ok, type: output, label: 2xx + ETag, description: "With Cache-Control.", files: [notes/07-request.md] }
+      - { id: stored, type: output, label: Stored response, files: [notes/07-request.md] }
+      - { id: problem, type: output, label: problem+json, description: "Every error as RFC 9457 Problem Details.", files: [notes/07-request.md] }
+    edges:
+      - "seen -> stored: yes"
+      - "seen -> precondition: no"
+      - "precondition -> query: match"
+      - "precondition -> problem: 412"
+      - query -> ok
+
+links:
+  - "checks.objectauthz -> handle.seen: allowed"
+  - "checks.token -> handle.problem: 401"
+  - "checks.ratelimit -> handle.problem: 429"
+  - "checks.validate -> handle.problem: 400 / 422"
+  - "checks.objectauthz -> handle.problem: 403 / 404"

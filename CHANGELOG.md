@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- `db-api-playbook` example: how to build and run an HTTP API over a database (approach, contract, data access, security, shipping, operations), with a request-pipeline sub-tower and notes pages citing current standards (OWASP API Top 10 2023, OpenAPI 3.2, RFC 9457, RFC 9700, RFC 9745), checked on 2026-10-10.
+
 ## [0.3.0] - 2026-10-10
 
 ### Added

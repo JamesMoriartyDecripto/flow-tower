@@ -1,0 +1,124 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+# A playbook as a tower: decisions on top, one layer per phase below, the life of one request as a sub-tower.
+# Every node opens its notes page, with the sources checked on 2026-10-10.
+name: Database API Playbook
+description: How to build and run an HTTP API over a database, from choosing the approach to retiring old versions. Current standards and options, each with its source.
+tags: [playbook, api, database]
+
+layers:
+  - id: approach
+    title: Choose the Approach
+    description: Three decisions that shape everything below.
+    nodes:
+      - { id: need, type: entry, label: API over a DB, files: [notes/01-approach.md] }
+      - { id: callers, type: decision, label: Who calls it?, description: "Own frontend, partners and public, or internal services.", files: [notes/01-approach.md] }
+      - { id: style, type: decision, label: Which style?, description: "REST + OpenAPI by default; GraphQL for many client shapes; gRPC between services.", files: [notes/01-approach.md] }
+      - { id: logic, type: decision, label: Domain logic?, files: [notes/01-approach.md] }
+      - { id: generated, type: output, label: Generated API, description: "PostgREST, Supabase Data API or Hasura DDN over Postgres, secured by roles and RLS.", files: [notes/01-approach.md] }
+      - { id: service, type: output, label: Hand-written API, description: "Domain logic, workflows, third parties, a contract that must not follow the tables.", files: [notes/01-approach.md] }
+    edges:
+      - need -> callers
+      - "callers -> style: public needs a stable contract"
+      - style -> logic
+      - "logic -> generated: CRUD, rules fit RLS"
+      - "logic -> service: workflows, 3rd parties"
+
+  - id: contract
+    title: Design the Contract
+    description: The OpenAPI file is the source of truth; code, docs and tests follow it.
+    nodes:
+      - { id: resources, type: process, label: Resources & URLs, files: [notes/02-contract.md] }
+      - { id: pagination, type: process, label: Keyset pagination, description: "Cursors, not OFFSET.", files: [notes/02-contract.md] }
+      - { id: errors, type: process, label: Problem Details, description: "RFC 9457: application/problem+json.", files: [notes/02-contract.md] }
+      - { id: idempotency, type: process, label: Idempotency keys, description: "De-facto pattern for safe POST retries; the IETF draft expired.", files: [notes/02-contract.md] }
+      - { id: versioning, type: decision, label: How to version?, description: "/v1 in the URL, or date-based versions pinned per client.", files: [notes/02-contract.md] }
+      - { id: spec, type: memory, label: OpenAPI 3.2 spec, files: [notes/02-contract.md] }
+      - { id: lint, type: guard, label: Spectral lint, files: [notes/02-contract.md] }
+    edges:
+      - resources -> pagination
+      - pagination -> errors
+      - errors -> idempotency
+      - idempotency -> versioning
+      - "versioning -> spec [data]: write it down"
+      - spec -> lint
+      - "lint -> resources [return]: rule broken"
+
+  - id: data
+    title: Data Access
+    description: Schema, migrations and connections; where most outages start.
+    nodes:
+      - { id: schema, type: process, label: Schema & RLS, description: Constraints in the database; row-level security for shared tables., files: [notes/03-data.md] }
+      - { id: migrations, type: process, label: Expand / contract, description: "Migrations without downtime; pgroll automates it.", files: [notes/03-data.md] }
+      - { id: access, type: decision, label: ORM or SQL?, files: [notes/03-data.md] }
+      - { id: transactions, type: process, label: Short transactions, description: One per writing request; no network calls inside., files: [notes/03-data.md] }
+      - { id: pool, type: tool, label: Connection pool, description: "PgBouncer, Supavisor, RDS Proxy; HTTP drivers on serverless.", files: [notes/03-data.md] }
+      - { id: postgres, type: memory, label: PostgreSQL 18, description: Current major; 19 in beta., files: [notes/03-data.md] }
+    edges:
+      - "schema -> migrations: change safely"
+      - "migrations -> postgres [data]: expand, backfill, contract"
+      - schema -> access
+      - access -> transactions
+      - transactions -> pool
+      - "pool -> postgres [data]: few real connections"
+
+  - id: security
+    title: Security & Access
+    description: "Who may call, with which rights; reviewed against the OWASP API Security Top 10 (2023)."
+    nodes:
+      - { id: idp, type: tool, label: Identity provider, description: "OAuth 2 / OIDC: auth code + PKCE for users, client credentials for services (RFC 9700).", files: [notes/04-security.md] }
+      - { id: scopes, type: process, label: Scopes & roles, files: [notes/04-security.md] }
+      - { id: secrets, type: memory, label: Secrets manager, files: [notes/04-security.md] }
+      - { id: owasp, type: guard, label: OWASP API Top 10, description: Every endpoint reviewed against the 2023 list., files: [notes/04-security.md] }
+      - { id: inventory, type: memory, label: API inventory, description: "Every host, version and endpoint (API9).", files: [notes/04-security.md] }
+    edges:
+      - "idp -> secrets [data]: client secrets, keys"
+      - "idp -> scopes: tokens carry scopes"
+      - scopes -> owasp
+      - "owasp -> inventory [data]: endpoint listed"
+
+  - id: ship
+    title: Test & Ship
+    description: Prove the contract, then release in small steps.
+    nodes:
+      - { id: contracttests, type: guard, label: Contract tests, description: Pact (consumer-driven)., files: [notes/05-ship.md] }
+      - { id: fuzz, type: guard, label: Schema fuzzing, description: Schemathesis from the OpenAPI spec., files: [notes/05-ship.md] }
+      - { id: ci, type: process, label: CI pipeline, files: [notes/05-ship.md] }
+      - { id: expand, type: process, label: Expand migration, description: The new shape before the code that uses it., files: [notes/05-ship.md] }
+      - { id: canary, type: decision, label: Canary healthy?, files: [notes/05-ship.md] }
+      - { id: live, type: output, label: Live, files: [notes/05-ship.md] }
+    edges:
+      - contracttests -> fuzz
+      - fuzz -> ci
+      - ci -> expand
+      - expand -> canary
+      - "canary -> live: yes"
+      - "canary -> ci [return]: roll back"
+
+  - id: run
+    title: Run & Evolve
+    description: Serve requests, watch them, and retire old versions without breaking clients.
+    nodes:
+      - { id: requests, type: process, label: Request pipeline, description: "Every request: token, limits, validation, authorization, query, response.", tower: towers/request.tower.yaml, files: [notes/07-request.md] }
+      - { id: telemetry, type: tool, label: OpenTelemetry, description: Stable HTTP and database semantic conventions., files: [notes/06-run.md] }
+      - { id: slo, type: decision, label: SLO burning?, files: [notes/06-run.md] }
+      - { id: oldused, type: decision, label: Old version used?, files: [notes/06-run.md] }
+      - { id: deprecate, type: process, label: Deprecation+Sunset, description: "RFC 9745 and RFC 8594 headers, plus a Link to the guide.", files: [notes/06-run.md] }
+      - { id: retire, type: output, label: Retire version, files: [notes/06-run.md] }
+    edges:
+      - "requests -> telemetry [data]: traces, metrics"
+      - telemetry -> slo
+      - "slo -> oldused: no"
+      - "oldused -> deprecate: yes"
+      - "deprecate -> oldused [return]: traffic left"
+      - "oldused -> retire: no traffic"
+
+links:
+  - "approach.service -> contract.resources: design first"
+  - "approach.generated -> data.schema: the schema is the API"
+  - "contract.spec -> ship.fuzz [data]: schema"
+  - "contract.versioning -> run.deprecate: old majors"
+  - "data.migrations -> ship.expand: expand step"
+  - "security.scopes -> data.schema: RLS policies"
+  - "ship.live -> run.requests: traffic"
+  - "run.slo -> ship.canary [return]: yes, fix or roll back"
+  - "run.retire -> security.inventory [data]: remove"
