@@ -132,7 +132,7 @@ agents:
     resources:
       - { kind: log, label: "Review loop log", path: "logs/review-loop.log" }
     from: .claude/agents/reviewer.md
-    model: z-ai/glm-5.3
+    model: z-ai/glm-5.3-flashx
     harness: { provider: openrouter, max_steps: 25, fresh_session_each_round: true, read_only: true }
     budget: { usd: 1.5, on_exceed: stop }
     files: [src/loop/review-loop.ts, src/openrouter-agent.ts]
@@ -630,9 +630,9 @@ layers:
       - id: glm
         runtime: openrouter
         type: model
-        label: GLM 5.3
-        model: z-ai/glm-5.3
-        description: "Reviewer: a different model family from the coder's. $0.04 in / $4.80 out per M tokens (2026-10-10)."
+        label: GLM 5.3 FlashX
+        model: z-ai/glm-5.3-flashx
+        description: "Reviewer: a different model family from the coder's. $0.37 in / $1.25 out per M tokens (2026-10-10). Review of #70: 6 steps, $0.085, found the blocking bug. Full GLM 5.3 reasoned 1-2.5 min per step and timed out at step 9 ($0.24): too slow for a review loop."
     edges:
       - "policy -> opus: plan, verify"
       - "policy -> sonnet: research, test"

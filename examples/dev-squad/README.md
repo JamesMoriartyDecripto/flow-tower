@@ -43,12 +43,14 @@ arbitrates and verifies; cheaper models from other families code and review thro
 |---|---|---|---|
 | Lead, architect, fresh verifier, last-round fixer | Claude Agent SDK | `claude-opus-5-5` | Claude account |
 | Coder | OpenRouter | `deepseek/deepseek-v4-pro-0813` | 0.66 / 1.98 |
-| Reviewer (read-only) | OpenRouter | `z-ai/glm-5.3` | 0.04 / 4.80 |
+| Reviewer (read-only) | OpenRouter | `z-ai/glm-5.3-flashx` | 0.37 / 1.25 |
 | Security auditor (read-only) | OpenRouter | `deepseek/deepseek-v4-pro-0813` | 0.66 / 1.98 |
 | Researcher, tester / triage, doc-writer | Claude Agent SDK | Sonnet 5.5 / Haiku 5.5 | Claude account |
 
 Prices as of 2026-10-10, from `https://openrouter.ai/api/v1/models`. Field numbers from issue #70
-of the flow-tower repo, round 1 of the coder: 50 steps, $0.13, 231 tests green.
+of the flow-tower repo: coder round 1, 50 steps, $0.13, 231 tests green; reviewer 6 steps, $0.085, one
+blocking bug found; security auditor 9 steps, $0.06. Full GLM 5.3 was tried first as the reviewer: it
+reasoned 1-2.5 min per step and timed out at step 9 ($0.24), so the squad uses its FlashX variant.
 
 The OpenRouter roles run in `src/openrouter-agent.ts`, an OpenAI-style tool loop (sample code: the
 real runner is session tooling outside this repo). Claude Code hooks do not run there, so the fences

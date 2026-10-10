@@ -12,7 +12,8 @@ export const MODELS = {
   sonnet: 'claude-sonnet-5-5',
   haiku: 'claude-haiku-5-5',
   deepseek: 'deepseek/deepseek-v4-pro-0813',
-  glm: 'z-ai/glm-5.3',
+  // The fast variant: full GLM 5.3 reasoned 1-2.5 min per step and timed out on #70; FlashX reviewed in 6 steps.
+  glm: 'z-ai/glm-5.3-flashx',
 } as const;
 
 /** Where a role thinks: the Claude Agent SDK, or an OpenRouter tool loop (src/openrouter-agent.ts). */
