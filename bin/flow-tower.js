@@ -12,8 +12,8 @@ const HELP = `flow-tower — 3D tower visualizer for agentic systems
 Usage
   flow-tower <file.tower.yaml | dir> [more files or dirs...] [--port 5317] [--no-open]
   flow-tower init [file.tower.yaml]
-  flow-tower emit --source <claude-code|codex|pi|hermes> < payload.json  (hooks; JSONL streams live)
-  flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [-m text]
+  flow-tower emit --source <claude-code|codex|pi|hermes> [--tower t] < payload.json  (hooks; JSONL streams live)
+  flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [-m text]
   flow-tower validate <file.tower.yaml | dir>... [--json]
   flow-tower guide                                      print the procedure to generate a tower from a codebase
   flow-tower install-skill [--target <t>] [--project]   install it as an Agent Skill for your coding agent
@@ -27,7 +27,8 @@ Options
       --no-open  Do not open the browser
       --no-update-check  Do not ask GitHub once a day whether a newer release exists
                  (also FLOW_TOWER_NO_UPDATE_CHECK=1; always off in CI)
-      --url      emit: server URL (default http://127.0.0.1:5317)
+      --url      emit: server URL (default http://127.0.0.1:5317); a second server runs on another --port
+      --tower    emit: only match towers whose id or name contains this (two versions in one library)
   -h, --help     Show this help`;
 
 const STARTER = `# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
@@ -155,7 +156,8 @@ or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follo
  * Never fails and never blocks for long: observability must not break the agent it observes.
  */
 async function emit() {
-  const query = values.source ? `?source=${encodeURIComponent(values.source)}` : '';
+  const params = new URLSearchParams(Object.entries({ source: values.source, tower: values.tower }).filter(([, v]) => v));
+  const query = params.size ? `?${params}` : '';
   const headers = { 'content-type': 'application/json' };
   if (env.FLOW_TOWER_TOKEN) headers['x-flow-tower-token'] = env.FLOW_TOWER_TOKEN;
   const post = (events) => fetch(`${values.url}/api/events${query}`, {

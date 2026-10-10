@@ -4,6 +4,7 @@ import { eventMatches, FlowEventSchema, resolveTargets } from '../src/core/event
 import { buildTower } from '../src/core/loader';
 import { TowerSchema } from '../src/core/schema';
 import type { Workspace } from '../src/core/types';
+import { createEventHub } from '../src/server/events';
 
 const ev = (x: object) => FlowEventSchema.parse(x);
 
@@ -90,5 +91,19 @@ describe('matching', async () => {
     expect(eventMatches(ci, ev({ kind: 'log', source: 'github-actions', tool: 'test' }))).toBe(false);
     expect(resolveTargets(ws, ev({ kind: 'log', node: 't.bash' }))).toEqual(['x.tower.yaml#t.bash']);
     expect(resolveTargets(ws, ev({ kind: 'log', agent: 'coder', tower: 'nope' }))).toEqual([]);
+  });
+});
+
+describe('?tower= on /api/events', () => {
+  it('restricts matching to one of two versions of the same project', async () => {
+    const def = TowerSchema.parse({ name: 'Squad', layers: [{ id: 'a', title: 'A', nodes: [{ id: 'coder', label: 'Coder', match: ['agent:coder'] }] }] });
+    const tower = async (id: string, name: string) => ({ ...(await buildTower(def, id, { read: async () => undefined }, [])), name });
+    const ws: Workspace = { projects: ['v1.tower.yaml', 'v2.tower.yaml'], towers: { 'v1.tower.yaml': await tower('v1.tower.yaml', 'Squad'), 'v2.tower.yaml': await tower('v2.tower.yaml', 'Squad v2') }, loadedAt: '' };
+    const hub = createEventHub(() => ws, () => undefined);
+    hub.ingest({ kind: 'agent.start', agent: 'coder' });
+    hub.ingest({ kind: 'agent.start', agent: 'coder' }, undefined, 'v2');
+    const [both, only] = hub.recent();
+    expect(both.targets).toEqual(['v1.tower.yaml#a.coder', 'v2.tower.yaml#a.coder']);
+    expect(only.targets).toEqual(['v2.tower.yaml#a.coder']);
   });
 });

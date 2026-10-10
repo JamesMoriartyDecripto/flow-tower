@@ -20,13 +20,14 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
   const buffer: FlowEvent[] = [];
   let seq = 0;
 
-  const ingest = (raw: unknown, source?: string): { accepted: number; rejected: number } => {
+  /** `tower`: restricts matching for events that do not say it themselves (?tower= on hook URLs). */
+  const ingest = (raw: unknown, source?: string, tower?: string): { accepted: number; rejected: number } => {
     const ws = getWorkspace();
     const items = Array.isArray(raw) ? raw : [raw];
     const out: FlowEvent[] = [];
     let rejected = 0;
     for (const item of items.flatMap((x) => normalize(source, x))) {
-      const parsed = FlowEventSchema.safeParse(item);
+      const parsed = FlowEventSchema.safeParse(tower ? { tower, ...(item as object) } : item);
       if (!parsed.success) { rejected++; continue; }
       const e = parsed.data;
       out.push({ ...e, id: ++seq, ts: e.ts ?? Date.now(), targets: ws ? resolveTargets(ws, e) : [] });
@@ -37,7 +38,7 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     return { accepted: out.length, rejected };
   };
 
-  /** POST /api/events (JSON object or array; ?source= picks an adapter). GET returns the buffer. */
+  /** POST /api/events (JSON object or array; ?source= picks an adapter, ?tower= restricts matching). GET returns the buffer. */
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '', 'http://local');
     if (req.method === 'GET') return json(res, 200, buffer.filter((e) => e.id > Number(url.searchParams.get('since') ?? 0)));
@@ -58,7 +59,7 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
       try {
         const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if (Array.isArray(body) && body.length > MAX_BATCH) return json(res, 413, { error: `at most ${MAX_BATCH} events per request` });
-        const result = ingest(body, sourceOf(req, url));
+        const result = ingest(body, sourceOf(req, url), url.searchParams.get('tower') ?? undefined);
         // Claude Code HTTP hooks read a JSON body as a hook decision: answer with an empty 204 by default.
         if (url.searchParams.has('verbose')) json(res, 202, result);
         else { res.statusCode = 204; res.end(); }

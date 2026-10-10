@@ -36,6 +36,7 @@ npm run dev                                  # library of the bundled examples
 node bin/flow-tower.js path/to/agent.tower.yaml
 node bin/flow-tower.js ~/projects            # every *.tower.yaml found, as a library
 node bin/flow-tower.js init my-agent.tower.yaml   # starter file
+node bin/flow-tower.js other.tower.yaml --port 5318  # a second server next to the first
 ```
 
 Requires Node 22.12 or newer. The app runs locally on `127.0.0.1`. Nothing is uploaded.

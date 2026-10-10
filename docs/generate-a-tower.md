@@ -92,7 +92,7 @@ Tell the user, briefly:
 - files written;
 - layers, nodes and nested towers;
 - what was inferred and what is uncertain;
-- how to open it: `node <flow-tower>/bin/flow-tower.js <tower-file>` (or a folder, for the library view). It serves on `http://127.0.0.1:5317` and opens a browser; add `--no-open` in headless environments.
+- how to open it: `node <flow-tower>/bin/flow-tower.js <tower-file>` (or a folder, for the library view). It serves on `http://127.0.0.1:5317` and opens a browser; add `--no-open` in headless environments, and `--port 5318` if another tower is already open (live events go to the port the hooks point at).
 
 ## Updating an existing tower
 
