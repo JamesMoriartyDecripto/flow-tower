@@ -21,11 +21,19 @@ export const DEFAULT_JUDGE_MODEL = 'deepseek/deepseek-v4.1-flash';
 // real environment wins, then the user folder's key file, then this checkout's, then the main checkout's
 // (a worktree has no copy of the ignored file). Returns true/false, never the key.
 export function resolveKey() {
+  // The shell already wins in that order, so there is no reason to touch git at all.
+  if (env.OPENROUTER_API_KEY) return true;
   const DOT = '.' + 'env';
   const USER_ENV = join(env.FLOW_TOWER_HOME ?? join(homedir(), '.config', 'flow-tower'), DOT);
-  const repo = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: HERE, encoding: 'utf8' }).trim();
-  const main = dirname(resolve(repo, execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: repo, encoding: 'utf8' }).trim()));
-  for (const f of [USER_ENV, join(repo, DOT), join(main, DOT)]) {
+  const files = [USER_ENV];
+  // Copied outside a git checkout, or with no git on PATH, the repo candidates cannot be resolved: keep
+  // the user folder's key file only, so the caller prints its one-line message instead of a stack trace.
+  try {
+    const repo = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: HERE, encoding: 'utf8' }).trim();
+    const main = dirname(resolve(repo, execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: repo, encoding: 'utf8' }).trim()));
+    files.push(join(repo, DOT), join(main, DOT));
+  } catch { /* no git checkout: the two repo candidates are skipped */ }
+  for (const f of files) {
     if (!env.OPENROUTER_API_KEY && existsSync(f)) loadEnvFile(f);
   }
   return Boolean(env.OPENROUTER_API_KEY);

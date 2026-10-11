@@ -45,8 +45,12 @@ interface Machine {
   online: boolean;
 }
 
-/** The two rows the Machines tests start from: one healthy and online, one revoked long ago. */
-const MACHINES: Machine[] = [
+/**
+ * The two rows the Machines tests start from: one healthy and online, one revoked long ago. Built per
+ * call, not at module load: a suite that takes minutes to reach these tests would otherwise age the
+ * online row past the server's 5-minute window before it is ever served.
+ */
+const machines = (): Machine[] => [
   { sender: 'ana-mbp', token: 'ft_ab12…', runtime: 'claude-code', host: 'ana-mbp', lastSeen: Date.now(), queued: 0, state: 'active', online: true },
   { sender: 'old-ci', token: 'ft_cd34…', runtime: 'cron', host: 'ci-1', state: 'revoked', online: false },
 ];
@@ -87,7 +91,8 @@ test('now: one row per machine, runtime and starter, and no message anywhere', a
 });
 
 test('machines: senders, dots and shortened token labels', async ({ page }) => {
-  await page.route('**/api/hub/machines', (r) => r.fulfill({ json: MACHINES }));
+  // Stamped per poll, so every answer carries a fresh `lastSeen`.
+  await page.route('**/api/hub/machines', (r) => r.fulfill({ json: machines() }));
   await openProject(page, DEV);
   // The panel opens on Now; `]` cycles the tabs through the window event App.tsx dispatches. The tab
   // listener is attached by an effect, so the panel must exist before the key is sent.
@@ -110,7 +115,7 @@ test('machines: senders, dots and shortened token labels', async ({ page }) => {
 });
 
 test('machines: a later poll failing keeps the rows and warns', async ({ page, errors }) => {
-  await page.route('**/api/hub/machines', (r) => r.fulfill({ json: MACHINES }));
+  await page.route('**/api/hub/machines', (r) => r.fulfill({ json: machines() }));
   await openProject(page, DEV);
   await page.keyboard.press('h');
   await expect(page.locator('.hub')).toBeVisible();
@@ -141,7 +146,7 @@ test('machines: a later poll failing keeps the rows and warns', async ({ page, e
 test('hub chip: a read-only viewer sees the counters, a plain server shows no chip', async ({ page }) => {
   await page.route('**/api/hub/me', (r) => r.fulfill({ json: { hub: true, readOnly: true, online: 1, tokens: 2 } }));
   // The pill opens the senders list: answer that route too, so the screenshot shows a known table.
-  await page.route('**/api/hub/machines', (r) => r.fulfill({ json: MACHINES }));
+  await page.route('**/api/hub/machines', (r) => r.fulfill({ json: machines() }));
   await openProject(page, DEV);
   await expect(page.locator('.topbar .hub-chip')).toHaveText('HUB 1/2');
   await expect(page.locator('.topbar .hub-ro')).toHaveText('READ-ONLY');
