@@ -243,13 +243,17 @@ async function loadTower(file: string, id: string, project: string, watched: Set
       try { return await readFile(abs, 'utf8'); } catch { missing.add(abs); return undefined; }
     },
   };
-  const tower = await buildTower(def, id, fs, issues, (p) => {
+  const tower = await buildTower(def, id, fs, issues, (p, where) => {
     const abs = safeJoin(project, resolve(root, p));
     if (!abs) { outside(p); return false; }
     if (isForbiddenSync(abs, p)) { secret(p); return false; } // not even whether it exists
-    if (existsSync(abs)) return true;
-    missing.add(abs);
-    return false;
+    if (!existsSync(abs)) { missing.add(abs); return false; }
+    // A folder listed as a file reads fine here but 404s from /api/file in the app (issue #118): report it
+    // like a missing file. Only node `files` carry the node's path, so a folder resource stays accepted.
+    if (where && statSync(abs).isDirectory()) {
+      issues.push({ level: 'warning', message: `files entry "${p}" is a folder; list the files inside it instead`, path: where });
+    }
+    return true;
   });
   const refs = new Set(tower.layers.flatMap((l) => l.nodes.flatMap((n) => [n.tower, n.agent?.tower])).filter(Boolean) as string[]);
   const nested = [];
@@ -265,7 +269,7 @@ async function loadTower(file: string, id: string, project: string, watched: Set
 
 /** Turns a validated definition into the resolved model and collects issues. Pure aside from `fs`. */
 export async function buildTower(
-  def: TowerDef, id: string, fs: FileReader, issues: Issue[], exists: (p: string) => boolean = () => true,
+  def: TowerDef, id: string, fs: FileReader, issues: Issue[], exists: (p: string, where?: string) => boolean = () => true,
 ): Promise<ResolvedTower> {
   const prompts: Record<string, ResolvedPrompt> = {};
   for (const [pid, p] of Object.entries(def.prompts)) prompts[pid] = await resolvePromptDef(p, fs, issues, `prompts.${pid}`, pid);
@@ -299,7 +303,7 @@ export async function buildTower(
       const agent = n.agent ? agents[n.agent] : undefined;
       if (n.agent && !agent) issues.push({ level: 'error', message: `unknown agent "${n.agent}"`, path: where });
       const files = [...new Set([...(agent?.files ?? []), ...(n.files ?? [])])];
-      for (const f of n.files ?? []) if (!exists(f)) issues.push({ level: 'warning', message: `file not found: ${f}`, path: where });
+      for (const f of n.files ?? []) if (!exists(f, where)) issues.push({ level: 'warning', message: `file not found: ${f}`, path: where });
       const resources = [...(agent?.resources ?? []), ...(n.resources ?? [])];
       for (const r of n.resources ?? []) if (r.path && !exists(r.path)) issues.push({ level: 'warning', message: `resource not found: ${r.path}`, path: where });
 
