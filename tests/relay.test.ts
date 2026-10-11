@@ -76,6 +76,34 @@ describe('satellite relay (#91)', () => {
     relay.stop();
   });
 
+  it('stays online while events wait for the next flush, and only queues while backing off', { timeout: 5_000 }, async () => {
+    // The event endpoint's status changes mid-test; the heartbeat (start-up) always answers 204.
+    let status = 204;
+    const server = createServer((req, res) => {
+      req.on('data', () => {});
+      req.on('end', () => {
+        res.statusCode = req.url === '/api/events' ? status : 204;
+        res.end('{}');
+      });
+    });
+    servers.push(server);
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const relay = relayOf(`http://127.0.0.1:${(server.address() as AddressInfo).port}`);
+
+    relay.push([event()]);
+    // Events merely waiting for the next flush are not "queued": a healthy relay is online.
+    expect(relay.state()).toMatchObject({ state: 'online', queued: 1 });
+
+    status = 503;
+    await relay.flush();
+    expect(relay.state()).toMatchObject({ state: 'queued', queued: 1 });
+
+    status = 204;
+    await relay.flush();
+    expect(relay.state()).toMatchObject({ state: 'online', queued: 0 });
+    relay.stop();
+  });
+
   it('stops sending on 401 and reports revoked', { timeout: 5_000 }, async () => {
     const hub = await stubHub(() => 401);
     const relay = relayOf(hub.url);

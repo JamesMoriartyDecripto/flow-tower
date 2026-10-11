@@ -53,6 +53,8 @@ export function createRelay(opts: RelayOptions) {
   let stopped = false;
   let inFlight = false;
   let backoff = 0;
+  // True while the last send attempt failed on the hub's side: only then are waiting events "queued".
+  let unreachable = false;
   // Start "one second ago" so the first push waits out the gap instead of flushing immediately.
   let lastAttempt = now() - MIN_GAP_MS;
   let lastSentAt: number | undefined;
@@ -105,21 +107,26 @@ export function createRelay(opts: RelayOptions) {
         lastSentAt = now();
         lastError = undefined;
         backoff = 0;
+        unreachable = false;
         return;
       }
       if (res.status === 429 || res.status >= 500) {
         // The hub is busy or broken: keep the events and try again later, backing off each time.
         lastError = `hub answered ${res.status}`;
         backoff = nextBackoff(backoff);
+        unreachable = true;
         return;
       }
       // Any other 4xx means the batch itself is refused: retrying it forever would block the queue.
       queue.splice(0, slice.length);
       dropped += slice.length;
       lastError = `hub rejected the batch (${res.status})`;
+      // The hub did answer, so waiting events are not stuck on an unreachable hub.
+      unreachable = false;
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
       backoff = nextBackoff(backoff);
+      unreachable = true;
     } finally {
       inFlight = false;
       schedule();
@@ -189,12 +196,14 @@ export function createRelay(opts: RelayOptions) {
       if (res.status === 429 || res.status >= 500) {
         lastError = `hub answered ${res.status}`;
         backoff = nextBackoff(backoff);
+        unreachable = true;
         scheduleHeartbeat(backoff);
         return;
       }
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
       backoff = nextBackoff(backoff);
+      unreachable = true;
       scheduleHeartbeat(backoff);
       return;
     }
@@ -205,8 +214,9 @@ export function createRelay(opts: RelayOptions) {
   scheduleHeartbeat(0);
 
   const state = (): RelayState => ({
-    // 'queued' is the honest answer while events wait here, whether the hub is unreachable or just slow.
-    state: revoked ? 'revoked' : queue.length ? 'queued' : 'online',
+    // 'queued' means events wait because the last send attempt failed (unreachable hub, 5xx or 429).
+    // Events simply waiting for the next flush are normal: a healthy relay stays 'online'.
+    state: revoked ? 'revoked' : unreachable && queue.length ? 'queued' : 'online',
     hub,
     queued: queue.length,
     dropped,
