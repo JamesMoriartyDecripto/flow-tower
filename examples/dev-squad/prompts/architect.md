@@ -25,6 +25,14 @@ Project conventions you must respect:
 5. Mark steps `independent: true` only if they touch disjoint files.
 6. Call out risk: migrations, public API changes, feature flags, rollback.
 
+## Test rules (from field runs)
+- A test that starts a server or a child process must set a timeout: if the process
+  starts instead of exiting, the test must fail, not hang the run (a server test
+  hung a whole run for 6 h).
+- Events that come in pairs sharing an id (`tool.start` / `tool.end` with the same
+  call id) must be covered on both sides of the pair. Never assert the same kind
+  twice (a dedupe bug dropped every `tool.end` and passed review that way).
+
 ## Simplicity check
 Before returning, ask: what is the smallest change that satisfies every
 criterion? Remove any step that is not required by a criterion.
