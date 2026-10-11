@@ -1,57 +1,70 @@
-# npm run e2e: passed, 56 tests, 0 not passed (2026-10-11T15:00Z)
-passed      0.8s  the file API refuses paths outside the tower root
-passed      1.1s  events endpoint rejects malformed bodies without crashing
-passed     10.0s  every referenced file is served by /api/file
-passed     10.4s  voice: Esc silences the reply still being written, and the turn is journaled as interrupted
+# npm run e2e: passed, 69 tests, 0 not passed (2026-10-11T20:12Z)
+passed      0.6s  the file API refuses paths outside the tower root
+passed      1.7s  events endpoint rejects malformed bodies without crashing
+passed     10.1s  without origins: the plain dev server shows no badge at all
+passed     10.2s  every referenced file is served by /api/file
+passed     12.4s  with origins: the first project is MINE and the rest are EXAMPLE
+passed     12.5s  Escape closes the Hub panel and the right panel comes back
+passed     12.7s  keyboard: ArrowRight moves the Hub tabs and leaves the camera alone
+passed     13.1s  voice journal: turns are written, a correction marks the last one, accepted aliases apply first (#68)
+passed     13.2s  tower: Pocket Voice Assistant
 passed     13.4s  tower: Research Helper
-passed     14.7s  voice journal: turns are written, a correction marks the last one, accepted aliases apply first (#68)
-passed     15.1s  live feed: mapped, error and unmapped events
-passed     15.5s  layout 1440x900 at 1x
-passed     15.9s  layout 1440x900 at 1.3x
-passed     16.2s  layout 1280x720 at 1x
-passed     16.2s  voice: a command acts at once, a question gets a streamed answer that shows what it talks about
-passed     16.3s  layout 1024x640 at 1x
-passed     16.6s  OTLP logs: tokens and cost per node, per tower and per project
-passed     16.7s  layout 720x900 at 1x
-passed     17.0s  layout 2560x1440 at 1.6x
-passed     17.1s  tower: PR Review Bot
-passed     17.5s  tower: Pocket Voice Assistant
-passed     17.9s  tower: Physics Notes: Mechanics
-passed     18.1s  tower: Docs Q&A Bot
-passed     18.2s  layout 1920x1080 at 1.15x
-passed     18.3s  tower: Legacy Portal Browser Worker
-passed     19.1s  tower: Fraud Review Desk
-passed     19.7s  the PNG pack is Full HD and includes the 3D view (balanced)
-passed     19.7s  tower: History Notes: The French Revolution
-passed     19.8s  tower: Team Hub
-passed     20.1s  tower: Docs Q&A
-passed     20.5s  the PNG pack is Full HD and includes the 3D view (eco)
-passed     20.6s  tower: Voice Commands
-passed     21.3s  tower: Airline Customer Service
-passed     21.9s  tower: Command Center
-passed     22.1s  tower: Model Benchmark
-passed     22.4s  the SVG pack has every layer and map of the project and its sub-towers
-passed     23.6s  tower: SRE Incident Responder
-passed     23.7s  file viewer: formatted Markdown, source, wrap
-passed     23.9s  tower: Deep Research Team
-passed     23.9s  tower: Release Auditor
-passed     24.2s  tower: Database API Playbook
-passed     24.2s  tower: Jev Agent
-passed     24.2s  tower: Website & Web Design Studio
-passed     24.4s  tower: Social Media Studio
-passed     25.3s  tower: A2A Purchasing Concierge
-passed     26.5s  tower: Ambient Chief of Staff
-passed     27.2s  tower: Invoicing with Fatture in Cloud
-passed     27.5s  tower: AI Video Studio
-passed     27.6s  tower: Marketing Studio
-passed     27.7s  tower: AI Co-Scientist
-passed     28.5s  zoom is kept when moving to the next node of the same layer
-passed     28.7s  tower: Legal Due Diligence
-passed     28.9s  tower: Ebook Studio
-passed     29.1s  tower: Dev Squad
-passed     29.3s  tower: Sales Pipeline: prospect to invoice
-passed     29.9s  tower: Mobile App Studio
-passed     32.6s  selecting a node zooms in on it and the camera follows the next ones
-passed     37.3s  accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)
-passed     44.4s  tower: Syllabus Forge
-passed     63.9s  tower: Forge Studio
+passed     13.9s  md table: wide tables scroll instead of squeezing columns to one letter
+passed     13.9s  voice: a command acts at once, a question gets a streamed answer that shows what it talks about
+passed     14.1s  voice: Esc silences the reply still being written, and the turn is journaled as interrupted
+passed     14.3s  layout 1280x720 at 1x
+passed     14.3s  layout 720x900 at 1x
+passed     14.3s  math: KaTeX still renders after the bump
+passed     14.4s  machines: senders, dots and shortened token labels
+passed     14.5s  layout 1024x640 at 1x
+passed     14.7s  layout 1920x1080 at 1.15x
+passed     14.7s  updates: daily check, a forced check, the throttle and an offline answer
+passed     15.0s  OTLP logs: tokens and cost per node, per tower and per project
+passed     15.0s  layout 1440x900 at 1.3x
+passed     15.1s  layout 1440x900 at 1x
+passed     15.1s  layout 2560x1440 at 1.6x
+passed     15.7s  voice: "chiudi il file" closes the viewer and keeps the node selected (#128)
+passed     16.0s  tower: Physics Notes: Mechanics
+passed     16.1s  live feed: mapped, error and unmapped events
+passed     16.2s  tower: Docs Q&A
+passed     16.6s  tower: History Notes: The French Revolution
+passed     16.7s  tower: Fraud Review Desk
+passed     17.1s  voice: "apri il suo file" then "il prossimo" walk the files, then the layer (#130)
+passed     17.2s  tower: PR Review Bot
+passed     17.4s  tower: Docs Q&A Bot
+passed     17.6s  tower: Airline Customer Service
+passed     18.0s  tower: Legacy Portal Browser Worker
+passed     18.3s  tower: Voice Commands
+passed     18.5s  tower: Command Center
+passed     18.8s  now: one row per machine, runtime and starter, and no message anywhere
+passed     18.8s  tower: Team Hub
+passed     19.1s  hub chip: a read-only viewer sees the counters, a plain server shows no chip
+passed     19.4s  tower: Model Benchmark
+passed     20.3s  the PNG pack is Full HD and includes the 3D view (eco)
+passed     20.3s  tower: SRE Incident Responder
+passed     20.4s  tower: Jev Agent
+passed     20.5s  the PNG pack is Full HD and includes the 3D view (balanced)
+passed     20.7s  tower: A2A Purchasing Concierge
+passed     21.2s  tower: Database API Playbook
+passed     21.4s  tower: Ambient Chief of Staff
+passed     21.6s  the SVG pack has every layer and map of the project and its sub-towers
+passed     21.8s  file viewer: formatted Markdown, source, wrap
+passed     23.0s  tower: Release Auditor
+passed     23.1s  tower: Ebook Studio
+passed     23.2s  tower: AI Co-Scientist
+passed     23.2s  tower: Website & Web Design Studio
+passed     23.4s  tower: Deep Research Team
+passed     24.1s  machines: a later poll failing keeps the rows and warns
+passed     25.0s  tower: Social Media Studio
+passed     25.5s  tower: AI Video Studio
+passed     25.7s  tower: Invoicing with Fatture in Cloud
+passed     26.7s  zoom is kept when moving to the next node of the same layer
+passed     27.2s  tower: Marketing Studio
+passed     27.4s  tower: Dev Squad
+passed     27.4s  tower: Legal Due Diligence
+passed     27.8s  tower: Mobile App Studio
+passed     28.4s  selecting a node zooms in on it and the camera follows the next ones
+passed     30.4s  accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)
+passed     30.4s  tower: Sales Pipeline: prospect to invoice
+passed     40.9s  tower: Syllabus Forge
+passed     56.8s  tower: Forge Studio

@@ -4,24 +4,25 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Status on 2026-10-11
 
-- **v0.6.0 released:** the team-hub stack, its towers and guides, the skills, model-benchmark and `tools/squad` are on main. Gates and e2e: [report](examples/release-auditor/reports/v0.6.0.md).
+- **v0.7.0 released:** the Hub panel (#92), your own library (#121), voice that closes files and resolves "its file" / "the next one" locally (#128, #130), Settings › Updates (#141), the #136 field notes, wide Markdown tables (#133), `validate` folder refs (#118), KaTeX (#119). Gates and e2e: [report](examples/release-auditor/reports/v0.7.0.md).
 - **Live:** a hub on the test server running the [command-center](examples/command-center) kit, and a laptop satellite relaying to it.
-- **Hub panel shipped:** #92 (PR #124) is merged and live-tested on the real hub.
-- **Found at release:** #118 (`validate` misses folder references; CI does not run e2e), #119 (KaTeX override, Dependabot low).
+- **Voice 2 plan:** [#129](https://github.com/JamesMoriartyDecripto/flow-tower/issues/129); item 1 (referents) shipped.
 
 ## Next, in order
 
-1. #121 the user's own library (in review, this PR)
-2. #122 contribution path: open-source best practices
-3. #85 privacy profiles
-4. #93 admin
-5. #94 alerts
-6. #95 remote activity
-7. #86 fan-out
-8. #97 systemd, compose, Caddy and Tailscale on the real server
-9. #99 dev-server heap and port leak
-10. #105 model benchmarks ([model-benchmark](examples/model-benchmark))
-11. #69, #65, #5
+1. #122 contribution path: open-source best practices (needs the maintainer's choices: DCO, code-of-conduct contact, Discussions)
+2. #129 voice 2: the remaining tools, then `live_status`, clarifying questions, proactive alerts, browser VAD
+3. #137 optional runtime files (schema)
+4. #85 privacy profiles
+5. #93 admin
+6. #94 alerts
+7. #95 remote activity
+8. #86 fan-out
+9. #126 split `bin/flow-tower.js`
+10. #97 systemd, compose, Caddy and Tailscale on the real server
+11. #99 dev-server heap and port leak
+12. #105 model benchmarks ([model-benchmark](examples/model-benchmark))
+13. #69, #65, #5
 
 ## How work is done
 
