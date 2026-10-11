@@ -19,6 +19,9 @@ Press **V** or the **MIC** button (top bar or library header) and say where to g
 | "indietro" | "back" | Go back, like Esc |
 | "libreria" | "library" | Project library |
 | "chiudi il file" | "close the file" | Closes only the viewer (the node stays selected) |
+| "apri il suo file", "apri il secondo file" | "open its file", "open the second file" | Open a numbered file of the selected node |
+| "il prossimo", "file successivo" | "next", "next file" | One step forward: the viewer's tabs, the last list, or the layer's nodes |
+| "il precedente", "file precedente" | "previous", "previous file" | One step back |
 | "spegni il microfono" | "stop listening" | Microphone off |
 
 A name alone works too ("triage"). Names come from what is on screen: projects, layers, nodes and agents. They match loosely, so a misheard word still finds its target. When a name fits several things, the caption numbers them: say "il primo" or "two" to pick. "Entra" / "enter" opens the selected node's sub-tower, "chiudi" / "close" closes the panel. Listening stops by itself after 2 minutes without a command.

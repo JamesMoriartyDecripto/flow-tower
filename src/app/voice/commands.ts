@@ -16,6 +16,11 @@ export type VoiceAction =
   | { kind: 'enter' }
   | { kind: 'close' }
   | { kind: 'close-file' }
+  // "apri il suo file": the numbered one of the selected node's files (index 0-based).
+  | { kind: 'its-file'; index: number }
+  // "il prossimo" / "file successivo": one step forward (dir 1) or back (dir -1), through the file
+  // viewer, the last list shown, or the nodes of the focused layer (what 'auto').
+  | { kind: 'step'; dir: 1 | -1; what: 'auto' | 'file' }
   | { kind: 'mic-off' }
   | { kind: 'ambiguous'; options: { label: string; action: VoiceAction }[] }
   | { kind: 'unknown' };
@@ -29,7 +34,7 @@ export interface VoiceContext { ws: Workspace; tower?: ResolvedTower; library?: 
  * keyword anywhere (`overview`, `view`, `mic-off`) would also fire on real questions like "what does
  * the overview show?", so they keep today's routing to the agent, as do the fuzzy name matches.
  */
-export const FIXED_KINDS = new Set<VoiceAction['kind']>(['close-file', 'close', 'back', 'enter']);
+export const FIXED_KINDS = new Set<VoiceAction['kind']>(['close-file', 'close', 'back', 'enter', 'its-file', 'step']);
 
 /** The parser matched a whole fixed phrase: a command, so it must not be sent to the agent. */
 export const isFixed = (action: VoiceAction): boolean => FIXED_KINDS.has(action.kind);
@@ -52,6 +57,10 @@ const ORDINALS: Record<string, number> = {
   first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12,
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
 };
+
+/** Every number word the parser knows, for the phrases that take one ("apri il file 2", "open the second file"). */
+const NUM = Object.keys(ORDINALS).join('|');
+const NUM_TOKEN = `(?:${NUM}|\\d{1,2})`;
 
 const has = (words: string[], ...any: string[]) => any.some((w) => words.includes(w));
 /** A command word, forgiving one wrong letter in longer words: Whisper hears "vista matta" for "vista mappa". */
@@ -149,6 +158,21 @@ export function parseCommand(transcript: string, { ws, tower, library }: VoiceCo
   // Whole-utterance only: "chiudi il file del nodo X" names a node, so it stays with the agent.
   if (phrase(text, /^(chiudi (il |la )?(file|finestra|viewer|visualizzatore)|close (the )?(file|window|viewer))$/)) return { kind: 'close-file' };
   if (phrase(text, /^(chiudi|close|deseleziona|deselect|chiudi il pannello|close the panel)$/)) return { kind: 'close' };
+  // Whole-utterance only: "apri il file del nodo triage" names a node, so it stays with the agent.
+  // "indietro" alone is `back` (the whole-utterance check above); "indietro di uno" is a step here.
+  const itsFile = new RegExp(
+    '^(apri il suo file|il suo file' +
+    `|apri (il )?(?:${NUM_TOKEN} )?file(?: ${NUM_TOKEN})?|il (?:${NUM_TOKEN} )?file` +
+    `|open its file|its file|open (the )?(?:${NUM_TOKEN} )?file(?: ${NUM_TOKEN})?)$`,
+  );
+  if (phrase(text, itsFile)) {
+    const n = words.map((w) => ORDINALS[w] ?? (/^\d{1,2}$/.test(w) ? Number(w) : undefined)).find((x) => x !== undefined);
+    return { kind: 'its-file', index: (n ?? 1) - 1 };
+  }
+  const what = phrase(text, /^(file (successivo|precedente)|(prossimo|next) file|previous file)$/) ? 'file'
+    : phrase(text, /^(il |the )?(prossimo|successivo|next|precedente|previous)( one)?$|^(e il prossimo|quello dopo|avanti|quello prima|indietro di uno)$/) ? 'auto'
+      : undefined;
+  if (what) return { kind: 'step', dir: has(words, 'precedente', 'previous', 'prima', 'indietro') ? -1 : 1, what };
 
   const saysTower = like(all, 'progetto', 'project', 'torre', 'tower', 'apri', 'open', 'aprimi');
   const saysLayer = like(all, 'livello', 'livelli', 'layer', 'level', 'piano');

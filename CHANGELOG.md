@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Added
 - Voice: "chiudi il file" / "close the file" closes only the file viewer and keeps the node selected (agent tool `close_file`), #128.
+- Voice (#130): "apri il suo file" / "open its file" (and "apri il file 2", "open the second file") opens a numbered file of the selected node, and "il prossimo" / "next file" (or "precedente" / "previous") steps through the file viewer, the last list shown or the nodes of the focused layer.
 - Hub panel (#92): press `H` on a hub for the Now tab (who runs what right now) and the Machines tab (every sender the hub trusts); a `HUB n/m` top-bar pill (senders seen in the last 5 min / active tokens) and a `READ-ONLY` pill for a remote viewer, fed by `GET /api/hub/machines` and `GET /api/hub/me`.
 
 ### Security
