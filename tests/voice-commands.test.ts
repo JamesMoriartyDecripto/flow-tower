@@ -66,6 +66,14 @@ describe('voice commands (#62)', () => {
     // Fuzzy name matches are not fixed: with an agent configured they keep today's routing.
     expect(isFixed(say('nodo triage'))).toBe(false);
     expect(isFixed(say('cosa fa questo file?'))).toBe(false);
+    // Kinds matched on a keyword anywhere are questions as often as commands: not fixed.
+    expect(isFixed(say('cosa mostra la panoramica?'))).toBe(false);
+    expect(isFixed(say('what does the overview show?'))).toBe(false);
+    expect(isFixed(say('come spengo il microfono?'))).toBe(false);
+    // Deliberate: `norm` drops punctuation, so the question mark does not make this a question.
+    expect(isFixed(say('chiudi il file?'))).toBe(true);
+    expect(say('chiudi il file?')).toEqual({ kind: 'close-file' });
+    expect(isFixed(say('chiudi il file del nodo triage'))).toBe(false);
   });
 
   it('offers a choice when names tie, and admits when nothing matches', () => {

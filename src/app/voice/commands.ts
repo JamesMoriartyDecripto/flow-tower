@@ -24,11 +24,12 @@ export type VoiceAction =
 export interface VoiceContext { ws: Workspace; tower?: ResolvedTower; library?: boolean }
 
 /**
- * Kinds matched by a whole fixed phrase ("chiudi il file", "indietro", "close"). These are exact
- * whole-utterance phrases, so when one matches the user gave a command, not a question; fuzzy name
- * matches (`node`, `layer`, `tower`) keep today's routing to the agent.
+ * Kinds whose phrase regex is anchored to the whole utterance (`^…$`) belong here, and only those.
+ * An anchored match means the user said exactly that command, not asked about it; kinds matched on a
+ * keyword anywhere (`overview`, `view`, `mic-off`) would also fire on real questions like "what does
+ * the overview show?", so they keep today's routing to the agent, as do the fuzzy name matches.
  */
-export const FIXED_KINDS = new Set<VoiceAction['kind']>(['close-file', 'close', 'back', 'mic-off', 'enter', 'overview', 'view']);
+export const FIXED_KINDS = new Set<VoiceAction['kind']>(['close-file', 'close', 'back', 'enter']);
 
 /** The parser matched a whole fixed phrase: a command, so it must not be sent to the agent. */
 export const isFixed = (action: VoiceAction): boolean => FIXED_KINDS.has(action.kind);
