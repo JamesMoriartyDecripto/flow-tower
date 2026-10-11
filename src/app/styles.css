@@ -353,6 +353,13 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .sharing-pre { max-height: 180px; overflow: auto; margin: 0 0 14px; padding: 10px 12px; font: 12px/1.5 var(--mono); color: #cfdcf3;
   background: rgba(0, 0, 0, .25); border: 1px solid var(--line-soft); }
 
+/* Updates (#141): the release link and the copyable update command. */
+.updates-link { color: var(--orange); font: 600 11px var(--display); letter-spacing: .1em; text-transform: uppercase; text-decoration: none; }
+.updates-link:hover { text-decoration: underline; }
+.set-control .updates-cmd { display: flex; align-items: center; gap: 10px; max-width: 420px; }
+.updates-cmd code { padding: 4px 8px; font: 12px/1.4 var(--mono); color: var(--white); overflow-wrap: anywhere;
+  background: rgba(0, 0, 0, .25); border: 1px solid var(--line-soft); }
+
 @media (max-width: 1400px) {
   .livefeed { width: 380px; }
   .livefeed.shifted { right: 440px; }
