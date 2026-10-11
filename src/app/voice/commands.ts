@@ -23,6 +23,16 @@ export type VoiceAction =
 /** `tower`: the one on screen (or behind the library); `library`: the library is open, so names mean projects first. */
 export interface VoiceContext { ws: Workspace; tower?: ResolvedTower; library?: boolean }
 
+/**
+ * Kinds matched by a whole fixed phrase ("chiudi il file", "indietro", "close"). These are exact
+ * whole-utterance phrases, so when one matches the user gave a command, not a question; fuzzy name
+ * matches (`node`, `layer`, `tower`) keep today's routing to the agent.
+ */
+export const FIXED_KINDS = new Set<VoiceAction['kind']>(['close-file', 'close', 'back', 'mic-off', 'enter', 'overview', 'view']);
+
+/** The parser matched a whole fixed phrase: a command, so it must not be sent to the agent. */
+export const isFixed = (action: VoiceAction): boolean => FIXED_KINDS.has(action.kind);
+
 /** Lowercase, no accents, no punctuation: "Più Livelli!" → "piu livelli". */
 export const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadLibrary } from '../src/core/loader';
-import { parseCommand, type VoiceAction } from '../src/app/voice/commands';
+import { isFixed, parseCommand, type VoiceAction } from '../src/app/voice/commands';
 
 const { workspace: ws } = await loadLibrary(['examples/dev-squad', 'examples/db-api-playbook', 'examples/physics-notes']);
 const squad = ws.towers['dev-squad/dev-squad.tower.yaml'];
@@ -57,6 +57,15 @@ describe('voice commands (#62)', () => {
     expect(say('chiudi')).toEqual({ kind: 'close' });
     // A whole-utterance match only: a node named here stays with the agent.
     expect(say('chiudi il file del nodo triage')).not.toEqual({ kind: 'close-file' });
+  });
+
+  it('marks the whole-phrase commands as fixed, so the agent route yields to them (#128)', () => {
+    expect(isFixed(say('chiudi il file'))).toBe(true);
+    expect(isFixed(say('indietro'))).toBe(true);
+    expect(isFixed(say('chiudi'))).toBe(true);
+    // Fuzzy name matches are not fixed: with an agent configured they keep today's routing.
+    expect(isFixed(say('nodo triage'))).toBe(false);
+    expect(isFixed(say('cosa fa questo file?'))).toBe(false);
   });
 
   it('offers a choice when names tie, and admits when nothing matches', () => {
