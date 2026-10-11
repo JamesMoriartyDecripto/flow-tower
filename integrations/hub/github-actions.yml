@@ -1,0 +1,32 @@
+# Watch a GitHub Actions run in your tower: the runner joins the tailnet as an ephemeral tag:ci node
+# and posts events to the hub. The ACL in acl.hujson grants tag:ci -> tag:flow-hub:443.
+#
+# OAuth client: create one in the Tailscale admin console (Settings > OAuth clients) scoped to tag:ci and
+# store it as the TS_OAUTH_CLIENT_ID / TS_OAUTH_CLIENT_SECRET secrets. Store the hub URL and a flow-tower
+# sender token (flow-tower token add ci) as FLOW_TOWER_URL and FLOW_TOWER_TOKEN.
+name: telemetry
+
+on:
+  workflow_run:
+    workflows: ['ci']
+    types: [completed]
+
+jobs:
+  emit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+
+      - name: Tell the tower the run finished
+        env:
+          FLOW_TOWER_URL: ${{ secrets.FLOW_TOWER_URL }} # e.g. https://hub.tailnet-xyz.ts.net
+          FLOW_TOWER_TOKEN: ${{ secrets.FLOW_TOWER_TOKEN }} # ft_ci_…
+        run: |
+          npm i -g flow-tower || true # not on npm: vendor or cache the checkout instead
+          flow-tower emit --kind tool.end --source github-actions \
+            --agent ci --tool build --status ${{ job.status }} \
+            -m "run ${{ github.run_id }} on ${{ github.ref_name }}"

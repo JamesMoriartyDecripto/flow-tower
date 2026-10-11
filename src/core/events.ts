@@ -18,6 +18,7 @@ export const FlowEventSchema = z.looseObject({
   runtime: z.string().optional().describe('Agent runtime, e.g. "claude-code".'),
   project: z.string().optional().describe('Repository or project the run belongs to.'),
   runtimeRef: z.string().optional().describe('Id of the tower runtime the event was matched to (filled in by ingest).'),
+  sender: z.string().optional().describe('Who authenticated the event (token id, "default" for the legacy token; filled in by ingest).'),
   estimated: z.boolean().optional().describe('True when tokens/cost were estimated, not reported.'),
   tokens_detail: z.object({
     input: z.number().optional(),

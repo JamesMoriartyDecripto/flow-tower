@@ -1,4 +1,7 @@
 import { createServer } from 'node:http';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { gzipSync, deflateSync } from 'node:zlib';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -6,7 +9,9 @@ import { createEventHub } from '../src/server/events';
 
 const servers: ReturnType<typeof createServer>[] = [];
 async function start(token?: string) {
-  const hub = createEventHub(() => undefined, () => undefined, token);
+  // A temp home keeps the test off the real token file; the legacy token is the shared secret here.
+  const home = mkdtempSync(join(tmpdir(), 'flow-tower-auth-'));
+  const hub = createEventHub(() => undefined, () => undefined, { legacy: token, home });
   const server = createServer((req, res) => {
     if (req.url?.startsWith('/v1/')) return hub.otlp(req.url.split('/')[2] as 'logs')!(req, res);
     return hub.handle(req, res);

@@ -1,0 +1,23 @@
+# Collector sidecar for a VPS / Docker host: the agent talks to the sidecar on localhost, the sidecar
+# forwards only usage to your hub over the tailnet. Reuses the per-host collector config; the hub URL and
+# token come from the environment. The agent runs on the same host and points its OTLP exporter at
+# http://127.0.0.1:4318 (see integrations/otel-collector/README.md).
+#
+#   FLOW_TOWER_URL=https://hub.tailnet-xyz.ts.net FLOW_TOWER_TOKEN=ft_vps_… docker compose up -d
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    restart: unless-stopped
+    network_mode: host # the agent reaches 4317/4318 on loopback; the collector reaches the tailnet
+    environment:
+      FLOW_TOWER_URL: ${FLOW_TOWER_URL:-http://127.0.0.1:5317}
+      FLOW_TOWER_TOKEN: ${FLOW_TOWER_TOKEN:?a per-sender token is required}
+      FT_USER: ${FT_USER:-}
+      FT_ENV: ${FT_ENV:-production}
+    volumes:
+      - ../otel-collector/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+      # Disk queue while the tailnet is down; keep it off the read-only image layer.
+      - otel-queue:/root/.flow-tower
+
+volumes:
+  otel-queue:
