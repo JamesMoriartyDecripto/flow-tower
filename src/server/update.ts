@@ -1,7 +1,8 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { env } from 'node:process';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Update notice: is a newer release of Flow Tower on GitHub? The only outbound call Flow Tower makes,
@@ -11,6 +12,9 @@ import { env } from 'node:process';
 
 export const RELEASES_API = 'https://api.github.com/repos/JamesMoriartyDecripto/flow-tower/releases/latest';
 const DAY = 24 * 60 * 60 * 1000;
+const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+// A git checkout updates with git; anything else (a package install) points to the release page.
+export const UPDATE_COMMAND = existsSync(join(PKG_ROOT, '.git')) ? `cd ${PKG_ROOT} && git pull && npm install` : undefined;
 
 export interface UpdateInfo {
   current: string;
@@ -21,6 +25,11 @@ export interface UpdateInfo {
   checkedAt?: number;
   /** Set only for a forced check that failed: why the user's "check now" saw nothing new. */
   error?: 'offline' | 'unavailable';
+}
+
+/** The version payload: everything except the update command, which embeds this checkout's path. */
+export function versionPayload(update: UpdateInfo, remote: boolean): Record<string, unknown> {
+  return remote ? { ...update } : { ...update, command: UPDATE_COMMAND };
 }
 
 interface Cache { checkedAt: number; latest: string; url: string }

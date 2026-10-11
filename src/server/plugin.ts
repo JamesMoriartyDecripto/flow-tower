@@ -9,7 +9,7 @@ import { loadLibrary, type LoadResult } from '../core/loader.ts';
 import { readTowerFile } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
 import { createSatellites } from './satellites.ts';
-import { checkForUpdate, updateCheckDisabled, type UpdateInfo } from './update.ts';
+import { checkForUpdate, updateCheckDisabled, versionPayload, UPDATE_COMMAND, type UpdateInfo } from './update.ts';
 import { versionCheckHandler } from './version-check.ts';
 import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
@@ -30,8 +30,6 @@ import { historyHandler } from './history/api.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
-// A git checkout updates with git; anything else (a package install) points to the release page.
-const UPDATE_COMMAND = existsSync(join(PKG_ROOT, '.git')) ? `cd ${PKG_ROOT} && git pull && npm install` : undefined;
 // The user's own things (OPENROUTER_API_KEY, voice journal and memory) live in their config folder, not in
 // the repo: ~/.config/flow-tower (or FLOW_TOWER_HOME). The git-ignored .env in the flow-tower folder is still
 // read as a fallback. Real environment variables win, then the user folder, then the repo folder.
@@ -262,10 +260,8 @@ export function targetsSelf(url: string, server: ViteDevServer): boolean {
   return target === port;
 }
 
-/** The version payload: everything except the update command, which embeds this checkout's path. */
-export function versionPayload(update: UpdateInfo, remote: boolean): Record<string, unknown> {
-  return remote ? { ...update } : { ...update, command: UPDATE_COMMAND };
-}
+/** Re-exported for callers that only know this module: the payload itself lives with the update check. */
+export { versionPayload };
 
 /**
  * Stops what the plugin started when the dev server closes (#91, #99). Vite 8 restarts the server when a

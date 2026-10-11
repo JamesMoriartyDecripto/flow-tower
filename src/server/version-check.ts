@@ -1,8 +1,8 @@
 /**
- * Forced update check (#141): the top bar's "check now" button. The daily check in update.ts is quiet and
- * cheap, but a user who wants to know right after a release must be able to ask. This endpoint is a local
- * write in effect (it makes the only outbound call the app does), so it is guarded like sharing's controls:
- * a cross-site request and a remote viewer are both refused before any call leaves the machine.
+ * Forced update check (#141): the "check now" button in Settings › Updates. The daily check in update.ts is
+ * quiet and cheap, but a user who wants to know right after a release must be able to ask. This endpoint is a
+ * local write in effect (it makes the only outbound call the app does), so it is guarded like sharing's
+ * controls: a cross-site request and a remote viewer are both refused before any call leaves the machine.
  *
  * One GitHub call per minute at most: a button that can be pressed repeatedly must not become a way to
  * hammer the API (or the user's rate limit). Inside that window the last result is replayed with
@@ -11,8 +11,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { crossSite } from './guard.ts';
 import { isRemote } from './auth.ts';
-import type { UpdateInfo } from './update.ts';
-import { versionPayload } from './plugin.ts';
+import { versionPayload, type UpdateInfo } from './update.ts';
 
 export interface VersionCheckOptions {
   /** The running version, echoed in every answer. */
