@@ -1,4 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { afterAll, describe, expect, it } from 'vitest';
 import { normalize } from '../src/core/adapters';
 import { eventMatches, FlowEventSchema, resolveRuntime, resolveTargets } from '../src/core/events';
 import { buildTower } from '../src/core/loader';
@@ -7,6 +12,15 @@ import type { Workspace } from '../src/core/types';
 import { createEventHub } from '../src/server/events';
 
 const ev = (x: object) => FlowEventSchema.parse(x);
+
+const servers: ReturnType<typeof createServer>[] = [];
+afterAll(() => servers.forEach((s) => s.close()));
+
+/** A controllable clock, so the warning window (#136) is tested without waiting. */
+function clock(start = 1_700_000_000_000) {
+  let at = start;
+  return { now: () => at, advance: (ms: number) => { at += ms; } };
+}
 
 describe('adapters', () => {
   it('maps Claude Code hooks, including subagent spawns via the Agent tool', () => {
@@ -147,5 +161,62 @@ describe('?tower= on /api/events', () => {
       hub.ingest({ kind: 'agent.start', agent: 'coder', host: 'vps-01' });
       expect(hub.recent()[0].runtimeRef).toBe('vps');
     });
+  });
+});
+
+describe('rejected events leave a trace in the log (#136)', () => {
+  const hubWith = (c: ReturnType<typeof clock>) => {
+    const lines: string[] = [];
+    const hub = createEventHub(() => undefined, () => undefined, { home: mkdtempSync(join(tmpdir(), 'flow-tower-warn-')) }, {
+      clock: c.now,
+      warn: (m) => lines.push(m),
+    });
+    return { hub, lines };
+  };
+
+  it('reports two invalid events in one line, carrying the count', () => {
+    const c = clock();
+    const { hub, lines } = hubWith(c);
+    // Both in one batch: the reasons of a batch are summed into a single line.
+    expect(hub.ingest([{ kind: 'log', status: 'partial' }, { kind: 'log', status: 'partial' }])).toEqual({ accepted: 0, rejected: 2 });
+    expect(lines).toEqual(['flow-tower: rejected 2 event(s) (status: Invalid option: expected one of "ok"|"error"); POST with ?verbose to see them']);
+  });
+
+  it('stays quiet within the 10 s window, then reports again with the count since the last line', () => {
+    const c = clock();
+    const { hub, lines } = hubWith(c);
+    hub.ingest({ kind: 'log', status: 'partial' });
+    expect(lines).toHaveLength(1);
+    c.advance(9_000);
+    hub.ingest({ kind: 'log', status: 'partial' }); // inside the window: counted, not printed
+    expect(lines).toHaveLength(1);
+    c.advance(1_000);
+    hub.ingest({ kind: 'log', status: 'partial' });
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toContain('rejected 2 event(s)');
+  });
+
+  it('names a timestamp outside the window and never reports duplicates', () => {
+    const c = clock();
+    const { hub, lines } = hubWith(c);
+    hub.ingest({ kind: 'log', ts: c.now() - 25 * 60 * 60 * 1000 });
+    expect(lines).toEqual(['flow-tower: rejected 1 event(s) (ts outside ±24 h); POST with ?verbose to see them']);
+    // A retrying hook re-sends the same call: dropped, but a duplicate is normal and stays silent.
+    hub.ingest({ kind: 'tool.end', call: 'call_1' });
+    expect(hub.ingest({ kind: 'tool.end', call: 'call_1' })).toEqual({ accepted: 0, rejected: 1 });
+    expect(lines).toHaveLength(1);
+  });
+
+  it('keeps the 204 with an empty body while warning', async () => {
+    const c = clock();
+    const { hub, lines } = hubWith(c);
+    const server = createServer((rq, rs) => hub.handle(rq, rs));
+    servers.push(server);
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/events`;
+    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'log', status: 'partial' }) });
+    expect(r.status).toBe(204);
+    expect(await r.text()).toBe('');
+    expect(lines).toHaveLength(1);
   });
 });

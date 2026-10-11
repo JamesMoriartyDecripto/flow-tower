@@ -6,7 +6,7 @@ How to wire agents to the local server (sources, `emit`, OpenTelemetry, history,
 Flow Tower can show what your agents are doing **right now**:
 - active nodes pulse and send a light beam up through the tower;
 - errors flash red;
-- the **Live feed** (click **LIVE** in the top bar) lists every event. Click an event to jump to its node.
+- the **Live feed** (click **LIVE** in the top bar) lists every event. Click an event to jump to its node. Its **Tower** scope shows the tower on screen and its sub-towers, **Library** every project.
 
 Everything stays on your machine. Agents post events to the local server, and the server pushes them to the browser. (The only outbound call Flow Tower makes is a daily update check against GitHub releases; see the README, *Privacy and updates*.)
 

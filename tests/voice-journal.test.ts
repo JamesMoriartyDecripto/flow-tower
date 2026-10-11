@@ -347,26 +347,31 @@ describe('aliases in the page', () => {
       return new Promise<Response>((r) => { answer = r; });
     });
     const turn = () => journal.record({ heard: 'livello due', route: 'parser', did: 'L02', outcome: 'done' });
-    const settle = () => new Promise((r) => setTimeout(r, 10)); // the journal POSTs answer asynchronously
     // After a reload the page has recorded nothing, but the server has 25 turns waiting: a review is due.
     unreviewed = 25;
     await journal.loadMemory();
     const first = journal.reviewIfDue();
     expect(await journal.reviewIfDue()).toBe(0); // a second mic-off while the first runs
     for (let i = 0; i < 5; i++) turn(); // turns while it runs
-    await settle();
+    await vi.waitFor(() => expect(unreviewed).toBe(30), { timeout: 2_000, interval: 10 }); // the 5 journal POSTs reached the stub
     await vi.waitFor(() => expect(reviews).toBe(1));
     unreviewed = 5; // what the server still counts after the review: the 5 written meanwhile
     answer(new Response(JSON.stringify({ pending: [], unreviewed })));
     await first;
     for (let i = 0; i < 15; i++) turn(); // 5 + 15 = 20: due again
-    await settle();
-    const failed = journal.reviewIfDue();
-    await vi.waitFor(() => expect(reviews).toBe(2));
+    // The page counts a turn only once it has parsed the stub's answer, so the call is retried every poll:
+    // the poll that finds it due is the one that starts the review (a second one is rejected meanwhile).
+    let failed = Promise.resolve(0);
+    await vi.waitFor(() => {
+      failed = journal.reviewIfDue();
+      expect(reviews).toBe(2);
+    }, { timeout: 2_000, interval: 10 });
     answer(new Response(JSON.stringify({ error: 'review failed: the model sent no readable suggestions' }), { status: 502 }));
     expect(await failed).toBe(0);
     turn();
-    await settle();
+    // A short sleep is the right tool here: it lets the turn's POST settle, and the assertion is that no
+    // further review starts, i.e. nothing happens.
+    await new Promise((r) => setTimeout(r, 10));
     expect(await journal.reviewIfDue()).toBe(0); // no retry right away: 20 more turns first
     expect(reviews).toBe(2);
   });

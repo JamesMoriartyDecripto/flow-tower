@@ -1,9 +1,9 @@
 ---
 name: flow-tower-contribute
-description: Turn the user's own Flow Tower (`*.tower.yaml`) into an anonymised, self-contained example and propose it for the Flow Tower examples library with a pull request. Use when the user wants to contribute, share, publish or add their tower to the library / examples, or asks how to make a tower an example.
+description: Turn the user's own Flow Tower (`*.tower.yaml`) into an anonymised, self-contained example and propose it for the Flow Tower examples gallery with a pull request. Use when the user wants to contribute, share or publish a tower, or asks how to make a tower an example for the examples gallery / examples.
 ---
 
-# Flow Tower: contribute a tower to the library
+# Flow Tower: contribute a tower to the examples gallery
 
 CLI: `{{FLOW_TOWER_CLI}}` (setup: see the [flow-tower skill](../flow-tower/SKILL.md)). Details, checklists and exact commands: [reference.md](reference.md).
 

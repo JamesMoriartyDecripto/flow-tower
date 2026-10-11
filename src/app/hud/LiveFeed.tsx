@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import { splitTarget, type FlowEvent } from '../../core/events';
 import { towerPath } from '../graph';
-import { formatUsage, useLive, usageOf, declaredRuntime } from '../live';
+import { formatUsage, useLive, usageOf, declaredRuntime, towerScope } from '../live';
 import { useDescendants } from '../liveHooks';
 import { findNode, useStore, useTower } from '../store';
 
@@ -39,12 +39,13 @@ function FeedPanel() {
   const usage = useMemo(() => (tower ? usageOf(usageMap, new Set([tower.id, ...(desc.get(tower.id) ?? [])])) : undefined), [usageMap, desc, tower]);
   const [filter, setFilter] = useState<Filter>('all');
 
-  const rows = useMemo(() => {
-    const prefix = tower ? `${tower.id}#` : '';
-    return [...events].reverse().filter((e) =>
-      (scope === 'all' || e.targets.some((t) => t.startsWith(prefix))) &&
-      (filter === 'all' || (filter === 'error' ? isError(e) : isStart(e)))).slice(0, 150);
-  }, [events, scope, filter, tower]);
+  // No tower on screen (library view): there is no subtree to narrow to, so Tower shows everything.
+  const inTower = useMemo(() => (tower ? towerScope(events, tower.id, desc) : events), [events, tower, desc]);
+  const rows = useMemo(() => [...(scope === 'all' ? events : inTower)].reverse().filter((e) =>
+    filter === 'all' || (filter === 'error' ? isError(e) : isStart(e))).slice(0, 150), [events, inTower, scope, filter]);
+  // The Tower scope is a subset of the Library one: when it holds nothing while the library does, the
+  // feed says how much is elsewhere instead of pretending nothing happened.
+  const elsewhere = scope === 'tower' && rows.length === 0 && events.length > 0 && inTower.length === 0 ? events.length : 0;
   const errors = useMemo(() => events.filter(isError).length, [events]);
   /** Where an event lands: prefer the tower on screen, otherwise its first target anywhere. */
   const where = useCallback((e: FlowEvent) => {
@@ -80,7 +81,7 @@ function FeedPanel() {
           ))}
         </div>
         <div className="seg">
-          <button className={scope === 'tower' ? 'on' : ''} onClick={() => setScope('tower')} title="Only events that land in the tower on screen">Tower</button>
+          <button className={scope === 'tower' ? 'on' : ''} onClick={() => setScope('tower')} title="Events in the tower on screen and its sub-towers">Tower</button>
           <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')} title="Events from every project and nested tower (click one to go there)">Library</button>
         </div>
         <button className={`chip clickable ${spotlight ? 'on' : ''}`} onClick={() => setOption({ spotlight: !spotlight })} title="Dim everything that is not live">Spotlight</button>
@@ -93,7 +94,9 @@ function FeedPanel() {
       </div>
       <div className="feed">
         {rows.length === 0 && (
-          <p className="mono dim">No events{filter !== 'all' ? ' for this filter' : ''}. Connect an agent (docs/realtime.md) or run <b>npm run simulate</b>.</p>
+          elsewhere > 0
+            ? <p className="mono dim">No events in this tower. {elsewhere} in other towers: switch to Library.</p>
+            : <p className="mono dim">No events{filter !== 'all' ? ' for this filter' : ''}. Connect an agent (docs/realtime.md) or run <b>npm run simulate</b>.</p>
         )}
         {rows.map((e) => {
           const w = where(e);

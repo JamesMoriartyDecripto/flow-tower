@@ -1,3 +1,4 @@
+import type { ResolvedNode } from '../src/core/types.ts';
 import { expect, openProject, state, test, tower, ws } from './fixtures.ts';
 
 /**
@@ -135,6 +136,68 @@ test('voice: "chiudi il file" closes the viewer and keeps the node selected (#12
   await page.evaluate((t) => (window as unknown as Hear).__flowTower.hear(t), 'chiudi il file');
   await expect(page.locator('.voice-caption .voice-heard')).toContainText('No file open');
   await expect(page.locator('.voice-caption .voice-error')).toHaveCount(0);
+  expect(chatCalls).toBe(0);
+});
+
+test('voice: "apri il suo file" then "il prossimo" walk the files, then the layer (#130)', async ({ page }) => {
+  const id = ws.projects.find((p) => p.startsWith('dev-squad/'))!;
+  // An agent is configured and the real routing runs: a request to /chat would mean a fixed phrase went
+  // to the agent instead of the parser, so it is recorded and must stay at zero.
+  let chatCalls = 0;
+  await page.route(/\/api\/voice(\/|\?|$)/, (r) => {
+    const path = new URL(r.request().url()).pathname;
+    if (path === '/api/voice/chat') { chatCalls++; return r.fulfill({ status: 500, json: { error: 'the parser should have handled this' } }); }
+    return r.fulfill({ json: { cloud: true, model: 'stt', agent: 'test-model', tts: 'test-tts', journal: false } });
+  });
+  // The first node with at least two files: the one the test walks, first by its label, then by phrases.
+  const node = tower(id).layers.flatMap((l) => l.nodes).find((n) => n.files.length >= 2)!;
+  const [file1, file2] = node.files;
+
+  await openProject(page, id);
+  // "il prossimo" moves in the layout's flow order, published once ELK runs: wait for it, so the
+  // expected node computed below and the one the command picks come from the same order.
+  await expect.poll(() => page.evaluate(async (t) => !!(await import(String('/src/app/keynav.ts'))).layoutOf(t), id)).toBe(true);
+  // The caption only shows a transcript while the voice is not off: the test says it through the hook below.
+  await page.evaluate(async () => {
+    const { useVoice } = await import(String('/src/app/voice/voice.ts'));
+    useVoice.setState({ status: 'listening', agent: true });
+  });
+  const hear = (text: string) => page.evaluate((t) => (window as unknown as Hear).__flowTower.hear(t), text);
+
+  // Its label alone selects the node: the parser matches the names on screen.
+  await hear(node.label);
+  expect((await state(page)).selected).toBe(node.key);
+
+  // "apri il suo file": the first file of the selected node, in the viewer.
+  await hear('apri il suo file');
+  await expect(page.locator('.viewer')).toHaveCount(1);
+  await expect(page.locator('.viewer-path')).toHaveText(file1);
+  expect((await state(page)).file).toBe(true);
+  await expect(page.locator('.voice-caption .voice-heard')).toContainText(file1);
+
+  // "file successivo": the second file, the next tab of the same viewer.
+  await hear('file successivo');
+  await expect(page.locator('.viewer-path')).toHaveText(file2);
+
+  // "chiudi il file": only the viewer closes, the node stays selected.
+  await hear('chiudi il file');
+  await expect(page.locator('.viewer')).toHaveCount(0);
+  expect((await state(page)).file).toBe(false);
+  expect((await state(page)).selected).toBe(node.key);
+  await expect(page.locator('.voice-caption .voice-heard')).toContainText('File closed');
+
+  // "il prossimo": the next node of the selected node's layer, in the flow order the node list shows.
+  const next = await page.evaluate(async (key) => {
+    const { flowOrder } = await import(String('/src/app/keynav.ts'));
+    const s = (window as unknown as { __flowTower: { store: { getState(): { stack: string[]; workspace?: { towers: Record<string, { id: string; layers: { nodes: { key: string }[] }[] }> } } } } }).__flowTower.store.getState();
+    const t = s.workspace!.towers[s.stack[s.stack.length - 1]];
+    const li = t.layers.findIndex((l) => l.nodes.some((n) => n.key === key));
+    const order = flowOrder(t.id, t.layers[li] as never);
+    return order[order.findIndex((n: ResolvedNode) => n.key === key) + 1]?.key;
+  }, node.key);
+  expect(next, 'the walked node is the last of its layer').toBeTruthy();
+  await hear('il prossimo');
+  expect((await state(page)).selected).toBe(next);
   expect(chatCalls).toBe(0);
 });
 

@@ -121,3 +121,7 @@ passes when the answer contains it (case-insensitive), and `a / b` means either 
 ## Q29. How do I keep my own towers in one library without putting them in the flow-tower repo?
 - docs: docs/getting-started.md
 - facts: flow-tower library add | config.json | examples/
+
+## Q30. How do I open the selected node's file and then the next one by voice?
+- docs: docs/voice.md
+- facts: apri il suo file | file successivo | il prossimo

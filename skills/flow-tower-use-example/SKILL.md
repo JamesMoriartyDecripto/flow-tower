@@ -1,6 +1,6 @@
 ---
 name: flow-tower-use-example
-description: Start a Flow Tower (`*.tower.yaml`) from one of the library's example towers, copied with its folder into the user's project and adapted to their system. Use when the user wants a tower like an existing example or preset (dev squad, RAG bot, PR reviewer, command center…), asks how to start from an example, or wants a ready tower to edit rather than one generated from scratch.
+description: Start a Flow Tower (`*.tower.yaml`) from one of the examples gallery's example towers, copied with its folder into the user's project and adapted to their system. Use when the user wants a tower like an existing example or preset (dev squad, RAG bot, PR reviewer, command center…), asks how to start from an example, or wants a ready tower to edit rather than one generated from scratch.
 ---
 
 # Flow Tower: start from an example

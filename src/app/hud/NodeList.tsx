@@ -1,4 +1,4 @@
-import { layoutOf } from '../keynav';
+import { flowOrder } from '../keynav';
 import { useCurrentTowerLive } from '../liveHooks';
 import { useStore, useTower } from '../store';
 import { NODE_STYLE } from '../theme';
@@ -14,9 +14,8 @@ export function NodeList() {
   const { states } = useCurrentTowerLive();
   const layer = focusedLayer === undefined ? undefined : tower?.layers[focusedLayer];
   if (!tower || !layer || selected) return null;
-  // Flow order is the layout's left to right (then top to bottom), not the order in the file.
-  const boxes = layoutOf(tower.id)?.layers[layer.index]?.nodes;
-  const nodes = boxes ? [...layer.nodes].sort((a, b) => (boxes[a.key]?.x ?? 0) - (boxes[b.key]?.x ?? 0) || (boxes[a.key]?.z ?? 0) - (boxes[b.key]?.z ?? 0)) : layer.nodes;
+  // Flow order, so the rows read the same way as the cards in the scene.
+  const nodes = flowOrder(tower.id, layer);
   return (
     <aside className="panel nodelist" aria-label={`Nodes of ${layer.title}`}>
       <div className="title">

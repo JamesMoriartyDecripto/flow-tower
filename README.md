@@ -40,7 +40,7 @@ cd flow-tower && npm install
 
 1. **Copy one tower and use it.** Copy an example folder into your project and open it:
    `cp -R examples/starters/single-agent ~/my-project/tower && node bin/flow-tower.js ~/my-project/tower`.
-   `npm run dev` opens the whole examples library.
+   `npm run dev` opens the whole examples gallery.
 2. **Your own towers**, from scratch or generated from your code: [docs/getting-started.md](docs/getting-started.md).
 3. **A command center** on a VPS or server that your machines report to: [docs/command-center.md](docs/command-center.md).
 
@@ -211,7 +211,7 @@ docs/           getting started, command center, schema, architecture, realtime,
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). To add your tower to the examples library, the [contribute skill](skills/flow-tower-contribute/SKILL.md) anonymises it, runs `flow-tower check-example <dir>` and opens the PR. Please report security issues privately ([SECURITY.md](SECURITY.md)).
+See [CONTRIBUTING.md](CONTRIBUTING.md). To add your tower to the examples gallery, the [contribute skill](skills/flow-tower-contribute/SKILL.md) anonymises it, runs `flow-tower check-example <dir>` and opens the PR. Please report security issues privately ([SECURITY.md](SECURITY.md)).
 
 ## License
 

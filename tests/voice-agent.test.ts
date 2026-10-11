@@ -27,7 +27,7 @@ describe('spoken replies', () => {
     const { say, newReply } = await import('../src/app/voice/agent');
     newReply();
     say('Prima frase.'); say('Seconda frase.'); say('Terza frase.');
-    await new Promise((r) => setTimeout(r, 120));
+    await vi.waitFor(() => expect(started).toHaveLength(3));
     expect(started).toEqual(['blob:1', 'blob:2', 'blob:3']);
     expect(most).toBe(1);
   });
@@ -222,11 +222,14 @@ describe('the "one moment" acknowledgement', () => {
     ack.resetAck();
     agent.newReply();
     ack.warmAck('it');
-    await new Promise((r) => setTimeout(r, 10)); // every failed synthesis has settled
+    // A short sleep is the right tool here: the test proves the failures leave nothing cached and no
+    // further /speak leaves, so there is no condition to wait for.
+    await new Promise((r) => setTimeout(r, 10));
     // A failed synthesis leaves nothing cached, so ack() has nothing to play.
     expect(ack.ack('it')).toBe(false);
     expect(calls).toBe(ACK_PHRASES.it.length);
-    // A down TTS must not be hit every turn: the cooldown swallows a second warm-up.
+    // A down TTS must not be hit every turn: the cooldown swallows a second warm-up. Again a sleep: the
+    // assertion is that calls does not grow, so there is no condition to wait for.
     ack.warmAck('it');
     await new Promise((r) => setTimeout(r, 10));
     expect(calls).toBe(ACK_PHRASES.it.length);
@@ -321,6 +324,8 @@ describe('the "one moment" acknowledgement', () => {
     let heard = false;
     await vi.waitFor(() => expect(ack.ack('it', () => { heard = true; })).toBe(true));
     agent.stopSpeaking(); // Esc before it was heard
+    // A short sleep is the right tool here: the test proves onPlay must not fire, so there is no
+    // condition to wait for.
     await new Promise((r) => setTimeout(r, 20));
     expect(heard).toBe(false);
   });
@@ -343,9 +348,13 @@ describe('the "one moment" acknowledgement', () => {
     const ack = await import('../src/app/voice/ack');
     ack.resetAck();
     ack.warmAck('it');
-    await new Promise((r) => setTimeout(r, 10)); // one synthesis is in flight
+    // A short sleep is the right tool here: the fetch stub is reached synchronously by warmAck, and the
+    // test only needs the synthesis to be pending (no condition to wait for).
+    await new Promise((r) => setTimeout(r, 10));
     ack.resetAck(); // forget everything while it is still pending
     settle?.();
+    // A short sleep is the right tool here: the test proves the late failure must not repopulate the
+    // cache, so there is no condition to wait for.
     await new Promise((r) => setTimeout(r, 10));
     // The late failure must not have touched the fresh cache: ack() still has nothing to play.
     expect(ack.ack('it')).toBe(false);

@@ -19,9 +19,14 @@ Press **V** or the **MIC** button (top bar or library header) and say where to g
 | "indietro" | "back" | Go back, like Esc |
 | "libreria" | "library" | Project library |
 | "chiudi il file" | "close the file" | Closes only the viewer (the node stays selected) |
+| "apri il suo file", "apri il file 2" | "open its file", "open the second file" | Open file N of the selected node (1 = first) |
+| "il prossimo", "il precedente" | "next", "previous" | Move one step through what you are on: the viewer's files, the last list shown, or the layer's nodes |
+| "file successivo", "file precedente" | "next file", "previous file" | Move one step through the open viewer's files only |
 | "spegni il microfono" | "stop listening" | Microphone off |
 
 A name alone works too ("triage"). Names come from what is on screen: projects, layers, nodes and agents. They match loosely, so a misheard word still finds its target. When a name fits several things, the caption numbers them: say "il primo" or "two" to pick. "Entra" / "enter" opens the selected node's sub-tower, "chiudi" / "close" closes the panel. Listening stops by itself after 2 minutes without a command.
+
+"apri il suo file" / "open its file", "il prossimo" / "next", "il precedente" / "previous" and "file successivo" / "next file" are whole fixed phrases: they are handled by the local parser even when the voice agent is on, so "chiudi il file" closes the viewer and "il prossimo" steps through files, lists or layer nodes without a model call.
 
 **Noise.** The microphone tells a voice from a fan by the shape of the sound, not only its loudness, after measuring the room in its first 0.7 s. If a laptop fan still starts clips by itself, set **Settings → Voice → Microphone sensitivity** to Low and speak a little louder; High suits quiet rooms and soft voices. A transcript that is only "Grazie." or "Thank you." is what the recognizer writes for noise, so it is ignored.
 
@@ -77,3 +82,7 @@ Your own things stay in your user folder, never in a repo: `~/.config/flow-tower
 | `tokens.json`, `history.db` | hub tokens (sha256 only) and event history: [hub-reference.md](hub-reference.md#security-model), [realtime.md § History](realtime.md#history) |
 
 Flow Tower creates the folder, the journal and the memory readable by you only (a `FLOW_TOWER_HOME` folder you made yourself keeps its permissions), and rewrites the memory in one step (a crash never leaves half a file). No tower can read this folder or a secret file (key files, credentials, `.ssh`, `.git`…): `/api/file` never serves them, and a prompt `file:`, agent `from:` or nested tower pointing at one is refused by `validate` and the app ("is a secret file or in the user folder: not read"). Symlinks do not get around it: a tower file is checked by its real path before it is read, and folder scans skip links that leave the folder. If `FLOW_TOWER_HOME` points inside the flow-tower folder, the server warns at startup. The `.env` file in the flow-tower folder is only a git-ignored fallback for the key. Nothing personal is written in the repo.
+
+## Troubleshooting
+
+- **Spoken replies crackle on Linux (PipeWire) under load**: rising xruns in `pw-top` mean the graph runs too short a quantum. Workaround: `pw-metadata -n settings 0 clock.force-quantum 2048` (use 4096 after raising `clock.max-quantum`); reset with `pw-metadata -n settings 0 clock.force-quantum 0`.
