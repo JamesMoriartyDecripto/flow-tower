@@ -247,6 +247,41 @@ flow-tower emit --kind tool.start --agent claude-code -m "opened the repo"
 
 Open `https://hub.tailnet-xyz.ts.net` in the laptop browser to watch, if its tailnet user is a viewer.
 
+### Satellite: a local library that relays to the hub
+
+A **satellite** is a workstation that runs its own flow-tower (its own towers, its own live view) and
+forwards what it accepts to the hub. One command sets it up:
+
+```bash
+flow-tower connect https://hub.tailnet-xyz.ts.net --token ft_laptop_<secret> --machine laptop --user alice
+```
+
+It writes `role: "satellite"`, `url`, `token` and (when given) `machine`/`user` into
+`<FLOW_TOWER_HOME or ~/.config/flow-tower>/config.json`, keeping every other key, then sends one
+heartbeat. Three answers, all exit 0: `connected to <url> as <sender>` (204); the token was refused
+(401) — the config is still written, and `flow-tower token add <id>` on the hub plus a second
+`connect` fixes it; the hub is unreachable — also written, since the relay will queue. Only bad
+arguments exit 1. The token is never printed by this command.
+
+**What is relayed.** Content-free events, exactly as the hub's own history would store them: time,
+user, host, runtime, project, session, kind, tool, model, node, tower, agent, parent, call, status,
+tokens, cost and duration. The relay copies an allow-list of those fields and nothing else, so a
+source that adds a field of its own cannot leak it. Prompts, responses, commands, file paths and tool
+output never leave the machine (`role`, the Task/Agent description, can hold a path or a command and
+is dropped too), and a `request_id` survives only as an opaque correlation id.
+
+**While the hub is down.** The queue is bounded at **5000** events, oldest dropped first, and lives
+in memory: a long outage costs a counter, not the disk. A **revoked** (or paused) token stops the
+sending entirely — the events stay queued and the state says `revoked` until someone fixes the token
+— so a returned laptop cannot keep feeding a hub that no longer trusts it.
+
+**Reading it.** `GET /api/sharing` on the satellite answers its relay state
+(`online` | `queued` | `revoked`, hub url, queued/dropped counters, last error) and never the token;
+a server that is not a satellite answers `{ "state": "off" }`. On the hub, each satellite posts
+`POST /api/heartbeat` (counters and state word, authenticated like `/api/events`) and every accepted
+event counts as a sign of life; `GET /api/hub/satellites` lists them, calling one offline after three
+missed minute-long beats.
+
 ### Recipe: a teammate
 
 Same as above, but create a token per person (`flow-tower token add bob`) and add their email to

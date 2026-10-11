@@ -23,6 +23,9 @@ Usage
                                                         per-sender hub tokens stored under the user folder
   flow-tower config path | show                         the config files in use, and the effective settings
                                                         (hub + emit in one config.json under the user folder)
+  flow-tower connect <hub-url> --token <t> [--machine <name>] [--user <name>]
+                                                        make this machine a satellite: writes role satellite into
+                                                        the user folder's config.json, then sends one heartbeat
   flow-tower history export [--user <u>] | delete --user <u> | info
                                                         content-free events and totals in the user folder:
                                                         export prints JSONL, delete erases one user's rows
@@ -207,6 +210,17 @@ if (positionals[0] === 'history') {
   process.exit(r.status ?? 1);
 }
 
+if (positionals[0] === 'connect') {
+  // Same trick as token: the config writer is TypeScript, run it with Node's type stripping.
+  // --token/--user/--machine are this parser's own options, so they are stripped from the positionals:
+  // append each one back (its exact value, so `--user ''` survives) or connect would see no token.
+  const script = join(pkgRoot, 'src', 'cli', 'connect.ts');
+  const args = [...positionals.slice(1)];
+  for (const name of ['token', 'user', 'machine']) if (values[name] !== undefined) args.push(`--${name}`, values[name]);
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
 if (positionals[0] === 'guide') {
   console.log(procedure());
   process.exit(0);
@@ -259,12 +273,20 @@ async function emit() {
     env, checkout: pkgRoot,
     flags: { url: explicit('url') ? values.url : undefined, user: values.user, machine: values.machine, token: values.token },
   });
-  const url = cfg.url ?? values.url;
+  // A satellite (#91) posts to the LOCAL relay, not to the config url (which names the hub): the local
+  // server carries the hub token itself, so posting the config token there would only earn a 401 and lose
+  // the event. `--url` still picks another local server; anything else keeps the config url, flags win.
+  const url = cfg.role === 'satellite' ? values.url : cfg.url ?? values.url;
 
   const params = new URLSearchParams(Object.entries({ source: values.source, tower: values.tower }).filter(([, v]) => v));
   const query = params.size ? `?${params}` : '';
   const headers = { 'content-type': 'application/json' };
-  const token = cfg.token ?? env.FLOW_TOWER_TOKEN;
+  // Explicit credentials travel everywhere; the CONFIG token is the hub's credential for the config url,
+  // so it is only ever attached to that url's origin and never handed to a different host via --url.
+  const sameOrigin = (a, b) => { try { return new URL(a).origin === new URL(b).origin; } catch { return false; } };
+  const envToken = env.FLOW_TOWER_TOKEN?.trim();
+  const configToken = cfg.config.token && cfg.config.url && sameOrigin(cfg.config.url, url) ? cfg.config.token : undefined;
+  const token = values.token ?? (envToken || undefined) ?? configToken;
   if (token) headers['x-flow-tower-token'] = token;
   const post = (events) => fetch(`${url}/api/events${query}`, {
     method: 'POST', headers, body: JSON.stringify(events), signal: AbortSignal.timeout(1500),

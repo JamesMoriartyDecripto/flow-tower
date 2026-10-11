@@ -7,6 +7,7 @@ import type { Workspace } from '../core/types.ts';
 import { authorize, hubMode, isRemote, type AuthOptions } from './auth.ts';
 import { crossSite, isJson } from './guard.ts';
 import { createBucket, createDedupe, eventIdOf, inTimeWindow, type Bucket, type Dedupe } from './limits.ts';
+import { HeartbeatSchema, type Satellites } from './satellites.ts';
 import { userHome } from '../core/secrets.ts';
 
 export const EVENTS_EVENT = 'flow-tower:events';
@@ -25,6 +26,8 @@ export interface HubLimits {
   clock?: () => number;
   /** Called with every accepted batch after broadcast: how history persists metadata (#84). */
   onAccepted?: (events: FlowEvent[]) => void;
+  /** Satellite registry (#91): accepted events and heartbeats keep it fresh. */
+  satellites?: Satellites;
 }
 
 /**
@@ -64,6 +67,8 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     if (out.length) {
       broadcast(out);
       limits.onAccepted?.(out);
+      // An accepted event proves the satellite behind this sender is alive (#91), heartbeat or not.
+      if (sender) limits.satellites?.touch(sender);
     }
     return { accepted: out.length, rejected };
   };
@@ -141,7 +146,44 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     });
   };
 
-  return { ingest, handle, otlp, recent: () => buffer };
+  /**
+   * POST /api/heartbeat (#91): a satellite reports its relay state. Authenticated exactly like
+   * /api/events; in hub mode a sender is required (401 otherwise), since an anonymous beat would name
+   * nobody. Answers 204 with an empty body.
+   */
+  const heartbeat = (req: IncomingMessage, res: ServerResponse) => {
+    if (req.method !== 'POST') return json(res, 405, { error: 'use POST' });
+    if (!isJson(req)) return json(res, 415, { error: 'content-type must be application/json' });
+    if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
+    const authz = authorize(req, auth);
+    // Hub mode names a sender: without a token there is no one to record, and the hub's own machine is
+    // not a satellite. Same rule as /api/events, but a missing sender is fatal here rather than "trusted".
+    if (!authz.ok) return json(res, 401, { error: 'bad or missing token' });
+    if (!authz.sender && ((auth.hub ?? hubMode()) || auth.ingestOnly)) return json(res, 401, { error: 'bad or missing token' });
+    // A heartbeat spends from the same per-sender bucket as /api/events: a satellite must not evade the
+    // limit by beating instead of sending events.
+    const remote = auth.ingestOnly || isRemote(req, { hub: auth.hub ?? hubMode() });
+    const key = authz.sender ?? (remote ? req.socket?.remoteAddress ?? 'remote' : undefined);
+    if (key && !bucket.take(key, 1)) {
+      res.setHeader('Retry-After', String(bucket.retryAfter(key)));
+      return json(res, 429, { error: 'too many heartbeats, retry later' });
+    }
+    const encoding = encodingOf(req);
+    if (!encoding) return json(res, 415, unknownEncoding());
+    void readBody(req, res, MAX_BODY, encoding).then((chunks) => {
+      if (!chunks) return; // the response was already sent (413, 400)
+      let parsed: unknown;
+      try { parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
+      catch { return json(res, 400, { error: 'invalid JSON' }); }
+      const hb = HeartbeatSchema.safeParse(parsed);
+      if (!hb.success) return json(res, 400, { error: 'invalid heartbeat' });
+      limits.satellites?.beat(authz.sender ?? 'default', hb.data);
+      res.statusCode = 204;
+      res.end();
+    });
+  };
+
+  return { ingest, handle, heartbeat, otlp, recent: () => buffer };
 }
 
 /**

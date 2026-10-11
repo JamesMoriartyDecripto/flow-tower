@@ -45,9 +45,9 @@ export function normalizePath(raw: string): string {
   return path.toLowerCase(); // mounts are matched case-insensitively
 }
 
-/** POST /api/events and the OTLP receivers: the only routes a remote sender may use. */
+/** POST /api/events, /api/heartbeat and the OTLP receivers: the only routes a remote sender may use. */
 const isIngest = (method: string | undefined, path: string) =>
-  method === 'POST' && (path === '/api/events' || /^\/v1\/(logs|metrics|traces)\/?$/.test(path));
+  method === 'POST' && (path === '/api/events' || path === '/api/heartbeat' || /^\/v1\/(logs|metrics|traces)\/?$/.test(path));
 
 /** Routes a remote viewer must never reach, whatever the method: they read host files or drive the mic. */
 const SENSITIVE = /^\/api\/(file|voice)(\/|\.|$)/;
@@ -123,7 +123,7 @@ export function hubGuard(opts: HubOptions) {
     if (!isRemote(req, { hub: opts.hub })) return next(); // local requests keep today's behaviour
     if (isViewing(req.method, path)) {
       if (isViewer(req, opts.home)) return next();
-      return deny(res, 403, { error: 'remote viewing is not allowed for this user (see viewers in hub.json on the hub)' });
+      return deny(res, 403, { error: 'remote viewing is not allowed for this user (see viewers in config.json on the hub; hub.json is only a deprecated fallback)' });
     }
     return deny(res, 403, { error: 'remote requests may only ingest events' });
   };
