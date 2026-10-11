@@ -11,7 +11,7 @@ Flow Tower from your clone.
 ```bash
 git clone https://github.com/JamesMoriartyDecripto/flow-tower.git
 cd flow-tower && npm install
-npm run dev            # the examples library on http://127.0.0.1:5317
+npm run dev            # the examples gallery on http://127.0.0.1:5317
 ```
 
 ## 1. Copy one tower and use it
