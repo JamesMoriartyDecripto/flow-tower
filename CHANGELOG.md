@@ -13,6 +13,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - One config file (#90): `~/.config/flow-tower/config.json` (or a git-ignored `flow-tower.local.json` in the checkout) for hub and emit settings, with flags > environment > config; `flow-tower config path|show`; `config.example.json`.
 - Satellites (#91): `flow-tower connect <hub-url> --token <t>` writes `role: "satellite"` into the user folder's `config.json` and sends one heartbeat; a local library then relays content-free events to the hub (bounded queue of 5000, oldest dropped, a revoked token stops it), with `GET /api/sharing` on the satellite and `GET /api/hub/satellites` on the hub.
 
+- `model-benchmark` example (#108): the method #105 uses to pick models per role, as a tower (8 layers: categories, task sets, candidates, runner, measurements, judges, analysis, outputs) with runnable scripts. `bench.mjs` (OpenRouter tool loop, session per run, `require_parameters`, `data_collection: deny`, timeout + one retry; `--dry-run` needs no key), `judge.mjs` (deterministic checks, model code under the Node permission model, a blind rubric sheet), `report.mjs` (median and spread, cost per correct answer, warm starts). Two real tasks each for coder, reviewer, security, intent and doc-writer.
+
 ### Fixed
 - Telemetry docs (#81): Claude Code's telemetry variables and Codex's `[otel]` block must be set at user level (`~/.claude/settings.json`, `~/.codex/config.toml`), managed settings or the shell; project settings are ignored.
 
