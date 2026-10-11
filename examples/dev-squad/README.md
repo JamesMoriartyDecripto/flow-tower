@@ -54,8 +54,9 @@ reasoned 1-2.5 min per step and timed out at step 9 ($0.24), so the squad uses i
 
 The OpenRouter roles run in `src/openrouter-agent.ts`, an OpenAI-style tool loop (sample code: the
 real runner is session tooling outside this repo). Claude Code hooks do not run there, so the fences
-are in code: read tools for every role, `edit_file` / `write_file` for the coder only and only under
-`src/`, `tests/`, `e2e/`, a command whitelist instead of a shell, a secret-path deny list, low reasoning effort,
+are in code: read tools for every role, `edit_file` / `write_file` / `delete_file` for the coder only and only under
+`src/`, `tests/`, `e2e/` (`write_file` refuses `tmp-`/`zz-`/`probe`/`scratch` names: throwaway probes
+belong in a real test), a command whitelist instead of a shell, a secret-path deny list, low reasoning effort,
 a `session_id` per run (OpenRouter keeps it on the provider that holds its prompt cache), a step and
 dollar cap, and a live tower event per tool call. SDK subagents are Claude only, so the lead reaches
 the coder through the `run_coder` tool (`src/tools/run-coder.ts`).

@@ -30,7 +30,7 @@ layers:
         label: Hook emit
         runtime: laptop
         description: "Claude Code / Codex hooks call `flow-tower emit` with identity flags (--user, --machine, --project)."
-        files: [bin/flow-tower.js, integrations/claude-code, integrations/codex]
+        files: [bin/flow-tower.js, integrations/claude-code/settings.json, integrations/codex/hooks.json]
       - id: identity-cli
         type: process
         label: Sender identity
