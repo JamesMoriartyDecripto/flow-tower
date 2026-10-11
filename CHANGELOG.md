@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-11
+
 ### Added
 - Two skills (#116): `flow-tower-use-example` (copy an example with its folder and adapt it) and `flow-tower-contribute` (anonymise, pre-flight and propose a tower for the library), backed by `flow-tower copy` and `flow-tower check-example`; `install-skill` installs all four skills.
 - OTLP receiver accepts `Content-Encoding: gzip`; sample per-host OTel Collector in `integrations/otel-collector/` (host/user tags, prompt fields stripped, disk queue while offline) (#81).
@@ -274,7 +276,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.2.0...v0.3.0
