@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, openProject, test, tower } from './fixtures.ts';
+import { expect, openProject, test, tower, ws } from './fixtures.ts';
 
 /**
  * Issue #133: `.md-view { overflow-wrap: anywhere }` made a table cell's min-content width one
@@ -8,7 +8,9 @@ import { expect, openProject, test, tower } from './fixtures.ts';
  * columns and scrolls sideways. Assert both halves of that, or the fix could regress to either bug.
  */
 
-const ID = 'model-benchmark';
+// The model-benchmark example; ids are tower file paths, not bare directory names.
+const ID = ws.projects.find((p) => p.startsWith('model-benchmark/'));
+if (!ID) throw new Error('no model-benchmark project in the library');
 const TABLE_FILE = 'results/example.md';
 // Find the node that references the results table rather than hard-coding an id from the YAML.
 const pick = (() => {
