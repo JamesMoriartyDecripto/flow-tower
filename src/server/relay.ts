@@ -6,8 +6,16 @@
  */
 import type { FlowEvent } from '../core/events.ts';
 
-/** Fields the hub fills in itself, or that carry prompt/tool content: they never leave this machine. */
-const PRIVACY = ['id', 'targets', 'runtimeRef', 'sender', 'message', 'data'] as const;
+/**
+ * The wire allow-list: the metadata the hub may see, and nothing else. An allow-list (not a drop-list)
+ * means an adapter or a custom source that adds a field (a path, a command, a token) cannot leak it by
+ * being unknown to us; `role` (the Task/Agent description) is deliberately absent for the same reason.
+ */
+const ALLOWED = [
+  'kind', 'ts', 'source', 'session', 'agent', 'parent', 'tool', 'call', 'model', 'node', 'tower',
+  'project', 'user', 'host', 'runtime', 'status', 'tokens', 'tokens_detail', 'cost_usd',
+  'duration_ms', 'estimated',
+] as const;
 
 const TIMEOUT_MS = 5_000;
 /** Never more than one flush a second; a failing hub waits longer (1 s, 2 s, 4 s … max 60 s). */
@@ -37,6 +45,8 @@ export interface RelayState {
   hub: string;
   queued: number;
   dropped: number;
+  /** Events thrown away by a pause (#91): they were in the queue and will never leave. Shown nowhere else. */
+  discardedOnPause: number;
   lastSentAt?: number;
   lastError?: string;
   /** The last event that actually left this machine, after the content was stripped: never the token. */
@@ -53,9 +63,12 @@ export function createRelay(opts: RelayOptions) {
 
   const queue: Record<string, unknown>[] = [];
   let dropped = 0;
+  let discardedOnPause = 0;
   let revoked = false;
   let stopped = false;
   let inFlight = false;
+  // The running flush, so a sharing test can wait for it instead of interleaving its own POST with it.
+  let inFlightPromise: Promise<void> | undefined;
   let backoff = 0;
   // True while the last send attempt failed on the hub's side: only then are waiting events "queued".
   let unreachable = false;
@@ -92,6 +105,17 @@ export function createRelay(opts: RelayOptions) {
     clearTimer();
     if (stopped || revoked || paused || inFlight || !queue.length) return;
     inFlight = true;
+    inFlightPromise = runFlush();
+    try {
+      await inFlightPromise;
+    } finally {
+      inFlightPromise = undefined;
+      inFlight = false;
+      schedule();
+    }
+  }
+
+  async function runFlush(): Promise<void> {
     lastAttempt = now();
     const slice = queue.slice(0, batch);
     try {
@@ -137,9 +161,6 @@ export function createRelay(opts: RelayOptions) {
       lastError = err instanceof Error ? err.message : String(err);
       backoff = nextBackoff(backoff);
       unreachable = true;
-    } finally {
-      inFlight = false;
-      schedule();
     }
   }
 
@@ -232,6 +253,7 @@ export function createRelay(opts: RelayOptions) {
     hub,
     queued: queue.length,
     dropped,
+    discardedOnPause,
     ...(lastSentAt !== undefined ? { lastSentAt } : {}),
     ...(lastError !== undefined ? { lastError } : {}),
     ...(lastPayload !== undefined ? { lastPayload } : {}),
@@ -243,11 +265,17 @@ export function createRelay(opts: RelayOptions) {
     clearHbTimer();
   };
 
-  /** Pause (#91): stop sending and stop queueing. Events accepted from now on stay local. */
+  /**
+   * Pause (#91): stop sending and stop queueing. Events accepted from now on stay local, and whatever is
+   * already queued is thrown away (counted in discardedOnPause): the pause promises that nothing collected
+   * before or during it leaves later, so a resume must not flush a backlog built while the user watched.
+   */
   const pause = () => {
     paused = true;
     clearTimer();
     clearHbTimer();
+    discardedOnPause += queue.length;
+    queue.length = 0;
   };
 
   /** Resume: the heartbeats start again, and new events are queued and sent as before. */
@@ -266,10 +294,26 @@ export function createRelay(opts: RelayOptions) {
    */
   const sendTest = async () => {
     if (stopped || revoked || paused) return state();
+    // A flush already on the wire owns the shared state (queue, backoff, lastError): wait it out, so the
+    // test and a flush never interleave.
+    if (inFlightPromise) await inFlightPromise;
+    if (stopped || revoked || paused) return state();
+    inFlight = true;
+    inFlightPromise = runTest();
+    try {
+      await inFlightPromise;
+    } finally {
+      inFlightPromise = undefined;
+      inFlight = false;
+      schedule();
+    }
+    return state();
+  };
+
+  async function runTest(): Promise<void> {
     // A minimal 'log': message, tool, node and data are simply absent, so the probe tags the hub without
     // carrying any local content.
     const payload = forward({ kind: 'log', source: 'flow-tower', status: 'ok' } as unknown as FlowEvent, opts);
-    inFlight = true;
     lastAttempt = now();
     try {
       const res = await send(`${hub}/api/events`, {
@@ -296,23 +340,20 @@ export function createRelay(opts: RelayOptions) {
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
       unreachable = true;
-    } finally {
-      inFlight = false;
-      schedule();
     }
-    return state();
-  };
+  }
 
   return { push, state, stop, pause, resume, sendTest, flush: () => attempt(), heartbeat };
 }
 
 const nextBackoff = (current: number) => Math.min(current ? current * 2 : MIN_GAP_MS, MAX_BACKOFF_MS);
 
-/** One wire payload: the event minus what the hub owns or must not see, plus this sender's identity. */
+/** One wire payload: only the allow-listed metadata, plus this sender's identity defaults. */
 function forward(event: FlowEvent, { user, machine }: Pick<RelayOptions, 'user' | 'machine'>): Record<string, unknown> {
   const request = requestIdOf(event.data);
-  const out: Record<string, unknown> = { ...event };
-  for (const key of PRIVACY) delete out[key];
+  const src = event as unknown as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of ALLOWED) if (src[key] !== undefined) out[key] = src[key];
   // The hub fills user/host from the event; a satellite without a local user still names its machine.
   if (out.user === undefined && user !== undefined) out.user = user;
   if (out.host === undefined && machine !== undefined) out.host = machine;

@@ -1,7 +1,11 @@
 import { createServer, type Server } from 'node:http';
+import { EventEmitter } from 'node:events';
 import type { AddressInfo } from 'node:net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRelay, type RelayOptions } from '../src/server/relay';
+import { targetsSelf } from '../src/server/plugin';
+import type { ViteDevServer } from 'vite';
+import { stopOnClose } from '../src/server/lifecycle';
 import type { FlowEvent } from '../src/core/events';
 
 /** One accepted event as ingest hands it to the relay: server-owned fields and content still attached. */
@@ -47,6 +51,32 @@ describe('satellite relay (#91)', () => {
     expect(wire.kind).toBe('prompt');
     expect(wire.event_id).toBe('req-9');
     expect(relay.state().queued).toBe(0);
+    relay.stop();
+  });
+
+  it('sends only the allow-listed metadata, dropping role and any unknown field', { timeout: 5_000 }, async () => {
+    const hub = await stubHub(() => 200);
+    const relay = relayOf(hub.url);
+    // Every allowed field is present, plus content and a field no adapter should be able to leak.
+    relay.push([event({
+      kind: 'tool.start', ts: 42, source: 'custom', session: 's1', agent: 'main', parent: 'p1',
+      tool: 'Bash', call: 'c1', model: 'gpt', node: 'n1', project: 'prj', user: 'dana', host: 'laptop',
+      runtime: 'node', status: 'ok', tokens: 12, cost_usd: 0.5, duration_ms: 7, estimated: true,
+      role: 'Task: cat /etc/passwd', prompt: 'secret prompt', secret_path: '/home/me/.ssh/id_rsa',
+    } as unknown as Partial<FlowEvent>)]);
+    await relay.flush();
+
+    const [wire] = hub.seen[0].body as Record<string, unknown>[];
+    expect(wire).toEqual({
+      kind: 'tool.start', ts: 42, source: 'custom', session: 's1', agent: 'main', parent: 'p1',
+      tool: 'Bash', call: 'c1', model: 'gpt', node: 'n1', project: 'prj', user: 'dana', host: 'laptop',
+      runtime: 'node', status: 'ok', tokens: 12, cost_usd: 0.5, duration_ms: 7, estimated: true,
+      event_id: 'req-9',
+    });
+    // Content and anything outside the allow-list is gone, whatever its name.
+    for (const dropped of ['id', 'targets', 'runtimeRef', 'sender', 'message', 'data', 'role', 'prompt', 'secret_path']) {
+      expect(wire).not.toHaveProperty(dropped);
+    }
     relay.stop();
   });
 
@@ -202,6 +232,35 @@ describe('satellite relay (#91)', () => {
     relay.stop();
   });
 
+  it('waits for a flush in flight before it sends the test event', { timeout: 5_000 }, async () => {
+    // The event flush hangs on `gate`; the test must not post its own event until that flush is done,
+    // or the two would interleave on the same relay state.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const calls: { path: string; body: unknown }[] = [];
+    const fakeFetch: typeof globalThis.fetch = async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      calls.push({ path, body: JSON.parse(String(init?.body)) });
+      if (init?.method === 'POST' && path === '/api/events' && calls.filter((c) => c.path === '/api/events').length === 1) await gate;
+      return new Response('{}', { status: 204 });
+    };
+    const relay = relayOf('http://hub.invalid', { fetch: fakeFetch });
+    relay.push([event()]);
+    const flushing = relay.flush();
+    const testing = relay.sendTest();
+    // A real timer, so the microtasks of both calls run: only the flush may be on the wire so far.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(calls.filter((c) => c.path === '/api/events')).toHaveLength(1);
+    release();
+    await flushing;
+    await testing;
+
+    const events = calls.filter((c) => c.path === '/api/events');
+    expect(events).toHaveLength(2);
+    expect(events[1].body).toMatchObject([{ kind: 'log', source: 'flow-tower', status: 'ok' }]);
+    relay.stop();
+  });
+
   it('reports the last payload actually sent, stripped of content', { timeout: 5_000 }, async () => {
     const hub = await stubHub(() => 200);
     const relay = relayOf(hub.url);
@@ -213,5 +272,68 @@ describe('satellite relay (#91)', () => {
     expect(relay.state().lastPayload).not.toHaveProperty('message');
     expect(relay.state().lastPayload).not.toHaveProperty('data');
     relay.stop();
+  });
+});
+
+describe('self-loop guard for the satellite relay (#91)', () => {
+  // The dev server bound to this port; only the address() shape targetsSelf touches matters here.
+  const server = { httpServer: { address: () => ({ port: 5317 }) } } as unknown as ViteDevServer;
+  const self = (url: string) => targetsSelf(url, server);
+
+  it('refuses localhost, bracketed IPv6 and 127.x on the same port', () => {
+    expect(self('http://localhost:5317')).toBe(true);
+    expect(self('http://[::1]:5317')).toBe(true);
+    expect(self('http://127.0.0.2:5317')).toBe(true);
+  });
+
+  it('allows the same loopback hosts on another port, and a remote host', () => {
+    expect(self('http://localhost:5318')).toBe(false);
+    expect(self('http://[::1]:5318')).toBe(false);
+    expect(self('http://127.0.0.2:5318')).toBe(false);
+    expect(self('http://hub.example:5317')).toBe(false);
+  });
+});
+
+describe('dev server close stops the relay (#91, #99)', () => {
+  // Vite restarts the server when a src/server file or the config changes and closes the old http server.
+  // Without wiring close -> stop, the old relay kept beating at the hub and its unref'd timers kept the
+  // previous server alive, so memory grew across restarts (#99). A plain EventEmitter stands in for the
+  // httpServer, since only its 'close' event and once() matter here.
+  it('calls every cleanup once when the server closes', () => {
+    const server = { httpServer: new EventEmitter() };
+    const stopped = vi.fn();
+    stopOnClose(server, [stopped]);
+
+    server.httpServer.emit('close');
+    expect(stopped).toHaveBeenCalledTimes(1);
+    // once(): a second close must not run the cleanups again.
+    server.httpServer.emit('close');
+    expect(stopped).toHaveBeenCalledTimes(1);
+  });
+
+  it('is a no-op when there is no http server yet, and a throwing cleanup cannot stop the others', () => {
+    expect(() => stopOnClose({ httpServer: undefined }, [vi.fn()])).not.toThrow();
+
+    const server = { httpServer: new EventEmitter() };
+    const after = vi.fn();
+    stopOnClose(server, [() => { throw new Error('boom'); }, after]);
+    server.httpServer.emit('close');
+    expect(after).toHaveBeenCalledTimes(1);
+  });
+
+  it('wraps Vite close() when there is no httpServer (middleware mode) so stop() still runs', () => {
+    const stopped = vi.fn();
+    const inner = vi.fn(() => Promise.resolve());
+    const server = { httpServer: undefined, close: inner };
+    stopOnClose(server, [stopped]);
+
+    expect(stopped).not.toHaveBeenCalled();
+    void (server.close as () => unknown)();
+    expect(stopped).toHaveBeenCalledTimes(1);
+    expect(inner).toHaveBeenCalledTimes(1); // the original close still runs
+
+    // A second close must not run the cleanups again.
+    void (server.close as () => unknown)();
+    expect(stopped).toHaveBeenCalledTimes(1);
   });
 });
