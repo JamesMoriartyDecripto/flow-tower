@@ -17,6 +17,10 @@ export interface UpdateInfo {
   latest?: string;
   url?: string;
   newer: boolean;
+  /** When the answer was obtained (cache write time or the fresh check), in ms since the epoch. */
+  checkedAt?: number;
+  /** Set only for a forced check that failed: why the user's "check now" saw nothing new. */
+  error?: 'offline' | 'unavailable';
 }
 
 interface Cache { checkedAt: number; latest: string; url: string }
@@ -50,22 +54,26 @@ function readCache(file: string): Cache | undefined {
 }
 
 export async function checkForUpdate({
-  current, cacheFile = defaultCacheFile(), fetchImpl = fetch, now = Date.now(),
-}: { current: string; cacheFile?: string; fetchImpl?: typeof fetch; now?: number }): Promise<UpdateInfo> {
-  const result = (c?: Cache): UpdateInfo => (c ? { current, latest: c.latest, url: c.url, newer: isNewer(c.latest, current) } : { current, newer: false });
+  current, cacheFile = defaultCacheFile(), fetchImpl = fetch, now = Date.now(), force = false,
+}: { current: string; cacheFile?: string; fetchImpl?: typeof fetch; now?: number; force?: boolean }): Promise<UpdateInfo> {
+  const result = (c?: Cache, error?: UpdateInfo['error']): UpdateInfo => (c
+    ? { current, latest: c.latest, url: c.url, newer: isNewer(c.latest, current), checkedAt: c.checkedAt, ...(error ? { error } : {}) }
+    : { current, newer: false, ...(error ? { error } : {}) });
   // A cache older than the running version was written before an update (#71): it knows nothing about
   // releases since, so it is neither fresh nor a fallback.
   const read = readCache(cacheFile);
   const cached = read && !isNewer(current, read.latest) ? read : undefined;
-  if (cached && now - cached.checkedAt < DAY) return result(cached);
+  // A forced check ignores the freshness window: the user asked explicitly, so ask GitHub again.
+  if (!force && cached && now - cached.checkedAt < DAY) return result(cached);
   try {
     const res = await fetchImpl(RELEASES_API, {
       headers: { accept: 'application/vnd.github+json', 'user-agent': 'flow-tower' },
       signal: AbortSignal.timeout(1500),
     });
-    if (!res.ok) return result(cached);
+    // A non-OK answer (rate limit, 404) is a reachable service saying no: the reason differs from offline.
+    if (!res.ok) return result(cached, force ? 'unavailable' : undefined);
     const body = (await res.json()) as { tag_name?: unknown; html_url?: unknown };
-    if (typeof body.tag_name !== 'string' || typeof body.html_url !== 'string') return result(cached);
+    if (typeof body.tag_name !== 'string' || typeof body.html_url !== 'string') return result(cached, force ? 'unavailable' : undefined);
     const fresh: Cache = { checkedAt: now, latest: body.tag_name, url: body.html_url };
     try {
       mkdirSync(dirname(cacheFile), { recursive: true });
@@ -73,6 +81,7 @@ export async function checkForUpdate({
     } catch { /* read-only home: just check again next time */ }
     return result(fresh);
   } catch {
-    return result(cached); // offline, timeout, rate limit: say nothing new
+    // Offline, timeout, DNS failure: a forced check reports it; a quiet one stays silent as before.
+    return result(cached, force ? 'offline' : undefined);
   }
 }

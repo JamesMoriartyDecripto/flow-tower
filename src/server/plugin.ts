@@ -10,6 +10,7 @@ import { readTowerFile } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
 import { createSatellites } from './satellites.ts';
 import { checkForUpdate, updateCheckDisabled, type UpdateInfo } from './update.ts';
+import { versionCheckHandler } from './version-check.ts';
 import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
 import { userHome, warnIfInRepo } from './home.ts';
@@ -178,7 +179,8 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
 
       // Update notice (#35): one quiet check per start, never blocking the server.
       let update: UpdateInfo = { current: VERSION, newer: false };
-      if (!updateCheckDisabled()) {
+      const updateDisabled = updateCheckDisabled();
+      if (!updateDisabled) {
         void checkForUpdate({ current: VERSION }).then((u) => {
           update = u;
           if (u.newer) server.config.logger.warn(`\n  ↑ Flow Tower ${u.latest} is available (you have v${VERSION}): ${u.url}${UPDATE_COMMAND ? `\n    update: ${UPDATE_COMMAND}` : ''}\n`);
@@ -195,10 +197,22 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         // The journal lives in ~/.config/flow-tower; the page writes to it only when the user turned it on.
         learning: { store: voiceStore(USER_HOME), names: (ids) => namesOf(state, ids) },
       }));
+      // Forced update check (#141): the top bar's "check now". connect matches a mount by prefix, so
+      // `/api/version` would also receive `/api/version/check` (as '/check') and answer it as a plain GET;
+      // mounting the check first keeps the two routes apart, like /api/sharing/test above.
+      const versionCheck = versionCheckHandler({
+        current: VERSION,
+        hub: hubOpts.hub,
+        disabled: updateDisabled,
+        check: (args) => checkForUpdate(args),
+        now: Date.now,
+        set: (u) => { update = u; },
+      });
+      server.middlewares.use('/api/version/check', versionCheck);
       server.middlewares.use('/api/version', (req, res) => {
         // The update command embeds this checkout's absolute path: a remote viewer has no use for it.
         const remote = isRemote(req, { hub: hubOpts.hub });
-        send(res, 200, versionPayload(update, remote));
+        send(res, 200, { ...versionPayload(update, remote), disabled: updateDisabled });
       });
 
       // Everything this plugin started with a timer (the relay's flush/heartbeat, the history prune, the
