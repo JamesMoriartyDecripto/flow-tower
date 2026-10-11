@@ -84,6 +84,9 @@ describe('flow-tower connect (#91)', () => {
     expect(hub.seen[0].path).toBe('/api/heartbeat');
     expect(hub.seen[0].headers['x-flow-tower-token']).toBe('ft_laptop_secretvalue');
     expect(hub.seen[0].body).toMatchObject({ queued: 0, dropped: 0, state: 'online' });
+    // The first beat carries the version, like the relay's own heartbeats: the hub lists it right away.
+    const pkg = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'package.json'), 'utf8')) as { version: string };
+    expect((hub.seen[0].body as Record<string, unknown>).version).toBe(pkg.version);
   });
 
   it('on 401 keeps the config and says the token was refused', { timeout: 15_000 }, async () => {

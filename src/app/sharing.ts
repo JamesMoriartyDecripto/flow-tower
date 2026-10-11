@@ -43,6 +43,17 @@ export function satText(s: SharingState, now: number): string {
   return base;
 }
 
+/**
+ * The Queue row of the sharing section (#91): events merely waiting for the next flush are "waiting to
+ * send", while "queued" means the hub is unreachable and they pile up. Dropped events are always worth
+ * naming, whatever the state.
+ */
+export function queueText(s: SharingState): string {
+  const n = s.queued ?? 0;
+  const waiting = `${n} ${s.state === 'queued' ? 'queued while the hub is unreachable' : 'waiting to send'}`;
+  return s.dropped ? `${waiting}, ${s.dropped} dropped` : waiting;
+}
+
 /** Reuse the existing chip variants: only the state word changes, never a new colour. */
 export const SAT_CLASS: Record<SharingState['state'], string> = {
   off: '', online: 'on', queued: 'warn', paused: 'dim', revoked: 'err',

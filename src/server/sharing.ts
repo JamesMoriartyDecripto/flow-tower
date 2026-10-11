@@ -2,6 +2,11 @@
  * Sharing controls on a satellite (#91): the pause switch and the "does it reach the hub?" test. Both act
  * on the local relay and on <home>/config.json, so a restart keeps the user's choice. Guarded like any
  * other local write: no other page, no remote viewer, and no non-JSON body may flip the switch.
+ *
+ * Two handlers, mounted at their own exact path by plugin.ts: `/api/sharing/test` first, then the pause
+ * control at `/api/sharing`. connect() matches a mount by prefix, so mounting the control at
+ * `/api/sharing` also delivers `/api/sharing/test` to it (as `/test`): each handler therefore answers
+ * only its own root, and calls next() for anything else.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { crossSite, isJson } from './guard.ts';
@@ -25,37 +30,70 @@ export interface SharingOptions {
   hub: boolean;
 }
 
-/** One JSON body, or undefined when the request carries none or something unparseable. */
-async function readBody(req: IncomingMessage): Promise<unknown> {
+/** The pause body is `{ paused }` at most: cap it so a huge POST cannot be buffered whole (like events.ts). */
+const MAX_BODY = 16 * 1024;
+
+/**
+ * One JSON body, or undefined when the request carries none or something unparseable. The body is capped
+ * at MAX_BODY; a bigger one answers 413 itself and resolves undefined, so the caller answers nothing.
+ */
+async function readBody(req: IncomingMessage, res: ServerResponse): Promise<unknown> {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > MAX_BODY) { send(res, 413, { error: 'body too large' }); req.destroy(); return undefined; }
+    chunks.push(chunk as Buffer);
+  }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return undefined; }
 }
 
 /** The state answer, shared by every route here. Never carries the token. */
 const stateOf = (relay?: Relay) => relay?.state() ?? { state: 'off' };
 
+/** The path connect left after stripping the mount: a mount root is '' or '/', anything else is another route. */
+const isMountRoot = (url: string | undefined) => {
+  const path = (url ?? '').split('?')[0];
+  return path === '' || path === '/';
+};
+
 export function sharingHandler({ home, relay, hub }: SharingOptions) {
-  return async (req: IncomingMessage, res: ServerResponse) => {
-    // A local control: another page must not reach it, a remote viewer must not either, and a body that
-    // is not JSON is refused before it is read (a form post could otherwise reach an endpoint like this).
-    if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
-    if (isRemote(req, { hub })) return send(res, 403, { error: 'remote requests are refused' });
-    // connect() strips the mount prefix (req.url is then '/test'), but a direct call keeps it: take both.
-    const test = /^\/(?:api\/sharing)?\/test\b/.test(req.url ?? '');
+  /** A local control: another page must not reach it, a remote viewer must not either. */
+  const allowed = (req: IncomingMessage, res: ServerResponse): boolean => {
+    if (crossSite(req)) { send(res, 403, { error: 'cross-site requests are refused' }); return false; }
+    if (isRemote(req, { hub })) { send(res, 403, { error: 'remote requests are refused' }); return false; }
+    return true;
+  };
+
+  /** POST /api/sharing/test: one probe event, flushed now so the answer is the hub's own. */
+  const test = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    if (!isMountRoot(req.url)) return next();
+    if (!allowed(req, res)) return;
+    if (req.method !== 'POST') return send(res, 200, stateOf(relay));
+    // A body that is not JSON is refused before it is read (a form post could otherwise reach this route).
+    if (!isJson(req)) return send(res, 415, { error: 'content-type must be application/json' });
+    if (!relay) return send(res, 404, { state: 'off' });
+    return send(res, 200, await relay.sendTest());
+  };
+
+  /** POST /api/sharing: the pause switch. Answers only the mount root, never a shadowed subpath. */
+  const control = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    if (!isMountRoot(req.url)) return next();
+    if (!allowed(req, res)) return;
     if (req.method !== 'POST') return send(res, 200, stateOf(relay));
     if (!isJson(req)) return send(res, 415, { error: 'content-type must be application/json' });
     if (!relay) return send(res, 404, { state: 'off' });
 
-    if (test) return send(res, 200, await relay.sendTest());
-
-    const body = (await readBody(req)) as { paused?: unknown } | undefined;
+    const body = (await readBody(req, res)) as { paused?: unknown } | undefined;
+    if (res.writableEnded) return; // 413 was already sent for an oversize body
     if (typeof body?.paused !== 'boolean') return send(res, 400, { error: 'expected { paused: boolean }' });
     // Persist first: the choice must survive a restart even if the relay object were ever recreated.
     try { writeUserConfig(home, { paused: body.paused }); } catch { /* an unwritable home still pauses now */ }
     if (body.paused) relay.pause(); else relay.resume();
     return send(res, 200, relay.state());
   };
+
+  return { control, test };
 }
 
 function send(res: ServerResponse, status: number, body: unknown) {

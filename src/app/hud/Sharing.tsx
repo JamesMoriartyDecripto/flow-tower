@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { STATIC } from '../staticData';
-import { agoText, SAT_CLASS, satText, satTitle, SHARING_OFF, type SharingState } from '../sharing';
+import { agoText, queueText, SAT_CLASS, satText, satTitle, SHARING_OFF, type SharingState } from '../sharing';
 import { usePrefs } from '../settings';
 import { Row, Toggle } from './Settings';
 
@@ -28,9 +28,15 @@ export function refreshSharing(): Promise<void> {
 function useSharingPoll() {
   useEffect(() => {
     if (STATIC) return;
-    void refreshSharing();
-    const t = setInterval(() => void refreshSharing(), POLL_MS);
-    return () => clearInterval(t);
+    // A hidden tab asks for nothing: skip the tick there and refresh once when it becomes visible again.
+    const poll = () => { if (document.visibilityState !== 'hidden') void refreshSharing(); };
+    poll();
+    const t = setInterval(poll, POLL_MS);
+    document.addEventListener('visibilitychange', poll);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', poll);
+    };
   }, []);
 }
 
@@ -78,7 +84,8 @@ export function SharingSection() {
       .finally(() => setBusy(false));
   };
 
-  const queue = `${sharing.queued ?? 0} queued, ${sharing.dropped ?? 0} dropped while offline`;
+  // The wording follows the state; queueText keeps that rule in one place so it can be unit-tested.
+  const queue = queueText(sharing);
   return (
     <section id="settings-sharing">
       <h3>Sharing</h3>
@@ -95,7 +102,7 @@ export function SharingSection() {
         <span className="mono dim">{queue}</span>
       </Row>
       <Row label="What is shared" hint="Content-free metadata: it describes the run, never what was said.">
-        <span className="sharing-list">event kind, time, tool and agent names, model, tokens, cost, duration, status, user, machine, project</span>
+        <span className="sharing-list">event kind, time, tool, agent and node names, model, tokens, cost, duration, status, user, machine, project</span>
       </Row>
       <Row label="Never shared" hint="Prompt text, messages, commands and tool input or output never leave this machine.">
         <span className="sharing-list">prompts, messages, commands, file contents, tool input and output</span>
