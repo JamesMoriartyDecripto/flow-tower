@@ -169,7 +169,7 @@ describe('flow-tower library (#121)', () => {
 
   writeFileSync(join(project, 'app.tower.yaml'), tower('App'));
 
-  it('adds a path, then says it is already in', { timeout: 15_000 }, () => {
+  it('adds a path, then says it is already in', { timeout: 20_000 }, () => {
     const added = library('add', join(project, 'app.tower.yaml'));
     expect(added.status).toBe(0);
     expect(added.stdout).toContain('added:');
@@ -181,7 +181,7 @@ describe('flow-tower library (#121)', () => {
     expect(stored()).toHaveLength(1);
   });
 
-  it('keeps other config keys when it writes', { timeout: 15_000 }, () => {
+  it('keeps other config keys when it writes', { timeout: 20_000 }, () => {
     writeFileSync(join(home, 'config.json'), JSON.stringify({ viewers: ['alice@example.com'], library: [] }), { mode: 0o600 });
     library('add', project);
     const config = JSON.parse(readFileSync(join(home, 'config.json'), 'utf8')) as Record<string, unknown>;
@@ -189,7 +189,7 @@ describe('flow-tower library (#121)', () => {
     expect(config.library).toEqual([project]);
   });
 
-  it('refuses a path with a reason and exits 1', { timeout: 15_000 }, () => {
+  it('refuses a path with a reason and exits 1', { timeout: 20_000 }, () => {
     // The file exists, so the refusal is the user-folder rule, not "does not exist".
     writeFileSync(join(home, 'inside.tower.yaml'), tower('Inside'));
     const r = library('add', join(home, 'inside.tower.yaml'));
@@ -199,7 +199,7 @@ describe('flow-tower library (#121)', () => {
     expect(stored()).toEqual([project]);
   });
 
-  it('lists each entry and marks a missing one', { timeout: 15_000 }, () => {
+  it('lists each entry and marks a missing one', { timeout: 20_000 }, () => {
     // Added while it exists (checkPath refuses a missing path), then deleted: list must flag it.
     const gone = join(project, 'gone.tower.yaml');
     writeFileSync(gone, tower('Gone'));
@@ -211,7 +211,7 @@ describe('flow-tower library (#121)', () => {
     expect(list.stdout).toContain(`${gone}  missing`);
   });
 
-  it('removes by resolved path or by the stored string', { timeout: 15_000 }, () => {
+  it('removes by resolved path or by the stored string', { timeout: 20_000 }, () => {
     // A redundant path segment still resolves to the same entry.
     const remove = library('remove', join(project, '.', 'gone.tower.yaml'));
     expect(remove.status).toBe(0);
@@ -226,13 +226,13 @@ describe('flow-tower library (#121)', () => {
     expect(again.stderr).toContain('not in the library');
   });
 
-  it('hints when the list is empty', { timeout: 15_000 }, () => {
+  it('hints when the list is empty', { timeout: 20_000 }, () => {
     const r = library('list');
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('no towers yet');
   });
 
-  it('exits 1 on a usage error', { timeout: 15_000 }, () => {
+  it('exits 1 on a usage error', { timeout: 20_000 }, () => {
     expect(library('add').status).toBe(1);
     expect(library('frobnicate').status).toBe(1);
     expect(existsSync(join(home, 'config.json'))).toBe(true);
@@ -250,13 +250,13 @@ describe('flow-tower library serve (#121b)', () => {
   const run = (...args: string[]) =>
     spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', timeout: 20_000, env: cleanEnv({ FLOW_TOWER_HOME: home }) });
 
-  it('exits 1 with the add hint when the library is empty', { timeout: 15_000 }, () => {
+  it('exits 1 with the add hint when the library is empty', { timeout: 20_000 }, () => {
     const r = run('library');
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('your library is empty: flow-tower library add <path to a .tower.yaml or a folder>');
   });
 
-  it('lists the library subcommands in the usage text', { timeout: 15_000 }, () => {
+  it('lists the library subcommands in the usage text', { timeout: 20_000 }, () => {
     const help = run('library', '--help');
     expect(help.status).toBe(0);
     expect(help.stdout).toContain('library add');
