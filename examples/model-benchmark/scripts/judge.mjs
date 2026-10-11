@@ -1,22 +1,26 @@
 #!/usr/bin/env node
 // Judge the runs: each task's deterministic check first, then a blind file for the rubric.
-//   node scripts/judge.mjs --in results/2026-10-11.jsonl --tasks tasks/coder/ [--tasks-root tasks]
+//   node scripts/judge.mjs --in results/2026-10-11.jsonl --tasks tasks/coder/ [--tasks-root tasks] [--url http://127.0.0.1:5317]
 // Writes next to the input:
 //   <name>.judged.jsonl    every run + { check, pass, detail }
 //   <name>.blind.md        rubric answers, shuffled, model names removed: give this to the verifier or a human
 //   <name>.blind-key.json  blind id -> run; keep it away from whoever scores
 //   <name>.scores.json     blind id -> null; the scorer fills 0-10 (see rubric.md)
+// --url (or FLOW_TOWER_URL) posts metadata-only events to the tower's own model-benchmark.tower.yaml.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { argv, execPath, exit } from 'node:process';
+import { argv, env, execPath, exit } from 'node:process';
+import { live } from './live.mjs';
 import { blocks, loadTasks } from './tasks.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
 const input = arg('in');
 const tasksPaths = argv.flatMap((a, i) => (a === '--tasks' ? [argv[i + 1]] : []));
-if (!input || !tasksPaths.length) { console.error('usage: judge.mjs --in results/<date>.jsonl --tasks tasks/<c>/ [--tasks tasks/<d>/]'); exit(2); }
+if (!input || !tasksPaths.length) { console.error('usage: judge.mjs --in results/<date>.jsonl --tasks tasks/<c>/ [--tasks tasks/<d>/] [--url http://127.0.0.1:5317]'); exit(2); }
+// Same tower URL rule as bench.mjs: the flag wins, the environment is the fallback, '' is a no-op.
+const emit = live(arg('url', env.FLOW_TOWER_URL || ''));
 
 const tasks = new Map(tasksPaths.flatMap(loadTasks).map((t) => [`${t.category}/${t.id}`, t]));
 const runs = readFileSync(input, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
@@ -60,14 +64,18 @@ function runCommand(task, answer) {
 }
 
 function check(task, answer) {
-  if (task.check === 'rubric') return { pass: null, detail: 'rubric only' };
-  if (task.check === 'command') return runCommand(task, answer);
+  // One judge node event per deterministic check. `tool` names the check kind; the detail never travels
+  // (it can quote the answer), only the verdict does.
+  emit({ kind: 'tool.start', node: 'judges.check', tool: task.check, model: task.id, message: `${task.category}/${task.id}` });
+  const done = (r) => { emit({ kind: 'tool.end', node: 'judges.check', tool: task.check, model: task.id, status: r.pass === false ? 'error' : 'ok' }); return r; };
+  if (task.check === 'rubric') return done({ pass: null, detail: 'rubric only' });
+  if (task.check === 'command') return done(runCommand(task, answer));
   if (task.check === 'json') {
     const got = extractJson(answer);
     const want = JSON.parse(blocks(task.expected, 'json')[0]);
-    if (got === undefined) return { pass: false, detail: 'no JSON in the answer' };
+    if (got === undefined) return done({ pass: false, detail: 'no JSON in the answer' });
     const same = JSON.stringify(canon(got)) === JSON.stringify(canon(want));
-    return { pass: same, detail: same ? 'exact match' : `got ${JSON.stringify(got).slice(0, 160)}` };
+    return done({ pass: same, detail: same ? 'exact match' : `got ${JSON.stringify(got).slice(0, 160)}` });
   }
   // regex: every line of every ```regex block must match; a ```must-not line must not.
   const must = blocks(task.expected, 'regex').flatMap((b) => b.split('\n')).filter(Boolean);
@@ -75,7 +83,7 @@ function check(task, answer) {
   const missing = must.filter((r) => !new RegExp(r, 'i').test(answer));
   const wrong = mustNot.filter((r) => new RegExp(r, 'i').test(answer));
   const pass = !missing.length && !wrong.length;
-  return { pass, detail: pass ? 'all patterns found' : [missing.length && `missing ${missing.join(' ; ')}`, wrong.length && `should not say ${wrong.join(' ; ')}`].filter(Boolean).join('; ') };
+  return done({ pass, detail: pass ? 'all patterns found' : [missing.length && `missing ${missing.join(' ; ')}`, wrong.length && `should not say ${wrong.join(' ; ')}`].filter(Boolean).join('; ') });
 }
 
 const judged = runs.map((r) => {
@@ -105,7 +113,14 @@ if (shuffled.length) {
   writeFileSync(`${base}.blind-key.json`, JSON.stringify(key, null, 2) + '\n');
   // Never overwrite scores someone already filled in.
   if (!existsSync(`${base}.scores.json`)) writeFileSync(`${base}.scores.json`, JSON.stringify(scores, null, 2) + '\n');
+  // A count only: the sheet holds the answers, and none of that text may travel in an event.
+  emit({ kind: 'log', node: 'judges.blind', message: `${shuffled.length} answers in ${base}.blind.md` });
 }
+// Scores already on disk are read (never overwritten) so the file's state is visible in the feed.
+const scoresPath = `${base}.scores.json`;
+let filled = 0;
+try { if (existsSync(scoresPath)) filled = Object.values(JSON.parse(readFileSync(scoresPath, 'utf8'))).filter((s) => s != null).length; } catch { /* a malformed sheet stays the scorer's problem */ }
+emit({ kind: 'log', node: 'judges.scores', message: `${filled} scores read from ${base}.scores.json` });
 
 const pass = judged.filter((r) => r.pass === true).length, fail = judged.filter((r) => r.pass === false).length;
 console.log(`${judged.length} runs: ${pass} pass, ${fail} fail, ${judged.length - pass - fail} pending (rubric only)`);

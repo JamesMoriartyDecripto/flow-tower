@@ -5,10 +5,13 @@
 //   node scripts/bench.mjs --category coder --models a/x,b/y --tasks tasks/coder/ --runs 3 --out results/2026-10-11.jsonl
 //   node scripts/bench.mjs ... --dry-run      prints the plan and checks the task files; needs no key
 //
+// --url http://127.0.0.1:5317 (or FLOW_TOWER_URL) posts events to the tower's own model-benchmark.tower.yaml,
+// so the maintainer watches the run live. Only metadata travels: never a prompt, an answer, a file or the key.
 // The key comes only from OPENROUTER_API_KEY in the shell. It is never read from a file, printed or logged.
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { argv, env, exit } from 'node:process';
+import { live } from './live.mjs';
 import { loadTasks, taskProblems } from './tasks.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
@@ -21,9 +24,12 @@ const runs = Number(arg('runs', 3));
 const out = arg('out', `results/${today}.jsonl`);
 const timeoutMs = Number(arg('timeout', 180)) * 1000;
 const effort = arg('effort', 'low');
+// The tower's own URL: --url wins, FLOW_TOWER_URL is the fallback, and '' means the run is not watched.
+const url = arg('url', env.FLOW_TOWER_URL || '');
+const emit = live(url);
 
 if (!tasksPath || !models.length || !(runs >= 1)) {
-  console.error('usage: bench.mjs --category <c> --models a,b --tasks tasks/<c>/ --runs N --out results/<date>.jsonl [--timeout 180] [--effort low] [--dry-run]');
+  console.error('usage: bench.mjs --category <c> --models a,b --tasks tasks/<c>/ --runs N --out results/<date>.jsonl [--timeout 180] [--effort low] [--url http://127.0.0.1:5317] [--dry-run]');
   exit(2);
 }
 
@@ -48,10 +54,21 @@ console.log(`order: run-major, models interleaved, so a slow hour or a provider 
 console.log(`output: ${out}  timeout: ${timeoutMs / 1000}s + 1 retry  effort: ${effort}`);
 if (runs < 3) console.log('note: fewer than 3 runs per cell: label every result ILLUSTRATIVE');
 if (broken) { console.error(`\n${broken} task problem(s): fix them before a real run`); exit(1); }
-if (dry) exit(0);
+if (dry) {
+  // The dry run is part of the story too: `runner.dryrun` pulses while the task files are checked.
+  // Awaited only here: exit() would otherwise kill the fire-and-forget POST before it leaves.
+  const events = [
+    emit({ kind: 'agent.start', node: 'runner.dryrun', agent: 'bench --dry-run', message: `${models.length} models × ${tasks.length} tasks × ${runs} runs` }),
+    emit({ kind: 'agent.end', node: 'runner.dryrun', agent: 'bench --dry-run', status: 'ok', message: 'plan printed, task files checked' }),
+  ];
+  if (url) await Promise.all(events); // no url: nothing to wait for, the no-op resolves at once
+  exit(0);
+}
 
 const KEY = env.OPENROUTER_API_KEY;
 if (!KEY) { console.error('OPENROUTER_API_KEY is not set in this shell (it is never read from a file)'); exit(2); }
+// The key is guarded, never reported: the event says it was found, not what it is.
+emit({ kind: 'log', node: 'runner.key', message: 'OPENROUTER_API_KEY found in the shell' });
 
 // 2. Tools. Only what a task declares; read_file sees the task's own fixtures and nothing else.
 const S = { type: 'string' };
@@ -75,6 +92,9 @@ class CallError extends Error { constructor(msg, retry) { super(msg); this.retry
 
 async function call(body) {
   const t0 = performance.now();
+  // Every call lights runner.api. The message carries the status code only, never the response body.
+  const toolEnd = (status, message) => emit({ kind: 'tool.end', node: 'runner.api', tool: 'chat/completions', model: body.model, status, duration_ms: Math.round(performance.now() - t0), ...(message && { message }) });
+  emit({ kind: 'tool.start', node: 'runner.api', tool: 'chat/completions', model: body.model });
   let res;
   try {
     res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -83,9 +103,13 @@ async function call(body) {
       body: JSON.stringify({ ...body, stream: true }),
       signal: AbortSignal.timeout(timeoutMs),
     });
-  } catch (e) { throw new CallError(`no answer: ${e.name === 'TimeoutError' ? `timeout ${timeoutMs / 1000}s` : e.message}`, true); }
+  } catch (e) {
+    toolEnd('error', e.name === 'TimeoutError' ? `timeout ${timeoutMs / 1000}s` : e.name);
+    throw new CallError(`no answer: ${e.name === 'TimeoutError' ? `timeout ${timeoutMs / 1000}s` : e.message}`, true);
+  }
   if (!res.ok) {
     const text = (await res.text()).slice(0, 300);
+    toolEnd('error', `HTTP ${res.status}`); // the body stays out: it can name the prompt or the endpoints
     // 404 "no endpoints" (zdr + require_parameters) is a finding, not a glitch: never retried.
     throw new CallError(`HTTP ${res.status} ${text}`, res.status === 429 || res.status >= 500);
   }
@@ -118,8 +142,10 @@ async function call(body) {
       }
     }
   } catch (e) {
+    toolEnd('error', e instanceof CallError ? 'stream error' : 'stream broke');
     throw e instanceof CallError ? e : new CallError(`stream broke: ${e.name === 'TimeoutError' ? `timeout ${timeoutMs / 1000}s` : e.message}`, true);
   }
+  toolEnd('ok');
   return { first, ms: performance.now() - t0, content, toolCalls: toolCalls.filter(Boolean), usage, provider };
 }
 
@@ -135,6 +161,8 @@ async function runOne(model, task, run) {
   const tools = task.tools.length ? [...task.tools.map((t) => TOOL_DEFS[t]), FINISH] : undefined;
   const messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: task.prompt }];
   const t0 = performance.now();
+  // The loop node lights for the whole run; `session` is the run id, and the message names the run in words.
+  emit({ kind: 'agent.start', node: 'runner.loop', model, session, message: `${task.category}/${task.id} run ${run}` });
   try {
     for (let step = 1; step <= task.steps; step++) {
       const body = {
@@ -179,13 +207,20 @@ async function runOne(model, task, run) {
         messages.push({ role: 'tool', tool_call_id: c.id, content: result });
       }
       if (done) break;
-      if (step === task.steps) rec.error = `step cap ${task.steps}`;
+      if (step === task.steps) {
+        rec.error = `step cap ${task.steps}`;
+        emit({ kind: 'error', node: 'runner.cap', model, session, status: 'error', message: rec.error });
+      }
     }
   } catch (e) {
     rec.error = e.message;
   }
   rec.totalMs = Math.round(performance.now() - t0);
   rec.cost = Number(rec.cost.toFixed(6));
+  emit({ kind: 'agent.end', node: 'runner.loop', model, session, status: rec.error ? 'error' : 'ok', duration_ms: rec.totalMs, ...(rec.error && { message: rec.error.slice(0, 120) }) });
+  // Measurements, per run: the spend and the first output that a voice or UI role cares about.
+  emit({ kind: 'usage', node: 'measure.cost', model, session, tokens: rec.promptTokens + rec.completionTokens, cost_usd: rec.cost });
+  if (rec.firstOutputMs !== null) emit({ kind: 'log', node: 'measure.first', model, session, duration_ms: rec.firstOutputMs, message: `first output ${rec.firstOutputMs} ms` });
   return rec;
 }
 
@@ -196,6 +231,8 @@ for (let run = 1; run <= runs; run++) {
     for (const model of models) {
       const rec = await runOne(model, task, run);
       appendFileSync(out, `${JSON.stringify(rec)}\n`);
+      // The record is on disk: one line appended per run, as the jsonl node promises.
+      emit({ kind: 'log', node: 'runner.jsonl', model, message: `wrote ${task.category}/${task.id} run ${run}` });
       spent += rec.cost;
       const cachedPct = rec.promptTokens ? Math.round((100 * rec.cachedTokens) / rec.promptTokens) : 0;
       console.log(`[${++n}/${calls}] ${model} ${task.id} #${run}: ${rec.error ? `ERROR ${rec.error.slice(0, 80)}` : 'answered'}`
