@@ -21,6 +21,7 @@ import { createRelay } from './relay.ts';
 import { sharingHandler } from './sharing.ts';
 import { effective, loadConfig } from './config.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
+import { hubViews } from './hub-views.ts';
 import { openHistory } from './history/db.ts';
 import { createHistory } from './history/store.ts';
 import { historyHandler } from './history/api.ts';
@@ -160,6 +161,11 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
         send(res, 200, satellites.list());
       });
+      // The Hub panel's own reads (#92): machines and me, GET viewing routes like satellites, so hub
+      // mode's remote-viewer rule decides who sees them and crossSite keeps other local pages out.
+      const hubPanel = hubViews({ satellites, home: USER_HOME, hub: hubOpts.hub });
+      server.middlewares.use('/api/hub/machines', hubPanel.machines);
+      server.middlewares.use('/api/hub/me', hubPanel.me);
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.
       server.middlewares.use('/v1/logs', hub.otlp('logs'));
       server.middlewares.use('/v1/metrics', hub.otlp('metrics'));

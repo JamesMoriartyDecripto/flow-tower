@@ -109,3 +109,11 @@ passes when the answer contains it (case-insensitive), and `a / b` means either 
 ## Q26. How do I add my tower to the library?
 - docs: skills/flow-tower-contribute/SKILL.md
 - facts: check-example | anonymise / personal data | PR
+
+## Q27. What do the dots and the HUB n/m pill in the Hub panel mean?
+- docs: docs/command-center.md
+- facts: 2 min | 15 min | 5 min / active tokens
+
+## Q28. Can a remote viewer change anything in the Hub panel?
+- docs: docs/hub-reference.md, docs/command-center.md
+- facts: read-only | refused

@@ -10,16 +10,17 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Next, in order
 
-1. #92 hub panel
-2. #85 privacy profiles
-3. #93 admin
-4. #94 alerts
-5. #95 remote activity
-6. #86 fan-out
-7. #97 systemd, compose, Caddy and Tailscale on the real server
-8. #99 dev-server heap and port leak
-9. #105 model benchmarks ([model-benchmark](examples/model-benchmark))
-10. #69, #65, #5
+1. #92 hub panel (in review, this PR)
+2. #121 the user's own library (skill + CLI)
+3. #85 privacy profiles
+4. #93 admin
+5. #94 alerts
+6. #95 remote activity
+7. #86 fan-out
+8. #97 systemd, compose, Caddy and Tailscale on the real server
+9. #99 dev-server heap and port leak
+10. #105 model benchmarks ([model-benchmark](examples/model-benchmark))
+11. #69, #65, #5
 
 ## How work is done
 

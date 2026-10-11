@@ -504,6 +504,39 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
   .hud:has(.livefeed) .nodelist { max-height: calc(100 * var(--vh) - 76px - 42 * var(--vh) - 12px - 80px); }
 }
 
+/* Hub panel (#92): the Now and Machines tabs, in the Inspector's place. */
+.hub .hub-hint { margin-top: 6px; font-size: 11px; }
+.hub .tabs button { cursor: pointer; }
+.hub .tabbody { padding: 12px 14px; }
+.hub-empty { margin: 0; color: var(--dim); }
+.hub-warn { margin: 0 0 8px; color: var(--warn); }
+.hub-rows { display: grid; gap: 2px; }
+/* Both tabs read in the same shape: identity on line 1, dim metadata on line 2. Seven columns never fit
+   the right panel (see the live-hub test), so the row stacks and each field ellipsizes on its own. */
+.hub-row { display: grid; grid-template-columns: 1fr; gap: 3px; padding: 6px;
+  font: 12.5px var(--mono); border-left: 2px solid transparent; }
+/* The flexible middle column (sender/machine) ellipsizes; the two auto columns keep their width. */
+.hub-main { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.hub-sender { font-weight: 600; color: var(--white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The right-hand cell (state · ago on Now, seen … on Machines): dim, small, never pushed out. */
+.hub-right, .hub-seen { color: var(--dim); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Line 2 dim and smaller, indented under the sender (14px dot + 8px gap). min-width:0 lets a long field
+   ellipsize inside its own cell instead of pushing the next one out of the panel. */
+.hub-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding-left: 22px; font-size: 11px; color: var(--dim); }
+.hub-meta .hub-cell { min-width: 0; }
+.hub-sep { color: var(--line); opacity: .7; }
+.hub-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-dot { text-align: center; }
+.hub-dot.run, .hub-dot.active { color: var(--live-run); }
+.hub-dot.idle { color: var(--amber); }
+.hub-dot.silent, .hub-dot.never { color: var(--dim); }
+.hub-dot.paused { color: var(--warn); }
+.hub-dot.revoked { color: var(--live-error); }
+.hub-auto { padding: 0 5px; font-size: 9px; }
+.hub-live { display: flex; align-items: center; gap: 5px; }
+.hub-foot { padding: 8px 18px; border-top: 1px solid var(--line-soft); font: 11px var(--mono); color: var(--dim); }
+
 /* Settings > Voice > Learning (#68) */
 .voice-stats { margin: 0 0 8px; }
 .voice-suggestions { display: grid; gap: 6px; margin: 4px 0 10px; }

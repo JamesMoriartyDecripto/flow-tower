@@ -184,6 +184,7 @@ describe('cli hub flags (#83)', () => {
       encoding: 'utf8',
       // A serve that starts instead of refusing would never exit: fail the test, not the whole run.
       timeout: 20_000,
+      // Only PATH and FLOW_TOWER_HOME on purpose: stricter than cleanEnv, so a serve that wrongly starts sees no keys or HOME.
       env: { PATH: process.env.PATH ?? '', FLOW_TOWER_HOME: empty },
     });
 

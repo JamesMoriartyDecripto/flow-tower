@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { cleanEnv } from './fixtures/clean-env';
 
 /**
  * `flow-tower connect` (#91). The config goes to a temp FLOW_TOWER_HOME, the heartbeat to a stub hub on
@@ -40,7 +41,7 @@ function connect(args: string[], env: NodeJS.ProcessEnv = {}) {
     const child = spawn(process.execPath, [CLI, 'connect', ...args], {
       // The timeout kills a stuck child, so the close event fires and the promise settles.
       timeout: 20_000,
-      env: { ...process.env, FLOW_TOWER_HOME: home, ...env },
+      env: cleanEnv({ FLOW_TOWER_HOME: home, ...env }),
     });
     let stdout = '';
     let stderr = '';

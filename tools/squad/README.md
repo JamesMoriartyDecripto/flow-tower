@@ -46,7 +46,8 @@ tools/squad/steps.sh 113 tasks/113 tools "keep the squad runner in the repo"
 ```
 
 `steps.sh <issue> <dir> <write-dirs> <title>` runs `run.mjs` on every `dir/*.md` in order, one commit per
-step. `REPO` picks the worktree (default: this checkout). It stops at the first red step: a failed coder run,
+step. `<write-dirs>` is a comma-separated list, same as `run.mjs --write` (e.g. `src,tests`). `REPO` picks
+the worktree (default: this checkout). It stops at the first red step: a failed coder run,
 no change at all, or a red `npm run check`. Each commit stages every changed tracked path (`git add -u`),
 not a fixed list, so files like `package.json` or `NEXT.md` are never left out; new files are staged inside
 the `write-dirs`, and anything untracked outside them is reported as `UNTRACKED LEFT (not committed)`. Probe

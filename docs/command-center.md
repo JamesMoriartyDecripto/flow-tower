@@ -1,7 +1,7 @@
 # Command center (hub)
 
-How to run one server that collects live events from many machines (laptops, teammates, a VPS, CI), and the
-**one home of the config file and its precedence**. Read it to set up or debug a hub or satellite.
+How to run one server that collects live events from many machines (laptops, teammates, a VPS, CI), what the
+Hub panel (H) shows, and the **one home of the config file and its precedence**. Read it to set up or debug a hub or satellite.
 Instead: copy-paste server steps in the [kit README](../examples/command-center/README.md); token rules, who
 can view and the recipes in [hub-reference.md](hub-reference.md); a single machine in [getting-started.md](getting-started.md).
 
@@ -122,6 +122,15 @@ in its `config.json`, or set `FLOW_TOWER_URL` / `FLOW_TOWER_TOKEN`, then use hoo
 forward usage only: [integrations/otel-collector](../integrations/otel-collector),
 [hub-reference.md § VPS recipe](hub-reference.md#recipe-a-vps--docker-host-collector-sidecar).
 GitHub Actions and Lambda: [hub-reference.md § Recipes](hub-reference.md#recipe-github-actions).
+
+## The Hub panel (H)
+
+Press `H` on a hub to open it. **Now** lists who runs what right now (machine, runtime, project,
+starter — `AUTO` for CI); **Machines** lists every sender the hub trusts (token prefix, runtime, host,
+last seen, state). The dot follows the clock: ● under 2 min, ◐ under 15 min, ○ silent (a revoked or
+paused token shows ✕). The top-bar `HUB n/m` pill reads senders seen in the last 5 min / active tokens.
+A remote viewer gets the same panel, read-only, with a `READ-ONLY` pill. It reads `/api/hub/machines`
+and `/api/hub/me`; [security model](hub-reference.md#security-model).
 
 ## Configuration file
 

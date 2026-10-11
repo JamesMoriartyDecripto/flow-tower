@@ -10,7 +10,7 @@ Layers, bottom to top of the request path:
 4. **Identity**: the user / host / runtime / project / session cascade.
 5. **Storage**: SQLite via `node:sqlite`, hourly and daily rollups, retention 14 days raw (1-21), 90 days hourly, 13 months daily.
 6. **Config**: `config.json`, git-ignored `flow-tower.local.json`, flags > non-empty env > config, `hub.json` migration; the config token is the sender's credential, never the server's own secret (`FLOW_TOWER_TOKEN` or per-sender tokens).
-7. **Views**: the live tower and the in-memory satellite list (`GET /api/hub/satellites`: last seen, last event, queue counters, online); planned (dashed, `status: planned`): hub panel #92, privacy profiles #85, admin #93, alerts #94.
+7. **Views**: the live tower, the in-memory satellite list (`GET /api/hub/satellites`: last seen, last event, queue counters, online) and the Hub panel (#92: Now and Machines tabs, `HUB n/m` and `READ-ONLY` pills, `GET /api/hub/machines` and `GET /api/hub/me`); planned (dashed, `status: planned`): privacy profiles #85, admin #93, alerts #94.
 
 ## Sources
 

@@ -26,8 +26,10 @@ const maxSteps = Number(arg('steps', 40));
 const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or
 // FLOW_TOWER_HOME. The git-ignored .env of the checkout is the fallback. Real environment variables win.
+// A worktree has no copy of that ignored file: the main checkout (parent of the shared .git) is tried last.
 const USER_ENV = join(env.FLOW_TOWER_HOME ?? join(homedir(), '.config', 'flow-tower'), DOT);
-for (const f of [USER_ENV, join(REPO, DOT)]) {
+const MAIN = dirname(resolve(REPO, execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: REPO, encoding: 'utf8' }).trim()));
+for (const f of [USER_ENV, join(REPO, DOT), join(MAIN, DOT)]) {
   if (!env.OPENROUTER_API_KEY && existsSync(f)) loadEnvFile(f);
 }
 if (!env.OPENROUTER_API_KEY) { console.error(`no key: put OPENROUTER_API_KEY in ${USER_ENV} or in the git-ignored .env of ${REPO}, or export it`); exit(1); }

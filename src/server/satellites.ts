@@ -4,9 +4,13 @@
  * events, prompts or tokens. Kept in memory like the event buffer: a restart simply forgets the list.
  */
 import { z } from 'zod';
+import { clip } from '../core/adapters.ts';
 
 /** How long a satellite counts as online without a heartbeat: three missed beats of one minute. */
 export const ONLINE_MS = 180_000;
+
+/** Longest runtime/host kept here (#92): they are labels for the Machines rows, not a data channel. */
+export const NAME_MAX = 64;
 
 /** The body of POST /api/heartbeat: the counters and state word the relay publishes, nothing else. */
 export const HeartbeatSchema = z.object({
@@ -22,6 +26,9 @@ export interface SatelliteView {
   sender: string;
   lastSeen?: number;
   lastEventAt?: number;
+  /** Agent runtime and machine the sender last reported (#92): metadata for the Machines rows. */
+  runtime?: string;
+  host?: string;
   queued: number;
   dropped: number;
   state: string;
@@ -36,6 +43,16 @@ export interface SatelliteView {
 export function createSatellites(now: () => number = Date.now) {
   const seen = new Map<string, Omit<SatelliteView, 'online'>>();
 
+  /**
+   * Runtime/host of a report, clipped and dropped when empty: the last non-empty value wins, because a
+   * bare event (a heartbeat or a source that omits them) must not erase what an earlier one told us.
+   */
+  const names = (e?: { runtime?: string; host?: string }, prev?: Omit<SatelliteView, 'online'>) => {
+    const runtime = clip(e?.runtime?.trim() || undefined, NAME_MAX) ?? prev?.runtime;
+    const host = clip(e?.host?.trim() || undefined, NAME_MAX) ?? prev?.host;
+    return { ...(runtime === undefined ? {} : { runtime }), ...(host === undefined ? {} : { host }) };
+  };
+
   /** A heartbeat from `sender`: it refreshes lastSeen and replaces the counters it reported. */
   const beat = (sender: string, hb: Heartbeat) => {
     const prev = seen.get(sender);
@@ -43,6 +60,7 @@ export function createSatellites(now: () => number = Date.now) {
       sender,
       lastSeen: now(),
       ...(prev?.lastEventAt !== undefined ? { lastEventAt: prev.lastEventAt } : {}),
+      ...names(undefined, prev),
       queued: hb.queued,
       dropped: hb.dropped,
       state: hb.state,
@@ -51,12 +69,16 @@ export function createSatellites(now: () => number = Date.now) {
   };
 
   /** An accepted event is proof of life too: a satellite that only pushes events stays visible. */
-  const touch = (sender: string) => {
+  const touch = (sender: string, e?: { runtime?: string; host?: string }) => {
     const at = now();
     const prev = seen.get(sender);
-    if (prev) prev.lastEventAt = at;
-    // A sender we only know from events has no heartbeat yet: online stays false until one arrives.
-    else seen.set(sender, { sender, lastEventAt: at, queued: 0, dropped: 0, state: 'unknown' });
+    if (prev) {
+      prev.lastEventAt = at;
+      Object.assign(prev, names(e, prev));
+    } else {
+      // A sender we only know from events has no heartbeat yet: online stays false until one arrives.
+      seen.set(sender, { sender, lastEventAt: at, ...names(e), queued: 0, dropped: 0, state: 'unknown' });
+    }
   };
 
   /** The list the UI reads: never a token, only the sender id and what it reported. */

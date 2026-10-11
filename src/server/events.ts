@@ -60,15 +60,17 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
       const targets = ws ? resolveTargets(ws, e) : [];
       // The token identity wins over the payload: a sender cannot claim to be someone else.
       const who = sender ? { sender, user: sender } : {};
-      out.push({ ...e, ...who, id: ++seq, ts: e.ts ?? at, targets, runtimeRef: ws ? runtimeRefOf(ws, e, targets) : undefined });
+      const event = { ...e, ...who, id: ++seq, ts: e.ts ?? at, targets, runtimeRef: ws ? runtimeRefOf(ws, e, targets) : undefined };
+      out.push(event);
+      // An accepted event proves the satellite behind this sender is alive (#91), heartbeat or not, and
+      // its runtime/host are remembered (#92): `event` is the normalized one, never the raw payload.
+      if (sender) limits.satellites?.touch(sender, event);
     }
     buffer.push(...out);
     if (buffer.length > KEEP) buffer.splice(0, buffer.length - KEEP);
     if (out.length) {
       broadcast(out);
       limits.onAccepted?.(out);
-      // An accepted event proves the satellite behind this sender is alive (#91), heartbeat or not.
-      if (sender) limits.satellites?.touch(sender);
     }
     return { accepted: out.length, rejected };
   };
