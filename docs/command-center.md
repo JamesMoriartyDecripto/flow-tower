@@ -157,7 +157,7 @@ Precedence is **flags > environment > config file > defaults** for every key bot
 | `403 remote requests may only ingest events` | a remote client tried anything but sending events: by design |
 | `/api/sharing` says `queued` | hub unreachable: check the URL, the tailnet and the hub service |
 | `/api/sharing` says `revoked` | the hub refused the token; sending stops until a new token and `connect` |
-| port already in use | another server runs there: `--port 5318`, or stop it |
+| port already in use | the server exits with this message; another server runs there: `--port 5318`, or stop it |
 | a setting is ignored | see [precedence](#configuration-file); an empty env var counts as unset |
 | `allowedHosts` refused | it requires hub mode (`"hub": true` or `--hub`) |
 

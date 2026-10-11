@@ -7,7 +7,7 @@ description: Keep, list, open and organise the user's own towers (`*.tower.yaml`
 
 CLI: `{{FLOW_TOWER_CLI}}` (setup: see the [flow-tower skill](../flow-tower/SKILL.md)).
 
-**Rules** — the library is only a list of paths in the user folder's `config.json`:
+**Rules** — the library is only a list of paths in the user folder's `config.json` (the examples gallery is a different thing: the public `examples/` set):
 
 - towers stay in the user's own projects, never in the flow-tower checkout or under `examples/`;
 - examples are copied out with the [use-example skill](../flow-tower-use-example/SKILL.md), and only the [contribute skill](../flow-tower-contribute/SKILL.md) proposes a tower back into `examples/`.

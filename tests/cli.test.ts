@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { createServer as createNetServer } from 'node:net';
 import { tmpdir, hostname, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -264,6 +265,45 @@ describe('cli serve guards (#83)', () => {
     const r = serve('--ingest-only', '--no-open');
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('--ingest-only needs a token');
+  });
+});
+
+describe('cli busy port (#136)', () => {
+  /** A one-layer tower: the smallest thing the server accepts, so the CLI reaches `listen()`. */
+  const TOWER = `version: 1
+name: Busy Port
+layers:
+  - id: flow
+    nodes:
+      - { id: input, type: entry, label: In }
+      - { id: out, type: output, label: Out }
+    edges:
+      - input -> out
+`;
+
+  it('exits 1 with the port message instead of binding another port', { timeout: 60_000 }, async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'flow-tower-busy-port-'));
+    const file = join(dir, 'busy.tower.yaml');
+    writeFileSync(file, TOWER);
+    // A plain net server holds the port: it is occupied before Vite ever listens, and it never serves a tower.
+    const blocker = createNetServer();
+    let r;
+    try {
+      // Free port: listen(0) lets the kernel pick one; keeping the socket open is what makes the CLI hit EADDRINUSE.
+      await new Promise<void>((done) => blocker.listen(0, '127.0.0.1', done));
+      const { port } = blocker.address() as { port: number };
+      r = spawnSync(process.execPath, [CLI, file, '--port', String(port), '--no-open'], {
+        encoding: 'utf8',
+        // strictPort means the CLI exits by itself; this only kills a build that hangs instead of failing.
+        timeout: 50_000,
+        env: cleanEnv({ FLOW_TOWER_HOME: dir }),
+      });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain(`port ${port} is in use: another server runs there (maybe another flow-tower). Use --port ${port + 1}, or stop it.`);
+    } finally {
+      blocker.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

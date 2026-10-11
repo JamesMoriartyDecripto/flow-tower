@@ -11,14 +11,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Hub panel (#92): press `H` on a hub for the Now tab (who runs what right now) and the Machines tab (every sender the hub trusts); a `HUB n/m` top-bar pill (senders seen in the last 5 min / active tokens) and a `READ-ONLY` pill for a remote viewer, fed by `GET /api/hub/machines` and `GET /api/hub/me`.
 - Your own library (#121): `flow-tower library add|list|remove` keeps your towers (a `*.tower.yaml` or a folder) as a list of paths in the user folder's `config.json`; `flow-tower library [--with-examples]` serves them and badges each card MINE or EXAMPLE. A path inside the flow-tower checkout is refused under `examples/` and warned elsewhere, so your towers stay in your own projects; the `flow-tower-my-library` skill walks an agent through it.
 
+### Changed
+- Docs and skills say "examples gallery" for the public `examples/` set, and keep "library" for the user's own set (the Library view, `flow-tower library`), so the contribute skill no longer triggers on "add my tower to the library" (#136).
+
 ### Security
 - KaTeX 0.16.47 → 0.18.7 (Dependabot alert, low), pinned with an override so rehype-katex and remark-math use the same copy (#119).
 
 ### Fixed
+- The live feed's **Tower** scope now keeps events that land in the tower on screen **or in any of its sub-towers**, like the usage header and the scene; when it is empty but the library is not, it says how many events are elsewhere instead of showing nothing (#136).
+- A busy port fails fast with `port <port> is in use: another server runs there (maybe another flow-tower). Use --port <port+1>, or stop it.` and exit 1 instead of silently binding the next port (which shared the requested port's Vite cache dir and left the user on someone else's tower); the banner now names the URL, and the port is strict (#136).
 - `examples/docs-qa` resolves the OpenRouter key the way the squad runner does (environment, user folder key file, git-ignored `.env` of the checkout, then the main checkout's for a worktree) and fails fast with one line and exit 2 before the first question when there is none (#123).
 - The squad runner (`tools/squad`) works from a worktree: the key lookup also finds the git-ignored key file of the main checkout (a worktree has none), and `steps.sh`'s `<write-dirs>` argument may be comma-separated (same as `run.mjs --write`); the CLI tests ignore an exported `FLOW_TOWER_*` environment (#75).
 - `validate` (and the loader) reports a node `files` entry that is a folder like a missing file (`files entry "<path>" is a folder; list the files inside it instead`), instead of accepting it and letting `/api/file` answer 404 in the app (#118).
 - Markdown tables in the file viewer are readable again: cells wrap at word boundaries instead of `overflow-wrap: anywhere`, which dropped a cell's min-content width to one character and squeezed every column to that; headers stay on one line, and a wide table scrolls sideways (#133).
+- `docs/voice.md` documents crackling spoken replies on Linux with PipeWire under load (rising xruns in `pw-top`) and the `pw-metadata ... clock.force-quantum` workaround (#136).
 
 ## [0.6.0] - 2026-10-11
 

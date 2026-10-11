@@ -150,7 +150,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         { onAccepted: (events) => {
           try { history?.write(events); } catch (err) { warnHistoryOnce(server, err); }
           try { relay?.push(events); } catch { /* the relay must never break ingest or history */ }
-        }, satellites },
+        }, satellites, warn: (message) => server.config.logger.warn(message) },
       );
       // History reads (#84 phase 4): a viewing route like /api/workspace, so hub mode's remote-viewer
       // rule decides who sees it and crossSite keeps other pages on this machine out.

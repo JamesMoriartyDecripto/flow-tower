@@ -82,3 +82,7 @@ Your own things stay in your user folder, never in a repo: `~/.config/flow-tower
 | `tokens.json`, `history.db` | hub tokens (sha256 only) and event history: [hub-reference.md](hub-reference.md#security-model), [realtime.md § History](realtime.md#history) |
 
 Flow Tower creates the folder, the journal and the memory readable by you only (a `FLOW_TOWER_HOME` folder you made yourself keeps its permissions), and rewrites the memory in one step (a crash never leaves half a file). No tower can read this folder or a secret file (key files, credentials, `.ssh`, `.git`…): `/api/file` never serves them, and a prompt `file:`, agent `from:` or nested tower pointing at one is refused by `validate` and the app ("is a secret file or in the user folder: not read"). Symlinks do not get around it: a tower file is checked by its real path before it is read, and folder scans skip links that leave the folder. If `FLOW_TOWER_HOME` points inside the flow-tower folder, the server warns at startup. The `.env` file in the flow-tower folder is only a git-ignored fallback for the key. Nothing personal is written in the repo.
+
+## Troubleshooting
+
+- **Spoken replies crackle on Linux (PipeWire) under load**: rising xruns in `pw-top` mean the graph runs too short a quantum. Workaround: `pw-metadata -n settings 0 clock.force-quantum 2048` (use 4096 after raising `clock.max-quantum`); reset with `pw-metadata -n settings 0 clock.force-quantum 0`.

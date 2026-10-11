@@ -28,7 +28,15 @@ export interface HubLimits {
   onAccepted?: (events: FlowEvent[]) => void;
   /** Satellite registry (#91): accepted events and heartbeats keep it fresh. */
   satellites?: Satellites;
+  /**
+   * Where rejections are reported (#136): without it a dropped event is invisible until the sender
+   * notices a gap. Never given event content, only kinds, field paths and counts.
+   */
+  warn?: (message: string) => void;
 }
+
+/** A broken hook retrying in a loop must not flood the log: one line per reason per this window. */
+const REJECT_WARN_MS = 10_000;
 
 /**
  * In-memory live event hub: validates, normalizes and maps incoming events onto tower nodes,
@@ -39,7 +47,29 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
   const now = limits.clock ?? Date.now;
   const bucket = limits.bucket ?? createBucket({ now, burst: 2 * MAX_BATCH });
   const dedupe = limits.dedupe ?? createDedupe();
+  const warn = limits.warn;
+  // Rejections still waiting for a line, and when each reason last got one (#136).
+  const pending = new Map<string, number>();
+  const warnedAt = new Map<string, number>();
   let seq = 0;
+
+  /**
+   * Reports this batch's rejections, one line per reason and per REJECT_WARN_MS (#136). The count is
+   * everything since that reason's last line, so a line is never lost, only delayed. Duplicates never
+   * reach here: a retrying hook is normal and must stay silent.
+   */
+  const report = (reasons: Map<string, number>, at: number) => {
+    if (!warn || !reasons.size) return;
+    for (const [reason, n] of reasons) {
+      const count = (pending.get(reason) ?? 0) + n;
+      pending.set(reason, count);
+      const last = warnedAt.get(reason);
+      if (last !== undefined && at - last < REJECT_WARN_MS) continue;
+      warnedAt.set(reason, at);
+      pending.set(reason, 0);
+      warn(`flow-tower: rejected ${count} event(s) (${reason}); POST with ?verbose to see them`);
+    }
+  };
 
   /** `tower`: restricts matching for events that do not say it themselves (?tower= on hook URLs). */
   const ingest = (raw: unknown, source?: string, tower?: string, sender?: string): { accepted: number; rejected: number } => {
@@ -47,15 +77,19 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     const at = now();
     const items = Array.isArray(raw) ? raw : [raw];
     const out: FlowEvent[] = [];
+    // Why this batch's events were dropped, by reason: reported once at the end of the batch.
+    const reasons = new Map<string, number>();
+    const reject = (reason: string) => reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
     let rejected = 0;
     for (const item of items.flatMap((x) => normalize(source, x))) {
       const parsed = FlowEventSchema.safeParse(tower ? { tower, ...(item as object) } : item);
-      if (!parsed.success) { rejected++; continue; }
+      if (!parsed.success) { rejected++; reject(issueReason(parsed.error.issues[0])); continue; }
       const e = parsed.data;
       // A replayed or backdated event must not rewrite history: drop it, still answering as usual.
-      if (!inTimeWindow(e.ts, at)) { rejected++; continue; }
+      if (!inTimeWindow(e.ts, at)) { rejected++; reject('ts outside ±24 h'); continue; }
       const id = eventIdOf(item);
       // The kind is part of the key: tool.start and tool.end share their call id, and both are real.
+      // A duplicate is dropped silently: a retrying hook is expected, not a bug to report.
       if (id && dedupe.seen(`${sender ?? ''}:${e.kind}:${id}`)) { rejected++; continue; }
       const targets = ws ? resolveTargets(ws, e) : [];
       // The token identity wins over the payload: a sender cannot claim to be someone else.
@@ -72,6 +106,7 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
       broadcast(out);
       limits.onAccepted?.(out);
     }
+    report(reasons, at);
     return { accepted: out.length, rejected };
   };
 
@@ -204,6 +239,16 @@ function runtimeRefOf(ws: Workspace, event: Parameters<typeof resolveRuntime>[1]
 /** Source from ?source=, or sniffed from headers (Hermes webhooks send X-Hermes-Event). */
 function sourceOf(req: IncomingMessage, url: URL): string | undefined {
   return url.searchParams.get('source') ?? (req.headers['x-hermes-event'] ? 'hermes' : undefined);
+}
+
+/**
+ * Why a zod issue rejected an event, as one short line (#136): "status: Invalid option: expected one
+ * of ...". Only the field path and the message — never the value that failed, which is event content.
+ */
+function issueReason(issue: { path: PropertyKey[]; message: string } | undefined): string {
+  if (!issue) return 'invalid event';
+  const path = issue.path.map(String).join('.');
+  return path ? `${path}: ${issue.message}` : issue.message;
 }
 
 /** Content encoding to undo: gzip/deflate are decompressed, identity needs nothing. Undefined means unknown. */
