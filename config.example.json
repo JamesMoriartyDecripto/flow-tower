@@ -1,0 +1,28 @@
+{
+  // Copy this to <user folder>/config.json (~/.config/flow-tower, or FLOW_TOWER_HOME) and edit.
+  // JSONC: comments and trailing commas are fine. Every key is optional; only name what you change.
+  // Precedence: flags > environment > config file > defaults (an empty environment variable counts as unset).
+
+  // Hub: the settings of a shared server (flow-tower --hub): who reaches it and how much history it keeps.
+  "hub": false,                     // true runs as a shared hub; --hub and FLOW_TOWER_HUB win over this
+  "host": "127.0.0.1",              // address the server binds to; a non-loopback one needs hub mode
+  "allowedHosts": ["hub.example.com"], // proxy Host names accepted (tailscale serve, nginx, Cloudflare)
+  "ingestOnly": false,              // serve the ingest routes only, no UI; every request needs a token
+  "viewers": ["alice@example.com"], // tailnet logins allowed to view the hub read-only (UI only)
+  "profile": "freelancers",         // personal | freelancers | employees
+  "members": ["alice@example.com"], // the people in the team
+  "optedIn": ["alice@example.com"], // members who agreed to share their events
+  "retentionDays": 14,              // raw history kept: 1..21 (max 21); the rollups keep going
+
+  // Sender (emit and hooks): where this machine posts its events, read by `flow-tower emit`.
+  "url": "https://hub.example.com", // server to post to; localhost by default
+  "user": "alice",                  // who the events belong to; sent only for a loopback URL unless set here
+  "machine": "laptop",              // which machine ran them; same loopback rule as user
+  "token": "ft_REPLACE_ME",         // bearer token from `flow-tower token add laptop`; keep this file 0600
+  "role": "satellite",              // local | hub | satellite
+  "cadence": { "laptop": "always-on" }, // per sender id: always-on | on-demand | scheduled
+  "budgets": { "global": 50, "projects": { "web": 10 } }, // EUR per month: one global cap, optional per project
+  "alerts": { "budget": true },     // per rule name: turn an alert rule on or off
+  "noticeRef": "privacy-notice-1",  // id of the notice a member accepted before opting in
+  "purpose": "team cost and progress" // why the events are collected: shown to members before they opt in
+}

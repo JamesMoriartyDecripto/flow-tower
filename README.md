@@ -239,6 +239,12 @@ Your own things stay in your user folder, never in a repo: `~/.config/flow-tower
 
 Flow Tower creates the folder, the journal and the memory readable by you only (a `FLOW_TOWER_HOME` folder you made yourself keeps its permissions), and rewrites the memory in one step (a crash never leaves half a file). No tower can read this folder or a secret file (key files, credentials, `.ssh`, `.git`…): `/api/file` never serves them, and a prompt `file:`, agent `from:` or nested tower pointing at one is refused by `validate` and the app ("is a secret file or in the user folder: not read"). Symlinks do not get around it: a tower file is checked by its real path before it is read, and folder scans skip links that leave the folder. If `FLOW_TOWER_HOME` points inside the flow-tower folder, the server warns at startup. The `.env` file in the flow-tower folder is only a git-ignored fallback for the key. Nothing personal is written in the repo.
 
+### Configuration file
+
+Hub and `emit` settings share one file: `~/.config/flow-tower/config.json` (or `$FLOW_TOWER_HOME/config.json`), JSONC. It holds the hub's `hub`, `host`, `allowedHosts`, `ingestOnly`, `viewers`, `retentionDays` and a sender's `url`, `user`, `machine`, `token`, so one machine needs no pile of environment variables. A checkout may also carry a git-ignored `flow-tower.local.json` next to `package.json` for the machine it sits on; the user's own file wins key by key. `config.example.json` in the repo lists every key with a one-line comment.
+
+Precedence is **flags > environment > config file > defaults** for every key both a flag and a file can set. An empty environment variable counts as unset: `FLOW_TOWER_HUB=''` (a common compose or CI default) never switches off a hub the file turns on. After `npm link`, `flow-tower config path` prints the files a load would read and which exist, and `flow-tower config show` prints every effective value with its source (the token redacted). `tokens.json` and `history.db` are **data**, not config: they stay in the user folder and are never read from `config.json`.
+
 ## Performance
 
 Flow Tower is meant to run next to busy agents, so it is frugal by design:
