@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- The dev-squad runner is kept in the repo (`tools/squad/`, #113): `run.mjs` drives a coder, reviewer or security pass through OpenRouter (tool loop, cost and cache reporting, low effort, `require_parameters` and data collection denied), `steps.sh` runs a chain of small task files with one commit per green step, `ev.sh` posts the run to a live tower. No absolute paths and no secrets: the repo comes from `--repo` (default the git root), the key from the environment or the user folder's key file, the session trailer from `SQUAD_TRAILERS`. README with the roles, how to write a task, and the #75 field findings.
+
 ## [0.5.0] - 2026-10-10
 
 ### Added
