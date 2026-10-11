@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Docs Q&A
+tags: [docs, rag, jit-routing, evals, citations, dogfooding]
+description: >-
+  A bot that answers questions about Flow Tower from this repository's own docs (#110). Retrieval is
+  just-in-time routing, not embeddings: the router reads CLAUDE.md's "Load on demand" table and the first
+  lines of each doc, loads at most two docs (only the relevant sections), and every claim is cited as
+  file#heading and checked by a guard. An eval set finds doc gaps; a human-reviewed doc-writer fixes them.
+  Paths are relative to the repository root, so every node opens the real file.
+root: ../..
+
+runtimes:
+  laptop: { kind: local, label: Node 22 script, description: "examples/docs-qa/scripts, no dependencies." }
+  openrouter: { kind: saas, label: OpenRouter, url: https://openrouter.ai, description: "Chat completions with provider data_collection deny." }
+
+agents:
+  router:
+    model: google/gemini-3.5-flash-lite
+    runtime: openrouter
+    prompt: { file: examples/docs-qa/prompts/router.md }
+    description: "Cheap routing call: returns {docs: [...]} with at most 2 paths; the keyword router takes over offline or on a bad reply."
+  writer:
+    model: google/gemini-3.5-flash-lite
+    runtime: openrouter
+    prompt: { file: examples/docs-qa/prompts/answer.md }
+    description: "Low effort. Answers only from the loaded sections and cites file#heading. Model choice: benchmark candidates with skills/flow-tower-costs (method from #108) and keep the cheapest that passes the eval."
+
+layers:
+  - id: answer
+    title: Answer flow
+    description: question -> router -> JIT load -> writer -> citation guard -> reply
+    nodes:
+      - { id: question, type: entry, label: Question, runtime: laptop, files: [examples/docs-qa/scripts/answer.mjs], description: 'node answer.mjs "<question>" [--model id] [--dry-run]' }
+      - id: router
+        agent: router
+        label: Router
+        files: [examples/docs-qa/scripts/answer.mjs, examples/docs-qa/scripts/lib.mjs]
+      - { id: keywords, type: process, label: Keyword router, runtime: laptop, files: [examples/docs-qa/scripts/lib.mjs], description: "Deterministic fallback and the --dry-run router: idf-weighted overlap of the question with each doc's table rows, first lines and headings." }
+      - { id: jit, type: process, label: JIT load, runtime: laptop, files: [examples/docs-qa/scripts/lib.mjs], description: "Reads only the picked docs, and of those only the header and the sections that share words with the question." }
+      - id: writer
+        agent: writer
+        label: Answer writer
+        files: [examples/docs-qa/scripts/answer.mjs]
+      - id: guard
+        type: guard
+        label: Citation guard
+        files: [examples/docs-qa/scripts/lib.mjs, examples/docs-qa/prompts/guard.md]
+        limits: { max_iterations: 2 }
+        description: "Every file#heading must name a loaded doc and an existing heading, and the cited section must contain the claim's words. One loop back to the writer, then 'Not in the docs' plus the closest doc."
+      - { id: reply, type: output, label: Reply + stats, description: "The answer with citations, then one JSON line: docs_loaded, tokens, cost, ms." }
+      - { id: not-found, type: output, label: Not in the docs, description: "After a second failed check: says so and names the closest doc." }
+    edges:
+      - question -> router
+      - "router -> keywords [call]: offline or bad reply"
+      - "router -> jit: at most 2 docs"
+      - "jit -> writer: sections"
+      - writer -> guard
+      - "guard -> writer [return]: bad citation (once)"
+      - "guard -> reply: ok"
+      - "guard -> not-found: still failing"
+
+  - id: docs
+    title: Docs it reads
+    description: The routing table, then only the picked docs
+    nodes:
+      - { id: table, type: memory, label: Routing table, files: [CLAUDE.md], description: "CLAUDE.md's routing table: task -> doc." }
+      - { id: headers, type: memory, label: Doc headers, files: [docs/getting-started.md, docs/what-goes-where.md, docs/schema.md, docs/generate-a-tower.md, docs/architecture.md], description: "Each doc opens with what it covers, when to read it and where to go instead." }
+      - { id: live-docs, type: memory, label: Live + voice docs, files: [docs/realtime.md, docs/voice.md] }
+      - { id: hub-docs, type: memory, label: Hub docs, files: [docs/command-center.md, docs/hub-reference.md, examples/command-center/README.md, examples/team-hub/README.md] }
+      - { id: other-docs, type: memory, label: Skills and process, files: [skills/flow-tower-costs/SKILL.md, examples/dev-squad/README.md, NEXT.md, README.md] }
+
+  - id: eval
+    title: Eval flow
+    description: question set -> runner -> scorer -> gap report -> doc-writer -> docs -> runner again
+    nodes:
+      - { id: questions, type: entry, label: Question set, files: [examples/docs-qa/evals/questions.md], description: "24 real questions, each with expected doc(s) and 1-3 key facts read from the docs." }
+      - { id: runner, type: process, label: Eval runner, runtime: laptop, files: [examples/docs-qa/scripts/eval.mjs], description: "node eval.mjs [--dry-run] [--model id] [--out path]. Dry run scores routing only." }
+      - { id: scorer, type: decision, label: Pass?, evals: [{ name: routing (dry run), value: 18, target: 24, unit: questions, illustrative: true, description: "First keyword-router run, before any doc fix." }], files: [examples/docs-qa/scripts/eval.mjs], description: "Fails on a wrong route, a missing key fact or a bad citation." }
+      - { id: gaps, type: output, label: Gap report, description: "Written by eval.mjs to examples/docs-qa/gaps.md (or --out). Score and one entry per failure; a failure is a doc gap, not a bot bug." }
+      - { id: doc-writer, type: agent, label: Doc-writer, description: "Proposes doc fixes from the gap report: a sharper first line or table row, or the missing fact under one heading (one home per fact)." }
+      - { id: review, type: human, label: Maintainer review, description: "A human accepts or edits the doc change before it lands." }
+    edges:
+      - questions -> runner
+      - runner -> scorer
+      - "scorer -> gaps: failures"
+      - gaps -> doc-writer
+      - "doc-writer -> review: doc PR"
+links:
+  - "answer.router -> docs.table [data]: routes"
+  - "answer.router -> docs.headers [data]: first lines"
+  - "answer.jit -> docs.live-docs [data]: sections"
+  - "answer.jit -> docs.hub-docs [data]: sections"
+  - "answer.jit -> docs.other-docs [data]: sections"
+  - "eval.runner -> answer.question [call]: each question"
+  - "eval.review -> docs.headers: fixed docs"
+  - "eval.review -> eval.runner: run again"
