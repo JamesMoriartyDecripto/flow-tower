@@ -1,0 +1,267 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Team Hub
+tags: [hub, ingest, auth, sqlite, otel, privacy, satellite, dogfooding]
+description: >-
+  The team hub of Flow Tower itself (#59): many machines send hook and OpenTelemetry events to one
+  flow-tower server, which authenticates them, normalizes them to one identity cascade, stores them in
+  SQLite with rollups and serves the live tower and history. Satellites (#91) forward metadata-only
+  events and heartbeats to the hub. Dashed nodes are planned (#85, #92-#94).
+  Paths are relative to the repository root, so every node opens the real file.
+root: ../..
+
+runtimes:
+  laptop:
+    kind: local
+    label: Sender machine
+    description: "A developer laptop or CI runner running Claude Code / Codex hooks."
+  hub:
+    kind: local
+    label: Hub server
+    description: "node bin/flow-tower.js serve on a host reachable over Tailscale or behind Caddy."
+
+layers:
+  - id: senders
+    title: Senders
+    description: Who pushes events to the hub
+    nodes:
+      - id: hooks
+        type: entry
+        label: Hook emit
+        runtime: laptop
+        description: "Claude Code / Codex hooks call `flow-tower emit` with identity flags (--user, --machine, --project)."
+        files: [bin/flow-tower.js, integrations/claude-code, integrations/codex]
+      - id: identity-cli
+        type: process
+        label: Sender identity
+        runtime: laptop
+        description: "Resolves user and machine for the emitted event."
+        files: [bin/identity.js]
+      - id: config-file
+        type: memory
+        label: Sender config
+        runtime: laptop
+        description: "Reads url, user, machine and token from the config file so hooks need no flags."
+        files: [bin/config-file.js]
+      - id: otel
+        type: entry
+        label: OTel collector
+        description: "OpenTelemetry collector forwarding OTLP/HTTP logs (tokens, cost) to the hub."
+        files: [integrations/otel-collector/collector.yaml, integrations/otel-collector/README.md]
+      - id: relay
+        type: process
+        label: Satellite relay
+        runtime: laptop
+        description: "Metadata only (#91): prompt text, commands, tool output, message and data are dropped, request_id is kept as event_id for dedupe. Queue bounded at 5000 (oldest dropped first); a failed hub backs off 1 -> 2 -> 4 s up to 60 s; a 401/403 revokes the token and stops sending; one heartbeat every 60 s (a hub calls the satellite offline after three missed beats)."
+        files: [src/server/relay.ts]
+      - id: connect-cli
+        type: tool
+        label: connect CLI
+        description: "flow-tower connect <hub-url> --token: writes url, token, role and identity to the user folder's config.json (mode 0600, token never printed), then sends one heartbeat so a bad token shows up at once."
+        files: [src/cli/connect.ts]
+      - id: sharing
+        type: output
+        label: /api/sharing
+        description: "GET /api/sharing: the relay's own state (online / queued / revoked, queue depth, dropped, last error); a local server answers { state: 'off' }. Cross-site requests are refused and the token is never included."
+        files: [src/server/plugin.ts]
+    edges:
+      - "config-file -> hooks [data]: url, user, token"
+      - "identity-cli -> hooks [call]: user, machine"
+      - "config-file -> relay [data]: url, token"
+      - "connect-cli -> relay [data]: config.json"
+      - "relay -> sharing [data]: state"
+
+  - id: guard
+    title: Guard
+    description: Hub mode and authentication, before anything is read
+    nodes:
+      - id: hub-guard
+        type: guard
+        label: hubGuard
+        runtime: hub
+        description: "Remote requests may only ingest, and ingest needs a token. The tailscale viewer header is trusted only from a loopback socket. Files, voice and /@fs are always 403 remote; WebSocket upgrades are gated the same way."
+        files: [src/server/hub.ts, src/server/guard.ts]
+      - id: authorize
+        type: guard
+        label: authorize
+        runtime: hub
+        description: "A presented token is always verified. No token passes only for a local request with no legacy secret set."
+        files: [src/server/auth.ts]
+      - id: tokens
+        type: memory
+        label: Token store
+        runtime: hub
+        description: "Tokens ft_<id>_<random>; only the sha256 is stored, file mode 0600. Revoked or paused tokens are refused."
+        files: [src/server/tokens.ts]
+      - id: token-cli
+        type: tool
+        label: token CLI
+        description: "flow-tower token: create, list, revoke, pause."
+        files: [src/cli/token.ts]
+      - id: exposure
+        type: tool
+        label: Exposure recipes
+        description: "Ways to reach the hub: Tailscale serve + ACL, Caddy, docker-compose, GitHub Actions sender, Lambda."
+        files: [integrations/hub/tailscale-serve.md, integrations/hub/acl.hujson, integrations/hub/Caddyfile, integrations/hub/docker-compose.yml, integrations/hub/github-actions.yml, integrations/hub/lambda.md]
+    edges:
+      - "exposure -> hub-guard: remote traffic"
+      - "hub-guard -> authorize [call]: ingest route"
+      - "authorize -> tokens [data]: sha256 lookup"
+      - "token-cli -> tokens [data]: create, revoke"
+
+  - id: ingest
+    title: Ingest
+    description: Bodies in, normalized events out
+    nodes:
+      - id: events
+        type: process
+        label: /api/events
+        runtime: hub
+        description: "JSON events, at most 1000 per request; answers 204 with an empty body. gzip/deflate decoded with a decompressed-size cap; unknown encodings get 415."
+        files: [src/server/events.ts]
+      - id: otlp-route
+        type: process
+        label: /v1/* OTLP
+        runtime: hub
+        description: "/v1/logs carries tokens and cost; /v1/metrics and /v1/traces are accepted and dropped."
+        files: [src/server/events.ts, src/core/otlp.ts]
+      - id: limits
+        type: guard
+        label: Limits
+        runtime: hub
+        description: "Token bucket per sender, dedupe of repeated events, timestamps outside a ±24 h window refused. Dedupe key is sender + kind + id, so tool.start and tool.end sharing a call id are both kept."
+        files: [src/server/limits.ts]
+      - id: heartbeat
+        type: process
+        label: /api/heartbeat
+        runtime: hub
+        description: "POST /api/heartbeat (#91): a satellite reports queued, dropped, state and version. Authenticated like /api/events; in hub mode a token is required (401 without a sender). Answers 204 with an empty body; a bad body is 400."
+        files: [src/server/events.ts, src/server/hub.ts]
+      - id: adapters
+        type: process
+        label: Adapters
+        runtime: hub
+        description: "Map Claude Code, Codex and other payloads to tower events."
+        files: [src/core/adapters.ts, src/core/claudeCode.ts]
+    edges:
+      - "events -> limits [call]: admit?"
+      - "otlp-route -> limits [call]: admit?"
+      - "heartbeat -> limits [call]: beat"
+      - "limits -> adapters: accepted events"
+
+  - id: identity
+    title: Identity
+    description: One identity per event
+    nodes:
+      - id: cascade
+        type: process
+        label: Identity cascade
+        runtime: hub
+        description: "Fills user, host, runtime, project and session from the event, token and headers, most specific first."
+        files: [src/core/identity.ts]
+
+  - id: storage
+    title: Storage
+    description: History in SQLite
+    nodes:
+      - id: history-db
+        type: memory
+        label: History DB
+        runtime: hub
+        description: "node:sqlite (Node >= 22.13; otherwise the live view still works). A wide events table built from an allow-list of fields."
+        files: [src/server/history/db.ts, src/server/history/schema.ts, src/server/history/row.ts]
+      - id: rollups
+        type: process
+        label: Rollups
+        runtime: hub
+        description: "Hourly and daily rollups. Retention: raw 14 days (clamped 1-21), hourly 90 days, daily 13 months."
+        files: [src/server/history/store.ts]
+      - id: history-api
+        type: output
+        label: /api/history
+        runtime: hub
+        description: "Totals and info over the rollups; a viewing route, open to listed tailnet viewers."
+        files: [src/server/history/api.ts, src/server/plugin.ts]
+      - id: history-cli
+        type: tool
+        label: history CLI
+        description: "flow-tower history: query the database from the terminal."
+        files: [src/cli/history.ts]
+    edges:
+      - history-db -> rollups [data]
+      - "rollups -> history-api [data]: hourly or daily"
+      - history-cli -> history-db [data]
+
+  - id: config
+    title: Config
+    description: Where settings come from
+    nodes:
+      - id: config-json
+        type: memory
+        label: config.json
+        runtime: hub
+        description: "config.json in the user folder, plus a git-ignored flow-tower.local.json per checkout. Precedence: flags > non-empty env > config; an empty environment variable counts as unset. Migrates the old hub.json. The config token is the sender's credential (flow-tower emit, satellite relay), never the server's own secret: the server's is FLOW_TOWER_TOKEN (one shared legacy secret, sender \"default\") or the per-sender tokens from the token store."
+        files: [src/server/config.ts]
+      - id: config-cli
+        type: tool
+        label: config CLI
+        description: "flow-tower config path | show: where the config files are and the effective settings with their source."
+        files: [src/cli/config.ts]
+    edges:
+      - config-cli -> config-json [data]
+
+  - id: views
+    title: Views
+    description: What people see
+    nodes:
+      - id: live
+        type: output
+        label: Live tower
+        description: "The 3D tower lit by live events."
+        files: [src/app/live.ts]
+      - id: satellite-list
+        type: output
+        label: Satellite list
+        description: "GET /api/hub/satellites (#91): the hub's satellite registry, in memory: per sender lastSeen, lastEventAt, queued, dropped, state, version and online (offline after three missed one-minute beats). A viewing route like /api/history; it never carries a token."
+        files: [src/server/satellites.ts, src/server/plugin.ts]
+      - id: hub-panel
+        type: output
+        label: Hub panel
+        status: planned
+        description: "Planned (#92, UX spec in #59): key H, tabs Now, Usage, Machines, People, Alerts, Admin. #92 ships Now (live rows: machine, runtime, project, started by or AUTO) and Machines (token prefix, runtime, last seen, state); top-bar HUB n/m and READ-ONLY pills for remote viewers."
+      - id: privacy
+        type: guard
+        label: Privacy profiles
+        status: planned
+        description: "Planned (#85): personal, freelancers, employees. Groups under 3 people are merged in the UI and CSV exports; employees get no per-person view, only project and team aggregates, with buckets of at least 1 h."
+      - id: admin
+        type: human
+        label: Admin
+        status: planned
+        description: "Planned (#93), loopback only: add (token shown once), pause, revoke, rename senders; viewers; profile change wizard; retention and delete-before; monthly budgets. Every change writes an audit line; admin routes answer 404 to remote requests."
+      - id: alerts
+        type: output
+        label: Alerts
+        status: planned
+        description: "Planned (#94): machine silent > cadence x N, budget 80% / 100%, errors per hour > 3x the 7-day median, a token used from a new host. Ack and snooze; employees: alerts never name a person."
+    edges:
+      - "privacy -> hub-panel: filtered view"
+      - admin -> hub-panel
+      - alerts -> hub-panel
+
+links:
+  - "senders.hooks -> guard.hub-guard [call]: POST /api/events"
+  - "senders.otel -> guard.hub-guard [call]: POST /v1/logs"
+  - { from: senders.relay, to: guard.hub-guard, kind: call, label: /api/events, protocol: http }
+  - { from: senders.relay, to: guard.hub-guard, kind: call, label: /api/heartbeat, protocol: http }
+  - "guard.authorize -> ingest.events: authorized"
+  - "guard.authorize -> ingest.otlp-route: authorized"
+  - "guard.authorize -> ingest.heartbeat: authorized"
+  - ingest.adapters -> identity.cascade
+  - "ingest.events -> views.satellite-list [data]: lastEventAt"
+  - "ingest.heartbeat -> views.satellite-list [data]: lastSeen"
+  - "identity.cascade -> views.live: live store"
+  - "identity.cascade -> storage.history-db [data]: insert"
+  - "storage.history-api -> views.privacy [data]: per-person rows"
+  - "config.config-json -> guard.hub-guard [data]: viewers"
+  - "config.config-json -> storage.rollups [data]: retentionDays"
