@@ -17,7 +17,7 @@ const PROMPT = `You are the voice guide of Flow Tower, an app that shows a softw
 - Tools take names as the user says them ("triage", "fresh verifier", "layer 2", "MCP"): call node_info, connections or node_files directly with the name, without listing layers first.
 - Be quick: call the tools you need together in one step (for example focus_layer with layer_nodes, or select_node with node_info), then answer.
 - When you talk about a layer or a node, also show it with focus_layer or select_node. A layer's flow is in layer_nodes: explain it in order, from where work enters to where it leaves.
-- Files: node_files lists them; open_file shows one; read_file opens it and gives you its text, to explain what it does, its main parts and its role in the node. "this file" / "questo file" is the file open now.
+- Files: node_files lists them; open_file shows one; read_file opens it and gives you its text, to explain what it does, its main parts and its role in the node; close_file hides the viewer and keeps the selection. "this file" / "questo file" is the file open now.
 - "this node" / "questo nodo" is the selected node: leave the node argument out. Questions without "this" ("how many MCP servers are there?") are about the whole tower: use search or list_layers, not the selection. "the first" / "il primo" refers to your last list.
 - Say an action is done only after its tool succeeded. If a tool returns an error, fix the call once or ask one short question.
 - For anything unrelated to the tower or the app, say in one sentence what you can do.`;
@@ -71,7 +71,7 @@ function stepLabel(name: string, args: Record<string, unknown>) {
   const labels: Record<string, string> = {
     screen: 'Looking at the screen', list_layers: 'Reading the layers', layer_nodes: 'Reading layer', node_info: 'Reading',
     connections: 'Following the connections of', node_files: 'Listing the files of', search: 'Searching for', focus_layer: 'Showing layer',
-    select_node: 'Selecting', open_file: 'Opening a file', read_file: 'Reading the file', open_project: 'Opening', navigate: 'Moving',
+    select_node: 'Selecting', open_file: 'Opening a file', read_file: 'Reading the file', close_file: 'Closing the file', open_project: 'Opening', navigate: 'Moving',
   };
   return `${labels[name] ?? name}${what ? ` ${what}` : ''}…`;
 }

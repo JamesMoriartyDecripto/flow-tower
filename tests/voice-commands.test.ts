@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadLibrary } from '../src/core/loader';
-import { parseCommand, type VoiceAction } from '../src/app/voice/commands';
+import { isFixed, parseCommand, type VoiceAction } from '../src/app/voice/commands';
 
 const { workspace: ws } = await loadLibrary(['examples/dev-squad', 'examples/db-api-playbook', 'examples/physics-notes']);
 const squad = ws.towers['dev-squad/dev-squad.tower.yaml'];
@@ -48,6 +48,32 @@ describe('voice commands (#62)', () => {
     expect(say('vediamo i livelli degli MCP')).toEqual({ kind: 'layer', index: tools });
     // Whisper hears "matta" for "mappa": one wrong letter in a command word is forgiven.
     expect(say('Vista matta.')).toEqual({ kind: 'view', view: 'map' });
+  });
+
+  it('closes only the file viewer, in both languages (#128)', () => {
+    for (const text of ['chiudi il file', 'chiudi file', 'chiudi la finestra', 'close the file', 'close file', 'close the window']) {
+      expect(say(text), text).toEqual({ kind: 'close-file' });
+    }
+    expect(say('chiudi')).toEqual({ kind: 'close' });
+    // A whole-utterance match only: a node named here stays with the agent.
+    expect(say('chiudi il file del nodo triage')).not.toEqual({ kind: 'close-file' });
+  });
+
+  it('marks the whole-phrase commands as fixed, so the agent route yields to them (#128)', () => {
+    expect(isFixed(say('chiudi il file'))).toBe(true);
+    expect(isFixed(say('indietro'))).toBe(true);
+    expect(isFixed(say('chiudi'))).toBe(true);
+    // Fuzzy name matches are not fixed: with an agent configured they keep today's routing.
+    expect(isFixed(say('nodo triage'))).toBe(false);
+    expect(isFixed(say('cosa fa questo file?'))).toBe(false);
+    // Kinds matched on a keyword anywhere are questions as often as commands: not fixed.
+    expect(isFixed(say('cosa mostra la panoramica?'))).toBe(false);
+    expect(isFixed(say('what does the overview show?'))).toBe(false);
+    expect(isFixed(say('come spengo il microfono?'))).toBe(false);
+    // Deliberate: `norm` drops punctuation, so the question mark does not make this a question.
+    expect(isFixed(say('chiudi il file?'))).toBe(true);
+    expect(say('chiudi il file?')).toEqual({ kind: 'close-file' });
+    expect(isFixed(say('chiudi il file del nodo triage'))).toBe(false);
   });
 
   it('offers a choice when names tie, and admits when nothing matches', () => {

@@ -18,6 +18,7 @@ Press **V** or the **MIC** button (top bar or library header) and say where to g
 | "panoramica" | "overview" | The whole tower |
 | "indietro" | "back" | Go back, like Esc |
 | "libreria" | "library" | Project library |
+| "chiudi il file" | "close the file" | Closes only the viewer (the node stays selected) |
 | "spegni il microfono" | "stop listening" | Microphone off |
 
 A name alone works too ("triage"). Names come from what is on screen: projects, layers, nodes and agents. They match loosely, so a misheard word still finds its target. When a name fits several things, the caption numbers them: say "il primo" or "two" to pick. "Entra" / "enter" opens the selected node's sub-tower, "chiudi" / "close" closes the panel. Listening stops by itself after 2 minutes without a command.

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { towerPath } from '../graph';
 import { chooseView, usePrefs } from '../settings';
 import { findNode, useStore } from '../store';
-import { norm, parseCommand, type VoiceAction } from './commands';
+import { isFixed, norm, parseCommand, type VoiceAction } from './commands';
 import { openMic, type Mic } from './mic';
 import { ackLanguage, armAck, warmAck } from './ack';
 import { firstAnswerAudio, firstAudio, converse, forget, isEcho, isSpeaking, newReply, onPlaybackBlocked, say, stopSpeaking, wantsAgent } from './agent';
@@ -70,6 +70,21 @@ function pickOf(text: string): number | undefined {
   return PICK[words[0]] ?? (/^[1-4]$/.test(words[0]) ? Number(words[0]) - 1 : undefined);
 }
 
+/**
+ * The parser action for a transcript, from the store as it is now: a pending choice answers it, otherwise
+ * the command parser reads it. One place builds the context for both run() and handle()'s routing.
+ * Undefined when no workspace is loaded: there is nothing to act on.
+ */
+function parseNow(text: string): VoiceAction | undefined {
+  const s = useStore.getState();
+  const ws = s.workspace;
+  if (!ws) return undefined;
+  const options = useVoice.getState().options;
+  const pick = options && pickOf(text);
+  if (pick !== undefined && options![pick]) return options![pick].action;
+  return parseCommand(text, { ws, tower: ws.towers[s.stack[s.stack.length - 1]], library: s.library });
+}
+
 export const useVoice = create<VoiceState>((set, get) => ({
   status: 'off',
   toggle() {
@@ -77,14 +92,8 @@ export const useVoice = create<VoiceState>((set, get) => ({
     void start();
   },
   run(text) {
-    const s = useStore.getState();
-    const ws = s.workspace;
-    if (!ws) return '';
-    const options = get().options;
-    const pick = options && pickOf(text);
-    const action = pick !== undefined && options![pick] ? options![pick].action : parseCommand(text, {
-      ws, tower: ws.towers[s.stack[s.stack.length - 1]], library: s.library,
-    });
+    const action = parseNow(text);
+    if (!action) return '';
     const did = execute(action);
     set({ heard: text, did, options: action.kind === 'ambiguous' ? action.options : undefined, error: undefined });
     return did;
@@ -276,7 +285,10 @@ async function handle(heard: string, mine: number, stt: Heard = {}, endOfSpeech?
   const { agent, options } = useVoice.getState();
   // A numbered choice is waiting: "il primo" / "the second" answer it, not the agent.
   const picking = !!options && pickOf(text) !== undefined;
-  if (!agent || picking || !wantsAgent(text)) {
+  // A whole fixed phrase the parser knows ("chiudi il file") is a command, not a question: it must stay
+  // on the instant, free parser route even with an agent configured (#128).
+  const fixed = !picking && isFixed(parseNow(text) ?? { kind: 'unknown' });
+  if (!agent || picking || fixed || !wantsAgent(text)) {
     const did = useVoice.getState().run(text);
     if (did !== NOT_UNDERSTOOD || !agent) record({ ...context, route: picking ? 'pick' : 'parser', did, outcome: did === NOT_UNDERSTOOD ? 'not_understood' : 'done' });
     if (did !== NOT_UNDERSTOOD) return armIdle();
@@ -407,6 +419,11 @@ function execute(a: VoiceAction): string {
       return ws.towers[node.tower]?.name ?? 'Sub-tower';
     }
     case 'close': s.openFile(undefined); s.select(undefined); return 'Closed';
+    // Closing the file keeps the selection: the node stays on screen behind the now empty viewer.
+    case 'close-file':
+      if (!s.file) return 'No file open';
+      s.openFile(undefined);
+      return 'File closed';
     case 'mic-off': setTimeout(stop); return 'Microphone off';
     case 'ambiguous': return `Which one? ${a.options.map((o, i) => `${i + 1}. ${o.label}`).join('  ')}`;
     case 'unknown': return NOT_UNDERSTOOD;

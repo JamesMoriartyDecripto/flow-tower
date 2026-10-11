@@ -37,8 +37,9 @@ export const TOOLS: ToolDef[] = [
   tool('select_node', 'Select a node: the camera goes to it and its panel opens.', { node: NODE }),
   tool('open_file', 'Open one of a node\'s files in the viewer.', { node: NODE, index: { type: 'integer', description: 'File number from node_files, 1 = first.' } }, ['index']),
   tool('read_file', 'Read a file to explain it: the one open in the viewer, or file number index of a node (it is opened on screen too). Returns its text, cut after about 8000 characters.', { node: NODE, index: { type: 'integer', description: 'File number from node_files, 1 = first. Omit for the file open now.' } }),
+  tool('close_file', 'Close the file viewer. The selected node and the view stay as they are.'),
   tool('open_project', 'Open a project or a sub-tower by name.', { name: str('Project or tower name.') }, ['name']),
-  tool('navigate', 'Move the view.', { to: { type: 'string', enum: ['library', 'overview', 'back', 'map', 'tower', 'enter_sub_tower'] } }, ['to']),
+  tool('navigate', 'Move the view. back = like Esc: closes the open file first, else deselects the node, else leaves the layer, else goes up one tower, else opens the library.', { to: { type: 'string', enum: ['library', 'overview', 'back', 'map', 'tower', 'enter_sub_tower'] } }, ['to']),
 ];
 
 type Args = Record<string, unknown>;
@@ -194,6 +195,12 @@ export function runTool(name: string, args: Args): string {
       show(hit.t, hit.n.key);
       useStore.getState().openFile({ tower: hit.t.id, files, index: i });
       return out({ opened: files[i] });
+    }
+    case 'close_file': {
+      if (!s.file) return out({ error: 'No file is open.' });
+      const closed = s.file.files[s.file.index];
+      s.openFile(undefined);
+      return out({ closed });
     }
     case 'open_project': {
       const words = norm(String(args.name ?? '')).split(' ').filter(Boolean);
