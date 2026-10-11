@@ -15,6 +15,7 @@ export type VoiceAction =
   | { kind: 'back' }
   | { kind: 'enter' }
   | { kind: 'close' }
+  | { kind: 'close-file' }
   | { kind: 'mic-off' }
   | { kind: 'ambiguous'; options: { label: string; action: VoiceAction }[] }
   | { kind: 'unknown' };
@@ -134,6 +135,8 @@ export function parseCommand(transcript: string, { ws, tower, library }: VoiceCo
   // Only two views exist: "vista <anything else>" is the map, however Whisper spelled it ("vista matta").
   if (phrase(text, /^(vista|view) \w+$|^\w+ view$/)) return { kind: 'view', view: 'map' };
   if (phrase(text, /^(entra|enter|dive in|apri la sotto ?torre|open the sub ?tower|dentro)$/)) return { kind: 'enter' };
+  // Whole-utterance only: "chiudi il file del nodo X" names a node, so it stays with the agent.
+  if (phrase(text, /^(chiudi (il |la )?(file|finestra|viewer|visualizzatore)|close (the )?(file|window|viewer))$/)) return { kind: 'close-file' };
   if (phrase(text, /^(chiudi|close|deseleziona|deselect|chiudi il pannello|close the panel)$/)) return { kind: 'close' };
 
   const saysTower = like(all, 'progetto', 'project', 'torre', 'tower', 'apri', 'open', 'aprimi');

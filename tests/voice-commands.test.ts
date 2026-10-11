@@ -50,6 +50,15 @@ describe('voice commands (#62)', () => {
     expect(say('Vista matta.')).toEqual({ kind: 'view', view: 'map' });
   });
 
+  it('closes only the file viewer, in both languages (#128)', () => {
+    for (const text of ['chiudi il file', 'chiudi file', 'chiudi la finestra', 'close the file', 'close file', 'close the window']) {
+      expect(say(text), text).toEqual({ kind: 'close-file' });
+    }
+    expect(say('chiudi')).toEqual({ kind: 'close' });
+    // A whole-utterance match only: a node named here stays with the agent.
+    expect(say('chiudi il file del nodo triage')).not.toEqual({ kind: 'close-file' });
+  });
+
   it('offers a choice when names tie, and admits when nothing matches', () => {
     const r = say('vai al nodo MCP');
     expect(r.kind).toBe('ambiguous');

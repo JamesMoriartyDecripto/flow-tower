@@ -407,6 +407,11 @@ function execute(a: VoiceAction): string {
       return ws.towers[node.tower]?.name ?? 'Sub-tower';
     }
     case 'close': s.openFile(undefined); s.select(undefined); return 'Closed';
+    // Closing the file keeps the selection: the node stays on screen behind the now empty viewer.
+    case 'close-file':
+      if (!s.file) return 'No file open';
+      s.openFile(undefined);
+      return 'File closed';
     case 'mic-off': setTimeout(stop); return 'Microphone off';
     case 'ambiguous': return `Which one? ${a.options.map((o, i) => `${i + 1}. ${o.label}`).join('  ')}`;
     case 'unknown': return NOT_UNDERSTOOD;
