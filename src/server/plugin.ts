@@ -8,6 +8,7 @@ import type { Plugin, ViteDevServer } from 'vite';
 import { loadLibrary, type LoadResult } from '../core/loader.ts';
 import { readTowerFile } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
+import { createSatellites } from './satellites.ts';
 import { checkForUpdate, updateCheckDisabled, type UpdateInfo } from './update.ts';
 import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
@@ -96,7 +97,9 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       }
 
       // Satellite relay (#91): a local library forwards what it accepted to the hub, metadata only.
-      const relay = createRelayFor(server, hubOpts);
+      const relay = createRelayFor(server, hubOpts, VERSION);
+      // The hub side of #91: heartbeats and accepted events keep this list fresh; the UI reads it below.
+      const satellites = createSatellites();
 
       // Reads are for this page only: Vite's default CORS would let a page on another localhost port read them.
       server.middlewares.use('/api/workspace', (req, res) => {
@@ -135,7 +138,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         { onAccepted: (events) => {
           try { history?.write(events); } catch (err) { warnHistoryOnce(server, err); }
           try { relay?.push(events); } catch { /* the relay must never break ingest or history */ }
-        } },
+        }, satellites },
       );
       // History reads (#84 phase 4): a viewing route like /api/workspace, so hub mode's remote-viewer
       // rule decides who sees it and crossSite keeps other pages on this machine out.
@@ -144,6 +147,13 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       server.middlewares.use('/api/history', views.totals);
 
       server.middlewares.use('/api/events', hub.handle);
+      server.middlewares.use('/api/heartbeat', hub.heartbeat);
+      // The hub's satellite list (#91): a viewing route like /api/history, so hub mode's remote-viewer
+      // rule decides who sees it. Never tokens, only what each satellite reported.
+      server.middlewares.use('/api/hub/satellites', (req, res) => {
+        if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
+        send(res, 200, satellites.list());
+      });
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.
       server.middlewares.use('/v1/logs', hub.otlp('logs'));
       server.middlewares.use('/v1/metrics', hub.otlp('metrics'));
@@ -182,7 +192,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
  * proxy, must not relay: the hub would receive its own events. A url pointing back at this same server
  * would make the relay feed itself — a loop — so it is refused too.
  */
-function createRelayFor(server: ViteDevServer, hubOpts: { hub: boolean; ingestOnly: boolean }) {
+function createRelayFor(server: ViteDevServer, hubOpts: { hub: boolean; ingestOnly: boolean }, version: string) {
   const settings = effective(loadConfig().config);
   if (settings.role !== 'satellite' || !settings.url) return undefined;
   if (hubOpts.hub || hubOpts.ingestOnly || settings.hub || settings.ingestOnly) {
@@ -193,7 +203,7 @@ function createRelayFor(server: ViteDevServer, hubOpts: { hub: boolean; ingestOn
     server.config.logger.warn('flow-tower: satellite relay refused: url points at this same server (would loop)');
     return undefined;
   }
-  return createRelay({ url: settings.url, token: settings.token, user: settings.user, machine: settings.machine });
+  return createRelay({ url: settings.url, token: settings.token, user: settings.user, machine: settings.machine, version });
 }
 
 /** Loopback host on the port we bound to: relaying there would feed this server its own events. */

@@ -45,9 +45,9 @@ export function normalizePath(raw: string): string {
   return path.toLowerCase(); // mounts are matched case-insensitively
 }
 
-/** POST /api/events and the OTLP receivers: the only routes a remote sender may use. */
+/** POST /api/events, /api/heartbeat and the OTLP receivers: the only routes a remote sender may use. */
 const isIngest = (method: string | undefined, path: string) =>
-  method === 'POST' && (path === '/api/events' || /^\/v1\/(logs|metrics|traces)\/?$/.test(path));
+  method === 'POST' && (path === '/api/events' || path === '/api/heartbeat' || /^\/v1\/(logs|metrics|traces)\/?$/.test(path));
 
 /** Routes a remote viewer must never reach, whatever the method: they read host files or drive the mic. */
 const SENSITIVE = /^\/api\/(file|voice)(\/|\.|$)/;

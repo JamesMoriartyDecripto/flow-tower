@@ -13,12 +13,16 @@ const TIMEOUT_MS = 5_000;
 /** Never more than one flush a second; a failing hub waits longer (1 s, 2 s, 4 s … max 60 s). */
 const MIN_GAP_MS = 1_000;
 const MAX_BACKOFF_MS = 60_000;
+/** How often a satellite tells the hub it is alive (#91): the hub calls it offline after three of these. */
+const HEARTBEAT_MS = 60_000;
 
 export interface RelayOptions {
   url: string;
   token?: string;
   user?: string;
   machine?: string;
+  /** The local flow-tower version, reported in the heartbeat so the hub can show it. */
+  version?: string;
   /** Injectable for tests: the HTTP client and the clock. */
   fetch?: typeof globalThis.fetch;
   now?: () => number;
@@ -54,6 +58,7 @@ export function createRelay(opts: RelayOptions) {
   let lastSentAt: number | undefined;
   let lastError: string | undefined;
   let timer: NodeJS.Timeout | undefined;
+  let hbTimer: NodeJS.Timeout | undefined;
 
   const clearTimer = () => {
     if (!timer) return;
@@ -132,6 +137,73 @@ export function createRelay(opts: RelayOptions) {
     schedule();
   };
 
+  /** The heartbeat body (#91): the counters and state word `state()` publishes, plus the version. */
+  const heartbeatBody = () => {
+    const s = state();
+    return {
+      queued: s.queued,
+      dropped: s.dropped,
+      state: s.state,
+      ...(opts.version !== undefined ? { version: opts.version } : {}),
+    };
+  };
+
+  const clearHbTimer = () => {
+    if (!hbTimer) return;
+    clearTimeout(hbTimer);
+    hbTimer = undefined;
+  };
+
+  /** The next beat: sooner after a failure (the shared backoff), otherwise a full interval later. */
+  const scheduleHeartbeat = (delay: number) => {
+    if (stopped || revoked) return;
+    clearHbTimer();
+    hbTimer = setTimeout(() => {
+      hbTimer = undefined;
+      void heartbeat();
+    }, delay);
+    hbTimer.unref();
+  };
+
+  /**
+   * One heartbeat. A failed beat must never throw or stop the relay: it follows the same revoked/backoff
+   * rules as the event flush, so a hub that refused us stops the beats too, and a slow hub just waits.
+   */
+  async function heartbeat(): Promise<void> {
+    if (stopped || revoked) return;
+    try {
+      const res = await send(`${hub}/api/heartbeat`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(opts.token ? { 'x-flow-tower-token': opts.token } : {}),
+        },
+        body: JSON.stringify(heartbeatBody()),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (res.status === 401 || res.status === 403) {
+        revoked = true;
+        lastError = `hub refused the token (${res.status})`;
+        return;
+      }
+      if (res.status === 429 || res.status >= 500) {
+        lastError = `hub answered ${res.status}`;
+        backoff = nextBackoff(backoff);
+        scheduleHeartbeat(backoff);
+        return;
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      backoff = nextBackoff(backoff);
+      scheduleHeartbeat(backoff);
+      return;
+    }
+    scheduleHeartbeat(HEARTBEAT_MS);
+  }
+
+  // One beat right away, so the hub lists this satellite before the first event ever arrives.
+  scheduleHeartbeat(0);
+
   const state = (): RelayState => ({
     // 'queued' is the honest answer while events wait here, whether the hub is unreachable or just slow.
     state: revoked ? 'revoked' : queue.length ? 'queued' : 'online',
@@ -145,9 +217,10 @@ export function createRelay(opts: RelayOptions) {
   const stop = () => {
     stopped = true;
     clearTimer();
+    clearHbTimer();
   };
 
-  return { push, state, stop, flush: () => attempt() };
+  return { push, state, stop, flush: () => attempt(), heartbeat };
 }
 
 const nextBackoff = (current: number) => Math.min(current ? current * 2 : MIN_GAP_MS, MAX_BACKOFF_MS);

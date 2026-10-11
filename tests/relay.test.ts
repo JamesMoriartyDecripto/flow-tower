@@ -15,12 +15,12 @@ afterEach(() => { servers.splice(0).forEach((s) => s.close()); });
 
 /** A stub hub capturing every request body; `reply` decides each status. */
 async function stubHub(reply: (n: number) => number) {
-  const seen: { body: unknown; headers: Record<string, string | string[] | undefined> }[] = [];
+  const seen: { path?: string; body: unknown; headers: Record<string, string | string[] | undefined> }[] = [];
   const server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (c: Buffer) => chunks.push(c));
     req.on('end', () => {
-      seen.push({ body: JSON.parse(Buffer.concat(chunks).toString('utf8')), headers: req.headers });
+      seen.push({ path: req.url, body: JSON.parse(Buffer.concat(chunks).toString('utf8')), headers: req.headers });
       res.statusCode = reply(seen.length);
       res.end('{}');
     });
@@ -84,7 +84,8 @@ describe('satellite relay (#91)', () => {
     expect(relay.state().state).toBe('revoked');
 
     await relay.flush();
-    expect(hub.seen.length).toBe(1); // no further request once revoked
+    // No further event batch once revoked (the start-up heartbeat is a separate request).
+    expect(hub.seen.filter((r) => r.path === '/api/events')).toHaveLength(1);
     expect(relay.state().queued).toBe(1); // the event is kept, not lost
     relay.stop();
   });
@@ -100,6 +101,26 @@ describe('satellite relay (#91)', () => {
     const relay = relayOf('http://127.0.0.1:1');
     relay.push([event()]);
     expect(JSON.stringify(relay.state())).not.toContain('ft_test_secret');
+    relay.stop();
+  });
+
+  it('posts a heartbeat with its state and version, and beats once at start', { timeout: 5_000 }, async () => {
+    const hub = await stubHub(() => 204);
+    const relay = relayOf(hub.url, { version: '0.5.0' });
+    // The first beat is scheduled at 0 ms: give the timer a tick to run before flushing anything.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(hub.seen.length).toBeGreaterThanOrEqual(1);
+    const beat = hub.seen[0];
+    expect(beat.headers['x-flow-tower-token']).toBe('ft_test_secret');
+    expect(beat.body).toMatchObject({ queued: 0, dropped: 0, state: 'online', version: '0.5.0' });
+    relay.stop();
+  });
+
+  it('marks itself revoked when the hub refuses the heartbeat, and never throws', { timeout: 5_000 }, async () => {
+    const hub = await stubHub(() => 401);
+    const relay = relayOf(hub.url);
+    await relay.heartbeat();
+    expect(relay.state().state).toBe('revoked');
     relay.stop();
   });
 });

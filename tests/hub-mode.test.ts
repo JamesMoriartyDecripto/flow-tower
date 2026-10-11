@@ -125,6 +125,7 @@ describe('hub guard: path normalisation (#83)', () => {
 describe('hub guard: remote ingest (#83)', () => {
   it('refuses ingest without a token (401) and lets a per-sender token through', async () => {
     expect(run(opts, remote('POST', '/api/events')).status).toBe(401);
+    expect(run(opts, remote('POST', '/api/heartbeat')).status).toBe(401);
     expect(run(opts, remote('POST', '/v1/logs')).status).toBe(401);
     // With the real route behind it (a real socket: only there can the guard read the peer address).
     const hub = createEventHub(() => undefined, () => undefined, { legacy: opts.legacy, home, hub: true });
