@@ -196,6 +196,15 @@ export function descendants(ws: Workspace): Map<string, Set<string>> {
   return out;
 }
 
+/**
+ * Events that land in `towerId` or in any of its sub-towers (#136): the Tower scope of the live feed,
+ * the same subtree the usage header and the scene already count.
+ */
+export function towerScope(events: FlowEvent[], towerId: string, desc: Map<string, Set<string>>): FlowEvent[] {
+  const towers = new Set([towerId, ...(desc.get(towerId) ?? [])]);
+  return events.filter((e) => e.targets.some((t) => towers.has(splitTarget(t)[0])));
+}
+
 /** Aggregated live state of a whole tower subtree (the tower itself + its nested towers). */
 export function subtreeState(towers: Set<string>, nodes: Map<string, NodeLive>, now: number) {
   const states = [];
