@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Added
 - OTLP receiver accepts `Content-Encoding: gzip`; sample per-host OTel Collector in `integrations/otel-collector/` (host/user tags, prompt fields stripped, disk queue while offline) (#81).
 - One config file (#90): `~/.config/flow-tower/config.json` (or a git-ignored `flow-tower.local.json` in the checkout) for hub and emit settings, with flags > environment > config; `flow-tower config path|show`; `config.example.json`.
+- `model-benchmark` example (#108): the method #105 uses to pick models per role, as a tower (8 layers: categories, task sets, candidates, runner, measurements, judges, analysis, outputs) with runnable scripts. `bench.mjs` (OpenRouter tool loop, session per run, `require_parameters`, `data_collection: deny`, timeout + one retry; `--dry-run` needs no key), `judge.mjs` (deterministic checks, model code under the Node permission model, a blind rubric sheet), `report.mjs` (median and spread, cost per correct answer, warm starts). Two real tasks each for coder, reviewer, security, intent and doc-writer.
 
 ### Fixed
 - Telemetry docs (#81): Claude Code's telemetry variables and Codex's `[otel]` block must be set at user level (`~/.claude/settings.json`, `~/.codex/config.toml`), managed settings or the shell; project settings are ignored.
