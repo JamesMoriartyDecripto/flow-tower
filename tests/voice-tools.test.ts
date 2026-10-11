@@ -10,6 +10,8 @@ describe('voice agent tools (#63)', () => {
 
   beforeAll(async () => {
     vi.stubGlobal('location', { search: '' });
+    // The scroll tool and the Hub panel dispatch DOM events: node has no window, so the tests provide one.
+    vi.stubGlobal('window', new EventTarget());
     ({ useStore } = await import('../src/app/store'));
     ({ runTool: run, TOOLS } = await import('../src/app/voice/tools'));
     const { workspace } = await loadLibrary(['examples/dev-squad']);
@@ -47,6 +49,41 @@ describe('voice agent tools (#63)', () => {
 
   it('lists close_file among the tools', () => {
     expect(TOOLS.map((t) => t.function.name)).toContain('close_file');
+  });
+
+  it('lists the scroll_file and hub_panel tools (#145b)', () => {
+    const names = TOOLS.map((t) => t.function.name);
+    expect(names).toContain('scroll_file');
+    expect(names).toContain('hub_panel');
+  });
+
+  it('scrolls the open file by dispatching the viewer event (#145b)', () => {
+    const seen: string[] = [];
+    window.addEventListener('flow-tower:viewer-scroll', (e) => seen.push((e as CustomEvent<string>).detail));
+    // No file open: the tool says so and dispatches nothing.
+    useStore.getState().openFile(undefined);
+    expect(call('scroll_file', { to: 'down' }).error).toMatch(/No file is open/);
+    expect(seen).toEqual([]);
+    useStore.getState().openFile({ tower: 'dev-squad/dev-squad.tower.yaml', files: ['a.ts'], index: 0 });
+    expect(call('scroll_file', { to: 'bottom' })).toEqual({ scrolled: 'bottom' });
+    expect(seen).toEqual(['bottom']);
+    expect(call('scroll_file', { to: 'sideways' }).error).toMatch(/sideways/);
+    expect(seen).toEqual(['bottom']);
+    useStore.getState().openFile(undefined);
+  });
+
+  it('drives the Hub panel store (#145b)', async () => {
+    const { useHub } = await import('../src/app/hud/Hub');
+    useHub.getState().setMe({ hub: true, readOnly: false, online: 1, tokens: 2 });
+    expect(call('hub_panel', { tab: 'machines' })).toEqual({ shown: 'machines' });
+    expect(useHub.getState()).toMatchObject({ open: true, tab: 'machines' });
+    expect(call('hub_panel', { tab: 'close' })).toEqual({ closed: true });
+    expect(useHub.getState().open).toBe(false);
+    // Not on a hub: opening is refused, closing is not.
+    useHub.getState().setMe({ hub: false, readOnly: false, online: 0, tokens: 0 });
+    expect(call('hub_panel', { tab: 'now' }).error).toMatch(/not on a hub/);
+    expect(useHub.getState().open).toBe(false);
+    expect(call('hub_panel', { tab: 'close' })).toEqual({ closed: true });
   });
 
   it('searches the whole tower', () => {

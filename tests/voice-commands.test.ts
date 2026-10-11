@@ -93,6 +93,11 @@ describe('voice commands (#62)', () => {
     expect(isFixed(say('apri il suo file'))).toBe(true);
     expect(isFixed(say('il prossimo'))).toBe(true);
     expect(isFixed(say('file successivo'))).toBe(true);
+    // The #145b phrases are whole-utterance commands too: scroll and the Hub panel.
+    expect(isFixed(say('scorri giù'))).toBe(true);
+    expect(isFixed(say('go to the bottom'))).toBe(true);
+    expect(isFixed(say("apri l'hub"))).toBe(true);
+    expect(isFixed(say('show the machines'))).toBe(true);
     // Fuzzy name matches are not fixed: with an agent configured they keep today's routing.
     expect(isFixed(say('nodo triage'))).toBe(false);
     expect(isFixed(say('cosa fa questo file?'))).toBe(false);
@@ -104,6 +109,35 @@ describe('voice commands (#62)', () => {
     expect(isFixed(say('chiudi il file?'))).toBe(true);
     expect(say('chiudi il file?')).toEqual({ kind: 'close-file' });
     expect(isFixed(say('chiudi il file del nodo triage'))).toBe(false);
+  });
+
+  it('scrolls the open file by voice (#145b)', () => {
+    for (const text of ['scorri giù', 'scorri in giù', 'giù', 'scroll down', 'page down']) {
+      expect(say(text), text).toEqual({ kind: 'scroll', to: 'down' });
+    }
+    for (const text of ['scorri su', 'scorri in su', 'su di poco', 'scroll up', 'page up']) {
+      expect(say(text), text).toEqual({ kind: 'scroll', to: 'up' });
+    }
+    for (const text of ['vai in fondo', 'fine del file', 'go to the bottom']) {
+      expect(say(text), text).toEqual({ kind: 'scroll', to: 'bottom' });
+    }
+    for (const text of ["vai all'inizio", 'inizio del file', 'go to the top']) {
+      expect(say(text), text).toEqual({ kind: 'scroll', to: 'top' });
+    }
+    // "su" alone keeps its old meaning: it is still `back`, not a scroll up.
+    expect(say('su')).toEqual({ kind: 'back' });
+  });
+
+  it('opens and closes the Hub panel by voice (#145b)', () => {
+    for (const text of ["apri l'hub", 'pannello hub', 'hub', "mostra l'hub", 'open the hub', 'hub panel']) {
+      expect(say(text), text).toEqual({ kind: 'hub', tab: 'now' });
+    }
+    for (const text of ['mostra le macchine', 'le macchine', 'show the machines']) {
+      expect(say(text), text).toEqual({ kind: 'hub', tab: 'machines' });
+    }
+    for (const text of ["chiudi l'hub", 'close the hub']) {
+      expect(say(text), text).toEqual({ kind: 'hub', tab: 'close' });
+    }
   });
 
   it('offers a choice when names tie, and admits when nothing matches', () => {

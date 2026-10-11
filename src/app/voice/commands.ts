@@ -5,6 +5,11 @@ import type { ResolvedTower, Workspace } from '../../core/types';
  * names of what is on screen (projects, layers, nodes). Matching is instant and runs offline.
  * Pure, so it is unit-tested (tests/voice-commands.test.ts).
  */
+/** Where a `scroll` command goes: a page step, or an end of the file. */
+export type ScrollTo = 'down' | 'up' | 'top' | 'bottom';
+/** A `hub` command either shows one tab or closes the panel. */
+export type HubTab = 'now' | 'machines' | 'close';
+
 export type VoiceAction =
   | { kind: 'library' }
   | { kind: 'tower'; id: string }
@@ -21,6 +26,10 @@ export type VoiceAction =
   // "il prossimo" / "file successivo": one step forward (dir 1) or back (dir -1), through the file
   // viewer, the last list shown, or the nodes of the focused layer (what 'auto').
   | { kind: 'step'; dir: 1 | -1; what: 'auto' | 'file' }
+  // "scorri giù" / "scroll down": move the open file's viewer; the HUD listens for the event (#145b).
+  | { kind: 'scroll'; to: ScrollTo }
+  // "apri l'hub" / "show the machines": the Hub panel and its tab (#145b).
+  | { kind: 'hub'; tab: HubTab }
   | { kind: 'mic-off' }
   | { kind: 'ambiguous'; options: { label: string; action: VoiceAction }[] }
   | { kind: 'unknown' };
@@ -34,7 +43,7 @@ export interface VoiceContext { ws: Workspace; tower?: ResolvedTower; library?: 
  * keyword anywhere (`overview`, `view`, `mic-off`) would also fire on real questions like "what does
  * the overview show?", so they keep today's routing to the agent, as do the fuzzy name matches.
  */
-export const FIXED_KINDS = new Set<VoiceAction['kind']>(['close-file', 'close', 'back', 'enter', 'its-file', 'step']);
+export const FIXED_KINDS = new Set<VoiceAction['kind']>(['close-file', 'close', 'back', 'enter', 'its-file', 'step', 'scroll', 'hub']);
 
 /** The parser matched a whole fixed phrase: a command, so it must not be sent to the agent. */
 export const isFixed = (action: VoiceAction): boolean => FIXED_KINDS.has(action.kind);
@@ -149,6 +158,16 @@ export function parseCommand(transcript: string, { ws, tower, library }: VoiceCo
   // "progetti" stays exact: one letter from "progetto", which opens a project.
   if (!saysNode && (like(all, 'libreria', 'library') || has(all, 'home', 'progetti', 'projects')) && words.length <= 2) return { kind: 'library' };
   if (phrase(text, /^(indietro|torna indietro|back|go back|esci|su)$/)) return { kind: 'back' };
+  // Scroll commands (#145b). Anchored whole-utterance, and after the `back` check: "su" alone stays
+  // `back`, while "scorri su" / "su di poco" are scrolls. "giù" alone is the down page step.
+  if (phrase(text, /^(scorri (in )?giu|giu|scroll down|page down)$/)) return { kind: 'scroll', to: 'down' };
+  if (phrase(text, /^(scorri (in )?su|su di poco|scroll up|page up)$/)) return { kind: 'scroll', to: 'up' };
+  if (phrase(text, /^(vai in fondo|fine del file|go to the bottom)$/)) return { kind: 'scroll', to: 'bottom' };
+  if (phrase(text, /^(vai all inizio|inizio del file|go to the top)$/)) return { kind: 'scroll', to: 'top' };
+  // Hub panel commands (#145b). norm drops the apostrophe, so "l'hub" arrives as "l hub".
+  if (phrase(text, /^(mostra le macchine|le macchine|show the machines)$/)) return { kind: 'hub', tab: 'machines' };
+  if (phrase(text, /^(chiudi l hub|close the hub)$/)) return { kind: 'hub', tab: 'close' };
+  if (phrase(text, /^(apri l hub|pannello hub|hub|mostra l hub|open the hub|hub panel)$/)) return { kind: 'hub', tab: 'now' };
   if (phrase(text, /\b(panoramica|overview|insieme|tutta la torre|whole tower|tutti i livelli|all layers)\b/)) return { kind: 'overview' };
   if (!saysNode && like(all, 'mappa', 'map')) return { kind: 'view', view: 'map' };
   if (phrase(text, /\b(vista|view|modalita|mode) (torre|tower|3d)\b|\b(torre|tower) (view|3d)\b/)) return { kind: 'view', view: 'tower' };

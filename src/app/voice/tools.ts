@@ -5,6 +5,8 @@ import { flowOrder } from '../keynav';
 import { opsMarks } from '../ops';
 import { chooseView } from '../settings';
 import { findNode, useStore } from '../store';
+import { useHub } from '../hud/Hub';
+import { SCROLL_EVENT } from './actions';
 import { norm, score } from './commands';
 import { currentList, setList } from './referents';
 
@@ -39,6 +41,8 @@ export const TOOLS: ToolDef[] = [
   tool('open_file', 'Open one of a node\'s files in the viewer.', { node: NODE, index: { type: 'integer', description: 'File number from node_files, 1 = first.' } }, ['index']),
   tool('read_file', 'Read a file to explain it: the one open in the viewer, or file number index of a node (it is opened on screen too). Returns its text, cut after about 8000 characters.', { node: NODE, index: { type: 'integer', description: 'File number from node_files, 1 = first. Omit for the file open now.' } }),
   tool('close_file', 'Close the file viewer. The selected node and the view stay as they are.'),
+  tool('scroll_file', 'Scroll the file open in the viewer: down/up one page, or to the top/bottom. Needs a file open.', { to: { type: 'string', enum: ['down', 'up', 'top', 'bottom'] } }, ['to']),
+  tool('hub_panel', 'Open the Hub panel on a tab (now/machines) or close it. Only works on a hub page.', { tab: { type: 'string', enum: ['now', 'machines', 'close'] } }, ['tab']),
   tool('open_project', 'Open a project or a sub-tower by name.', { name: str('Project or tower name.') }, ['name']),
   tool('navigate', 'Move the view. back = like Esc: closes the open file first, else deselects the node, else leaves the layer, else goes up one tower, else opens the library.', { to: { type: 'string', enum: ['library', 'overview', 'back', 'map', 'tower', 'enter_sub_tower'] } }, ['to']),
 ];
@@ -214,6 +218,23 @@ export function runTool(name: string, args: Args): string {
       const closed = s.file.files[s.file.index];
       s.openFile(undefined);
       return out({ closed });
+    }
+    case 'scroll_file': {
+      const to = String(args.to);
+      if (!['down', 'up', 'top', 'bottom'].includes(to)) return out({ error: `Unknown scroll target "${to}".` });
+      if (!s.file) return out({ error: 'No file is open. Open one with open_file first.' });
+      // Same event the parser's scroll action sends (#145b): the viewer does the scrolling.
+      window.dispatchEvent(new CustomEvent(SCROLL_EVENT, { detail: to }));
+      return out({ scrolled: to });
+    }
+    case 'hub_panel': {
+      const tab = String(args.tab);
+      if (!['now', 'machines', 'close'].includes(tab)) return out({ error: `Unknown hub tab "${tab}".` });
+      const hub = useHub.getState();
+      if (tab === 'close') { hub.close(); return out({ closed: true }); }
+      if (hub.me?.hub === false) return out({ error: 'This page is not on a hub.' });
+      hub.show(tab as 'now' | 'machines');
+      return out({ shown: tab });
     }
     case 'open_project': {
       const words = norm(String(args.name ?? '')).split(' ').filter(Boolean);

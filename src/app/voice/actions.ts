@@ -1,8 +1,12 @@
 import { towerPath } from '../graph';
+import { useHub } from '../hud/Hub';
 import { chooseView } from '../settings';
 import { findNode, useStore } from '../store';
 import type { VoiceAction } from './commands';
 import { runItsFile, runStep } from './referents';
+
+/** The event the viewer listens for; the agent tool dispatches the same one (#145b). */
+export const SCROLL_EVENT = 'flow-tower:viewer-scroll';
 
 /** The caption text for a transcript the parser could not turn into anything. */
 export const NOT_UNDERSTOOD = 'Not understood';
@@ -79,6 +83,19 @@ export function execute(a: VoiceAction, { stop }: ActionDeps): string {
       return 'File closed';
     case 'its-file': return runItsFile(a.index);
     case 'step': return runStep(a.dir, a.what);
+    case 'scroll':
+      // No file open: the viewer's own listener never mounts, so the action answers here.
+      if (!s.file) return 'No file open';
+      window.dispatchEvent(new CustomEvent(SCROLL_EVENT, { detail: a.to }));
+      return a.to === 'down' ? 'Scrolled down' : a.to === 'up' ? 'Scrolled up' : a.to === 'top' ? 'Top of the file' : 'End of the file';
+    case 'hub': {
+      const hub = useHub.getState();
+      if (a.tab === 'close') { hub.close(); return 'Hub closed'; }
+      // Opening is a read of the hub's own view; on a non-hub page there is nothing to show.
+      if (hub.me?.hub === false) return 'Not a hub';
+      hub.show(a.tab);
+      return a.tab === 'machines' ? 'Hub · Machines' : 'Hub';
+    }
     case 'mic-off': setTimeout(stop); return 'Microphone off';
     case 'ambiguous': return `Which one? ${a.options.map((o, i) => `${i + 1}. ${o.label}`).join('  ')}`;
     case 'unknown': return NOT_UNDERSTOOD;
