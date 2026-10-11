@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-11
+
 ### Added
 - Voice: "chiudi il file" / "close the file" closes only the file viewer and keeps the node selected (agent tool `close_file`), #128.
 - Voice (#130): "apri il suo file" / "open its file" (and "apri il file 2", "open the second file") opens a numbered file of the selected node, and "il prossimo" / "next" (or "il precedente" / "previous", "file successivo" / "next file") steps through the file viewer, the last list shown or the nodes of the layer in flow order; all are fixed phrases the parser handles locally even with the agent on.
@@ -15,9 +17,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Changed
 - Docs and skills say "examples gallery" for the public `examples/` set, and keep "library" for the user's own set (the Library view, `flow-tower library`), so the contribute skill no longer triggers on "add my tower to the library" (#136).
 
-### Security
-- KaTeX 0.16.47 → 0.18.7 (Dependabot alert, low), pinned with an override so rehype-katex and remark-math use the same copy (#119).
-
 ### Fixed
 - The live feed's **Tower** scope now keeps events that land in the tower on screen **or in any of its sub-towers**, like the usage header and the scene; when it is empty but the library is not, it says how many events are elsewhere instead of showing nothing (#136).
 - A busy port fails fast with `port <port> is in use: another server runs there (maybe another flow-tower). Use --port <port+1>, or stop it.` and exit 1 instead of silently binding the next port (which shared the requested port's Vite cache dir and left the user on someone else's tower); the banner now names the URL, and the port is strict (#136).
@@ -26,6 +25,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `validate` (and the loader) reports a node `files` entry that is a folder like a missing file (`files entry "<path>" is a folder; list the files inside it instead`), instead of accepting it and letting `/api/file` answer 404 in the app (#118).
 - Markdown tables in the file viewer are readable again: cells wrap at word boundaries instead of `overflow-wrap: anywhere`, which dropped a cell's min-content width to one character and squeezed every column to that; headers stay on one line, and a wide table scrolls sideways (#133).
 - `docs/voice.md` documents crackling spoken replies on Linux with PipeWire under load (rising xruns in `pw-top`) and the `pw-metadata ... clock.force-quantum` workaround (#136).
+- Events dropped as invalid or outside the ±24 h window now leave a warning in the server log (one line per reason at most every 10 s, with the count and the field path, never the value), so a sender learns why its events vanished; the response stays an empty 204 (#136).
+- Timing tests wait for the condition (`vi.waitFor`) instead of a fixed delay, so a busy machine no longer turns them red (#131).
+
+### Security
+- KaTeX 0.16.47 → 0.18.7 (Dependabot alert, low), pinned with an override so rehype-katex and remark-math use the same copy (#119).
 
 ## [0.6.0] - 2026-10-11
 
@@ -298,7 +302,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.3.0...v0.4.0
