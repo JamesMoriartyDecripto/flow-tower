@@ -8,10 +8,12 @@ import { IDENTITY_MAX, identityDefaults } from '../bin/identity.js';
 import { FlowEventSchema, type FlowEvent } from '../src/core/events';
 import { openHistory } from '../src/server/history/db';
 import { COLUMNS, createHistory, RETENTION } from '../src/server/history/store';
+import { cleanEnv } from './fixtures/clean-env';
 
 const CLI = resolve('bin/flow-tower.js');
 // A hung CLI would otherwise block this process forever: the timeout lets the test fail instead of the run.
-const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', timeout: 20_000 });
+const run = (...args: string[]) =>
+  spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', timeout: 20_000, env: cleanEnv() });
 
 describe('cli emit identity (#82)', () => {
   const servers: ReturnType<typeof createServer>[] = [];
@@ -38,7 +40,7 @@ describe('cli emit identity (#82)', () => {
   const emitAsync = (args: string[], input?: string) =>
     new Promise<void>((done, fail) => {
       // The timeout kills a stuck child, so the promise settles and the test fails instead of hanging.
-      const child = spawn(process.execPath, [CLI, 'emit', ...args], { stdio: ['pipe', 'ignore', 'inherit'], timeout: 20_000 });
+      const child = spawn(process.execPath, [CLI, 'emit', ...args], { stdio: ['pipe', 'ignore', 'inherit'], timeout: 20_000, env: cleanEnv() });
       child.on('error', fail);
       child.on('close', () => done());
       child.stdin.end(input ?? '');
@@ -105,7 +107,7 @@ describe('cli token (#83)', () => {
   afterAll(() => rmSync(home, { recursive: true, force: true }));
   // The CLI keeps its tokens under userHome(): FLOW_TOWER_HOME points that at a temp folder, never the repo.
   const token = (...args: string[]) =>
-    spawnSync(process.execPath, [CLI, 'token', ...args], { encoding: 'utf8', timeout: 20_000, env: { ...process.env, FLOW_TOWER_HOME: home } });
+    spawnSync(process.execPath, [CLI, 'token', ...args], { encoding: 'utf8', timeout: 20_000, env: cleanEnv({ FLOW_TOWER_HOME: home }) });
 
   it('adds a token, prints it once with the hash warning, then never again', () => {
     const added = token('add', 'alice');
@@ -145,7 +147,7 @@ describe('cli history (#84)', () => {
   afterAll(() => rmSync(home, { recursive: true, force: true }));
   // The DB path is userHome()/history.db: FLOW_TOWER_HOME points that at a temp folder, never the repo.
   const history = (...args: string[]) =>
-    spawnSync(process.execPath, [CLI, 'history', ...args], { encoding: 'utf8', timeout: 20_000, env: { ...process.env, FLOW_TOWER_HOME: home } });
+    spawnSync(process.execPath, [CLI, 'history', ...args], { encoding: 'utf8', timeout: 20_000, env: cleanEnv({ FLOW_TOWER_HOME: home }) });
   const path = join(home, 'history.db');
 
   /** Two users' events, written through the store so the rollups are populated like a real run. */
@@ -240,7 +242,7 @@ describe('cli serve guards (#83)', () => {
       encoding: 'utf8',
       // A serve that starts instead of refusing would never exit: fail the test, not the whole run.
       timeout: 20_000,
-      env: { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_ALLOWED_HOSTS: '' },
+      env: cleanEnv({ FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_ALLOWED_HOSTS: '' }),
     });
 
   it('refuses --allowed-host without --hub', () => {
@@ -252,7 +254,7 @@ describe('cli serve guards (#83)', () => {
     const viaEnv = spawnSync(process.execPath, [CLI, 'serve', '--no-open'], {
       encoding: 'utf8',
       timeout: 20_000,
-      env: { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_ALLOWED_HOSTS: 'hub.tailnet-xyz.ts.net' },
+      env: cleanEnv({ FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_ALLOWED_HOSTS: 'hub.tailnet-xyz.ts.net' }),
     });
     expect(viaEnv.status).toBe(1);
     expect(viaEnv.stderr).toContain('add --hub (and a token)');
@@ -270,7 +272,7 @@ describe('cli config (#90)', () => {
   afterAll(() => rmSync(home, { recursive: true, force: true }));
   // FLOW_TOWER_HOME points userHome() at a temp folder, so nothing here touches the real config.
   const config = (...args: string[]) =>
-    spawnSync(process.execPath, [CLI, 'config', ...args], { encoding: 'utf8', timeout: 20_000, env: { ...process.env, FLOW_TOWER_HOME: home } });
+    spawnSync(process.execPath, [CLI, 'config', ...args], { encoding: 'utf8', timeout: 20_000, env: cleanEnv({ FLOW_TOWER_HOME: home }) });
   const write = (content: string) => writeFileSync(join(home, 'config.json'), content, { mode: 0o600 });
 
   it('show redacts the token, never printing its value', () => {
@@ -296,7 +298,7 @@ describe('cli serve reads the config file (#90)', () => {
     spawnSync(process.execPath, [CLI, 'serve', ...args], {
       encoding: 'utf8',
       timeout: 20_000,
-      env: { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_ALLOWED_HOSTS: '', FLOW_TOWER_HUB: '' },
+      env: cleanEnv({ FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_ALLOWED_HOSTS: '', FLOW_TOWER_HUB: '' }),
     });
   const write = (content: string) => writeFileSync(join(home, 'config.json'), content, { mode: 0o600 });
 
@@ -352,7 +354,7 @@ describe('cli emit reads the config file (#90)', () => {
         stdio: ['pipe', 'ignore', 'inherit'],
         // The timeout kills a stuck child, so the promise settles and the test fails instead of hanging.
         timeout: 20_000,
-        env: { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_URL: '' },
+        env: cleanEnv({ FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_URL: '' }),
       });
       child.on('error', fail);
       child.on('close', () => done());
@@ -389,7 +391,7 @@ describe('cli emit on a satellite (#91)', () => {
         stdio: ['pipe', 'ignore', 'inherit'],
         // The timeout kills a stuck child, so the promise settles and the test fails instead of hanging.
         timeout: 20_000,
-        env: { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_URL: '' },
+        env: cleanEnv({ FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_URL: '' }),
       });
       child.on('error', fail);
       child.on('close', () => done());
@@ -439,7 +441,8 @@ describe('cli copy (#116)', () => {
   const out = mkdtempSync(join(tmpdir(), 'flow-tower-copy-'));
   afterAll(() => rmSync(out, { recursive: true, force: true }));
   // A copy validates the result by running `flow-tower validate`, so it spawns the CLI once more.
-  const copy = (...args: string[]) => spawnSync(process.execPath, [CLI, 'copy', ...args], { encoding: 'utf8', timeout: 20_000 });
+  const copy = (...args: string[]) =>
+    spawnSync(process.execPath, [CLI, 'copy', ...args], { encoding: 'utf8', timeout: 20_000, env: cleanEnv() });
 
   it('--list names every example with its tower name', () => {
     const r = copy('--list');
@@ -504,7 +507,7 @@ describe('cli install-skill', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'flow-tower-skill-'));
   afterAll(() => rmSync(cwd, { recursive: true, force: true }));
   const install = (...args: string[]) =>
-    spawnSync(process.execPath, [CLI, 'install-skill', ...args, '--project'], { cwd, encoding: 'utf8', timeout: 20_000 });
+    spawnSync(process.execPath, [CLI, 'install-skill', ...args, '--project'], { cwd, encoding: 'utf8', timeout: 20_000, env: cleanEnv() });
 
   it.each([
     ['claude', '.claude/skills'],

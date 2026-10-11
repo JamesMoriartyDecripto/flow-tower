@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { cleanEnv } from './fixtures/clean-env';
 
 const CLI = resolve('bin/flow-tower.js');
 const out = mkdtempSync(join(tmpdir(), 'flow-tower-check-example-'));
@@ -10,7 +11,7 @@ afterAll(() => rmSync(out, { recursive: true, force: true }));
 
 // A hung CLI would otherwise block this process forever: the timeout lets the test fail instead of the run.
 const check = (dir: string, ...args: string[]) =>
-  spawnSync(process.execPath, [CLI, 'check-example', dir, ...args], { encoding: 'utf8', timeout: 20_000 });
+  spawnSync(process.execPath, [CLI, 'check-example', dir, ...args], { encoding: 'utf8', timeout: 20_000, env: cleanEnv() });
 
 /** A valid, self-contained tower whose prompt is a file, so the folder exercises the path checks. */
 const TOWER = `version: 1
