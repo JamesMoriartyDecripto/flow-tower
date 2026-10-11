@@ -12,6 +12,7 @@
 | Live events / integrations | [docs/realtime.md](docs/realtime.md), `src/core/adapters.ts`, `integrations/` |
 | Voice (commands, agent, spoken replies) | README § Voice commands, `src/app/voice/` (parser, mic, agent, tools), `src/server/voice.ts`, the `voice-commands` example tower |
 | The agent skill | [skills/flow-tower/SKILL.md](skills/flow-tower/SKILL.md), [reference.md](skills/flow-tower/reference.md) |
+| Build work with the squad (coder/reviewer through OpenRouter) | [tools/squad/README.md](tools/squad/README.md) |
 
 ## Conventions
 
