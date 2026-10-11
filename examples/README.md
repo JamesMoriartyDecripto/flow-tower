@@ -4,7 +4,11 @@ Every example is a real, validated tower: each prompt, script, config and log it
 
 **Writing a new tower?** Copy the closest example below rather than reading them all.
 
-## Starters: one short file each
+A tower of your own project goes in your project or your hub's `towers/` folder, not here, unless anonymised into an example with its README and sources.
+
+## Starters
+
+One short file each: the smallest models to copy (more in [`starters/`](starters)).
 
 | Folder | Layers | Use it as a model for |
 |---|---|---|
@@ -13,7 +17,9 @@ Every example is a real, validated tower: each prompt, script, config and log it
 | [`starters/pr-reviewer`](starters/pr-reviewer) | 3 | CI agent: webhook trigger, sandbox, human approval |
 | [`starters/voice-assistant`](starters/voice-assistant) | 3 | On-device runtimes around a cloud model, data sensitivity |
 
-## Presets by pattern
+## Agent systems
+
+Presets by pattern: real multi-agent systems, one per architecture.
 
 | Folder | Layers | Use it as a model for |
 |---|---|---|
@@ -38,10 +44,32 @@ Every example is a real, validated tower: each prompt, script, config and log it
 | [`marketing-studio`](marketing-studio) | 8 | Spend-controlled marketing: paid-media optimization sub-tower with spend guard and approval thresholds, lifecycle email, lead scoring, measurement loop |
 | [`sales-pipeline`](sales-pipeline) | 8 | B2B sales from prospect to invoice: lawful-basis checks for EU/Italian outreach, outreach sequence sub-tower, discount and contract approvals, e-signature, invoice handoff |
 | [`invoicing-fic`](invoicing-fic) | 8 | Italian e-invoicing with Fatture in Cloud: fiscal checks, idempotent issue, SDI send-and-monitor sub-tower with rejection loop, dunning, passive cycle, 10-year retention |
+
+## Operations and team hub
+
+Running Flow Tower for a team and measuring the models behind it: copy these to deploy or evaluate.
+
+| Folder | Layers | Use it as a model for |
+|---|---|---|
+| [`command-center`](command-center) | 5 | Self-hosted hub as a tower: machines, transport, hub service, library, viewers; ready deploy files (systemd, compose, Caddy, config) |
+| [`model-benchmark`](model-benchmark) | 8 | A method you can run: pick a model per role with real tasks, one runner for all candidates, deterministic judges then a blind rubric, repeat runs and variance; runnable scripts (`bench.mjs --dry-run` needs no key) |
+| [`docs-qa`](docs-qa) | 4 | Docs Q&A over this repo, dogfooded: just-in-time routing (CLAUDE.md table, doc headers) instead of embeddings, citation guard, and an eval loop whose failures are doc gaps; `root: ../..`, runnable scripts with a dry run |
+
+## Flow Tower's own towers (dogfood)
+
+Towers of Flow Tower itself (its hub, its releases, its voice commands, its docs bot), built with Flow Tower. They point at this repo's files with `root: ../..`, so they break once copied: read them, don't copy them.
+
+| Folder | Layers | Use it as a model for |
+|---|---|---|
+| [`team-hub`](team-hub) | 7 | The team hub's architecture, dogfooded on this repo: senders, guard and tokens, ingest limits, identity cascade, SQLite history with rollups, config precedence; planned views (hub panel, privacy profiles, admin, alerts) dashed |
 | [`release-auditor`](release-auditor) | 6 | Pre-release bug sweep, dogfooded on this repo: deterministic gates, Playwright sweep sub-tower, one finder per charter, adversarial verifier, test-first fixes; `root: ../..` so nodes open real repo files, scripts report live |
 | [`voice-commands`](voice-commands) | 6 | A feature mapped with its design choices, dogfooded on this repo: the voice widget from microphone to command, the speech engines it weighed (Web Speech on-device and cloud, Whisper in the browser, OpenRouter: chosen), and the conversational agent that answers out loud with tower tools |
 
-## Beyond agents: notes and playbooks
+`docs-qa` (above) also runs on this repo by default; copied elsewhere, `DOCS_QA_ROOT` points it at a flow-tower clone.
+
+## Beyond agents
+
+Notes and playbooks: towers of knowledge, not of running systems.
 
 | Folder | Layers | Use it as a model for |
 |---|---|---|

@@ -1,20 +1,37 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { hostname, homedir, userInfo } from 'node:os';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
 import { parseArgs } from 'node:util';
+import { senderConfig } from './config-file.js';
+import { clipIdentity, identityDefaults } from './identity.js';
 
 const HELP = `flow-tower — 3D tower visualizer for agentic systems
 
 Usage
   flow-tower <file.tower.yaml | dir> [more files or dirs...] [--port 5317] [--no-open | --browser <app>]
+  flow-tower serve [...] [--hub] [--host <addr>] [--allowed-host <name>] [--ingest-only]
   flow-tower init [file.tower.yaml]
   flow-tower emit --source <claude-code|codex|pi|hermes> [--tower t] < payload.json  (hooks; JSONL streams live)
   flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [-m text]
+                     [--user u] [--machine m] [--runtime r] [--session s] [--project-name p]
   flow-tower validate <file.tower.yaml | dir>... [--json]
+  flow-tower copy <example> [dest] | --list          copy an examples/ tower into a new folder (default ./<name>) and validate it
+  flow-tower check-example <dir> [--json]            pre-flight an example folder before proposing it: validate
+                                                        clean, self-contained, README with Sources, no personal data
+  flow-tower token add <id> | list | revoke <id> | pause <id> | resume <id>
+                                                        per-sender hub tokens stored under the user folder
+  flow-tower config path | show                         the config files in use, and the effective settings
+                                                        (hub + emit in one config.json under the user folder)
+  flow-tower connect <hub-url> --token <t> [--machine <name>] [--user <name>]
+                                                        make this machine a satellite: writes role satellite into
+                                                        the user folder's config.json, then sends one heartbeat
+  flow-tower history export [--user <u>] | delete --user <u> | info
+                                                        content-free events and totals in the user folder:
+                                                        export prints JSONL, delete erases one user's rows
   flow-tower guide                                      print the procedure to generate a tower from a codebase
   flow-tower install-skill [--target <t>] [--project]   install it as an Agent Skill for your coding agent
                                                         <t>: claude (default), codex, pi, hermes, cursor, agents
@@ -26,9 +43,21 @@ Options
   -p, --port     Port to listen on (default 5317)
       --no-open  Do not open the browser
       --browser  Open this browser instead of the default (firefox, "google chrome", safari...; also $BROWSER)
+      --hub      Hub mode: a shared server (also FLOW_TOWER_HUB=1). Remote requests may only ingest events
+                 with a per-sender token (flow-tower token add <id>); the UI needs a listed viewer.
+      --host     Bind address (default 127.0.0.1). A non-loopback address requires --hub.
+      --ingest-only  Serve nothing but the ingest routes, even locally (also FLOW_TOWER_INGEST_ONLY=1);
+                 every request needs a token like --hub (the command exits 1 without one)
+      --allowed-host Name the Vite server accepts in Host, e.g. hub.tailnet-xyz.ts.net (repeatable; needed
+                 when tailscale serve or a proxy forwards with its own Host; also FLOW_TOWER_ALLOWED_HOSTS, comma list).
+                 Reaching the server through a proxy means hub mode: requires --hub
       --no-update-check  Do not ask GitHub once a day whether a newer release exists
                  (also FLOW_TOWER_NO_UPDATE_CHECK=1; always off in CI)
       --url      emit: server URL (default http://127.0.0.1:5317); a second server runs on another --port
+                 user and machine are added by default only for a loopback URL (127.0.0.1, ::1, localhost):
+                 to any other host they are sent only when given explicitly (--user/--machine, or
+                 FLOW_TOWER_USER / FLOW_TOWER_MACHINE set to a non-empty value). FLOW_TOWER_USER=''
+                 disables the user default everywhere.
       --tower    emit: only match towers whose id or name contains this (two versions in one library)
   -h, --help     Show this help`;
 
@@ -97,6 +126,11 @@ const { values, positionals } = parseArgs({
     browser: { type: 'string' },
     'no-update-check': { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
+    // Hub mode (#83): `--host` is the bind address (identity's --machine maps to host, see below).
+    hub: { type: 'boolean', default: false },
+    host: { type: 'string' },
+    'ingest-only': { type: 'boolean', default: false },
+    'allowed-host': { type: 'string', multiple: true },
     // emit
     url: { type: 'string', default: 'http://127.0.0.1:5317' },
     source: { type: 'string' },
@@ -107,7 +141,16 @@ const { values, positionals } = parseArgs({
     tower: { type: 'string' },
     status: { type: 'string' },
     message: { type: 'string', short: 'm' },
+    // Identity (#82): who/where/what on every event. `--machine` maps to host, `--project-name` to project:
+    // `--host` is reserved for the bind address (#83) and `--project` is install-skill's boolean.
+    user: { type: 'string' },
+    machine: { type: 'string' },
+    token: { type: 'string' },
+    runtime: { type: 'string' },
+    session: { type: 'string' },
+    'project-name': { type: 'string' },
     json: { type: 'boolean', default: false },
+    list: { type: 'boolean', default: false },
     project: { type: 'boolean', default: false },
     target: { type: 'string', default: 'claude' },
   },
@@ -118,17 +161,84 @@ if (values.help || positionals.length === 0) {
   process.exit(values.help ? 0 : 1);
 }
 
+const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Was this flag actually on the command line? parseArgs' defaults cannot tell a flag from its default. */
+const explicit = (name) => process.argv.some((a) => a === `--${name}` || a.startsWith(`--${name}=`));
+
+/**
+ * The effective settings from src/server/config.ts (#90), printed as JSON by its own CLI so the flags >
+ * environment > config precedence lives in one place. Serve reads no token from here: the config's token
+ * is the sender credential, so `json` always redacts it; a failure to run it yields {} and the defaults.
+ */
+function configJson(flags = []) {
+  const script = join(pkgRoot, 'src', 'cli', 'config.ts');
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, 'json', ...flags], { encoding: 'utf8' });
+  try { return JSON.parse(r.stdout); } catch { return {}; }
+}
+
 if (positionals[0] === 'emit') {
   await emit();
   process.exit(0);
 }
 
-const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+if (positionals[0] === 'config') {
+  // The config loader is TypeScript (src/server/config.ts): run its CLI with Node's type stripping.
+  const script = join(pkgRoot, 'src', 'cli', 'config.ts');
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...positionals.slice(1)], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
 
 if (positionals[0] === 'validate') {
   // The core is TypeScript: run it with Node's built-in type stripping (Node >= 22.12).
   const script = join(pkgRoot, 'src', 'cli', 'validate.ts');
   const args = [...positionals.slice(1), ...(process.argv.includes('--json') ? ['--json'] : [])];
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'copy') {
+  // Same trick as validate: the copier is TypeScript, run it with Node's type stripping.
+  // `--list` is one of this parser's own options, so it is stripped from the positionals: append it back.
+  const script = join(pkgRoot, 'src', 'cli', 'copy.ts');
+  const args = [...positionals.slice(1), ...(values.list ? ['--list'] : [])];
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'check-example') {
+  // Same trick as validate: the checker is TypeScript, run it with Node's type stripping.
+  // `--json` is one of this parser's own options, so it is stripped from the positionals: append it back.
+  const script = join(pkgRoot, 'src', 'cli', 'check-example.ts');
+  const args = [...positionals.slice(1), ...(values.json ? ['--json'] : [])];
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'token') {
+  // Same trick as validate: the token store is TypeScript, run it with Node's type stripping.
+  const script = join(pkgRoot, 'src', 'cli', 'token.ts');
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...positionals.slice(1)], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'history') {
+  // Same trick as token: the history DB code is TypeScript, run it with Node's type stripping.
+  // `--user` is one of this parser's own options, so it is stripped from the positionals: append it back
+  // (with its exact value, the empty string included) or `history export|delete --user` would lose it.
+  const script = join(pkgRoot, 'src', 'cli', 'history.ts');
+  const args = [...positionals.slice(1), ...(values.user === undefined ? [] : ['--user', values.user])];
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'connect') {
+  // Same trick as token: the config writer is TypeScript, run it with Node's type stripping.
+  // --token/--user/--machine are this parser's own options, so they are stripped from the positionals:
+  // append each one back (its exact value, so `--user ''` survives) or connect would see no token.
+  const script = join(pkgRoot, 'src', 'cli', 'connect.ts');
+  const args = [...positionals.slice(1)];
+  for (const name of ['token', 'user', 'machine']) if (values[name] !== undefined) args.push(`--${name}`, values[name]);
   const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
   process.exit(r.status ?? 1);
 }
@@ -163,14 +273,16 @@ or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follo
   );
   writeFileSync(join(target, 'procedure.md'), procedure().replaceAll(`](${join(pkgRoot, 'skills', 'flow-tower', 'reference.md')})`, '](reference.md)'));
 
-  // Install the costs skill next to flow-tower: its `../flow-tower/SKILL.md` link then resolves as is.
-  const costsTarget = join(base, ...skills, 'flow-tower-costs');
-  cpSync(join(pkgRoot, 'skills', 'flow-tower-costs'), costsTarget, { recursive: true });
-  for (const f of ['SKILL.md', 'reference.md']) {
-    const file = join(costsTarget, f);
-    writeFileSync(file, absolutizeOutboundLinks(readFileSync(file, 'utf8').replaceAll('{{FLOW_TOWER_CLI}}', cli)));
+  // Install the other skills next to flow-tower: their `../flow-tower/...` links then resolve as is.
+  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute'].map((name) => join(base, ...skills, name));
+  for (const dir of others) {
+    cpSync(join(pkgRoot, 'skills', basename(dir)), dir, { recursive: true });
+    for (const f of readdirSync(dir).filter((f) => f.endsWith('.md'))) {
+      const file = join(dir, f);
+      writeFileSync(file, absolutizeOutboundLinks(readFileSync(file, 'utf8').replaceAll('{{FLOW_TOWER_CLI}}', cli)));
+    }
   }
-  console.log(`installed the flow-tower and flow-tower-costs skills for ${values.target}:\n  ${target}\n  ${costsTarget}\n${spec.note}`);
+  console.log(`installed the flow-tower skills for ${values.target}:\n  ${[target, ...others].join('\n  ')}\n${spec.note}`);
   process.exit(0);
 }
 
@@ -179,19 +291,45 @@ or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follo
  * Never fails and never blocks for long: observability must not break the agent it observes.
  */
 async function emit() {
+  // url/user/machine/token default from the config file (#90); flags and env still win. Read in plain JS:
+  // emit runs on every hook call, so it must not start a second Node (bin/config-file.js).
+  const cfg = senderConfig({
+    env, checkout: pkgRoot,
+    flags: { url: explicit('url') ? values.url : undefined, user: values.user, machine: values.machine, token: values.token },
+  });
+  // A satellite (#91) posts to the LOCAL relay, not to the config url (which names the hub): the local
+  // server carries the hub token itself, so posting the config token there would only earn a 401 and lose
+  // the event. `--url` still picks another local server; anything else keeps the config url, flags win.
+  const url = cfg.role === 'satellite' ? values.url : cfg.url ?? values.url;
+
   const params = new URLSearchParams(Object.entries({ source: values.source, tower: values.tower }).filter(([, v]) => v));
   const query = params.size ? `?${params}` : '';
   const headers = { 'content-type': 'application/json' };
-  if (env.FLOW_TOWER_TOKEN) headers['x-flow-tower-token'] = env.FLOW_TOWER_TOKEN;
-  const post = (events) => fetch(`${values.url}/api/events${query}`, {
+  // Explicit credentials travel everywhere; the CONFIG token is the hub's credential for the config url,
+  // so it is only ever attached to that url's origin and never handed to a different host via --url.
+  const sameOrigin = (a, b) => { try { return new URL(a).origin === new URL(b).origin; } catch { return false; } };
+  const envToken = env.FLOW_TOWER_TOKEN?.trim();
+  const configToken = cfg.config.token && cfg.config.url && sameOrigin(cfg.config.url, url) ? cfg.config.token : undefined;
+  const token = values.token ?? (envToken || undefined) ?? configToken;
+  if (token) headers['x-flow-tower-token'] = token;
+  const post = (events) => fetch(`${url}/api/events${query}`, {
     method: 'POST', headers, body: JSON.stringify(events), signal: AbortSignal.timeout(1500),
   }).catch(() => {});
 
+  // Defaults so identity is never empty on a loopback target; a payload or an explicit flag always wins (#82).
+  // The config's user/machine are explicit (like a flag), so the loopback rule only guards the os fallback.
+  const defaults = identityDefaults(url, env, { username: userInfo().username, hostname: hostname() }, cfg);
+  const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+  const withIdentity = (event) => clipIdentity({ ...defaults, ...clean(event), ...clean(identity) });
+  const identity = {
+    user: values.user, host: values.machine, runtime: values.runtime, session: values.session, project: values['project-name'],
+  };
+
   if (values.kind) {
     const { kind, source = 'custom', agent, tool, node, tower, status, message } = values;
-    await post([{ kind, source, agent, tool, node, tower, status, message }]);
+    await post([withIdentity({ ...identity, kind, source, agent, tool, node, tower, status, message })]);
   } else if (!process.stdin.isTTY) {
-    await streamStdin(post);
+    await streamStdin((events) => post(events.map(withIdentity)));
   }
 }
 
@@ -242,16 +380,66 @@ if (positionals[0] === 'init') {
   process.exit(0);
 }
 
-const entries = positionals.map((p) => resolve(p));
+const entries = (positionals[0] === 'serve' ? positionals.slice(1) : positionals).map((p) => resolve(p));
 const missing = entries.filter((e) => !existsSync(e));
 if (missing.length) {
   console.error(`not found: ${missing.join(', ')}`);
   process.exit(1);
 }
 
+/**
+ * Hub mode (#83): the server may be reached from off this machine. Ingest then needs a token, viewing
+ * needs the tailnet user in config.json (or the legacy hub.json), everything else is refused (src/server/hub.ts).
+ * hub/host/allowedHosts/ingestOnly default from the config file (#90); the flags still win. The token
+ * does not: see below.
+ */
+const isLoopbackHost = (h) => h === 'localhost' || h === '::1' || h === '[::1]' || /^127\./.test(h);
+const serveFlags = [];
+if (values.hub) serveFlags.push('--hub');
+if (values.host !== undefined) serveFlags.push('--host', values.host);
+for (const h of values['allowed-host'] ?? []) serveFlags.push('--allowed-host', h);
+if (values['ingest-only']) serveFlags.push('--ingest-only');
+const cfg = configJson(serveFlags);
+const hub = cfg.hub ?? values.hub;
+const ingestOnly = cfg.ingestOnly ?? values['ingest-only'];
+const bindHost = cfg.host ?? values.host ?? '127.0.0.1';
+
+if (!hub && !isLoopbackHost(bindHost)) {
+  console.error(`refusing to bind ${bindHost} without --hub: only loopback may run unguarded.
+To serve a shared hub, run: flow-tower <files> --hub --host ${bindHost}`);
+  process.exit(1);
+}
+// An allowed host is only reachable through a proxy (Tailscale serve, Caddy): that is a hub, not a local server.
+const allowedHosts = cfg.allowedHosts ?? [];
+if (!hub && allowedHosts.length) {
+  console.error(`an allowed host means the server is reachable through a proxy: add --hub (and a token)`);
+  process.exit(1);
+}
+// The config's token is this machine's credential for the hub it SENDS to (emit, the satellite relay):
+// it is never a secret guarding this server, or a revoked/paused token pasted into config.json would
+// still authenticate here. This server's shared secret stays FLOW_TOWER_TOKEN; per-sender tokens live
+// in tokens.json. So the "needs a token" refusal ignores the config file.
+const token = env.FLOW_TOWER_TOKEN;
+if ((hub || ingestOnly) && !token && !hasActiveToken()) {
+  console.error(`${hub ? 'hub mode' : '--ingest-only'} needs a token to accept any event.
+create one: flow-tower token add <id>\nThen send it as x-flow-tower-token (or FLOW_TOWER_TOKEN for a shared secret).`);
+  process.exit(1);
+}
+
+/** True when a per-sender token is active: the store is TypeScript, so ask its own CLI (as `token` does). */
+function hasActiveToken() {
+  const script = join(pkgRoot, 'src', 'cli', 'token.ts');
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, 'list'], { encoding: 'utf8' });
+  return /\bactive\b/.test(r.stdout ?? '');
+}
+
 // The vite plugin reads its entries (and the update-check opt-out) from the environment of this process.
 env.FLOW_TOWER_ENTRIES = JSON.stringify(entries);
 if (values['no-update-check']) env.FLOW_TOWER_NO_UPDATE_CHECK = '1';
+// The resolved hub settings go out as the same env vars as today, so src/server/hub.ts keeps one path.
+if (hub) env.FLOW_TOWER_HUB = '1';
+if (ingestOnly) env.FLOW_TOWER_INGEST_ONLY = '1';
+// FLOW_TOWER_TOKEN is passed on unchanged: serve never rewrites it from the config's sender token.
 // Vite opens the page with the `open` package, which reads $BROWSER.
 if (values.browser) env.BROWSER = values.browser;
 const { createServer } = await import('vite');
@@ -262,8 +450,14 @@ const server = await createServer({
   // otherwise re-optimize the same files under each other, and an open page fails to load renamed chunks.
   cacheDir: join(pkgRoot, 'node_modules', '.vite', `port-${values.port}`),
   logLevel: 'warn',
-  server: { port: Number(values.port), open: !values['no-open'] },
+  server: {
+    port: Number(values.port),
+    host: bindHost,
+    open: !values['no-open'],
+    // Only when the user named hosts: an explicit list must not replace Vite's localhost/IP defaults for nothing.
+    ...(allowedHosts.length ? { allowedHosts } : {}),
+  },
 });
 await server.listen();
-console.log(`\n  FLOW//TOWER  ${entries.join('  ')}\n`);
+console.log(`\n  FLOW//TOWER  ${entries.join('  ')}${hub ? '  [hub]' : ''}${ingestOnly ? '  [ingest-only]' : ''}\n`);
 server.printUrls();

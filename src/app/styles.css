@@ -252,6 +252,9 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .feed-row .k { color: var(--amber); }
 .feed-row .who { overflow-wrap: anywhere; }
 .feed-row .who em { color: var(--dim); font-style: normal; font-size: 10px; }
+/* Host/user chips of a row: small, dimmed, aligned under the message. */
+.feed-chips { grid-column: 3; display: flex; gap: 4px; }
+.feed-chips .chip { font-size: 9px; padding: 0 5px; color: var(--dim); border-color: var(--line-soft); }
 .feed-row .msg { grid-column: 3; color: #9fb2d3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* row tone = same palette as the 3D overlay */
 .feed-row.run { border-left-color: color-mix(in srgb, var(--live-run) 55%, transparent); }
@@ -338,6 +341,13 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .set-group { border-left: 2px solid var(--line); padding-left: 12px; margin: 6px 0 14px; }
 .set-group .set-row:first-child .set-label { color: var(--orange); }
 .set-control input[type=range]:disabled { opacity: .35; }
+
+/* Satellite sharing (#91): the top-bar chip reuses the chip variants, the section adds two small blocks. */
+.sat-chip { white-space: nowrap; }
+.chip.dim { color: var(--dim); }
+.set-control .sharing-list { max-width: 360px; font: 12px/1.4 var(--ui); color: var(--dim); text-align: right; }
+.sharing-pre { max-height: 180px; overflow: auto; margin: 0 0 14px; padding: 10px 12px; font: 12px/1.5 var(--mono); color: #cfdcf3;
+  background: rgba(0, 0, 0, .25); border: 1px solid var(--line-soft); }
 
 @media (max-width: 1400px) {
   .livefeed { width: 380px; }

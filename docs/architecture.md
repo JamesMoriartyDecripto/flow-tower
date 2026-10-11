@@ -1,6 +1,6 @@
 # Architecture: where things live
 
-Read this before changing code. Open only the files for the task at hand: each row says when you need it.
+Which source file owns what (for example the per-sender tokens, the relay, the config). Read this before changing code, then open only the files for the task at hand. Tower authoring: [what-goes-where.md](what-goes-where.md); hub behaviour: [hub-reference.md](hub-reference.md).
 
 ## Data flow
 
@@ -26,6 +26,7 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 | `src/core/resolve.ts` | Prompts, `from:` agent files, operational fields (`pickOps`) |
 | `src/core/edges.ts` | Edge shorthand parsing |
 | `src/core/otlp.ts` | OTLP/HTTP JSON logs → `usage` / `error` events (Claude Code, Codex telemetry) |
+| `src/core/identity.ts` | Who, where and what on every event (#82): picks the first set attribute among the names sources use for user, host, runtime, project and session, and clips them. `bin/identity.js` is the plain-JS twin `emit` loads |
 | `src/core/events.ts`, `adapters.ts`, `claudeCode.ts` | Live event shape, matching (with `!` negation), per-harness adapters (Codex, Pi, Hermes); `claudeCode.ts` maps Claude Code / Agent SDK hooks and remembers subagent roles |
 | `src/core/types.ts` | Resolved model sent to the browser |
 
@@ -35,15 +36,34 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 |---|---|
 | `src/server/plugin.ts` | API routes, file sandbox, live reload. `USER_HOME` = `~/.config/flow-tower` (or `FLOW_TOWER_HOME`), the user's folder: never in a repo, never served by `/api/file`. Key lookup: environment, then `USER_HOME/.env`, then the git-ignored `.env` in the flow-tower folder (fallback). Gives the voice handler the journal store and the names an alias may point at |
 | `src/server/home.ts` | Re-exports `userHome`; `warnIfInRepo` warns at startup when `FLOW_TOWER_HOME` is inside the flow-tower folder, symlinks followed on both sides |
+| `src/server/config.ts` | One config file for the hub and the emit settings (#90): reads `<home>/config.json` (JSONC) over `<checkout>/flow-tower.local.json`, migrates the old `hub.json` keys with a warning, and is best-effort (an invalid file is a warning, never a crash). `configPaths` says what a load reads; `effective` is pure and resolves flags > environment > config > defaults, where an empty environment variable counts as unset. The config's `token` is the sender credential, never the server's own secret |
 | `src/server/events.ts` | Event hub (ring buffer, 204 empty responses for Claude Code hooks) |
+| `src/server/hub.ts` | Hub mode (#83): the first middleware of the server. From the socket, the proxy headers and `hub.json` alone it decides what a remote request may do: ingest with a token, view read-only when the tailnet login is a listed viewer, and nothing else (`/api/file`, `/api/voice` and every write are refused). `--ingest-only` serves only the ingest routes, even locally. Options come from the environment because Vite has no argv |
+| `src/server/auth.ts` | Who may write to the event hub (#83): the legacy `FLOW_TOWER_TOKEN` (sender `default`) or a per-sender token, both compared timing-safe; `isRemote` treats a proxy header or a non-loopback socket as remote; without either secret and not a hub, a fresh checkout stays local-only and needs no token |
+| `src/server/tokens.ts` | Per-sender tokens (#83): `flow-tower token add|list|revoke|pause|resume` over `~/.config/flow-tower/tokens.json` (0600, atomic write), which holds only the sha256 — never the plaintext. `verify` reads the sender id from `ft_<id>_<secret>` and checks the hash; a revoked or paused token is gone. Cached by mtime so a CLI change is picked up without a restart |
+| `src/server/limits.ts` | Abuse limits for a shared hub (#83): a per-sender token bucket (20 events/s, burst 200), an LRU dedupe of event ids (50,000), and a ±24 h timestamp window. Pure in-memory state: a restart forgets it, nothing is written next to the user's files |
+| `src/server/relay.ts` | Satellite relay (#91): a local library forwards what it accepted to the hub, metadata only (prompt text, commands and tool output never leave the machine). Bounded in-memory queue with per-flush batch, one flush a second at most and exponential backoff (1 s, 2 s, 4 s … max 60 s), revoked when the hub answers 401/403, a heartbeat every 60 s so the hub can call it offline after three missed beats, and `state` for the UI. Never holds the token in the state it reports |
+| `src/server/satellites.ts` | The hub's satellite list (#91): `createSatellites` remembers per sender when it last heard from a satellite and what its relay reported, refreshed by heartbeats and by accepted events (`touch`); in memory only, never a token, only the sender id and what it reported. Served as `/api/hub/satellites` (a viewing route, so hub mode's remote-viewer rule applies). `online` is true while a heartbeat is younger than three minutes (`ONLINE_MS`) |
+| `src/server/sharing.ts` | Sharing controls on a satellite (#91): `/api/sharing` pause switch and `/api/sharing/test`, acting on the relay and on `config.json`, guarded like any local write |
+| `src/server/user-config.ts` | The user folder's `config.json` read/merge/write (owner-only), shared by `connect` and the sharing control |
+| `src/server/lifecycle.ts` | Stops what the plugin started (the relay, timers) when Vite closes or restarts the server, so old servers do not leak (#91, #99) |
+| `src/server/history/db.ts` | Opens the history database (#84): `node:sqlite` imported dynamically, so a Node without it disables history with a reason; the file lives in the user folder |
+| `src/server/history/row.ts` | One event to one history row by allow-list (#84): only schema columns are copied, never messages, data, prompts, paths or arguments |
 | `src/server/update.ts` | Daily update check against GitHub releases (cache, opt-out), served as `/api/version` |
 | `src/server/voice.ts` | `/api/voice` (speech to text), `/api/voice/chat` (one agent step with tools) and `/api/voice/speak` (the spoken reply, mp3), all through OpenRouter with zero data retention and the key kept here. GET says what is configured (never the key). Mounts the learning routes (`/journal`, `/memory`, `/review`) when given a store; `/journal` and `/memory` work without a key. Only this page gets through (`guard.ts`), GETs included, with per-route body caps and 6 calls at once; a stream that fails after its headers just ends |
 | `src/server/voice-memory.ts` | The voice journal (`voice-journal.jsonl`: one line per turn, outcome marks applied on read, rotated past 5 MB) and memory (`voice-memory.json`: accepted aliases and notes, pending suggestions, review cursor) in `USER_HOME`: the default folder 0700 (an existing `FLOW_TOWER_HOME` keeps its permissions; chmod is best effort), files 0600, whole-file writes atomic (temp file and rename, one retry on a Windows EPERM/EBUSY, the temp file removed either way), turn times clamped to the last day, a malformed memory file read as empty lists; accepted notes capped at 20 and 2000 characters (`decide` throws, the route answers 409); notes and aliases removed by value; 7-day stats; forget. Tested in `tests/voice-journal.test.ts` |
 | `src/server/voice-learning.ts` | Learning routes under `/api/voice`: append a turn or a mark, read and decide on the memory, and the review (an LLM reads up to 200 new turns, oldest first, and proposes aliases to real names, never short or common words nor part of a real name, rules and reply style; nothing applies until accepted) |
 | `src/server/files.ts` | Reading one referenced file inside its tower root, never a secret or the user's folder (`isForbidden`); shared by `/api/file` and the demo build |
 | `scripts/build-demo.ts` | Static demo for GitHub Pages: freezes the workspace and referenced files into `data/`, then builds the app in `demo` mode |
-| `bin/flow-tower.js` | CLI commands: serve, init, validate, emit, guide, install-skill |
+| `bin/flow-tower.js` | CLI commands: serve, init, connect, validate, copy, check-example, emit, guide, install-skill (all four skills) |
+| `bin/config-file.js` | Plain-JS JSONC reader for `emit` (#90): starting a second Node with type stripping to load `src/server/config.ts` tripled its time (0.14 s to 0.41 s), and `emit` runs on every hook call, so the config is read here. Drops comments (newlines kept) and trailing commas; `src/server/config.ts` imports its `stripJsonc`, so both read the same JSONC |
 | `src/cli/validate.ts` | `validate --json` output |
+| `src/cli/copy.ts` | `flow-tower copy --list` and `copy <example> [dest]` (#116): copies an example with its folder, refuses to overwrite, validates the copy, warns on dogfood towers (`root: ../..`), prints next steps |
+| `src/cli/check-example.ts` | `flow-tower check-example <dir> [--json]` (#116): contribution pre-flight; validation 0/0, self-contained paths, README with Sources, personal-data scan, file sizes and git-ignored files |
+| `src/cli/connect.ts` | `flow-tower connect <url> --token <token> [--machine] [--user]` (#91): turns this machine into a satellite. Writes `role: satellite` plus url/token/user/machine to the user folder's `config.json` (`userHome()`, never the checkout nor a `flow-tower.local.json`), refuses a non-http(s) url, then sends one heartbeat so "does this token work?" is answered now. The token is written and sent, never printed; a 401/403 is reported as a refused token |
+| `src/cli/config.ts` | `flow-tower config path|show` (#90; `show` prints the effective settings and warns when a file holding a token is not 0600) and the internal `config json` that `bin/flow-tower.js` reads so the precedence lives in one place. The token is always redacted: it is the sender credential, never the server's secret; run through Node type stripping like `token`, `history` and `validate` |
+| `src/cli/token.ts` | `flow-tower token add|list|revoke|pause|resume` (#83) over `src/server/tokens.ts`, run with Node type stripping |
+| `src/cli/history.ts` | `flow-tower history export|delete|info` (#84): reads and erases the local SQLite history, allow-listed columns only |
 
 ## App state
 
@@ -56,6 +76,8 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 | `src/app/layout.ts` | ELK layout of a layer (left to right) |
 | `src/app/ops.ts` | Operational markers and inspector rows |
 | `src/app/api.ts` | Fetching the workspace and refetching on server push |
+| `src/app/sharing.ts` | Pure formatting for the satellite SAT chip and Sharing section (#91), unit-tested without a DOM |
+| `src/app/main.tsx` | Entry point: fonts, styles, prefs, the React root, and the dev-only `window.__flowTower` hook for E2E |
 | `src/app/exporter.ts`, `exportSvg.ts`, `scene/Snapshot.tsx` | Export packs (P / X): ZIP of every layer and map of the project and its sub-towers, as SVG diagrams or Full HD PNGs rasterized from them, plus the 3D snapshot (captured after post-processing) |
 | `src/app/staticData.ts`, `demo.ts` | Static demo mode (Vite mode `demo`): data from `data/`, in-browser live simulator, DEMO chip |
 | `src/app/theme.ts`, `themes.ts` | Node / edge styles and bloom colors; theme switching (shared colors mutated in place, scene remounted) |
@@ -82,6 +104,7 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 | `scene/lens.ts` | Hover lens and map layout |
 | `scene/Layer.tsx`, `LayerNodes.tsx`, `LayerEdges.tsx`, `TextBatch.tsx` | Drawing one layer: plates, nodes, markers, labels, edges |
 | `scene/batch.ts` | Shared geometries, color dimming, polyline to `LineSegments2` helpers |
+| `scene/BatchLine.tsx` | One batched `LineSegments2` for many segments (per-point colours, dashes) |
 | `scene/shiftPan.ts` | Shift + drag / two-finger scroll pans the camera |
 | `scene/Links.tsx`, `Particles.tsx` | Cross-layer links and animated flow |
 | `scene/LiveOverlay.tsx`, `chips.ts` | Live highlights and the DOM chips projected onto nodes |
@@ -97,6 +120,8 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 | `hud/Library.tsx` | Project gallery |
 | `hud/LiveFeed.tsx`, `LiveChips.tsx` | Live feed and chips |
 | `hud/Settings.tsx`, `Shortcuts.tsx` | Settings page, keyboard overlay |
+| `hud/Sharing.tsx` | The SAT chip (polls `/api/sharing`) and Settings › Sharing: pause and the "does it reach the hub?" test |
+| `hud/dialog.ts` | Modal focus for HUD dialogs: move focus in, trap Tab, restore on close |
 | `hud/FileViewer.tsx` | File popup with syntax highlighting (shiki), focus restored on close |
 | `hud/MarkdownView.tsx` | Formatted Markdown: no raw HTML, links to the node's files, math in `$$…$$` (KaTeX) |
 | `hud/Voice.tsx` | MIC button (top bar, library header) and the voice caption under the top bar (with the pending-suggestions chip); hidden in the static demo |

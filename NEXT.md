@@ -1,21 +1,28 @@
 # Next session: handoff
 
-Status on 2026-10-10: **v0.5.0 released** (gates and E2E in `examples/release-auditor/reports/v0.5.0.md`). Since v0.4.0:
-- **Voice journal and self-improvement (#68):** opt-in; reviews propose aliases, rules and reply style, applied only when accepted. The key, journal and memory live in `~/.config/flow-tower` (or `FLOW_TOWER_HOME`), never in the repo.
-- **Voice fixes:** no echo loop (half-duplex, #72), a spectral noise filter for laptop fans (#73), robustness (#74).
-- **Faster first audio (#70):** a cached spoken acknowledgement brings first audio to about 0.6 s. The agent now runs on Gemini 3.5 Flash-Lite, the winner of a six-model benchmark.
-- **Security:** the loader never reads secret files or the user folder, including through symlinked tower files.
-- **Skill:** `flow-tower-costs` cuts model cost and latency of a tower, measured on real cases.
-- **Examples:** the dev-squad models the mixed-model squad that built these releases. Coder and security run on DeepSeek 4.1 Flash, the reviewer on GLM 5.3 FlashX, lead and verifier on Claude, all at low effort.
+What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
-Next:
-- #69: vocabulary hints for transcription (tower names as an STT prompt);
-- #75: dev-squad field findings (smaller coder tasks: the Flash coder hit its 60-step cap twice);
-- #65: PDF export;
-- #59: team hub;
-- #5: Pi live test, on the other machine.
+## Status on 2026-10-11
 
-Source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**. Where code lives: [docs/architecture.md](docs/architecture.md).
+- **Team-hub stack ready to merge bottom-up** (merge commits; retarget the next PR before deleting a base): #87 → #88 → #89 → #96 → #100 → #112 → #103 → #106 → #107 → #111 → #114 → #117. On main, independent: #102 (squad prompts and tools), #115 (`tools/squad`, #113), #109 (model-benchmark; already inside #114, so merging it first shrinks #114).
+- **Live:** a hub on the test server running the [command-center](examples/command-center) kit, and a laptop satellite relaying to it.
+
+## Next, in order
+
+1. #92 hub panel
+2. #85 privacy profiles
+3. #93 admin
+4. #94 alerts
+5. #95 remote activity
+6. #86 fan-out
+7. #97 systemd, compose, Caddy and Tailscale on the real server
+8. #99 dev-server heap and port leak
+9. #105 model benchmarks ([model-benchmark](examples/model-benchmark))
+10. #69, #65, #5
+
+## How work is done
+
+The dev squad (`tools/squad`, PR #115): the lead (Claude) writes a task file per step and verifies; the DeepSeek coder writes the code, GLM reviews, DeepSeek checks security; the maintainer merges.
 
 ## Setup on a new machine
 
@@ -24,17 +31,11 @@ The history was rewritten before going public (2026-10-09): **re-clone**, do not
 ```bash
 git clone https://github.com/JamesMoriartyDecripto/flow-tower.git
 cd flow-tower
-npm install                        # Node >= 22.12
-npm run check                      # typecheck + tests (all passing)
+npm install                        # Node >= 22.13 (node:sqlite for history)
+npm run check                      # typecheck + tests
 npm run dev                        # library of the examples at http://127.0.0.1:5317
 npm run simulate -- dev-squad      # in a 2nd terminal: fake live events, sanity check
 ```
-
-## Open
-
-- **#5 Pi**: copy `integrations/pi/flow-tower.ts` to `~/.pi/agent/extensions/`; also try `pi --mode json "hello" | node bin/flow-tower.js emit --source pi`. For every mismatch, fix the adapter in `src/core/adapters.ts` and add a test with the real payload.
-- **#7 Skill**: `node bin/flow-tower.js install-skill --target <claude|codex|pi|hermes>`, then ask each agent *"map this agent system into a flow tower"*; check the result against [what goes where](docs/what-goes-where.md).
-- #11 distribution (npx), #13 diff mode, #14 swimlanes, #12 per-project themes (on hold), #17 polish.
 
 ## Releasing
 

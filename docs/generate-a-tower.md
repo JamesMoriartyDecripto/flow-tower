@@ -1,5 +1,7 @@
 # Generate a tower from a codebase
 
+The procedure for a coding agent mapping a codebase. A tower by hand: [getting-started.md](getting-started.md).
+
 This is the procedure any coding agent follows to turn an agentic codebase into a correct, validated `*.tower.yaml` that opens in Flow Tower. It works the same in Claude Code, OpenAI Codex, Pi, Hermes Agent, Cursor or any other harness that can read files and run shell commands.
 
 The tower is only useful if it is **true to the code**: every node, prompt and file must come from what you actually read. A smaller, accurate tower beats a big, invented one.
@@ -11,7 +13,7 @@ Commands below are written as `node <flow-tower>/bin/flow-tower.js …`, where `
 1. You are reading this file from an installed skill or from `flow-tower guide`: the paths are already filled in.
 2. The current repo is flow-tower itself (it has `bin/flow-tower.js` and `skills/flow-tower/`): use its root.
 3. `command -v flow-tower` finds a linked CLI (`npm link`): use `flow-tower …` instead of `node <flow-tower>/bin/flow-tower.js …`.
-4. Otherwise ask the user where their checkout is, or set one up once (Node >= 22.12, check with `node --version`):
+4. Otherwise ask the user where their checkout is, or set one up once (Node >= 22.13, check with `node --version`):
 
    ```bash
    git clone https://github.com/JamesMoriartyDecripto/flow-tower.git && cd flow-tower && npm install

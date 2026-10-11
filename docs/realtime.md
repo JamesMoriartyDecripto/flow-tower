@@ -1,5 +1,8 @@
 # Live events
 
+How to wire agents to the local server (sources, `emit`, OpenTelemetry, history, matching). The one home of
+**live events setup**. Other machines and hubs: [command-center.md](command-center.md).
+
 Flow Tower can show what your agents are doing **right now**:
 - active nodes pulse and send a light beam up through the tower;
 - errors flash red;
@@ -76,8 +79,8 @@ acknowledged and dropped so exporters set up for every signal do not complain.
 
 | Source | Setup | What is read |
 |---|---|---|
-| **Claude Code** | Merge [`integrations/claude-code/telemetry.json`](../integrations/claude-code/telemetry.json) into `.claude/settings.json` (its `env` block), or export the same variables: `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_LOGS_EXPORTER=otlp`, `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:5317` | `claude_code.api_request`: `cost_usd`, input / output / cache tokens, model, `query_source`, `agent.name` (subagents); `claude_code.api_error` as an error |
-| **Codex** | The `[otel]` block in [`integrations/codex/config.toml`](../integrations/codex/config.toml): `otlp-http`, `protocol = "json"`, endpoint `http://127.0.0.1:5317/v1/logs` | `codex.sse_event` on `response.completed` (token counts) and `codex.turn_cost` (`usage.estimated_usd`) |
+| **Claude Code** | Merge [`integrations/claude-code/telemetry.json`](../integrations/claude-code/telemetry.json) into `~/.claude/settings.json` (its `env` block) or managed settings, or export in the shell. A project's `.claude/settings.json` does **not** work: Claude Code ignores the telemetry flag and the OTEL exporter variables there. Variables: the same variables: `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_LOGS_EXPORTER=otlp`, `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:5317` | `claude_code.api_request`: `cost_usd`, input / output / cache tokens, model, `query_source`, `agent.name` (subagents); `claude_code.api_error` as an error |
+| **Codex** | The `[otel]` block in [`integrations/codex/config.toml`](../integrations/codex/config.toml), merged into `~/.codex/config.toml` (a project `.codex/config.toml` `[otel]` block is ignored): `otlp-http`, `protocol = "json"`, endpoint `http://127.0.0.1:5317/v1/logs` | `codex.sse_event` on `response.completed` (token counts) and `codex.turn_cost` (`usage.estimated_usd`) |
 
 Each one becomes a `usage` event that lands like any other: on the node whose agent matches `agent`
 (the subagent name). The main Claude Code thread has no agent name; send its usage to the orchestrator
@@ -88,7 +91,50 @@ sub-towers) and on library cards. They cover the events the local server keeps (
 agent present in both a tower and its sub-tower is counted once per project. If `FLOW_TOWER_TOKEN` is
 set, add it to the exporter: `OTEL_EXPORTER_OTLP_HEADERS=x-flow-tower-token=<token>`.
 
+**Who and where.** With API-key, Bedrock or Vertex auth Claude Code fills only `user.id` and `session.id`, and sends no `host.name`. Tag each machine with `OTEL_RESOURCE_ATTRIBUTES="enduser.id=alice,team.id=platform,project=flow-tower"`. Prompts, tool inputs and responses stay out unless you turn them on (`OTEL_LOG_USER_PROMPTS`, `OTEL_LOG_TOOL_DETAILS`, `OTEL_LOG_ASSISTANT_RESPONSES` for Claude Code; `log_user_prompt` for Codex): all off by default, keep them off.
+
+**Through a collector.** Bodies with `Content-Encoding: gzip` are accepted (the OTel Collector `otlp_http` exporter compresses by default; `compression: none` also works). [`integrations/otel-collector/`](../integrations/otel-collector/) is a per-host collector that adds host and user tags, strips prompt fields, and queues on disk while offline.
+
 `npm run simulate` sends sample `api_request` logs for every agent step, so you can see it without setup.
+
+## History
+
+Live events are kept in memory (2,000, gone on restart). **History** is the durable copy: the accepted
+events and their totals, in a local SQLite file, so charts survive a restart and a hub can be asked what
+the last weeks looked like.
+
+**Where.** `<FLOW_TOWER_HOME or ~/.config/flow-tower>/history.db`, never in the repo, created owner-only
+(0600, WAL). It needs **Node ≥ 22.13** (built-in `node:sqlite`); on an older Node history is off with one
+message and the live view keeps working. `history.db` is in the same user folder as the token store, so a
+`FLOW_TOWER_HOME` pointing inside the checkout is warned about at startup.
+
+**What is kept — and never kept.** Only metadata: time, sender, user, host, runtime, project, session,
+kind, tool, model, token counts, cost, duration, status. **No content, ever**: no prompt or response text,
+no file paths or contents, no command arguments, no message strings. The writer copies an allow-list of
+columns and nothing else, so a new field a source adds cannot leak in by accident. Alongside the raw rows
+are two content-free rollups (events, errors, tokens, cost per user / project / runtime / model): a
+`rollup_hourly` bucket per hour and a `rollup_daily` bucket per day.
+
+**Retention.** Raw events are pruned at **14 days** by default — the floor for per-person data is the max
+the policy allows; the cap is **21 days**. Set `FLOW_TOWER_RETENTION_DAYS` to change it (clamped 1..21).
+Rollups are aggregate and content-free, so they live longer: **90 days** hourly and **13 months** daily.
+Pruning runs on server start and hourly.
+
+**Reads.** `GET /api/history?from&to&by=user,project,runtime,model` returns totals (up to 7 days back by
+default); the range picks the hourly rollup inside 90 days and the daily one beyond. `GET /api/history/info`
+says how many rows there are and how far back they go. Both are viewing routes, gated like `/api/workspace`
+(hub viewers only when remote).
+
+**Export and delete your data.**
+
+```bash
+flow-tower history info                  # path, rows, users, retention
+flow-tower history export [--user <u>]   # JSONL of the event rows to stdout (all users by default)
+flow-tower history delete --user <u>     # erase that user's rows, then VACUUM; prints how many went
+```
+
+`--user ''` matches the rows that carry no user. The export prints the same allow-listed columns the
+writer stores, so it can never contain more than the DB does.
 
 ## Matching events to nodes
 
@@ -114,7 +160,11 @@ The feed marks events that matched nothing as *unmapped*, which helps when writi
 - The server binds to `127.0.0.1`.
 - `/api/events` only accepts an exact `application/json` content type (a variant such as `text/plain;x=application/json` is refused), which forces a CORS preflight, and it refuses browser requests whose `Origin` or `Sec-Fetch-Site` says they come from another site. Web pages open in your browser cannot inject events; local tools (hooks, `emit`, curl, OTLP exporters) send neither header and pass.
 - Set `FLOW_TOWER_TOKEN` when starting flow-tower to also require an `x-flow-tower-token` header; `emit` sends it automatically from the same variable.
-- Events live in memory only, capped at 2,000.
+- `--allowed-host` (or `FLOW_TOWER_ALLOWED_HOSTS`) requires `--hub`: naming a proxy's host means the server is reachable through that proxy, so the hub guards (and its token) apply. Without `--hub` the CLI exits 1.
+- Events live in memory only, capped at 2,000 (see **History** for the content-free copy kept in the user folder).
+
+The above is the local-only default. Sharing the server with other machines adds hub mode: setup in
+[command-center.md](command-center.md), rules in [hub-reference.md](hub-reference.md).
 
 ## References
 

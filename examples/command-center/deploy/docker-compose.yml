@@ -1,0 +1,25 @@
+# The hub in Docker instead of systemd (pick one). Adapted from integrations/hub/docker-compose.yml.
+# The repo checkout (with `npm ci` run) is mounted read-only; this folder is the library.
+#
+#   cd /srv/command-center/deploy
+#   FLOW_TOWER_REPO=/home/flowtower/flow-tower docker compose up -d
+#   docker compose logs -f hub
+services:
+  hub:
+    image: node:22-bookworm-slim # Node 22 (>= 22.13): history.db needs node:sqlite
+    restart: unless-stopped
+    user: "1000:1000" # unprivileged; match the owner of the mounted folders
+    # Host network: the hub binds 127.0.0.1:5317 and `tailscale serve` / Caddy on the host forward to it.
+    # A published port would need --host 0.0.0.0, which exposes the hub beyond the proxy.
+    network_mode: host
+    working_dir: /app
+    environment:
+      FLOW_TOWER_HOME: /data
+      FLOW_TOWER_HUB: "1"
+      FLOW_TOWER_NO_UPDATE_CHECK: "1"
+    command: ["node", "bin/flow-tower.js", "/library", "--hub", "--no-open", "--port", "5317"]
+    volumes:
+      - ${FLOW_TOWER_REPO:?path to the flow-tower checkout}:/app
+      - ..:/library:ro
+      # config.json, tokens.json, history.db: keep them on the host, owner-only.
+      - ${FLOW_TOWER_DATA:-/home/flowtower/.config/flow-tower}:/data

@@ -1,0 +1,27 @@
+{
+  "resourceLogs": [{
+    "resource": {
+      "attributes": [
+        { "key": "service.name", "value": { "stringValue": "claude-code" } },
+        { "key": "host.name", "value": { "stringValue": "ip-10-0-0-1" } },
+        { "key": "deployment.environment.name", "value": { "stringValue": "production" } },
+        { "key": "enduser.id", "value": { "stringValue": "alice@example.com" } },
+        { "key": "user.email", "value": { "stringValue": "alice@corp.example" } },
+        { "key": "session.id", "value": { "stringValue": "sess-99" } }
+      ]
+    },
+    "scopeLogs": [{
+      "logRecords": [{
+        "timeUnixNano": "1760000000000000000",
+        "body": { "stringValue": "claude_code.api_request" },
+        "attributes": [
+          { "key": "event.name", "value": { "stringValue": "api_request" } },
+          { "key": "model", "value": { "stringValue": "claude-sonnet-5-5" } },
+          { "key": "input_tokens", "value": { "intValue": "10" } },
+          { "key": "output_tokens", "value": { "intValue": "5" } },
+          { "key": "cost_usd", "value": { "doubleValue": 0.001 } }
+        ]
+      }]
+    }]
+  }]
+}
