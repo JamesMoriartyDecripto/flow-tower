@@ -8,6 +8,7 @@ import { env } from 'node:process';
 import { parseArgs } from 'node:util';
 import { senderConfig } from './config-file.js';
 import { clipIdentity, identityDefaults } from './identity.js';
+import { EMPTY_LIBRARY, libraryEntries, warnInCheckout } from './library.js';
 
 const HELP = `flow-tower — 3D tower visualizer for agentic systems
 
@@ -26,6 +27,11 @@ Usage
                                                         per-sender hub tokens stored under the user folder
   flow-tower config path | show                         the config files in use, and the effective settings
                                                         (hub + emit in one config.json under the user folder)
+  flow-tower library add <path>... | list | remove <path>
+                                                        your own towers: a list of paths in the user folder's
+                                                        config.json, outside the flow-tower checkout
+  flow-tower library [--with-examples] [--port N]       serve your library, plus the checkout's examples
+                                                        with --with-examples (other serve flags apply too)
   flow-tower connect <hub-url> --token <t> [--machine <name>] [--user <name>]
                                                         make this machine a satellite: writes role satellite into
                                                         the user folder's config.json, then sends one heartbeat
@@ -151,6 +157,7 @@ const { values, positionals } = parseArgs({
     'project-name': { type: 'string' },
     json: { type: 'boolean', default: false },
     list: { type: 'boolean', default: false },
+    'with-examples': { type: 'boolean', default: false },
     project: { type: 'boolean', default: false },
     target: { type: 'string', default: 'claude' },
   },
@@ -222,6 +229,17 @@ if (positionals[0] === 'token') {
   process.exit(r.status ?? 1);
 }
 
+if (positionals[0] === 'library') {
+  // A subcommand (anything but a flag) is the add/list/remove CLI; without one, `library` serves the
+  // user's own towers. Same trick as token: the subcommand CLI is TypeScript, run with type stripping.
+  const sub = positionals[1];
+  if (sub !== undefined && !sub.startsWith('-')) {
+    const script = join(pkgRoot, 'src', 'cli', 'library.ts');
+    const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...positionals.slice(1)], { stdio: 'inherit' });
+    process.exit(r.status ?? 1);
+  }
+}
+
 if (positionals[0] === 'history') {
   // Same trick as token: the history DB code is TypeScript, run it with Node's type stripping.
   // `--user` is one of this parser's own options, so it is stripped from the positionals: append it back
@@ -274,7 +292,7 @@ or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follo
   writeFileSync(join(target, 'procedure.md'), procedure().replaceAll(`](${join(pkgRoot, 'skills', 'flow-tower', 'reference.md')})`, '](reference.md)'));
 
   // Install the other skills next to flow-tower: their `../flow-tower/...` links then resolve as is.
-  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute'].map((name) => join(base, ...skills, name));
+  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library'].map((name) => join(base, ...skills, name));
   for (const dir of others) {
     cpSync(join(pkgRoot, 'skills', basename(dir)), dir, { recursive: true });
     for (const f of readdirSync(dir).filter((f) => f.endsWith('.md'))) {
@@ -380,12 +398,31 @@ if (positionals[0] === 'init') {
   process.exit(0);
 }
 
-const entries = (positionals[0] === 'serve' ? positionals.slice(1) : positionals).map((p) => resolve(p));
+/**
+ * The entries to serve. `serve` and a bare file/dir list are command-line paths; a bare `library`
+ * (its subcommands exited above) is the user's own list, with `mine` kept to badge them in the UI.
+ */
+let mine;
+let entries;
+if (positionals[0] === 'serve') {
+  entries = positionals.slice(1).map((p) => resolve(p));
+} else if (positionals[0] === 'library') {
+  ({ mine, entries } = libraryEntries({ env, checkout: pkgRoot, withExamples: values['with-examples'] }));
+  if (!entries.length) {
+    console.error(EMPTY_LIBRARY);
+    process.exit(1);
+  }
+} else {
+  entries = positionals.map((p) => resolve(p));
+}
 const missing = entries.filter((e) => !existsSync(e));
 if (missing.length) {
   console.error(`not found: ${missing.join(', ')}`);
   process.exit(1);
 }
+// One warning per entry kept inside the flow-tower checkout: it is one commit away from the repo, and
+// `library add` refuses nothing for it, so the user only learns here.
+warnInCheckout({ checkout: pkgRoot, entries });
 
 /**
  * Hub mode (#83): the server may be reached from off this machine. Ingest then needs a token, viewing
@@ -435,6 +472,11 @@ function hasActiveToken() {
 
 // The vite plugin reads its entries (and the update-check opt-out) from the environment of this process.
 env.FLOW_TOWER_ENTRIES = JSON.stringify(entries);
+// A library serve marks itself and names the user's own paths, so the UI can tell them from examples.
+if (mine !== undefined) {
+  env.FLOW_TOWER_LIBRARY = '1';
+  env.FLOW_TOWER_MINE = JSON.stringify(mine);
+}
 if (values['no-update-check']) env.FLOW_TOWER_NO_UPDATE_CHECK = '1';
 // The resolved hub settings go out as the same env vars as today, so src/server/hub.ts keeps one path.
 if (hub) env.FLOW_TOWER_HUB = '1';

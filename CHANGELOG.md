@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Added
 - Voice: "chiudi il file" / "close the file" closes only the file viewer and keeps the node selected (agent tool `close_file`), #128.
 - Hub panel (#92): press `H` on a hub for the Now tab (who runs what right now) and the Machines tab (every sender the hub trusts); a `HUB n/m` top-bar pill (senders seen in the last 5 min / active tokens) and a `READ-ONLY` pill for a remote viewer, fed by `GET /api/hub/machines` and `GET /api/hub/me`.
+- Your own library (#121): `flow-tower library add|list|remove` keeps your towers (a `*.tower.yaml` or a folder) as a list of paths in the user folder's `config.json`; `flow-tower library [--with-examples]` serves them and badges each card MINE or EXAMPLE. A path inside the flow-tower checkout is refused under `examples/` and warned elsewhere, so your towers stay in your own projects; the `flow-tower-my-library` skill walks an agent through it.
 
 ### Security
 - KaTeX 0.16.47 → 0.18.7 (Dependabot alert, low), pinned with an override so rehype-katex and remark-math use the same copy (#119).

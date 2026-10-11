@@ -186,6 +186,10 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .lib-main .lib-name { display: block; }
 .lib-main:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
 .lib-current { font-size: 9px; padding: 1px 6px; }
+/* Library origins (#121) */
+.lib-origin { font-size: 9px; padding: 1px 6px; }
+.lib-origin.mine { color: var(--live-done); border-color: color-mix(in srgb, var(--live-done) 50%, transparent); }
+.lib-origin.example { color: var(--dim); border-color: var(--line-soft); }
 /* Full description, capped at ~4 lines; longer ones scroll inside the card. */
 .lib-desc { margin: 0 0 10px; font-size: 14px; line-height: 1.4; max-height: calc(14px * 1.4 * 4); overflow-y: auto; padding-right: 4px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; overscroll-behavior: contain; }
 .lib-body { display: flex; flex-direction: column; }
@@ -423,7 +427,7 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
   .hud:has(.livefeed) .inspector { bottom: calc(76px + 42 * var(--vh) + 12px); }
 }
 /* Smallest labels: never below ~7px on screen, even at the 0.7× interface floor. */
-.lib-stats dt, .legend-tabs button, .filelist .ext, .lib-current, .chip.sens, .conn .proto { font-size: max(9px, calc(7px / var(--ui-scale, 1))); }
+.lib-stats dt, .legend-tabs button, .filelist .ext, .lib-current, .lib-origin, .chip.sens, .conn .proto { font-size: max(9px, calc(7px / var(--ui-scale, 1))); }
 /* Full-width rows inside scrolling lists: an outer ring would be clipped by the list. */
 .feed-row:focus-visible, .files button:focus-visible, .conn:focus-visible { outline-offset: -2px; }
 @media (prefers-reduced-motion: reduce) {
