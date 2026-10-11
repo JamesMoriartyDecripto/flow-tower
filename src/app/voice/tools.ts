@@ -37,6 +37,7 @@ export const TOOLS: ToolDef[] = [
   tool('search', 'Find nodes anywhere in the tower on screen by words in their label, type, description or tools ("MCP", "human approval", "database"), best matches first, and highlight them on screen. For questions about the whole tower.', { query: str('Words to look for.') }, ['query']),
   tool('node_info', 'Everything about one node: type, layer, description, agent, model, tools, runtime, operations, status, sub-tower.', { node: NODE }),
   tool('connections', 'Incoming and outgoing edges of a node: the other node, its layer, the edge kind and label.', { node: NODE }),
+  tool('compare_nodes', 'Two nodes side by side, to say what is the same and what differs: label, type, layer, agent, model, runtime, tools, file count and incoming/outgoing edge counts, then "same" (the equal fields) and "only_a"/"only_b" (tools one has and the other has not).', { a: str('First node, named as in node_info.'), b: str('Second node, named as in node_info.') }, ['a', 'b']),
   tool('node_files', 'The files and resources a node references, numbered from 1.', { node: NODE }),
   tool('focus_layer', 'Show one layer on screen.', { layer: LAYER }),
   tool('select_node', 'Select a node: the camera goes to it and its panel opens.', { node: NODE }),
@@ -89,6 +90,18 @@ function nodeOf(ws: Workspace, tower: ResolvedTower | undefined, ref: unknown): 
 
 const brief = (text?: string, max = 140) => (text && text.length > max ? `${text.slice(0, max - 1)}…` : text);
 const layerTitle = (t: ResolvedTower, key: string) => t.layers.find((l) => l.nodes.some((n) => n.key === key))?.title;
+
+/** The comparable face of a node: what compare_nodes puts side by side, per node. */
+function faceOf(t: ResolvedTower, n: ResolvedNode) {
+  const edges = allEdges(t);
+  return {
+    label: n.label, type: n.type, layer: layerTitle(t, n.key), agent: n.agent?.name, model: n.model,
+    runtime: n.runtime && `${n.runtime.label ?? n.runtime.id} (${n.runtime.kind})`,
+    tools: n.tools, files: n.files.length,
+    incoming: edges.filter((e) => e.to === n.key).length,
+    outgoing: edges.filter((e) => e.from === n.key).length,
+  };
+}
 
 function show(t: ResolvedTower, key: string) {
   const { s, ws, tower } = view();
@@ -167,6 +180,26 @@ export function runTool(name: string, args: Args): string {
         description: n.description, agent: n.agent?.name, model: n.model, prompt: n.prompt?.source, tools: n.tools.length ? n.tools : undefined,
         runtime: n.runtime && `${n.runtime.label ?? n.runtime.id} (${n.runtime.kind})`, operations: opsMarks(n.ops), files: n.files.length,
         sub_tower: n.tower ? ws.towers[n.tower]?.name : undefined,
+      });
+    }
+    case 'compare_nodes': {
+      const a = nodeOf(ws, tower, args.a);
+      if (!a) return out({ error: `No node "${args.a ?? ''}". Use layer_nodes to find it.` });
+      const b = nodeOf(ws, tower, args.b);
+      if (!b) return out({ error: `No node "${args.b ?? ''}". Use layer_nodes to find it.` });
+      const fa = faceOf(a.t, a.n);
+      const fb = faceOf(b.t, b.n);
+      const setA = new Set(fa.tools);
+      const setB = new Set(fb.tools);
+      // Tools compare as sets, so an order difference is not reported as a difference.
+      const equal = (k: keyof typeof fa) => k === 'tools'
+        ? fa.tools.length === fb.tools.length && fa.tools.every((t) => setB.has(t))
+        : fa[k] === fb[k];
+      const fields = Object.keys(fa) as (keyof typeof fa)[];
+      return out({
+        a: fa, b: fb, same: fields.filter(equal),
+        only_a: fa.tools.filter((t) => !setB.has(t)),
+        only_b: fb.tools.filter((t) => !setA.has(t)),
       });
     }
     case 'connections': {

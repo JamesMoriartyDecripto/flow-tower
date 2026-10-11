@@ -57,6 +57,54 @@ describe('voice agent tools (#63)', () => {
     expect(names).toContain('hub_panel');
   });
 
+  it('lists compare_nodes among the tools (#145d)', () => {
+    expect(TOOLS.map((t) => t.function.name)).toContain('compare_nodes');
+  });
+
+  it('compares two nodes side by side (#145d)', () => {
+    useStore.getState().openFile(undefined);
+    useStore.getState().showLibrary(false);
+    useStore.getState().select(undefined);
+    const r = call('compare_nodes', { a: 'lead', b: 'coder' });
+    expect(r.a).toMatchObject({ label: 'Lead orchestrator', type: 'agent', layer: 'Orchestration', model: 'claude-opus-5-5', runtime: 'Squad container (container)' });
+    expect(r.b).toMatchObject({ label: 'coder', type: 'agent', layer: 'Specialist Agents', model: 'deepseek/deepseek-v4.1-flash', runtime: 'Squad container (container)' });
+    expect(r.a.files).toBe(3);
+    expect(r.b.files).toBe(3);
+    expect(r.a).toMatchObject({ incoming: 3, outgoing: 6 });
+    expect(r.b).toMatchObject({ incoming: 5, outgoing: 3 });
+    // Same fields are named, the differing ones are not.
+    expect(r.same).toEqual(expect.arrayContaining(['type', 'runtime']));
+    expect(r.same).not.toContain('label');
+    expect(r.same).not.toContain('layer');
+    expect(r.same).not.toContain('incoming');
+    // Tools one has and the other has not, in both directions; Read/Grep/Glob are shared, so neither.
+    expect(r.only_a).toEqual(expect.arrayContaining(['Agent', 'TodoWrite', 'mcp__squad__request_approval']));
+    expect(r.only_b).toEqual(expect.arrayContaining(['Edit', 'Write', 'Bash', 'mcp__squad__run_tests']));
+    expect(r.only_a).not.toContain('Read');
+    expect(r.only_b).not.toContain('Grep');
+    // A read tool: the view is untouched.
+    expect(useStore.getState().file).toBeUndefined();
+    expect(useStore.getState().library).toBe(false);
+    expect(useStore.getState().selected).toBeUndefined();
+  });
+
+  it('reports a node compared with itself as fully equal (#145d)', () => {
+    const r = call('compare_nodes', { a: 'triage', b: 'triage router' });
+    expect(r.a).toEqual(r.b);
+    expect(r.only_a).toEqual([]);
+    expect(r.only_b).toEqual([]);
+    expect(r.same).toEqual(expect.arrayContaining(['label', 'type', 'layer', 'tools', 'incoming', 'outgoing']));
+  });
+
+  it('names the node it cannot resolve (#145d)', () => {
+    // The first node resolves; the error names the second, unresolved one.
+    const r = call('compare_nodes', { a: 'triage', b: 'pizza' });
+    expect(r.error).toMatch(/pizza/);
+    expect(r.error).not.toMatch(/triage/);
+    const both = call('compare_nodes', { a: 'pizza', b: 'triage' });
+    expect(both.error).toMatch(/pizza/);
+  });
+
   it('lists the filter_nodes and library_filter tools (#145c)', () => {
     const names = TOOLS.map((t) => t.function.name);
     expect(names).toContain('filter_nodes');
