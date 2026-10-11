@@ -117,3 +117,7 @@ passes when the answer contains it (case-insensitive), and `a / b` means either 
 ## Q28. Can a remote viewer change anything in the Hub panel?
 - docs: docs/hub-reference.md, docs/command-center.md
 - facts: read-only | refused
+
+## Q29. How do I open the selected node's file and then the next one by voice?
+- docs: docs/voice.md
+- facts: apri il suo file | file successivo | il prossimo

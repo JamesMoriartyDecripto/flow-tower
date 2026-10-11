@@ -243,8 +243,11 @@ layers:
         description: >-
           parseCommand(): normalise (lowercase, no accents), drop stop words and command verbs, then fixed phrases
           (mic off, library, back, overview, map, tower view, enter, close), layer numbers and ordinals, and fuzzy
-          names of projects, layers and nodes (edit distance for misheard words). Italian and English.
-        files: [src/app/voice/commands.ts, tests/voice-commands.test.ts]
+          names of projects, layers and nodes (edit distance for misheard words). Whole fixed phrases ("chiudi il
+          file", "apri il suo file", "il prossimo") stay on the local parser even with the agent on (#128, #130),
+          and their referents come from the screen, not the words: the selected node, the viewer's files, the last
+          list shown and the layer's flow order (runItsFile/runStep in referents.ts). Italian and English.
+        files: [src/app/voice/commands.ts, src/app/voice/referents.ts, tests/voice-commands.test.ts]
       - id: ambiguous
         type: decision
         label: Ambiguous?
@@ -298,10 +301,12 @@ layers:
         runtime: browser
         tools: [screen, list_layers, layer_nodes, search, node_info, connections, node_files, read_file, focus_layer, select_node, open_file, open_project, navigate]
         description: >-
-          runTool(): 13 tools that run in the page on the workspace on screen, so answers are true to the tower. Read:
-          screen, list_layers, layer_nodes (with the layer's flow), node_info, connections, node_files, read_file (the
+          runTool(): 14 tools that run in the page on the workspace on screen, so answers are true to the tower. Read:
+          screen (which also reports the current list the parser steps through on "il prossimo"), list_layers,
+          layer_nodes (with the layer's flow), node_info, connections, node_files, read_file (the
           file text through /api/file, same guards as the viewer, to explain a file). Act (same store calls as the keyboard):
-          focus_layer, select_node, open_file, open_project, navigate. search reads and acts: it also fills the top-bar
+          focus_layer, select_node, open_file, close_file (closes the viewer, keeping the selection), open_project,
+          navigate. search reads and acts: it also fills the top-bar
           search so the matches are highlighted. Names are matched fuzzily, on screen first, then in the library; an
           omitted node or layer means the selection. Errors come back as JSON the model can recover from.
         files: [src/app/voice/tools.ts, tests/voice-tools.test.ts]
