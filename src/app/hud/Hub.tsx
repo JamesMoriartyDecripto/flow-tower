@@ -170,25 +170,33 @@ export function HubPanel() {
   );
 }
 
-/** Who is doing what right now: one line per machine, runtime, project and starter. */
+/**
+ * Who is doing what right now. Six columns never fit the right panel (the live-hub test saw `run · 33…`
+ * and seven-character machines), so a row reads on two lines like MachinesTab: identity first, dim
+ * metadata second. No header row: each value carries a `title`, which a cut column header never could.
+ */
 function NowTab({ rows, now }: { rows: NowRow[]; now: number }) {
   if (!rows.length) return <p className="hub-empty">No live activity yet.</p>;
   return (
     <div className="hub-rows">
-      <div className="hub-row head" aria-hidden="true">
-        <span /><span>MACHINE</span><span>RUNTIME</span><span>PROJECT</span><span>BY</span><span>STATE</span>
-      </div>
       {rows.map((r) => (
         <div className="hub-row" key={`${r.machine}\n${r.runtime}\n${r.project}\n${r.startedBy}`}>
-          <span className={`hub-dot ${r.state}`} title={r.state}>{DOT[r.state]}</span>
-          {/* Every cell is ellipsized by CSS, so its title carries the value the cut hides. */}
-          <span className="hub-cell" title={r.machine}>{r.machine}</span>
-          <span className="hub-cell" title={r.runtime}>{r.runtime}</span>
-          <span className="hub-cell" title={r.project}>{r.project}</span>
-          <span className="hub-cell" title={r.startedBy === 'AUTO' ? 'Started automatically' : r.startedBy}>
-            {r.startedBy === 'AUTO' ? <span className="chip hub-auto">AUTO</span> : r.startedBy}
-          </span>
-          <span className="hub-cell hub-state">{r.state} · {ago(now - r.last)}</span>
+          <div className="hub-main">
+            <span className={`hub-dot ${r.state}`} title={r.state}>{DOT[r.state]}</span>
+            {/* Every cell is ellipsized by CSS, so its title carries the value the cut hides. */}
+            <span className="hub-sender" title={r.machine}>{r.machine}</span>
+            <span className="hub-cell" title={r.startedBy === 'AUTO' ? 'Started automatically' : r.startedBy}>
+              {r.startedBy === 'AUTO' ? <span className="chip hub-auto">AUTO</span> : r.startedBy}
+            </span>
+            <span className="hub-right" title={`${r.state} · ${ago(now - r.last)}`}>{r.state} · {ago(now - r.last)}</span>
+          </div>
+          <div className="hub-meta">
+            <span className="hub-cell" title={r.runtime}>{r.runtime}</span>
+            <span className="hub-sep" aria-hidden="true">·</span>
+            <span className="hub-cell" title={r.project}>{r.project}</span>
+            <span className="hub-sep" aria-hidden="true">·</span>
+            <span className="hub-cell" title={`${r.count} events`}>{r.count} {r.count === 1 ? 'event' : 'events'}</span>
+          </div>
         </div>
       ))}
     </div>
