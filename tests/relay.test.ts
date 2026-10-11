@@ -165,8 +165,9 @@ describe('satellite relay (#91)', () => {
   it('posts a heartbeat with its state and version, and beats once at start', { timeout: 5_000 }, async () => {
     const hub = await stubHub(() => 204);
     const relay = relayOf(hub.url, { version: '0.5.0' });
-    // The first beat is scheduled at 0 ms: give the timer a tick to run before flushing anything.
-    await new Promise((r) => setTimeout(r, 20));
+    // The first beat is scheduled at 0 ms: wait for it to reach the hub, instead of timing a round trip
+    // that a busy machine may not finish inside a fixed delay.
+    await vi.waitFor(() => expect(hub.seen.length).toBeGreaterThanOrEqual(1), { timeout: 2_000, interval: 10 });
     expect(hub.seen.length).toBeGreaterThanOrEqual(1);
     const beat = hub.seen[0];
     expect(beat.headers['x-flow-tower-token']).toBe('ft_test_secret');
@@ -185,7 +186,8 @@ describe('satellite relay (#91)', () => {
   it('pauses: sends nothing, beats nothing, and does not queue what arrives', { timeout: 5_000 }, async () => {
     const hub = await stubHub(() => 204);
     const relay = relayOf(hub.url, { paused: true });
-    // The start-up beat is scheduled at 0 ms: while paused it must never run.
+    // The start-up beat is scheduled at 0 ms: while paused it must never run. A short sleep is the right
+    // tool here: the test proves that nothing happens, so there is no condition to wait for.
     await new Promise((r) => setTimeout(r, 20));
     relay.push([event()]);
     await relay.flush();
@@ -194,7 +196,8 @@ describe('satellite relay (#91)', () => {
     expect(hub.seen).toHaveLength(0);
     // Paused is not "queued either": nothing piles up to leave later.
     expect(relay.state()).toMatchObject({ state: 'paused', queued: 0 });
-    // No send after the settle window either (an unref'd timer must not have fired).
+    // No send after the settle window either (an unref'd timer must not have fired). Again a sleep: the
+    // assertion is that nothing arrived, so there is no condition to wait for.
     await new Promise((r) => setTimeout(r, 20));
     expect(hub.seen).toHaveLength(0);
     relay.stop();
@@ -248,8 +251,9 @@ describe('satellite relay (#91)', () => {
     relay.push([event()]);
     const flushing = relay.flush();
     const testing = relay.sendTest();
-    // A real timer, so the microtasks of both calls run: only the flush may be on the wire so far.
-    await new Promise((r) => setTimeout(r, 20));
+    // Wait for the flush to reach the wire before asserting that the test event did not follow: a fixed
+    // delay was guessing how long the microtask turn takes, which a busy machine can miss.
+    await vi.waitFor(() => expect(calls.filter((c) => c.path === '/api/events').length).toBeGreaterThanOrEqual(1), { timeout: 2_000, interval: 10 });
     expect(calls.filter((c) => c.path === '/api/events')).toHaveLength(1);
     release();
     await flushing;
