@@ -15,12 +15,24 @@ export type VoiceAction =
   | { kind: 'back' }
   | { kind: 'enter' }
   | { kind: 'close' }
+  | { kind: 'close-file' }
   | { kind: 'mic-off' }
   | { kind: 'ambiguous'; options: { label: string; action: VoiceAction }[] }
   | { kind: 'unknown' };
 
 /** `tower`: the one on screen (or behind the library); `library`: the library is open, so names mean projects first. */
 export interface VoiceContext { ws: Workspace; tower?: ResolvedTower; library?: boolean }
+
+/**
+ * Kinds whose phrase regex is anchored to the whole utterance (`^…$`) belong here, and only those.
+ * An anchored match means the user said exactly that command, not asked about it; kinds matched on a
+ * keyword anywhere (`overview`, `view`, `mic-off`) would also fire on real questions like "what does
+ * the overview show?", so they keep today's routing to the agent, as do the fuzzy name matches.
+ */
+export const FIXED_KINDS = new Set<VoiceAction['kind']>(['close-file', 'close', 'back', 'enter']);
+
+/** The parser matched a whole fixed phrase: a command, so it must not be sent to the agent. */
+export const isFixed = (action: VoiceAction): boolean => FIXED_KINDS.has(action.kind);
 
 /** Lowercase, no accents, no punctuation: "Più Livelli!" → "piu livelli". */
 export const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -134,6 +146,8 @@ export function parseCommand(transcript: string, { ws, tower, library }: VoiceCo
   // Only two views exist: "vista <anything else>" is the map, however Whisper spelled it ("vista matta").
   if (phrase(text, /^(vista|view) \w+$|^\w+ view$/)) return { kind: 'view', view: 'map' };
   if (phrase(text, /^(entra|enter|dive in|apri la sotto ?torre|open the sub ?tower|dentro)$/)) return { kind: 'enter' };
+  // Whole-utterance only: "chiudi il file del nodo X" names a node, so it stays with the agent.
+  if (phrase(text, /^(chiudi (il |la )?(file|finestra|viewer|visualizzatore)|close (the )?(file|window|viewer))$/)) return { kind: 'close-file' };
   if (phrase(text, /^(chiudi|close|deseleziona|deselect|chiudi il pannello|close the panel)$/)) return { kind: 'close' };
 
   const saysTower = like(all, 'progetto', 'project', 'torre', 'tower', 'apri', 'open', 'aprimi');

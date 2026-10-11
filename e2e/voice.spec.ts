@@ -98,6 +98,46 @@ test('voice journal: turns are written, a correction marks the last one, accepte
   await expect(page.locator('.voice-caption')).toHaveCount(0);
 });
 
+test('voice: "chiudi il file" closes the viewer and keeps the node selected (#128)', async ({ page }) => {
+  const id = ws.projects.find((p) => p.startsWith('dev-squad/'))!;
+  // An agent is configured, and the real routing is exercised: a request to /chat would mean the fixed
+  // phrase went to the agent instead of the parser, so it is recorded and must stay at zero.
+  let chatCalls = 0;
+  await page.route(/\/api\/voice(\/|\?|$)/, (r) => {
+    const path = new URL(r.request().url()).pathname;
+    if (path === '/api/voice/chat') { chatCalls++; return r.fulfill({ status: 500, json: { error: 'the parser should have handled this' } }); }
+    return r.fulfill({ json: { cloud: true, model: 'stt', agent: 'test-model', tts: 'test-tts', journal: false } });
+  });
+  const node = tower(id).layers.flatMap((l) => l.nodes).find((n) => n.files.length)!;
+
+  await openProject(page, id);
+  // Selected and with its first file open in the viewer, as the agent would leave them.
+  await page.evaluate((n) => {
+    const s = (window as unknown as { __flowTower: { store: { getState(): { select(k: string): void; openFile(f: object): void } } } }).__flowTower.store.getState();
+    s.select(n.key);
+    s.openFile({ tower: n.tower, files: n.files, index: 0 });
+  }, { key: node.key, tower: id, files: node.files });
+  await expect.poll(async () => (await state(page)).file).toBe(true);
+  // The caption only shows a transcript while the voice is not off: the test says it through the hook below.
+  await page.evaluate(async () => {
+    const { useVoice } = await import(String('/src/app/voice/voice.ts'));
+    useVoice.setState({ status: 'listening', agent: true });
+  });
+
+  // Through hear(), like a transcript: the routing decides parser or agent, and this phrase is a command.
+  await page.evaluate((t) => (window as unknown as Hear).__flowTower.hear(t), 'chiudi il file');
+  await expect(page.locator('.viewer')).toHaveCount(0);
+  expect((await state(page)).file).toBe(false);
+  expect((await state(page)).selected).toBe(node.key);
+  await expect(page.locator('.voice-caption .voice-heard')).toContainText('File closed');
+
+  // Nothing open: the command is harmless, not an error, and it says so.
+  await page.evaluate((t) => (window as unknown as Hear).__flowTower.hear(t), 'chiudi il file');
+  await expect(page.locator('.voice-caption .voice-heard')).toContainText('No file open');
+  await expect(page.locator('.voice-caption .voice-error')).toHaveCount(0);
+  expect(chatCalls).toBe(0);
+});
+
 test('voice: Esc silences the reply still being written, and the turn is journaled as interrupted', async ({ page }) => {
   const id = ws.projects.find((p) => p.startsWith('dev-squad/'))!;
   const entries: { outcome: string }[] = [];
