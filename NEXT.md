@@ -22,7 +22,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## How work is done
 
-The dev squad (`tools/squad`, issue #113): the lead writes a task file per step, the squad codes, reviews and verifies it, the lead merges.
+The dev squad (`tools/squad`, issue #113): the lead (Claude) writes a task file per step and verifies; the DeepSeek coder writes the code, GLM reviews, DeepSeek checks security; the maintainer merges.
 
 ## Setup on a new machine
 
