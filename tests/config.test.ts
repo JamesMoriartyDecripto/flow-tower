@@ -131,6 +131,13 @@ describe('effective', () => {
     expect(effective(config, env)).toMatchObject({ ...config });
   });
 
+  it('reads `paused` from the config only, never from the environment', () => {
+    // The sharing control is the only writer: no env var and no flag may pause (or unpause) a relay.
+    expect(effective({}, {}).paused).toBe(false);
+    expect(effective({ paused: true }, {}).paused).toBe(true);
+    expect(effective({ paused: false }, { FLOW_TOWER_PAUSED: '1' } as NodeJS.ProcessEnv).paused).toBe(false);
+  });
+
   it('clamps retention and keeps the UX keys as they are', () => {
     expect(effective({}, { FLOW_TOWER_RETENTION_DAYS: '99' } as NodeJS.ProcessEnv).retentionDays).toBe(21);
     const config = {

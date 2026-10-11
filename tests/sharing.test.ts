@@ -1,0 +1,142 @@
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { sharingHandler } from '../src/server/sharing';
+import { createRelay } from '../src/server/relay';
+
+/**
+ * Sharing controls on a satellite (#91). The stub hub, the temp config home and the http server all live
+ * on this machine: nothing here touches the real user folder or the network beyond loopback.
+ */
+const homes: string[] = [];
+const servers: Server[] = [];
+afterEach(() => {
+  servers.splice(0).forEach((s) => s.close());
+  homes.splice(0).forEach((h) => rmSync(h, { recursive: true, force: true }));
+});
+
+const tempHome = () => {
+  const home = mkdtempSync(join(tmpdir(), 'flow-tower-sharing-'));
+  homes.push(home);
+  return home;
+};
+
+/** A stub hub accepting every batch, capturing bodies. */
+async function stubHub() {
+  const seen: { path?: string; body: unknown }[] = [];
+  const server = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => {
+      seen.push({ path: req.url, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) });
+      res.statusCode = 204;
+      res.end();
+    });
+  });
+  servers.push(server);
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, seen };
+}
+
+/** The handler behind a real server, so headers, methods and statuses are all exercised for real. */
+async function start(hub: string, home: string, over: { hub?: boolean } = {}) {
+  const relay = createRelay({ url: hub, token: 'ft_test_secret' });
+  const handler = sharingHandler({ home, relay, hub: over.hub ?? false });
+  const server = createServer((req: IncomingMessage, res: ServerResponse) => void handler(req, res));
+  servers.push(server);
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/sharing`, relay };
+}
+
+const post = (url: string, body: unknown, headers: Record<string, string> = {}) =>
+  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+
+describe('sharing controls on a satellite (#91)', () => {
+  it('pauses on request, persists it in the user folder config, and keeps every other key', { timeout: 5_000 }, async () => {
+    const hub = await stubHub();
+    const home = tempHome();
+    writeFileSync(join(home, 'config.json'), `{
+  // the user's own keys must survive the switch
+  "viewers": ["alice@example.com"],
+  "retentionDays": 7
+}
+`, { mode: 0o600 });
+    const { url, relay } = await start(hub.url, home);
+
+    const on = await post(url, { paused: true });
+    expect(on.status).toBe(200);
+    expect(await on.json()).toMatchObject({ state: 'paused' });
+
+    const file = join(home, 'config.json');
+    const written = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    expect(written).toMatchObject({ paused: true, viewers: ['alice@example.com'], retentionDays: 7 });
+    // It may hold a token: owner only, like the file connect writes.
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+
+    const off = await post(url, { paused: false });
+    expect(off.status).toBe(200);
+    expect(await off.json()).toMatchObject({ state: 'online' });
+    expect(relay.state().state).toBe('online');
+    expect((JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>).paused).toBe(false);
+    relay.stop();
+  });
+
+  it('refuses a cross-site request, a remote request and a body that is not JSON', { timeout: 5_000 }, async () => {
+    const hub = await stubHub();
+    const home = tempHome();
+    const { url, relay } = await start(hub.url, home);
+
+    expect((await post(url, { paused: true }, { Origin: 'http://localhost:3000' })).status).toBe(403);
+    expect((await post(url, { paused: true }, { 'Sec-Fetch-Site': 'same-site' })).status).toBe(403);
+    expect((await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;x=application/json' }, body: JSON.stringify({ paused: true }) })).status).toBe(415);
+    expect(relay.state().state).toBe('online'); // nothing was flipped
+    relay.stop();
+  });
+
+  it('refuses a request the hub would call remote', { timeout: 5_000 }, async () => {
+    const hub = await stubHub();
+    const home = tempHome();
+    // Hub mode: a proxied request (any x-forwarded-for) counts as remote and must not flip the switch.
+    const { url, relay } = await start(hub.url, home, { hub: true });
+    expect((await post(url, { paused: true }, { 'X-Forwarded-For': '10.0.0.9' })).status).toBe(403);
+    expect(relay.state().state).toBe('online');
+    relay.stop();
+  });
+
+  it('answers 404 { state: off } when there is no relay', { timeout: 5_000 }, async () => {
+    const home = tempHome();
+    const handler = sharingHandler({ home, relay: undefined, hub: false });
+    const server = createServer((req: IncomingMessage, res: ServerResponse) => void handler(req, res));
+    servers.push(server);
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/sharing`;
+
+    expect(await (await post(url, { paused: true })).json()).toMatchObject({ state: 'off' });
+    expect((await fetch(url)).status).toBe(200);
+  });
+
+  it('pushes one test event to the hub and answers the state with what left the machine', { timeout: 5_000 }, async () => {
+    const hub = await stubHub();
+    const home = tempHome();
+    const { url, relay } = await start(hub.url, home);
+
+    const r = await post(`${url}/test`, {});
+    expect(r.status).toBe(200);
+    const state = (await r.json()) as { state: string; lastPayload: Record<string, unknown> };
+    expect(state.state).toBe('online');
+    expect(state.lastPayload).toMatchObject({ kind: 'log', source: 'flow-tower', status: 'ok' });
+
+    const sent = hub.seen.filter((s) => s.path === '/api/events');
+    expect(sent).toHaveLength(1);
+    const [wire] = sent[0].body as Record<string, unknown>[];
+    // The probe tags the hub and carries no local content, and never the token.
+    expect(wire).toMatchObject({ kind: 'log', source: 'flow-tower', status: 'ok' });
+    for (const omitted of ['message', 'data', 'node', 'tool']) expect(wire).not.toHaveProperty(omitted);
+    expect(JSON.stringify(state)).not.toContain('ft_test_secret');
+    relay.stop();
+  });
+});

@@ -16,6 +16,7 @@ import { userHome, warnIfInRepo } from './home.ts';
 import { crossSite } from './guard.ts';
 import { isLoopback, isRemote } from './auth.ts';
 import { createRelay } from './relay.ts';
+import { sharingHandler } from './sharing.ts';
 import { effective, loadConfig } from './config.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 import { openHistory } from './history/db.ts';
@@ -109,12 +110,9 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       });
       server.middlewares.use('/api/file', (req, res) => void serveFile(req, res, state));
 
-      // Sharing state (#91): a satellite reports what it is relaying, a local server says it is off. Read
-      // like /api/workspace (crossSite-guarded), and it never carries the token.
-      server.middlewares.use('/api/sharing', (req, res) => {
-        if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
-        send(res, 200, relay?.state() ?? { state: 'off' });
-      });
+      // Sharing (#91): reads what a satellite is relaying, and the two local controls — pause and the
+      // hub test. state() never carries the token; a local server answers { state: 'off' }.
+      server.middlewares.use('/api/sharing', sharingHandler({ home: USER_HOME, relay, hub: hubOpts.hub }));
 
       // History (#84) lives in the user's folder, never the repo. An old Node without node:sqlite disables
       // it with one message: the live view keeps working, the hub simply gets no onAccepted.
@@ -203,7 +201,7 @@ function createRelayFor(server: ViteDevServer, hubOpts: { hub: boolean; ingestOn
     server.config.logger.warn('flow-tower: satellite relay refused: url points at this same server (would loop)');
     return undefined;
   }
-  return createRelay({ url: settings.url, token: settings.token, user: settings.user, machine: settings.machine, version });
+  return createRelay({ url: settings.url, token: settings.token, user: settings.user, machine: settings.machine, version, paused: settings.paused });
 }
 
 /** Loopback host on the port we bound to: relaying there would feed this server its own events. */

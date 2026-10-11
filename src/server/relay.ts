@@ -28,15 +28,19 @@ export interface RelayOptions {
   now?: () => number;
   maxQueue?: number;
   batch?: number;
+  /** Start paused (#91): the config's `paused` key, read once when the relay is created. */
+  paused?: boolean;
 }
 
 export interface RelayState {
-  state: 'online' | 'queued' | 'revoked';
+  state: 'online' | 'queued' | 'revoked' | 'paused';
   hub: string;
   queued: number;
   dropped: number;
   lastSentAt?: number;
   lastError?: string;
+  /** The last event that actually left this machine, after the content was stripped: never the token. */
+  lastPayload?: Record<string, unknown>;
 }
 
 /** The relay behind a satellite: push accepted events, inspect state, stop. Never holds the token in `state`. */
@@ -59,6 +63,10 @@ export function createRelay(opts: RelayOptions) {
   let lastAttempt = now() - MIN_GAP_MS;
   let lastSentAt: number | undefined;
   let lastError: string | undefined;
+  let lastPayload: Record<string, unknown> | undefined;
+  // Paused (#91): the user asked this machine to stop relaying. Nothing is sent — not even a heartbeat —
+  // and nothing is queued either: paused means no event may pile up to leave later behind the user's back.
+  let paused = opts.paused ?? false;
   let timer: NodeJS.Timeout | undefined;
   let hbTimer: NodeJS.Timeout | undefined;
 
@@ -70,7 +78,7 @@ export function createRelay(opts: RelayOptions) {
 
   /** A timer must never keep the process alive on its own: the dev server decides when it stops. */
   const schedule = () => {
-    if (timer || stopped || revoked || inFlight || !queue.length) return;
+    if (timer || stopped || revoked || paused || inFlight || !queue.length) return;
     // Wait out the rest of the current second plus any backoff, so we never flush twice in one second.
     const delay = Math.max(backoff, MIN_GAP_MS - (now() - lastAttempt));
     timer = setTimeout(() => {
@@ -82,7 +90,7 @@ export function createRelay(opts: RelayOptions) {
 
   async function attempt(): Promise<void> {
     clearTimer();
-    if (stopped || revoked || inFlight || !queue.length) return;
+    if (stopped || revoked || paused || inFlight || !queue.length) return;
     inFlight = true;
     lastAttempt = now();
     const slice = queue.slice(0, batch);
@@ -105,6 +113,8 @@ export function createRelay(opts: RelayOptions) {
       if (res.ok) {
         queue.splice(0, slice.length);
         lastSentAt = now();
+        // Keep the last wire payload (content already stripped) so the UI can show what left the machine.
+        lastPayload = slice[slice.length - 1];
         lastError = undefined;
         backoff = 0;
         unreachable = false;
@@ -134,7 +144,9 @@ export function createRelay(opts: RelayOptions) {
   }
 
   const push = (events: FlowEvent[]) => {
-    if (stopped) return;
+    // While paused nothing leaves and nothing waits to leave: the events stay local (the user's own view
+    // still gets them, ingest is untouched) instead of piling up in the queue.
+    if (stopped || paused) return;
     for (const e of events) queue.push(forward(e, opts));
     if (queue.length > maxQueue) {
       // A hub that stays down must not grow without bound: the newest events matter most.
@@ -163,7 +175,7 @@ export function createRelay(opts: RelayOptions) {
 
   /** The next beat: sooner after a failure (the shared backoff), otherwise a full interval later. */
   const scheduleHeartbeat = (delay: number) => {
-    if (stopped || revoked) return;
+    if (stopped || revoked || paused) return;
     clearHbTimer();
     hbTimer = setTimeout(() => {
       hbTimer = undefined;
@@ -177,7 +189,7 @@ export function createRelay(opts: RelayOptions) {
    * rules as the event flush, so a hub that refused us stops the beats too, and a slow hub just waits.
    */
   async function heartbeat(): Promise<void> {
-    if (stopped || revoked) return;
+    if (stopped || revoked || paused) return;
     try {
       const res = await send(`${hub}/api/heartbeat`, {
         method: 'POST',
@@ -216,12 +228,13 @@ export function createRelay(opts: RelayOptions) {
   const state = (): RelayState => ({
     // 'queued' means events wait because the last send attempt failed (unreachable hub, 5xx or 429).
     // Events simply waiting for the next flush are normal: a healthy relay stays 'online'.
-    state: revoked ? 'revoked' : unreachable && queue.length ? 'queued' : 'online',
+    state: revoked ? 'revoked' : paused ? 'paused' : unreachable && queue.length ? 'queued' : 'online',
     hub,
     queued: queue.length,
     dropped,
     ...(lastSentAt !== undefined ? { lastSentAt } : {}),
     ...(lastError !== undefined ? { lastError } : {}),
+    ...(lastPayload !== undefined ? { lastPayload } : {}),
   });
 
   const stop = () => {
@@ -230,7 +243,67 @@ export function createRelay(opts: RelayOptions) {
     clearHbTimer();
   };
 
-  return { push, state, stop, flush: () => attempt(), heartbeat };
+  /** Pause (#91): stop sending and stop queueing. Events accepted from now on stay local. */
+  const pause = () => {
+    paused = true;
+    clearTimer();
+    clearHbTimer();
+  };
+
+  /** Resume: the heartbeats start again, and new events are queued and sent as before. */
+  const resume = () => {
+    if (!paused) return;
+    paused = false;
+    lastAttempt = now() - MIN_GAP_MS;
+    schedule();
+    scheduleHeartbeat(0);
+  };
+
+  /**
+   * The sharing test (#91): one minimal event the hub accepts like any other, flushed now so the answer
+   * tells the user whether the relay works. It carries no message and no data: a "does it reach the hub"
+   * probe must not leak local content.
+   */
+  const sendTest = async () => {
+    if (stopped || revoked || paused) return state();
+    // A minimal 'log': message, tool, node and data are simply absent, so the probe tags the hub without
+    // carrying any local content.
+    const payload = forward({ kind: 'log', source: 'flow-tower', status: 'ok' } as unknown as FlowEvent, opts);
+    inFlight = true;
+    lastAttempt = now();
+    try {
+      const res = await send(`${hub}/api/events`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(opts.token ? { 'x-flow-tower-token': opts.token } : {}),
+        },
+        body: JSON.stringify([payload]),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (res.status === 401 || res.status === 403) {
+        revoked = true;
+        lastError = `hub refused the token (${res.status})`;
+      } else if (res.ok) {
+        lastSentAt = now();
+        lastPayload = payload;
+        lastError = undefined;
+        backoff = 0;
+        unreachable = false;
+      } else {
+        lastError = `hub answered ${res.status}`;
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      unreachable = true;
+    } finally {
+      inFlight = false;
+      schedule();
+    }
+    return state();
+  };
+
+  return { push, state, stop, pause, resume, sendTest, flush: () => attempt(), heartbeat };
 }
 
 const nextBackoff = (current: number) => Math.min(current ? current * 2 : MIN_GAP_MS, MAX_BACKOFF_MS);

@@ -6,13 +6,11 @@
  *
  * Like `token` and `history`, bin/flow-tower.js runs this file with Node's built-in type stripping.
  */
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
-import { join } from 'node:path';
 import { exit } from 'node:process';
 import { parseArgs } from 'node:util';
-import { stripJsonc } from '../../bin/config-file.js';
 import { userHome } from '../core/secrets.ts';
+import { writeUserConfig } from '../server/user-config.ts';
 
 const USAGE = 'usage: flow-tower connect <hub-url> --token <token> [--machine <name>] [--user <name>]\n\nThe token is written to the user folder\'s config.json and never printed.';
 /** One heartbeat, then the command is over: a hub that does not answer in 5 s counts as unreachable. */
@@ -44,29 +42,13 @@ if (!parsed || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
 }
 
 const home = userHome();
-const file = join(home, 'config.json');
 
-/**
- * Every existing key is kept and the JSONC comments are dropped: this command owns four keys of one file,
- * and a hand-written viewer list or retention setting must survive it.
- */
-function readExisting(): Record<string, unknown> {
-  try {
-    const value = JSON.parse(stripJsonc(readFileSync(file, 'utf8'))) as unknown;
-    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-  } catch { return {}; } // missing or hand-broken: the merge starts from an empty object
-}
-
-// An absent flag keeps whatever the file already said: this command only ever adds keys.
-const next: Record<string, unknown> = { ...readExisting(), role: 'satellite', url, token };
+/** The keys this command owns; everything else in the file survives (see writeUserConfig). */
+const next: Record<string, unknown> = { role: 'satellite', url, token };
 if (values.machine?.trim()) next.machine = values.machine.trim();
 if (values.user?.trim()) next.user = values.user.trim();
 
-// Only a folder we create is ours to lock down; a folder the user chose keeps its own mode (like tokens.json).
-mkdirSync(home, { recursive: true, mode: 0o700 });
-try { chmodSync(home, 0o700); } catch { /* best effort: a filesystem that refuses chmod is not an error */ }
-writeFileSync(file, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
-try { chmodSync(file, 0o600); } catch { /* the file may hold a token: lock it down where we can */ }
+const file = writeUserConfig(home, next);
 
 /** The hub records the sender from the token id ("ft_<id>_<secret>"), so that is the honest name to print. */
 const sender = /^ft_([a-z0-9-]{1,32})_/.exec(token)?.[1] ?? next.machine ?? next.user ?? hostname();

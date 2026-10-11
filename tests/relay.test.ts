@@ -151,4 +151,67 @@ describe('satellite relay (#91)', () => {
     expect(relay.state().state).toBe('revoked');
     relay.stop();
   });
+
+  it('pauses: sends nothing, beats nothing, and does not queue what arrives', { timeout: 5_000 }, async () => {
+    const hub = await stubHub(() => 204);
+    const relay = relayOf(hub.url, { paused: true });
+    // The start-up beat is scheduled at 0 ms: while paused it must never run.
+    await new Promise((r) => setTimeout(r, 20));
+    relay.push([event()]);
+    await relay.flush();
+    await relay.heartbeat();
+
+    expect(hub.seen).toHaveLength(0);
+    // Paused is not "queued either": nothing piles up to leave later.
+    expect(relay.state()).toMatchObject({ state: 'paused', queued: 0 });
+    // No send after the settle window either (an unref'd timer must not have fired).
+    await new Promise((r) => setTimeout(r, 20));
+    expect(hub.seen).toHaveLength(0);
+    relay.stop();
+  });
+
+  it('resumes: the heartbeat and the events flow again', { timeout: 5_000 }, async () => {
+    const hub = await stubHub(() => 204);
+    const relay = relayOf(hub.url, { paused: true });
+    relay.push([event()]);
+    // Events pushed while paused are gone by design: nothing may pile up to leave later.
+    relay.resume();
+    relay.push([event()]);
+    await relay.flush();
+
+    expect(relay.state().state).toBe('online');
+    const events = hub.seen.filter((r) => r.path === '/api/events');
+    expect(events).toHaveLength(1);
+    expect((events[0].body as unknown[]).length).toBe(1);
+    relay.stop();
+  });
+
+  it('sends one minimal test event and reports what left the machine', { timeout: 5_000 }, async () => {
+    const hub = await stubHub(() => 204);
+    const relay = relayOf(hub.url);
+    const state = await relay.sendTest();
+
+    const sent = hub.seen.find((r) => r.path === '/api/events');
+    expect(sent).toBeDefined();
+    const [wire] = sent!.body as Record<string, unknown>[];
+    expect(wire).toMatchObject({ kind: 'log', source: 'flow-tower', status: 'ok' });
+    for (const omitted of ['message', 'data', 'node', 'tool', 'id', 'targets']) expect(wire).not.toHaveProperty(omitted);
+    // Exactly what left the machine, and never the token.
+    expect(state.lastPayload).toMatchObject({ kind: 'log', source: 'flow-tower' });
+    expect(JSON.stringify(state)).not.toContain('ft_test_secret');
+    relay.stop();
+  });
+
+  it('reports the last payload actually sent, stripped of content', { timeout: 5_000 }, async () => {
+    const hub = await stubHub(() => 200);
+    const relay = relayOf(hub.url);
+    expect(relay.state().lastPayload).toBeUndefined();
+    relay.push([event()]);
+    await relay.flush();
+    // The prompt and its data are gone; the request id survives as event_id.
+    expect(relay.state().lastPayload).toMatchObject({ kind: 'prompt', event_id: 'req-9' });
+    expect(relay.state().lastPayload).not.toHaveProperty('message');
+    expect(relay.state().lastPayload).not.toHaveProperty('data');
+    relay.stop();
+  });
 });
