@@ -90,9 +90,11 @@ heartbeat. Three answers, all exit 0: `connected to <url> as <sender>` (204); th
 arguments exit 1. The token is never printed by this command.
 
 **What is relayed.** Content-free events, exactly as the hub's own history would store them: time,
-sender, user, host, runtime, project, session, kind, tool, model, tokens, cost, duration, status.
-Prompts, responses, commands, file paths and tool output never leave the machine (the relay drops
-them before sending), and a `request_id` survives only as an opaque correlation id.
+user, host, runtime, project, session, kind, tool, model, node, tower, agent, parent, call, status,
+tokens, cost and duration. The relay copies an allow-list of those fields and nothing else, so a
+source that adds a field of its own cannot leak it. Prompts, responses, commands, file paths and tool
+output never leave the machine (`role`, the Task/Agent description, can hold a path or a command and
+is dropped too), and a `request_id` survives only as an opaque correlation id.
 
 **While the hub is down.** The queue is bounded at **5000** events, oldest dropped first, and lives
 in memory: a long outage costs a counter, not the disk. A **revoked** (or paused) token stops the
