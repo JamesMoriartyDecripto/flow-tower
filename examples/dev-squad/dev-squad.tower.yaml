@@ -216,7 +216,7 @@ layers:
         resources:
           - { kind: script, label: "New worktree", path: "scripts/new-worktree.sh" }
         label: Issue worktree
-        description: "`git worktree add -B squad/<n>-<slug>` from origin/main. Every agent is fenced into this path."
+        description: "`git worktree add -B squad/<n>-<slug>` from origin/main. Every agent is fenced into this path; one worktree per issue, and the lead calls run_coder one plan step at a time in it, so two coder tasks never share a checkout (a task meant to run in parallel gets its own worktree)."
         files: [src/pipeline.ts]
       - id: lead
         agent: lead
@@ -619,7 +619,7 @@ layers:
           - { kind: doc, label: "Model list + prices", url: "https://openrouter.ai/api/v1/models" }
         type: tool
         label: OpenRouter
-        description: "src/openrouter-agent.ts: an OpenAI-style tool loop over /chat/completions with usage (cost per call), require_parameters and data_collection deny. Read tools for all, edit/write in src/ tests/ e2e/ for the coder only, a command whitelist, a secret-path deny list, a step cap; every tool call is a live event."
+        description: "src/openrouter-agent.ts: an OpenAI-style tool loop over /chat/completions with usage (cost per call), require_parameters and data_collection deny. Read tools for all, edit/write/delete in src/ tests/ e2e/ for the coder only (delete_file so a probe file is removed, not emptied; probe/scratch names refused on write), a command whitelist, a secret-path deny list, a step cap; every tool call is a live event."
         files: [src/openrouter-agent.ts, src/config.ts]
       - id: deepseek
         runtime: openrouter
