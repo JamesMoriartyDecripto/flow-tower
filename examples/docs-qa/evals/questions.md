@@ -106,7 +106,7 @@ passes when the answer contains it (case-insensitive), and `a / b` means either 
 - docs: docs/getting-started.md, skills/flow-tower-use-example/SKILL.md
 - facts: flow-tower copy | validate
 
-## Q26. How do I add my tower to the library?
+## Q26. How do I add my tower to the examples gallery?
 - docs: skills/flow-tower-contribute/SKILL.md
 - facts: check-example | anonymise / personal data | PR
 
