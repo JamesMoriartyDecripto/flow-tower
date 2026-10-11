@@ -47,8 +47,11 @@ tools/squad/steps.sh 113 tasks/113 tools "keep the squad runner in the repo"
 
 `steps.sh <issue> <dir> <write-dirs> <title>` runs `run.mjs` on every `dir/*.md` in order, one commit per
 step. `REPO` picks the worktree (default: this checkout). It stops at the first red step: a failed coder run,
-no change at all, or a red `npm run check`. Trailers are session-specific, so pass them in
-`SQUAD_TRAILERS` (one per line) or leave them out.
+no change at all, or a red `npm run check`. Each commit stages every changed tracked path (`git add -u`),
+not a fixed list, so files like `package.json` or `NEXT.md` are never left out; new files are staged inside
+the `write-dirs`, and anything untracked outside them is reported as `UNTRACKED LEFT (not committed)`. Probe
+files the coder dropped (`tmp*`, `probe`, `scratch`) are removed first. Trailers are session-specific, so
+pass them in `SQUAD_TRAILERS` (one per line) or leave them out.
 
 `run.mjs` needs `OPENROUTER_API_KEY`: the environment, else `~/.config/flow-tower/.env` (or
 `FLOW_TOWER_HOME`), else the git-ignored `.env` of the checkout. The key never leaves the process and is
