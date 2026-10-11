@@ -178,7 +178,11 @@ layers:
       - id: shortlist
         type: memory
         label: 5+ per category
-        description: "At least 5 per category, one from another provider family than the default and than its reviewer. Exact ids as models.mjs prints them on the day."
+        description: >-
+          At least 5 per category, one from another provider family than the default and than its
+          reviewer. Exact ids as models.mjs prints them on the day. 2026-10-11: deepseek-v4.1-flash,
+          deepseek-v4-pro, glm-5.3-flashx, gemini-3.5-flash-lite, claude-haiku-5.5, gpt-6-luna,
+          mercury-2.5, qwen3.7-flash.
         files: [candidates.md]
     edges:
       - "pricelist -> models [data]: JSON"
@@ -195,8 +199,11 @@ layers:
         type: process
         label: bench --dry-run
         runtime: laptop
-        description: "Prints models × tasks × runs and the worst-case call count, checks every task file. Needs no key; exits 1 on a broken task."
-        files: [scripts/bench.mjs]
+        description: >-
+          Prints models × tasks × runs and the worst-case call count, checks every task file. Needs no
+          key; exits 1 on a broken task. --url (or FLOW_TOWER_URL) makes bench.mjs and judge.mjs post
+          metadata-only live events to this tower through scripts/live.mjs, fire and forget.
+        files: [scripts/bench.mjs, scripts/live.mjs]
       - id: key
         type: guard
         label: Key from shell
@@ -371,8 +378,12 @@ layers:
       - id: table
         type: output
         label: results/<date>.md
-        description: "Per category: model, runs, correct, total median [min-max], first output, steps, $ / run, $ / correct, cached %, retries, errors, providers. Example labelled ILLUSTRATIVE in results/example.md."
-        files: [results/example.md]
+        description: >-
+          Per category: model, runs, correct, total median [min-max], first output, steps, $ / run,
+          $ / correct, cached %, retries, errors, providers. First real run: results/2026-10-11.md,
+          8 models × 5 categories, n = 3 per model and task, 240 runs, $0.19. Format example labelled
+          ILLUSTRATIVE in results/example.md.
+        files: [results/2026-10-11.md, results/example.md]
       - id: signoff
         type: human
         label: Sign-off
