@@ -57,7 +57,7 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 | `src/server/voice-learning.ts` | Learning routes under `/api/voice`: append a turn or a mark, read and decide on the memory, and the review (an LLM reads up to 200 new turns, oldest first, and proposes aliases to real names, never short or common words nor part of a real name, rules and reply style; nothing applies until accepted) |
 | `src/server/files.ts` | Reading one referenced file inside its tower root, never a secret or the user's folder (`isForbidden`); shared by `/api/file` and the demo build |
 | `scripts/build-demo.ts` | Static demo for GitHub Pages: freezes the workspace and referenced files into `data/`, then builds the app in `demo` mode |
-| `bin/flow-tower.js` | CLI commands: serve, init, connect, validate, copy, check-example, emit, guide, install-skill (all four skills) |
+| `bin/flow-tower.js` | CLI commands: serve, init, connect, validate, copy, check-example, emit, guide, install-skill (all five skills) |
 | `bin/config-file.js` | Plain-JS JSONC reader for `emit` (#90): starting a second Node with type stripping to load `src/server/config.ts` tripled its time (0.14 s to 0.41 s), and `emit` runs on every hook call, so the config is read here. Drops comments (newlines kept) and trailing commas; `src/server/config.ts` imports its `stripJsonc`, so both read the same JSONC |
 | `src/cli/validate.ts` | `validate --json` output |
 | `src/cli/copy.ts` | `flow-tower copy --list` and `copy <example> [dest]` (#116): copies an example with its folder, refuses to overwrite, validates the copy, warns on dogfood towers (`root: ../..`), prints next steps |
