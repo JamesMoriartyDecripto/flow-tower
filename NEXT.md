@@ -6,12 +6,13 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 - **v0.6.0 released:** the team-hub stack, its towers and guides, the skills, model-benchmark and `tools/squad` are on main. Gates and e2e: [report](examples/release-auditor/reports/v0.6.0.md).
 - **Live:** a hub on the test server running the [command-center](examples/command-center) kit, and a laptop satellite relaying to it.
+- **Hub panel shipped:** #92 (PR #124) is merged and live-tested on the real hub.
 - **Found at release:** #118 (`validate` misses folder references; CI does not run e2e), #119 (KaTeX override, Dependabot low).
 
 ## Next, in order
 
-1. #92 hub panel (in review, this PR)
-2. #121 the user's own library (skill + CLI)
+1. #121 the user's own library (in review, this PR)
+2. #122 contribution path: open-source best practices
 3. #85 privacy profiles
 4. #93 admin
 5. #94 alerts

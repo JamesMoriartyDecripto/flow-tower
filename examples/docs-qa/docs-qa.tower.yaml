@@ -76,7 +76,7 @@ layers:
     title: Eval flow
     description: question set -> runner -> scorer (route + guard + judge) -> gap report -> doc-writer -> docs -> runner again
     nodes:
-      - { id: questions, type: entry, label: Question set, files: [examples/docs-qa/evals/questions.md], description: "28 real questions, each with expected doc(s) and 1-3 key facts read from the docs. The facts are a reference for the judge, not a keyword checklist." }
+      - { id: questions, type: entry, label: Question set, files: [examples/docs-qa/evals/questions.md], description: "29 real questions, each with expected doc(s) and 1-3 key facts read from the docs. The facts are a reference for the judge, not a keyword checklist." }
       - { id: runner, type: process, label: Eval runner, runtime: laptop, files: [examples/docs-qa/scripts/eval.mjs], description: "node eval.mjs [--dry-run] [--model id] [--judge-model id] [--out path] [--runs N] [--whole-bytes n]. Each question runs N times (default 3) and passes on the majority; a dry run is single-pass and runs the whole pipeline against a mock writer and a mock judge, so its score is a smoke test, not a model score." }
       - id: judge
         agent: judge

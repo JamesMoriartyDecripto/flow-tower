@@ -106,7 +106,7 @@ Every example ships real prompt, agent, code, config and log files, so the popup
 
 ## Generate a tower from your code (any coding agent)
 
-Your coding agent reads the codebase and writes the tower. The procedure is harness-neutral: [docs/generate-a-tower.md](docs/generate-a-tower.md). Install it as an [Agent Skill](https://agentskills.io) for your agent (a second skill, [flow-tower-costs](skills/flow-tower-costs/SKILL.md), uses the tower to cut model cost and latency with benchmarks on real cases):
+Your coding agent reads the codebase and writes the tower. The procedure is harness-neutral: [docs/generate-a-tower.md](docs/generate-a-tower.md). Install it as an [Agent Skill](https://agentskills.io) for your agent (further skills: [flow-tower-costs](skills/flow-tower-costs/SKILL.md) uses the tower to cut model cost and latency with benchmarks on real cases, [flow-tower-my-library](skills/flow-tower-my-library/SKILL.md) keeps your own towers in one library):
 
 ```bash
 node bin/flow-tower.js install-skill                  # Claude Code: ~/.claude/skills
@@ -196,13 +196,13 @@ Flow Tower runs on your machine: the server listens on `127.0.0.1` only, reads o
 ## Project layout
 
 ```
-bin/            CLI: serve, init, validate, emit, guide, install-skill
+bin/            CLI: serve, init, validate, library, emit, guide, install-skill
 src/core/       schema (zod), YAML loader, validation, live-event adapters and matching
 src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /api/events, /api/voice (speech, agent, spoken replies, journal), live reload
 src/app/        React + three.js app: scene/ (3D) and hud/ (overlay UI)
-src/cli/        TypeScript CLI commands (validate)
+src/cli/        TypeScript CLI commands (validate, library)
 schema/         generated JSON Schema
-skills/         Agent Skills: flow-tower (generates towers from a codebase), flow-tower-costs (model cost/latency)
+skills/         Agent Skills: flow-tower (generates towers from a codebase), flow-tower-costs (model cost/latency), flow-tower-my-library (keep your own towers in one library)
 integrations/   live-event configs for Claude Code, Agent SDK, Codex, Pi, Hermes
 examples/       starters (1–3 layers) and researched presets, indexed by pattern in examples/README.md
 scripts/        schema, stress-tower and event-simulator scripts

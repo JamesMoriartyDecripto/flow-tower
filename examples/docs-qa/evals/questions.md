@@ -117,3 +117,7 @@ passes when the answer contains it (case-insensitive), and `a / b` means either 
 ## Q28. Can a remote viewer change anything in the Hub panel?
 - docs: docs/hub-reference.md, docs/command-center.md
 - facts: read-only | refused
+
+## Q29. How do I keep my own towers in one library without putting them in the flow-tower repo?
+- docs: docs/getting-started.md
+- facts: flow-tower library add | config.json | examples/
