@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { NodeType } from '../core/schema';
+import { NODE_TYPES, type NodeType } from '../core/schema';
 import type { ResolvedNode, ResolvedTower, Workspace } from '../core/types';
 import { deepLink } from './graph';
 
@@ -59,6 +59,8 @@ interface State {
   goTo(depth: number): void;
   set(patch: Partial<Pick<State, 'explode' | 'autoRotate' | 'particles' | 'search' | 'quality' | 'animations' | 'view' | 'runtimeFocus'>>): void;
   toggleType(type: NodeType): void;
+  /** "mostra solo gli agenti": hide everything but these types. undefined shows every type. */
+  showOnlyTypes(types: NodeType[] | undefined): void;
   openFile(file?: OpenFile): void;
 }
 
@@ -167,6 +169,10 @@ export const useStore = create<State>()((set, get) => ({
     const hiddenTypes = new Set(get().hiddenTypes);
     if (!hiddenTypes.delete(type)) hiddenTypes.add(type);
     set({ hiddenTypes });
+  },
+  showOnlyTypes(types) {
+    // A new Set, never the one in state: same rule as toggleType, so React sees a new reference.
+    set({ hiddenTypes: new Set(types ? NODE_TYPES.filter((t) => !types.includes(t)) : []) });
   },
   openFile: (file) => set({ file }),
 }));

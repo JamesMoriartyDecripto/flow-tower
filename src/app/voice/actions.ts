@@ -96,6 +96,9 @@ export function execute(a: VoiceAction, { stop }: ActionDeps): string {
       hub.show(a.tab);
       return a.tab === 'machines' ? 'Hub · Machines' : 'Hub';
     }
+    case 'types':
+      s.showOnlyTypes(a.only);
+      return a.only?.length ? `Showing ${a.only.join(', ')}` : 'Showing every type';
     case 'mic-off': setTimeout(stop); return 'Microphone off';
     case 'ambiguous': return `Which one? ${a.options.map((o, i) => `${i + 1}. ${o.label}`).join('  ')}`;
     case 'unknown': return NOT_UNDERSTOOD;

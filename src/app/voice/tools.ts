@@ -1,13 +1,15 @@
+import { NODE_TYPES } from '../../core/schema';
 import type { ResolvedNode, ResolvedTower, Workspace } from '../../core/types';
 import { fetchFile } from '../api';
 import { allEdges, towerPath } from '../graph';
 import { flowOrder } from '../keynav';
+import { LIBRARY_FILTER_EVENT, matchingProjects, type LibraryFilter } from '../library';
 import { opsMarks } from '../ops';
 import { chooseView } from '../settings';
 import { findNode, useStore } from '../store';
 import { useHub } from '../hud/Hub';
 import { SCROLL_EVENT } from './actions';
-import { norm, score } from './commands';
+import { norm, nodeTypeOf, score } from './commands';
 import { currentList, setList } from './referents';
 
 /**
@@ -43,6 +45,8 @@ export const TOOLS: ToolDef[] = [
   tool('close_file', 'Close the file viewer. The selected node and the view stay as they are.'),
   tool('scroll_file', 'Scroll the file open in the viewer: down/up one page, or to the top/bottom. Needs a file open.', { to: { type: 'string', enum: ['down', 'up', 'top', 'bottom'] } }, ['to']),
   tool('hub_panel', 'Open the Hub panel on a tab (now/machines) or close it. Only works on a hub page.', { tab: { type: 'string', enum: ['now', 'machines', 'close'] } }, ['tab']),
+  tool('filter_nodes', `Show only some node types on screen (the legend's type filter). Valid types: ${NODE_TYPES.join(', ')}. An empty or absent list shows every type again.`, { types: { type: 'array', items: { type: 'string' }, description: 'Node types to keep visible; the others are hidden.' } }),
+  tool('library_filter', 'Open the project library and filter it: a text query (name, description, tag or model) and/or a tag. Both are set; an absent one is cleared. Returns how many projects match.', { query: str('Words to match against project name, description, tag or model.'), tag: str('Show only projects carrying this tag.') }),
   tool('open_project', 'Open a project or a sub-tower by name.', { name: str('Project or tower name.') }, ['name']),
   tool('navigate', 'Move the view. back = like Esc: closes the open file first, else deselects the node, else leaves the layer, else goes up one tower, else opens the library.', { to: { type: 'string', enum: ['library', 'overview', 'back', 'map', 'tower', 'enter_sub_tower'] } }, ['to']),
 ];
@@ -243,6 +247,26 @@ export function runTool(name: string, args: Args): string {
       if (!path) return out({ error: `No project "${args.name}".`, projects: ws.projects.map((id) => ws.towers[id].name) });
       s.openPath(path);
       return out({ opened: best.t.name });
+    }
+    case 'filter_nodes': {
+      const asked = (Array.isArray(args.types) ? args.types : []).map((t) => String(t).trim()).filter(Boolean);
+      const only = asked.map((name) => nodeTypeOf(name));
+      // A type the model invented would silently show nothing: refuse and list what is valid.
+      const unknown = asked.filter((_, i) => only[i] === undefined);
+      if (unknown.length) return out({ error: `Unknown node type(s): ${unknown.join(', ')}.`, types: NODE_TYPES });
+      const types = only.filter((t) => t !== undefined);
+      useStore.getState().showOnlyTypes(types.length ? types : undefined);
+      return out({ showing: types.length ? types : 'every type' });
+    }
+    case 'library_filter': {
+      const filter: LibraryFilter = { ...(args.query !== undefined && { query: String(args.query) }), ...(args.tag !== undefined && { tag: String(args.tag) }) };
+      const count = matchingProjects(ws, filter).length;
+      s.showLibrary(true);
+      // If the Library is mounting now (it was closed), it attaches its listener on the next frame:
+      // dispatching later is what makes the tool's filter the panel's own state (#145c).
+      const frame: (fn: () => void) => unknown = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
+      frame(() => window.dispatchEvent(new CustomEvent<LibraryFilter>(LIBRARY_FILTER_EVENT, { detail: filter })));
+      return out({ projects: count, query: filter.query, tag: filter.tag });
     }
     case 'navigate': {
       switch (args.to) {

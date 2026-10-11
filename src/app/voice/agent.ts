@@ -72,7 +72,8 @@ function stepLabel(name: string, args: Record<string, unknown>) {
   const labels: Record<string, string> = {
     screen: 'Looking at the screen', list_layers: 'Reading the layers', layer_nodes: 'Reading layer', node_info: 'Reading',
     connections: 'Following the connections of', node_files: 'Listing the files of', search: 'Searching for', focus_layer: 'Showing layer',
-    select_node: 'Selecting', open_file: 'Opening a file', read_file: 'Reading the file', close_file: 'Closing the file', open_project: 'Opening', navigate: 'Moving',
+    select_node: 'Selecting', open_file: 'Opening a file', read_file: 'Reading the file', close_file: 'Closing the file', open_project: 'Opening',
+    filter_nodes: 'Filtering node types', library_filter: 'Filtering the library', navigate: 'Moving',
   };
   return `${labels[name] ?? name}${what ? ` ${what}` : ''}…`;
 }

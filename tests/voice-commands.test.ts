@@ -140,6 +140,35 @@ describe('voice commands (#62)', () => {
     }
   });
 
+  it('shows only some node types, in both languages (#145c)', () => {
+    expect(say('mostra solo gli agenti')).toEqual({ kind: 'types', only: ['agent'] });
+    expect(say('mostra solo i tool')).toEqual({ kind: 'types', only: ['tool'] });
+    expect(say('mostra solo gli strumenti')).toEqual({ kind: 'types', only: ['tool'] });
+    expect(say('mostra solo i modelli')).toEqual({ kind: 'types', only: ['model'] });
+    expect(say('mostra solo le decisioni')).toEqual({ kind: 'types', only: ['decision'] });
+    expect(say('mostra solo gli umani')).toEqual({ kind: 'types', only: ['human'] });
+    expect(say('mostra solo le guardie')).toEqual({ kind: 'types', only: ['guard'] });
+    expect(say('mostra solo gli hook')).toEqual({ kind: 'types', only: ['hook'] });
+    expect(say('mostra solo gli ingressi')).toEqual({ kind: 'types', only: ['entry'] });
+    expect(say('mostra solo le uscite')).toEqual({ kind: 'types', only: ['output'] });
+    expect(say('mostra solo la memoria')).toEqual({ kind: 'types', only: ['memory'] });
+    expect(say('mostra solo i processi')).toEqual({ kind: 'types', only: ['process'] });
+    expect(say('show only agents')).toEqual({ kind: 'types', only: ['agent'] });
+    expect(say('show only the models')).toEqual({ kind: 'types', only: ['model'] });
+    expect(say('show only tools')).toEqual({ kind: 'types', only: ['tool'] });
+  });
+
+  it('accepts several types at once, and shows everything again (#145c)', () => {
+    expect(say('mostra solo agenti e tool')).toEqual({ kind: 'types', only: ['agent', 'tool'] });
+    expect(say('show only agents and tools')).toEqual({ kind: 'types', only: ['agent', 'tool'] });
+    for (const text of ['mostra tutto', 'tutti i nodi', 'show everything', 'show all']) {
+      expect(say(text), text).toEqual({ kind: 'types' });
+    }
+    // Whole-utterance only: a question about the types stays with the agent.
+    expect(say('cosa mostra solo gli agenti?')).not.toEqual({ kind: 'types', only: ['agent'] });
+    expect(isFixed(say('mostra solo gli agenti'))).toBe(true);
+  });
+
   it('offers a choice when names tie, and admits when nothing matches', () => {
     const r = say('vai al nodo MCP');
     expect(r.kind).toBe('ambiguous');

@@ -57,6 +57,68 @@ describe('voice agent tools (#63)', () => {
     expect(names).toContain('hub_panel');
   });
 
+  it('lists the filter_nodes and library_filter tools (#145c)', () => {
+    const names = TOOLS.map((t) => t.function.name);
+    expect(names).toContain('filter_nodes');
+    expect(names).toContain('library_filter');
+  });
+
+  it('shows only some node types, and resets with an empty list (#145c)', () => {
+    expect(call('filter_nodes', { types: ['agent', 'tool'] })).toEqual({ showing: ['agent', 'tool'] });
+    expect([...useStore.getState().hiddenTypes].sort()).toEqual(
+      ['decision', 'entry', 'guard', 'hook', 'human', 'memory', 'model', 'output', 'process']);
+    expect(call('filter_nodes', { types: [] })).toEqual({ showing: 'every type' });
+    expect(useStore.getState().hiddenTypes.size).toBe(0);
+    // Absent list behaves like an empty one: everything back.
+    expect(call('filter_nodes', { types: ['model'] })).toEqual({ showing: ['model'] });
+    expect(call('filter_nodes')).toEqual({ showing: 'every type' });
+    // Type names are the same words the parser knows, in both languages.
+    expect(call('filter_nodes', { types: ['agenti'] })).toEqual({ showing: ['agent'] });
+    // An invented type is refused, listing what is valid instead of showing nothing.
+    // A refusal leaves the state alone: the set from the previous call is untouched.
+    const before = [...useStore.getState().hiddenTypes].sort();
+    const bad = call('filter_nodes', { types: ['pizza'] });
+    expect(bad.error).toMatch(/pizza/);
+    expect(bad.types).toContain('agent');
+    expect([...useStore.getState().hiddenTypes].sort()).toEqual(before);
+  });
+
+  it('opens the library and filters it (#145c)', () => {
+    const seen: unknown[] = [];
+    window.addEventListener('flow-tower:library-filter', (e) => seen.push((e as CustomEvent<unknown>).detail));
+    // The count is the one on screen: a query matching the project name finds it.
+    expect(call('library_filter', { query: 'dev squad' })).toMatchObject({ projects: 1, query: 'dev squad' });
+    expect(useStore.getState().library).toBe(true);
+    // A query matching nothing is honest about it.
+    expect(call('library_filter', { query: 'nothing here' }).projects).toBe(0);
+    // The event carries both fields, so the panel sets the box and the tag together.
+    expect(call('library_filter', { query: 'x', tag: 'coding' }).tag).toBe('coding');
+    return new Promise<void>((done) => setTimeout(() => {
+      expect(seen).toEqual([{ query: 'dev squad' }, { query: 'nothing here' }, { query: 'x', tag: 'coding' }]);
+      done();
+    }, 20));
+  });
+
+  it('never mutates the hidden set in place (#145c)', () => {
+    useStore.getState().showOnlyTypes(['agent']);
+    const first = useStore.getState().hiddenTypes;
+    useStore.getState().showOnlyTypes(['tool']);
+    const second = useStore.getState().hiddenTypes;
+    expect(second).not.toBe(first);
+    expect(first.has('tool')).toBe(true); // the earlier set is untouched
+    useStore.getState().showOnlyTypes(undefined);
+    expect(useStore.getState().hiddenTypes.size).toBe(0);
+    expect(second.size).toBeGreaterThan(0); // replacing did not clear the old one either
+  });
+
+  it('filters through the same rule the panel uses (#145c)', async () => {
+    const { matchingProjects } = await import('../src/app/library');
+    const ws = useStore.getState().workspace!;
+    expect(matchingProjects(ws, {})).toEqual(ws.projects);
+    expect(matchingProjects(ws, { tag: 'pizza' })).toEqual([]);
+    expect(matchingProjects(ws, { tag: 'coding' })).toEqual(ws.projects);
+  });
+
   it('scrolls the open file by dispatching the viewer event (#145b)', () => {
     const seen: string[] = [];
     window.addEventListener('flow-tower:viewer-scroll', (e) => seen.push((e as CustomEvent<string>).detail));
