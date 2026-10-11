@@ -456,6 +456,8 @@ describe('cli copy (#116)', () => {
     expect(existsSync(join(dest, 'rag-bot.tower.yaml'))).toBe(true);
     expect(existsSync(join(dest, 'prompts/answer.md'))).toBe(true);
     expect(r.stdout).toContain('validation: 1 tower(s), 0 error(s)');
+    // simulate matches project ids (tower file paths), so the hint must name the file, not the display name.
+    expect(r.stdout).toContain('npm run simulate -- rag-bot --url http://127.0.0.1:5317');
     expect(r.stdout).toContain('flow-tower');
   });
 

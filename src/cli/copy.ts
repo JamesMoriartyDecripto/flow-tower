@@ -135,7 +135,9 @@ for (const rel of listFiles(src)) {
 const main = mainTower(src);
 // A dogfood tower points at this repo with root: ../..: those paths break the moment it is copied.
 const dogfood = main ? /^root:\s*\.\.\/\.\.\s*$/m.test(readFileSync(main, 'utf8')) : false;
-const name = main ? towerName(main) : undefined;
+// `npm run simulate` matches its argument against project ids, which are tower file paths: the display
+// name would silently fall back to the first tower, so hand it the file name without the extension.
+const project = main ? basename(main, '.tower.yaml') : undefined;
 
 // The same validation as `flow-tower validate <dest> --json`: run the CLI, do not re-implement it.
 const r = spawnSync(process.execPath, [CLI, 'validate', dest, '--json'], { encoding: 'utf8' });
@@ -154,6 +156,6 @@ if (validation?.towers) {
 }
 console.log(`next steps
   open it:     flow-tower ${dest}
-  try it live: npm run simulate -- ${name ? `"${name}"` : '<tower name>'} --url http://127.0.0.1:5317   (from ${pkgRoot})
+  try it live: npm run simulate -- ${project ?? '<tower file>'} --url http://127.0.0.1:5317   (from ${pkgRoot})
   adapt root: and files: to where the files live in your copy`);
 exit(0);
