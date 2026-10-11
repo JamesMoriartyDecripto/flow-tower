@@ -456,8 +456,12 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .viewer .code.wrap .md-view pre { white-space: pre-wrap; }
 .md-view blockquote { margin: 0; padding: 2px 14px; border-left: 3px solid var(--orange); color: var(--dim); }
 .md-view table { border-collapse: collapse; margin: 10px 0; font-size: 14px; display: block; overflow-x: auto; }
-.md-view th, .md-view td { border: 1px solid var(--line-soft); padding: 5px 10px; text-align: left; vertical-align: top; }
-.md-view th { color: var(--orange); font-weight: 700; }
+/* `anywhere` (on .md-view) lets a break fall inside a word, which drops a table cell's min-content
+   width to one character: auto-layout then squeezes every column to that. `break-word` still wraps a
+   long URL, but min-content stays the longest word, so wide tables scroll instead. */
+.md-view th, .md-view td { border: 1px solid var(--line-soft); padding: 5px 10px; text-align: left; vertical-align: top; overflow-wrap: break-word; word-break: normal; }
+/* Headers stay on one line: they are short labels, and a wrapped header hides the column's meaning. */
+.md-view th { color: var(--orange); font-weight: 700; white-space: nowrap; }
 .md-view hr { border: 0; border-top: 1px solid var(--line-soft); margin: 18px 0; }
 .md-view ul, .md-view ol { padding-left: 1.4em; }
 .md-view .md-meta { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 0 0 14px; padding: 8px 12px; border: 1px solid var(--line-soft); font: 12px var(--mono); }
