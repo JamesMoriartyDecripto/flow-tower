@@ -18,7 +18,7 @@ tailscale serve status           # shows https://hub.tailnet-xyz.ts.net -> http:
 ```
 
 Tailscale adds `tailscale-user-login` to each forwarded request, which is how a viewer is recognised.
-Add viewers to `~/.config/flow-tower/hub.json`:
+Add viewers to `~/.config/flow-tower/config.json` (`hub.json` is only a deprecated fallback, moved with a warning):
 
 ```json
 { "viewers": ["alice@example.com"] }

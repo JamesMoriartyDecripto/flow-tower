@@ -123,7 +123,7 @@ export function hubGuard(opts: HubOptions) {
     if (!isRemote(req, { hub: opts.hub })) return next(); // local requests keep today's behaviour
     if (isViewing(req.method, path)) {
       if (isViewer(req, opts.home)) return next();
-      return deny(res, 403, { error: 'remote viewing is not allowed for this user (see viewers in hub.json on the hub)' });
+      return deny(res, 403, { error: 'remote viewing is not allowed for this user (see viewers in config.json on the hub; hub.json is only a deprecated fallback)' });
     }
     return deny(res, 403, { error: 'remote requests may only ingest events' });
   };

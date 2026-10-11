@@ -273,12 +273,20 @@ async function emit() {
     env, checkout: pkgRoot,
     flags: { url: explicit('url') ? values.url : undefined, user: values.user, machine: values.machine, token: values.token },
   });
-  const url = cfg.url ?? values.url;
+  // A satellite (#91) posts to the LOCAL relay, not to the config url (which names the hub): the local
+  // server carries the hub token itself, so posting the config token there would only earn a 401 and lose
+  // the event. `--url` still picks another local server; anything else keeps the config url, flags win.
+  const url = cfg.role === 'satellite' ? values.url : cfg.url ?? values.url;
 
   const params = new URLSearchParams(Object.entries({ source: values.source, tower: values.tower }).filter(([, v]) => v));
   const query = params.size ? `?${params}` : '';
   const headers = { 'content-type': 'application/json' };
-  const token = cfg.token ?? env.FLOW_TOWER_TOKEN;
+  // Explicit credentials travel everywhere; the CONFIG token is the hub's credential for the config url,
+  // so it is only ever attached to that url's origin and never handed to a different host via --url.
+  const sameOrigin = (a, b) => { try { return new URL(a).origin === new URL(b).origin; } catch { return false; } };
+  const envToken = env.FLOW_TOWER_TOKEN?.trim();
+  const configToken = cfg.config.token && cfg.config.url && sameOrigin(cfg.config.url, url) ? cfg.config.token : undefined;
+  const token = values.token ?? (envToken || undefined) ?? configToken;
   if (token) headers['x-flow-tower-token'] = token;
   const post = (events) => fetch(`${url}/api/events${query}`, {
     method: 'POST', headers, body: JSON.stringify(events), signal: AbortSignal.timeout(1500),

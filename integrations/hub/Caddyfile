@@ -16,9 +16,9 @@ events.tailnet-xyz.example.com {
 	# 	window 1m
 	# }
 
-	# Only the ingest routes exist here. /api/events and the OTLP receivers.
+	# Only the ingest routes exist here. /api/events, the satellite heartbeat, and the OTLP receivers.
 	@ingest {
-		path /api/events /v1/*
+		path /api/events /api/heartbeat /v1/*
 	}
 	handle @ingest {
 		reverse_proxy 127.0.0.1:5317
