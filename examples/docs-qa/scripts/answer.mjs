@@ -2,7 +2,36 @@
 // Answer one question about Flow Tower from this repo's docs: route -> JIT load -> write -> guard.
 // Usage: node answer.mjs "<question>" [--model <id>] [--dry-run] [--whole-bytes <n>]
 import { argv, exit } from 'node:process';
-import { catalog, chat, DEFAULT_MODEL, DOCS, guard, keywordRoute, load, LOAD_WHOLE_BYTES, prompt } from './lib.mjs';
+import { catalog, chat, DEFAULT_MODEL, DOCS, guard, keywordRoute, load, LOAD_WHOLE_BYTES, prompt, sections } from './lib.mjs';
+
+/** First non-heading paragraph of a section: markdown headings, fences, table rows and rules skipped. */
+function firstParagraph(text) {
+  const lines = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (/^(#{1,4}\s|```|\||---)/.test(line)) { if (lines.length) break; continue; }
+    if (line) lines.push(line);
+    else if (lines.length) break;
+  }
+  return lines.join(' ').trim();
+}
+
+/**
+ * Mock writer for `--dry-run`: for each loaded doc, one sentence copied from its first non-heading
+ * paragraph, closed by a citation that resolves. It does not answer the question; its only job is to
+ * make the whole pipeline runnable offline, so the guard and the scorer are exercised too.
+ */
+function mockAnswer(loaded) {
+  const lines = [];
+  for (const part of loaded.parts) {
+    // The file preamble carries no heading slug, so cite the first titled section that has prose.
+    const sec = sections(part.text).find((s) => s.slug && firstParagraph(s.text));
+    const para = sec && firstParagraph(sec.text);
+    if (!para) continue;
+    lines.push(`${/^.*?[.!?](?=\s|$)/.exec(para)?.[0] ?? para} (${part.doc}#${sec.slug})`);
+  }
+  return lines.join('\n') || 'Not in the docs.';
+}
 
 /** Router: a cheap model call over the catalog; the keyword router when offline or the reply is unusable. */
 export async function route(question, { model, dryRun }) {
@@ -29,7 +58,15 @@ export async function answer(question, { model = DEFAULT_MODEL, dryRun = false, 
   stats.loaded_whole = loaded.whole;
   stats.loaded_sections = loaded.sections;
   stats.loaded_bytes = loaded.bytes;
-  if (dryRun) return { text: `route: ${r.docs.join(', ')}  (${r.scores.join('  ')})`, stats: { ...stats, ms: Date.now() - t0 }, route: r };
+  // The dry run skips the model call but not the rest of the pipeline: a mock writer stands in for the
+  // model, then the guard runs on its output, so a broken guard call cannot hide offline again.
+  if (dryRun) {
+    const text = mockAnswer(loaded);
+    const check = guard(text, loaded);
+    stats.mock = true;
+    stats.ms = Date.now() - t0;
+    return { text, stats, route: r, guard: check };
+  }
 
   const context = loaded.parts.map((l) => `<doc path="${l.doc}">\n${l.text}</doc>`).join('\n');
   const messages = [{ role: 'system', content: prompt('answer') }, { role: 'user', content: `${context}\n\nQuestion: ${question}` }];
@@ -41,7 +78,7 @@ export async function answer(question, { model = DEFAULT_MODEL, dryRun = false, 
     stats.tokens += w.tokens;
     stats.cost += w.cost;
     text = w.text.trim();
-    check = guard(text, loaded.parts);
+    check = guard(text, loaded);
     if (check.ok) break;
     messages.push({ role: 'assistant', content: text }, { role: 'user', content: `${prompt('guard')}\nProblems: ${check.problems.join('; ')}` });
   }

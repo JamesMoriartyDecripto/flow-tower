@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Run evals/questions.md through the answer flow and write the gap report.
 // Usage: node eval.mjs [--dry-run] [--model <id>] [--out <gaps.md>] [--only Q3,Q7] [--runs N] [--whole-bytes <n>]
-// A question fails on a wrong route, a missing key fact or a bad citation; --dry-run scores routing only.
+// A question fails on a wrong route, a missing key fact or a bad citation. --dry-run runs the same pipeline
+// offline against a mock writer (see answer.mjs): the scores are a smoke test, not a model score.
 // Each question runs N times (default 3) and passes on the majority: the same docs scored 15/24 then 11/24 live.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -38,12 +39,12 @@ async function attempt(x) {
     const res = await answer(x.q, { model, dryRun, wholeBytes });
     const reasons = [];
     if (!res.stats.docs_loaded.some((d) => x.docs.includes(d))) reasons.push(`wrong route: ${res.stats.docs_loaded.join(', ')}`);
-    if (!dryRun) {
-      const lower = res.text.toLowerCase();
-      const missing = x.facts.filter((f) => !f.split(' / ').some((alt) => lower.includes(alt.toLowerCase())));
-      if (missing.length) reasons.push(`missing fact: ${missing.join('; ')}`);
-      if (!res.guard?.ok) reasons.push(`bad citation: ${res.guard?.problems.join('; ')}`);
-    }
+    // Facts and citations count in a dry run too: the mock writer answers nothing useful, but the
+    // guard and the scorer must be exercised offline, or a broken guard call ships unnoticed.
+    const lower = res.text.toLowerCase();
+    const missing = x.facts.filter((f) => !f.split(' / ').some((alt) => lower.includes(alt.toLowerCase())));
+    if (missing.length) reasons.push(`missing fact: ${missing.join('; ')}`);
+    if (!res.guard?.ok) reasons.push(`bad citation: ${res.guard?.problems.join('; ')}`);
     return { pass: !reasons.length, reasons, routed: res.stats.docs_loaded, whole: res.stats.loaded_whole ?? [], sections: res.stats.loaded_sections ?? [], bytes: res.stats.loaded_bytes ?? 0, tokens: res.stats.tokens, cost: res.stats.cost, ms: res.stats.ms, cites: res.guard?.cites ?? [] };
   } catch (e) {
     return { pass: false, reasons: [`error: ${e.message}`], routed: [], whole: [], sections: [], bytes: 0, tokens: 0, cost: 0, ms: 0, cites: [] };
@@ -72,9 +73,9 @@ const loaded = (r) => [...r.whole.map((d) => `${d} (whole)`), ...r.sections.map(
 const md = [
   '# Doc gaps',
   '',
-  `Latest run: ${new Date().toISOString().slice(0, 16)}Z, ${dryRun ? '**dry run: routing and JIT loading only** (keyword router, no model, one pass)' : `model \`${model}\`, ${runs} runs per question (majority pass)`}, docs loaded whole up to ${wholeBytes} B.`,
+  `Latest run: ${new Date().toISOString().slice(0, 16)}Z, ${dryRun ? '**dry run: mock model, keyword router, one pass** (routing, JIT loading, citations and scoring; no real answers)' : `model \`${model}\`, ${runs} runs per question (majority pass)`}, docs loaded whole up to ${wholeBytes} B.`,
   '',
-  `**Score: ${score}** ${dryRun ? 'routed to an expected doc' : 'passed the majority (route, facts and citations)'}.${dryRun ? '' : ` Tokens ${tokens}, cost $${cost.toFixed(4)}.`}`,
+  `**Score: ${score}** ${dryRun ? 'passed with a mock model; nothing was answered, so this is a pipeline smoke test, not a quality score' : 'passed the majority (route, facts and citations)'}.${dryRun ? '' : ` Tokens ${tokens}, cost $${cost.toFixed(4)}.`}`,
   '',
   fails.length ? '## Gaps' : '## Gaps\n\nNone.',
   '',

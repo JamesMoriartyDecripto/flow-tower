@@ -23,7 +23,8 @@ For a classic embeddings pipeline, start from [`starters/rag-bot`](../starters/r
 
 **Answer:** question → router (cheap model call; keyword fallback) → JIT load → answer writer (cites
 `file#heading`) → citation guard (the file and heading exist and the section contains the claim; one loop
-back to the writer, then "Not in the docs" plus the closest doc) → reply.
+back to the writer, then "Not in the docs" plus the closest doc) → reply. With `--dry-run` a mock writer
+stands in for the model, so the whole pipeline can run offline.
 
 **Eval (the doc-gap loop):** [`evals/questions.md`](evals/questions.md) (24 real questions, each with the
 expected doc and 1–3 key facts read from the docs) → runner (each question runs `--runs N` times, default
@@ -39,8 +40,8 @@ fact) when the answer is wrong. Repeating a question guards against model noise:
 Node 22, no dependencies. From the repository root:
 
 ```bash
-node examples/docs-qa/scripts/answer.mjs --dry-run "How do I pause sharing?"   # routing + JIT loading, offline
-node examples/docs-qa/scripts/eval.mjs --dry-run --out /tmp/gaps.md            # routing + JIT loading, offline
+node examples/docs-qa/scripts/answer.mjs --dry-run "How do I pause sharing?"   # whole pipeline, mock model, offline
+node examples/docs-qa/scripts/eval.mjs --dry-run --out /tmp/gaps.md            # whole pipeline, mock model, offline
 ```
 
 A real run calls [OpenRouter](https://openrouter.ai). Export `OPENROUTER_API_KEY` in your shell (never
@@ -55,7 +56,9 @@ node examples/docs-qa/scripts/eval.mjs --runs 5 --whole-bytes 32000
 
 `answer.mjs` prints the answer with citations, then one JSON line `{ docs_loaded, routed_by, tokens,
 cost, ms, loaded_whole, loaded_sections, loaded_bytes }`. `eval.mjs` prints the same per question and
-writes the pass rate and the loaded docs into `gaps.md`. Calls use low reasoning effort, `provider: { data_collection: 'deny' }`, a 45 s timeout and
+writes the pass rate and the loaded docs into `gaps.md`. A `--dry-run` swaps the model for a mock
+writer that copies a sentence from each loaded doc: routing, the guard and the scorer still run, but the
+score is a pipeline smoke test, not a model score. Calls use low reasoning effort, `provider: { data_collection: 'deny' }`, a 45 s timeout and
 one retry. Copied out of this repo, set `DOCS_QA_ROOT` to a flow-tower clone.
 
 ## Cost and model choice
@@ -63,8 +66,8 @@ one retry. Copied out of this repo, set `DOCS_QA_ROOT` to a flow-tower clone.
 The default is `google/gemini-3.5-flash-lite` (the same model the voice agent uses). Do not pick on price
 alone: benchmark candidates on this eval with the [cost skill](../../skills/flow-tower-costs/SKILL.md) and
 the benchmark method of [#108](https://github.com/JamesMoriartyDecripto/flow-tower/issues/108), and keep
-the cheapest model that passes. The routing score in the tower (18/24) is the first dry run with the
-keyword router, before any doc fix: illustrative.
+the cheapest model that passes. The `18/24` in the tower is the first keyword-router run, before any doc
+fix: illustrative.
 
 ## Files
 
