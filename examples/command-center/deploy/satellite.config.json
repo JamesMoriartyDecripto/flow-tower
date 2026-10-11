@@ -1,0 +1,6 @@
+{
+  "role": "satellite",
+  "url": "https://hub.example.ts.net",
+  "token": "ft_REPLACE_ME",
+  "machine": "laptop-1"
+}

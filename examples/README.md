@@ -47,6 +47,7 @@ Every example is a real, validated tower: each prompt, script, config and log it
 |---|---|---|
 | [`physics-notes`](physics-notes) | 4 | A method on top that routes to chapters below, formulas in descriptions, notes pages behind every node |
 | [`history-notes`](history-notes) | 5 | Phases in time order, cause and effect across layers, people as a supporting layer |
+| [`command-center`](command-center) | 5 | Self-hosted hub as a tower: machines, transport, hub service, library, viewers; ready deploy files (systemd, compose, Caddy, config) |
 | [`db-api-playbook`](db-api-playbook) | 6 | A playbook: decisions on top, one layer per phase, a request pipeline sub-tower with every early exit (401, 429, 412…) into one Problem Details output |
 
 ## Rules every example follows
