@@ -41,6 +41,7 @@ Every example is a real, validated tower: each prompt, script, config and log it
 | [`release-auditor`](release-auditor) | 6 | Pre-release bug sweep, dogfooded on this repo: deterministic gates, Playwright sweep sub-tower, one finder per charter, adversarial verifier, test-first fixes; `root: ../..` so nodes open real repo files, scripts report live |
 | [`voice-commands`](voice-commands) | 6 | A feature mapped with its design choices, dogfooded on this repo: the voice widget from microphone to command, the speech engines it weighed (Web Speech on-device and cloud, Whisper in the browser, OpenRouter: chosen), and the conversational agent that answers out loud with tower tools |
 | [`team-hub`](team-hub) | 7 | The team hub's architecture, dogfooded on this repo: senders, guard and tokens, ingest limits, identity cascade, SQLite history with rollups, config precedence; planned views (hub panel, privacy profiles, admin, alerts) dashed |
+| [`docs-qa`](docs-qa) | 4 | Docs Q&A over this repo, dogfooded: just-in-time routing (CLAUDE.md table, doc headers) instead of embeddings, citation guard, and an eval loop whose failures are doc gaps; `root: ../..`, runnable scripts with a dry run
 
 ## Beyond agents: notes and playbooks
 
