@@ -2,7 +2,7 @@
 // Answer one question about Flow Tower from this repo's docs: route -> JIT load -> write -> guard.
 // Usage: node answer.mjs "<question>" [--model <id>] [--dry-run] [--whole-bytes <n>]
 import { argv, exit } from 'node:process';
-import { catalog, chat, DEFAULT_MODEL, DOCS, guard, keywordRoute, load, LOAD_WHOLE_BYTES, prompt, sections } from './lib.mjs';
+import { catalog, chat, DEFAULT_MODEL, DOCS, guard, keywordRoute, load, LOAD_WHOLE_BYTES, prompt, resolveKey, sections } from './lib.mjs';
 
 /** First non-heading paragraph of a section: markdown headings, fences, table rows and rules skipped. */
 function firstParagraph(text) {
@@ -116,6 +116,11 @@ if (isMain) {
   const dryRun = args.includes('--dry-run');
   const question = args.filter((a) => a !== '--dry-run').join(' ').trim();
   if (!question) { console.error('usage: node answer.mjs "<question>" [--model <id>] [--dry-run] [--whole-bytes <n>]'); exit(1); }
+  // Fail fast, before any model call: the same message as eval.mjs so both flows are learned once.
+  if (!dryRun && !resolveKey()) {
+    console.error('no OpenRouter key: export OPENROUTER_API_KEY, or put it in the user folder key file; --dry-run runs offline');
+    exit(2);
+  }
   try {
     const out = await answer(question, { model, dryRun, wholeBytes });
     console.log(out.text);

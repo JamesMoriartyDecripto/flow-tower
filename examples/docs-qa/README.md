@@ -65,8 +65,11 @@ node examples/docs-qa/scripts/answer.mjs --dry-run "How do I pause sharing?"   #
 node examples/docs-qa/scripts/eval.mjs --dry-run --out /tmp/gaps.md            # whole pipeline, mock model, offline
 ```
 
-A real run calls [OpenRouter](https://openrouter.ai). Export `OPENROUTER_API_KEY` in your shell (never
-put it in a file in the repo; the scripts never print it), then:
+A real run calls [OpenRouter](https://openrouter.ai). The key is found in the same order as the squad
+runner ([same rule](../../tools/squad/README.md)): the environment wins, else the user folder's key file
+(`FLOW_TOWER_HOME` or `~/.config/flow-tower/.env`), else the git-ignored `.env` of this checkout, else the
+main checkout's (a worktree has none), and both scripts print one line and exit 2 before the first question
+when there is none (the scripts never print the key). Then:
 
 ```bash
 node examples/docs-qa/scripts/answer.mjs "How do I connect my laptop to the hub?"

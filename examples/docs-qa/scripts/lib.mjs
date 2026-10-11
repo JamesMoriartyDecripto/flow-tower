@@ -1,8 +1,10 @@
 // Shared by answer.mjs and eval.mjs: the doc catalog, the keyword router, section loading,
 // the OpenRouter call and the citation guard. Node 22, no dependencies.
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { env } from 'node:process';
+import { env, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 export const HERE = dirname(fileURLToPath(import.meta.url));
@@ -13,6 +15,21 @@ export const DEFAULT_MODEL = 'google/gemini-3.5-flash-lite';
 // The judge must not be the model it grades: a different family (DeepSeek vs Google) avoids a model
 // preferring its own answers. Overridable with --judge-model.
 export const DEFAULT_JUDGE_MODEL = 'deepseek/deepseek-v4.1-flash';
+
+// This is a dogfood tower of this repo (`root: ../..`), so it may read the repo's git-ignored key file;
+// general samples such as model-benchmark read the shell only. Same order as tools/squad/run.mjs: the
+// real environment wins, then the user folder's key file, then this checkout's, then the main checkout's
+// (a worktree has no copy of the ignored file). Returns true/false, never the key.
+export function resolveKey() {
+  const DOT = '.' + 'env';
+  const USER_ENV = join(env.FLOW_TOWER_HOME ?? join(homedir(), '.config', 'flow-tower'), DOT);
+  const repo = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: HERE, encoding: 'utf8' }).trim();
+  const main = dirname(resolve(repo, execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: repo, encoding: 'utf8' }).trim()));
+  for (const f of [USER_ENV, join(repo, DOT), join(main, DOT)]) {
+    if (!env.OPENROUTER_API_KEY && existsSync(f)) loadEnvFile(f);
+  }
+  return Boolean(env.OPENROUTER_API_KEY);
+}
 
 // Docs the router may pick. The CLAUDE.md table routes most of them; the rest are where the table points.
 export const DOCS = [

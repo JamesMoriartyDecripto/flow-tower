@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { argv, exit } from 'node:process';
 import { answer } from './answer.mjs';
-import { chat, DEFAULT_JUDGE_MODEL, DEFAULT_MODEL, EXAMPLE, LOAD_WHOLE_BYTES, prompt } from './lib.mjs';
+import { chat, DEFAULT_JUDGE_MODEL, DEFAULT_MODEL, EXAMPLE, LOAD_WHOLE_BYTES, prompt, resolveKey } from './lib.mjs';
 
 const args = argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf(n); return i < 0 ? d : args[i + 1]; };
@@ -20,6 +20,12 @@ const only = flag('--only', '')?.split(',').filter(Boolean);
 const wholeBytes = Number(flag('--whole-bytes')) || LOAD_WHOLE_BYTES;
 // The dry run is deterministic, so one pass is enough; live runs repeat to average out model noise.
 const runs = dryRun ? 1 : Math.max(1, Number(flag('--runs', '3')) || 3);
+// Fail before the first question and before the report: a missing key used to surface per question, after
+// a partial run had already overwritten gaps.md.
+if (!dryRun && !resolveKey()) {
+  console.error('no OpenRouter key: export OPENROUTER_API_KEY, or put it in the user folder key file; --dry-run runs offline');
+  exit(2);
+}
 
 /** Parse `## Qn. question` blocks with `- docs:` and `- facts:` lines. */
 function parse(md) {
