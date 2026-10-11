@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Onboarding guides: `docs/getting-started.md` (copy an example, write or generate your own tower, make it live) and `docs/command-center.md` (hub on a VPS or server, systemd, Tailscale or Caddy, satellites, troubleshooting); README quick start split into three paths (#101).
 - OTLP receiver accepts `Content-Encoding: gzip`; sample per-host OTel Collector in `integrations/otel-collector/` (host/user tags, prompt fields stripped, disk queue while offline) (#81).
 - One config file (#90): `~/.config/flow-tower/config.json` (or a git-ignored `flow-tower.local.json` in the checkout) for hub and emit settings, with flags > environment > config; `flow-tower config path|show`; `config.example.json`.
 - Satellites (#91): `flow-tower connect <hub-url> --token <t>` writes `role: "satellite"` into the user folder's `config.json` and sends one heartbeat; a local library then relays content-free events to the hub (bounded queue of 5000, oldest dropped, a revoked token stops it), with `GET /api/sharing` on the satellite and `GET /api/hub/satellites` on the hub.

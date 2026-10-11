@@ -165,6 +165,8 @@ The above is the local-only default. Sharing the server with other machines adds
 
 ## Connect remote sources
 
+Step-by-step setup (server, service, transport, connecting machines, troubleshooting): [command-center.md](command-center.md). This section is the reference.
+
 By default Flow Tower only listens on `127.0.0.1`: a second machine, a teammate or a cloud runner cannot
 reach it. Hub mode opens the event ingest to them **without** letting them read your files.
 

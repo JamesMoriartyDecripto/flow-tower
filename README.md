@@ -31,18 +31,25 @@
 
 ## Quick start
 
+Requires Node 22.12 or newer. The app runs locally on `127.0.0.1`. Nothing is uploaded.
+
 ```bash
 git clone https://github.com/JamesMoriartyDecripto/flow-tower.git
 cd flow-tower && npm install
-npm run dev                                  # library of the bundled examples
-node bin/flow-tower.js path/to/agent.tower.yaml
+```
+
+1. **Copy one tower and use it.** Copy an example folder into your project and open it:
+   `cp -R examples/starters/single-agent ~/my-project/tower && node bin/flow-tower.js ~/my-project/tower`.
+   `npm run dev` opens the whole examples library.
+2. **Your own towers**, from scratch or generated from your code: [docs/getting-started.md](docs/getting-started.md).
+3. **A command center** on a VPS or server that your machines report to: [docs/command-center.md](docs/command-center.md).
+
+```bash
 node bin/flow-tower.js ~/projects            # every *.tower.yaml found, as a library
 node bin/flow-tower.js init my-agent.tower.yaml   # starter file
 node bin/flow-tower.js other.tower.yaml --port 5318  # a second server next to the first
 node bin/flow-tower.js my.tower.yaml --browser firefox   # another browser (or set $BROWSER)
 ```
-
-Requires Node 22.12 or newer. The app runs locally on `127.0.0.1`. Nothing is uploaded.
 
 ## A tower in 30 lines
 
@@ -129,7 +136,7 @@ npm run simulate -- game-studio        # see it without wiring anything
 flow-tower emit --kind tool.start --agent coder --tool Bash -m "npm test"   # after `npm link` here
 ```
 
-Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [`integrations/`](integrations).
+Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [`integrations/`](integrations). Events from other machines go to a shared hub: [docs/command-center.md](docs/command-center.md).
 
 **Tokens and cost per node:** point Claude Code's or Codex's OpenTelemetry exporter at Flow Tower (OTLP/HTTP JSON, `http://127.0.0.1:5317`) and each agent node shows what it spent; see [docs/realtime.md](docs/realtime.md#tokens-and-cost-opentelemetry).
 
