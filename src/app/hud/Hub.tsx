@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { create } from 'zustand';
-import { ago, machineState, nowRows, type NowRow, type NowState } from '../hub';
+import { ago, hubPill, machineState, nowRows, type NowRow, type NowState } from '../hub';
 import { useLive } from '../live';
 import { STATIC } from '../staticData';
 
@@ -14,29 +14,47 @@ type Tab = 'now' | 'machines';
 interface HubStore {
   open: boolean;
   tab: Tab;
+  /** GET /api/hub/me, polled once by the top-bar chip and read here: `undefined` means unknown/lost. */
+  me?: HubMe;
   toggle(): void;
   close(): void;
   /** Open the panel on one tab (the tab buttons call it while it is already open). */
   show(tab: Tab): void;
   /** Move to the other tab, wrapping: [ ] while it is open, ← → while it has the focus. */
   step(d: 1 | -1): void;
+  setMe(me: HubMe | undefined): void;
 }
 
 const TABS: Tab[] = ['now', 'machines'];
 
+/**
+ * One /api/hub/me answer (src/server/hub-views.ts): whether this page is on a hub, whether it is a
+ * remote viewer, and the two counters of the top-bar pill. Metadata only: counts and flags, no token.
+ */
+export interface HubMe {
+  hub: boolean;
+  readOnly: boolean;
+  online: number;
+  tokens: number;
+}
+
 export const useHub = create<HubStore>()((set, get) => ({
   open: false,
   tab: 'now',
+  me: undefined,
   toggle: () => set({ open: !get().open }),
   close: () => set({ open: false }),
   show: (tab) => set({ open: true, tab }),
   step: (d) => set({ tab: TABS[(TABS.indexOf(get().tab) + d + TABS.length) % TABS.length] }),
+  setMe: (me) => set({ me }),
 }));
 
 /** The Now clock: ages and states are relative, so they must be recomputed while the panel is open. */
 const NOW_MS = 5000;
 /** The Machines list comes from the hub's own read route; five-minute staleness is all it reports. */
 const MACHINES_MS = 10_000;
+/** /api/hub/me feeds the top-bar pill: online count and active tokens, refreshed every half minute. */
+const ME_MS = 30_000;
 
 /** One dot per Now state, so the row reads at a glance like the live scene. */
 const DOT: Record<NowState, string> = { run: '●', idle: '◐', silent: '○' };
@@ -63,6 +81,7 @@ export function HubPanel() {
   const show = useHub((s) => s.show);
   const close = useHub((s) => s.close);
   const step = useHub((s) => s.step);
+  const me = useHub((s) => s.me);
   const events = useLive((s) => s.events);
   const [now, setNow] = useState(() => Date.now());
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -112,7 +131,10 @@ export function HubPanel() {
     <aside className="panel inspector hub" aria-label="Hub">
       <header>
         <button className="close" onClick={close} title="Close (Esc)">✕</button>
-        <div className="chips"><span className="chip">HUB</span></div>
+        <div className="chips">
+          <span className="chip">HUB</span>
+          {me?.readOnly && <span className="chip warn" title="Remote viewer: nothing here can change the hub">READ-ONLY</span>}
+        </div>
         <h2>Hub</h2>
         <div className="mono dim hub-hint">[ ] tab · Esc close</div>
       </header>
@@ -125,6 +147,7 @@ export function HubPanel() {
         ))}
       </nav>
       <div className="tabbody" id="hub-panel" role="tabpanel" aria-labelledby={`hub-tab-${tab}`}>
+        {/* Admin controls (#93) must render here only when !me.readOnly: hidden for a viewer, never greyed out. */}
         {tab === 'now' ? <NowTab rows={rows} now={now} /> : <MachinesTab rows={machines} now={now} failed={failed} />}
       </div>
       <footer className="hub-foot">Metadata only: no prompt text ever leaves a machine.</footer>
@@ -181,6 +204,46 @@ function MachinesTab({ rows, now, failed }: { rows: Machine[]; now: number; fail
           );
         })}
       </div>
+    </>
+  );
+}
+
+/**
+ * Top-bar pill (Chrome.tsx places it beside the SAT chip): the only poller of /api/hub/me, so the panel
+ * and the pill share one `me` through the store. Hidden on a non-hub or in the static demo, and left off
+ * while the fetch fails, so a plain checkout never shows a stale count.
+ */
+export function HubChip() {
+  const me = useHub((s) => s.me);
+  const show = useHub((s) => s.show);
+
+  useEffect(() => {
+    if (STATIC) return;
+    const ac = new AbortController();
+    const read = async () => {
+      try {
+        const res = await fetch('/api/hub/me', { signal: ac.signal });
+        if (!res.ok) throw new Error(String(res.status));
+        useHub.getState().setMe((await res.json()) as HubMe);
+      } catch {
+        // A lost hub is not the same as our own abort: only a real failure clears the pill.
+        if (!ac.signal.aborted) useHub.getState().setMe(undefined);
+      }
+    };
+    void read();
+    const t = setInterval(() => void read(), ME_MS);
+    return () => { ac.abort(); clearInterval(t); };
+  }, []);
+
+  const pill = hubPill(me);
+  if (!pill) return null;
+  return (
+    <>
+      <button className="chip clickable hub-chip" onClick={() => show('machines')}
+        title="Senders seen in the last 5 min / active tokens (H)">{pill}</button>
+      {me?.readOnly && (
+        <span className="chip warn hub-ro" title="Remote viewer: nothing here can change the hub">READ-ONLY</span>
+      )}
     </>
   );
 }
