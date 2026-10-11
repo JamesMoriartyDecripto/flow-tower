@@ -23,6 +23,8 @@ export interface HubLimits {
   dedupe?: Dedupe;
   /** Injectable clock (tests): epoch milliseconds. */
   clock?: () => number;
+  /** Called with every accepted batch after broadcast: how history persists metadata (#84). */
+  onAccepted?: (events: FlowEvent[]) => void;
 }
 
 /**
@@ -58,7 +60,10 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     }
     buffer.push(...out);
     if (buffer.length > KEEP) buffer.splice(0, buffer.length - KEEP);
-    if (out.length) broadcast(out);
+    if (out.length) {
+      broadcast(out);
+      limits.onAccepted?.(out);
+    }
     return { accepted: out.length, rejected };
   };
 

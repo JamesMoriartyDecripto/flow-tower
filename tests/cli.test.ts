@@ -5,6 +5,9 @@ import { tmpdir, hostname, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { IDENTITY_MAX, identityDefaults } from '../bin/identity.js';
+import { FlowEventSchema, type FlowEvent } from '../src/core/events';
+import { openHistory } from '../src/server/history/db';
+import { COLUMNS, createHistory, RETENTION } from '../src/server/history/store';
 
 const CLI = resolve('bin/flow-tower.js');
 const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' });
@@ -132,6 +135,97 @@ describe('cli token (#83)', () => {
     const unknown = token('revoke', 'ghost');
     expect(unknown.status).toBe(1);
     expect(unknown.stderr).toContain('unknown token');
+  });
+});
+
+describe('cli history (#84)', () => {
+  const home = mkdtempSync(join(tmpdir(), 'flow-tower-cli-history-'));
+  afterAll(() => rmSync(home, { recursive: true, force: true }));
+  // The DB path is userHome()/history.db: FLOW_TOWER_HOME points that at a temp folder, never the repo.
+  const history = (...args: string[]) =>
+    spawnSync(process.execPath, [CLI, 'history', ...args], { encoding: 'utf8', env: { ...process.env, FLOW_TOWER_HOME: home } });
+  const path = join(home, 'history.db');
+
+  /** Two users' events, written through the store so the rollups are populated like a real run. */
+  const seed = async () => {
+    const opened = await openHistory(path);
+    if ('disabled' in opened) return false;
+    const ts = Date.now();
+    const ev = (x: object, at: number) => ({ ...FlowEventSchema.parse(x), id: 1, ts: at, targets: [] }) as FlowEvent;
+    // Distinct timestamps: the export orders by ts, and a tie would make the line order non-deterministic.
+    // `call` gives each event a dedupe key, so seeding again from another test adds nothing (INSERT OR IGNORE).
+    createHistory(opened.db).write([
+      ev({ kind: 'usage', user: 'alice', model: 'gpt-5', call: 'seed-alice', tokens_detail: { input: 10 }, cost_usd: 0.25 }, ts),
+      ev({ kind: 'usage', user: 'bob', model: 'gpt-5', call: 'seed-bob', tokens_detail: { input: 3 } }, ts + 1),
+    ]);
+    opened.db.close();
+    return true;
+  };
+
+  it('exports one JSONL line per row, filtered by --user, without any content', async () => {
+    if (!(await seed())) return; // no node:sqlite on this Node: the feature is off, nothing to export
+    const all = history('export');
+    expect(all.status).toBe(0);
+    expect(all.stdout.trim().split('\n').map((l) => JSON.parse(l).user)).toEqual(['alice', 'bob']);
+
+    const alice = history('export', '--user', 'alice');
+    const [row] = alice.stdout.trim().split('\n').map((l) => JSON.parse(l));
+    expect(row).toMatchObject({ user: 'alice', model: 'gpt-5', in_tok: 10 });
+    // The export line carries the allow-listed columns only: no message/prompt/path could be there.
+    expect(Object.keys(row).sort()).toEqual([...COLUMNS].sort());
+  });
+
+  it('deletes only that user rows from events and both rollups, then says how many went', async () => {
+    if (!(await seed())) return;
+    const del = history('delete', '--user', 'alice');
+    expect(del.status).toBe(0);
+    expect(del.stdout).toContain('deleted 1 events');
+    // 2 rollup rows: one hourly and one daily bucket for that user.
+    expect(del.stdout).toContain('2 rollup rows for user "alice"');
+
+    expect(history('export', '--user', 'alice').stdout.trim()).toBe('');
+    const others = history('export').stdout.trim().split('\n').map((l) => JSON.parse(l).user);
+    expect(others).toEqual(['bob']);
+    // The rollups keep the other user, so a delete is per-user and not a wipe.
+    expect(history('info').stdout).toContain('bob');
+  });
+
+  it('info reports the path, row count and retention defaults', () => {
+    const r = history('info');
+    // Without node:sqlite the CLI exits 1 with the reason, never a stack.
+    if (r.status !== 0) return expect(r.stderr).toContain('Node >= 22.13');
+    expect(r.stdout).toContain(path);
+    expect(r.stdout).toContain(`retention: ${RETENTION.defaultDays} days raw (max ${RETENTION.maxDays})`);
+  });
+
+  it('refuses a delete without --user', () => {
+    const r = history('delete');
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('usage: flow-tower history');
+  });
+
+  it("deletes the no-user rows with --user '', old NULL rows included", async () => {
+    if (!(await seed())) return;
+    const opened = await openHistory(path);
+    if ('disabled' in opened) return;
+    const ts = Date.now() + 5;
+    createHistory(opened.db).write([{ ...FlowEventSchema.parse({ kind: 'usage', model: 'gpt-5', call: 'seed-nouser', tokens: 5 }), id: 1, ts, targets: [] } as FlowEvent]);
+    // A row an older build wrote before the writer used '' for unknown: it must go with the same delete.
+    opened.db.prepare("INSERT INTO events (ts, user, kind) VALUES (?, NULL, 'log')").run(ts);
+    opened.db.close();
+
+    const del = history('delete', '--user', '');
+    expect(del.status).toBe(0);
+    expect(del.stdout).toContain('deleted 2 events');
+
+    const reopened = await openHistory(path);
+    if ('disabled' in reopened) return;
+    const left = reopened.db.prepare('SELECT user FROM events').all() as { user: string }[];
+    // '' and NULL are both gone from every table; the named users are never touched.
+    expect(left.map((r) => r.user).sort()).toEqual(['alice', 'bob']);
+    const rollups = (reopened.db.prepare("SELECT count(*) AS n FROM rollup_hourly WHERE user = '' OR user IS NULL").get() as { n: number }).n;
+    expect(rollups).toBe(0);
+    reopened.db.close();
   });
 });
 

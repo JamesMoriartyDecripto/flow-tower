@@ -80,10 +80,13 @@ const TOKEN_KEYS: Record<TokenKind, string[]> = {
   cache_read: [
     'gen_ai.usage.cache_read.input_tokens', 'gen_ai.usage.cache_read_input_tokens',
     'cache_read_tokens', 'cache_read_input_tokens',
+    // What a source puts in a flat `data` bag: OpenAI's usage.prompt_tokens_details.cached_tokens.
+    'cached_tokens',
   ],
   cache_write: [
     'gen_ai.usage.cache_write.input_tokens', 'gen_ai.usage.cache_creation.input_tokens',
     'gen_ai.usage.cache_creation_input_tokens', 'cache_creation_tokens', 'cache_creation_input_tokens',
+    'cache_write_tokens',
   ],
 };
 
