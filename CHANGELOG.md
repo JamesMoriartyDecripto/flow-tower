@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Two skills (#116): `flow-tower-use-example` (copy an example with its folder and adapt it) and `flow-tower-contribute` (anonymise, pre-flight and propose a tower for the library), backed by `flow-tower copy` and `flow-tower check-example`; `install-skill` installs all four skills.
 - OTLP receiver accepts `Content-Encoding: gzip`; sample per-host OTel Collector in `integrations/otel-collector/` (host/user tags, prompt fields stripped, disk queue while offline) (#81).
 - Identity on every event (#82): `user`, `host`, `runtime`, `project` and `session`, filled from the source's own attributes, else (for a local Flow Tower only) from the machine; fields clipped to 200 characters. `flow-tower emit --user --machine --runtime --session --project-name` set them explicitly.
 - Hub mode (#83): `flow-tower serve --hub` lets remote machines ingest with a token and listed tailnet viewers watch read-only; per-sender tokens (`ft_<id>_<secret>`, only the hash stored) managed with `flow-tower token add|list|revoke|pause|resume`; `--allowed-host <name>` for the name a proxy or tailnet uses; `--ingest-only` serves nothing but the ingest routes. Per-sender rate limit, event-id dedupe that keeps a tool's start and end, ±24 h timestamp window.

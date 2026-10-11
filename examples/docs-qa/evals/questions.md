@@ -101,3 +101,11 @@ passes when the answer contains it (case-insensitive), and `a / b` means either 
 ## Q24. Which file owns the per-sender tokens in the code?
 - docs: docs/architecture.md
 - facts: src/server/tokens.ts
+
+## Q25. How do I start from an example tower?
+- docs: docs/getting-started.md, skills/flow-tower-use-example/SKILL.md
+- facts: flow-tower copy | validate
+
+## Q26. How do I add my tower to the library?
+- docs: skills/flow-tower-contribute/SKILL.md
+- facts: check-example | anonymise / personal data | PR

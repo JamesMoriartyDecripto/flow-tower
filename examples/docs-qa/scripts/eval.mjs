@@ -65,9 +65,9 @@ async function attempt(x) {
     if (!res.guard?.ok) reasons.push(`bad citation: ${res.guard?.problems.join('; ')}`);
     const j = await judge(x, res.text, { dryRun });
     if (j.verdict !== 'pass') reasons.push(`judge: fail${j.missing.length ? `, missing ${j.missing.join('; ')}` : ''}${j.wrong.length ? `, wrong ${j.wrong.join('; ')}` : ''}`);
-    return { pass: !reasons.length, reasons, judge: j, routed: res.stats.docs_loaded, whole: res.stats.loaded_whole ?? [], sections: res.stats.loaded_sections ?? [], bytes: res.stats.loaded_bytes ?? 0, tokens: res.stats.tokens + j.tokens, cost: res.stats.cost + j.cost, ms: res.stats.ms, cites: res.guard?.cites ?? [] };
+    return { pass: !reasons.length, reasons, judge: j, routed: res.stats.docs_loaded, whole: res.stats.loaded_whole ?? [], sections: res.stats.loaded_sections ?? [], bytes: res.stats.loaded_bytes ?? 0, tokens: res.stats.tokens + j.tokens, cost: res.stats.cost + j.cost, ms: res.stats.ms, cites: res.guard?.cites ?? [], fixed: res.stats.citations_fixed ?? 0 };
   } catch (e) {
-    return { pass: false, reasons: [`error: ${e.message}`], judge: { verdict: 'fail', missing: [], wrong: [] }, routed: [], whole: [], sections: [], bytes: 0, tokens: 0, cost: 0, ms: 0, cites: [] };
+    return { pass: false, reasons: [`error: ${e.message}`], judge: { verdict: 'fail', missing: [], wrong: [] }, routed: [], whole: [], sections: [], bytes: 0, tokens: 0, cost: 0, ms: 0, cites: [], fixed: 0 };
   }
 }
 
@@ -81,7 +81,7 @@ for (const x of questions) {
   const last = tries.at(-1);
   const fail = tries.find((t) => !t.pass);
   for (const t of tries) { cost += t.cost; tokens += t.tokens; }
-  const row = { ...x, tries: runs, passed, pass: passed * 2 > runs, reasons: fail?.reasons ?? [], judge: fail?.judge ?? last.judge, routed: fail?.routed ?? last.routed, whole: last.whole, sections: last.sections, bytes: last.bytes, cites: last.cites };
+  const row = { ...x, tries: runs, passed, pass: passed * 2 > runs, reasons: fail?.reasons ?? [], judge: fail?.judge ?? last.judge, routed: fail?.routed ?? last.routed, whole: last.whole, sections: last.sections, bytes: last.bytes, cites: last.cites, fixed: last.fixed };
   rows.push(row);
   console.log(`${x.id} ${row.pass ? 'pass' : 'FAIL'} ${passed}/${runs}  ${row.routed.join(', ')}${row.pass ? '' : `  <- ${row.reasons.join(' / ')}`}`);
 }
@@ -120,5 +120,5 @@ const md = [
 ].join('\n');
 writeFileSync(out, md);
 // One JSON line per question: what ran, what it scored, and what the JIT loader kept.
-for (const r of rows) console.log(JSON.stringify({ id: r.id, runs: r.tries, passed: r.passed, pass: r.pass, judge: r.judge.verdict, docs_loaded_whole: r.whole, docs_loaded_sections: r.sections, loaded_bytes: r.bytes }));
+for (const r of rows) console.log(JSON.stringify({ id: r.id, runs: r.tries, passed: r.passed, pass: r.pass, judge: r.judge.verdict, docs_loaded_whole: r.whole, docs_loaded_sections: r.sections, loaded_bytes: r.bytes, citations_fixed: r.fixed }));
 console.log(`score ${score}; judged by ${dryRun ? 'mock judge' : judgeModel}; report: ${out}`);

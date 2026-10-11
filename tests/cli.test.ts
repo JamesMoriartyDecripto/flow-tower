@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir, hostname, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -435,6 +435,61 @@ describe('cli validate', () => {
   });
 });
 
+describe('cli copy (#116)', () => {
+  const out = mkdtempSync(join(tmpdir(), 'flow-tower-copy-'));
+  afterAll(() => rmSync(out, { recursive: true, force: true }));
+  // A copy validates the result by running `flow-tower validate`, so it spawns the CLI once more.
+  const copy = (...args: string[]) => spawnSync(process.execPath, [CLI, 'copy', ...args], { encoding: 'utf8', timeout: 20_000 });
+
+  it('--list names every example with its tower name', () => {
+    const r = copy('--list');
+    expect(r.status).toBe(0);
+    const lines = r.stdout.trim().split('\n');
+    expect(lines).toContain('dev-squad — Dev Squad');
+    expect(lines).toContain('starters/rag-bot — Docs Q&A Bot');
+  });
+
+  it('copies an example into a new folder and validates the copy', () => {
+    const dest = join(out, 'rag-bot');
+    const r = copy('starters/rag-bot', dest);
+    expect(r.status).toBe(0);
+    expect(existsSync(join(dest, 'rag-bot.tower.yaml'))).toBe(true);
+    expect(existsSync(join(dest, 'prompts/answer.md'))).toBe(true);
+    expect(r.stdout).toContain('validation: 1 tower(s), 0 error(s)');
+    // simulate matches project ids (tower file paths), so the hint must name the file, not the display name.
+    expect(r.stdout).toContain('npm run simulate -- rag-bot --url http://127.0.0.1:5317');
+    expect(r.stdout).toContain('flow-tower');
+  });
+
+  it('refuses a dest that exists and is not empty', () => {
+    const dest = join(out, 'not-empty');
+    mkdirSync(dest, { recursive: true });
+    writeFileSync(join(dest, 'keep.txt'), 'mine');
+    const r = copy('starters/rag-bot', dest);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('not empty');
+  });
+
+  it('refuses an unknown example', () => {
+    const r = copy('nope', join(out, 'nope'));
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('unknown example');
+  });
+
+  it('refuses a dest inside the checkout examples folder', () => {
+    const r = copy('starters/rag-bot', resolve('examples/tmp-copy-should-not-exist'));
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('inside');
+  });
+
+  it('warns that a root: ../.. example points at the flow-tower repo', () => {
+    const r = copy('docs-qa', join(out, 'docs-qa'));
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('root: ../..');
+    expect(r.stdout).toMatch(/point at the flow-tower checkout/);
+  });
+});
+
 describe('cli guide', () => {
   it('prints the procedure with this checkout filled in', () => {
     const r = run('guide');
@@ -477,6 +532,14 @@ describe('cli install-skill', () => {
     expect(costsMd).toContain('](../flow-tower/SKILL.md)');
     expect(costsMd).toContain(`](${resolve('docs/realtime.md')})`);
     expect(readFileSync(join(costs, 'reference.md'), 'utf8')).not.toContain('](../../');
+
+    for (const name of ['flow-tower-use-example', 'flow-tower-contribute']) {
+      const md = readFileSync(join(cwd, dir, name, 'SKILL.md'), 'utf8');
+      expect(md).not.toContain('{{FLOW_TOWER_CLI}}');
+      expect(md).not.toContain('](../../');
+      expect(md).toContain('](../flow-tower/');
+    }
+    expect(existsSync(join(cwd, dir, 'flow-tower-contribute', 'reference.md'))).toBe(true);
   });
 
   it('rejects an unknown target', () => {

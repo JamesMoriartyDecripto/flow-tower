@@ -19,7 +19,8 @@ export const DOCS = [
   'docs/getting-started.md', 'docs/what-goes-where.md', 'docs/schema.md', 'docs/generate-a-tower.md',
   'docs/realtime.md', 'docs/command-center.md', 'docs/hub-reference.md', 'docs/voice.md',
   'docs/architecture.md', 'examples/command-center/README.md', 'examples/team-hub/README.md',
-  'examples/dev-squad/README.md', 'skills/flow-tower-costs/SKILL.md', 'NEXT.md', 'README.md',
+  'examples/dev-squad/README.md', 'skills/flow-tower-costs/SKILL.md',
+  'skills/flow-tower-use-example/SKILL.md', 'skills/flow-tower-contribute/SKILL.md', 'NEXT.md', 'README.md',
 ];
 
 export const prompt = (name) => readFileSync(join(EXAMPLE, 'prompts', `${name}.md`), 'utf8');
@@ -116,23 +117,39 @@ export async function chat(model, messages, { timeoutMs = 45000 } = {}) {
   throw last;
 }
 
-/** Citation guard: each `file#heading` must name a loaded file, an existing heading, and share words with its claim. */
+const CITE = /`?([\w./-]+\.md)#([\w-]+)`?/g;
+
+/**
+ * Citation guard: each `file#heading` must name a loaded file, an existing heading, and share words with
+ * its claim. When the cited section does not support the claim but another section of the same file does
+ * (writers keep citing a file's H1 while the steps live under "## Steps"), the citation is rewritten to
+ * that section and the answer is kept: `fixed` counts the rewrites and `text` is the rewritten answer.
+ */
 export function guard(answer, loaded) {
   const problems = [];
-  const cites = [...answer.matchAll(/`?([\w./-]+\.md)#([\w-]+)`?/g)];
+  const rewrites = [];
+  const cites = [...answer.matchAll(CITE)];
   if (!cites.length && !/not in the docs/i.test(answer)) problems.push('no citation');
   for (const m of cites) {
     const [, file, anchor] = m;
     const src = loaded.parts.find((l) => l.doc === file);
-    const sec = src && sections(read(file)).find((s) => s.slug === anchor);
-    if (!src) problems.push(`${file}: not a loaded doc`);
-    else if (!sec) problems.push(`${file}#${anchor}: no such heading`);
-    else {
-      // The claim is the sentence the citation closes: at least two of its words must be in that section.
-      const claim = answer.slice(Math.max(0, answer.lastIndexOf('\n', m.index)), m.index);
-      const body = new Set(words(sec.text));
-      if (words(claim).filter((w) => body.has(w)).length < Math.min(2, words(claim).length)) problems.push(`${file}#${anchor}: does not support "${claim.trim().slice(0, 60)}"`);
-    }
+    if (!src) { problems.push(`${file}: not a loaded doc`); continue; }
+    const secs = sections(read(file));
+    const sec = secs.find((s) => s.slug === anchor);
+    if (!sec) { problems.push(`${file}#${anchor}: no such heading`); continue; }
+    // The claim is the sentence the citation closes: at least two of its words must be in that section.
+    const claim = answer.slice(Math.max(0, answer.lastIndexOf('\n', m.index)), m.index);
+    const need = Math.min(2, words(claim).length);
+    const overlap = (s) => { const body = new Set(words(s.text)); return words(claim).filter((w) => body.has(w)).length; };
+    if (overlap(sec) >= need) continue;
+    // Prefer the section that shares the most words; a section with no heading slug has no anchor to cite.
+    const better = secs.filter((s) => s.slug && s.slug !== anchor).map((s) => ({ s, n: overlap(s) }))
+      .filter((c) => c.n >= need).sort((a, b) => b.n - a.n)[0];
+    if (better) rewrites.push({ start: m.index, end: m.index + m[0].length, text: m[0].replace(`#${anchor}`, `#${better.s.slug}`) });
+    else problems.push(`${file}#${anchor}: does not support "${claim.trim().slice(0, 60)}"`);
   }
-  return { ok: !problems.length, problems, cites: cites.map((m) => `${m[1]}#${m[2]}`) };
+  let text = answer;
+  // Applied back to front so the offsets of the earlier matches stay valid.
+  for (const r of rewrites.reverse()) text = text.slice(0, r.start) + r.text + text.slice(r.end);
+  return { ok: !problems.length, problems, cites: [...text.matchAll(CITE)].map((m) => `${m[1]}#${m[2]}`), fixed: rewrites.length, text };
 }

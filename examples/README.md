@@ -55,9 +55,9 @@ Running Flow Tower for a team and measuring the models behind it: copy these to 
 | [`model-benchmark`](model-benchmark) | 8 | A method you can run: pick a model per role with real tasks, one runner for all candidates, deterministic judges then a blind rubric, repeat runs and variance; runnable scripts (`bench.mjs --dry-run` needs no key) |
 | [`docs-qa`](docs-qa) | 4 | Docs Q&A over this repo, dogfooded: just-in-time routing (CLAUDE.md table, doc headers) instead of embeddings, citation guard, and an eval loop whose failures are doc gaps; `root: ../..`, runnable scripts with a dry run |
 
-## Dogfood: this repo
+## Flow Tower's own towers (dogfood)
 
-These use `root: ../..` and describe Flow Tower itself: for contributors, not for copying.
+Towers of Flow Tower itself (its hub, its releases, its voice commands, its docs bot), built with Flow Tower. They point at this repo's files with `root: ../..`, so they break once copied: read them, don't copy them.
 
 | Folder | Layers | Use it as a model for |
 |---|---|---|

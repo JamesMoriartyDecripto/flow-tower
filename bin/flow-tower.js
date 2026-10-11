@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { hostname, homedir, userInfo } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
 import { parseArgs } from 'node:util';
@@ -19,6 +19,9 @@ Usage
   flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [-m text]
                      [--user u] [--machine m] [--runtime r] [--session s] [--project-name p]
   flow-tower validate <file.tower.yaml | dir>... [--json]
+  flow-tower copy <example> [dest] | --list          copy an examples/ tower into a new folder (default ./<name>) and validate it
+  flow-tower check-example <dir> [--json]            pre-flight an example folder before proposing it: validate
+                                                        clean, self-contained, README with Sources, no personal data
   flow-tower token add <id> | list | revoke <id> | pause <id> | resume <id>
                                                         per-sender hub tokens stored under the user folder
   flow-tower config path | show                         the config files in use, and the effective settings
@@ -147,6 +150,7 @@ const { values, positionals } = parseArgs({
     session: { type: 'string' },
     'project-name': { type: 'string' },
     json: { type: 'boolean', default: false },
+    list: { type: 'boolean', default: false },
     project: { type: 'boolean', default: false },
     target: { type: 'string', default: 'claude' },
   },
@@ -189,6 +193,24 @@ if (positionals[0] === 'validate') {
   // The core is TypeScript: run it with Node's built-in type stripping (Node >= 22.12).
   const script = join(pkgRoot, 'src', 'cli', 'validate.ts');
   const args = [...positionals.slice(1), ...(process.argv.includes('--json') ? ['--json'] : [])];
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'copy') {
+  // Same trick as validate: the copier is TypeScript, run it with Node's type stripping.
+  // `--list` is one of this parser's own options, so it is stripped from the positionals: append it back.
+  const script = join(pkgRoot, 'src', 'cli', 'copy.ts');
+  const args = [...positionals.slice(1), ...(values.list ? ['--list'] : [])];
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'check-example') {
+  // Same trick as validate: the checker is TypeScript, run it with Node's type stripping.
+  // `--json` is one of this parser's own options, so it is stripped from the positionals: append it back.
+  const script = join(pkgRoot, 'src', 'cli', 'check-example.ts');
+  const args = [...positionals.slice(1), ...(values.json ? ['--json'] : [])];
   const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
   process.exit(r.status ?? 1);
 }
@@ -251,14 +273,16 @@ or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follo
   );
   writeFileSync(join(target, 'procedure.md'), procedure().replaceAll(`](${join(pkgRoot, 'skills', 'flow-tower', 'reference.md')})`, '](reference.md)'));
 
-  // Install the costs skill next to flow-tower: its `../flow-tower/SKILL.md` link then resolves as is.
-  const costsTarget = join(base, ...skills, 'flow-tower-costs');
-  cpSync(join(pkgRoot, 'skills', 'flow-tower-costs'), costsTarget, { recursive: true });
-  for (const f of ['SKILL.md', 'reference.md']) {
-    const file = join(costsTarget, f);
-    writeFileSync(file, absolutizeOutboundLinks(readFileSync(file, 'utf8').replaceAll('{{FLOW_TOWER_CLI}}', cli)));
+  // Install the other skills next to flow-tower: their `../flow-tower/...` links then resolve as is.
+  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute'].map((name) => join(base, ...skills, name));
+  for (const dir of others) {
+    cpSync(join(pkgRoot, 'skills', basename(dir)), dir, { recursive: true });
+    for (const f of readdirSync(dir).filter((f) => f.endsWith('.md'))) {
+      const file = join(dir, f);
+      writeFileSync(file, absolutizeOutboundLinks(readFileSync(file, 'utf8').replaceAll('{{FLOW_TOWER_CLI}}', cli)));
+    }
   }
-  console.log(`installed the flow-tower and flow-tower-costs skills for ${values.target}:\n  ${target}\n  ${costsTarget}\n${spec.note}`);
+  console.log(`installed the flow-tower skills for ${values.target}:\n  ${[target, ...others].join('\n  ')}\n${spec.note}`);
   process.exit(0);
 }
 

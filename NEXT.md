@@ -4,7 +4,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Status on 2026-10-11
 
-- **Team-hub stack ready to merge bottom-up** (merge commits; retarget the next PR before deleting a base): #87 → #88 → #89 → #96 → #100 → #112 → #103 → #106 → #107 → #111 → `chore/stack-cleanup`. #102 and #109 sit on main independently; #113 is `tools/squad`.
+- **Team-hub stack ready to merge bottom-up** (merge commits; retarget the next PR before deleting a base): #87 → #88 → #89 → #96 → #100 → #112 → #103 → #106 → #107 → #111 → #114 → #117. On main, independent: #102 (squad prompts and tools), #115 (`tools/squad`, #113), #109 (model-benchmark; already inside #114, so merging it first shrinks #114).
 - **Live:** a hub on the test server running the [command-center](examples/command-center) kit, and a laptop satellite relaying to it.
 
 ## Next, in order
@@ -22,7 +22,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## How work is done
 
-The dev squad (`tools/squad`, issue #113): the lead (Claude) writes a task file per step and verifies; the DeepSeek coder writes the code, GLM reviews, DeepSeek checks security; the maintainer merges.
+The dev squad (`tools/squad`, PR #115): the lead (Claude) writes a task file per step and verifies; the DeepSeek coder writes the code, GLM reviews, DeepSeek checks security; the maintainer merges.
 
 ## Setup on a new machine
 
