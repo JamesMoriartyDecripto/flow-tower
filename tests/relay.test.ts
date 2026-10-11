@@ -291,4 +291,20 @@ describe('dev server close stops the relay (#91, #99)', () => {
     server.httpServer.emit('close');
     expect(after).toHaveBeenCalledTimes(1);
   });
+
+  it('wraps Vite close() when there is no httpServer (middleware mode) so stop() still runs', () => {
+    const stopped = vi.fn();
+    const inner = vi.fn(() => Promise.resolve());
+    const server = { httpServer: undefined, close: inner };
+    stopOnClose(server, [stopped]);
+
+    expect(stopped).not.toHaveBeenCalled();
+    void (server.close as () => unknown)();
+    expect(stopped).toHaveBeenCalledTimes(1);
+    expect(inner).toHaveBeenCalledTimes(1); // the original close still runs
+
+    // A second close must not run the cleanups again.
+    void (server.close as () => unknown)();
+    expect(stopped).toHaveBeenCalledTimes(1);
+  });
 });

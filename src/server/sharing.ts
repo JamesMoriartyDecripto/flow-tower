@@ -30,10 +30,21 @@ export interface SharingOptions {
   hub: boolean;
 }
 
-/** One JSON body, or undefined when the request carries none or something unparseable. */
-async function readBody(req: IncomingMessage): Promise<unknown> {
+/** The pause body is `{ paused }` at most: cap it so a huge POST cannot be buffered whole (like events.ts). */
+const MAX_BODY = 16 * 1024;
+
+/**
+ * One JSON body, or undefined when the request carries none or something unparseable. The body is capped
+ * at MAX_BODY; a bigger one answers 413 itself and resolves undefined, so the caller answers nothing.
+ */
+async function readBody(req: IncomingMessage, res: ServerResponse): Promise<unknown> {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > MAX_BODY) { send(res, 413, { error: 'body too large' }); req.destroy(); return undefined; }
+    chunks.push(chunk as Buffer);
+  }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return undefined; }
 }
 
@@ -73,7 +84,8 @@ export function sharingHandler({ home, relay, hub }: SharingOptions) {
     if (!isJson(req)) return send(res, 415, { error: 'content-type must be application/json' });
     if (!relay) return send(res, 404, { state: 'off' });
 
-    const body = (await readBody(req)) as { paused?: unknown } | undefined;
+    const body = (await readBody(req, res)) as { paused?: unknown } | undefined;
+    if (res.writableEnded) return; // 413 was already sent for an oversize body
     if (typeof body?.paused !== 'boolean') return send(res, 400, { error: 'expected { paused: boolean }' });
     // Persist first: the choice must survive a restart even if the relay object were ever recreated.
     try { writeUserConfig(home, { paused: body.paused }); } catch { /* an unwritable home still pauses now */ }

@@ -147,6 +147,24 @@ describe('sharing controls on a satellite (#91)', () => {
     expect((await fetch(url)).status).toBe(200);
   });
 
+  it('refuses an oversize body with 413 instead of buffering it', { timeout: 5_000 }, async () => {
+    const hub = await stubHub();
+    const home = tempHome();
+    const { url, relay } = await start(hub.url, home);
+
+    // The pause body is `{ paused }` at most: a multi-MB POST must not be buffered whole.
+    const huge = JSON.stringify({ paused: true, pad: 'x'.repeat(64 * 1024) });
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: huge });
+    expect(r.status).toBe(413);
+    expect(await r.json()).toMatchObject({ error: 'body too large' });
+    expect(relay.state().state).toBe('online'); // nothing was flipped
+
+    // A body just under the cap still works, so the cap is not accidentally the whole endpoint.
+    const ok = await post(url, { paused: true });
+    expect(ok.status).toBe(200);
+    relay.stop();
+  });
+
   it('pushes one test event to the hub and answers the state with what left the machine', { timeout: 5_000 }, async () => {
     const hub = await stubHub();
     const home = tempHome();
