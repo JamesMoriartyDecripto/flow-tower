@@ -1,6 +1,6 @@
 # Voice
 
-Voice commands, the voice agent, learning from sessions, and where your personal data lives. Read it to use or change voice; for keyboard controls see the [README](../README.md#controls), for hub config see [command-center.md](command-center.md#configuration-file).
+Voice commands, the voice agent, learning from sessions, and where your personal data, keys and tokens live (the user folder, `FLOW_TOWER_HOME`). Read it to use or change voice; for keyboard controls see the [README](../README.md#controls), for hub config see [command-center.md](command-center.md#configuration-file).
 
 Press **V** or the **MIC** button (top bar or library header) and say where to go. When you stop speaking (about 0.6 s of silence), the browser sends the clip to the local server, which has it transcribed; the command is then matched in the page. A caption under the top bar shows what it heard and what it did.
 

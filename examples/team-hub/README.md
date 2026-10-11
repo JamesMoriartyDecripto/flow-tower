@@ -1,6 +1,6 @@
 # Team Hub
 
-The architecture of Flow Tower's own team hub (#59), dogfooded on this repo: `root: ../..`, so every node opens the real source file.
+A tower of the hub's **code** (#59), dogfooded on this repo: `root: ../..`, so every node opens the real source file. It describes the code, not how to use the hub: setup in [command-center.md](../../docs/command-center.md), tokens and satellite behaviour in [hub-reference.md](../../docs/hub-reference.md).
 
 Layers, bottom to top of the request path:
 
