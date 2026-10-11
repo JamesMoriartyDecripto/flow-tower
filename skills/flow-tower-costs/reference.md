@@ -79,7 +79,7 @@ Fastest and cheapest acceptable count only models with ≥ 4/6 (reviewer ≥ 3/6
 | claude-haiku-5.5 | 212 s | 11 | $0.016 | 426 (met, cleanest; cache 86% with `cache_control`) |
 | deepseek-v4.1-flash | 337 s | 36 | $0.048 | 446 |
 
-Reviewers on that PR: glm-5.3-flashx 3 steps, $0.007, found the main issue; deepseek-v4.1-flash 16 steps, $0.058, the same issue plus one (an earlier try hit its step cap).
+Reviewers on that PR: glm-5.3-flashx 3 steps, $0.007, found the main issue; deepseek-v4.1-flash 16 steps, $0.058, the same issue plus one (an earlier try hit its step cap); gemini-3.5-flash-lite 2 steps, $0.002, approved with no finding (missed the main issue). GLM stays the reviewer: the benchmark tie at 3/6 broke on real work.
 
 **Defaults since 2026-10-11** (three families):
 - Coder `anthropic/claude-haiku-5.5`: met the goal in the field trial, cleanest diff, a third of deepseek's cost; `openai/gpt-6-luna` is the cheap, fast fallback for simple tasks.
