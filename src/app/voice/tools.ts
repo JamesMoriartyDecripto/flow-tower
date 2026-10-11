@@ -1,5 +1,5 @@
 import { NODE_TYPES } from '../../core/schema';
-import type { ResolvedNode, ResolvedTower, Workspace } from '../../core/types';
+import type { ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from '../../core/types';
 import { fetchFile } from '../api';
 import { allEdges, towerPath } from '../graph';
 import { flowOrder } from '../keynav';
@@ -92,8 +92,7 @@ const brief = (text?: string, max = 140) => (text && text.length > max ? `${text
 const layerTitle = (t: ResolvedTower, key: string) => t.layers.find((l) => l.nodes.some((n) => n.key === key))?.title;
 
 /** The comparable face of a node: what compare_nodes puts side by side, per node. */
-function faceOf(t: ResolvedTower, n: ResolvedNode) {
-  const edges = allEdges(t);
+function faceOf(t: ResolvedTower, n: ResolvedNode, edges: ResolvedEdge[]) {
   return {
     label: n.label, type: n.type, layer: layerTitle(t, n.key), agent: n.agent?.name, model: n.model,
     runtime: n.runtime && `${n.runtime.label ?? n.runtime.id} (${n.runtime.kind})`,
@@ -187,8 +186,10 @@ export function runTool(name: string, args: Args): string {
       if (!a) return out({ error: `No node "${args.a ?? ''}". Use layer_nodes to find it.` });
       const b = nodeOf(ws, tower, args.b);
       if (!b) return out({ error: `No node "${args.b ?? ''}". Use layer_nodes to find it.` });
-      const fa = faceOf(a.t, a.n);
-      const fb = faceOf(b.t, b.n);
+      // Both nodes usually live in the same tower, so one edge scan covers the pair.
+      const edges = allEdges(a.t);
+      const fa = faceOf(a.t, a.n, edges);
+      const fb = faceOf(b.t, b.n, b.t === a.t ? edges : allEdges(b.t));
       const setA = new Set(fa.tools);
       const setB = new Set(fb.tools);
       // Tools compare as sets, so an order difference is not reported as a difference.

@@ -75,6 +75,7 @@ function stepLabel(name: string, args: Record<string, unknown>) {
     connections: 'Following the connections of', node_files: 'Listing the files of', search: 'Searching for', focus_layer: 'Showing layer',
     select_node: 'Selecting', open_file: 'Opening a file', read_file: 'Reading the file', close_file: 'Closing the file', open_project: 'Opening',
     filter_nodes: 'Filtering node types', library_filter: 'Filtering the library', navigate: 'Moving',
+    scroll_file: 'Scrolling the file', hub_panel: 'Hub panel', compare_nodes: 'Comparing',
   };
   return `${labels[name] ?? name}${what ? ` ${what}` : ''}…`;
 }
