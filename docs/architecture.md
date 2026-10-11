@@ -49,7 +49,7 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 | `scripts/build-demo.ts` | Static demo for GitHub Pages: freezes the workspace and referenced files into `data/`, then builds the app in `demo` mode |
 | `bin/flow-tower.js` | CLI commands: serve, init, validate, emit, guide, install-skill |
 | `src/cli/validate.ts` | `validate --json` output |
-| `src/cli/config.ts` | `flow-tower config path|show` (#90) and the internal `config json` that `bin/flow-tower.js` reads so the precedence lives in one place (the token is redacted unless `--with-token`); run through Node type stripping like `token`, `history` and `validate` |
+| `src/cli/config.ts` | `flow-tower config path|show` (#90) and the internal `config json` that `bin/flow-tower.js` reads so the precedence lives in one place (the token is always redacted: it is the sender credential, never a server secret); run through Node type stripping like `token`, `history` and `validate` |
 
 ## App state
 

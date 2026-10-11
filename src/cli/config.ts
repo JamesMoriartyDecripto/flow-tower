@@ -4,7 +4,8 @@
  * with Node's built-in type stripping, exactly like `token`, `history` and `validate`.
  *
  * `json` prints the effective config as JSON so bin/ never re-implements the flags > environment > config
- * precedence; the token is redacted unless --with-token, which only an internal caller passes.
+ * precedence; it always redacts the token, because the config's token is the sender credential and no
+ * server may treat it as its own secret.
  */
 import { existsSync } from 'node:fs';
 import { exit, env } from 'node:process';
@@ -20,7 +21,6 @@ const { values, positionals } = parseArgs({
   strict: false,
   allowPositionals: true,
   options: {
-    'with-token': { type: 'boolean' },
     // The same flags bin/flow-tower.js parses; forwarding them keeps every precedence rule in one place.
     hub: { type: 'boolean' },
     host: { type: 'string' },
@@ -99,9 +99,8 @@ switch (positionals[0]) {
     break;
   }
   case 'json': {
-    // The internal contract bin/flow-tower.js reads: the whole effective config, token only when asked for.
-    const out = values['with-token'] ? eff : { ...eff, token: redact(eff.token) };
-    console.log(JSON.stringify(out));
+    // The internal contract bin/flow-tower.js reads: the whole effective config, token always redacted.
+    console.log(JSON.stringify({ ...eff, token: redact(eff.token) }));
     break;
   }
   default:
