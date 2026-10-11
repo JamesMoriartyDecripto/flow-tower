@@ -1,6 +1,6 @@
 ---
 name: flow-tower-my-library
-description: Keep, list, open and organise the user's own towers (`*.tower.yaml`) across their projects through the flow-tower library. Use when the user wants to keep, list, open or organise their own towers across projects, asks where their towers should live, or wants their towers kept out of the flow-tower repo and its examples.
+description: Keep, list, open and organise the user's own towers (`*.tower.yaml`) across their projects through the flow-tower library. Use when the user asks where their towers should live, or wants their towers kept out of the flow-tower repo and its examples.
 ---
 
 # Flow Tower: your own library
