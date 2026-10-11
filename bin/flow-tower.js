@@ -26,6 +26,9 @@ Usage
                                                         per-sender hub tokens stored under the user folder
   flow-tower config path | show                         the config files in use, and the effective settings
                                                         (hub + emit in one config.json under the user folder)
+  flow-tower library add <path>... | list | remove <path>
+                                                        your own towers: a list of paths in the user folder's
+                                                        config.json, outside the flow-tower checkout
   flow-tower connect <hub-url> --token <t> [--machine <name>] [--user <name>]
                                                         make this machine a satellite: writes role satellite into
                                                         the user folder's config.json, then sends one heartbeat
@@ -218,6 +221,13 @@ if (positionals[0] === 'check-example') {
 if (positionals[0] === 'token') {
   // Same trick as validate: the token store is TypeScript, run it with Node's type stripping.
   const script = join(pkgRoot, 'src', 'cli', 'token.ts');
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...positionals.slice(1)], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'library') {
+  // Same trick as token: the library code is TypeScript, run it with Node's type stripping.
+  const script = join(pkgRoot, 'src', 'cli', 'library.ts');
   const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...positionals.slice(1)], { stdio: 'inherit' });
   process.exit(r.status ?? 1);
 }
