@@ -17,7 +17,7 @@
 - **How it runs in production.** Triggers, human approvals with timeouts, budgets, limits, fan-out, data sensitivity, evals, rollouts and SLAs show on the nodes and in the node panel.
 - **Library.** Point it at a folder and browse every project you work on. Switch between a stacked tower and a top-down map.
 - **Keyboard first.** Arrows walk nodes and layers, Enter dives into sub-towers or the node panel, `?` lists every shortcut. Settings cover themes, fonts, interface size and animations.
-- **Voice.** Press V and talk to the tower, in Italian, English or any language: "open dev squad", "explain the flow of the first layer", "show me this node's files", "spiegami questo file". It answers out loud and shows what it talks about ([details](#voice-commands)).
+- **Voice.** Press V and talk to the tower, in Italian, English or any language: "open dev squad", "explain the flow of the first layer", "show me this node's files", "spiegami questo file". It answers out loud and shows what it talks about ([details](docs/voice.md)).
 - **Node list.** Focus a layer and its nodes are listed on the right in flow order, readable however far the cards are.
 - **Live.** Save the YAML, or any referenced file, and the tower updates.
 - **Generate towers with any coding agent.** Claude Code, Codex, Pi, Hermes, Cursor or any other agent reads an agentic codebase and writes a validated tower. It maps Claude Code, the Agent SDK, LangGraph, CrewAI, OpenAI Agents, Pi, Hermes and more.
@@ -31,18 +31,25 @@
 
 ## Quick start
 
+Requires Node 22.12 or newer. The app runs locally on `127.0.0.1`. Nothing is uploaded.
+
 ```bash
 git clone https://github.com/JamesMoriartyDecripto/flow-tower.git
 cd flow-tower && npm install
-npm run dev                                  # library of the bundled examples
-node bin/flow-tower.js path/to/agent.tower.yaml
+```
+
+1. **Copy one tower and use it.** Copy an example folder into your project and open it:
+   `cp -R examples/starters/single-agent ~/my-project/tower && node bin/flow-tower.js ~/my-project/tower`.
+   `npm run dev` opens the whole examples library.
+2. **Your own towers**, from scratch or generated from your code: [docs/getting-started.md](docs/getting-started.md).
+3. **A command center** on a VPS or server that your machines report to: [docs/command-center.md](docs/command-center.md).
+
+```bash
 node bin/flow-tower.js ~/projects            # every *.tower.yaml found, as a library
 node bin/flow-tower.js init my-agent.tower.yaml   # starter file
 node bin/flow-tower.js other.tower.yaml --port 5318  # a second server next to the first
 node bin/flow-tower.js my.tower.yaml --browser firefox   # another browser (or set $BROWSER)
 ```
-
-Requires Node 22.12 or newer. The app runs locally on `127.0.0.1`. Nothing is uploaded.
 
 ## A tower in 30 lines
 
@@ -126,12 +133,9 @@ node bin/flow-tower.js validate path/to/agent.tower.yaml [--json]   # also great
 
 ```bash
 npm run simulate -- game-studio        # see it without wiring anything
-flow-tower emit --kind tool.start --agent coder --tool Bash -m "npm test"   # after `npm link` here
 ```
 
-Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [`integrations/`](integrations).
-
-**Tokens and cost per node:** point Claude Code's or Codex's OpenTelemetry exporter at Flow Tower (OTLP/HTTP JSON, `http://127.0.0.1:5317`) and each agent node shows what it spent; see [docs/realtime.md](docs/realtime.md#tokens-and-cost-opentelemetry).
+Wire Claude Code, the Agent SDK, Codex, Pi, Hermes, your own scripts, and tokens and cost per node (OpenTelemetry): [docs/realtime.md](docs/realtime.md). Events from other machines go to a shared hub: [docs/command-center.md](docs/command-center.md).
 
 ## Controls
 
@@ -154,7 +158,7 @@ Ready-made configs for Claude Code, the Agent SDK, Codex, Pi and Hermes are in [
 | **Shift / Alt + arrows**, **+ / −** | Orbit / pan / zoom the camera |
 | **[ ]** | Previous / next tab of the selected node |
 | **F**, **O** | Live feed, auto-orbit |
-| **V** | Voice commands: start / stop listening (also in the library); see [Voice commands](#voice-commands) |
+| **V** | Voice commands: start / stop listening (also in the library); see [docs/voice.md](docs/voice.md) |
 | **P**, **X** | Download a ZIP of every layer and the map of the project and its sub-towers: Full HD PNGs (plus the 3D view), or editable SVGs |
 | **?** | Every keyboard shortcut |
 
@@ -164,86 +168,9 @@ The bottom bar toggles orbit, flow particles and the rendering quality (`eco` / 
 
 Links can open a tower, a layer or a node directly: `?tower=request` (the id, the file name without `.tower.yaml`, or the name), `&layer=security` (focuses the layer), `&node=handle.problem` (selects the node). Handy for sharing and for screenshots.
 
-## Voice commands
+## Voice
 
-Press **V** or the **MIC** button (top bar or library header) and say where to go. When you stop speaking (about 0.6 s of silence), the browser sends the clip to the local server, which has it transcribed; the command is then matched in the page. A caption under the top bar shows what it heard and what it did.
-
-**Setup.** Voice needs an [OpenRouter](https://openrouter.ai) API key. Put `OPENROUTER_API_KEY=...` in `~/.config/flow-tower/.env`, your own folder outside every repo (see [where your data lives](#where-your-data-lives)), or export it in your shell, then restart Flow Tower. The `.env` file in the flow-tower folder (git-ignored) still works as a fallback. The environment wins, then the user folder, then the repo folder. The key stays on the local server and never reaches the page. The online demo has no server, so it has no voice.
-
-**Language.** Settings → Voice → Spoken language: Auto (detected from each clip), Italiano or English. Picking yours helps short commands. Command words forgive a misheard letter, and "vista …" / "… view" means the map unless you say tower.
-
-| Italian | English | Does |
-|---|---|---|
-| "apri dev squad" | "open dev squad" | Open a project |
-| "livello 3", "il terzo livello", "ultimo livello" | "layer 3", "third layer", "last layer" | Focus a layer by number |
-| "livello memoria" | "memory layer" | Focus a layer by name |
-| "vai al nodo triage", "agente reviewer" | "node triage", "agent reviewer" | Select a node or an agent |
-| "vista mappa", "vista torre" | "map view", "tower view" | Switch view |
-| "panoramica" | "overview" | The whole tower |
-| "indietro" | "back" | Go back, like Esc |
-| "libreria" | "library" | Project library |
-| "spegni il microfono" | "stop listening" | Microphone off |
-
-A name alone works too ("triage"). Names come from what is on screen: projects, layers, nodes and agents. They match loosely, so a misheard word still finds its target. When a name fits several things, the caption numbers them: say "il primo" or "two" to pick. "Entra" / "enter" opens the selected node's sub-tower, "chiudi" / "close" closes the panel. Listening stops by itself after 2 minutes without a command.
-
-**Noise.** The microphone tells a voice from a fan by the shape of the sound, not only its loudness, after measuring the room in its first 0.7 s. If a laptop fan still starts clips by itself, set **Settings → Voice → Microphone sensitivity** to Low and speak a little louder; High suits quiet rooms and soft voices. A transcript that is only "Grazie." or "Thank you." is what the recognizer writes for noise, so it is ignored.
-
-**Privacy.** Only clips with speech are sent (silence is dropped), only while the microphone is on. They go to OpenRouter (`openai/whisper-large-v3-turbo`), routed only to providers with zero data retention (`provider.zdr`). Commands are matched locally; no tower content is sent. Nothing else leaves your machine. `FLOW_TOWER_VOICE_MODEL` picks another model; `FLOW_TOWER_VOICE_ZDR=0` drops the zero-retention requirement.
-
-**Cost.** OpenRouter bills speech-to-text per second of audio. A command is a second or two, a fraction of a cent. Measured once (illustrative): an Italian command was transcribed in about 1.2 s for about $0.000005.
-
-**Browsers.** Firefox, Chrome, Safari and Edge behave the same: recording uses `MediaRecorder`, not the browser's own speech recognition.
-
-### Talking with the tower
-
-Questions, and anything the commands above do not cover, go to a voice agent that answers out loud in the language you spoke, and shows what it talks about:
-
-| You say | It answers and shows |
-|---|---|
-| "cosa c'è nel secondo livello?" | the layer's nodes, and focuses it |
-| "a cosa è collegato il triage?" | its incoming and outgoing edges, and selects it |
-| "fammi vedere i file di questo nodo" → "apri il primo" | how many files there are, and opens the first in the viewer |
-| "how many MCP servers are there?" | the count and names, highlighted on screen |
-| "what does the fresh verifier do?" | its role, model and tools |
-
-The agent reads the tower on screen through a dozen tools (layers, nodes, connections, files, search) and acts with the same commands as the keyboard, so its answers come from the tower, not from guesses. It keeps the last few exchanges, so "this node" and "the first one" work.
-
-**Interrupting.** While it answers, and for 0.7 s after, the microphone ignores what it hears, so laptop speakers cannot make the agent answer itself. If you speak in that moment just after a reply, the caption says once "Wait a moment after the reply, or press Esc to interrupt it." Stop a reply with **Esc** (the microphone stays on), **V** or **✕** (both turn it off). Esc while the reply is still being written silences the rest of it and stops its tool calls too (the caption says "Stopped"). With headphones, turn on **Settings → Voice → Interrupt by voice**: three words or "stop" then cut the reply short while it is heard; before its first sentence plays, what you say is a normal command.
-
-- **Models** (OpenRouter, zero data retention): `google/gemini-3.5-flash-lite` for the answers and `elevenlabs/eleven-flash-v2.5` for the voice, one voice for every language. Change them with `FLOW_TOWER_AGENT_MODEL`, `FLOW_TOWER_TTS_MODEL` and `FLOW_TOWER_TTS_VOICE`.
-- **Settings → Voice → Spoken replies**: off shows the answers in the caption only.
-- **Faster first audio (#70).** If the agent has not started its answer 600 ms after you stop speaking, a short cached phrase ("One moment.", "Un attimo.") plays first; first audio drops from 1.9–2.9 s to about 0.6 s.
-- **Cost and speed** (measured once on dev-squad, illustrative): an answer took 1.1–2.9 s and about $0.001, and speaking it about 0.7 s more. Plain commands never reach the agent and stay instant.
-- **Privacy:** the transcript, what is on screen and the tool results go to the model; no audio is kept. Nothing is logged unless you turn on the journal below.
-
-### Learning from your sessions
-
-Voice can learn from how you use it. It is off by default: turn it on in **Settings → Voice → Learn from my sessions**.
-
-- **What is recorded.** Text only, never audio. One line per turn: what was heard, what happened, and how it went.
-- **Outcome marks.** The outcome is corrected from what you do next: "no, the other one" marks the last turn *corrected*, "back" right after marks it *undone*, stopping a reply (Esc, or by voice) marks it *interrupted*.
-- **Review.** After 20 new turns, a review runs when the microphone turns off. It costs about a cent with the default model. One runs at a time, and a failed one waits for 20 more turns. **Review now** runs one at any time.
-- **Suggestions.** The review proposes aliases for names the recognizer mishears ("triaje" → triage), rules for the agent, and reply style. They change nothing until you accept them in Settings. The caption shows how many are waiting. Accepted rules and style notes are capped at 20 and 2000 characters in all (remove one to accept another), and the agent treats them as preferences: they never override its instructions, the tool results or what is on screen.
-- **Forget everything** deletes the journal and all it learned. Each accepted item can also be removed alone.
-- **Privacy.** Reviews send journal text to OpenRouter with zero data retention: transcripts and replies, which can quote tower names and file text.
-
-### Where your data lives
-
-Your own things stay in your user folder, never in a repo: `~/.config/flow-tower` (or `FLOW_TOWER_HOME`).
-
-| File | Holds |
-|---|---|
-| `.env` | `OPENROUTER_API_KEY` |
-| `voice-journal.jsonl` | the voice journal (only when learning is on) |
-| `voice-memory.json` | accepted aliases and notes, waiting suggestions |
-
-Flow Tower creates the folder, the journal and the memory readable by you only (a `FLOW_TOWER_HOME` folder you made yourself keeps its permissions), and rewrites the memory in one step (a crash never leaves half a file). No tower can read this folder or a secret file (key files, credentials, `.ssh`, `.git`…): `/api/file` never serves them, and a prompt `file:`, agent `from:` or nested tower pointing at one is refused by `validate` and the app ("is a secret file or in the user folder: not read"). Symlinks do not get around it: a tower file is checked by its real path before it is read, and folder scans skip links that leave the folder. If `FLOW_TOWER_HOME` points inside the flow-tower folder, the server warns at startup. The `.env` file in the flow-tower folder is only a git-ignored fallback for the key. Nothing personal is written in the repo.
-
-### Configuration file
-
-Hub and `emit` settings share one file: `~/.config/flow-tower/config.json` (or `$FLOW_TOWER_HOME/config.json`), JSONC. It holds the hub's `hub`, `host`, `allowedHosts`, `ingestOnly`, `viewers`, `retentionDays` and a sender's `url`, `user`, `machine`, `token`, so one machine needs no pile of environment variables. A checkout may also carry a git-ignored `flow-tower.local.json` next to `package.json` for the machine it sits on; the user's own file wins key by key. `config.example.json` in the repo lists every key with a one-line comment.
-
-Precedence is **flags > environment > config file > defaults** for every key both a flag and a file can set. An empty environment variable counts as unset: `FLOW_TOWER_HUB=''` (a common compose or CI default) never switches off a hub the file turns on. After `npm link`, `flow-tower config path` prints the files a load would read and which exist, and `flow-tower config show` prints every effective value with its source (the token redacted). `tokens.json` and `history.db` are **data**, not config: they stay in the user folder and are never read from `config.json`.
+Press **V** and talk to the tower; it answers out loud. Setup (an OpenRouter key), commands, the voice agent, privacy and where your data lives: [docs/voice.md](docs/voice.md).
 
 ## Performance
 
@@ -264,7 +191,7 @@ Flow Tower is meant to run next to busy agents, so it is frugal by design:
 
 ## Privacy and updates
 
-Flow Tower runs on your machine: the server listens on `127.0.0.1` only, reads only inside your projects, and live events never leave your computer. It calls out in two cases only. **Voice** sends speech clips, questions and, if you turn learning on, journal reviews to OpenRouter with zero data retention, only when you use it and have set a key ([details](#voice-commands)). Your key, journal and voice memory stay in `~/.config/flow-tower` ([where your data lives](#where-your-data-lives)). The **update check** runs once a day: it asks GitHub for the latest release (`api.github.com/repos/JamesMoriartyDecripto/flow-tower/releases/latest`, nothing about you or your towers is sent). When a newer version exists, the terminal prints how to update and the top bar shows a small `↑ vX.Y.Z` link to the release notes. Turn it off with `--no-update-check` or `FLOW_TOWER_NO_UPDATE_CHECK=1`; it is always off in CI and in the online demo.
+Flow Tower runs on your machine: the server listens on `127.0.0.1` only, reads only inside your projects, and live events never leave your computer. It calls out in two cases only. **Voice** sends speech clips, questions and, if you turn learning on, journal reviews to OpenRouter with zero data retention, only when you use it and have set a key ([details](docs/voice.md)). Your key, journal and voice memory stay in `~/.config/flow-tower` ([where your data lives](docs/voice.md#where-your-data-lives)). The **update check** runs once a day: it asks GitHub for the latest release (`api.github.com/repos/JamesMoriartyDecripto/flow-tower/releases/latest`, nothing about you or your towers is sent). When a newer version exists, the terminal prints how to update and the top bar shows a small `↑ vX.Y.Z` link to the release notes. Turn it off with `--no-update-check` or `FLOW_TOWER_NO_UPDATE_CHECK=1`; it is always off in CI and in the online demo.
 
 ## Project layout
 
@@ -279,7 +206,7 @@ skills/         Agent Skills: flow-tower (generates towers from a codebase), flo
 integrations/   live-event configs for Claude Code, Agent SDK, Codex, Pi, Hermes
 examples/       starters (1–3 layers) and researched presets, indexed by pattern in examples/README.md
 scripts/        schema, stress-tower and event-simulator scripts
-docs/           schema reference, architecture map, realtime guide, tower generation procedure
+docs/           getting started, command center, schema, architecture, realtime, voice, tower generation
 ```
 
 ## Contributing

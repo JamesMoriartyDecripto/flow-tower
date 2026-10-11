@@ -1,6 +1,6 @@
 # Architecture: where things live
 
-Read this before changing code. Open only the files for the task at hand: each row says when you need it.
+Which file owns what. Read this before changing code, then open only the files for the task at hand. Tower authoring: [what-goes-where.md](what-goes-where.md); hub behaviour: [hub-reference.md](hub-reference.md).
 
 ## Data flow
 

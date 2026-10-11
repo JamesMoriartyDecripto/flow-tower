@@ -1,5 +1,7 @@
 # Generate a tower from a codebase
 
+The procedure for a coding agent mapping a codebase. A tower by hand: [getting-started.md](getting-started.md).
+
 This is the procedure any coding agent follows to turn an agentic codebase into a correct, validated `*.tower.yaml` that opens in Flow Tower. It works the same in Claude Code, OpenAI Codex, Pi, Hermes Agent, Cursor or any other harness that can read files and run shell commands.
 
 The tower is only useful if it is **true to the code**: every node, prompt and file must come from what you actually read. A smaller, accurate tower beats a big, invented one.

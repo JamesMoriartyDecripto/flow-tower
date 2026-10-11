@@ -1,5 +1,7 @@
 # Tower file reference
 
+Every key of a `*.tower.yaml`. Read it when writing or changing a key; for *where* things belong read [what-goes-where.md](what-goes-where.md) first.
+
 A tower is one YAML file (`*.tower.yaml`). Add the first line below to get autocomplete and validation in VS Code (YAML extension):
 
 ```yaml

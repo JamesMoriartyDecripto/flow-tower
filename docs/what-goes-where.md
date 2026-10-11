@@ -1,5 +1,7 @@
 # What goes where: layers, nodes, edges, nested towers
 
+What belongs in layers, nodes, edges and nested towers. Read it before writing or reviewing a tower; exact keys are in [schema.md](schema.md).
+
 A tower answers one question: **how does work move through this system?** Each part of the file has one job. Put each thing in the place that answers it, and nowhere else.
 
 | Part | Answers | One of these is… |
