@@ -12,6 +12,7 @@ export const TS_COMMANDS = [
   { name: 'validate', script: 'validate.ts', extra: () => (process.argv.includes('--json') ? ['--json'] : []) },
   // `--list` is stripped from the positionals too: append it back.
   { name: 'copy', script: 'copy.ts', extra: (values) => (values.list ? ['--list'] : []) },
+  // `--json` is one of this parser's own options, so it is stripped from the positionals: append it back.
   { name: 'check-example', script: 'check-example.ts', extra: (values) => (values.json ? ['--json'] : []) },
   { name: 'token', script: 'token.ts', extra: () => [] },
   // `--user` with its exact value, the empty string included, or `history export|delete --user` loses it.

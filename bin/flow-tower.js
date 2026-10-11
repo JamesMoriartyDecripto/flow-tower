@@ -163,7 +163,7 @@ if (positionals[0] === 'emit') {
   process.exit(0);
 }
 
-// The TypeScript subcommands (config, validate, copy, token, history, connect, library add|list|remove)
+// The TypeScript subcommands (config, validate, copy, check-example, token, history, connect, library add|list|remove)
 // are table-driven in commands.js; the options parseArgs strips are appended back there.
 const tsCommand = findTsCommand(positionals);
 if (tsCommand) process.exit(runTsCommand(pkgRoot, tsCommand, positionals, values));
