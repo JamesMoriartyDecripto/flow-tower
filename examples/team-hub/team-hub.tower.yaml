@@ -114,7 +114,7 @@ layers:
         type: guard
         label: Limits
         runtime: hub
-        description: "Token bucket per sender, dedupe of repeated events, timestamps outside a ±24 h window refused."
+        description: "Token bucket per sender, dedupe of repeated events, timestamps outside a ±24 h window refused. Dedupe key is sender + kind + id, so tool.start and tool.end sharing a call id are both kept."
         files: [src/server/limits.ts]
       - id: adapters
         type: process
@@ -183,7 +183,7 @@ layers:
       - id: config-cli
         type: tool
         label: config CLI
-        description: "flow-tower config: get, set and show the effective settings."
+        description: "flow-tower config path | show: where the config files are and the effective settings with their source."
         files: [src/cli/config.ts]
     edges:
       - config-cli -> config-json [data]
@@ -201,22 +201,22 @@ layers:
         type: output
         label: Hub panel
         status: planned
-        description: "Planned (#92), key H: Now, Usage, Machines, People, Alerts, Admin."
+        description: "Planned (#92, UX spec in #59): key H, tabs Now, Usage, Machines, People, Alerts, Admin. #92 ships Now (live rows: machine, runtime, project, started by or AUTO) and Machines (token prefix, runtime, last seen, state); top-bar HUB n/m and READ-ONLY pills for remote viewers."
       - id: privacy
         type: guard
         label: Privacy profiles
         status: planned
-        description: "Planned (#85): personal, freelancers, employees. Groups under k=3 are merged; no per-person view for employees."
+        description: "Planned (#85): personal, freelancers, employees. Groups under 3 people are merged in the UI and CSV exports; employees get no per-person view, only project and team aggregates, with buckets of at least 1 h."
       - id: admin
         type: human
         label: Admin
         status: planned
-        description: "Planned (#93): manage tokens, viewers and retention from the panel."
+        description: "Planned (#93), loopback only: add (token shown once), pause, revoke, rename senders; viewers; profile change wizard; retention and delete-before; monthly budgets. Every change writes an audit line; admin routes answer 404 to remote requests."
       - id: alerts
         type: output
         label: Alerts
         status: planned
-        description: "Planned (#94): thresholds on cost, errors and silent machines."
+        description: "Planned (#94): machine silent > cadence x N, budget 80% / 100%, errors per hour > 3x the 7-day median, a token used from a new host. Ack and snooze; employees: alerts never name a person."
     edges:
       - "privacy -> hub-panel: filtered view"
       - admin -> hub-panel
@@ -232,5 +232,5 @@ links:
   - "identity.cascade -> views.live: live store"
   - "identity.cascade -> storage.history-db [data]: insert"
   - "storage.history-api -> views.privacy [data]: per-person rows"
-  - "config.config-json -> guard.hub-guard [data]: viewers, host"
+  - "config.config-json -> guard.hub-guard [data]: viewers"
   - "config.config-json -> storage.rollups [data]: retentionDays"
