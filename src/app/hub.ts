@@ -100,12 +100,12 @@ export type MachineDot = '●' | '◐' | '○' | '✕';
 
 /**
  * The dot and word for one Machines row. A revoked or paused token is a hard "off" whatever the clock
- * says; an online row is active. `state: 'unknown'` is the sender we only know from its events (no token
- * handshake): we have seen it, so offline it reads silent. Any other offline state is a token we have
- * never actually heard from.
+ * says; an online row is active. Offline we go by `lastSeen`: a row with one has been heard from before,
+ * so it reads silent however long ago that was; only a row we have never actually found reads "never".
+ * Note that `lastSeen` alone cannot say how stale the row is, only online can (see machines.ts).
  */
-export function machineState(row: { state: string; online: boolean }): { dot: MachineDot; label: string } {
+export function machineState(row: { state: string; online: boolean; lastSeen?: number }): { dot: MachineDot; label: string } {
   if (row.state === 'revoked' || row.state === 'paused') return { dot: '✕', label: row.state };
   if (row.online) return { dot: '●', label: 'active' };
-  return row.state === 'unknown' ? { dot: '○', label: 'silent' } : { dot: '○', label: 'never' };
+  return row.lastSeen !== undefined ? { dot: '○', label: 'silent' } : { dot: '○', label: 'never' };
 }

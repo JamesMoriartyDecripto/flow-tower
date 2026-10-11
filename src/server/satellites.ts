@@ -75,8 +75,10 @@ export function createSatellites(now: () => number = Date.now) {
     if (prev) {
       prev.lastEventAt = at;
       Object.assign(prev, names(e, prev));
+    } else {
       // A sender we only know from events has no heartbeat yet: online stays false until one arrives.
-    } else seen.set(sender, { sender, lastEventAt: at, ...names(e), queued: 0, dropped: 0, state: 'unknown' });
+      seen.set(sender, { sender, lastEventAt: at, ...names(e), queued: 0, dropped: 0, state: 'unknown' });
+    }
   };
 
   /** The list the UI reads: never a token, only the sender id and what it reported. */

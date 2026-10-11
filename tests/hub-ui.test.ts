@@ -106,9 +106,13 @@ describe('Now auxiliaries (#92)', () => {
     expect(machineState({ state: 'paused', online: false })).toEqual({ dot: '✕', label: 'paused' });
     expect(machineState({ state: 'active', online: true })).toEqual({ dot: '●', label: 'active' });
     // A satellite known only from its events: seen, but not online right now.
-    expect(machineState({ state: 'unknown', online: false })).toEqual({ dot: '○', label: 'silent' });
+    expect(machineState({ state: 'unknown', online: false, lastSeen: NOW - 1_000 })).toEqual({ dot: '○', label: 'silent' });
+    // An active token whose machine last spoke an hour ago: stale, but certainly heard from.
+    expect(machineState({ state: 'active', online: false, lastSeen: NOW - 3_600_000 })).toEqual({ dot: '○', label: 'silent' });
     // An active token we have never heard from.
     expect(machineState({ state: 'active', online: false })).toEqual({ dot: '○', label: 'never' });
+    // An unknown sender with no lastSeen at all: not silence, never seen.
+    expect(machineState({ state: 'unknown', online: false })).toEqual({ dot: '○', label: 'never' });
   });
 });
 
