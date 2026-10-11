@@ -13,7 +13,7 @@ Commands below are written as `node <flow-tower>/bin/flow-tower.js …`, where `
 1. You are reading this file from an installed skill or from `flow-tower guide`: the paths are already filled in.
 2. The current repo is flow-tower itself (it has `bin/flow-tower.js` and `skills/flow-tower/`): use its root.
 3. `command -v flow-tower` finds a linked CLI (`npm link`): use `flow-tower …` instead of `node <flow-tower>/bin/flow-tower.js …`.
-4. Otherwise ask the user where their checkout is, or set one up once (Node >= 22.12, check with `node --version`):
+4. Otherwise ask the user where their checkout is, or set one up once (Node >= 22.13, check with `node --version`):
 
    ```bash
    git clone https://github.com/JamesMoriartyDecripto/flow-tower.git && cd flow-tower && npm install

@@ -31,7 +31,7 @@
 
 ## Quick start
 
-Requires Node 22.12 or newer. The app runs locally on `127.0.0.1`. Nothing is uploaded.
+Requires Node 22.13 or newer. The app runs locally on `127.0.0.1`. Nothing is uploaded.
 
 ```bash
 git clone https://github.com/JamesMoriartyDecripto/flow-tower.git
