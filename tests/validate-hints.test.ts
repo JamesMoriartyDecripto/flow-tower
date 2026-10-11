@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -44,6 +44,15 @@ describe('validate messages point at the fix (#56)', () => {
     expect(labels).toHaveLength(2);
     expect(labels[0]).toMatch(/^warning l\.b: label "Nineteen characters" has 19 characters, the card shows 18/);
     expect(labels[1]).toMatch(/^warning l\.d: .*shows 13 \(the nested-tower badge/);
+  });
+
+  it('names the files inside a folder listed as a file (#118)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'flow-tower-'));
+    mkdirSync(join(dir, 'integrations', 'claude-code'), { recursive: true });
+    writeFileSync(join(dir, 't.tower.yaml'), 'name: T\nlayers:\n  - id: l\n    title: L\n    nodes:\n      - { id: a, files: [integrations/claude-code] }\n');
+    const { workspace } = await loadLibrary([dir]);
+    const issues = workspace.towers['t.tower.yaml'].issues.map((i) => `${i.level} ${i.path ?? ''}: ${i.message}`);
+    expect(issues).toContain('warning l.a: files entry "integrations/claude-code" is a folder; list the files inside it instead');
   });
 });
 
