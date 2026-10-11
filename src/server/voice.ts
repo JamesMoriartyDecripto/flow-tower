@@ -63,6 +63,8 @@ export function voiceHandler(cfg: VoiceConfig) {
   const ttsModel = cfg.ttsModel ?? VOICE_DEFAULTS.tts;
   const voice = cfg.voice ?? VOICE_DEFAULTS.voice;
   const provider = cfg.zdr ? { zdr: true } : undefined;
+  // Prompt caching is opt-in per request and only Claude models honour it here: cache reads cost 0.1x, writes 1.25x.
+  const cacheControl = (model: string) => (model.startsWith('anthropic/') ? { cache_control: { type: 'ephemeral' } } : {});
   let inFlight = 0;
 
   const upstream = (path: string, body: object) => call(`${OPENROUTER}${path}`, {
@@ -108,6 +110,8 @@ export function voiceHandler(cfg: VoiceConfig) {
         const started = Date.now();
         const r = await upstream('/chat/completions', {
           model: chatModel, messages, tools, max_tokens: 500,
+          // The breakpoint trails the last cacheable block and moves forward as the conversation grows (https://openrouter.ai/docs/guides/best-practices/prompt-caching).
+          ...cacheControl(chatModel),
           // The last step of a turn must answer with what it has: no more tool calls.
           tool_choice: answer === true ? 'none' : 'auto',
           // Only providers that support every parameter sent (tools above all), and keep no data.

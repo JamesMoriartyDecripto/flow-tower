@@ -69,6 +69,20 @@ describe('/api/voice (#62)', () => {
     expect((await post(`${url}chat`, { messages: 'x' })).status).toBe(400);
   });
 
+  it('asks for prompt caching only on Claude models (#149)', async () => {
+    const fetchFake = (async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'Ecco.' } }], usage: { cost: 0.001 } }));
+    }) as unknown as typeof fetch;
+    const url = await start({ key: 'sk-or-test', fetch: fetchFake, chatModel: 'anthropic/claude-haiku-5.5' });
+    await post(`${url}chat`, { messages: [{ role: 'user', content: 'ciao' }], tools: [] });
+    // OpenRouter caches Claude prompts only when the request opts in, so the field must be there.
+    expect(JSON.parse(calls.at(-1)!.init.body as string)).toMatchObject({ cache_control: { type: 'ephemeral' } });
+    const other = await start({ key: 'sk-or-test', fetch: fetchFake, chatModel: 'google/gemini-3.5-flash-lite' });
+    await post(`${other}chat`, { messages: [{ role: 'user', content: 'ciao' }], tools: [] });
+    expect(JSON.parse(calls.at(-1)!.init.body as string)).not.toHaveProperty('cache_control');
+  });
+
   it('refuses what a web page on another site could send (CSRF)', async () => {
     const url = await start({ key: 'sk-or-test' });
     const before = calls.length;

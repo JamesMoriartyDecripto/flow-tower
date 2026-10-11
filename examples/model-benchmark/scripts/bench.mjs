@@ -88,6 +88,9 @@ const SYSTEM = 'You are being evaluated on a software task from a real repositor
   + 'When you have tools, call finish with your final answer; without tools, reply with the final answer only. Be concise.';
 
 // 3. One streamed call. Streaming is the only way to see the first useful token; reasoning deltas do not count.
+// Prompt caching is opt-in per request and only Claude models honour it here: cache reads cost 0.1x, writes 1.25x.
+const cacheControl = (model) => (model.startsWith('anthropic/') ? { cache_control: { type: 'ephemeral' } } : {});
+
 class CallError extends Error { constructor(msg, retry) { super(msg); this.retry = retry; } }
 
 async function call(body) {
@@ -167,6 +170,8 @@ async function runOne(model, task, run) {
     for (let step = 1; step <= task.steps; step++) {
       const body = {
         model, messages, max_tokens: 4000, usage: { include: true }, session_id: session,
+        // OpenRouter caches Claude prompts only on request; the breakpoint trails the last cacheable block (https://openrouter.ai/docs/guides/best-practices/prompt-caching).
+        ...cacheControl(model),
         reasoning: { effort },
         // Every candidate gets the same data policy; an endpoint that cannot honour it is a result.
         provider: { require_parameters: true, data_collection: 'deny' },
