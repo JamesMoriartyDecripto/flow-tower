@@ -6,7 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Model benchmark (#149): `--warm` repeats each run on the same session to price a warm cache, and `--batch` runs single-step public tasks through the OpenRouter Batch API at about half price; the cost modes are in `examples/model-benchmark/README.md`.
 - Voice (#145): "scorri giù" / "scroll down" (and "scorri su", "vai in fondo", "vai all'inizio") pages the open file viewer; "apri l'hub" / "open the hub" ("mostra le macchine", "chiudi l'hub") opens the Hub panel on its Now or Machines tab; "mostra solo gli agenti" / "show only agents" keeps one node type on screen and "mostra tutto" / "show everything" shows them all again; all are fixed phrases the parser handles locally. The voice agent gains five tools (`scroll_file`, `hub_panel`, `filter_nodes`, `library_filter`, `compare_nodes`), and the action execution lives in `src/app/voice/actions.ts`.
+
+### Changed
+- Anthropic models get `cache_control` breakpoints on the squad, the voice agent and the model benchmark (#149), so their prompt prefix is cached.
 
 ## [0.7.0] - 2026-10-11
 

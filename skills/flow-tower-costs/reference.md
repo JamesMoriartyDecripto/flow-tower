@@ -7,6 +7,7 @@
 - **Smaller tasks.** Smaller task per call, step caps (`max_turns`), `max_tokens` on every call.
 - **Parallel tools.** Ask for tools called together in one step: fewer round trips, fewer re-sent prompts.
 - **Escalation.** Cheap default; escalate to a strong model only on the last fix round or after a failed check.
+- **Checklist: `cache_control`.** Claude models need `cache_control` breakpoints to cache at all; the squad, the voice agent and the benchmark send them.
 - **Batch.** `:batch` variants (or provider batch APIs) for offline work.
 - **Timeouts.** Per-call timeout + one retry: a stuck step costs time and money.
 - **Fewer agent turns.** A local parser for commands, the LLM only for questions.
@@ -46,6 +47,9 @@ Same inputs, same loop, same prompts for every candidate. Log per call:
 - correctness against the code/tower (expected answer written down before the run), failures and timeouts.
 
 Never log request headers or keys.
+
+- `--warm`: repeat each run at once on the same `session_id` to price a warm cache ([README § Cost modes](../../examples/model-benchmark/README.md#cost-modes)).
+- `--batch`: about half price for single-step tasks, public task sets only ([README § Cost modes](../../examples/model-benchmark/README.md#cost-modes)).
 
 | Role | Model | $ in / out per M | First useful output | Total | Steps | Cost / run | Cached % | Correct | Notes |
 |---|---|---|---|---|---|---|---|---|---|
