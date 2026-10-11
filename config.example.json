@@ -2,6 +2,7 @@
   // Copy this to <user folder>/config.json (~/.config/flow-tower, or FLOW_TOWER_HOME) and edit.
   // JSONC: comments and trailing commas are fine. Every key is optional; only name what you change.
   // Precedence: flags > environment > config file > defaults (an empty environment variable counts as unset).
+  // A machine is a hub or a sender: keep only its group. As is, allowedHosts without hub: true is refused.
 
   // Hub: the settings of a shared server (flow-tower --hub): who reaches it and how much history it keeps.
   "hub": false,                     // true runs as a shared hub; --hub and FLOW_TOWER_HUB win over this

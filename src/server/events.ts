@@ -52,7 +52,8 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
       // A replayed or backdated event must not rewrite history: drop it, still answering as usual.
       if (!inTimeWindow(e.ts, at)) { rejected++; continue; }
       const id = eventIdOf(item);
-      if (id && dedupe.seen(`${sender ?? ''}:${id}`)) { rejected++; continue; }
+      // The kind is part of the key: tool.start and tool.end share their call id, and both are real.
+      if (id && dedupe.seen(`${sender ?? ''}:${e.kind}:${id}`)) { rejected++; continue; }
       const targets = ws ? resolveTargets(ws, e) : [];
       // The token identity wins over the payload: a sender cannot claim to be someone else.
       const who = sender ? { sender, user: sender } : {};
