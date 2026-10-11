@@ -13,7 +13,7 @@ export const MODELS = {
   haiku: 'claude-haiku-5-5',
   // Flash, at low effort: quick passes, the review rounds re-check the work (V4 Pro coded round 1 of #70).
   deepseek: 'deepseek/deepseek-v4.1-flash',
-  // Chosen by the 2026-10-11 benchmark and field trial: half the steps and a third of DeepSeek's cost on a real task.
+  // Chosen by the 2026-10-11 benchmark and field trial: about a third of the steps and of the cost on a real task.
   haikuOpenRouter: 'anthropic/claude-haiku-5.5',
   // The fast variant: full GLM 5.3 reasoned 1-2.5 min per step and timed out on #70; FlashX reviewed in 6 steps.
   glm: 'z-ai/glm-5.3-flashx',
