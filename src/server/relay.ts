@@ -67,6 +67,8 @@ export function createRelay(opts: RelayOptions) {
   let revoked = false;
   let stopped = false;
   let inFlight = false;
+  // The running flush, so a sharing test can wait for it instead of interleaving its own POST with it.
+  let inFlightPromise: Promise<void> | undefined;
   let backoff = 0;
   // True while the last send attempt failed on the hub's side: only then are waiting events "queued".
   let unreachable = false;
@@ -103,6 +105,17 @@ export function createRelay(opts: RelayOptions) {
     clearTimer();
     if (stopped || revoked || paused || inFlight || !queue.length) return;
     inFlight = true;
+    inFlightPromise = runFlush();
+    try {
+      await inFlightPromise;
+    } finally {
+      inFlightPromise = undefined;
+      inFlight = false;
+      schedule();
+    }
+  }
+
+  async function runFlush(): Promise<void> {
     lastAttempt = now();
     const slice = queue.slice(0, batch);
     try {
@@ -148,9 +161,6 @@ export function createRelay(opts: RelayOptions) {
       lastError = err instanceof Error ? err.message : String(err);
       backoff = nextBackoff(backoff);
       unreachable = true;
-    } finally {
-      inFlight = false;
-      schedule();
     }
   }
 
@@ -284,10 +294,26 @@ export function createRelay(opts: RelayOptions) {
    */
   const sendTest = async () => {
     if (stopped || revoked || paused) return state();
+    // A flush already on the wire owns the shared state (queue, backoff, lastError): wait it out, so the
+    // test and a flush never interleave.
+    if (inFlightPromise) await inFlightPromise;
+    if (stopped || revoked || paused) return state();
+    inFlight = true;
+    inFlightPromise = runTest();
+    try {
+      await inFlightPromise;
+    } finally {
+      inFlightPromise = undefined;
+      inFlight = false;
+      schedule();
+    }
+    return state();
+  };
+
+  async function runTest(): Promise<void> {
     // A minimal 'log': message, tool, node and data are simply absent, so the probe tags the hub without
     // carrying any local content.
     const payload = forward({ kind: 'log', source: 'flow-tower', status: 'ok' } as unknown as FlowEvent, opts);
-    inFlight = true;
     lastAttempt = now();
     try {
       const res = await send(`${hub}/api/events`, {
@@ -314,12 +340,8 @@ export function createRelay(opts: RelayOptions) {
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
       unreachable = true;
-    } finally {
-      inFlight = false;
-      schedule();
     }
-    return state();
-  };
+  }
 
   return { push, state, stop, pause, resume, sendTest, flush: () => attempt(), heartbeat };
 }

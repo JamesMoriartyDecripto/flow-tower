@@ -232,6 +232,35 @@ describe('satellite relay (#91)', () => {
     relay.stop();
   });
 
+  it('waits for a flush in flight before it sends the test event', { timeout: 5_000 }, async () => {
+    // The event flush hangs on `gate`; the test must not post its own event until that flush is done,
+    // or the two would interleave on the same relay state.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const calls: { path: string; body: unknown }[] = [];
+    const fakeFetch: typeof globalThis.fetch = async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      calls.push({ path, body: JSON.parse(String(init?.body)) });
+      if (init?.method === 'POST' && path === '/api/events' && calls.filter((c) => c.path === '/api/events').length === 1) await gate;
+      return new Response('{}', { status: 204 });
+    };
+    const relay = relayOf('http://hub.invalid', { fetch: fakeFetch });
+    relay.push([event()]);
+    const flushing = relay.flush();
+    const testing = relay.sendTest();
+    // A real timer, so the microtasks of both calls run: only the flush may be on the wire so far.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(calls.filter((c) => c.path === '/api/events')).toHaveLength(1);
+    release();
+    await flushing;
+    await testing;
+
+    const events = calls.filter((c) => c.path === '/api/events');
+    expect(events).toHaveLength(2);
+    expect(events[1].body).toMatchObject([{ kind: 'log', source: 'flow-tower', status: 'ok' }]);
+    relay.stop();
+  });
+
   it('reports the last payload actually sent, stripped of content', { timeout: 5_000 }, async () => {
     const hub = await stubHub(() => 200);
     const relay = relayOf(hub.url);

@@ -6,11 +6,18 @@
  *
  * Like `token` and `history`, bin/flow-tower.js runs this file with Node's built-in type stripping.
  */
+import { readFileSync } from 'node:fs';
 import { hostname } from 'node:os';
+import { dirname, join } from 'node:path';
 import { exit } from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { userHome } from '../core/secrets.ts';
 import { writeUserConfig } from '../server/user-config.ts';
+
+// Read once, the way bin/flow-tower.js and plugin.ts do: the heartbeat names the version the relay sends.
+const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
 
 const USAGE = 'usage: flow-tower connect <hub-url> --token <token> [--machine <name>] [--user <name>]\n\nThe token is written to the user folder\'s config.json and never printed.';
 /** One heartbeat, then the command is over: a hub that does not answer in 5 s counts as unreachable. */
@@ -53,7 +60,8 @@ const file = writeUserConfig(home, next);
 /** The hub records the sender from the token id ("ft_<id>_<secret>"), so that is the honest name to print. */
 const sender = /^ft_([a-z0-9-]{1,32})_/.exec(token)?.[1] ?? next.machine ?? next.user ?? hostname();
 
-const body = { queued: 0, dropped: 0, state: 'online' };
+// Same shape the relay beats with, version included: the hub shows a satellite's version from the first beat.
+const body = { queued: 0, dropped: 0, state: 'online', version: VERSION };
 const written = `config written to ${file}`;
 
 try {

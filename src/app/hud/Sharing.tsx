@@ -28,9 +28,15 @@ export function refreshSharing(): Promise<void> {
 function useSharingPoll() {
   useEffect(() => {
     if (STATIC) return;
-    void refreshSharing();
-    const t = setInterval(() => void refreshSharing(), POLL_MS);
-    return () => clearInterval(t);
+    // A hidden tab asks for nothing: skip the tick there and refresh once when it becomes visible again.
+    const poll = () => { if (document.visibilityState !== 'hidden') void refreshSharing(); };
+    poll();
+    const t = setInterval(poll, POLL_MS);
+    document.addEventListener('visibilitychange', poll);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', poll);
+    };
   }, []);
 }
 
