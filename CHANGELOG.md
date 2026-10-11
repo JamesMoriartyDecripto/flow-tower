@@ -8,6 +8,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Added
 - Hub panel (#92): press `H` on a hub for the Now tab (who runs what right now) and the Machines tab (every sender the hub trusts); a `HUB n/m` top-bar pill (senders seen in the last 5 min / active tokens) and a `READ-ONLY` pill for a remote viewer, fed by `GET /api/hub/machines` and `GET /api/hub/me`.
 
+### Security
+- KaTeX 0.16.47 → 0.18.7 (Dependabot alert, low), pinned with an override so rehype-katex and remark-math use the same copy (#119).
+
 ### Fixed
 - `examples/docs-qa` resolves the OpenRouter key the way the squad runner does (environment, user folder key file, git-ignored `.env` of the checkout, then the main checkout's for a worktree) and fails fast with one line and exit 2 before the first question when there is none (#123).
 - The squad runner (`tools/squad`) works from a worktree: the key lookup also finds the git-ignored key file of the main checkout (a worktree has none), and `steps.sh`'s `<write-dirs>` argument may be comma-separated (same as `run.mjs --write`); the CLI tests ignore an exported `FLOW_TOWER_*` environment (#75).
