@@ -23,6 +23,9 @@ Usage
                                                         per-sender hub tokens stored under the user folder
   flow-tower config path | show                         the config files in use, and the effective settings
                                                         (hub + emit in one config.json under the user folder)
+  flow-tower connect <hub-url> --token <t> [--machine <name>] [--user <name>]
+                                                        make this machine a satellite: writes role satellite into
+                                                        the user folder's config.json, then sends one heartbeat
   flow-tower history export [--user <u>] | delete --user <u> | info
                                                         content-free events and totals in the user folder:
                                                         export prints JSONL, delete erases one user's rows
@@ -203,6 +206,17 @@ if (positionals[0] === 'history') {
   // (with its exact value, the empty string included) or `history export|delete --user` would lose it.
   const script = join(pkgRoot, 'src', 'cli', 'history.ts');
   const args = [...positionals.slice(1), ...(values.user === undefined ? [] : ['--user', values.user])];
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'connect') {
+  // Same trick as token: the config writer is TypeScript, run it with Node's type stripping.
+  // --token/--user/--machine are this parser's own options, so they are stripped from the positionals:
+  // append each one back (its exact value, so `--user ''` survives) or connect would see no token.
+  const script = join(pkgRoot, 'src', 'cli', 'connect.ts');
+  const args = [...positionals.slice(1)];
+  for (const name of ['token', 'user', 'machine']) if (values[name] !== undefined) args.push(`--${name}`, values[name]);
   const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
   process.exit(r.status ?? 1);
 }
