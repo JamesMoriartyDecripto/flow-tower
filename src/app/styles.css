@@ -342,6 +342,13 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .set-group .set-row:first-child .set-label { color: var(--orange); }
 .set-control input[type=range]:disabled { opacity: .35; }
 
+/* Satellite sharing (#91): the top-bar chip reuses the chip variants, the section adds two small blocks. */
+.sat-chip { white-space: nowrap; }
+.chip.dim { color: var(--dim); }
+.set-control .sharing-list { max-width: 360px; font: 12px/1.4 var(--ui); color: var(--dim); text-align: right; }
+.sharing-pre { max-height: 180px; overflow: auto; margin: 0 0 14px; padding: 10px 12px; font: 12px/1.5 var(--mono); color: #cfdcf3;
+  background: rgba(0, 0, 0, .25); border: 1px solid var(--line-soft); }
+
 @media (max-width: 1400px) {
   .livefeed { width: 380px; }
   .livefeed.shifted { right: 440px; }
