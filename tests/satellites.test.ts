@@ -81,4 +81,29 @@ describe('satellite heartbeats (#91)', () => {
     expect(sat).toMatchObject({ sender: 'dana', lastEventAt: clock, online: false });
     expect(sat.lastSeen).toBeUndefined();
   });
+
+  it('remembers the runtime and host an accepted event reported, keeping the last non-empty ones (#92)', () => {
+    const clock = 1_000_000;
+    const satellites = createSatellites(() => clock);
+    const hub = createEventHub(() => undefined, () => undefined, { home, hub: true }, { satellites, clock: () => clock });
+
+    hub.ingest({ kind: 'log', ts: clock, runtime: 'claude-code', host: 'laptop' }, undefined, undefined, 'dana');
+    expect(satellites.list()[0]).toMatchObject({ runtime: 'claude-code', host: 'laptop' });
+
+    // A later event without them (or with blanks) must not erase what we already know.
+    hub.ingest({ kind: 'log', ts: clock, runtime: '  ', host: '' }, undefined, undefined, 'dana');
+    expect(satellites.list()[0]).toMatchObject({ runtime: 'claude-code', host: 'laptop' });
+  });
+
+  it('clips the remembered runtime and host to 64 characters', () => {
+    const clock = 1_000_000;
+    const satellites = createSatellites(() => clock);
+    const hub = createEventHub(() => undefined, () => undefined, { home, hub: true }, { satellites, clock: () => clock });
+    hub.ingest({ kind: 'log', ts: clock, runtime: 'r'.repeat(200), host: 'h'.repeat(200) }, undefined, undefined, 'dana');
+
+    const [sat] = satellites.list();
+    expect(sat.runtime).toHaveLength(64);
+    expect(sat.host).toHaveLength(64);
+    expect(sat.runtime?.endsWith('…')).toBe(true);
+  });
 });
