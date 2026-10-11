@@ -10,6 +10,7 @@ import { clearAgentSearch } from './tools';
 import { bargeIn, keepClip, playedDuring, type Recorded } from './duplex';
 import { isHallucination } from './noise';
 import { applyAliases, interrupted, judgeLast, loadMemory, notesForAgent, record, reviewIfDue } from './journal';
+import { runItsFile, runStep } from './referents';
 
 export type VoiceStatus = 'off' | 'starting' | 'listening' | 'hearing' | 'thinking';
 
@@ -424,6 +425,8 @@ function execute(a: VoiceAction): string {
       if (!s.file) return 'No file open';
       s.openFile(undefined);
       return 'File closed';
+    case 'its-file': return runItsFile(a.index);
+    case 'step': return runStep(a.dir, a.what);
     case 'mic-off': setTimeout(stop); return 'Microphone off';
     case 'ambiguous': return `Which one? ${a.options.map((o, i) => `${i + 1}. ${o.label}`).join('  ')}`;
     case 'unknown': return NOT_UNDERSTOOD;

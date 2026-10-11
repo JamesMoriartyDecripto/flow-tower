@@ -1,5 +1,5 @@
 import type { CameraControls } from '@react-three/drei';
-import type { ResolvedTower } from '../core/types';
+import type { ResolvedLayer, ResolvedNode, ResolvedTower } from '../core/types';
 import type { NodeBox, TowerLayout } from './layout';
 import { nearest, type Dir } from './spatial';
 
@@ -17,6 +17,16 @@ const layouts = new Map<string, TowerLayout>();
 export const publishLayout = (towerId: string, layout: TowerLayout) => layouts.set(towerId, layout);
 /** The layout of a tower on screen (used by the SVG export). */
 export const layoutOf = (towerId: string) => layouts.get(towerId);
+
+/**
+ * The nodes of a layer in flow order: the layout's left to right, then top to bottom, as the eye reads
+ * the layer on screen. Without a layout yet the file order is the only order we have, so keep it.
+ */
+export function flowOrder(towerId: string, layer: ResolvedLayer): ResolvedNode[] {
+  const boxes = layouts.get(towerId)?.layers[layer.index]?.nodes;
+  if (!boxes) return layer.nodes;
+  return [...layer.nodes].sort((a, b) => (boxes[a.key]?.x ?? 0) - (boxes[b.key]?.x ?? 0) || (boxes[a.key]?.z ?? 0) - (boxes[b.key]?.z ?? 0));
+}
 
 function boxes(tower: ResolvedTower, layer: number): NodeBox[] {
   const layout = layouts.get(tower.id)?.layers[layer];

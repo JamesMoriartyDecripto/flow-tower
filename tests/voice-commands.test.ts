@@ -59,10 +59,40 @@ describe('voice commands (#62)', () => {
     expect(say('chiudi il file del nodo triage')).not.toEqual({ kind: 'close-file' });
   });
 
+  it('opens the selected node\'s file, numbered in both languages (#130b)', () => {
+    for (const [text, index] of [
+      ['apri il suo file', 0], ['apri il suo file?', 0], ['il suo file', 0], ['apri il file', 0], ['apri il file 2', 1],
+      ['apri il secondo file', 1], ['il secondo file', 1], ['open its file', 0], ['its file', 0], ['open the file', 0],
+      ['open file 2', 1], ['open the second file', 1],
+    ] as [string, number][]) {
+      expect(say(text), text).toEqual({ kind: 'its-file', index });
+    }
+    // Whole-utterance only: a node named here stays with the agent.
+    expect(say('apri il file del nodo triage')).not.toEqual({ kind: 'its-file', index: 0 });
+  });
+
+  it('steps forward and back through files, lists and nodes (#130b)', () => {
+    for (const text of ['il prossimo', 'il successivo', 'prossimo', 'successivo', 'quello dopo', 'e il prossimo', 'avanti', 'next', 'next one', 'the next', 'the next one']) {
+      expect(say(text), text).toEqual({ kind: 'step', dir: 1, what: 'auto' });
+    }
+    for (const text of ['il precedente', 'precedente', 'quello prima', 'indietro di uno', 'previous', 'the previous one']) {
+      expect(say(text), text).toEqual({ kind: 'step', dir: -1, what: 'auto' });
+    }
+    for (const [text, dir] of [['file successivo', 1], ['prossimo file', 1], ['next file', 1], ['file precedente', -1], ['previous file', -1]] as [string, 1 | -1][]) {
+      expect(say(text), text).toEqual({ kind: 'step', dir, what: 'file' });
+    }
+    // "indietro" alone is still the plain back command.
+    expect(say('indietro')).toEqual({ kind: 'back' });
+  });
+
   it('marks the whole-phrase commands as fixed, so the agent route yields to them (#128)', () => {
     expect(isFixed(say('chiudi il file'))).toBe(true);
     expect(isFixed(say('indietro'))).toBe(true);
     expect(isFixed(say('chiudi'))).toBe(true);
+    // The #130b phrases too: "apri il suo file" and "il prossimo" are commands, not questions.
+    expect(isFixed(say('apri il suo file'))).toBe(true);
+    expect(isFixed(say('il prossimo'))).toBe(true);
+    expect(isFixed(say('file successivo'))).toBe(true);
     // Fuzzy name matches are not fixed: with an agent configured they keep today's routing.
     expect(isFixed(say('nodo triage'))).toBe(false);
     expect(isFixed(say('cosa fa questo file?'))).toBe(false);

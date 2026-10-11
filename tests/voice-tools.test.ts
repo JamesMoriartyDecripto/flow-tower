@@ -60,4 +60,25 @@ describe('voice agent tools (#63)', () => {
     expect(call('open_file', { node: 'triage', index: 9 }).error).toMatch(/file/);
     expect(call('open_project', { name: 'pizza' }).projects).toContain('Dev Squad');
   });
+
+  it('sets the list on search and reports it from screen (#130)', () => {
+    const r = call('search', { query: 'MCP' });
+    // Cursor at -1 (nothing stepped yet): the count is known, the position is not.
+    expect(call('screen').list).toEqual({ source: 'search', count: r.count });
+  });
+
+  it('moves the cursor when a listed node is selected (#130)', () => {
+    const r = call('search', { query: 'MCP' });
+    const key = r.nodes[2].key;
+    expect(call('select_node', { node: key })).toMatchObject({ selected: r.nodes[2].label });
+    expect(call('screen').list).toMatchObject({ source: 'search', count: r.count, position: 3 });
+  });
+
+  it('sets a layer list in flow order on layer_nodes (#130)', () => {
+    const r = call('layer_nodes', { layer: 2 });
+    const keys = r.nodes.map((n: { key: string }) => n.key);
+    expect(call('screen').list).toEqual({ source: 'layer', count: keys.length });
+    expect(call('select_node', { node: keys[1] })).toMatchObject({ selected: r.nodes[1].label });
+    expect(call('screen').list).toMatchObject({ source: 'layer', position: 2 });
+  });
 });
