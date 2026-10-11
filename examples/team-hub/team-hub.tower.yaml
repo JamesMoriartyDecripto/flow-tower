@@ -1,11 +1,12 @@
 # yaml-language-server: $schema=../../schema/flow-tower.schema.json
 version: 1
 name: Team Hub
-tags: [hub, ingest, auth, sqlite, otel, privacy, dogfooding]
+tags: [hub, ingest, auth, sqlite, otel, privacy, satellite, dogfooding]
 description: >-
   The team hub of Flow Tower itself (#59): many machines send hook and OpenTelemetry events to one
   flow-tower server, which authenticates them, normalizes them to one identity cascade, stores them in
-  SQLite with rollups and serves the live tower and history. Dashed nodes are planned (#85, #91-#94).
+  SQLite with rollups and serves the live tower and history. Satellites (#91) forward metadata-only
+  events and heartbeats to the hub. Dashed nodes are planned (#85, #92-#94).
   Paths are relative to the repository root, so every node opens the real file.
 root: ../..
 
@@ -47,14 +48,28 @@ layers:
         label: OTel collector
         description: "OpenTelemetry collector forwarding OTLP/HTTP logs (tokens, cost) to the hub."
         files: [integrations/otel-collector/collector.yaml, integrations/otel-collector/README.md]
-      - id: satellites
-        type: entry
-        label: Satellites
-        status: planned
-        description: "Planned (#91): satellite hubs forwarding to a central hub."
+      - id: relay
+        type: process
+        label: Satellite relay
+        runtime: laptop
+        description: "Metadata only (#91): prompt text, commands, tool output, message and data are dropped, request_id is kept as event_id for dedupe. Queue bounded at 5000 (oldest dropped first); a failed hub backs off 1 -> 2 -> 4 s up to 60 s; a 401/403 revokes the token and stops sending; one heartbeat every 60 s (a hub calls the satellite offline after three missed beats)."
+        files: [src/server/relay.ts]
+      - id: connect-cli
+        type: tool
+        label: connect CLI
+        description: "flow-tower connect <hub-url> --token: writes url, token, role and identity to the user folder's config.json (mode 0600, token never printed), then sends one heartbeat so a bad token shows up at once."
+        files: [src/cli/connect.ts]
+      - id: sharing
+        type: output
+        label: /api/sharing
+        description: "GET /api/sharing: the relay's own state (online / queued / revoked, queue depth, dropped, last error); a local server answers { state: 'off' }. Cross-site requests are refused and the token is never included."
+        files: [src/server/plugin.ts]
     edges:
       - "config-file -> hooks [data]: url, user, token"
       - "identity-cli -> hooks [call]: user, machine"
+      - "config-file -> relay [data]: url, token"
+      - "connect-cli -> relay [data]: config.json"
+      - "relay -> sharing [data]: state"
 
   - id: guard
     title: Guard
@@ -116,6 +131,12 @@ layers:
         runtime: hub
         description: "Token bucket per sender, dedupe of repeated events, timestamps outside a ±24 h window refused. Dedupe key is sender + kind + id, so tool.start and tool.end sharing a call id are both kept."
         files: [src/server/limits.ts]
+      - id: heartbeat
+        type: process
+        label: /api/heartbeat
+        runtime: hub
+        description: "POST /api/heartbeat (#91): a satellite reports queued, dropped, state and version. Authenticated like /api/events; in hub mode a token is required (401 without a sender). Answers 204 with an empty body; a bad body is 400."
+        files: [src/server/events.ts, src/server/hub.ts]
       - id: adapters
         type: process
         label: Adapters
@@ -125,6 +146,7 @@ layers:
     edges:
       - "events -> limits [call]: admit?"
       - "otlp-route -> limits [call]: admit?"
+      - "heartbeat -> limits [call]: beat"
       - "limits -> adapters: accepted events"
 
   - id: identity
@@ -178,7 +200,7 @@ layers:
         type: memory
         label: config.json
         runtime: hub
-        description: "config.json in the user folder, plus a git-ignored flow-tower.local.json per checkout. Precedence: flags > non-empty env > config. Migrates the old hub.json."
+        description: "config.json in the user folder, plus a git-ignored flow-tower.local.json per checkout. Precedence: flags > non-empty env > config; an empty environment variable counts as unset. Migrates the old hub.json. The config token is the sender's credential (flow-tower emit, satellite relay), never the server's own secret: the server's is FLOW_TOWER_TOKEN (one shared legacy secret, sender \"default\") or the per-sender tokens from the token store."
         files: [src/server/config.ts]
       - id: config-cli
         type: tool
@@ -197,6 +219,11 @@ layers:
         label: Live tower
         description: "The 3D tower lit by live events."
         files: [src/app/live.ts]
+      - id: satellite-list
+        type: output
+        label: Satellite list
+        description: "GET /api/hub/satellites (#91): the hub's satellite registry, in memory: per sender lastSeen, lastEventAt, queued, dropped, state, version and online (offline after three missed one-minute beats). A viewing route like /api/history; it never carries a token."
+        files: [src/server/satellites.ts, src/server/plugin.ts]
       - id: hub-panel
         type: output
         label: Hub panel
@@ -225,10 +252,14 @@ layers:
 links:
   - "senders.hooks -> guard.hub-guard [call]: POST /api/events"
   - "senders.otel -> guard.hub-guard [call]: POST /v1/logs"
-  - { from: senders.satellites, to: guard.hub-guard, kind: call, label: forward }
+  - { from: senders.relay, to: guard.hub-guard, kind: call, label: /api/events, protocol: http }
+  - { from: senders.relay, to: guard.hub-guard, kind: call, label: /api/heartbeat, protocol: http }
   - "guard.authorize -> ingest.events: authorized"
   - "guard.authorize -> ingest.otlp-route: authorized"
+  - "guard.authorize -> ingest.heartbeat: authorized"
   - ingest.adapters -> identity.cascade
+  - "ingest.events -> views.satellite-list [data]: lastEventAt"
+  - "ingest.heartbeat -> views.satellite-list [data]: lastSeen"
   - "identity.cascade -> views.live: live store"
   - "identity.cascade -> storage.history-db [data]: insert"
   - "storage.history-api -> views.privacy [data]: per-person rows"
