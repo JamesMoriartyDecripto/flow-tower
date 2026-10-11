@@ -20,6 +20,8 @@ Usage
                      [--user u] [--machine m] [--runtime r] [--session s] [--project-name p]
   flow-tower validate <file.tower.yaml | dir>... [--json]
   flow-tower copy <example> [dest] | --list          copy an examples/ tower into a new folder (default ./<name>) and validate it
+  flow-tower check-example <dir> [--json]            pre-flight an example folder before proposing it: validate
+                                                        clean, self-contained, README with Sources, no personal data
   flow-tower token add <id> | list | revoke <id> | pause <id> | resume <id>
                                                         per-sender hub tokens stored under the user folder
   flow-tower config path | show                         the config files in use, and the effective settings
@@ -200,6 +202,15 @@ if (positionals[0] === 'copy') {
   // `--list` is one of this parser's own options, so it is stripped from the positionals: append it back.
   const script = join(pkgRoot, 'src', 'cli', 'copy.ts');
   const args = [...positionals.slice(1), ...(values.list ? ['--list'] : [])];
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'check-example') {
+  // Same trick as validate: the checker is TypeScript, run it with Node's type stripping.
+  // `--json` is one of this parser's own options, so it is stripped from the positionals: append it back.
+  const script = join(pkgRoot, 'src', 'cli', 'check-example.ts');
+  const args = [...positionals.slice(1), ...(values.json ? ['--json'] : [])];
   const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
   process.exit(r.status ?? 1);
 }
