@@ -3,7 +3,8 @@ import { usePrefs } from '../settings';
 import { STATIC } from '../staticData';
 import { useDialogFocus } from './dialog';
 
-const GROUPS: [string, [string, string][]][] = [
+/** Exported so a test can hold the rule: every HUD feature is listed here, with no clashing key. */
+export const GROUPS: [string, [string, string][]][] = [
   ['Navigate', [
     ['← → ↑ ↓', 'Move to the nearest node; ↑ ↓ cross to the layer above / below'],
     ['PgUp PgDn', 'Previous / next layer'],
@@ -34,7 +35,7 @@ const GROUPS: [string, [string, string][]][] = [
     ['F', 'Live feed'],
     ['V', 'Voice commands on / off: "open dev squad", "layer 2", "triage node", "map view", "back" (Italian too)'],
     ['L', 'Library (arrows move, Enter opens, T / M open as tower / map)'],
-    [',', 'Settings'],
+    [',', 'Settings · Tab through sections to Sharing (or click the SAT chip): pause, send a test'],
     ['?', 'This help'],
     ['Tab', 'Move between HUD buttons · Enter / Space press them'],
     ['↑ ↓  Home End', 'Inside any panel (layers, feed, files): walk its items'],
