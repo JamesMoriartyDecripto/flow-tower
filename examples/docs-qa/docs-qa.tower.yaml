@@ -5,8 +5,8 @@ tags: [docs, rag, jit-routing, evals, citations, dogfooding]
 description: >-
   A bot that answers questions about Flow Tower from this repository's own docs (#110). Retrieval is
   just-in-time routing, not embeddings: the router reads CLAUDE.md's "Load on demand" table and the first
-  lines of each doc, loads at most two docs (only the relevant sections), and every claim is cited as
-  file#heading and checked by a guard. An eval set finds doc gaps; a human-reviewed doc-writer fixes them.
+  lines of each doc, picks at most two docs and loads them whole (they are written to be read whole, 5-15 KB),
+  and every claim is cited as file#heading and checked by a guard. An eval set finds doc gaps; a human-reviewed doc-writer fixes them.
   Paths are relative to the repository root, so every node opens the real file.
 root: ../..
 
@@ -29,15 +29,15 @@ agents:
 layers:
   - id: answer
     title: Answer flow
-    description: question -> router -> JIT load -> writer -> citation guard -> reply
+    description: question -> router -> JIT load (whole docs) -> writer -> citation guard -> reply
     nodes:
-      - { id: question, type: entry, label: Question, runtime: laptop, files: [examples/docs-qa/scripts/answer.mjs], description: 'node answer.mjs "<question>" [--model id] [--dry-run]' }
+      - { id: question, type: entry, label: Question, runtime: laptop, files: [examples/docs-qa/scripts/answer.mjs], description: 'node answer.mjs "<question>" [--model id] [--dry-run] [--whole-bytes n]' }
       - id: router
         agent: router
         label: Router
         files: [examples/docs-qa/scripts/answer.mjs, examples/docs-qa/scripts/lib.mjs]
       - { id: keywords, type: process, label: Keyword router, runtime: laptop, files: [examples/docs-qa/scripts/lib.mjs], description: "Deterministic fallback and the --dry-run router: idf-weighted overlap of the question with each doc's table rows, first lines and headings." }
-      - { id: jit, type: process, label: JIT load, runtime: laptop, files: [examples/docs-qa/scripts/lib.mjs], description: "Reads only the picked docs, and of those only the header and the sections that share words with the question." }
+      - { id: jit, type: process, label: JIT load, runtime: laptop, files: [examples/docs-qa/scripts/lib.mjs], description: "Reads the picked docs whole (they are 5-15 KB); above --whole-bytes (default 16000) it keeps the header, the matched sections and their neighbours." }
       - id: writer
         agent: writer
         label: Answer writer
@@ -75,7 +75,7 @@ layers:
     description: question set -> runner -> scorer -> gap report -> doc-writer -> docs -> runner again
     nodes:
       - { id: questions, type: entry, label: Question set, files: [examples/docs-qa/evals/questions.md], description: "24 real questions, each with expected doc(s) and 1-3 key facts read from the docs." }
-      - { id: runner, type: process, label: Eval runner, runtime: laptop, files: [examples/docs-qa/scripts/eval.mjs], description: "node eval.mjs [--dry-run] [--model id] [--out path]. Dry run scores routing only." }
+      - { id: runner, type: process, label: Eval runner, runtime: laptop, files: [examples/docs-qa/scripts/eval.mjs], description: "node eval.mjs [--dry-run] [--model id] [--out path] [--runs N] [--whole-bytes n]. Each question runs N times (default 3) and passes on the majority; dry runs are single-pass and score routing only." }
       - { id: scorer, type: decision, label: Pass?, evals: [{ name: routing (dry run), value: 18, target: 24, unit: questions, illustrative: true, description: "First keyword-router run, before any doc fix." }], files: [examples/docs-qa/scripts/eval.mjs], description: "Fails on a wrong route, a missing key fact or a bad citation." }
       - { id: gaps, type: output, label: Gap report, description: "Written by eval.mjs to examples/docs-qa/gaps.md (or --out). Score and one entry per failure; a failure is a doc gap, not a bot bug." }
       - { id: doc-writer, type: agent, label: Doc-writer, description: "Proposes doc fixes from the gap report: a sharper first line or table row, or the missing fact under one heading (one home per fact)." }

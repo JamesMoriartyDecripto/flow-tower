@@ -66,16 +66,31 @@ export function keywordRoute(question, cat = catalog()) {
   return { docs, by: 'keywords', scores: scored.slice(0, 4).map((s) => `${s.doc}=${s.score.toFixed(1)}`) };
 }
 
-/** JIT load: only the sections of the picked docs that share words with the question (plus the doc header). */
-export function load(docs, question, maxChars = 14000) {
+// Docs are written to be read whole (5-15 KB); only bigger ones fall back to section selection.
+export const LOAD_WHOLE_BYTES = 16_000;
+
+/**
+ * JIT load. A picked doc at most `wholeBytes` long is loaded whole: section selection used to drop the
+ * section that held the answer whenever it shared no words with the question. Above that size, keep the
+ * doc header, the sections that share words with the question and their neighbours, capped per doc.
+ * Returns the parts plus which docs were loaded whole vs by section, and the loaded bytes.
+ */
+export function load(docs, question, { wholeBytes = LOAD_WHOLE_BYTES, maxChars = 14000 } = {}) {
   const q = new Set(words(question));
-  return docs.map((doc) => {
-    const secs = sections(read(doc));
-    const hit = secs.filter((s, i) => i === 0 || words(s.heading + ' ' + s.text).some((w) => q.has(w)));
+  const parts = docs.map((doc) => {
+    const full = read(doc);
+    if (Buffer.byteLength(full) <= wholeBytes) return { doc, text: full, mode: 'whole', bytes: Buffer.byteLength(full) };
+    const secs = sections(full);
+    const keep = new Set([0]);
+    secs.forEach((s, i) => {
+      if (i && words(s.heading + ' ' + s.text).some((w) => q.has(w))) [i - 1, i, i + 1].forEach((n) => keep.add(n));
+    });
     let text = '';
-    for (const s of hit) if (text.length + s.text.length <= maxChars / docs.length) text += s.text;
-    return { doc, text };
+    for (const [i, s] of secs.entries()) if (keep.has(i) && text.length + s.text.length <= maxChars) text += s.text;
+    return { doc, text, mode: 'sections', bytes: Buffer.byteLength(text) };
   });
+  const pick = (mode) => parts.filter((p) => p.mode === mode).map((p) => p.doc);
+  return { parts, whole: pick('whole'), sections: pick('sections'), bytes: parts.reduce((n, p) => n + p.bytes, 0) };
 }
 
 /** One chat completion with a timeout and one retry. The key comes from the shell and is never printed. */
@@ -105,7 +120,7 @@ export function guard(answer, loaded) {
   if (!cites.length && !/not in the docs/i.test(answer)) problems.push('no citation');
   for (const m of cites) {
     const [, file, anchor] = m;
-    const src = loaded.find((l) => l.doc === file);
+    const src = loaded.parts.find((l) => l.doc === file);
     const sec = src && sections(read(file)).find((s) => s.slug === anchor);
     if (!src) problems.push(`${file}: not a loaded doc`);
     else if (!sec) problems.push(`${file}#${anchor}: no such heading`);

@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // Run evals/questions.md through the answer flow and write the gap report.
-// Usage: node eval.mjs [--dry-run] [--model <id>] [--out <gaps.md>] [--only Q3,Q7]
+// Usage: node eval.mjs [--dry-run] [--model <id>] [--out <gaps.md>] [--only Q3,Q7] [--runs N] [--whole-bytes <n>]
 // A question fails on a wrong route, a missing key fact or a bad citation; --dry-run scores routing only.
+// Each question runs N times (default 3) and passes on the majority: the same docs scored 15/24 then 11/24 live.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { argv, exit } from 'node:process';
 import { answer } from './answer.mjs';
-import { DEFAULT_MODEL, EXAMPLE } from './lib.mjs';
+import { DEFAULT_MODEL, EXAMPLE, LOAD_WHOLE_BYTES } from './lib.mjs';
 
 const args = argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf(n); return i < 0 ? d : args[i + 1]; };
@@ -14,6 +15,9 @@ const dryRun = args.includes('--dry-run');
 const model = flag('--model', DEFAULT_MODEL);
 const out = flag('--out', join(EXAMPLE, 'gaps.md'));
 const only = flag('--only', '')?.split(',').filter(Boolean);
+const wholeBytes = Number(flag('--whole-bytes')) || LOAD_WHOLE_BYTES;
+// The dry run is deterministic, so one pass is enough; live runs repeat to average out model noise.
+const runs = dryRun ? 1 : Math.max(1, Number(flag('--runs', '3')) || 3);
 
 /** Parse `## Qn. question` blocks with `- docs:` and `- facts:` lines. */
 function parse(md) {
@@ -28,42 +32,49 @@ function parse(md) {
 const questions = parse(readFileSync(join(EXAMPLE, 'evals/questions.md'), 'utf8')).filter((x) => !only?.length || only.includes(x.id));
 if (!questions.length) { console.error('no questions parsed'); exit(1); }
 
+/** One pass: route, then score facts and citations. Returns the reasons it failed (empty = pass). */
+async function attempt(x) {
+  try {
+    const res = await answer(x.q, { model, dryRun, wholeBytes });
+    const reasons = [];
+    if (!res.stats.docs_loaded.some((d) => x.docs.includes(d))) reasons.push(`wrong route: ${res.stats.docs_loaded.join(', ')}`);
+    if (!dryRun) {
+      const lower = res.text.toLowerCase();
+      const missing = x.facts.filter((f) => !f.split(' / ').some((alt) => lower.includes(alt.toLowerCase())));
+      if (missing.length) reasons.push(`missing fact: ${missing.join('; ')}`);
+      if (!res.guard?.ok) reasons.push(`bad citation: ${res.guard?.problems.join('; ')}`);
+    }
+    return { pass: !reasons.length, reasons, routed: res.stats.docs_loaded, whole: res.stats.loaded_whole ?? [], sections: res.stats.loaded_sections ?? [], bytes: res.stats.loaded_bytes ?? 0, tokens: res.stats.tokens, cost: res.stats.cost, ms: res.stats.ms, cites: res.guard?.cites ?? [] };
+  } catch (e) {
+    return { pass: false, reasons: [`error: ${e.message}`], routed: [], whole: [], sections: [], bytes: 0, tokens: 0, cost: 0, ms: 0, cites: [] };
+  }
+}
+
 const rows = [];
 let cost = 0;
 let tokens = 0;
 for (const x of questions) {
-  let res;
-  try {
-    res = await answer(x.q, { model, dryRun });
-  } catch (e) {
-    rows.push({ ...x, pass: false, reasons: [`error: ${e.message}`], routed: [] });
-    console.log(`${x.id} ERROR ${e.message}`);
-    continue;
-  }
-  const routed = res.stats.docs_loaded;
-  const reasons = [];
-  if (!routed.some((d) => x.docs.includes(d))) reasons.push(`wrong route: ${routed.join(', ')}`);
-  if (!dryRun) {
-    const lower = res.text.toLowerCase();
-    const missing = x.facts.filter((f) => !f.split(' / ').some((alt) => lower.includes(alt.toLowerCase())));
-    if (missing.length) reasons.push(`missing fact: ${missing.join('; ')}`);
-    if (!res.guard?.ok) reasons.push(`bad citation: ${res.guard?.problems.join('; ')}`);
-    cost += res.stats.cost;
-    tokens += res.stats.tokens;
-  }
-  rows.push({ ...x, pass: !reasons.length, reasons, routed, ms: res.stats.ms, cites: res.guard?.cites ?? [] });
-  console.log(`${x.id} ${reasons.length ? 'FAIL' : 'pass'}  ${routed.join(', ')}${reasons.length ? `  <- ${reasons.join(' / ')}` : ''}`);
+  const tries = [];
+  for (let i = 0; i < runs; i++) tries.push(await attempt(x));
+  const passed = tries.filter((t) => t.pass).length;
+  const last = tries.at(-1);
+  const fail = tries.find((t) => !t.pass);
+  for (const t of tries) { cost += t.cost; tokens += t.tokens; }
+  const row = { ...x, tries: runs, passed, pass: passed * 2 > runs, reasons: fail?.reasons ?? [], routed: fail?.routed ?? last.routed, whole: last.whole, sections: last.sections, bytes: last.bytes, cites: last.cites };
+  rows.push(row);
+  console.log(`${x.id} ${row.pass ? 'pass' : 'FAIL'} ${passed}/${runs}  ${row.routed.join(', ')}${row.pass ? '' : `  <- ${row.reasons.join(' / ')}`}`);
 }
 
 const passed = rows.filter((r) => r.pass).length;
 const fails = rows.filter((r) => !r.pass);
 const score = `${passed}/${rows.length}`;
+const loaded = (r) => [...r.whole.map((d) => `${d} (whole)`), ...r.sections.map((d) => `${d} (sections)`), `${r.bytes} B`].join(', ');
 const md = [
   '# Doc gaps',
   '',
-  `Latest run: ${new Date().toISOString().slice(0, 16)}Z, ${dryRun ? '**dry run: routing only** (keyword router, no model)' : `model \`${model}\``}.`,
+  `Latest run: ${new Date().toISOString().slice(0, 16)}Z, ${dryRun ? '**dry run: routing and JIT loading only** (keyword router, no model, one pass)' : `model \`${model}\`, ${runs} runs per question (majority pass)`}, docs loaded whole up to ${wholeBytes} B.`,
   '',
-  `**Score: ${score}** ${dryRun ? 'routed to an expected doc' : 'passed (route, facts and citations)'}.${dryRun ? '' : ` Tokens ${tokens}, cost $${cost.toFixed(4)}.`}`,
+  `**Score: ${score}** ${dryRun ? 'routed to an expected doc' : 'passed the majority (route, facts and citations)'}.${dryRun ? '' : ` Tokens ${tokens}, cost $${cost.toFixed(4)}.`}`,
   '',
   fails.length ? '## Gaps' : '## Gaps\n\nNone.',
   '',
@@ -71,16 +82,20 @@ const md = [
     `### ${r.id}. ${r.q}`,
     `- expected: ${r.docs.join(', ')}`,
     `- routed: ${r.routed.join(', ') || 'none'}`,
+    `- pass rate: ${r.passed}/${r.tries}`,
+    `- loaded: ${loaded(r)}`,
     ...r.reasons.map((s) => `- ${s}`),
     '- fix: make the expected doc\'s first lines or its CLAUDE.md row name this topic, or add the missing fact under one heading.',
     '',
   ]),
   '## All questions',
   '',
-  '| Q | Result | Routed to |',
-  '|---|---|---|',
-  ...rows.map((r) => `| ${r.id} | ${r.pass ? 'pass' : 'FAIL'} | ${r.routed.join(', ')} |`),
+  '| Q | Result | Pass rate | Routed to | Loaded |',
+  '|---|---|---|---|---|',
+  ...rows.map((r) => `| ${r.id} | ${r.pass ? 'pass' : 'FAIL'} | ${r.passed}/${r.tries} | ${r.routed.join(', ')} | ${loaded(r)} |`),
   '',
 ].join('\n');
 writeFileSync(out, md);
+// One JSON line per question: what ran, what it scored, and what the JIT loader kept.
+for (const r of rows) console.log(JSON.stringify({ id: r.id, runs: r.tries, passed: r.passed, pass: r.pass, docs_loaded_whole: r.whole, docs_loaded_sections: r.sections, loaded_bytes: r.bytes }));
 console.log(`score ${score}; report: ${out}`);

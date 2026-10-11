@@ -6,7 +6,10 @@ the tower sets `root: ../..`, so every node opens the real doc or script it desc
 Retrieval is **just-in-time routing, not embeddings**. The docs are written for it (#101): CLAUDE.md's
 "Load on demand" table maps tasks to docs, and every doc in `docs/` opens with what it covers, when to
 read it and where to go instead. So the router reads only that table and those first lines, picks at most
-two docs, and loads only their relevant sections. No index to build or keep in sync.
+two docs, and loads them **whole** (they are written to be read whole, 5–15 KB); a doc bigger than
+`LOAD_WHOLE_BYTES` (16 000, `--whole-bytes`) falls back to keeping its header, the sections that share
+words with the question and their neighbours. No index to build or keep in sync, and no risk of dropping
+the one section that holds the answer.
 
 ## When to use it
 
@@ -23,18 +26,21 @@ For a classic embeddings pipeline, start from [`starters/rag-bot`](../starters/r
 back to the writer, then "Not in the docs" plus the closest doc) → reply.
 
 **Eval (the doc-gap loop):** [`evals/questions.md`](evals/questions.md) (24 real questions, each with the
-expected doc and 1–3 key facts read from the docs) → runner → scorer (fails on a wrong route, a missing
-fact or a bad citation) → `gaps.md` → a doc-writer proposes the fix, a maintainer reviews it → docs →
-run again. A gap is fixed in the doc, not in the bot: a sharper first line or CLAUDE.md row when the route
-is wrong, the missing fact under one heading (one home per fact) when the answer is wrong.
+expected doc and 1–3 key facts read from the docs) → runner (each question runs `--runs N` times, default
+3, and passes on the majority) → scorer (fails on a wrong route, a missing fact or a bad citation) →
+`gaps.md` (pass rate per question, which docs were loaded whole vs by section) → a doc-writer proposes the
+fix, a maintainer reviews it → docs → run again. A gap is fixed in the doc, not in the bot: a sharper
+first line or CLAUDE.md row when the route is wrong, the missing fact under one heading (one home per
+fact) when the answer is wrong. Repeating a question guards against model noise: the same docs scored
+15/24 then 11/24 in live runs, so only a question that fails the majority counts as a gap.
 
 ## Run it
 
 Node 22, no dependencies. From the repository root:
 
 ```bash
-node examples/docs-qa/scripts/answer.mjs --dry-run "How do I pause sharing?"   # routing only, offline
-node examples/docs-qa/scripts/eval.mjs --dry-run --out /tmp/gaps.md            # routing score, offline
+node examples/docs-qa/scripts/answer.mjs --dry-run "How do I pause sharing?"   # routing + JIT loading, offline
+node examples/docs-qa/scripts/eval.mjs --dry-run --out /tmp/gaps.md            # routing + JIT loading, offline
 ```
 
 A real run calls [OpenRouter](https://openrouter.ai). Export `OPENROUTER_API_KEY` in your shell (never
@@ -44,10 +50,12 @@ put it in a file in the repo; the scripts never print it), then:
 node examples/docs-qa/scripts/answer.mjs "How do I connect my laptop to the hub?"
 node examples/docs-qa/scripts/eval.mjs                       # writes examples/docs-qa/gaps.md
 node examples/docs-qa/scripts/eval.mjs --model <id> --only Q12,Q13
+node examples/docs-qa/scripts/eval.mjs --runs 5 --whole-bytes 32000
 ```
 
 `answer.mjs` prints the answer with citations, then one JSON line `{ docs_loaded, routed_by, tokens,
-cost, ms }`. Calls use low reasoning effort, `provider: { data_collection: 'deny' }`, a 45 s timeout and
+cost, ms, loaded_whole, loaded_sections, loaded_bytes }`. `eval.mjs` prints the same per question and
+writes the pass rate and the loaded docs into `gaps.md`. Calls use low reasoning effort, `provider: { data_collection: 'deny' }`, a 45 s timeout and
 one retry. Copied out of this repo, set `DOCS_QA_ROOT` to a flow-tower clone.
 
 ## Cost and model choice
@@ -65,7 +73,7 @@ keyword router, before any doc fix: illustrative.
 | `docs-qa.tower.yaml` | the tower: answer flow, docs read, eval flow |
 | `scripts/answer.mjs` | one question: route, load, write, guard |
 | `scripts/eval.mjs` | the question set, scored; writes `gaps.md` (`--out` elsewhere) |
-| `scripts/lib.mjs` | catalog, keyword router, section loader, OpenRouter call, citation guard |
+| `scripts/lib.mjs` | catalog, keyword router, JIT loader, OpenRouter call, citation guard |
 | `prompts/` | router, answer writer, guard feedback |
 | `evals/questions.md` | the eval set |
 
