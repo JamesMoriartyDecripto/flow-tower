@@ -25,6 +25,8 @@ node $FT/bin/flow-tower.js validate ~/my-project/tower        # 0 errors, 0 warn
 node $FT/bin/flow-tower.js ~/my-project/tower                 # opens it in the browser
 ```
 
+Or `flow-tower copy <example> [dest]` (`copy --list` lists them): it copies the folder, validates it and prints the next steps; the [use-example skill](../skills/flow-tower-use-example/SKILL.md) walks an agent through it.
+
 Optional: `npm link` inside the clone puts `flow-tower` on your `PATH` (it is the package's `bin`), so
 `flow-tower ~/my-project/tower` works from anywhere. Claude Code's SessionStart hook needs it.
 

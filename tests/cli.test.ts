@@ -532,6 +532,14 @@ describe('cli install-skill', () => {
     expect(costsMd).toContain('](../flow-tower/SKILL.md)');
     expect(costsMd).toContain(`](${resolve('docs/realtime.md')})`);
     expect(readFileSync(join(costs, 'reference.md'), 'utf8')).not.toContain('](../../');
+
+    for (const name of ['flow-tower-use-example', 'flow-tower-contribute']) {
+      const md = readFileSync(join(cwd, dir, name, 'SKILL.md'), 'utf8');
+      expect(md).not.toContain('{{FLOW_TOWER_CLI}}');
+      expect(md).not.toContain('](../../');
+      expect(md).toContain('](../flow-tower/');
+    }
+    expect(existsSync(join(cwd, dir, 'flow-tower-contribute', 'reference.md'))).toBe(true);
   });
 
   it('rejects an unknown target', () => {
