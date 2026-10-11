@@ -485,6 +485,26 @@ describe('cli copy (#116)', () => {
     expect(r.stderr).toContain('inside');
   });
 
+  it('warns when the dest is inside the flow-tower checkout', { timeout: 20_000 }, () => {
+    // A temp folder inside the checkout: the case the note exists for (#121), never refused.
+    const dest = mkdtempSync(join(resolve('.'), 'tmp-copy-inside-'));
+    try {
+      const r = copy('starters/rag-bot', dest);
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain(`${dest} is inside the flow-tower checkout`);
+      expect(r.stdout).toContain('flow-tower library add <path>');
+    } finally {
+      rmSync(dest, { recursive: true, force: true });
+    }
+  });
+
+  it('points at the library next step for a dest outside the checkout', { timeout: 20_000 }, () => {
+    const dest = join(out, 'library-hint');
+    const r = copy('starters/rag-bot', dest);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(`add it to your library: flow-tower library add ${dest}`);
+  });
+
   it('warns that a root: ../.. example points at the flow-tower repo', () => {
     const r = copy('docs-qa', join(out, 'docs-qa'));
     expect(r.status).toBe(0);
