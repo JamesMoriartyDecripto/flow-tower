@@ -125,8 +125,14 @@ test('machines: a later poll failing keeps the rows and warns', async ({ page, e
   await expect(page.locator('.hub-warn')).toHaveText('Machines unavailable', { timeout: 15_000 });
   await expect(rows).toHaveCount(2);
   await expect(rows).toContainText('ana-mbp');
-  // Chromium logs the 500 it was made to answer as a console error: that is the failure under test, so
-  // assert it is the only noise and clear it, leaving the fixture strict about everything else.
+  // Close the panel first, so no further poll can be provoked while we wait for this one's console error.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.hub')).toHaveCount(0);
+  // Chromium reports the 500 asynchronously, after the warning above is on screen, so wait for it to land
+  // rather than reading `errors` while it is still in flight.
+  await expect.poll(() => errors.some((e) => /status of 500/.test(e))).toBe(true);
+  // That 500 is the failure under test: assert it is the only noise and clear it, leaving the fixture
+  // strict about everything else.
   const provoked = errors.filter((e) => /Failed to load resource|hub\/machines/.test(e));
   expect(errors.filter((e) => !provoked.includes(e)), 'console and page errors other than the provoked 500').toEqual([]);
   errors.length = 0;
