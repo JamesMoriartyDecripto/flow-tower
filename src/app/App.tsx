@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { useWorkspaceSync } from './api';
 import { Controls, Issues, LayerNav, Legend, TopBar } from './hud/Chrome';
 import { FileViewer } from './hud/FileViewer';
+import { HubPanel, useHub } from './hud/Hub';
 import { Inspector } from './hud/Inspector';
 import { Library } from './hud/Library';
 import { LiveFeed } from './hud/LiveFeed';
@@ -39,6 +40,7 @@ export function App() {
   const quality = useStore((s) => s.quality);
   const themeRev = usePrefs((s) => s.themeRev);
   const hints = usePrefs((s) => s.hints);
+  const hubOpen = useHub((s) => s.open);
   const feedOpen = useLive((s) => s.feedOpen);
   useDefaultView();
   const [showIssues, setShowIssues] = useState(false);
@@ -71,8 +73,10 @@ export function App() {
         {!selected && hints && !feedOpen && (
           <div className="hint">DRAG rotate · SHIFT+DRAG pan · SCROLL zoom · CLICK inspect · DBL-CLICK enter · ARROWS move · M map · ESC back · ? all keys</div>
         )}
-        <Inspector />
-        <NodeList />
+        <HubPanel />
+        {/* The Hub panel takes the Inspector's place: the node panel and the layer list would fight it for the right edge. */}
+        {!hubOpen && <Inspector />}
+        {!hubOpen && <NodeList />}
         <LiveFeed />
         {(showIssues || broken) && <Issues onClose={() => setShowIssues(false)} />}
       </div>
@@ -149,6 +153,8 @@ function useKeyboard() {
       if (e.key === '?') { prefs.set({ help: !prefs.help }); return; }
       if (prefs.help) { if (e.key === 'Escape') prefs.set({ help: false }); return; }
       if (prefs.open) { if (e.key === 'Escape') prefs.set({ open: false }); return; }
+      // The Hub panel has no modal: it takes Esc before the usual chain (file → node → layer → tower).
+      if (e.key === 'Escape' && useHub.getState().open) { useHub.getState().close(); return; }
       if (e.key === ',') { e.preventDefault(); prefs.set({ open: true }); return; }
       if (s.library) {
         if (e.key === 'Escape' && s.stack.length) s.showLibrary(false);
@@ -200,6 +206,8 @@ function useKeyboard() {
         useVoice.getState().toggle();
       } else if (key === 'f') {
         useLive.getState().toggleFeed();
+      } else if (key === 'h' && !STATIC) {
+        useHub.getState().toggle();
       } else if (key === '+' || key === '=') {
         nudgeCamera('zoom', 1);
       } else if (key === '-' || key === '_') {

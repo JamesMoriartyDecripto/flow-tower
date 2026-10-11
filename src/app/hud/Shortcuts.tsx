@@ -33,6 +33,7 @@ export const GROUPS: [string, [string, string][]][] = [
     ['I', 'Into the node panel: ↑ ↓ sections and buttons, ← → tabs, Enter press, Esc back to the scene'],
     ['[  ]', 'Previous / next tab of the selected node'],
     ['F', 'Live feed'],
+    ['H', 'Hub panel (Now, Machines)'],
     ['V', 'Voice commands on / off: "open dev squad", "layer 2", "triage node", "map view", "back" (Italian too)'],
     ['L', 'Library (arrows move, Enter opens, T / M open as tower / map)'],
     [',', 'Settings · Tab through sections to Sharing (or click the SAT chip): pause, send a test'],
@@ -58,7 +59,8 @@ export function Shortcuts() {
           <button className="close" onClick={close} title="Close (Esc or ?)">✕</button>
         </header>
         <div className="keys">
-          {GROUPS.map(([title, all]) => [title, all.filter(([k]) => k !== 'V' || !STATIC)] as const).map(([title, keys]) => (
+          {/* Voice and the Hub panel need a server: the static demo lists neither. */}
+          {GROUPS.map(([title, all]) => [title, all.filter(([k]) => !STATIC || (k !== 'V' && k !== 'H'))] as const).map(([title, keys]) => (
             <section key={title}>
               <h3>{title}</h3>
               <dl>

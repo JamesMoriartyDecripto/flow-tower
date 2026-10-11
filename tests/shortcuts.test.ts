@@ -16,6 +16,11 @@ describe('keyboard reference (? overlay)', () => {
     expect(rows().find(([, what]) => what.includes('Sharing'))).toBeDefined();
   });
 
+  // The Hub panel is opened by H alone, so the reference must name it (issue #92).
+  it('documents the Hub panel key', () => {
+    expect(rows().find(([, what]) => what.includes('Hub panel'))).toBeDefined();
+  });
+
   it('uses each key label only once, so two rows cannot claim the same key', () => {
     const labels = rows().map(([k]) => k);
     expect(new Set(labels).size).toBe(labels.length);

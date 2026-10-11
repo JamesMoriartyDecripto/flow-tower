@@ -504,6 +504,31 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
   .hud:has(.livefeed) .nodelist { max-height: calc(100 * var(--vh) - 76px - 42 * var(--vh) - 12px - 80px); }
 }
 
+/* Hub panel (#92): the Now and Machines tabs, in the Inspector's place. */
+.hub .hub-hint { margin-top: 6px; font-size: 11px; }
+.hub .tabs button { cursor: pointer; }
+.hub .tabbody { padding: 12px 14px; }
+.hub-empty { margin: 0; color: var(--dim); }
+.hub-warn { margin: 0 0 8px; color: var(--warn); }
+.hub-rows { display: grid; gap: 2px; }
+/* One grid for the header and the data rows, so the columns line up without a table. */
+.hub-row { display: grid; grid-template-columns: 14px 1fr 1fr 1fr 1fr 1.2fr; gap: 8px; align-items: center;
+  padding: 4px 6px; font: 12.5px var(--mono); border-left: 2px solid transparent; }
+.hub-rows.machines .hub-row { grid-template-columns: 1fr 1fr 1.1fr 1fr 1fr 0.8fr 0.6fr; }
+.hub-row.head { font: 600 9px var(--display); letter-spacing: .14em; color: var(--orange); opacity: .8; border-left-color: transparent; }
+.hub-row:not(.head):hover { background: color-mix(in srgb, var(--orange) 8%, transparent); border-left-color: var(--orange); }
+.hub-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-dot { text-align: center; }
+.hub-dot.run, .hub-dot.active { color: var(--live-run); }
+.hub-dot.idle { color: var(--amber); }
+.hub-dot.silent, .hub-dot.never { color: var(--dim); }
+.hub-dot.paused { color: var(--warn); }
+.hub-dot.revoked { color: var(--live-error); }
+.hub-auto { padding: 0 5px; font-size: 9px; }
+.hub-token { color: var(--dim); }
+.hub-live { display: flex; align-items: center; gap: 5px; }
+.hub-foot { padding: 8px 18px; border-top: 1px solid var(--line-soft); font: 11px var(--mono); color: var(--dim); }
+
 /* Settings > Voice > Learning (#68) */
 .voice-stats { margin: 0 0 8px; }
 .voice-suggestions { display: grid; gap: 6px; margin: 4px 0 10px; }
