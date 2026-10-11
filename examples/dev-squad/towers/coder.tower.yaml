@@ -92,7 +92,7 @@ layers:
           - { kind: log, label: "Hooks log", path: "logs/hooks.log" }
         type: guard
         label: Fence + secrets
-        description: "On OpenRouter the fence is in code: paths resolve inside the worktree, writes only under src/ tests/ e2e/, secret paths denied. The Opus fixer gets the PreToolUse hooks instead."
+        description: "On OpenRouter the fence is in code: paths resolve inside the worktree, writes (and delete_file) only under src/ tests/ e2e/, secret paths denied, probe/scratch file names refused. The Opus fixer gets the PreToolUse hooks instead."
         files: [src/openrouter-agent.ts, src/hooks/index.ts, src/hooks/secret-scan.ts]
       - id: write
         runtime: vps
