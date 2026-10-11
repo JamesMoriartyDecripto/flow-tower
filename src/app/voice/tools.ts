@@ -6,6 +6,7 @@ import { opsMarks } from '../ops';
 import { chooseView } from '../settings';
 import { findNode, useStore } from '../store';
 import { norm, score } from './commands';
+import { currentList, setList } from './referents';
 
 /**
  * What the voice agent can read and do. The tools run here, in the page, on the workspace on screen,
@@ -97,6 +98,9 @@ export function runTool(name: string, args: Args): string {
     case 'screen': {
       const n = findNode(tower, s.selected);
       const l = s.focusedLayer !== undefined ? tower?.layers[s.focusedLayer] : undefined;
+      // The list the parser would step through on "il prossimo" (#130): the agent needs it to answer
+      // "the next one" about the same list the user is walking, not one it invents.
+      const list = currentList(tower?.id);
       return out({
         library_open: s.library,
         projects: ws.projects.map((id) => ws.towers[id].name),
@@ -104,6 +108,7 @@ export function runTool(name: string, args: Args): string {
         focused_layer: l && { number: l.index + 1, title: l.title },
         selected_node: n && { key: n.key, label: n.label },
         open_file: s.file ? s.file.files[s.file.index] : undefined,
+        list: list && { source: list.source, count: list.keys.length, position: list.cursor >= 0 ? list.cursor + 1 : undefined },
         view: s.view,
       });
     }
@@ -119,6 +124,8 @@ export function runTool(name: string, args: Args): string {
       const nodes = flowOrder(tower.id, l);
       const label = (key: string) => findNode(tower, key)?.label ?? key;
       const keys = new Set(l.nodes.map((n) => n.key));
+      // The layer's nodes in flow order become the list too: "il prossimo" walks the flow just shown.
+      setList({ tower: tower.id, keys: nodes.map((n) => n.key), cursor: -1, source: 'layer' });
       // The edges inside the layer are its flow: one call is enough to explain it.
       return out({
         layer: { number: i + 1, title: l.title, description: l.description },
@@ -139,6 +146,8 @@ export function runTool(name: string, args: Args): string {
       // The top bar search highlights the matches in the scene, so "they are highlighted" is true.
       agentSearch = String(args.query ?? '');
       s.set({ search: agentSearch });
+      // The hits become the list: "il prossimo" then steps through them, cursor at -1 so it picks the first.
+      setList({ tower: tower.id, keys: hits.map((h) => h.key), cursor: -1, source: 'search' });
       return out({ query: args.query, count: hits.length, nodes: hits.slice(0, 25), highlighted_on_screen: true });
     }
     case 'node_info': {
@@ -183,6 +192,11 @@ export function runTool(name: string, args: Args): string {
       const hit = nodeOf(ws, tower, args.node);
       if (!hit) return out({ error: `No node "${args.node ?? ''}".` });
       show(hit.t, hit.n.key);
+      // Selecting a node of the list in play moves its cursor there (#130), so a later "il prossimo"
+      // continues from the node the user just picked instead of restarting at the first hit.
+      const list = currentList(hit.t.id);
+      const at = list?.keys.indexOf(hit.n.key) ?? -1;
+      if (list && at >= 0) setList({ ...list, cursor: at });
       return out({ selected: hit.n.label, layer: layerTitle(hit.t, hit.n.key), tower: hit.t.name });
     }
     case 'open_file': {
