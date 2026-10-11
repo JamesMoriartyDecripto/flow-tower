@@ -516,7 +516,6 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
   padding: 4px 6px; font: 12.5px var(--mono); border-left: 2px solid transparent; }
 .hub-rows.machines .hub-row { grid-template-columns: 1fr 1fr 1.1fr 1fr 1fr 0.8fr 0.6fr; }
 .hub-row.head { font: 600 9px var(--display); letter-spacing: .14em; color: var(--orange); opacity: .8; border-left-color: transparent; }
-.hub-row:not(.head):hover { background: color-mix(in srgb, var(--orange) 8%, transparent); border-left-color: var(--orange); }
 .hub-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-dot { text-align: center; }
 .hub-dot.run, .hub-dot.active { color: var(--live-run); }

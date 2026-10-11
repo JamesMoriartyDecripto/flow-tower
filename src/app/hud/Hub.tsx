@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { create } from 'zustand';
 import { ago, hubPill, machineState, nowRows, type NowRow, type NowState } from '../hub';
 import { useLive } from '../live';
@@ -124,6 +124,20 @@ export function HubPanel() {
   }, [open, tab]);
 
   const rows = useMemo(() => nowRows(events, now), [events, now]);
+
+  /**
+   * WAI-ARIA tabs pattern on the tablist: ← → move the selection and the focus together. We handle it
+   * here (and stop the event) because App.tsx listens on window and would otherwise also pan the scene.
+   */
+  const tabKey = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    e.stopPropagation();
+    step(e.key === 'ArrowRight' ? 1 : -1);
+    // The store is synchronous, so the id already points at the tab we just selected.
+    document.getElementById(`hub-tab-${useHub.getState().tab}`)?.focus();
+  };
+
   // The static demo has no server: no hub to read, so the panel stays away like the mic (Voice.tsx).
   if (!open || STATIC) return null;
 
@@ -138,9 +152,10 @@ export function HubPanel() {
         <h2>Hub</h2>
         <div className="mono dim hub-hint">[ ] tab · Esc close</div>
       </header>
-      <nav className="tabs" role="tablist" aria-label="Hub views">
+      <nav className="tabs" role="tablist" aria-label="Hub views" onKeyDown={tabKey}>
         {TABS.map((id) => (
           <button key={id} id={`hub-tab-${id}`} role="tab" aria-selected={tab === id} aria-controls="hub-panel"
+            tabIndex={tab === id ? 0 : -1}
             className={tab === id ? 'on' : ''} onClick={() => show(id)}>
             {id.toUpperCase()}
           </button>
@@ -227,6 +242,8 @@ export function HubChip() {
         useHub.getState().setMe((await res.json()) as HubMe);
       } catch {
         // A lost hub is not the same as our own abort: only a real failure clears the pill.
+        // Hiding the pill is safe: READ-ONLY is a hint for the viewer, and the server refuses every
+        // write from a remote viewer anyway (hubGuard), so a hidden pill never grants anything.
         if (!ac.signal.aborted) useHub.getState().setMe(undefined);
       }
     };
