@@ -6,6 +6,7 @@
 import { env } from 'node:process';
 import type { DatabaseSync } from 'node:sqlite';
 import type { FlowEvent } from '../../core/events.ts';
+import { loadConfig } from '../config.ts';
 import { toRow, type Row } from './row.ts';
 
 /** Exported so the CLI's export reads exactly the same allow-list: it can never print a column the writer never fills. */
@@ -59,12 +60,20 @@ export interface TotalsQuery {
  */
 export const RETENTION = { minDays: 1, maxDays: 21, defaultDays: 14, hourlyDays: 90, dailyDays: 395 } as const;
 
-/** FLOW_TOWER_RETENTION_DAYS read and clamped to 1..21; a missing or unparsable value falls back to 14. */
+/**
+ * FLOW_TOWER_RETENTION_DAYS read and clamped to 1..21; when unset it falls back to the config file's
+ * retentionDays (#90), then to 14. A missing or unparsable value also falls back to 14.
+ */
 export function retentionDays(value: string | undefined = env.FLOW_TOWER_RETENTION_DAYS): number {
-  if (value === undefined || value.trim() === '') return RETENTION.defaultDays;
+  if (value === undefined || value.trim() === '') return configRetentionDays() ?? RETENTION.defaultDays;
   const n = Number(value);
-  if (!Number.isFinite(n)) return RETENTION.defaultDays;
+  if (!Number.isFinite(n)) return configRetentionDays() ?? RETENTION.defaultDays;
   return Math.min(RETENTION.maxDays, Math.max(RETENTION.minDays, Math.trunc(n)));
+}
+
+/** The config file's retentionDays, or undefined: the schema already clamps it to 1..21. */
+function configRetentionDays(): number | undefined {
+  try { return loadConfig().config.retentionDays; } catch { return undefined; }
 }
 
 /** Start of the UTC day holding `ts`. UTC, not local: the DB must not change meaning with TZ. */

@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Added
 - OTLP receiver accepts `Content-Encoding: gzip`; sample per-host OTel Collector in `integrations/otel-collector/` (host/user tags, prompt fields stripped, disk queue while offline) (#81).
+- One config file for the hub and the emit settings (#90): `~/.config/flow-tower/config.json` (JSONC, `flow-tower.local.json` in a checkout as a fallback) carries `hub`, `host`, `allowedHosts`, `ingestOnly`, `viewers`, `retentionDays` and the sender's `url`/`user`/`machine`/`token`, with flags then environment then the file then defaults. `flow-tower config path` says which files are used and `flow-tower config show` prints every effective value with its source (the token redacted). `serve` and `emit` read it, history retention falls back to it when `FLOW_TOWER_RETENTION_DAYS` is unset, and the old `hub.json` `viewers`/`profile`/`members`/`optedIn` are migrated with a deprecation warning.
 
 ### Fixed
 - Telemetry docs (#81): Claude Code's telemetry variables and Codex's `[otel]` block must be set at user level (`~/.claude/settings.json`, `~/.codex/config.toml`), managed settings or the shell; project settings are ignored.

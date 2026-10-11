@@ -1,7 +1,7 @@
-import { readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { statSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { authorize, hubMode, isLoopback, isRemote } from './auth.ts';
+import { configPaths, loadConfig } from './config.ts';
 import { userHome } from '../core/secrets.ts';
 
 /**
@@ -58,18 +58,18 @@ const isSensitive = (path: string) => SENSITIVE.test(path) || isViteFs(path);
 /** A remote read: the UI, its assets and every read endpoint (workspace, events, history, version). */
 const isViewing = (method: string | undefined, path: string) => (method === 'GET' || method === 'HEAD') && !isSensitive(path);
 
-/** Who may view this hub: the tailnet users listed in <home>/hub.json ({"viewers": ["alice@example.com"]}). */
+/**
+ * Who may view this hub (#90): the `viewers` list in the one config file, falling back to the legacy
+ * <home>/hub.json (loadConfig migrates it). loadConfig re-reads the files each call, so the result is
+ * memoized on the combined mtime of the files it would read: an edit is picked up, a per-request stat is not.
+ */
 function viewers(home: string): string[] {
-  const file = join(home, 'hub.json');
   let mtime = 0;
-  try { mtime = statSync(file).mtimeMs; } catch { return []; }
-  if (cache && cache.mtime === mtime && cache.home === file) return cache.list;
+  for (const file of configPaths({ home })) { try { mtime += statSync(file).mtimeMs; } catch { /* missing file: no share */ } }
+  if (cache && cache.mtime === mtime && cache.home === home) return cache.list;
   let list: string[] = [];
-  try {
-    const raw = JSON.parse(readFileSync(file, 'utf8')) as { viewers?: unknown };
-    list = Array.isArray(raw.viewers) ? raw.viewers.filter((v): v is string => typeof v === 'string') : [];
-  } catch { /* missing or hand-edited: nobody is a viewer, never a crash */ }
-  cache = { home: file, mtime, list };
+  try { list = loadConfig({ home }).config.viewers ?? []; } catch { /* hand-edited: nobody is a viewer, never a crash */ }
+  cache = { home, mtime, list };
   return list;
 }
 let cache: { home: string; mtime: number; list: string[] } | undefined;

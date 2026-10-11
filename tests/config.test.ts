@@ -118,9 +118,10 @@ describe('effective', () => {
     expect(defaults).toMatchObject({ hub: false, ingestOnly: false, allowedHosts: [], retentionDays: 14, role: 'local', viewers: [] });
   });
 
-  it('treats an empty environment value as "no value"', () => {
-    const env = { FLOW_TOWER_USER: '', FLOW_TOWER_MACHINE: '' } as NodeJS.ProcessEnv;
-    expect(effective({ user: 'config-user', machine: 'config-box' }, env)).toMatchObject({ user: undefined, machine: undefined });
+  it('treats an empty environment value as unset, so it never switches off the config', () => {
+    const env = { FLOW_TOWER_USER: '', FLOW_TOWER_MACHINE: ' ', FLOW_TOWER_HUB: '', FLOW_TOWER_INGEST_ONLY: '', FLOW_TOWER_ALLOWED_HOSTS: '', FLOW_TOWER_TOKEN: '' } as NodeJS.ProcessEnv;
+    const config = { user: 'config-user', machine: 'config-box', hub: true, ingestOnly: true, allowedHosts: ['hub.example'], token: 'ft_cfg' };
+    expect(effective(config, env)).toMatchObject({ ...config });
   });
 
   it('clamps retention and keeps the UX keys as they are', () => {

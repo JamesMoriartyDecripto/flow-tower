@@ -11,10 +11,11 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { stripJsonc } from '../../bin/config-file.js';
 import { userHome } from '../core/secrets.ts';
 
 /** The flow-tower package root: `<checkout>/flow-tower.local.json` sits next to package.json. */
-const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+export const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 export const ROLES = ['local', 'hub', 'satellite'] as const;
 export const PROFILES = ['personal', 'freelancers', 'employees'] as const;
@@ -60,56 +61,8 @@ export interface LoadedConfig {
 /** Today's retention default (src/server/history/store.ts): kept local so this module pulls in no store. */
 const RETENTION = { minDays: 1, maxDays: 21, defaultDays: 14 } as const;
 
-/** Comment bodies are dropped, not the line's newline: a `//` comment must not join two lines. */
-function stripComments(text: string): string {
-  let out = '';
-  let inString = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inString) {
-      out += c;
-      if (c === '\\') { out += text[++i] ?? ''; continue; } // an escaped quote does not end the string
-      if (c === '"') inString = false;
-      continue;
-    }
-    if (c === '"') { inString = true; out += c; continue; }
-    if (c === '/' && text[i + 1] === '/') { while (i < text.length && text[i] !== '\n') i++; out += '\n'; continue; }
-    if (c === '/' && text[i + 1] === '*') {
-      i += 2;
-      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
-      i++; // lands on the "/" (or past the end), the loop's i++ moves to the next char
-      continue;
-    }
-    out += c;
-  }
-  return out;
-}
-
-/** Trailing commas are a JSONC courtesy, so they are only dropped outside a string: "a,]" may be a value. */
-function dropTrailingCommas(text: string): string {
-  let out = '';
-  let inString = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inString) {
-      out += c;
-      if (c === '\\') { out += text[++i] ?? ''; continue; }
-      if (c === '"') inString = false;
-      continue;
-    }
-    if (c === '"') { inString = true; out += c; continue; }
-    if (c === ',') {
-      let j = i + 1;
-      while (j < text.length && /\s/.test(text[j])) j++;
-      if (text[j] === '}' || text[j] === ']') continue; // nothing may follow it but the closing bracket
-    }
-    out += c;
-  }
-  return out;
-}
-
-/** JSONC: what a human edits. Comments and trailing commas are accepted, everything else is plain JSON. */
-export const stripJsonc = (text: string) => dropTrailingCommas(stripComments(text));
+// One JSONC reader for the server and the plain-JS `emit` (bin/config-file.js).
+export { stripJsonc };
 
 /** What the old hub.json may carry: the keys that moved into config.json. Loose, its other keys are its own. */
 const LegacySchema = z.object({
@@ -119,6 +72,11 @@ const LegacySchema = z.object({
   optedIn: z.array(z.string()).optional(),
 });
 const LEGACY_KEYS = ['viewers', 'profile', 'members', 'optedIn'] as const;
+
+/** The three files a load may read, in the order they matter: checkout local, user's own, legacy hub.json. */
+export function configPaths({ home = userHome(), checkout = PKG_ROOT }: { home?: string; checkout?: string } = {}) {
+  return [join(checkout, 'flow-tower.local.json'), join(home, 'config.json'), join(home, 'hub.json')] as const;
+}
 
 /**
  * The effective configuration: <home>/config.json over <checkout>/flow-tower.local.json, both as JSONC.
@@ -215,19 +173,19 @@ export interface EffectiveSettings {
   purpose?: string;
 }
 
-const truthy = (v: string | undefined) => (v === undefined ? undefined : /^(1|true|yes)$/i.test(v));
-const list = (v: string | undefined) => (v === undefined ? undefined : v.split(',').map((s) => s.trim()).filter(Boolean));
+// An empty variable counts as unset: compose files and CI templates often export FLOW_TOWER_HUB='' by
+// default, and that must never switch off a hub (and its auth) that the config file turns on.
+const unset = (v: string | undefined) => v === undefined || v.trim() === '';
+const truthy = (v: string | undefined) => (unset(v) ? undefined : /^(1|true|yes)$/i.test(v!.trim()));
+const list = (v: string | undefined) => (unset(v) ? undefined : v!.split(',').map((s) => s.trim()).filter(Boolean));
 const number = (v: string | undefined) => {
   if (v === undefined) return undefined;
   const n = Number(v.trim());
   return v.trim() === '' || !Number.isFinite(n) ? undefined : Math.min(RETENTION.maxDays, Math.max(RETENTION.minDays, Math.trunc(n)));
 };
-/**
- * A text option: a flag wins, then a *set* environment variable — an empty one means "no value", so
- * FLOW_TOWER_USER='' turns a configured user off — then the config file.
- */
+/** A text option: a flag wins, then a non-empty environment variable, then the config file. */
 const text = (flag: string | undefined, envValue: string | undefined, configValue: string | undefined) =>
-  flag ?? (envValue !== undefined ? envValue.trim() || undefined : configValue);
+  flag ?? (unset(envValue) ? configValue : envValue!.trim());
 
 /**
  * The settings the server and the CLI act on (#90). Pure: no file is read here, so the precedence

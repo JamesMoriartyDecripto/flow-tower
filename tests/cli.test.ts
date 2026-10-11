@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir, hostname, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -236,6 +236,8 @@ describe('cli serve guards (#83)', () => {
   const serve = (...args: string[]) =>
     spawnSync(process.execPath, [CLI, 'serve', ...args], {
       encoding: 'utf8',
+      // A serve that starts instead of refusing would never exit: fail the test, not the whole run.
+      timeout: 20_000,
       env: { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_ALLOWED_HOSTS: '' },
     });
 
@@ -257,6 +259,98 @@ describe('cli serve guards (#83)', () => {
     const r = serve('--ingest-only', '--no-open');
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('--ingest-only needs a token');
+  });
+});
+
+describe('cli config (#90)', () => {
+  const home = mkdtempSync(join(tmpdir(), 'flow-tower-cli-config-'));
+  afterAll(() => rmSync(home, { recursive: true, force: true }));
+  // FLOW_TOWER_HOME points userHome() at a temp folder, so nothing here touches the real config.
+  const config = (...args: string[]) =>
+    spawnSync(process.execPath, [CLI, 'config', ...args], { encoding: 'utf8', env: { ...process.env, FLOW_TOWER_HOME: home } });
+  const write = (content: string) => writeFileSync(join(home, 'config.json'), content, { mode: 0o600 });
+
+  it('show redacts the token, never printing its value', () => {
+    write('{ "url": "https://hub.example.com", "token": "ft_secret_shouldnotappear" }');
+    const r = config('show');
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('https://hub.example.com');
+    expect(r.stdout).toContain('ft_…redacted');
+    expect(r.stdout).not.toContain('ft_secret_shouldnotappear');
+  });
+
+  it('path names the files in use', () => {
+    const r = config('path');
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(join(home, 'config.json'));
+  });
+});
+
+describe('cli serve reads the config file (#90)', () => {
+  const home = mkdtempSync(join(tmpdir(), 'flow-tower-cli-serve-config-'));
+  afterAll(() => rmSync(home, { recursive: true, force: true }));
+  const serve = (...args: string[]) =>
+    spawnSync(process.execPath, [CLI, 'serve', ...args], {
+      encoding: 'utf8',
+      timeout: 20_000,
+      env: { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_ALLOWED_HOSTS: '', FLOW_TOWER_HUB: '' },
+    });
+  const write = (content: string) => writeFileSync(join(home, 'config.json'), content, { mode: 0o600 });
+
+  it('takes hub from the config and still refuses a hub without a token', () => {
+    write('{ "hub": true }');
+    const r = serve('--no-open');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('hub mode needs a token');
+  });
+
+  it('takes allowedHosts from the config, so a proxy host without a hub is refused', () => {
+    write('{ "allowedHosts": ["hub.tailnet-xyz.ts.net"] }');
+    const r = serve('--no-open');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('reachable through a proxy');
+  });
+
+  it('lets a --hub flag win over a config that says no', () => {
+    write('{ "hub": false }');
+    const r = serve('--hub', '--no-open');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('hub mode needs a token');
+  });
+});
+
+describe('cli emit reads the config file (#90)', () => {
+  const home = mkdtempSync(join(tmpdir(), 'flow-tower-cli-emit-config-'));
+  afterAll(() => rmSync(home, { recursive: true, force: true }));
+
+  it('sends the config url, user and token', async () => {
+    const got: { body: unknown[]; token?: string }[] = [];
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        got.push({ body: JSON.parse(body) as unknown[], token: req.headers['x-flow-tower-token'] as string | undefined });
+        res.writeHead(204).end();
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const { port } = server.address() as { port: number };
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ url: `http://127.0.0.1:${port}`, user: 'config-user', token: 'ft_cfg_secret' }), { mode: 0o600 });
+
+    await new Promise<void>((done, fail) => {
+      const child = spawn(process.execPath, [CLI, 'emit', '--kind', 'log'], {
+        stdio: ['pipe', 'ignore', 'inherit'],
+        env: { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_URL: '' },
+      });
+      child.on('error', fail);
+      child.on('close', () => done());
+      child.stdin.end('');
+    });
+    server.close();
+
+    expect(got).toHaveLength(1);
+    expect(got[0].token).toBe('ft_cfg_secret');
+    expect(got[0].body).toEqual([expect.objectContaining({ kind: 'log', user: 'config-user' })]);
   });
 });
 
