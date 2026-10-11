@@ -32,6 +32,7 @@ function verdict(r) {
 }
 
 const median = (xs) => { const a = xs.filter((x) => x != null).sort((p, q) => p - q); if (!a.length) return null; const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+// A batch run has no per-request timing to report: `firstOutputMs` is null, and an en dash marks that.
 const sec = (ms) => (ms == null ? '-' : (ms / 1000).toFixed(1));
 const usd = (x) => (x == null ? '-' : x < 0.01 ? `$${x.toFixed(4)}` : `$${x.toFixed(3)}`);
 const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : '-');
@@ -63,10 +64,15 @@ for (const cat of categories) {
     const mr = rs.filter((r) => r.model === m);
     // Cold only: the warm repeats are reported in their own two columns.
     const cold = mr.filter((r) => r.warm !== true);
+    // Batch lines are labelled on the row; a row of only batch lines has no first-output timing at all.
+    const labeled = mr.some((r) => r.batch === true);
+    const allBatch = cold.length > 0 && cold.every((r) => r.batch === true);
     const mrWarm = mr.filter((r) => r.warm === true);
     const v = cold.map(verdict);
     const correct = v.filter((x) => x === true).length, pending = v.filter((x) => x === null).length;
     const totals = cold.map((r) => r.totalMs);
+    // A batch line has no total either: the min/max line must ignore nulls rather than read them as 0.
+    const timed = totals.filter((x) => x != null);
     const cost = cold.reduce((s, r) => s + (r.cost ?? 0), 0);
     // Cost per correct answer counts every run, failed ones included: that is what a node pays.
     const perCorrect = correct ? cost / correct : null;
@@ -74,9 +80,9 @@ for (const cat of categories) {
     const warmStarts = cold.filter((r) => r.cachedFirstStep > 0).length;
     const errors = [...new Set(cold.filter((r) => r.error).map((r) => r.error.replace(/\s+/g, ' ').slice(0, 40)))];
     const cells = [
-      `\`${m}\``, cold.length, `${correct}/${cold.length}${pending ? ` (${pending} unscored)` : ''}`,
-      `${sec(median(totals))} [${sec(Math.min(...totals))}-${sec(Math.max(...totals))}]`,
-      sec(median(cold.map((r) => r.firstOutputMs))), median(cold.map((r) => r.steps)) ?? '-',
+      `\`${m}\`${labeled ? ' (batch)' : ''}`, cold.length, `${correct}/${cold.length}${pending ? ` (${pending} unscored)` : ''}`,
+      `${sec(median(timed))} [${timed.length ? `${sec(Math.min(...timed))}-${sec(Math.max(...timed))}` : '-'}]`,
+      allBatch ? '–' : sec(median(cold.map((r) => r.firstOutputMs))), median(cold.map((r) => r.steps)) ?? '-',
       usd(median(cold.map((r) => r.cost))),
     ];
     if (hasWarm) cells.push(usd(median(mrWarm.map((r) => r.cost))));
