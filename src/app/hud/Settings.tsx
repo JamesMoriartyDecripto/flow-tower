@@ -7,6 +7,7 @@ import { useStore, type Quality } from '../store';
 import { THEMES } from '../themes';
 import { useDialogFocus } from './dialog';
 import { SharingSection } from './Sharing';
+import { UpdatesSection } from './Updates';
 import { VoiceLearning } from './VoiceLearning';
 
 /** The label of the row a control sits in: its accessible name (sliders and switches have no text). */
@@ -220,6 +221,8 @@ export function Settings() {
               <button className="btn" onClick={resetPrefs} title="Forget all saved preferences in this browser and reload">Reset to defaults</button>
             </Row>
           </section>
+
+          <UpdatesSection />
         </div>
       </div>
     </div>

@@ -13,6 +13,7 @@ import { EDGE_STYLE, NODE_STYLE, RUNTIME_ICON } from '../theme';
 import { MicButton } from './Voice';
 import { HubChip } from './Hub';
 import { SatChip } from './Sharing';
+import { VERSION_EVENT } from './Updates';
 
 /** Logo, breadcrumb through nested towers, search, validation badge and live-reload indicator. */
 export function TopBar({ onIssues }: { onIssues(): void }) {
@@ -109,7 +110,13 @@ function UpdateChip() {
     const get = () => fetch('/api/version').then((r) => (r.ok ? r.json() : undefined)).then(setV).catch(() => {});
     void get();
     const t = setTimeout(get, 4000);
-    return () => clearTimeout(t);
+    // A forced check in Settings (#141) can find a newer release before the daily one: refresh on its event.
+    const onCheck = () => void get();
+    window.addEventListener(VERSION_EVENT, onCheck);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener(VERSION_EVENT, onCheck);
+    };
   }, []);
   if (!v?.newer || !v.url) return null;
   return (

@@ -9,7 +9,8 @@ import { loadLibrary, type LoadResult } from '../core/loader.ts';
 import { readTowerFile } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
 import { createSatellites } from './satellites.ts';
-import { checkForUpdate, updateCheckDisabled, type UpdateInfo } from './update.ts';
+import { checkForUpdate, updateCheckDisabled, versionPayload, UPDATE_COMMAND, type UpdateInfo } from './update.ts';
+import { versionCheckHandler } from './version-check.ts';
 import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
 import { userHome, warnIfInRepo } from './home.ts';
@@ -29,8 +30,6 @@ import { historyHandler } from './history/api.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
-// A git checkout updates with git; anything else (a package install) points to the release page.
-const UPDATE_COMMAND = existsSync(join(PKG_ROOT, '.git')) ? `cd ${PKG_ROOT} && git pull && npm install` : undefined;
 // The user's own things (OPENROUTER_API_KEY, voice journal and memory) live in their config folder, not in
 // the repo: ~/.config/flow-tower (or FLOW_TOWER_HOME). The git-ignored .env in the flow-tower folder is still
 // read as a fallback. Real environment variables win, then the user folder, then the repo folder.
@@ -178,7 +177,8 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
 
       // Update notice (#35): one quiet check per start, never blocking the server.
       let update: UpdateInfo = { current: VERSION, newer: false };
-      if (!updateCheckDisabled()) {
+      const updateDisabled = updateCheckDisabled();
+      if (!updateDisabled) {
         void checkForUpdate({ current: VERSION }).then((u) => {
           update = u;
           if (u.newer) server.config.logger.warn(`\n  ↑ Flow Tower ${u.latest} is available (you have v${VERSION}): ${u.url}${UPDATE_COMMAND ? `\n    update: ${UPDATE_COMMAND}` : ''}\n`);
@@ -195,10 +195,22 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         // The journal lives in ~/.config/flow-tower; the page writes to it only when the user turned it on.
         learning: { store: voiceStore(USER_HOME), names: (ids) => namesOf(state, ids) },
       }));
+      // Forced update check (#141): the top bar's "check now". connect matches a mount by prefix, so
+      // `/api/version` would also receive `/api/version/check` (as '/check') and answer it as a plain GET;
+      // mounting the check first keeps the two routes apart, like /api/sharing/test above.
+      const versionCheck = versionCheckHandler({
+        current: VERSION,
+        hub: hubOpts.hub,
+        disabled: updateDisabled,
+        check: (args) => checkForUpdate(args),
+        now: Date.now,
+        set: (u) => { update = u; },
+      });
+      server.middlewares.use('/api/version/check', versionCheck);
       server.middlewares.use('/api/version', (req, res) => {
         // The update command embeds this checkout's absolute path: a remote viewer has no use for it.
         const remote = isRemote(req, { hub: hubOpts.hub });
-        send(res, 200, versionPayload(update, remote));
+        send(res, 200, { ...versionPayload(update, remote), disabled: updateDisabled });
       });
 
       // Everything this plugin started with a timer (the relay's flush/heartbeat, the history prune, the
@@ -248,10 +260,8 @@ export function targetsSelf(url: string, server: ViteDevServer): boolean {
   return target === port;
 }
 
-/** The version payload: everything except the update command, which embeds this checkout's path. */
-export function versionPayload(update: UpdateInfo, remote: boolean): Record<string, unknown> {
-  return remote ? { ...update } : { ...update, command: UPDATE_COMMAND };
-}
+/** Re-exported for callers that only know this module: the payload itself lives with the update check. */
+export { versionPayload };
 
 /**
  * Stops what the plugin started when the dev server closes (#91, #99). Vite 8 restarts the server when a
