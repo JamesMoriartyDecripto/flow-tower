@@ -1,9 +1,10 @@
 # Eval questions
 
 Real questions users ask about Flow Tower. Each has the doc(s) that should answer it (any one counts
-as a correct route) and 1-3 key facts, written by reading those docs. A fact passes when the answer
-contains it (case-insensitive); `a / b` means either spelling counts. `eval.mjs` parses this file:
-keep the `## Q`, `- docs:` and `- facts:` lines in this shape, facts separated by ` | `.
+as a correct route) and 1-3 key facts, written by reading those docs. The facts are a reference for the
+judge, not a keyword checklist: `eval.mjs` parses this file, keep the `## Q`, `- docs:` and `- facts:`
+lines in this shape, facts separated by ` | `. A dry run falls back to keyword scoring: there a fact
+passes when the answer contains it (case-insensitive), and `a / b` means either spelling counts.
 
 ## Q1. How do I copy one of the example towers into my project and open it?
 - docs: docs/getting-started.md
