@@ -160,6 +160,14 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     // not a satellite. Same rule as /api/events, but a missing sender is fatal here rather than "trusted".
     if (!authz.ok) return json(res, 401, { error: 'bad or missing token' });
     if (!authz.sender && ((auth.hub ?? hubMode()) || auth.ingestOnly)) return json(res, 401, { error: 'bad or missing token' });
+    // A heartbeat spends from the same per-sender bucket as /api/events: a satellite must not evade the
+    // limit by beating instead of sending events.
+    const remote = auth.ingestOnly || isRemote(req, { hub: auth.hub ?? hubMode() });
+    const key = authz.sender ?? (remote ? req.socket?.remoteAddress ?? 'remote' : undefined);
+    if (key && !bucket.take(key, 1)) {
+      res.setHeader('Retry-After', String(bucket.retryAfter(key)));
+      return json(res, 429, { error: 'too many heartbeats, retry later' });
+    }
     const encoding = encodingOf(req);
     if (!encoding) return json(res, 415, unknownEncoding());
     void readBody(req, res, MAX_BODY, encoding).then((chunks) => {

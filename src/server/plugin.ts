@@ -14,8 +14,11 @@ import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
 import { userHome, warnIfInRepo } from './home.ts';
 import { crossSite } from './guard.ts';
-import { isLoopback, isRemote } from './auth.ts';
+import { stopOnClose } from './lifecycle.ts';
+import { isLoopbackUrl } from '../../bin/identity.js';
+import { isRemote } from './auth.ts';
 import { createRelay } from './relay.ts';
+import { sharingHandler } from './sharing.ts';
 import { effective, loadConfig } from './config.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 import { openHistory } from './history/db.ts';
@@ -109,25 +112,28 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       });
       server.middlewares.use('/api/file', (req, res) => void serveFile(req, res, state));
 
-      // Sharing state (#91): a satellite reports what it is relaying, a local server says it is off. Read
-      // like /api/workspace (crossSite-guarded), and it never carries the token.
-      server.middlewares.use('/api/sharing', (req, res) => {
-        if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
-        send(res, 200, relay?.state() ?? { state: 'off' });
-      });
+      // Sharing (#91): reads what a satellite is relaying, and the two local controls — pause and the
+      // hub test. state() never carries the token; a local server answers { state: 'off' }.
+      // connect() matches a mount by prefix, so /api/sharing would also receive /api/sharing/test (as
+      // '/test') and answer it as a pause request. The test is mounted first, and each handler answers
+      // only its own mount root (req.url '' or '/'), so neither can shadow the other.
+      const sharing = sharingHandler({ home: USER_HOME, relay, hub: hubOpts.hub });
+      server.middlewares.use('/api/sharing/test', sharing.test);
+      server.middlewares.use('/api/sharing', sharing.control);
 
       // History (#84) lives in the user's folder, never the repo. An old Node without node:sqlite disables
       // it with one message: the live view keeps working, the hub simply gets no onAccepted.
       const opened = await openHistory(join(USER_HOME, 'history.db'));
       if ('disabled' in opened) server.config.logger.warn(`flow-tower: ${opened.disabled}`);
       const history = 'disabled' in opened ? undefined : createHistory(opened.db);
+      let prune: NodeJS.Timeout | undefined;
       if (history) {
         // Retention policy (#84): prune once on start, then hourly. unref() so the timer never keeps the
         // dev server process alive on its own.
         history.prune();
-        setInterval(() => history.prune(), 3_600_000).unref();
+        prune = setInterval(() => history.prune(), 3_600_000);
+        prune.unref();
       }
-
       const hub = createEventHub(        () => state?.workspace,
         (events) => server.ws.send(EVENTS_EVENT, events),
         // The user folder holds the per-sender tokens (#83); FLOW_TOWER_TOKEN stays the shared legacy secret.
@@ -183,6 +189,14 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         const remote = isRemote(req, { hub: hubOpts.hub });
         send(res, 200, versionPayload(update, remote));
       });
+
+      // Everything this plugin started with a timer (the relay's flush/heartbeat, the history prune, the
+      // reload debounce) stops with the dev server: a restart must not leave the old ones running (#91, #99).
+      stopOnClose(server, [
+        () => relay?.stop(),
+        () => { if (prune) clearInterval(prune); },
+        () => clearTimeout(timer),
+      ]);
     },
   };
 }
@@ -203,25 +217,42 @@ function createRelayFor(server: ViteDevServer, hubOpts: { hub: boolean; ingestOn
     server.config.logger.warn('flow-tower: satellite relay refused: url points at this same server (would loop)');
     return undefined;
   }
-  return createRelay({ url: settings.url, token: settings.token, user: settings.user, machine: settings.machine, version });
+  return createRelay({ url: settings.url, token: settings.token, user: settings.user, machine: settings.machine, version, paused: settings.paused });
 }
 
-/** Loopback host on the port we bound to: relaying there would feed this server its own events. */
-function targetsSelf(url: string, server: ViteDevServer): boolean {
+/**
+ * Loopback host on the port we bound to: relaying there would feed this server its own events. The
+ * host check reuses the CLI's isLoopbackUrl, which strips IPv6 brackets and accepts `localhost` and
+ * 127.x — a plain isLoopback() missed both and let a self-loop through.
+ */
+export function targetsSelf(url: string, server: ViteDevServer): boolean {
   let parsed: URL;
   try { parsed = new URL(url); } catch { return false; }
-  if (!isLoopback(parsed.hostname)) return false;
+  if (!isLoopbackUrl(url)) return false;
   // The bound port is not in the Vite config: read it from the live http server, if it is already up.
   const addr = server.httpServer?.address();
   const port = typeof addr === 'object' && addr ? addr.port : server.config.server.port;
-  // A url without a port means the scheme default, which is never the dev server's port.
-  return parsed.port !== '' && Number(parsed.port) === port;
+  // An empty port means the scheme default (80 for http, 443 for https), which can still be our port.
+  const target = parsed.port !== '' ? Number(parsed.port) : parsed.protocol === 'https:' ? 443 : 80;
+  return target === port;
 }
 
 /** The version payload: everything except the update command, which embeds this checkout's path. */
 export function versionPayload(update: UpdateInfo, remote: boolean): Record<string, unknown> {
   return remote ? { ...update } : { ...update, command: UPDATE_COMMAND };
 }
+
+/**
+ * Stops what the plugin started when the dev server closes (#91, #99). Vite 8 restarts the server when a
+ * src/server file or the config changes, and every restart closes the old http server: without this, the
+ * old relay kept beating at the hub and its timers kept the whole previous server alive, so memory grew
+ * across restarts (#99). A probe confirmed the old httpServer really emits 'close' on a restart (Vite
+ * closes and re-creates the server), which is what makes this hook the right place to stop the old timers.
+ * The relay's stop() and any interval the plugin started go through here; the httpServer is optional (it is
+ * undefined before listen), so the wiring is a no-op then. Re-exported from lifecycle.ts, where it is tested
+ * with a plain EventEmitter instead of a real Vite server.
+ */
+export { stopOnClose } from './lifecycle.ts';
 
 /** Names a voice alias may point at: projects, layers, nodes and agents of the given towers. */
 function namesOf(state: LoadResult | undefined, ids: string[]): string[] {

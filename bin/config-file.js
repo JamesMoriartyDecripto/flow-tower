@@ -80,5 +80,11 @@ export function senderConfig({ env, checkout, flags = {}, home = env.FLOW_TOWER_
     const value = flags[key] ?? (unset(envValue) ? file[key] : envValue.trim());
     if (typeof value === 'string' && value.trim()) out[key] = value.trim();
   }
+  // `role` and the file's own url/token are read from the config alone, never from a flag or the
+  // environment: emit uses them to decide whether the config token belongs to the origin it posts to
+  // (a satellite's url and token point at the hub, not at the local relay it must reach).
+  const fileText = (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  out.role = fileText(file.role);
+  out.config = { url: fileText(file.url), token: fileText(file.token) };
   return out;
 }
