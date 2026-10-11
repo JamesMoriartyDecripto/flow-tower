@@ -15,7 +15,8 @@ import { voiceStore } from './voice-memory.ts';
 import { userHome, warnIfInRepo } from './home.ts';
 import { crossSite } from './guard.ts';
 import { stopOnClose } from './lifecycle.ts';
-import { isLoopback, isRemote } from './auth.ts';
+import { isLoopbackUrl } from '../../bin/identity.js';
+import { isRemote } from './auth.ts';
 import { createRelay } from './relay.ts';
 import { sharingHandler } from './sharing.ts';
 import { effective, loadConfig } from './config.ts';
@@ -219,16 +220,21 @@ function createRelayFor(server: ViteDevServer, hubOpts: { hub: boolean; ingestOn
   return createRelay({ url: settings.url, token: settings.token, user: settings.user, machine: settings.machine, version, paused: settings.paused });
 }
 
-/** Loopback host on the port we bound to: relaying there would feed this server its own events. */
-function targetsSelf(url: string, server: ViteDevServer): boolean {
+/**
+ * Loopback host on the port we bound to: relaying there would feed this server its own events. The
+ * host check reuses the CLI's isLoopbackUrl, which strips IPv6 brackets and accepts `localhost` and
+ * 127.x — a plain isLoopback() missed both and let a self-loop through.
+ */
+export function targetsSelf(url: string, server: ViteDevServer): boolean {
   let parsed: URL;
   try { parsed = new URL(url); } catch { return false; }
-  if (!isLoopback(parsed.hostname)) return false;
+  if (!isLoopbackUrl(url)) return false;
   // The bound port is not in the Vite config: read it from the live http server, if it is already up.
   const addr = server.httpServer?.address();
   const port = typeof addr === 'object' && addr ? addr.port : server.config.server.port;
-  // A url without a port means the scheme default, which is never the dev server's port.
-  return parsed.port !== '' && Number(parsed.port) === port;
+  // An empty port means the scheme default (80 for http, 443 for https), which can still be our port.
+  const target = parsed.port !== '' ? Number(parsed.port) : parsed.protocol === 'https:' ? 443 : 80;
+  return target === port;
 }
 
 /** The version payload: everything except the update command, which embeds this checkout's path. */

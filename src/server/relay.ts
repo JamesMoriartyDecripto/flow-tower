@@ -6,8 +6,16 @@
  */
 import type { FlowEvent } from '../core/events.ts';
 
-/** Fields the hub fills in itself, or that carry prompt/tool content: they never leave this machine. */
-const PRIVACY = ['id', 'targets', 'runtimeRef', 'sender', 'message', 'data'] as const;
+/**
+ * The wire allow-list: the metadata the hub may see, and nothing else. An allow-list (not a drop-list)
+ * means an adapter or a custom source that adds a field (a path, a command, a token) cannot leak it by
+ * being unknown to us; `role` (the Task/Agent description) is deliberately absent for the same reason.
+ */
+const ALLOWED = [
+  'kind', 'ts', 'source', 'session', 'agent', 'parent', 'tool', 'call', 'model', 'node', 'tower',
+  'project', 'user', 'host', 'runtime', 'status', 'tokens', 'tokens_detail', 'cost_usd',
+  'duration_ms', 'estimated',
+] as const;
 
 const TIMEOUT_MS = 5_000;
 /** Never more than one flush a second; a failing hub waits longer (1 s, 2 s, 4 s … max 60 s). */
@@ -318,11 +326,12 @@ export function createRelay(opts: RelayOptions) {
 
 const nextBackoff = (current: number) => Math.min(current ? current * 2 : MIN_GAP_MS, MAX_BACKOFF_MS);
 
-/** One wire payload: the event minus what the hub owns or must not see, plus this sender's identity. */
+/** One wire payload: only the allow-listed metadata, plus this sender's identity defaults. */
 function forward(event: FlowEvent, { user, machine }: Pick<RelayOptions, 'user' | 'machine'>): Record<string, unknown> {
   const request = requestIdOf(event.data);
-  const out: Record<string, unknown> = { ...event };
-  for (const key of PRIVACY) delete out[key];
+  const src = event as unknown as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of ALLOWED) if (src[key] !== undefined) out[key] = src[key];
   // The hub fills user/host from the event; a satellite without a local user still names its machine.
   if (out.user === undefined && user !== undefined) out.user = user;
   if (out.host === undefined && machine !== undefined) out.host = machine;

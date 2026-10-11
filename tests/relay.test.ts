@@ -3,6 +3,8 @@ import { EventEmitter } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRelay, type RelayOptions } from '../src/server/relay';
+import { targetsSelf } from '../src/server/plugin';
+import type { ViteDevServer } from 'vite';
 import { stopOnClose } from '../src/server/lifecycle';
 import type { FlowEvent } from '../src/core/events';
 
@@ -49,6 +51,32 @@ describe('satellite relay (#91)', () => {
     expect(wire.kind).toBe('prompt');
     expect(wire.event_id).toBe('req-9');
     expect(relay.state().queued).toBe(0);
+    relay.stop();
+  });
+
+  it('sends only the allow-listed metadata, dropping role and any unknown field', { timeout: 5_000 }, async () => {
+    const hub = await stubHub(() => 200);
+    const relay = relayOf(hub.url);
+    // Every allowed field is present, plus content and a field no adapter should be able to leak.
+    relay.push([event({
+      kind: 'tool.start', ts: 42, source: 'custom', session: 's1', agent: 'main', parent: 'p1',
+      tool: 'Bash', call: 'c1', model: 'gpt', node: 'n1', project: 'prj', user: 'dana', host: 'laptop',
+      runtime: 'node', status: 'ok', tokens: 12, cost_usd: 0.5, duration_ms: 7, estimated: true,
+      role: 'Task: cat /etc/passwd', prompt: 'secret prompt', secret_path: '/home/me/.ssh/id_rsa',
+    } as unknown as Partial<FlowEvent>)]);
+    await relay.flush();
+
+    const [wire] = hub.seen[0].body as Record<string, unknown>[];
+    expect(wire).toEqual({
+      kind: 'tool.start', ts: 42, source: 'custom', session: 's1', agent: 'main', parent: 'p1',
+      tool: 'Bash', call: 'c1', model: 'gpt', node: 'n1', project: 'prj', user: 'dana', host: 'laptop',
+      runtime: 'node', status: 'ok', tokens: 12, cost_usd: 0.5, duration_ms: 7, estimated: true,
+      event_id: 'req-9',
+    });
+    // Content and anything outside the allow-list is gone, whatever its name.
+    for (const dropped of ['id', 'targets', 'runtimeRef', 'sender', 'message', 'data', 'role', 'prompt', 'secret_path']) {
+      expect(wire).not.toHaveProperty(dropped);
+    }
     relay.stop();
   });
 
@@ -215,6 +243,25 @@ describe('satellite relay (#91)', () => {
     expect(relay.state().lastPayload).not.toHaveProperty('message');
     expect(relay.state().lastPayload).not.toHaveProperty('data');
     relay.stop();
+  });
+});
+
+describe('self-loop guard for the satellite relay (#91)', () => {
+  // The dev server bound to this port; only the address() shape targetsSelf touches matters here.
+  const server = { httpServer: { address: () => ({ port: 5317 }) } } as unknown as ViteDevServer;
+  const self = (url: string) => targetsSelf(url, server);
+
+  it('refuses localhost, bracketed IPv6 and 127.x on the same port', () => {
+    expect(self('http://localhost:5317')).toBe(true);
+    expect(self('http://[::1]:5317')).toBe(true);
+    expect(self('http://127.0.0.2:5317')).toBe(true);
+  });
+
+  it('allows the same loopback hosts on another port, and a remote host', () => {
+    expect(self('http://localhost:5318')).toBe(false);
+    expect(self('http://[::1]:5318')).toBe(false);
+    expect(self('http://127.0.0.2:5318')).toBe(false);
+    expect(self('http://hub.example:5317')).toBe(false);
   });
 });
 

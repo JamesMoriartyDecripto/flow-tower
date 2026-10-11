@@ -96,7 +96,7 @@ export function SharingSection() {
         <span className="mono dim">{queue}</span>
       </Row>
       <Row label="What is shared" hint="Content-free metadata: it describes the run, never what was said.">
-        <span className="sharing-list">event kind, time, tool and agent names, model, tokens, cost, duration, status, user, machine, project</span>
+        <span className="sharing-list">event kind, time, tool, agent and node names, model, tokens, cost, duration, status, user, machine, project</span>
       </Row>
       <Row label="Never shared" hint="Prompt text, messages, commands and tool input or output never leave this machine.">
         <span className="sharing-list">prompts, messages, commands, file contents, tool input and output</span>
