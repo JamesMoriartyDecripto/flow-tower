@@ -7,7 +7,7 @@ description: >-
   speak in Italian or English. Navigation ("apri dev squad", "livello 2", "vai al nodo triage") goes to a
   local parser (no LLM) and runs the same store calls as the keyboard. Questions and references to the
   screen ("cosa c'è nel secondo livello?", "a cosa è collegato questo nodo") go to a conversational agent:
-  an OpenRouter chat model with 13 tools that run in the page on the tower on screen, whose short reply is
+  an OpenRouter chat model with 19 tools that run in the page on the tower on screen, whose short reply is
   streamed into the caption and spoken sentence by sentence. Audio goes to the local flow-tower server and on
   to OpenRouter with zero data retention. With "Learn from my sessions" on, each turn is written to a text
   journal in the user's folder; a review proposes aliases for misheard names and notes for the agent, which
@@ -45,7 +45,7 @@ agents:
       Illustrative numbers, measured on the dev-squad tower (commit 86234b9): 1.1-2.9 s and about $0.001 per
       turn. No budget cap in the code.
     model: google/gemini-3.5-flash-lite
-    tools: [screen, list_layers, layer_nodes, search, node_info, connections, node_files, read_file, focus_layer, select_node, open_file, open_project, navigate]
+    tools: [screen, list_layers, layer_nodes, search, node_info, connections, compare_nodes, node_files, read_file, focus_layer, select_node, open_file, close_file, scroll_file, hub_panel, filter_nodes, library_filter, open_project, navigate]
     runtime: browser
     files: [src/app/voice/agent.ts, src/app/voice/tools.ts, examples/voice-commands/options/llm-intent.md]
     limits: { max_iterations: 4, description: "At most 4 LLM steps per turn; the last one is sent with answer: true, so the server asks for tool_choice none and the model must answer with what it has." }
@@ -242,9 +242,9 @@ layers:
         runtime: browser
         description: >-
           parseCommand(): normalise (lowercase, no accents), drop stop words and command verbs, then fixed phrases
-          (mic off, library, back, overview, map, tower view, enter, close), layer numbers and ordinals, and fuzzy
+          (mic off, library, back, overview, map, tower view, enter, close, scroll, hub, type filter), layer numbers and ordinals, and fuzzy
           names of projects, layers and nodes (edit distance for misheard words). Whole fixed phrases ("chiudi il
-          file", "apri il suo file", "il prossimo") stay on the local parser even with the agent on (#128, #130),
+          file", "apri il suo file", "il prossimo", "scorri giù", "apri l'hub", "mostra solo gli agenti") stay on the local parser even with the agent on (#128, #130, #145b, #145c),
           and their referents come from the screen, not the words: the selected node, the viewer's files, the last
           list shown and the layer's flow order (runItsFile/runStep in referents.ts). Italian and English.
         files: [src/app/voice/commands.ts, src/app/voice/referents.ts, tests/voice-commands.test.ts]
@@ -299,13 +299,18 @@ layers:
         type: tool
         label: Tower tools
         runtime: browser
-        tools: [screen, list_layers, layer_nodes, search, node_info, connections, node_files, read_file, focus_layer, select_node, open_file, open_project, navigate]
+        tools: [screen, list_layers, layer_nodes, search, node_info, connections, compare_nodes, node_files, read_file, focus_layer, select_node, open_file, close_file, scroll_file, hub_panel, filter_nodes, library_filter, open_project, navigate]
         description: >-
-          runTool(): 14 tools that run in the page on the workspace on screen, so answers are true to the tower. Read:
+          runTool(): 19 tools that run in the page on the workspace on screen, so answers are true to the tower. Read:
           screen (which also reports the current list the parser steps through on "il prossimo"), list_layers,
-          layer_nodes (with the layer's flow), node_info, connections, node_files, read_file (the
+          layer_nodes (with the layer's flow), node_info, connections, compare_nodes (two nodes side by side: the
+          equal fields and the tools only one has), node_files, read_file (the
           file text through /api/file, same guards as the viewer, to explain a file). Act (same store calls as the keyboard):
-          focus_layer, select_node, open_file, close_file (closes the viewer, keeping the selection), open_project,
+          focus_layer, select_node, open_file, close_file (closes the viewer, keeping the selection), scroll_file
+          (pages the open viewer; the parser's "scorri giù" sends the same event, #145b), hub_panel (opens the Hub
+          panel on Now or Machines, or closes it, #145b), filter_nodes (the legend's type filter: keeps only the named
+          node types, or all of them again, #145c), library_filter (opens the library and filters it by words or tag,
+          the same state the panel holds, #145c), open_project,
           navigate. search reads and acts: it also fills the top-bar
           search so the matches are highlighted. Names are matched fuzzily, on screen first, then in the library; an
           omitted node or layer means the selection. Errors come back as JSON the model can recover from.
@@ -353,8 +358,8 @@ layers:
         type: process
         label: Run action
         runtime: browser
-        description: "execute(): library, open a tower, focus a layer, select a node (opening its tower first), map or tower view, overview, back, enter a sub-tower, close, mic off. Returns the text for the caption."
-        files: [src/app/voice/voice.ts]
+        description: "execute(): library, open a tower, focus a layer, select a node (opening its tower first), map or tower view, overview, back, enter a sub-tower, close, close the file, scroll the viewer, the Hub panel, the node-type filter, mic off. Returns the text for the caption. Kept in its own module (actions.ts) so the parser, the agent tools and the tests share one place where an action runs."
+        files: [src/app/voice/actions.ts, src/app/voice/voice.ts, tests/voice-commands.test.ts]
       - id: store
         type: memory
         label: App store
