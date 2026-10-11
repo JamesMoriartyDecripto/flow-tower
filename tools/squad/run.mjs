@@ -10,12 +10,18 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
+// A missing --task used to reach readFileSync and fail with a raw fs error: a usage line is the answer.
+const USAGE = 'usage: node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--write a,b] [--repo <path>]';
+if (argv.includes('--help')) { console.log(USAGE); exit(0); }
+const taskFile = arg('task');
+// Checked before any git call, so a bare invocation fails on the usage, not on the checkout.
+if (!taskFile || !existsSync(taskFile)) { console.error(USAGE); exit(1); }
 // --repo runs the squad in another worktree, so two tasks never share a checkout; without it, the checkout
 // the command is run from.
 const REPO = resolve(arg('repo') ?? execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim());
 // The live-events helper is a sibling of this script, so a checkout carries its own copy, wherever it sits.
 const EV = join(HERE, 'ev.sh');
-const model = arg('model'), role = arg('role'), node = arg('node'), task = readFileSync(arg('task'), 'utf8');
+const model = arg('model'), role = arg('role'), node = arg('node'), task = readFileSync(taskFile, 'utf8');
 const maxSteps = Number(arg('steps', 40));
 const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or

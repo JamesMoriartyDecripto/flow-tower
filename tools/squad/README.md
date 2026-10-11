@@ -15,7 +15,8 @@ This folder is what actually ran the field sessions.
 | Security | `deepseek/deepseek-v4.1-flash` | nothing |
 
 All at low reasoning effort: quick passes, and the review rounds re-check the work. [OpenRouter](https://openrouter.ai)
-holds the key, so the reviewer never shares the coder's blind spots.
+is just the gateway: one key for every model family. The point is that the reviewer comes from another
+family (GLM vs DeepSeek), so it does not share the coder's blind spots.
 
 ## A task file
 
