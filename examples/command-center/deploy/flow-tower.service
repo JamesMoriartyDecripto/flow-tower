@@ -1,0 +1,32 @@
+# systemd unit for a Flow Tower hub. Install:
+#   sudo cp deploy/flow-tower.service /etc/systemd/system/ && sudo systemctl daemon-reload
+#   sudo systemctl enable --now flow-tower && journalctl -u flow-tower -f
+# Paths assume the user `flowtower`, the repo in /home/flowtower/flow-tower (with `npm ci` run) and this
+# folder copied to /srv/command-center. Edit them to match your server.
+[Unit]
+Description=Flow Tower hub (command center)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=flowtower
+Group=flowtower
+WorkingDirectory=/home/flowtower/flow-tower
+# The user folder: config.json, tokens.json, history.db live here (mode 0700).
+Environment=FLOW_TOWER_HOME=/home/flowtower/.config/flow-tower
+# Node >= 22.13 from an explicit path: history.db needs node:sqlite (22.13+). Check: /usr/bin/node --version
+# The library is this folder: the hub can only light up towers it has (towers/).
+# Loopback only (the default --host): Tailscale serve or Caddy forwards to 127.0.0.1:5317.
+ExecStart=/usr/bin/node /home/flowtower/flow-tower/bin/flow-tower.js /srv/command-center --hub --no-open --port 5317
+Restart=on-failure
+RestartSec=5
+# Hardening: the hub writes only its user folder.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/flowtower/.config/flow-tower /home/flowtower/flow-tower/node_modules/.vite
+
+[Install]
+WantedBy=multi-user.target

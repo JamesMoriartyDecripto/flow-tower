@@ -1,0 +1,174 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+# A Flow Tower hub on your own server, as a tower. Copy this folder to the server; deploy/ holds the files.
+name: Command Center
+description: One hub on a server or VPS that lights up the towers of every connected machine. Laptops relay as satellites, servers and CI post events with a token, viewers open it over the tailnet or an SSH forward.
+tags: [hub, deployment, self-hosted, ops]
+
+runtimes:
+  laptop: { kind: local, label: Satellite laptop }
+  agent-server: { kind: server, label: Agent server }
+  ci: { kind: ci, provider: github-actions }
+  hub-vps: { kind: server, host: hub.example.com, label: Hub server }
+  tailnet: { kind: saas, provider: tailscale, url: https://tailscale.com }
+
+layers:
+  - id: machines
+    title: Machines
+    description: Everything that sends events. Each sender has its own token (flow-tower token add <id> on the hub).
+    nodes:
+      - id: laptop
+        type: entry
+        label: Laptop satellite
+        runtime: laptop
+        description: "Runs its own library (flow-tower ~/towers) after `flow-tower connect <url> --token ft_…`. The relay forwards event metadata to the hub, queues up to 5000 while the hub is unreachable, and beats every interval."
+        files: [deploy/satellite.config.json]
+        resources:
+          - { kind: config, label: Satellite config.json, path: deploy/satellite.config.json }
+        data: { sensitivity: internal, description: "Metadata only, never prompts, commands or file contents." }
+      - id: agent-host
+        type: entry
+        label: Agent server
+        runtime: agent-server
+        description: "Agents on a server post hooks with `flow-tower emit`, reading FLOW_TOWER_URL and FLOW_TOWER_TOKEN (or url/token in config.json)."
+        credentials: service
+      - id: ci-runner
+        type: entry
+        label: CI runner
+        runtime: ci
+        description: "Joins the tailnet as an ephemeral tag:ci node and runs `flow-tower emit --kind tool.end --source github-actions` (see integrations/hub/github-actions.yml in the repo)."
+        trigger: { kind: webhook, source: workflow_run }
+      - id: otel
+        type: tool
+        label: OTel collector
+        runtime: agent-server
+        description: "Remote hosts point OTLP/HTTP at a local collector that forwards usage to the hub's /v1/* with an x-flow-tower-token header."
+    edges: []
+
+  - id: transport
+    title: Transport
+    description: TLS in front of a hub that only listens on 127.0.0.1:5317. Pick one.
+    nodes:
+      - id: ts-serve
+        type: guard
+        label: Tailscale serve
+        runtime: tailnet
+        description: "Recommended. `tailscale serve --bg --https=443 http://127.0.0.1:5317`. Only tailnet machines reach it, and each request carries tailscale-user-login: that is how a viewer is recognised. Never `tailscale funnel`."
+        files: [deploy/hub.config.json]
+      - id: caddy
+        type: guard
+        label: Caddy (public)
+        runtime: hub-vps
+        description: "A public VPS without a tailnet. Caddy gets TLS for hub.example.com and forwards only /api/events, /api/heartbeat and /v1/*; every request needs a sender token. No viewing goes through it."
+        files: [deploy/Caddyfile]
+        resources:
+          - { kind: config, label: Caddyfile, path: deploy/Caddyfile }
+        status: experimental
+    edges: []
+
+  - id: hub
+    title: Hub Service
+    description: "`flow-tower <library> --hub` as an unprivileged user, under systemd or docker compose."
+    nodes:
+      - id: ingest
+        type: entry
+        label: Ingest routes
+        runtime: hub-vps
+        description: "/api/events, /api/heartbeat and the OTLP receivers: the only routes a remote sender may use. Each checks the token against tokens.json."
+        limits: { description: "A token bucket per token and per sender: an empty bucket answers 429 (src/server/limits.ts)." }
+      - id: service
+        type: process
+        label: flow-tower --hub
+        runtime: hub-vps
+        description: "systemd: Node >= 22.13 from an explicit path, Restart=on-failure, FLOW_TOWER_HOME set, the library is this folder. Or docker compose with host networking."
+        files: [deploy/flow-tower.service, deploy/docker-compose.yml]
+        resources:
+          - { kind: config, label: systemd unit, path: deploy/flow-tower.service }
+          - { kind: config, label: docker compose, path: deploy/docker-compose.yml }
+          - { kind: endpoint, label: Satellites, url: "https://hub.example.ts.net/api/hub/satellites" }
+      - id: config
+        type: memory
+        label: config.json
+        runtime: hub-vps
+        description: "$FLOW_TOWER_HOME/config.json: hub true, allowedHosts, viewers, retentionDays. `flow-tower config show` prints the effective settings."
+        files: [deploy/hub.config.json]
+        resources:
+          - { kind: config, label: Hub config.json, path: deploy/hub.config.json }
+      - id: tokens
+        type: guard
+        label: tokens.json
+        runtime: hub-vps
+        description: "One token per sender: `flow-tower token add <id>` prints ft_<id>_<secret> once and stores only its sha256. `revoke`, `pause`, `resume` per id."
+        data: { sensitivity: secret }
+      - id: history
+        type: memory
+        label: history.db
+        runtime: hub-vps
+        description: Content-free events and totals in SQLite (node:sqlite, Node >= 22.13). Raw rows are kept retentionDays.
+        data: { sensitivity: internal, retention: 14d }
+      - id: health
+        type: hook
+        label: Health checks
+        runtime: hub-vps
+        description: "`systemctl status flow-tower`, `journalctl -u flow-tower`, and GET /api/hub/satellites (online/offline per satellite, after three missed beats)."
+        files: [deploy/flow-tower.service]
+    edges:
+      - "ingest -> tokens [call]: verify token"
+      - "ingest -> service: accepted events"
+      - "service -> history [data]: write"
+      - "config -> service [data]: settings"
+      - "service -> health: status"
+
+  - id: library
+    title: Hub Library
+    description: The hub can only light up towers it has. Copy each machine's tower into towers/.
+    nodes:
+      - id: towers
+        type: memory
+        label: towers/
+        runtime: hub-vps
+        description: One subfolder per connected machine. Events match a tower by name or id.
+        files: [towers/README.md]
+      - id: matcher
+        type: process
+        label: Event matching
+        runtime: hub-vps
+        description: Each event lights the node its match rules or agent/tool names point to, in the tower it names.
+      - id: self
+        type: output
+        label: This tower
+        runtime: hub-vps
+        description: The command center itself is part of the library, so the deployment is documented next to what it serves.
+        files: [README.md]
+    edges:
+      - "towers -> matcher [data]: tower names, match rules"
+      - "self -> towers [data]: documents"
+
+  - id: viewers
+    title: Viewers
+    description: Who opens the UI. Senders that are not viewers can still ingest.
+    nodes:
+      - id: owner-tailnet
+        type: human
+        label: Owner (tailnet)
+        runtime: tailnet
+        description: "Opens https://hub.example.ts.net. Allowed only if the tailscale-user-login is in viewers in config.json."
+        files: [deploy/hub.config.json]
+      - id: owner-ssh
+        type: human
+        label: Owner (SSH)
+        runtime: laptop
+        description: "`ssh -L 5317:127.0.0.1:5317 flowtower@hub.example.com`, then http://127.0.0.1:5317. Your own view only: never a tunnel for other machines' traffic, since tunnelled requests look local to the hub."
+    edges: []
+
+links:
+  - "machines.laptop -> transport.ts-serve [data]: events + heartbeat"
+  - "machines.agent-host -> transport.ts-serve [data]: emit"
+  - "machines.ci-runner -> transport.ts-serve [data]: emit"
+  - "machines.otel -> transport.caddy [data]: OTLP /v1/*"
+  - "machines.agent-host -> transport.caddy [data]: emit (public)"
+  - "transport.ts-serve -> hub.ingest: 127.0.0.1:5317"
+  - "transport.caddy -> hub.ingest: 127.0.0.1:5317"
+  - "hub.service -> library.matcher: live events"
+  - "library.matcher -> viewers.owner-tailnet: lit towers"
+  - "transport.ts-serve -> viewers.owner-tailnet [return]: UI, user login"
+  - "library.matcher -> viewers.owner-ssh: lit towers"
