@@ -31,7 +31,7 @@ keep the `## Q`, `- docs:` and `- facts:` lines in this shape, facts separated b
 
 ## Q7. How can I try a tower live without wiring any agent?
 - docs: docs/getting-started.md
-- facts: npm run simulate | --url
+- facts: npm run simulate
 
 ## Q8. How do I run a command center on a VPS for several machines?
 - docs: docs/command-center.md, examples/command-center/README.md
@@ -47,7 +47,7 @@ keep the `## Q`, `- docs:` and `- facts:` lines in this shape, facts separated b
 
 ## Q11. Do I need one token per machine? How do I create one?
 - docs: docs/command-center.md, docs/hub-reference.md
-- facts: flow-tower token add | sha256 / prints it once
+- facts: flow-tower token add | per machine / per person / each machine
 
 ## Q12. How do I connect my laptop to the hub with flow-tower connect?
 - docs: docs/command-center.md, docs/hub-reference.md
@@ -79,7 +79,7 @@ keep the `## Q`, `- docs:` and `- facts:` lines in this shape, facts separated b
 
 ## Q19. How do I cut the model cost of my agent system and pick cheaper models?
 - docs: skills/flow-tower-costs/SKILL.md
-- facts: models.mjs | real cases / benchmark | data_collection
+- facts: models.mjs | real cases / benchmark
 
 ## Q20. What is the dev-squad example and which models does it use?
 - docs: examples/dev-squad/README.md

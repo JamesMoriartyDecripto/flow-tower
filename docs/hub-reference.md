@@ -1,7 +1,7 @@
 # Hub reference
 
 What a hub accepts and from whom: the **one home of the token rules and of who may view**, the satellite
-internals, and recipes per sender (second computer, teammate, VPS, GitHub Actions, Lambda). Read it to
+internals (`flow-tower connect`, what a satellite relays and what the hub never receives), and recipes per sender (second computer, teammate, VPS, GitHub Actions, Lambda). Read it to
 change hub code or check a security question. Setup steps and config precedence: [command-center.md](command-center.md);
 local live events: [realtime.md](realtime.md).
 

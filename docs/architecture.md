@@ -1,6 +1,6 @@
 # Architecture: where things live
 
-Which file owns what. Read this before changing code, then open only the files for the task at hand. Tower authoring: [what-goes-where.md](what-goes-where.md); hub behaviour: [hub-reference.md](hub-reference.md).
+Which source file owns what (for example the per-sender tokens, the relay, the config). Read this before changing code, then open only the files for the task at hand. Tower authoring: [what-goes-where.md](what-goes-where.md); hub behaviour: [hub-reference.md](hub-reference.md).
 
 ## Data flow
 
