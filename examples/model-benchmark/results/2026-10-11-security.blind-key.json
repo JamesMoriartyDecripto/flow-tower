@@ -1,0 +1,230 @@
+{
+  "B001": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 3
+  },
+  "B002": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 1
+  },
+  "B003": {
+    "model": "openai/gpt-6-luna",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 2
+  },
+  "B004": {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 1
+  },
+  "B005": {
+    "model": "deepseek/deepseek-v4-pro",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 1
+  },
+  "B006": {
+    "model": "z-ai/glm-5.3-flashx",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 1
+  },
+  "B007": {
+    "model": "google/gemini-3.5-flash-lite",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 3
+  },
+  "B008": {
+    "model": "inception/mercury-2.5",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 2
+  },
+  "B009": {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 1
+  },
+  "B010": {
+    "model": "z-ai/glm-5.3-flashx",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 2
+  },
+  "B011": {
+    "model": "deepseek/deepseek-v4-pro",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 1
+  },
+  "B012": {
+    "model": "qwen/qwen3.7-flash",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 3
+  },
+  "B013": {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 3
+  },
+  "B014": {
+    "model": "qwen/qwen3.7-flash",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 3
+  },
+  "B015": {
+    "model": "z-ai/glm-5.3-flashx",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 3
+  },
+  "B016": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 1
+  },
+  "B017": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 2
+  },
+  "B018": {
+    "model": "openai/gpt-6-luna",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 2
+  },
+  "B019": {
+    "model": "deepseek/deepseek-v4-pro",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 2
+  },
+  "B020": {
+    "model": "qwen/qwen3.7-flash",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 2
+  },
+  "B021": {
+    "model": "qwen/qwen3.7-flash",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 1
+  },
+  "B022": {
+    "model": "qwen/qwen3.7-flash",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 2
+  },
+  "B023": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 3
+  },
+  "B024": {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 3
+  },
+  "B025": {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 2
+  },
+  "B026": {
+    "model": "z-ai/glm-5.3-flashx",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 3
+  },
+  "B027": {
+    "model": "openai/gpt-6-luna",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 1
+  },
+  "B028": {
+    "model": "z-ai/glm-5.3-flashx",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 1
+  },
+  "B029": {
+    "model": "openai/gpt-6-luna",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 3
+  },
+  "B030": {
+    "model": "openai/gpt-6-luna",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 1
+  },
+  "B031": {
+    "model": "deepseek/deepseek-v4-pro",
+    "category": "security",
+    "task": "path-prefix",
+    "run": 3
+  },
+  "B032": {
+    "model": "inception/mercury-2.5",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 3
+  },
+  "B033": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 2
+  },
+  "B034": {
+    "model": "z-ai/glm-5.3-flashx",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 2
+  },
+  "B035": {
+    "model": "google/gemini-3.5-flash-lite",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 2
+  },
+  "B036": {
+    "model": "deepseek/deepseek-v4-pro",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 2
+  },
+  "B037": {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 2
+  },
+  "B038": {
+    "model": "deepseek/deepseek-v4-pro",
+    "category": "security",
+    "task": "key-in-log",
+    "run": 3
+  }
+}

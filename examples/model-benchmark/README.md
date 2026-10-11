@@ -79,6 +79,7 @@ To watch a run on the benchmark's own tower, open it (`node bin/flow-tower.js ex
 
 - [`skills/flow-tower-costs`](https://github.com/JamesMoriartyDecripto/flow-tower/tree/main/skills/flow-tower-costs): the checklist, the [benchmark recipe and field results](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-costs/reference.md), and `models.mjs` for prices.
 - Field results, 2026-10-10, one run each (illustrative): the six-model voice agent test (issue #70; qwen3.8-flash had no endpoint with zdr + `require_parameters`), and the dev squad on #70 (#75 findings: glm-5.3 timed out at 1-2.5 min per step, glm-5.3-flashx found the blocking bugs for $0.02-0.085; deepseek coder 90-95% of the prompt from cache). The runner's session, effort, timeout and retry choices come from that squad runner.
+- Superseded on 2026-10-11 by the first full run and a squad field trial: see the [cost skill reference § Benchmark 2026-10-11](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-costs/reference.md#benchmark-2026-10-11).
 - [OpenRouter chat completions](https://openrouter.ai/docs/api-reference/chat-completion), [provider routing](https://openrouter.ai/docs/features/provider-routing) (`require_parameters`, `data_collection`), [prompt caching](https://openrouter.ai/docs/features/prompt-caching) and [usage accounting](https://openrouter.ai/docs/use-cases/usage-accounting).
 - [Node.js permission model](https://nodejs.org/docs/latest-v22.x/api/permissions.html), used by `judge.mjs` to run model-written code.
 
