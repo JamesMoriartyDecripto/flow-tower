@@ -1,6 +1,10 @@
 import type { Page } from '@playwright/test';
 import { expect, openProject, test, tower, ws } from './fixtures.ts';
 
+// Run in a narrower window than the 1440 px default: that is where the old CSS squeezed the cells
+// (the whole table fit at 1440 px, so the assertion passed even with `overflow-wrap: anywhere`).
+test.use({ viewport: { width: 1100, height: 900 } });
+
 /**
  * Issue #133: `.md-view { overflow-wrap: anywhere }` made a table cell's min-content width one
  * character, so a wide table squeezed every column to that and printed its text one letter per line.
