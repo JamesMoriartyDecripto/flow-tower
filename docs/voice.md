@@ -19,12 +19,14 @@ Press **V** or the **MIC** button (top bar or library header) and say where to g
 | "indietro" | "back" | Go back, like Esc |
 | "libreria" | "library" | Project library |
 | "chiudi il file" | "close the file" | Closes only the viewer (the node stays selected) |
-| "apri il suo file", "apri il secondo file" | "open its file", "open the second file" | Open a numbered file of the selected node |
-| "il prossimo", "file successivo" | "next", "next file" | One step forward: the viewer's tabs, the last list, or the layer's nodes |
-| "il precedente", "file precedente" | "previous", "previous file" | One step back |
+| "apri il suo file", "apri il file 2" | "open its file", "open the second file" | Open file N of the selected node (1 = first) |
+| "il prossimo", "il precedente" | "next", "previous" | Move one step through what you are on: the viewer's files, the last list shown, or the layer's nodes |
+| "file successivo", "file precedente" | "next file", "previous file" | Move one step through the open viewer's files only |
 | "spegni il microfono" | "stop listening" | Microphone off |
 
 A name alone works too ("triage"). Names come from what is on screen: projects, layers, nodes and agents. They match loosely, so a misheard word still finds its target. When a name fits several things, the caption numbers them: say "il primo" or "two" to pick. "Entra" / "enter" opens the selected node's sub-tower, "chiudi" / "close" closes the panel. Listening stops by itself after 2 minutes without a command.
+
+"apri il suo file" / "open its file", "il prossimo" / "next", "il precedente" / "previous" and "file successivo" / "next file" are whole fixed phrases: they are handled by the local parser even when the voice agent is on, so "chiudi il file" closes the viewer and "il prossimo" steps through files, lists or layer nodes without a model call.
 
 **Noise.** The microphone tells a voice from a fan by the shape of the sound, not only its loudness, after measuring the room in its first 0.7 s. If a laptop fan still starts clips by itself, set **Settings → Voice → Microphone sensitivity** to Low and speak a little louder; High suits quiet rooms and soft voices. A transcript that is only "Grazie." or "Thank you." is what the recognizer writes for noise, so it is ignored.
 
