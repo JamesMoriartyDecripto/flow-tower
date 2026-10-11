@@ -201,6 +201,77 @@ test('voice: "apri il suo file" then "il prossimo" walk the files, then the laye
   expect(chatCalls).toBe(0);
 });
 
+test('voice: the new fixed phrases scroll, filter and open the hub, all on the parser (#145)', async ({ page }) => {
+  const id = ws.projects.find((p) => p.startsWith('dev-squad/'))!;
+  // An agent is configured and the real routing runs: a request to /chat would mean a fixed phrase went
+  // to the agent instead of the parser, so it is recorded and must stay at zero (#128, #145).
+  let chatCalls = 0;
+  await page.route(/\/api\/voice(\/|\?|$)/, (r) => {
+    const path = new URL(r.request().url()).pathname;
+    if (path === '/api/voice/chat') { chatCalls++; return r.fulfill({ status: 500, json: { error: 'the parser should have handled this' } }); }
+    return r.fulfill({ json: { cloud: true, model: 'stt', agent: 'test-model', tts: 'test-tts', journal: false } });
+  });
+  // The page is on a hub, so the Hub commands have something to open; the Machines tab is a read route.
+  await page.route('**/api/hub/me', (r) => r.fulfill({ json: { hub: true, readOnly: false, online: 1, tokens: 1 } }));
+  await page.route('**/api/hub/machines', (r) => r.fulfill({ json: [] }));
+  // A file long enough that the viewer's code pane must overflow, or a page step has nowhere to go.
+  const long = 'src/pipeline.ts';
+  const node = tower(id).layers.flatMap((l) => l.nodes).find((n) => n.files.includes(long))!;
+  const index = node.files.indexOf(long);
+
+  await openProject(page, id);
+  // Selected and with its file open in the viewer, as the agent would leave them.
+  await page.evaluate((n) => {
+    const s = (window as unknown as { __flowTower: { store: { getState(): { select(k: string): void; openFile(f: object): void } } } }).__flowTower.store.getState();
+    s.select(n.key);
+    s.openFile({ tower: n.tower, files: n.files, index: n.index });
+  }, { key: node.key, tower: id, files: node.files, index });
+  // The code pane exists only once the file is fetched and highlighted: scroll before that has nothing to move.
+  await expect(page.locator('.viewer .code pre')).toBeVisible();
+  expect(await page.evaluate(() => {
+    const c = document.querySelector<HTMLElement>('.viewer .code')!;
+    return c.scrollHeight > c.clientHeight;
+  }), 'the file overflows the viewer').toBe(true);
+  // The caption only shows a transcript while the voice is not off: the test says it through the hook below.
+  await page.evaluate(async () => {
+    const { useVoice } = await import(String('/src/app/voice/voice.ts'));
+    useVoice.setState({ status: 'listening', agent: true });
+  });
+  const hear = (text: string) => page.evaluate((t) => (window as unknown as Hear).__flowTower.hear(t), text);
+  const scrollTop = () => page.evaluate(() => document.querySelector<HTMLElement>('.viewer .code')!.scrollTop);
+  const hidden = () => page.evaluate(() => [...(window as unknown as { __flowTower: { store: { getState(): { hiddenTypes: Set<string> } } } })
+    .__flowTower.store.getState().hiddenTypes].sort());
+
+  // "scorri giù": the viewer's own scrolling element moves down a page step (smooth, hence polled).
+  await hear('scorri giù');
+  await expect.poll(scrollTop).toBeGreaterThan(0);
+  // "vai all'inizio": back to the top.
+  await hear("vai all'inizio");
+  await expect.poll(scrollTop).toBe(0);
+  // "chiudi il file": the viewer closes, the node stays selected.
+  await hear('chiudi il file');
+  await expect(page.locator('.viewer')).toHaveCount(0);
+  expect((await state(page)).file).toBe(false);
+  expect((await state(page)).selected).toBe(node.key);
+
+  // "mostra solo gli agenti": every other node type is hidden.
+  await hear('mostra solo gli agenti');
+  await expect.poll(hidden).toEqual(['decision', 'entry', 'guard', 'hook', 'human', 'memory', 'model', 'output', 'process', 'tool']);
+  // "mostra tutto": nothing hidden again.
+  await hear('mostra tutto');
+  await expect.poll(hidden).toEqual([]);
+
+  // "mostra le macchine": the Hub panel opens on the Machines tab.
+  await hear('mostra le macchine');
+  await expect(page.locator('.hub')).toBeVisible();
+  await expect(page.locator('#hub-tab-machines')).toHaveAttribute('aria-selected', 'true');
+  // "chiudi l'hub": the panel closes.
+  await hear("chiudi l'hub");
+  await expect(page.locator('.hub')).toHaveCount(0);
+
+  expect(chatCalls).toBe(0);
+});
+
 test('voice: Esc silences the reply still being written, and the turn is journaled as interrupted', async ({ page }) => {
   const id = ws.projects.find((p) => p.startsWith('dev-squad/'))!;
   const entries: { outcome: string }[] = [];
