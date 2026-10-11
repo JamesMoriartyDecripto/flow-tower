@@ -116,6 +116,29 @@ describe('ingest abuse limits (#83 phase 3)', () => {
     expect(hub.recent()).toHaveLength(1000);
   });
 
+  it('charges one token per heartbeat from the same bucket, answering 429 when empty', { timeout: 5_000 }, async () => {
+    const c = clock();
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-limits-beat-'));
+    const { token } = tokenStore(home).create('dana');
+    // One shared bucket: a satellite cannot evade the limit by beating instead of sending events.
+    const bucket = createBucket({ rate: 20, burst: 2, now: c.now });
+    const hub = createEventHub(() => undefined, () => undefined, { home, hub: true }, { bucket, clock: c.now });
+    const server = createServer((rq, rs) => hub.heartbeat(rq, rs));
+    servers.push(server);
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/heartbeat`;
+    const beat = () => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-flow-tower-token': token }, body: JSON.stringify({ queued: 0, dropped: 0, state: 'online' }) });
+
+    expect((await beat()).status).toBe(204);
+    expect((await beat()).status).toBe(204);
+    const refused = await beat();
+    expect(refused.status).toBe(429);
+    expect(Number(refused.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
+
+    c.advance(1000); // 20 tokens/s: a second is plenty
+    expect((await beat()).status).toBe(204);
+  });
+
   it('drops duplicate event ids and out-of-window timestamps without changing the answer', () => {
     const c = clock();
     const hub = createEventHub(() => undefined, () => undefined, { home: mkdtempSync(join(tmpdir(), 'flow-tower-limits-')) }, {

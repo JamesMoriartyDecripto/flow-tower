@@ -37,6 +37,7 @@ export const ConfigSchema = z.strictObject({
   machine: z.string().optional(),
   token: z.string().optional(),
   role: z.enum(ROLES).optional(),
+  paused: z.boolean().optional().describe('Stop relaying to the hub; events stay local.'),
   cadence: z.record(z.string(), z.enum(CADENCES)).optional().describe('Per sender id: always-on, on-demand or scheduled.'),
   budgets: z.strictObject({
     global: z.number().optional(),
@@ -165,6 +166,8 @@ export interface EffectiveSettings {
   machine?: string;
   token?: string;
   role: Role;
+  /** Config only: no flag and no environment variable, so only the sharing control can change it. */
+  paused: boolean;
   profile?: Profile;
   members: string[];
   optedIn: string[];
@@ -209,6 +212,7 @@ export function effective(config: Config = {}, env: NodeJS.ProcessEnv = process.
     machine: text(flags.machine, env.FLOW_TOWER_MACHINE, config.machine),
     token: text(flags.token, env.FLOW_TOWER_TOKEN, config.token),
     role: config.role ?? 'local',
+    paused: config.paused ?? false,
     profile: config.profile,
     members: config.members ?? [],
     optedIn: config.optedIn ?? [],
