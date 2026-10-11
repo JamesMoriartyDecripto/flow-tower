@@ -43,13 +43,13 @@ layers:
         files: [examples/docs-qa/scripts/answer.mjs, examples/docs-qa/scripts/lib.mjs]
       - { id: keywords, type: process, label: Keyword router, runtime: laptop, files: [examples/docs-qa/scripts/lib.mjs], description: "Deterministic fallback and the --dry-run router: idf-weighted overlap of the question with each doc's table rows, first lines and headings." }
       - { id: jit, type: process, label: JIT load, runtime: laptop, files: [examples/docs-qa/scripts/lib.mjs], description: "Reads the picked docs whole (they are 5-15 KB); above --whole-bytes (default 16000) it keeps the header, the matched sections and their neighbours." }
-      - { id: writer, agent: writer, label: Answer writer, files: [examples/docs-qa/scripts/answer.mjs], description: "The model writes the answer with citations; in --dry-run a mock copies one sentence from each loaded doc, so the guard still runs offline." }
+      - { id: writer, agent: writer, label: Answer writer, files: [examples/docs-qa/scripts/answer.mjs], description: "The model writes the answer with citations; in --dry-run a mock copies one sentence from each loaded doc (citing an H1 while quoting a later section once, to exercise the guard's rewrite), so the guard still runs offline." }
       - id: guard
         type: guard
         label: Citation guard
         files: [examples/docs-qa/scripts/lib.mjs, examples/docs-qa/prompts/guard.md]
         limits: { max_iterations: 2 }
-        description: "Every file#heading must name a loaded doc and an existing heading, and the cited section must contain the claim's words. One loop back to the writer, then 'Not in the docs' plus the closest doc."
+        description: "Every file#heading must name a loaded doc and an existing heading, and the cited section must contain the claim's words. If another section of the same file supports the claim, the citation is rewritten to its anchor and the answer kept (citations_fixed). Otherwise: one loop back to the writer, then 'Not in the docs' plus the closest doc."
       - { id: reply, type: output, label: Reply + stats, description: "The answer with citations, then one JSON line: docs_loaded, tokens, cost, ms." }
       - { id: not-found, type: output, label: Not in the docs, description: "After a second failed check: says so and names the closest doc." }
     edges:

@@ -16,20 +16,34 @@ function firstParagraph(text) {
   return lines.join(' ').trim();
 }
 
+/** The heading slug each doc's mis-cited line would need: the first section that has prose. */
+function firstTitled(part) {
+  return sections(part.text).filter((s) => s.slug).find((s) => firstParagraph(s.text));
+}
+
 /**
  * Mock writer for `--dry-run`: for each loaded doc, one sentence copied from its first non-heading
- * paragraph, closed by a citation that resolves. It does not answer the question; its only job is to
- * make the whole pipeline runnable offline, so the guard and the scorer are exercised too.
+ * paragraph, closed by a citation that resolves. It then adds one line that quotes a later section of the
+ * first doc while citing that doc's H1 — the exact mistake the guard now rewrites — so the rewrite path is
+ * exercised offline. It does not answer the question; its only job is to make the whole pipeline runnable
+ * offline, so the guard and the scorer are exercised too.
  */
 function mockAnswer(loaded) {
   const lines = [];
+  const firstSentence = (s) => /^.*?[.!?](?=\s|$)/.exec(firstParagraph(s.text))?.[0] ?? firstParagraph(s.text);
   for (const part of loaded.parts) {
     // The file preamble carries no heading slug, so cite the first titled section that has prose.
-    const sec = sections(part.text).find((s) => s.slug && firstParagraph(s.text));
-    const para = sec && firstParagraph(sec.text);
-    if (!para) continue;
-    lines.push(`${/^.*?[.!?](?=\s|$)/.exec(para)?.[0] ?? para} (${part.doc}#${sec.slug})`);
+    const sec = firstTitled(part);
+    if (sec) lines.push(`${firstSentence(sec)} (${part.doc}#${sec.slug})`);
   }
+  // One H1-anchor mistake, from the first doc that has a later section without a link to another doc.
+  const misCited = loaded.parts.map((part) => {
+    const titled = sections(part.text).filter((s) => s.slug);
+    const head = titled.find((s) => firstParagraph(s.text));
+    const later = head && titled.slice(titled.indexOf(head) + 1).find((s) => firstParagraph(s.text) && !/\.md#/.test(firstParagraph(s.text)));
+    return later && head && `${firstSentence(later)} (${part.doc}#${head.slug})`;
+  }).find(Boolean);
+  if (misCited) lines.push(misCited);
   return lines.join('\n') || 'Not in the docs.';
 }
 
@@ -64,14 +78,16 @@ export async function answer(question, { model = DEFAULT_MODEL, dryRun = false, 
     const text = mockAnswer(loaded);
     const check = guard(text, loaded);
     stats.mock = true;
+    stats.citations_fixed = check.fixed;
     stats.ms = Date.now() - t0;
-    return { text, stats, route: r, guard: check };
+    return { text: check.text, stats, route: r, guard: check };
   }
 
   const context = loaded.parts.map((l) => `<doc path="${l.doc}">\n${l.text}</doc>`).join('\n');
   const messages = [{ role: 'system', content: prompt('answer') }, { role: 'user', content: `${context}\n\nQuestion: ${question}` }];
   let text = '';
   let check;
+  let fixed = 0;
   // At most one loop back from the guard to the writer, then "not in the docs".
   for (let round = 0; round < 2; round++) {
     const w = await chat(model, messages);
@@ -79,10 +95,14 @@ export async function answer(question, { model = DEFAULT_MODEL, dryRun = false, 
     stats.cost += w.cost;
     text = w.text.trim();
     check = guard(text, loaded);
+    fixed += check.fixed;
+    // A rewritten citation is still a correct answer: take the fixed text and stop.
+    text = check.text;
     if (check.ok) break;
     messages.push({ role: 'assistant', content: text }, { role: 'user', content: `${prompt('guard')}\nProblems: ${check.problems.join('; ')}` });
   }
   if (!check.ok) text = `Not in the docs. Closest doc: ${r.docs[0]}\n(guard: ${check.problems.join('; ')})`;
+  stats.citations_fixed = fixed;
   stats.ms = Date.now() - t0;
   return { text, stats, route: r, guard: check };
 }

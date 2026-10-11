@@ -22,9 +22,12 @@ For a classic embeddings pipeline, start from [`starters/rag-bot`](../starters/r
 ## The two flows
 
 **Answer:** question → router (cheap model call; keyword fallback) → JIT load → answer writer (cites
-`file#heading`) → citation guard (the file and heading exist and the section contains the claim; one loop
-back to the writer, then "Not in the docs" plus the closest doc) → reply. With `--dry-run` a mock writer
-stands in for the model, so the whole pipeline can run offline.
+`file#heading`) → citation guard (the file and heading exist and the section contains the claim; when it
+does not but another section of the same file does, the citation is rewritten to that section's anchor
+and the answer is kept — a writer citing a file's H1 while the steps live under `## Steps` used to lose a
+correct answer; otherwise one loop back to the writer, then "Not in the docs" plus the closest doc) →
+reply. With `--dry-run` a mock writer stands in for the model, so the whole pipeline runs offline; it
+cites an H1 once while quoting a later section, so the rewrite path runs offline too.
 
 **Eval (the doc-gap loop):** [`evals/questions.md`](evals/questions.md) (24 real questions, each with the
 expected doc and 1–3 key facts read from the docs) → runner (each question runs `--runs N` times, default
@@ -73,10 +76,12 @@ node examples/docs-qa/scripts/eval.mjs --runs 5 --whole-bytes 32000
 ```
 
 `answer.mjs` prints the answer with citations, then one JSON line `{ docs_loaded, routed_by, tokens,
-cost, ms, loaded_whole, loaded_sections, loaded_bytes }`. `eval.mjs` prints the same per question and
-writes the pass rate, the judge model and the loaded docs into `gaps.md`. A `--dry-run` swaps the model
-for a mock writer that copies a sentence from each loaded doc and the judge for the keyword mock:
-routing, the guard and the scorer still run, but the score is a pipeline smoke test, not a model score.
+cost, ms, loaded_whole, loaded_sections, loaded_bytes, citations_fixed }` (`citations_fixed`: how many
+citations the guard rewrote to a section of the same file that does support the claim). `eval.mjs` prints
+the same per question and writes the pass rate, the judge model and the loaded docs into `gaps.md`. A
+`--dry-run` swaps the model for a mock writer that copies a sentence from each loaded doc and the judge
+for the keyword mock: routing, the guard and the scorer still run, but the score is a pipeline smoke
+test, not a model score.
 Calls use low reasoning effort, `provider: { data_collection: 'deny' }`, a 45 s timeout and
 one retry. Copied out of this repo, set `DOCS_QA_ROOT` to a flow-tower clone.
 
