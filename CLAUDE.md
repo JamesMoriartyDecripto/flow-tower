@@ -10,10 +10,11 @@
 | Change the YAML schema | [docs/schema.md](docs/schema.md) + `src/core/schema.ts` |
 | Write or fix a tower | [docs/what-goes-where.md](docs/what-goes-where.md) (layers, nodes, edges, nested towers); [examples/README.md](examples/README.md): copy the closest example; [docs/generate-a-tower.md](docs/generate-a-tower.md) for codebases |
 | Live events / integrations | [docs/realtime.md](docs/realtime.md), `src/core/adapters.ts`, `integrations/` |
-| Voice (commands, agent, spoken replies) | [docs/voice.md](docs/voice.md), `src/app/voice/` (parser, mic, agent, tools), `src/server/voice.ts`, the `voice-commands` example tower |
+| Voice (commands, agent, spoken replies); where personal data, keys, tokens live (user folder) | [docs/voice.md](docs/voice.md), `src/app/voice/` (parser, mic, agent, tools), `src/server/voice.ts`, the `voice-commands` example tower |
 | Your own towers (copy, starter, from scratch, validate, simulate) | [docs/getting-started.md](docs/getting-started.md) |
 | Team hub, command center, config, satellite | [docs/command-center.md](docs/command-center.md) (setup, config precedence), [docs/hub-reference.md](docs/hub-reference.md) (security model, recipes), then `src/server/{config,hub,auth,relay}.ts` as needed |
 | The command-center kit (deploy files) | [examples/command-center/README.md](examples/command-center/README.md) |
+| Release a version | [NEXT.md](NEXT.md) § Releasing, `examples/release-auditor` |
 | Cost and model choice | [skills/flow-tower-costs/SKILL.md](skills/flow-tower-costs/SKILL.md) |
 | How the hub works inside | [examples/team-hub](examples/team-hub/README.md): the tower of the hub's own code |
 | Model benchmarks | [examples/model-benchmark/README.md](examples/model-benchmark/README.md) |

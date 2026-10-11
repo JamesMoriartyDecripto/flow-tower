@@ -5,7 +5,7 @@ starter tower (copied only the YAML and `validate` warns about missing files: `r
 and how to try a tower live without wiring an agent (`npm run simulate`). Instead: a shared server for several
 machines in [command-center.md](command-center.md); a tower from code in [generate-a-tower.md](generate-a-tower.md).
 
-Requirements: **Node 22.12 or newer** (`node -v`), git, a browser. Nothing is published on npm: you run
+Requirements: **Node 22.13 or newer** (`node -v`), git, a browser. Nothing is published on npm: you run
 Flow Tower from your clone.
 
 ```bash

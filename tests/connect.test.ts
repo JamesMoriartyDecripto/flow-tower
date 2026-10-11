@@ -38,6 +38,8 @@ async function stubHub(status: number) {
 function connect(args: string[], env: NodeJS.ProcessEnv = {}) {
   return new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve) => {
     const child = spawn(process.execPath, [CLI, 'connect', ...args], {
+      // The timeout kills a stuck child, so the close event fires and the promise settles.
+      timeout: 20_000,
       env: { ...process.env, FLOW_TOWER_HOME: home, ...env },
     });
     let stdout = '';

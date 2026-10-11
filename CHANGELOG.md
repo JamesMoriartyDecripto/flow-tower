@@ -6,16 +6,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
-- `examples/docs-qa` (#110): a dogfood docs Q&A bot over this repo with just-in-time routing (no embeddings), a citation guard and a 24-question eval whose failures are doc gaps; `answer.mjs` and `eval.mjs` (OpenRouter, `--dry-run` offline). CLAUDE.md routes "how the hub works inside" to `examples/team-hub`.
-- Onboarding guides: `docs/getting-started.md` (copy an example, write or generate your own tower, make it live) and `docs/command-center.md` (hub on a VPS or server, systemd, Tailscale or Caddy, satellites, troubleshooting); README quick start split into three paths (#101).
-- Docs for just-in-time loading (#101): `docs/voice.md` (voice and the user folder, out of the README) and `docs/hub-reference.md` (hub security model and recipes, out of `realtime.md`); every doc opens with what it covers and where to go instead; config precedence, token rules, viewers, install steps and live-events setup each live in one place, other pages link to it; CLAUDE.md routes the new task areas and lists the hub gotchas.
 - OTLP receiver accepts `Content-Encoding: gzip`; sample per-host OTel Collector in `integrations/otel-collector/` (host/user tags, prompt fields stripped, disk queue while offline) (#81).
-- One config file (#90): `~/.config/flow-tower/config.json` (or a git-ignored `flow-tower.local.json` in the checkout) for hub and emit settings, with flags > environment > config; `flow-tower config path|show`; `config.example.json`.
-- Satellites (#91): `flow-tower connect <hub-url> --token <t>` writes `role: "satellite"` into the user folder's `config.json` and sends one heartbeat; a local library then relays content-free events to the hub (bounded queue of 5000, oldest dropped, a revoked token stops it), with `GET /api/sharing` on the satellite and `GET /api/hub/satellites` on the hub.
+- Identity on every event (#82): `user`, `host`, `runtime`, `project` and `session`, filled from the source's own attributes, else (for a local Flow Tower only) from the machine; fields clipped to 200 characters. `flow-tower emit --user --machine --runtime --session --project-name` set them explicitly.
+- Hub mode (#83): `flow-tower serve --hub` lets remote machines ingest with a token and listed tailnet viewers watch read-only; per-sender tokens (`ft_<id>_<secret>`, only the hash stored) managed with `flow-tower token add|list|revoke|pause|resume`; `--allowed-host <name>` for the name a proxy or tailnet uses; `--ingest-only` serves nothing but the ingest routes. Per-sender rate limit, event-id dedupe that keeps a tool's start and end, ±24 h timestamp window.
+- History in SQLite (#84, Node >= 22.13): content-free rows in the user folder; raw events kept 14 days (`FLOW_TOWER_RETENTION_DAYS`, clamped 1–21), hourly rollups 90 days, daily rollups 13 months; `GET /api/history` and `/api/history/info`; `flow-tower history export|delete|info`.
+- One config file (#90): `~/.config/flow-tower/config.json` (or a git-ignored `flow-tower.local.json` in the checkout) for hub and emit settings, with flags > environment > config; `flow-tower config path|show`; `config.example.json`. A file that holds a token must be owner-only (0600): `config show` warns otherwise.
+- Satellites (#91): `flow-tower connect <hub-url> --token <t>` writes `role: "satellite"` into the user folder's `config.json` and sends one heartbeat; a local library then relays content-free events to the hub (bounded queue of 5000, oldest dropped, a revoked token stops it), with `GET /api/sharing` on the satellite and `GET /api/hub/satellites` on the hub. `paused: true` in `config.json` (or Settings › Sharing › Pause) stops the relay and empties the queue; a SAT chip in the top bar shows the relay state.
+- `examples/team-hub` (#98): a dogfood tower of the hub architecture (senders, guard and tokens, ingest limits, identity, history, config; planned views dashed).
+- Onboarding and just-in-time docs (#101): `docs/getting-started.md`, `docs/command-center.md`, `docs/voice.md` and `docs/hub-reference.md`; README quick start in three paths; every doc opens with what it covers and where to go instead; each fact lives in one place; CLAUDE.md routes the new task areas.
+- `examples/command-center` (#104): a self-contained hub deployment kit as a tower (machines, transport, hub service, library, viewers) with ready deploy files (systemd, compose, Caddy, hub and satellite configs).
 - `model-benchmark` example (#108): the method #105 uses to pick models per role, as a tower (8 layers: categories, task sets, candidates, runner, measurements, judges, analysis, outputs) with runnable scripts. `bench.mjs` (OpenRouter tool loop, session per run, `require_parameters`, `data_collection: deny`, timeout + one retry; `--dry-run` needs no key), `judge.mjs` (deterministic checks, model code under the Node permission model, a blind rubric sheet), `report.mjs` (median and spread, cost per correct answer, warm starts). Two real tasks each for coder, reviewer, security, intent and doc-writer.
+- `examples/docs-qa` (#110): a dogfood docs Q&A bot over this repo with just-in-time routing (no embeddings), a citation guard and a 24-question eval whose failures are doc gaps; `answer.mjs` and `eval.mjs` (OpenRouter, `--dry-run` offline). CLAUDE.md routes "how the hub works inside" to `examples/team-hub`.
+
+### Changed
+- Node >= 22.13 (`engines`), for `node:sqlite` (#84).
 
 ### Fixed
 - Telemetry docs (#81): Claude Code's telemetry variables and Codex's `[otel]` block must be set at user level (`~/.claude/settings.json`, `~/.codex/config.toml`), managed settings or the shell; project settings are ignored.
+- Hub dedupe keeps a tool's start and end (#83): `tool.start` and `tool.end` share a call id, so every end was dropped; the key now includes the kind.
+- The config's `token` is a sender credential (what `emit` and a satellite send), never the server's own secret (#90).
+
+### Security
+- Hub (#83): a presented token is always checked; local hooks need none; remote requests may only ingest or view (`/api/file`, `/api/voice` and writes refused); WebSocket gated; OTLP receivers rate-limited; Tailscale identity trusted only through the local proxy.
+- History (#84) and the relay (#91) copy an allow-list of content-free fields: no prompt, response, path, command or message ever reaches the DB or the hub. Tokens are never printed or reported in state.
 
 ## [0.5.0] - 2026-10-10
 

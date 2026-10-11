@@ -182,6 +182,8 @@ describe('cli hub flags (#83)', () => {
   const run = (...args: string[]) =>
     spawnSync(process.execPath, [CLI, 'serve', 'examples', ...args], {
       encoding: 'utf8',
+      // A serve that starts instead of refusing would never exit: fail the test, not the whole run.
+      timeout: 20_000,
       env: { PATH: process.env.PATH ?? '', FLOW_TOWER_HOME: empty },
     });
 

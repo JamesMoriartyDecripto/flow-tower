@@ -1,7 +1,7 @@
 # Hub reference
 
-What a hub accepts and from whom: the **one home of the token rules and of who may view**, the satellite
-internals (`flow-tower connect`, what a satellite relays and what the hub never receives), and recipes per sender (second computer, teammate, VPS, GitHub Actions, Lambda). Read it to
+What a hub accepts and from whom: the **one home of the token rules** (one token per machine or person) **and of who may view**, the satellite
+internals (`flow-tower connect`, what a satellite relays and what the hub never receives, `/api/sharing`, satellite states, offline queue when the hub is down), and recipes per sender (second computer, teammate, VPS, GitHub Actions, Lambda). Read it to
 change hub code or check a security question. Setup steps and config precedence: [command-center.md](command-center.md);
 local live events: [realtime.md](realtime.md).
 
@@ -83,8 +83,8 @@ flow-tower connect https://hub.tailnet-xyz.ts.net --token ft_laptop_<secret> --m
 ```
 
 It writes `role: "satellite"`, `url`, `token` and (when given) `machine`/`user` into
-`<FLOW_TOWER_HOME or ~/.config/flow-tower>/config.json`, keeping every other key, then sends one
-heartbeat. Three answers, all exit 0: `connected to <url> as <sender>` (204); the token was refused
+`<FLOW_TOWER_HOME or ~/.config/flow-tower>/config.json`, keeping every other key, then checks the
+hub accepts the token (one heartbeat). Three answers, all exit 0: `connected to <url> as <sender>` (204); the token was refused
 (401) — the config is still written, and `flow-tower token add <id>` on the hub plus a second
 `connect` fixes it; the hub is unreachable — also written, since the relay will queue. Only bad
 arguments exit 1. The token is never printed by this command.
@@ -101,8 +101,12 @@ in memory: a long outage costs a counter, not the disk. A **revoked** (or paused
 sending entirely — the events stay queued and the state says `revoked` until someone fixes the token
 — so a returned laptop cannot keep feeding a hub that no longer trusts it.
 
+**Pausing.** `paused: true` in `config.json`, or Settings › Sharing › Pause, stops the relay now and after a
+restart, and empties the queue: nothing waits to leave later. The SAT chip in the top bar shows the state.
+
 **Reading it.** `GET /api/sharing` on the satellite answers its relay state
-(`online` | `queued` | `revoked`, hub url, queued/dropped counters, last error) and never the token;
+(`online`; `queued`: the hub is unreachable, events wait in a queue of at most 5000, oldest dropped
+first; `revoked`; plus hub url, queued/dropped counters, last error) and never the token;
 a server that is not a satellite answers `{ "state": "off" }`. On the hub, each satellite posts
 `POST /api/heartbeat` (counters and state word, authenticated like `/api/events`) and every accepted
 event counts as a sign of life; `GET /api/hub/satellites` lists them, calling one offline after three
@@ -163,6 +167,8 @@ Hub mode changes what the server accepts; this is the one place it is stated:
   proxy headers (`X-Forwarded-For`, `Forwarded`, `X-Real-IP`, `Tailscale-User-Login`). `tailscale serve` sets
   them. Never put a forwarder that adds none in front of the hub port (`ssh -L`/`-R`, `socat`, a proxy told
   to drop them): its requests would look local and skip every hub rule.
+- **One token per sender.** One per machine or person, made on the hub with `flow-tower token add <id>`;
+  the id becomes the sender name on the hub, so you can revoke or pause one without touching the others.
 - **Sender identity.** A per-sender token (`flow-tower token add|list|revoke|pause|resume`) is stored as
   its **sha256** in `~/.config/flow-tower/tokens.json` (0600), never the plaintext. The **token decides who
   sent it**: the id in `ft_<id>_<secret>` is the sender, and events are attributed to it. `revoke` /

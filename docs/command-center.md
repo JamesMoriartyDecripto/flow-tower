@@ -5,6 +5,12 @@ How to run one server that collects live events from many machines (laptops, tea
 Instead: copy-paste server steps in the [kit README](../examples/command-center/README.md); token rules, who
 can view and the recipes in [hub-reference.md](hub-reference.md); a single machine in [getting-started.md](getting-started.md).
 
+**In short** (a VPS for several machines; commands in the [kit](../examples/command-center/README.md)):
+
+1. Enable hub mode: `--hub`, or `"hub": true` in `config.json`.
+2. The hub listens on `127.0.0.1:5317`; put a transport in front (Tailscale or a reverse proxy).
+3. One token per machine: `flow-tower token add <id>` on the hub ([token rules](hub-reference.md#security-model)).
+
 ## Three roles
 
 ```
@@ -74,8 +80,7 @@ without a tailnet identity gets `403`. Two ways:
 - keep the hub (`"hub": true`, your domain in `allowedHosts`) and let Caddy forward only
   `/api/events`, `/api/heartbeat` and `/v1/*`; you view it over SSH (below);
 - or run `flow-tower --ingest-only`, which serves nothing but ingest (no UI, even locally), as in
-  [integrations/hub/Caddyfile](../integrations/hub/Caddyfile). That file forwards no `/api/heartbeat`:
-  add it if satellites connect through it.
+  [integrations/hub/Caddyfile](../integrations/hub/Caddyfile), which forwards the same three routes.
 
 **Viewing as the owner without Tailscale.** Forward the port over SSH from your own computer:
 
@@ -100,6 +105,9 @@ flow-tower ~/my-project            # run your library as usual: accepted events 
 sends one heartbeat: `connected to … as laptop`, or a 401 / unreachable message (the config is written
 anyway). Only metadata is relayed; while the hub is down events queue in memory
 ([what is relayed, the queue, `/api/sharing`](hub-reference.md#satellite-a-local-library-that-relays-to-the-hub)).
+
+To pause sharing, set `paused: true` in `config.json` or use Settings › Sharing › Pause; a pause empties
+the queue ([details](hub-reference.md#satellite-a-local-library-that-relays-to-the-hub)).
 
 Hooks on a satellite should post to the local server without a token: Claude Code's `http` hooks do.
 `flow-tower emit` reads the hub token from the same config file and the local server refuses it (401,
