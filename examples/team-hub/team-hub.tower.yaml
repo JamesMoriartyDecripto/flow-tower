@@ -1,0 +1,236 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Team Hub
+tags: [hub, ingest, auth, sqlite, otel, privacy, dogfooding]
+description: >-
+  The team hub of Flow Tower itself (#59): many machines send hook and OpenTelemetry events to one
+  flow-tower server, which authenticates them, normalizes them to one identity cascade, stores them in
+  SQLite with rollups and serves the live tower and history. Dashed nodes are planned (#85, #91-#94).
+  Paths are relative to the repository root, so every node opens the real file.
+root: ../..
+
+runtimes:
+  laptop:
+    kind: local
+    label: Sender machine
+    description: "A developer laptop or CI runner running Claude Code / Codex hooks."
+  hub:
+    kind: local
+    label: Hub server
+    description: "node bin/flow-tower.js serve on a host reachable over Tailscale or behind Caddy."
+
+layers:
+  - id: senders
+    title: Senders
+    description: Who pushes events to the hub
+    nodes:
+      - id: hooks
+        type: entry
+        label: Hook emit
+        runtime: laptop
+        description: "Claude Code / Codex hooks call `flow-tower emit` with identity flags (--user, --machine, --project)."
+        files: [bin/flow-tower.js, integrations/claude-code, integrations/codex]
+      - id: identity-cli
+        type: process
+        label: Sender identity
+        runtime: laptop
+        description: "Resolves user and machine for the emitted event."
+        files: [bin/identity.js]
+      - id: config-file
+        type: memory
+        label: Sender config
+        runtime: laptop
+        description: "Reads url, user, machine and token from the config file so hooks need no flags."
+        files: [bin/config-file.js]
+      - id: otel
+        type: entry
+        label: OTel collector
+        description: "OpenTelemetry collector forwarding OTLP/HTTP logs (tokens, cost) to the hub."
+        files: [integrations/otel-collector/collector.yaml, integrations/otel-collector/README.md]
+      - id: satellites
+        type: entry
+        label: Satellites
+        status: planned
+        description: "Planned (#91): satellite hubs forwarding to a central hub."
+    edges:
+      - "config-file -> hooks [data]: url, user, token"
+      - "identity-cli -> hooks [call]: user, machine"
+
+  - id: guard
+    title: Guard
+    description: Hub mode and authentication, before anything is read
+    nodes:
+      - id: hub-guard
+        type: guard
+        label: hubGuard
+        runtime: hub
+        description: "Remote requests may only ingest, and ingest needs a token. The tailscale viewer header is trusted only from a loopback socket. Files, voice and /@fs are always 403 remote; WebSocket upgrades are gated the same way."
+        files: [src/server/hub.ts, src/server/guard.ts]
+      - id: authorize
+        type: guard
+        label: authorize
+        runtime: hub
+        description: "A presented token is always verified. No token passes only for a local request with no legacy secret set."
+        files: [src/server/auth.ts]
+      - id: tokens
+        type: memory
+        label: Token store
+        runtime: hub
+        description: "Tokens ft_<id>_<random>; only the sha256 is stored, file mode 0600. Revoked or paused tokens are refused."
+        files: [src/server/tokens.ts]
+      - id: token-cli
+        type: tool
+        label: token CLI
+        description: "flow-tower token: create, list, revoke, pause."
+        files: [src/cli/token.ts]
+      - id: exposure
+        type: tool
+        label: Exposure recipes
+        description: "Ways to reach the hub: Tailscale serve + ACL, Caddy, docker-compose, GitHub Actions sender, Lambda."
+        files: [integrations/hub/tailscale-serve.md, integrations/hub/acl.hujson, integrations/hub/Caddyfile, integrations/hub/docker-compose.yml, integrations/hub/github-actions.yml, integrations/hub/lambda.md]
+    edges:
+      - "exposure -> hub-guard: remote traffic"
+      - "hub-guard -> authorize [call]: ingest route"
+      - "authorize -> tokens [data]: sha256 lookup"
+      - "token-cli -> tokens [data]: create, revoke"
+
+  - id: ingest
+    title: Ingest
+    description: Bodies in, normalized events out
+    nodes:
+      - id: events
+        type: process
+        label: /api/events
+        runtime: hub
+        description: "JSON events, at most 1000 per request; answers 204 with an empty body. gzip/deflate decoded with a decompressed-size cap; unknown encodings get 415."
+        files: [src/server/events.ts]
+      - id: otlp-route
+        type: process
+        label: /v1/* OTLP
+        runtime: hub
+        description: "/v1/logs carries tokens and cost; /v1/metrics and /v1/traces are accepted and dropped."
+        files: [src/server/events.ts, src/core/otlp.ts]
+      - id: limits
+        type: guard
+        label: Limits
+        runtime: hub
+        description: "Token bucket per sender, dedupe of repeated events, timestamps outside a ±24 h window refused."
+        files: [src/server/limits.ts]
+      - id: adapters
+        type: process
+        label: Adapters
+        runtime: hub
+        description: "Map Claude Code, Codex and other payloads to tower events."
+        files: [src/core/adapters.ts, src/core/claudeCode.ts]
+    edges:
+      - "events -> limits [call]: admit?"
+      - "otlp-route -> limits [call]: admit?"
+      - "limits -> adapters: accepted events"
+
+  - id: identity
+    title: Identity
+    description: One identity per event
+    nodes:
+      - id: cascade
+        type: process
+        label: Identity cascade
+        runtime: hub
+        description: "Fills user, host, runtime, project and session from the event, token and headers, most specific first."
+        files: [src/core/identity.ts]
+
+  - id: storage
+    title: Storage
+    description: History in SQLite
+    nodes:
+      - id: history-db
+        type: memory
+        label: History DB
+        runtime: hub
+        description: "node:sqlite (Node >= 22.13; otherwise the live view still works). A wide events table built from an allow-list of fields."
+        files: [src/server/history/db.ts, src/server/history/schema.ts, src/server/history/row.ts]
+      - id: rollups
+        type: process
+        label: Rollups
+        runtime: hub
+        description: "Hourly and daily rollups. Retention: raw 14 days (clamped 1-21), hourly 90 days, daily 13 months."
+        files: [src/server/history/store.ts]
+      - id: history-api
+        type: output
+        label: /api/history
+        runtime: hub
+        description: "Totals and info over the rollups; a viewing route, open to listed tailnet viewers."
+        files: [src/server/history/api.ts, src/server/plugin.ts]
+      - id: history-cli
+        type: tool
+        label: history CLI
+        description: "flow-tower history: query the database from the terminal."
+        files: [src/cli/history.ts]
+    edges:
+      - history-db -> rollups [data]
+      - "rollups -> history-api [data]: hourly or daily"
+      - history-cli -> history-db [data]
+
+  - id: config
+    title: Config
+    description: Where settings come from
+    nodes:
+      - id: config-json
+        type: memory
+        label: config.json
+        runtime: hub
+        description: "config.json in the user folder, plus a git-ignored flow-tower.local.json per checkout. Precedence: flags > non-empty env > config. Migrates the old hub.json."
+        files: [src/server/config.ts]
+      - id: config-cli
+        type: tool
+        label: config CLI
+        description: "flow-tower config: get, set and show the effective settings."
+        files: [src/cli/config.ts]
+    edges:
+      - config-cli -> config-json [data]
+
+  - id: views
+    title: Views
+    description: What people see
+    nodes:
+      - id: live
+        type: output
+        label: Live tower
+        description: "The 3D tower lit by live events."
+        files: [src/app/live.ts]
+      - id: hub-panel
+        type: output
+        label: Hub panel
+        status: planned
+        description: "Planned (#92), key H: Now, Usage, Machines, People, Alerts, Admin."
+      - id: privacy
+        type: guard
+        label: Privacy profiles
+        status: planned
+        description: "Planned (#85): personal, freelancers, employees. Groups under k=3 are merged; no per-person view for employees."
+      - id: admin
+        type: human
+        label: Admin
+        status: planned
+        description: "Planned (#93): manage tokens, viewers and retention from the panel."
+      - id: alerts
+        type: output
+        label: Alerts
+        status: planned
+        description: "Planned (#94): thresholds on cost, errors and silent machines."
+    edges:
+      - "privacy -> hub-panel: filtered view"
+      - admin -> hub-panel
+      - alerts -> hub-panel
+
+links:
+  - "senders.hooks -> guard.hub-guard [call]: POST /api/events"
+  - "senders.otel -> guard.hub-guard [call]: POST /v1/logs"
+  - { from: senders.satellites, to: guard.hub-guard, kind: call, label: forward }
+  - "guard.authorize -> ingest.events: authorized"
+  - "guard.authorize -> ingest.otlp-route: authorized"
+  - ingest.adapters -> identity.cascade
+  - "identity.cascade -> views.live: live store"
+  - "identity.cascade -> storage.history-db [data]: insert"
+  - "storage.history-api -> views.privacy [data]: per-person rows"
+  - "config.config-json -> guard.hub-guard [data]: viewers, host"
+  - "config.config-json -> storage.rollups [data]: retentionDays"
