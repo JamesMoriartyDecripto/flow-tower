@@ -40,6 +40,7 @@ Every example is a real, validated tower: each prompt, script, config and log it
 | [`invoicing-fic`](invoicing-fic) | 8 | Italian e-invoicing with Fatture in Cloud: fiscal checks, idempotent issue, SDI send-and-monitor sub-tower with rejection loop, dunning, passive cycle, 10-year retention |
 | [`release-auditor`](release-auditor) | 6 | Pre-release bug sweep, dogfooded on this repo: deterministic gates, Playwright sweep sub-tower, one finder per charter, adversarial verifier, test-first fixes; `root: ../..` so nodes open real repo files, scripts report live |
 | [`voice-commands`](voice-commands) | 6 | A feature mapped with its design choices, dogfooded on this repo: the voice widget from microphone to command, the speech engines it weighed (Web Speech on-device and cloud, Whisper in the browser, OpenRouter: chosen), and the conversational agent that answers out loud with tower tools |
+| [`team-hub`](team-hub) | 7 | The team hub's architecture, dogfooded on this repo: senders, guard and tokens, ingest limits, identity cascade, SQLite history with rollups, config precedence; planned views (hub panel, privacy profiles, admin, alerts) dashed |
 
 ## Beyond agents: notes and playbooks
 
