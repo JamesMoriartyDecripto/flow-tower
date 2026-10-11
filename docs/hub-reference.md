@@ -101,6 +101,9 @@ in memory: a long outage costs a counter, not the disk. A **revoked** (or paused
 sending entirely — the events stay queued and the state says `revoked` until someone fixes the token
 — so a returned laptop cannot keep feeding a hub that no longer trusts it.
 
+**Pausing.** `paused: true` in `config.json`, or Settings › Sharing › Pause, stops the relay now and after a
+restart, and empties the queue: nothing waits to leave later. The SAT chip in the top bar shows the state.
+
 **Reading it.** `GET /api/sharing` on the satellite answers its relay state
 (`online` | `queued` | `revoked`, hub url, queued/dropped counters, last error) and never the token;
 a server that is not a satellite answers `{ "state": "off" }`. On the hub, each satellite posts

@@ -101,6 +101,9 @@ sends one heartbeat: `connected to … as laptop`, or a 401 / unreachable messag
 anyway). Only metadata is relayed; while the hub is down events queue in memory
 ([what is relayed, the queue, `/api/sharing`](hub-reference.md#satellite-a-local-library-that-relays-to-the-hub)).
 
+To pause sharing, set `paused: true` in `config.json` or use Settings › Sharing › Pause; a pause empties
+the queue ([details](hub-reference.md#satellite-a-local-library-that-relays-to-the-hub)).
+
 Hooks on a satellite should post to the local server without a token: Claude Code's `http` hooks do.
 `flow-tower emit` reads the hub token from the same config file and the local server refuses it (401,
 silently), so pass `--token ''` to `emit` there.
