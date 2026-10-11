@@ -124,7 +124,7 @@ test('machines: a later poll failing keeps the rows and warns', async ({ page, e
   // The panel polls every 10 s and `page.clock` would freeze the WebGL frame driver, so wait the poll out.
   await expect(page.locator('.hub-warn')).toHaveText('Machines unavailable', { timeout: 15_000 });
   await expect(rows).toHaveCount(2);
-  await expect(rows).toContainText('ana-mbp');
+  await expect(rows.filter({ hasText: 'ana-mbp' })).toHaveCount(1);
   // Close the panel first, so no further poll can be provoked while we wait for this one's console error.
   await page.keyboard.press('Escape');
   await expect(page.locator('.hub')).toHaveCount(0);
