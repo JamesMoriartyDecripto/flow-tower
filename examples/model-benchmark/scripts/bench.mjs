@@ -3,6 +3,7 @@
 // through OpenRouter. One JSON line per run, appended as it finishes, so a crash keeps what was paid for.
 //
 //   node scripts/bench.mjs --category coder --models a/x,b/y --tasks tasks/coder/ --runs 3 --out results/2026-10-11.jsonl
+//   node scripts/bench.mjs ... --warm          each run is repeated at once with the same session_id, to price a warm cache
 //   node scripts/bench.mjs ... --dry-run      prints the plan and checks the task files; needs no key
 //
 // --url http://127.0.0.1:5317 (or FLOW_TOWER_URL) posts events to the tower's own model-benchmark.tower.yaml,
@@ -16,6 +17,7 @@ import { loadTasks, taskProblems } from './tasks.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
 const dry = argv.includes('--dry-run');
+const warm = argv.includes('--warm');
 const today = new Date().toISOString().slice(0, 10);
 const category = arg('category');
 const models = (arg('models') || '').split(',').map((m) => m.trim()).filter(Boolean);
@@ -29,7 +31,7 @@ const url = arg('url', env.FLOW_TOWER_URL || '');
 const emit = live(url);
 
 if (!tasksPath || !models.length || !(runs >= 1)) {
-  console.error('usage: bench.mjs --category <c> --models a,b --tasks tasks/<c>/ --runs N --out results/<date>.jsonl [--timeout 180] [--effort low] [--url http://127.0.0.1:5317] [--dry-run]');
+  console.error('usage: bench.mjs --category <c> --models a,b --tasks tasks/<c>/ --runs N --out results/<date>.jsonl [--timeout 180] [--effort low] [--warm] [--url http://127.0.0.1:5317] [--dry-run]');
   exit(2);
 }
 
@@ -46,9 +48,9 @@ for (const t of tasks) {
 }
 if (!tasks.length) { console.error(`no tasks in ${tasksPath}`); exit(2); }
 
-const calls = models.length * tasks.length * runs;
-const maxCalls = models.length * runs * tasks.reduce((s, t) => s + t.steps, 0);
-console.log(`\nplan: ${models.length} models × ${tasks.length} tasks × ${runs} runs = ${calls} runs (at most ${maxCalls} model calls, ${maxCalls * 2} with retries)`);
+const calls = models.length * tasks.length * runs * (warm ? 2 : 1);
+const maxCalls = models.length * runs * (warm ? 2 : 1) * tasks.reduce((s, t) => s + t.steps, 0);
+console.log(`\nplan: ${models.length} models × ${tasks.length} tasks × ${runs} runs${warm ? ' × 2 (cold + warm)' : ''} = ${calls} runs (at most ${maxCalls} model calls, ${maxCalls * 2} with retries)`);
 console.log(`models: ${models.join(', ')}`);
 console.log(`order: run-major, models interleaved, so a slow hour or a provider incident hits every model alike`);
 console.log(`output: ${out}  timeout: ${timeoutMs / 1000}s + 1 retry  effort: ${effort}`);
@@ -58,7 +60,7 @@ if (dry) {
   // The dry run is part of the story too: `runner.dryrun` pulses while the task files are checked.
   // Awaited only here: exit() would otherwise kill the fire-and-forget POST before it leaves.
   const events = [
-    emit({ kind: 'agent.start', node: 'runner.dryrun', agent: 'bench --dry-run', message: `${models.length} models × ${tasks.length} tasks × ${runs} runs` }),
+    emit({ kind: 'agent.start', node: 'runner.dryrun', agent: 'bench --dry-run', message: `${models.length} models × ${tasks.length} tasks × ${runs} runs${warm ? ' (cold + warm)' : ''}` }),
     emit({ kind: 'agent.end', node: 'runner.dryrun', agent: 'bench --dry-run', status: 'ok', message: 'plan printed, task files checked' }),
   ];
   if (url) await Promise.all(events); // no url: nothing to wait for, the no-op resolves at once
@@ -152,20 +154,20 @@ async function call(body) {
   return { first, ms: performance.now() - t0, content, toolCalls: toolCalls.filter(Boolean), usage, provider };
 }
 
-// 4. One run: a fresh session (cold cache at step 1, warm afterwards), capped steps, one retry per call.
-async function runOne(model, task, run) {
+// 4. One run: fresh session (cold cache at step 1, warm afterwards), capped steps, one retry per call.
+// The warm pass reuses the cold run's session_id so the provider can serve the same prefix from its cache.
+async function runOne(model, task, run, session, warm) {
   const rec = {
-    date: today, category: task.category, task: task.id, model, run, effort, ok: false,
+    date: today, category: task.category, task: task.id, model, run, warm, effort, ok: false,
     firstOutputMs: null, totalMs: 0, steps: 0, retries: 0,
     promptTokens: 0, completionTokens: 0, cachedTokens: 0, cachedFirstStep: null, cost: 0,
     providers: [], answer: null, error: null,
   };
-  const session = `bench-${model.replace(/\W+/g, '-')}-${task.id}-${run}-${Date.now()}`;
   const tools = task.tools.length ? [...task.tools.map((t) => TOOL_DEFS[t]), FINISH] : undefined;
   const messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: task.prompt }];
   const t0 = performance.now();
   // The loop node lights for the whole run; `session` is the run id, and the message names the run in words.
-  emit({ kind: 'agent.start', node: 'runner.loop', model, session, message: `${task.category}/${task.id} run ${run}` });
+  emit({ kind: 'agent.start', node: 'runner.loop', model, session, message: `${task.category}/${task.id} run ${run}${warm ? ' (warm)' : ''}` });
   try {
     for (let step = 1; step <= task.steps; step++) {
       const body = {
@@ -231,17 +233,23 @@ async function runOne(model, task, run) {
 
 mkdirSync(dirname(resolve(out)), { recursive: true });
 let n = 0, spent = 0;
+// One line per run, written as it finishes: the cold run first, then (with --warm) the warm repeat on the same session.
+const write = (rec, task, run) => {
+  appendFileSync(out, `${JSON.stringify(rec)}\n`);
+  // The record is on disk: one line appended per run, as the jsonl node promises.
+  emit({ kind: 'log', node: 'runner.jsonl', model: rec.model, message: `wrote ${task.category}/${task.id} run ${run}${rec.warm ? ' (warm)' : ''}` });
+  spent += rec.cost;
+  const cachedPct = rec.promptTokens ? Math.round((100 * rec.cachedTokens) / rec.promptTokens) : 0;
+  console.log(`[${++n}/${calls}] ${rec.model} ${task.id} #${run}${rec.warm ? ' (warm)' : ''}: ${rec.error ? `ERROR ${rec.error.slice(0, 80)}` : 'answered'}`
+    + ` · ${(rec.totalMs / 1000).toFixed(1)}s · ${rec.steps} steps · $${rec.cost.toFixed(4)} · cache ${cachedPct}%`);
+};
 for (let run = 1; run <= runs; run++) {
   for (const task of tasks) {
     for (const model of models) {
-      const rec = await runOne(model, task, run);
-      appendFileSync(out, `${JSON.stringify(rec)}\n`);
-      // The record is on disk: one line appended per run, as the jsonl node promises.
-      emit({ kind: 'log', node: 'runner.jsonl', model, message: `wrote ${task.category}/${task.id} run ${run}` });
-      spent += rec.cost;
-      const cachedPct = rec.promptTokens ? Math.round((100 * rec.cachedTokens) / rec.promptTokens) : 0;
-      console.log(`[${++n}/${calls}] ${model} ${task.id} #${run}: ${rec.error ? `ERROR ${rec.error.slice(0, 80)}` : 'answered'}`
-        + ` · ${(rec.totalMs / 1000).toFixed(1)}s · ${rec.steps} steps · $${rec.cost.toFixed(4)} · cache ${cachedPct}%`);
+      // The cold run owns the session_id; the warm repeat reuses it, so the cache is what the second run measures.
+      const session = `bench-${model.replace(/\W+/g, '-')}-${task.id}-${run}-${Date.now()}`;
+      write(await runOne(model, task, run, session, false), task, run);
+      if (warm) write(await runOne(model, task, run, session, true), task, run);
     }
   }
 }

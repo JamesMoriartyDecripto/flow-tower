@@ -37,7 +37,7 @@ node scripts/judge.mjs --in results/2026-10-11.jsonl --tasks tasks/reviewer/
 node scripts/report.mjs --in results/2026-10-11.judged.jsonl --scores results/2026-10-11.scores.json --out results/2026-10-11.md
 ```
 
-Use the exact model ids that `node skills/flow-tower-costs/models.mjs --tools` prints in the Flow Tower repository on the day you run. Options: `--timeout <s>` (default 180), `--effort <low|medium|high>` (default low), `--url <tower url>`. `judge.mjs` takes several `--tasks` folders when one jsonl holds several categories.
+Use the exact model ids that `node skills/flow-tower-costs/models.mjs --tools` prints in the Flow Tower repository on the day you run. Options: `--timeout <s>` (default 180), `--effort <low|medium|high>` (default low), `--warm` (repeat every run at once on the same `session_id`, as separate `warm: true` lines, so `report.mjs` can price a warm cache), `--url <tower url>`. `judge.mjs` takes several `--tasks` folders when one jsonl holds several categories.
 
 To watch a run on the benchmark's own tower, open it (`node bin/flow-tower.js examples/model-benchmark`) and add `--url http://127.0.0.1:5317` to `bench.mjs` and `judge.mjs`: metadata only, never a prompt, an answer, a file or the key.
 
