@@ -1,7 +1,7 @@
 import type { ResolvedNode, ResolvedTower, Workspace } from '../../core/types';
 import { fetchFile } from '../api';
 import { allEdges, towerPath } from '../graph';
-import { layoutOf } from '../keynav';
+import { flowOrder } from '../keynav';
 import { opsMarks } from '../ops';
 import { chooseView } from '../settings';
 import { findNode, useStore } from '../store';
@@ -116,8 +116,7 @@ export function runTool(name: string, args: Args): string {
       if (i === undefined) return out({ error: `No layer "${args.layer ?? ''}". Use list_layers.` });
       const l = tower.layers[i];
       // Flow order is the layout's left to right, as on screen (and in the node list panel).
-      const boxes = layoutOf(tower.id)?.layers[i]?.nodes;
-      const nodes = boxes ? [...l.nodes].sort((a, b) => (boxes[a.key]?.x ?? 0) - (boxes[b.key]?.x ?? 0) || (boxes[a.key]?.z ?? 0) - (boxes[b.key]?.z ?? 0)) : l.nodes;
+      const nodes = flowOrder(tower.id, l);
       const label = (key: string) => findNode(tower, key)?.label ?? key;
       const keys = new Set(l.nodes.map((n) => n.key));
       // The edges inside the layer are its flow: one call is enough to explain it.
