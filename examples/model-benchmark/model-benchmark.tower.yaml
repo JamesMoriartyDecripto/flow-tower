@@ -1,0 +1,406 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+version: 1
+name: Model Benchmark
+tags: [benchmark, evals, cost, latency, openrouter, model-selection, method]
+description: >-
+  How Flow Tower picks a model per role: the question, real task sets per category, a shortlist from
+  the public price list, one runner for every candidate, deterministic judges before a blind rubric,
+  repeat runs and variance, and a results table the maintainer signs off before it goes into the
+  cost skill. The method behind issue #105; the scripts in scripts/ run it.
+
+runtimes:
+  laptop:
+    kind: local
+    label: Maintainer laptop
+    description: "Node 22, no dependencies. Runs bench.mjs, judge.mjs and report.mjs; the key lives only in this shell's environment."
+  openrouter:
+    kind: saas
+    label: OpenRouter
+    provider: openrouter
+    url: https://openrouter.ai/docs/api-reference/chat-completion
+    description: "One API for every candidate. Routing picks a provider per request unless a session_id keeps it sticky."
+  verifier-api:
+    kind: saas
+    label: Verifier model API
+    description: "The scorer's model, from a family no candidate belongs to."
+
+prompts:
+  system:
+    text: >-
+      You are being evaluated on a software task from a real repository. Work only with the tools you
+      are given. When you have tools, call finish with your final answer; without tools, reply with the
+      final answer only. Be concise.
+    description: "The one system prompt every candidate gets (SYSTEM in scripts/bench.mjs). Never tuned per model."
+  scorer:
+    file: rubric.md
+    description: "Order of judging, the 10-point split, scorer rules."
+
+agents:
+  candidate:
+    name: Candidate model
+    description: >-
+      The model under test, in bench.mjs's tool loop: read_file over the task's own fixtures, then
+      finish. Same prompt, tools, step cap, max_tokens and reasoning effort for every candidate.
+    prompt: system
+    runtime: openrouter
+    tools: [read_file, finish]
+    files: [scripts/bench.mjs]
+    limits: { timeout: 180s, retries: 1, max_iterations: 8, description: "Per call: 180 s, one retry on timeout, 429 or 5xx; never on 404. Steps per task from its front matter (default 8)." }
+  verifier:
+    name: Blind verifier
+    description: >-
+      Scores the blind sheet 0-10 per answer against each task's rubric. It never sees model names,
+      providers, costs or timings, and comes from another family than every candidate (self-preference
+      bias). Scores the sheet twice, in reverse order the second time; gaps above 2 go to the maintainer.
+    prompt: scorer
+    runtime: verifier-api
+    files: [rubric.md]
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: question
+    title: Question & Categories
+    description: What is being decided, per role. A benchmark without a decision behind it measures nothing useful.
+    nodes:
+      - id: question
+        type: entry
+        label: Which model?
+        description: >-
+          "Which model should a tower node in role X use, and what does it cost?" Decide up front what
+          would change the default: a model that is as correct and cheaper per correct answer, or faster
+          on a latency-bound role. Write that down before the runs.
+        trigger: { kind: manual, source: maintainer, description: "Issue #105: at least 5 recommended models per category in the cost skill." }
+        resources:
+          - { kind: doc, label: "Issue #105", url: "https://github.com/JamesMoriartyDecripto/flow-tower/issues/105" }
+          - { kind: doc, label: "Issue #108", url: "https://github.com/JamesMoriartyDecripto/flow-tower/issues/108" }
+      - id: categories
+        type: memory
+        label: 10 categories
+        description: >-
+          Coder, reviewer, security, lead/planner, doc-writer, voice/chat agent, intent classifier,
+          STT/TTS, long context, vision. One per role a node can have. Each says what the role must do
+          and what its deterministic check is. Pitfall: one "general" leaderboard; a fast classifier
+          and a careful reviewer are different jobs.
+        files: [categories.md]
+      - id: ready
+        type: decision
+        label: Has 2+ tasks?
+        description: "A category is benchmarked only once it has at least 2 real tasks with a written check. Otherwise it stays planned."
+      - id: planned
+        type: output
+        label: Planned category
+        status: planned
+        description: "Lead/planner, voice agent, long context, vision: tasks still to write. STT/TTS need an audio runner, not chat completions."
+    edges:
+      - question -> categories
+      - categories -> ready
+      - "ready -> planned: not yet"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: tasks
+    title: Task Sets
+    description: Small but real tasks from this repository's history, the answer key written before the first run.
+    nodes:
+      - id: coder
+        type: memory
+        label: coder tasks
+        description: "parse-edge (src/core/edges.ts) and format-price (models.mjs). Check: a test script imports the answer."
+        files: [tasks/coder/parse-edge.md, tasks/coder/parse-edge.check.mjs, tasks/coder/format-price.md, tasks/coder/format-price.check.mjs]
+      - id: reviewer
+        type: memory
+        label: reviewer tasks
+        description: "A planted bug each: /api/events answering 200 + JSON, a zustand store mutated in place. Check: the expected finding's patterns, then the rubric penalises invented defects."
+        files: [tasks/reviewer/events-204.md, tasks/reviewer/fixtures/events-route.ts, tasks/reviewer/store-mutation.md, tasks/reviewer/fixtures/live-store.ts]
+      - id: security
+        type: memory
+        label: security tasks
+        description: "A prefix-check path bypass; an API key logged with the request headers, next to a decoy (execFileSync with an argument array) that must not be reported as command injection."
+        files: [tasks/security/path-prefix.md, tasks/security/fixtures/serve-file.mjs, tasks/security/key-in-log.md, tasks/security/fixtures/run-agent.mjs]
+      - id: intent
+        type: memory
+        label: intent tasks
+        description: "Voice commands to actions (src/app/voice/commands.ts). Check: exact JSON, key order ignored. No tools: structured output only."
+        files: [tasks/intent/navigation.md, tasks/intent/node-and-layer.md]
+      - id: docs
+        type: memory
+        label: doc-writer tasks
+        description: "A changelog entry and a gotcha paragraph. Check: required facts as patterns, then the rubric (accuracy, length)."
+        files: [tasks/doc-writer/changelog-entry.md, tasks/doc-writer/hook-gotcha.md]
+      - id: keyfirst
+        type: guard
+        label: Answer key first
+        description: >-
+          tasks.mjs refuses a task without a Prompt, an Expected section and a valid check, and one whose
+          prompt contains its answer. Never edit Expected after seeing answers: a wrong key becomes a new
+          task id. Contamination: tasks from this repo may be in training data; the planted bugs are new
+          files, and a task every model always passes gets retired.
+        files: [scripts/tasks.mjs]
+    edges:
+      - "coder -> keyfirst [data]"
+      - "reviewer -> keyfirst [data]"
+      - "security -> keyfirst [data]"
+      - "intent -> keyfirst [data]"
+      - "docs -> keyfirst [data]"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: candidates
+    title: Candidates
+    description: A shortlist per category, filtered by what the role needs and by the data policy, before price.
+    nodes:
+      - id: pricelist
+        type: tool
+        label: Public price list
+        runtime: openrouter
+        description: "GET /api/v1/models: prices per token, supported parameters, context, release date. Public, no key."
+        resources:
+          - { kind: endpoint, label: Models list, url: "https://openrouter.ai/api/v1/models" }
+      - id: models
+        type: process
+        label: models.mjs
+        runtime: laptop
+        description: "The cost skill's lister: per-million prices, cached-input price, tool support, --since. Run once and reuse the output."
+        resources:
+          - { kind: script, label: models.mjs, url: "https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-costs/models.mjs" }
+      - id: filters
+        type: guard
+        label: Role + data policy
+        description: >-
+          Tools for loop roles, JSON for intent, images for vision; require_parameters and
+          data_collection deny (ZDR where enforced) applied while shortlisting, not after. Pitfall:
+          a model that only looks cheap because its endpoints log prompts.
+        files: [candidates.md]
+      - id: smoke
+        type: process
+        label: Endpoint smoke
+        description: >-
+          One run per new model before the real ones: a listed model may have no endpoint that honours
+          the parameters with tools (HTTP 404, as qwen3.8-flash in #70). Record it as a result.
+      - id: shortlist
+        type: memory
+        label: 5+ per category
+        description: "At least 5 per category, one from another provider family than the default and than its reviewer. Exact ids as models.mjs prints them on the day."
+        files: [candidates.md]
+    edges:
+      - "pricelist -> models [data]: JSON"
+      - models -> filters
+      - filters -> smoke
+      - smoke -> shortlist
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: runner
+    title: Runner
+    description: One loop for every candidate. Differences in the harness would be measured as differences in the model.
+    nodes:
+      - id: dryrun
+        type: process
+        label: bench --dry-run
+        runtime: laptop
+        description: "Prints models × tasks × runs and the worst-case call count, checks every task file. Needs no key; exits 1 on a broken task."
+        files: [scripts/bench.mjs]
+      - id: key
+        type: guard
+        label: Key from shell
+        description: >-
+          OPENROUTER_API_KEY from the shell's environment only: never a file, never printed, never in
+          the jsonl (records hold no headers). A missing key stops before the first call.
+        credentials: service
+        data: { sensitivity: secret, retention: none }
+      - id: loop
+        agent: candidate
+        label: Tool loop
+        description: >-
+          bench.mjs: streamed calls, read_file over the task's fixtures, finish. A fresh session_id per
+          run keeps the provider sticky so steps 2+ hit the prompt cache; reasoning effort low (the
+          maintainer's default); max_tokens 4000. Order is run-major with models interleaved, so a slow
+          hour hits every model alike.
+        budget: { tokens: 4000, per: call, description: "max_tokens per call; the step cap bounds a run." }
+      - id: api
+        type: tool
+        label: chat/completions
+        runtime: openrouter
+        description: >-
+          provider: { require_parameters: true, data_collection: deny }, usage: { include: true },
+          stream: true. Retry once on timeout, 429 or 5xx; a 404 is never retried: it means no endpoint
+          under this policy.
+        limits: { timeout: 180s, retries: 1 }
+      - id: cap
+        type: decision
+        label: finish or cap?
+        description: "finish (or a plain-text answer) ends the run; reaching the task's step cap ends it with the error 'step cap N'."
+      - id: jsonl
+        type: memory
+        label: results/*.jsonl
+        description: "One JSON line per run, appended as it ends: a crash keeps what was already paid for."
+        data: { sensitivity: internal }
+    edges:
+      - dryrun -> key
+      - key -> loop
+      - "loop -> api [call]: streamed"
+      - "loop -> cap"
+      - "cap -> loop [return]: tool calls, max steps"
+      - "cap -> jsonl [data]: run record"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: measure
+    title: Measurements
+    description: What each run records, and what each number means. Fields of the jsonl record.
+    nodes:
+      - id: first
+        type: process
+        label: First output
+        description: >-
+          firstOutputMs: first content or tool-call delta of the stream. Reasoning deltas do not count:
+          a model that thinks for 4 s and then speaks has a 4 s first output. This is the number for
+          voice and UI roles.
+      - id: total
+        type: process
+        label: Total time
+        description: "totalMs: wall time of the whole run, retries included. Report the median and the spread, never one run."
+      - id: steps
+        type: process
+        label: Steps
+        description: "Model calls in the run. More steps means more re-sent prompt: cost and latency grow with it."
+      - id: tokens
+        type: process
+        label: Tokens + cache
+        description: >-
+          promptTokens, completionTokens, cachedTokens (usage.prompt_tokens_details.cached_tokens), and
+          cachedFirstStep: tokens cached already at step 1, i.e. a warm cache from an earlier run.
+      - id: cost
+        type: process
+        label: Cost
+        description: "usage.cost as OpenRouter bills it, summed over steps. A retried call may be billed too: retries are recorded next to it."
+      - id: errors
+        type: process
+        label: Errors + answer
+        description: "error (HTTP status, timeout, step cap), providers that served the run, and the raw answer, judged later and never during the run."
+    edges:
+      - first -> total
+      - total -> steps
+      - steps -> tokens
+      - tokens -> cost
+      - cost -> errors
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: judges
+    title: Judges
+    description: Deterministic checks first; a rubric only for what code cannot check, scored blind.
+    nodes:
+      - id: check
+        type: process
+        label: judge.mjs
+        runtime: laptop
+        description: "Per task: command (test script), json (exact, key order ignored) or regex (+ must-not). A failed check is a failed run; the rubric never rescues it."
+        files: [scripts/judge.mjs]
+      - id: sandbox
+        type: guard
+        label: Permission model
+        description: "Model-written code runs in a child Node with --experimental-permission: it reads its temp folder and the task folder only, cannot write or spawn, 20 s timeout."
+        sandbox: { network: open, filesystem: read-only }
+      - id: blind
+        type: memory
+        label: Blind sheet
+        description: "<run>.blind.md: rubric answers shuffled, numbered B001…, without model, provider, cost or timing. The key to un-blind is a separate file the scorer never opens."
+      - id: verifier
+        agent: verifier
+        label: Blind verifier
+      - id: human
+        type: human
+        label: Maintainer check
+        description: "Scores the ids where the verifier's two passes differ by more than 2, and spot-checks a sample."
+        approval: { by: maintainer, via: scores.json, actions: [approve, edit], per: answer, when: "verifier gap > 2" }
+      - id: scores
+        type: memory
+        label: scores.json
+        description: "Blind id → 0-10. Pass is 7 or more. judge.mjs never overwrites a filled-in file."
+    edges:
+      - "check -> sandbox [call]: command checks"
+      - "check -> blind [data]: passed rubric runs"
+      - "blind -> verifier"
+      - "verifier -> human: gap > 2"
+      - "verifier -> scores [data]"
+      - "human -> scores [data]"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: analysis
+    title: Analysis
+    description: Turn runs into a choice without fooling yourself.
+    nodes:
+      - id: enough
+        type: decision
+        label: n ≥ 3 per cell?
+        description: "Fewer than 3 runs per model and task: the table says ILLUSTRATIVE. Two models closer than their spread: run more, do not pick."
+      - id: variance
+        type: process
+        label: Median + spread
+        description: "report.mjs: median and min-max per model. Providers and time of day move latency; the median of interleaved runs is what a node will see."
+        files: [scripts/report.mjs]
+      - id: percorrect
+        type: process
+        label: $ / correct
+        description: "Total cost of every run (failed ones too) divided by correct runs. The cheapest per token is often not the cheapest per correct answer."
+      - id: cache
+        type: process
+        label: Warm vs cold
+        description: >-
+          Step 1 is cold unless an earlier run warmed the provider's cache: compare cachedFirstStep across
+          runs. A first run that looks slow and expensive may be the only cold one; report both.
+      - id: routing
+        type: process
+        label: Provider routing
+        description: >-
+          The same model id is served by different providers with different speed, quantization and
+          parameter support. The providers column shows who answered; pin one (provider.order) only to
+          explain a gap, as it turns sticky routing and its cache off.
+      - id: retries
+        type: process
+        label: Retry cost
+        description: "Retries and timeouts per model. A model that needs retries costs time a voice user notices, and money for the lost attempt."
+    edges:
+      - "enough -> variance: yes"
+      - variance -> percorrect
+      - percorrect -> cache
+      - cache -> routing
+      - routing -> retries
+
+  # 8 ───────────────────────────────────────────────────────────────
+  - id: outputs
+    title: Outputs
+    description: The table, the sign-off, and the defaults towers and squads use.
+    nodes:
+      - id: table
+        type: output
+        label: results/<date>.md
+        description: "Per category: model, runs, correct, total median [min-max], first output, steps, $ / run, $ / correct, cached %, retries, errors, providers. Example labelled ILLUSTRATIVE in results/example.md."
+        files: [results/example.md]
+      - id: signoff
+        type: human
+        label: Sign-off
+        description: "Reads the table and the failure notes, picks per category: best value, fastest, most accurate, cheapest acceptable, an alternative family."
+        approval: { by: maintainer, via: pull request, actions: [approve, edit, reject] }
+      - id: skill
+        type: output
+        label: Cost skill update
+        description: "skills/flow-tower-costs/reference.md: ≥ 5 models per category with the date measured and n; illustrative when n < 3."
+        resources:
+          - { kind: doc, label: Cost skill reference, url: "https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-costs/reference.md" }
+      - id: defaults
+        type: output
+        label: Tower defaults
+        description: "The model a tower node or squad role uses by default, and why, with an environment override to switch back."
+    edges:
+      - table -> signoff
+      - "signoff -> skill: approved"
+      - "signoff -> defaults: approved"
+
+links:
+  - "question.ready -> tasks.keyfirst: 2+ tasks"
+  - "tasks.keyfirst -> runner.dryrun: task files"
+  - "candidates.shortlist -> runner.dryrun: --models"
+  - "runner.jsonl -> measure.first [data]"
+  - "measure.errors -> judges.check: raw answers"
+  - "judges.check -> analysis.enough: judged.jsonl"
+  - "judges.scores -> analysis.enough [data]: scores"
+  - "analysis.enough -> runner.loop [return]: no: --runs N"
+  - "analysis.retries -> outputs.table: report.mjs"
+  - "outputs.signoff -> tasks.keyfirst [return]: new or retired tasks"

@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- `model-benchmark` example (#108): the method #105 uses to pick models per role, as a tower (8 layers: categories, task sets, candidates, runner, measurements, judges, analysis, outputs) with runnable scripts. `bench.mjs` (OpenRouter tool loop, session per run, `require_parameters`, `data_collection: deny`, timeout + one retry; `--dry-run` needs no key), `judge.mjs` (deterministic checks, model code under the Node permission model, a blind rubric sheet), `report.mjs` (median and spread, cost per correct answer, warm starts). Two real tasks each for coder, reviewer, security, intent and doc-writer.
+
 ## [0.5.0] - 2026-10-10
 
 ### Added
