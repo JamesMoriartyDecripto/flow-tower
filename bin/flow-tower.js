@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
 import { parseArgs } from 'node:util';
+import { senderConfig } from './config-file.js';
 import { clipIdentity, identityDefaults } from './identity.js';
 
 const HELP = `flow-tower — 3D tower visualizer for agentic systems
@@ -20,6 +21,8 @@ Usage
   flow-tower validate <file.tower.yaml | dir>... [--json]
   flow-tower token add <id> | list | revoke <id> | pause <id> | resume <id>
                                                         per-sender hub tokens stored under the user folder
+  flow-tower config path | show                         the config files in use, and the effective settings
+                                                        (hub + emit in one config.json under the user folder)
   flow-tower history export [--user <u>] | delete --user <u> | info
                                                         content-free events and totals in the user folder:
                                                         export prints JSONL, delete erases one user's rows
@@ -136,6 +139,7 @@ const { values, positionals } = parseArgs({
     // `--host` is reserved for the bind address (#83) and `--project` is install-skill's boolean.
     user: { type: 'string' },
     machine: { type: 'string' },
+    token: { type: 'string' },
     runtime: { type: 'string' },
     session: { type: 'string' },
     'project-name': { type: 'string' },
@@ -150,12 +154,33 @@ if (values.help || positionals.length === 0) {
   process.exit(values.help ? 0 : 1);
 }
 
+const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Was this flag actually on the command line? parseArgs' defaults cannot tell a flag from its default. */
+const explicit = (name) => process.argv.some((a) => a === `--${name}` || a.startsWith(`--${name}=`));
+
+/**
+ * The effective settings from src/server/config.ts (#90), printed as JSON by its own CLI so the flags >
+ * environment > config precedence lives in one place. Serve reads no token from here: the config's token
+ * is the sender credential, so `json` always redacts it; a failure to run it yields {} and the defaults.
+ */
+function configJson(flags = []) {
+  const script = join(pkgRoot, 'src', 'cli', 'config.ts');
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, 'json', ...flags], { encoding: 'utf8' });
+  try { return JSON.parse(r.stdout); } catch { return {}; }
+}
+
 if (positionals[0] === 'emit') {
   await emit();
   process.exit(0);
 }
 
-const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+if (positionals[0] === 'config') {
+  // The config loader is TypeScript (src/server/config.ts): run its CLI with Node's type stripping.
+  const script = join(pkgRoot, 'src', 'cli', 'config.ts');
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...positionals.slice(1)], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
 
 if (positionals[0] === 'validate') {
   // The core is TypeScript: run it with Node's built-in type stripping (Node >= 22.12).
@@ -228,16 +253,26 @@ or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follo
  * Never fails and never blocks for long: observability must not break the agent it observes.
  */
 async function emit() {
+  // url/user/machine/token default from the config file (#90); flags and env still win. Read in plain JS:
+  // emit runs on every hook call, so it must not start a second Node (bin/config-file.js).
+  const cfg = senderConfig({
+    env, checkout: pkgRoot,
+    flags: { url: explicit('url') ? values.url : undefined, user: values.user, machine: values.machine, token: values.token },
+  });
+  const url = cfg.url ?? values.url;
+
   const params = new URLSearchParams(Object.entries({ source: values.source, tower: values.tower }).filter(([, v]) => v));
   const query = params.size ? `?${params}` : '';
   const headers = { 'content-type': 'application/json' };
-  if (env.FLOW_TOWER_TOKEN) headers['x-flow-tower-token'] = env.FLOW_TOWER_TOKEN;
-  const post = (events) => fetch(`${values.url}/api/events${query}`, {
+  const token = cfg.token ?? env.FLOW_TOWER_TOKEN;
+  if (token) headers['x-flow-tower-token'] = token;
+  const post = (events) => fetch(`${url}/api/events${query}`, {
     method: 'POST', headers, body: JSON.stringify(events), signal: AbortSignal.timeout(1500),
   }).catch(() => {});
 
   // Defaults so identity is never empty on a loopback target; a payload or an explicit flag always wins (#82).
-  const defaults = identityDefaults(values.url, env, { username: userInfo().username, hostname: hostname() });
+  // The config's user/machine are explicit (like a flag), so the loopback rule only guards the os fallback.
+  const defaults = identityDefaults(url, env, { username: userInfo().username, hostname: hostname() }, cfg);
   const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
   const withIdentity = (event) => clipIdentity({ ...defaults, ...clean(event), ...clean(identity) });
   const identity = {
@@ -308,13 +343,20 @@ if (missing.length) {
 
 /**
  * Hub mode (#83): the server may be reached from off this machine. Ingest then needs a token, viewing
- * needs the tailnet user in <home>/hub.json, everything else is refused (src/server/hub.ts).
+ * needs the tailnet user in config.json (or the legacy hub.json), everything else is refused (src/server/hub.ts).
+ * hub/host/allowedHosts/ingestOnly default from the config file (#90); the flags still win. The token
+ * does not: see below.
  */
 const isLoopbackHost = (h) => h === 'localhost' || h === '::1' || h === '[::1]' || /^127\./.test(h);
-const truthy = (v) => /^(1|true|yes)$/i.test(v ?? '');
-const hub = values.hub || truthy(env.FLOW_TOWER_HUB);
-const ingestOnly = values['ingest-only'] || truthy(env.FLOW_TOWER_INGEST_ONLY);
-const bindHost = values.host ?? '127.0.0.1';
+const serveFlags = [];
+if (values.hub) serveFlags.push('--hub');
+if (values.host !== undefined) serveFlags.push('--host', values.host);
+for (const h of values['allowed-host'] ?? []) serveFlags.push('--allowed-host', h);
+if (values['ingest-only']) serveFlags.push('--ingest-only');
+const cfg = configJson(serveFlags);
+const hub = cfg.hub ?? values.hub;
+const ingestOnly = cfg.ingestOnly ?? values['ingest-only'];
+const bindHost = cfg.host ?? values.host ?? '127.0.0.1';
 
 if (!hub && !isLoopbackHost(bindHost)) {
   console.error(`refusing to bind ${bindHost} without --hub: only loopback may run unguarded.
@@ -322,13 +364,17 @@ To serve a shared hub, run: flow-tower <files> --hub --host ${bindHost}`);
   process.exit(1);
 }
 // An allowed host is only reachable through a proxy (Tailscale serve, Caddy): that is a hub, not a local server.
-const allowedHosts = [...(values['allowed-host'] ?? []), ...(env.FLOW_TOWER_ALLOWED_HOSTS ?? '').split(',')]
-  .map((h) => h.trim()).filter(Boolean);
+const allowedHosts = cfg.allowedHosts ?? [];
 if (!hub && allowedHosts.length) {
   console.error(`an allowed host means the server is reachable through a proxy: add --hub (and a token)`);
   process.exit(1);
 }
-if ((hub || ingestOnly) && !env.FLOW_TOWER_TOKEN && !hasActiveToken()) {
+// The config's token is this machine's credential for the hub it SENDS to (emit, the satellite relay):
+// it is never a secret guarding this server, or a revoked/paused token pasted into config.json would
+// still authenticate here. This server's shared secret stays FLOW_TOWER_TOKEN; per-sender tokens live
+// in tokens.json. So the "needs a token" refusal ignores the config file.
+const token = env.FLOW_TOWER_TOKEN;
+if ((hub || ingestOnly) && !token && !hasActiveToken()) {
   console.error(`${hub ? 'hub mode' : '--ingest-only'} needs a token to accept any event.
 create one: flow-tower token add <id>\nThen send it as x-flow-tower-token (or FLOW_TOWER_TOKEN for a shared secret).`);
   process.exit(1);
@@ -344,8 +390,10 @@ function hasActiveToken() {
 // The vite plugin reads its entries (and the update-check opt-out) from the environment of this process.
 env.FLOW_TOWER_ENTRIES = JSON.stringify(entries);
 if (values['no-update-check']) env.FLOW_TOWER_NO_UPDATE_CHECK = '1';
+// The resolved hub settings go out as the same env vars as today, so src/server/hub.ts keeps one path.
 if (hub) env.FLOW_TOWER_HUB = '1';
 if (ingestOnly) env.FLOW_TOWER_INGEST_ONLY = '1';
+// FLOW_TOWER_TOKEN is passed on unchanged: serve never rewrites it from the config's sender token.
 // Vite opens the page with the `open` package, which reads $BROWSER.
 if (values.browser) env.BROWSER = values.browser;
 const { createServer } = await import('vite');

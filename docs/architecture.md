@@ -35,6 +35,7 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 |---|---|
 | `src/server/plugin.ts` | API routes, file sandbox, live reload. `USER_HOME` = `~/.config/flow-tower` (or `FLOW_TOWER_HOME`), the user's folder: never in a repo, never served by `/api/file`. Key lookup: environment, then `USER_HOME/.env`, then the git-ignored `.env` in the flow-tower folder (fallback). Gives the voice handler the journal store and the names an alias may point at |
 | `src/server/home.ts` | Re-exports `userHome`; `warnIfInRepo` warns at startup when `FLOW_TOWER_HOME` is inside the flow-tower folder, symlinks followed on both sides |
+| `src/server/config.ts` | One config file for the hub and the emit settings (#90): reads `<home>/config.json` (JSONC) over `<checkout>/flow-tower.local.json`, migrates the old `hub.json` keys with a warning, and is best-effort (an invalid file is a warning, never a crash). `configPaths` says what a load reads; `effective` is pure and resolves flags > environment > config > defaults, where an empty environment variable counts as unset |
 | `src/server/events.ts` | Event hub (ring buffer, 204 empty responses for Claude Code hooks) |
 | `src/server/hub.ts` | Hub mode (#83): the first middleware of the server. From the socket, the proxy headers and `hub.json` alone it decides what a remote request may do: ingest with a token, view read-only when the tailnet login is a listed viewer, and nothing else (`/api/file`, `/api/voice` and every write are refused). `--ingest-only` serves only the ingest routes, even locally. Options come from the environment because Vite has no argv |
 | `src/server/auth.ts` | Who may write to the event hub (#83): the legacy `FLOW_TOWER_TOKEN` (sender `default`) or a per-sender token, both compared timing-safe; `isRemote` treats a proxy header or a non-loopback socket as remote; without either secret and not a hub, a fresh checkout stays local-only and needs no token |
@@ -48,6 +49,7 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 | `scripts/build-demo.ts` | Static demo for GitHub Pages: freezes the workspace and referenced files into `data/`, then builds the app in `demo` mode |
 | `bin/flow-tower.js` | CLI commands: serve, init, validate, emit, guide, install-skill |
 | `src/cli/validate.ts` | `validate --json` output |
+| `src/cli/config.ts` | `flow-tower config path|show` (#90) and the internal `config json` that `bin/flow-tower.js` reads so the precedence lives in one place (the token is always redacted: it is the sender credential, never a server secret); run through Node type stripping like `token`, `history` and `validate` |
 
 ## App state
 

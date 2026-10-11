@@ -174,21 +174,33 @@ flow-tower token add alice            # prints ft_alice_<secret> once: hand it t
 flow-tower --hub --allowed-host hub.tailnet-xyz.ts.net
 ```
 
-In the flow-tower checkout, start the dev server with the flags, or `FLOW_TOWER_HUB=1`. Then put
-`tailscale serve` in front of it ([tailscale.com/kb/1312/serve](https://tailscale.com/kb/1312/serve)):
-the server still binds loopback and never a public interface, and Tailscale terminates TLS and forwards
-to it. Never use `tailscale funnel` for this: Funnel exposes to the whole internet, serve to your tailnet.
+The flags above also have a config file: `~/.config/flow-tower/config.json` (JSONC; in a checkout,
+`flow-tower.local.json` is the git-ignored fallback). One config per machine role. On the hub:
+
+```jsonc
+{
+  // hub: serves the shared endpoint, keeps everyone's events and accepts the viewers' tailnet logins.
+  "hub": true,
+  "role": "hub",                              // local | hub | satellite
+  "allowedHosts": ["hub.tailnet-xyz.ts.net"],
+  "viewers": ["alice@example.com"],           // tailnet logins allowed to view, read-only
+  "profile": "freelancers",                   // personal | freelancers | employees
+  "retentionDays": 14                          // raw history kept, 1..21
+}
+```
+
+Then start the dev server (`flow-tower`) and put `tailscale serve` in front of it
+([tailscale.com/kb/1312/serve](https://tailscale.com/kb/1312/serve)): the server still binds loopback
+and never a public interface, and Tailscale terminates TLS and forwards to it. Never use
+`tailscale funnel` for this: Funnel exposes to the whole internet, serve to your tailnet.
 
 A remote sender posts to the usual `/api/events` (or `/v1/logs`) with its token:
 `x-flow-tower-token: ft_alice_<secret>` (the OTel exporters and the collector use a `Authorization: Bearer`
 too). What it may do:
 
 - **ingest events** with a valid token — the token id becomes the sender, and events are attributed to it;
-- **view** the UI (read-only) only when its tailnet login is listed in `~/.config/flow-tower/hub.json`:
-
-  ```json
-  { "viewers": ["alice@example.com"] }
-  ```
+- **view** the UI (read-only) only when its tailnet login is listed as a `viewer` in
+  `~/.config/flow-tower/config.json` (`hub.json` still works, with a deprecation warning): `{ "viewers": ["alice@example.com"] }`.
 
 - **nothing else**. Files (`/api/file`), voice (`/api/voice`) and every write are refused for remote
   requests: they act on the machine that runs Flow Tower, not on the sender's.
@@ -213,10 +225,23 @@ flow-tower ~/towers/game-studio.tower.yaml --hub --allowed-host hub.tailnet-xyz.
 tailscale serve --bg --https=443 http://127.0.0.1:5317
 ```
 
-On the laptop, send events with the token (or set `FLOW_TOWER_TOKEN=ft_laptop_…` and let `emit` pick it up):
+On the laptop, put the sender's settings in `~/.config/flow-tower/config.json`:
+
+```jsonc
+{
+  // sender: where this machine posts its events, and who it is. `flow-tower emit` reads it, so hooks
+  // need no environment at all. Keep the file 0600: it holds the token.
+  "url": "https://hub.tailnet-xyz.ts.net",
+  "user": "alice",
+  "machine": "laptop",
+  "token": "ft_laptop_<secret>",
+  "role": "satellite"
+}
+```
+
+Then just send events:
 
 ```bash
-FLOW_TOWER_URL=https://hub.tailnet-xyz.ts.net \
 flow-tower emit --kind tool.start --agent claude-code -m "opened the repo"
 ```
 
@@ -233,8 +258,19 @@ temporarily. The plaintext is never stored, only its sha256, so a stolen `tokens
 
 Run the collector next to the agent on the VPS, so only usage leaves the host and prompts stay in. The
 sidecar forwards to your hub over the tailnet; see [`integrations/hub/docker-compose.yml`](../integrations/hub/docker-compose.yml)
-and [`integrations/otel-collector/collector.yaml`](../integrations/otel-collector/collector.yaml). Set
-`FLOW_TOWER_URL=https://hub.tailnet-xyz.ts.net` and `FLOW_TOWER_TOKEN=ft_vps_…` on the sidecar.
+and [`integrations/otel-collector/collector.yaml`](../integrations/otel-collector/collector.yaml). A
+container has no user folder unless you mount one, so it gets the same settings from the environment
+(they win over any file, and an empty variable counts as unset):
+
+```yaml
+environment:
+  FLOW_TOWER_URL: https://hub.tailnet-xyz.ts.net
+  FLOW_TOWER_TOKEN: ft_vps_<secret>
+  FLOW_TOWER_USER: alice
+  FLOW_TOWER_MACHINE: vps-1
+  # or mount the host's config read-only instead of passing the token as an env var:
+  # volumes: [ "~/.config/flow-tower:/home/user/.config/flow-tower:ro" ]
+```
 
 ### Recipe: GitHub Actions
 

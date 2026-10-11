@@ -30,9 +30,12 @@ export function clipIdentity(event) {
  * The user and host defaults of one emit: this machine's os user and hostname, but only for a loopback
  * `url`, so a tower reached over the network never learns who you are unless you say so. FLOW_TOWER_USER
  * and FLOW_TOWER_MACHINE, when set, win over both; set to an empty string they disable that default.
+ * A user or machine the user wrote in config.json (#90) is explicit like a flag: the loopback rule is
+ * only for the os values we would otherwise guess, so it never applies to `config`.
  */
-export function identityDefaults(url, env, os) {
+export function identityDefaults(url, env, os, config = {}) {
   const local = isLoopbackUrl(url);
-  const field = (name, fallback) => (env[name] === undefined ? (local ? fallback : undefined) : env[name] || undefined);
-  return { user: field('FLOW_TOWER_USER', os.username), host: field('FLOW_TOWER_MACHINE', os.hostname) };
+  const field = (name, fallback, configured) =>
+    configured !== undefined ? (configured || undefined) : (env[name] === undefined ? (local ? fallback : undefined) : env[name] || undefined);
+  return { user: field('FLOW_TOWER_USER', os.username, config.user), host: field('FLOW_TOWER_MACHINE', os.hostname, config.machine) };
 }
