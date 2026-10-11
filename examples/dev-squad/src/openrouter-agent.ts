@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import { env } from 'node:process';
 import { promisify } from 'node:util';
 import type { AgentRun } from './run-agent';
@@ -18,6 +18,11 @@ const OUT_CHARS = 20_000;
  */
 const SECRET = /(^|\/)(\.env[^/]*|\.git|node_modules|\.ssh)(\/|$)|\.(pem|key|p12|pfx)$|(^|\/)id_(rsa|ed25519)|^~|\/(Users|home)\//;
 const WRITABLE = /^(src|tests|e2e)\//; // the coder writes code and tests, never config, CI or docs
+/**
+ * Probe files: the prompt rule ("no scratch files") was ignored three times in one day, so
+ * write_file rejects the names a throwaway probe always gets. The error points at a real test.
+ */
+const PROBE = /^(tmp[-_.]|zz[-_])|probe|scratch/i; // tested against the file name, not the folders above it
 
 /** No shell: each command is a fixed argv, the model only picks the name and (for some) a path. */
 const RUN: Record<string, (arg: string) => [string, string[]]> = {
@@ -44,7 +49,9 @@ const READ_TOOLS = [
 ];
 const WRITE_TOOLS = [
   fn('edit_file', 'Replace one exact, unique snippet.', { path: str('Path'), old: str('Exact text, must occur once'), new: str('Replacement') }),
-  fn('write_file', 'Create or overwrite a file under src/, tests/ or e2e/.', { path: str('Path'), content: str('Full content') }),
+  fn('write_file', 'Create or overwrite a file under src/, tests/ or e2e/. No tmp-/zz-/probe/scratch throwaway files.', { path: str('Path'), content: str('Full content') }),
+  // Without this, a coder told to remove a probe wrote an empty placeholder in its place.
+  fn('delete_file', 'Delete a file under src/, tests/ or e2e/ (same paths as write_file).', { path: str('Path') }),
 ];
 
 /** Fire-and-forget live events for the tower: a stopped viewer never slows or breaks a run. */
@@ -86,9 +93,17 @@ async function callTool(cwd: string, name: string, a: Record<string, string>): P
     }
     case 'write_file': {
       const abs = safePath(cwd, a.path, true);
+      const rel = relative(cwd, abs);
+      if (PROBE.test(basename(rel))) {
+        throw new Error(`${rel} looks like a probe/scratch file. Do not create throwaway files: put the check in a real test under tests/, or reason from the code you already read.`);
+      }
       mkdirSync(dirname(abs), { recursive: true });
       writeFileSync(abs, a.content);
       return `wrote ${a.content.length} chars`;
+    }
+    case 'delete_file': {
+      rmSync(safePath(cwd, a.path, true)); // same fence as write_file, so a probe file can actually go away
+      return `deleted ${a.path}`;
     }
     case 'run': {
       const file = a.file ? relative(cwd, safePath(cwd, a.file)) : '';
