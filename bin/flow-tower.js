@@ -494,12 +494,26 @@ const server = await createServer({
   logLevel: 'warn',
   server: {
     port: Number(values.port),
+    // Never fall back to another port: the cacheDir below and the URL the user opens both assume this one (#136).
+    strictPort: true,
     host: bindHost,
     open: !values['no-open'],
     // Only when the user named hosts: an explicit list must not replace Vite's localhost/IP defaults for nothing.
     ...(allowedHosts.length ? { allowedHosts } : {}),
   },
 });
-await server.listen();
-console.log(`\n  FLOW//TOWER  ${entries.join('  ')}${hub ? '  [hub]' : ''}${ingestOnly ? '  [ingest-only]' : ''}\n`);
+try {
+  await server.listen();
+} catch (err) {
+  // The user opens exactly this port (and its own cache dir): a silent bump would show someone else's server.
+  // Vite's strictPort rejection drops the EADDRINUSE code, so its message has to count as busy too.
+  if (err?.code === 'EADDRINUSE' || /is already in use/.test(err?.message ?? '')) {
+    console.error(`port ${values.port} is in use: another server runs there (maybe another flow-tower). Use --port ${Number(values.port) + 1}, or stop it.`);
+    await server.close();
+    process.exit(1);
+  }
+  throw err;
+}
+// Show the URL in the banner too: with strictPort it is always the port the user asked for.
+console.log(`\n  FLOW//TOWER  http://${bindHost}:${values.port}  ${entries.join('  ')}${hub ? '  [hub]' : ''}${ingestOnly ? '  [ingest-only]' : ''}\n`);
 server.printUrls();

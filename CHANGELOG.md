@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - KaTeX 0.16.47 → 0.18.7 (Dependabot alert, low), pinned with an override so rehype-katex and remark-math use the same copy (#119).
 
 ### Fixed
+- A busy port fails fast with `port <port> is in use: another server runs there (maybe another flow-tower). Use --port <port+1>, or stop it.` and exit 1 instead of silently binding the next port (which shared the requested port's Vite cache dir and left the user on someone else's tower); the banner now names the URL, and the port is strict (#136).
 - `examples/docs-qa` resolves the OpenRouter key the way the squad runner does (environment, user folder key file, git-ignored `.env` of the checkout, then the main checkout's for a worktree) and fails fast with one line and exit 2 before the first question when there is none (#123).
 - The squad runner (`tools/squad`) works from a worktree: the key lookup also finds the git-ignored key file of the main checkout (a worktree has none), and `steps.sh`'s `<write-dirs>` argument may be comma-separated (same as `run.mjs --write`); the CLI tests ignore an exported `FLOW_TOWER_*` environment (#75).
 - `validate` (and the loader) reports a node `files` entry that is a folder like a missing file (`files entry "<path>" is a folder; list the files inside it instead`), instead of accepting it and letting `/api/file` answer 404 in the app (#118).
