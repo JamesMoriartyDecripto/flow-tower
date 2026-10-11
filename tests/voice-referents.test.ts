@@ -3,7 +3,6 @@ import { loadLibrary } from '../src/core/loader';
 
 /** The list the user was last shown: what "il prossimo" / "the next one" refers to (#130). */
 describe('voice list referents (#130)', () => {
-  let clearList: typeof import('../src/app/voice/referents').clearList;
   let currentList: typeof import('../src/app/voice/referents').currentList;
   let setList: typeof import('../src/app/voice/referents').setList;
   let stepIndex: typeof import('../src/app/voice/referents').stepIndex;
@@ -15,13 +14,15 @@ describe('voice list referents (#130)', () => {
   beforeAll(async () => {
     // referents reads the store (the handlers act on screen), and the store reads location at load.
     vi.stubGlobal('location', { search: '' });
-    ({ clearList, currentList, setList, stepIndex, stepList, runItsFile, runStep } = await import('../src/app/voice/referents'));
+    ({ currentList, setList, stepIndex, stepList, runItsFile, runStep } = await import('../src/app/voice/referents'));
     ({ useStore } = await import('../src/app/store'));
     const { workspace } = await loadLibrary(['examples/dev-squad']);
     useStore.getState().setWorkspace(workspace);
   });
 
-  beforeEach(() => clearList());
+  // No clearList any more: a list kept for another tower is dropped by currentList, which is how every
+  // read path (and this reset) treats a stale list. '' is never a tower id.
+  beforeEach(() => currentList(''));
 
   it('steps inside the list and stops at both ends', () => {
     expect(stepIndex(3, 0, 1)).toBe(1);
@@ -58,12 +59,6 @@ describe('voice list referents (#130)', () => {
     expect(stepList(1)).toBeUndefined();
   });
 
-  it('forgets the list on clear', () => {
-    setList({ tower: 'a', keys: ['x'], cursor: -1, source: 'layer' });
-    clearList();
-    expect(currentList('a')).toBeUndefined();
-  });
-
   it('opens the numbered file of the selected node (#130b)', () => {
     const s = useStore.getState();
     s.openFile(undefined);
@@ -79,6 +74,32 @@ describe('voice list referents (#130)', () => {
     const bare = tower.layers.flatMap((l) => l.nodes).find((n) => n.files.length === 0 && n.resources.length === 0)!;
     useStore.getState().select(bare.key);
     expect(runItsFile(0)).toBe(`${bare.label} has no files`);
+  });
+
+  it('answers "No file open" for a file step with no viewer (#130)', () => {
+    const s = useStore.getState();
+    s.openFile(undefined);
+    s.select(undefined);
+    // Same wording as close-file with nothing open, so both name the same cause.
+    expect(runStep(1, 'file')).toBe('No file open');
+    expect(runStep(-1, 'file')).toBe('No file open');
+  });
+
+  it('drops a list whose key no longer resolves and steps the layer instead (#130)', () => {
+    const s = useStore.getState();
+    const tower = s.workspace!.towers[s.stack[s.stack.length - 1]]!;
+    s.openFile(undefined);
+    s.select(undefined);
+    s.focusLayer(0);
+    // A live reload can take a node away after the list was shown: its first key resolves to nothing.
+    setList({ tower: tower.id, keys: ['gone.away', 'also.gone'], cursor: -1, source: 'search' });
+    const did = runStep(1, 'auto');
+    // Falls through to the layer flow-order step rather than selecting a key nothing on screen has.
+    expect(did).toBeTruthy();
+    expect(useStore.getState().selected).toBeTruthy();
+    expect(useStore.getState().selected).not.toBe('gone.away');
+    // The stale list is gone, so the next step does not walk it again.
+    expect(currentList(tower.id)).toBeUndefined();
   });
 
   it('steps the last list shown before the layer nodes (#130b)', () => {

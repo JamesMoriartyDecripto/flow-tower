@@ -27,13 +27,21 @@ export function setList(ref: ListRef) {
   list = { ...ref, keys: [...ref.keys] };
 }
 
-export function clearList() {
+/**
+ * Drops the list. Internal, not exported: every reader already treats a stale list as no list
+ * (currentList below for another tower, runStep for a key the live reload removed), so nothing else
+ * has to clear eagerly. Clearing from voice.ts's store subscription was the alternative, but that
+ * subscription fires on `selected` too, and pick() changes the selection on every step — it would
+ * drop the list mid-walk. The lazy checks are what keeps stepping correct.
+ */
+function clearList() {
   list = undefined;
 }
 
 /**
  * The list on screen, or nothing. A list kept for another tower is stale (the caller passes the tower
  * id now on screen), so it is dropped rather than handed to the agent as if it were still visible.
+ * Dropping here and in runStep is why no eager clear is needed when the workspace moves on.
  */
 export function currentList(tower?: string): ListRef | undefined {
   if (!list) return undefined;
@@ -109,15 +117,23 @@ export function runStep(dir: 1 | -1, what: 'auto' | 'file'): string {
     s.openFile({ ...file, index: next });
     return file.files[next];
   }
-  if (what === 'file') return 'No more files';
+  // A file step past the branch above means no viewer is open (with one open, that branch always runs
+  // for `what === 'file'`). Say what close-file says, so the user hears the same cause.
+  if (what === 'file') return 'No file open';
   if (tower) {
     // A list the user is walking ("show me the X nodes", then "next"): its order, not the layout's.
     const list = currentList(tower.id);
     if (list?.keys.length) {
       const key = stepList(dir);
       if (!key) return dir > 0 ? 'That was the last one' : 'That was the first one';
-      pick(tower, key);
-      return findNode(tower, key)?.label ?? key;
+      const node = findNode(tower, key);
+      if (node) {
+        pick(tower, key);
+        return node.label;
+      }
+      // The workspace reloads live: a key the list was built from may name a node the tower on screen no
+      // longer has. Drop the list and fall through to the layer, rather than select a key nothing resolves.
+      clearList();
     }
     // Otherwise the nodes of the layer in play: the selection's own layer, else the focused one.
     const li = s.selected ? tower.layers.findIndex((l) => l.nodes.some((n) => n.key === s.selected)) : s.focusedLayer;
