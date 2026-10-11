@@ -24,26 +24,39 @@ const pick = (() => {
 const open = (page: Page) => page.evaluate((f) => (window as unknown as { __flowTower: { store: { getState(): { openFile(x: object): void } } } })
   .__flowTower.store.getState().openFile({ tower: f.id, files: f.files, index: f.index }), pick);
 
+// A cell only renders without wrapping when it is at least as wide as its longest word, measured in
+// that cell's own computed font. Runs in the browser, so it must stay free of outer references.
+const wordWidths = (cells: Element[]) => cells.map((el) => {
+  const longest = (el.textContent ?? '').trim().split(/\s+/).reduce((a, b) => (b.length > a.length ? b : a), '');
+  const style = getComputedStyle(el);
+  const ctx = document.createElement('canvas').getContext('2d');
+  if (!ctx) throw new Error('no 2d canvas context');
+  ctx.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+  return { word: longest, needed: ctx.measureText(longest).width, actual: el.getBoundingClientRect().width };
+});
+
 test('md table: wide tables scroll instead of squeezing columns to one letter', async ({ page }) => {
   await openProject(page, ID);
   await open(page);
   const table = page.locator('.viewer .md-view table').first();
   await expect(table).toBeVisible();
+  // measureText needs the real face, or a fallback font hides a column that is too narrow.
+  await page.evaluate(() => document.fonts.ready);
 
   const headers = table.locator('th');
   expect(await headers.count(), 'the results table has many columns').toBeGreaterThanOrEqual(10);
-
-  // Every header must at least fit its longest word: measure the word in the cell's own computed font.
-  const widths = await headers.evaluateAll((cells) => cells.map((el) => {
-    const longest = (el.textContent ?? '').trim().split(/\s+/).reduce((a, b) => (b.length > a.length ? b : a), '');
-    const style = getComputedStyle(el);
-    const ctx = document.createElement('canvas').getContext('2d');
-    if (!ctx) throw new Error('no 2d canvas context');
-    ctx.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-    return { word: longest, needed: ctx.measureText(longest).width, actual: el.getBoundingClientRect().width };
-  }));
-  for (const { word, needed, actual } of widths) {
+  for (const { word, needed, actual } of await headers.evaluateAll(wordWidths)) {
     expect(actual, `header column "${word}" is at least as wide as its longest word`).toBeGreaterThanOrEqual(needed - 2);
+  }
+
+  // The bug squeezed the body too: headers have `white-space: nowrap`, so measuring only `th` would
+  // keep passing even if `anywhere` came back on `td`. Every body cell must fit its longest word.
+  const cells = await table.locator('td').evaluateAll(wordWidths);
+  expect(cells.length, 'the table has body cells').toBeGreaterThan(0);
+  for (const { word, needed, actual } of cells) {
+    // A single character cannot wrap any tighter, so such a cell proves nothing; skip it.
+    if (word.length < 2) continue;
+    expect(actual, `body cell "${word}" is at least as wide as its longest word`).toBeGreaterThanOrEqual(needed - 2);
   }
 
   // The columns stay readable, so the table is wider than its box: it has to scroll, not overflow the page.
