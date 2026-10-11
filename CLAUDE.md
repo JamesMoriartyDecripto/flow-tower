@@ -16,6 +16,7 @@
 | The command-center kit (deploy files) | [examples/command-center/README.md](examples/command-center/README.md) |
 | Cost and model choice | [skills/flow-tower-costs/SKILL.md](skills/flow-tower-costs/SKILL.md) |
 | How the hub works inside | [examples/team-hub](examples/team-hub/README.md): the tower of the hub's own code |
+| Model benchmarks | [examples/model-benchmark/README.md](examples/model-benchmark/README.md) |
 | The agent skill | [skills/flow-tower/SKILL.md](skills/flow-tower/SKILL.md), [reference.md](skills/flow-tower/reference.md) |
 
 ## Conventions
