@@ -6,7 +6,7 @@ description: >-
   The team hub of Flow Tower itself (#59): many machines send hook and OpenTelemetry events to one
   flow-tower server, which authenticates them, normalizes them to one identity cascade, stores them in
   SQLite with rollups and serves the live tower and history. Satellites (#91) forward metadata-only
-  events and heartbeats to the hub. Dashed nodes are planned (#85, #92-#94).
+  events and heartbeats to the hub. Dashed nodes are planned (#85, #93, #94).
   Paths are relative to the repository root, so every node opens the real file.
 root: ../..
 
@@ -227,8 +227,8 @@ layers:
       - id: hub-panel
         type: output
         label: Hub panel
-        status: planned
-        description: "Planned (#92, UX spec in #59): key H, tabs Now, Usage, Machines, People, Alerts, Admin. #92 ships Now (live rows: machine, runtime, project, started by or AUTO) and Machines (token prefix, runtime, last seen, state); top-bar HUB n/m and READ-ONLY pills for remote viewers."
+        description: "The Hub panel (#92), key H: tabs Now (live rows: machine, runtime, project, started by or AUTO) and Machines (token prefix, runtime, host, last seen, state); top-bar HUB n/m (senders seen in the last 5 min / active tokens) and READ-ONLY pills for a remote viewer. Reads /api/hub/machines and /api/hub/me. Usage, People, Alerts and Admin tabs are still to come in #85, #93 and #94."
+        files: [src/app/hud/Hub.tsx, src/app/hub.ts, src/server/hub-views.ts, src/server/machines.ts]
       - id: privacy
         type: guard
         label: Privacy profiles
@@ -245,6 +245,7 @@ layers:
         status: planned
         description: "Planned (#94): machine silent > cadence x N, budget 80% / 100%, errors per hour > 3x the 7-day median, a token used from a new host. Ack and snooze; employees: alerts never name a person."
     edges:
+      - "satellite-list -> hub-panel [data]: runtime, host, last seen"
       - "privacy -> hub-panel: filtered view"
       - admin -> hub-panel
       - alerts -> hub-panel

@@ -45,6 +45,8 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 | `src/server/relay.ts` | Satellite relay (#91): a local library forwards what it accepted to the hub, metadata only (prompt text, commands and tool output never leave the machine). Bounded in-memory queue with per-flush batch, one flush a second at most and exponential backoff (1 s, 2 s, 4 s … max 60 s), revoked when the hub answers 401/403, a heartbeat every 60 s so the hub can call it offline after three missed beats, and `state` for the UI. Never holds the token in the state it reports |
 | `src/server/satellites.ts` | The hub's satellite list (#91): `createSatellites` remembers per sender when it last heard from a satellite and what its relay reported, refreshed by heartbeats and by accepted events (`touch`); in memory only, never a token, only the sender id and what it reported. Served as `/api/hub/satellites` (a viewing route, so hub mode's remote-viewer rule applies). `online` is true while a heartbeat is younger than three minutes (`ONLINE_MS`) |
 | `src/server/sharing.ts` | Sharing controls on a satellite (#91): `/api/sharing` pause switch and `/api/sharing/test`, acting on the relay and on `config.json`, guarded like any local write |
+| `src/server/machines.ts` | The Hub panel's Machines rows (#92): `machineRows` joins the token list and the satellite registry into one row per sender (`RECENT_MS` = 5 min), pure so the UI needs no server; `hubCounts` gives the `HUB n/m` counters. Never a token plaintext, only `ft_<id>…` |
+| `src/server/hub-views.ts` | The Hub panel's viewing routes (#92): `GET /api/hub/machines` (the sender rows) and `GET /api/hub/me` (hub flag, `readOnly` = `isRemote`, the two counters), behind the same cross-site check and remote-viewer rule as `/api/hub/satellites` |
 | `src/server/user-config.ts` | The user folder's `config.json` read/merge/write (owner-only), shared by `connect` and the sharing control |
 | `src/server/lifecycle.ts` | Stops what the plugin started (the relay, timers) when Vite closes or restarts the server, so old servers do not leak (#91, #99) |
 | `src/server/history/db.ts` | Opens the history database (#84): `node:sqlite` imported dynamically, so a Node without it disables history with a reason; the file lives in the user folder |
@@ -77,6 +79,7 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 | `src/app/ops.ts` | Operational markers and inspector rows |
 | `src/app/api.ts` | Fetching the workspace and refetching on server push |
 | `src/app/sharing.ts` | Pure formatting for the satellite SAT chip and Sharing section (#91), unit-tested without a DOM |
+| `src/app/hub.ts` | Pure model of the Hub panel (#92): Now rows grouped by machine / runtime / project / starter (`AUTO` for CI), the state thresholds (● under 2 min, ◐ under 15 min, ○ silent), the `HUB n/m` pill and the Machines dots. No React, no fetch, no DOM |
 | `src/app/main.tsx` | Entry point: fonts, styles, prefs, the React root, and the dev-only `window.__flowTower` hook for E2E |
 | `src/app/exporter.ts`, `exportSvg.ts`, `scene/Snapshot.tsx` | Export packs (P / X): ZIP of every layer and map of the project and its sub-towers, as SVG diagrams or Full HD PNGs rasterized from them, plus the 3D snapshot (captured after post-processing) |
 | `src/app/staticData.ts`, `demo.ts` | Static demo mode (Vite mode `demo`): data from `data/`, in-browser live simulator, DEMO chip |
@@ -121,6 +124,7 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 | `hud/LiveFeed.tsx`, `LiveChips.tsx` | Live feed and chips |
 | `hud/Settings.tsx`, `Shortcuts.tsx` | Settings page, keyboard overlay |
 | `hud/Sharing.tsx` | The SAT chip (polls `/api/sharing`) and Settings › Sharing: pause and the "does it reach the hub?" test |
+| `hud/Hub.tsx` | The Hub panel (#92): `H` opens it in the Inspector's place, tabs Now and Machines (`[ ]`, ← →), the top-bar `HUB n/m` chip (polls `/api/hub/me`) and its `READ-ONLY` pill for a remote viewer |
 | `hud/dialog.ts` | Modal focus for HUD dialogs: move focus in, trap Tab, restore on close |
 | `hud/FileViewer.tsx` | File popup with syntax highlighting (shiki), focus restored on close |
 | `hud/MarkdownView.tsx` | Formatted Markdown: no raw HTML, links to the node's files, math in `$$…$$` (KaTeX) |

@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- Hub panel (#92): press `H` on a hub for the Now tab (who runs what right now) and the Machines tab (every sender the hub trusts); a `HUB n/m` top-bar pill (senders seen in the last 5 min / active tokens) and a `READ-ONLY` pill for a remote viewer, fed by `GET /api/hub/machines` and `GET /api/hub/me`.
+
+### Fixed
+- The squad runner (`tools/squad`) works from a worktree: the key lookup finds the user folder's key file, and `--repo` write dirs may be comma-separated; the CLI tests ignore an exported `FLOW_TOWER_*` environment (#75).
+
 ## [0.6.0] - 2026-10-11
 
 ### Added
