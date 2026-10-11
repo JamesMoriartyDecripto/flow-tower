@@ -1,7 +1,7 @@
 # Command center (hub)
 
-How to run one server that collects live events from many machines (laptops, teammates, a VPS, CI), and the
-**one home of the config file and its precedence**. Read it to set up or debug a hub or satellite.
+How to run one server that collects live events from many machines (laptops, teammates, a VPS, CI), what the
+Hub panel (H) shows, and the **one home of the config file and its precedence**. Read it to set up or debug a hub or satellite.
 Instead: copy-paste server steps in the [kit README](../examples/command-center/README.md); token rules, who
 can view and the recipes in [hub-reference.md](hub-reference.md); a single machine in [getting-started.md](getting-started.md).
 

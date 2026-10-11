@@ -111,8 +111,8 @@ a server that is not a satellite answers `{ "state": "off" }`. On the hub, each 
 `POST /api/heartbeat` (counters and state word, authenticated like `/api/events`) and every accepted
 event counts as a sign of life; `GET /api/hub/satellites` lists them, calling one offline after three
 missed minute-long beats.
-`GET /api/hub/machines` lists one row per sender for the Hub panel (token label, runtime, host, last seen, state).
-`GET /api/hub/me` says whether this page is on a hub and whether it is a read-only viewer, with the `HUB n/m` counters.
+`GET /api/hub/machines` lists one row per sender for the Hub panel (token label, runtime, host, last seen, state): [Hub panel](command-center.md#the-hub-panel-h).
+`GET /api/hub/me` says whether this page is on a hub and whether it is a read-only viewer, with the `HUB n/m` counters: [Hub panel](command-center.md#the-hub-panel-h).
 
 ### Recipe: a teammate
 
