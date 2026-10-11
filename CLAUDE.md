@@ -14,6 +14,7 @@
 | Your own towers (copy, starter, from scratch, validate, simulate) | [docs/getting-started.md](docs/getting-started.md) |
 | Team hub, command center, config, satellite | [docs/command-center.md](docs/command-center.md) (setup, config precedence), [docs/hub-reference.md](docs/hub-reference.md) (security model, recipes), then `src/server/{config,hub,auth,relay}.ts` as needed |
 | The command-center kit (deploy files) | [examples/command-center/README.md](examples/command-center/README.md) |
+| Release a version | [NEXT.md](NEXT.md) § Releasing, `examples/release-auditor` |
 | Cost and model choice | [skills/flow-tower-costs/SKILL.md](skills/flow-tower-costs/SKILL.md) |
 | How the hub works inside | [examples/team-hub](examples/team-hub/README.md): the tower of the hub's own code |
 | Model benchmarks | [examples/model-benchmark/README.md](examples/model-benchmark/README.md) |

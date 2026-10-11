@@ -83,8 +83,8 @@ flow-tower connect https://hub.tailnet-xyz.ts.net --token ft_laptop_<secret> --m
 ```
 
 It writes `role: "satellite"`, `url`, `token` and (when given) `machine`/`user` into
-`<FLOW_TOWER_HOME or ~/.config/flow-tower>/config.json`, keeping every other key, then sends one
-heartbeat. Three answers, all exit 0: `connected to <url> as <sender>` (204); the token was refused
+`<FLOW_TOWER_HOME or ~/.config/flow-tower>/config.json`, keeping every other key, then checks the
+hub accepts the token (one heartbeat). Three answers, all exit 0: `connected to <url> as <sender>` (204); the token was refused
 (401) — the config is still written, and `flow-tower token add <id>` on the hub plus a second
 `connect` fixes it; the hub is unreachable — also written, since the relay will queue. Only bad
 arguments exit 1. The token is never printed by this command.
@@ -105,7 +105,8 @@ sending entirely — the events stay queued and the state says `revoked` until s
 restart, and empties the queue: nothing waits to leave later. The SAT chip in the top bar shows the state.
 
 **Reading it.** `GET /api/sharing` on the satellite answers its relay state
-(`online` | `queued` | `revoked`, hub url, queued/dropped counters, last error) and never the token;
+(`online`; `queued`: the hub is unreachable, events wait in a queue of at most 5000, oldest dropped
+first; `revoked`; plus hub url, queued/dropped counters, last error) and never the token;
 a server that is not a satellite answers `{ "state": "off" }`. On the hub, each satellite posts
 `POST /api/heartbeat` (counters and state word, authenticated like `/api/events`) and every accepted
 event counts as a sign of life; `GET /api/hub/satellites` lists them, calling one offline after three

@@ -80,8 +80,7 @@ without a tailnet identity gets `403`. Two ways:
 - keep the hub (`"hub": true`, your domain in `allowedHosts`) and let Caddy forward only
   `/api/events`, `/api/heartbeat` and `/v1/*`; you view it over SSH (below);
 - or run `flow-tower --ingest-only`, which serves nothing but ingest (no UI, even locally), as in
-  [integrations/hub/Caddyfile](../integrations/hub/Caddyfile). That file forwards no `/api/heartbeat`:
-  add it if satellites connect through it.
+  [integrations/hub/Caddyfile](../integrations/hub/Caddyfile), which forwards the same three routes.
 
 **Viewing as the owner without Tailscale.** Forward the port over SSH from your own computer:
 
