@@ -69,6 +69,16 @@ function readObject(path) {
 }
 
 /**
+ * The `library` list from the user folder's config.json (#121b): the paths `flow-tower library` serves.
+ * Read in plain JS like senderConfig, because the bin needs it before Vite starts and must not start a
+ * second Node. A missing file, a hand-broken one, or a non-array value reads as an empty list.
+ */
+export function libraryPaths({ env, home = env.FLOW_TOWER_HOME || join(homedir(), '.config', 'flow-tower') }) {
+  const value = readObject(join(home, 'config.json')).library;
+  return Array.isArray(value) ? value.filter((p) => typeof p === 'string' && p.trim()) : [];
+}
+
+/**
  * url, user, machine and token for `emit`: a flag wins, then a non-empty environment variable, then
  * <home>/config.json, then <checkout>/flow-tower.local.json. The same order as src/server/config.ts.
  */

@@ -231,3 +231,33 @@ describe('flow-tower library (#121)', () => {
     expect(existsSync(join(home, 'config.json'))).toBe(true);
   });
 });
+
+/**
+ * `flow-tower library` with no subcommand serves the user's own towers (#121b). Nothing here starts a
+ * server: the empty-library refusal happens before Vite, so a spawned child exits on its own.
+ */
+describe('flow-tower library serve (#121b)', () => {
+  const home = mkdtempSync(join(tmpdir(), 'flow-tower-library-serve-home-'));
+  afterAll(() => rmSync(home, { recursive: true, force: true }));
+
+  const run = (...args: string[]) =>
+    spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', timeout: 20_000, env: cleanEnv({ FLOW_TOWER_HOME: home }) });
+
+  it('exits 1 with the add hint when the library is empty', { timeout: 15_000 }, () => {
+    const r = run('library');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('your library is empty: flow-tower library add <path to a .tower.yaml or a folder>');
+  });
+
+  it('lists the library subcommands in the usage text', { timeout: 15_000 }, () => {
+    const help = run('library', '--help');
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain('library add');
+    expect(help.stdout).toContain('--with-examples');
+
+    // The bare usage text (no arguments at all) names them too.
+    const bare = run();
+    expect(bare.status).toBe(1);
+    expect(bare.stdout).toContain('library add');
+  });
+});
