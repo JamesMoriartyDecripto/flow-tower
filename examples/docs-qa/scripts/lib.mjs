@@ -10,6 +10,9 @@ export const EXAMPLE = resolve(HERE, '..');
 // Dogfood: the docs live two levels up. Copied elsewhere, point DOCS_QA_ROOT at a flow-tower clone.
 export const ROOT = resolve(env.DOCS_QA_ROOT || join(EXAMPLE, '../..'));
 export const DEFAULT_MODEL = 'google/gemini-3.5-flash-lite';
+// The judge must not be the model it grades: a different family (DeepSeek vs Google) avoids a model
+// preferring its own answers. Overridable with --judge-model.
+export const DEFAULT_JUDGE_MODEL = 'deepseek/deepseek-v4.1-flash';
 
 // Docs the router may pick. The CLAUDE.md table routes most of them; the rest are where the table points.
 export const DOCS = [
