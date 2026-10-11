@@ -27,7 +27,9 @@ const open = (page: Page) => page.evaluate((f) => (window as unknown as { __flow
 // A cell only renders without wrapping when it is at least as wide as its longest word, measured in
 // that cell's own computed font. Runs in the browser, so it must stay free of outer references.
 const wordWidths = (cells: Element[]) => cells.map((el) => {
-  const longest = (el.textContent ?? '').trim().split(/\s+/).reduce((a, b) => (b.length > a.length ? b : a), '');
+  // A hyphen is a legal break point, so `vendor-a/model` can wrap after the `-` even with `break-word`;
+  // splitting there too keeps the expectation honest instead of demanding the whole token fit on one line.
+  const longest = (el.textContent ?? '').trim().split(/\s+/).flatMap((w) => w.split(/(?<=-)/)).reduce((a, b) => (b.length > a.length ? b : a), '');
   const style = getComputedStyle(el);
   const ctx = document.createElement('canvas').getContext('2d');
   if (!ctx) throw new Error('no 2d canvas context');
