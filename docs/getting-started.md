@@ -134,6 +134,15 @@ flow-tower library                          # serve your towers: MINE badges; --
 
 Contributing a tower back goes through the [contribute skill](../skills/flow-tower-contribute/SKILL.md).
 
+## Updating
+
+The server checks GitHub for a newer release once a day (nothing about you is sent); a release shows in
+the top bar as a small `↑ vX.Y.Z` link to its notes. **Settings** (`,`) › **Updates** shows the installed
+version, when the last check ran, a **Check for updates** button to ask right now, and the exact command to
+run in your flow-tower clone (git pull, then npm install) with a **Copy** button. Turn the daily check off
+with `FLOW_TOWER_NO_UPDATE_CHECK=1` (or `--no-update-check`). A remote viewer of a shared hub never sees
+the command, since it embeds this checkout's path.
+
 ## Where your data lives
 
 Your settings, keys, tokens and history live in your user folder, `~/.config/flow-tower` (or
