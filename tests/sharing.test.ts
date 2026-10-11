@@ -42,11 +42,39 @@ async function stubHub() {
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, seen };
 }
 
-/** The handler behind a real server, so headers, methods and statuses are all exercised for real. */
+type Handler = (req: IncomingMessage, res: ServerResponse, next: () => void) => void | Promise<void>;
+type Mount = [prefix: string, handler: Handler];
+
+/**
+ * The connect mounting rule plugin.ts relies on: `use(prefix, fn)` matches by PREFIX and strips it from
+ * req.url, so a handler mounted at `/api/sharing` also receives `/api/sharing/test` (as `/test`). This
+ * router reproduces that exactly, so a test can prove the two sharing routes cannot shadow each other.
+ */
+function connectLike(stack: Mount[], req: IncomingMessage, res: ServerResponse): void {
+  let i = 0;
+  const next = () => {
+    const layer = stack[i++];
+    if (!layer) {
+      // connect's final handler: no route answered, so the request ends here instead of hanging.
+      res.statusCode = 404;
+      res.end();
+      return;
+    }
+    const [prefix, handler] = layer;
+    const url = req.url ?? '';
+    const matches = url === prefix || url.startsWith(`${prefix}/`) || url.startsWith(`${prefix}?`);
+    if (!matches) return next();
+    req.url = url.slice(prefix.length) || '/';
+    return handler(req, res, next);
+  };
+  next();
+}
+
+/** The handler behind a real server, mounted the way plugin.ts mounts it, so shadowing is exercised too. */
 async function start(hub: string, home: string, over: { hub?: boolean } = {}) {
   const relay = createRelay({ url: hub, token: 'ft_test_secret' });
-  const handler = sharingHandler({ home, relay, hub: over.hub ?? false });
-  const server = createServer((req: IncomingMessage, res: ServerResponse) => void handler(req, res));
+  const sharing = sharingHandler({ home, relay, hub: over.hub ?? false });
+  const server = createServer((req: IncomingMessage, res: ServerResponse) => connectLike([['/api/sharing/test', sharing.test], ['/api/sharing', sharing.control]], req, res));
   servers.push(server);
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/sharing`, relay };
@@ -109,8 +137,8 @@ describe('sharing controls on a satellite (#91)', () => {
 
   it('answers 404 { state: off } when there is no relay', { timeout: 5_000 }, async () => {
     const home = tempHome();
-    const handler = sharingHandler({ home, relay: undefined, hub: false });
-    const server = createServer((req: IncomingMessage, res: ServerResponse) => void handler(req, res));
+    const sharing = sharingHandler({ home, relay: undefined, hub: false });
+    const server = createServer((req: IncomingMessage, res: ServerResponse) => connectLike([['/api/sharing/test', sharing.test], ['/api/sharing', sharing.control]], req, res));
     servers.push(server);
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
     const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/sharing`;
@@ -137,6 +165,27 @@ describe('sharing controls on a satellite (#91)', () => {
     expect(wire).toMatchObject({ kind: 'log', source: 'flow-tower', status: 'ok' });
     for (const omitted of ['message', 'data', 'node', 'tool']) expect(wire).not.toHaveProperty(omitted);
     expect(JSON.stringify(state)).not.toContain('ft_test_secret');
+    relay.stop();
+  });
+
+  // Regression (#91): connect matches a mount by prefix, so `/api/sharing` also received `/api/sharing/test`
+  // and answered it as a pause request (400 "expected { paused: boolean }"). The two routes must stay apart.
+  it('routes /api/sharing/test to the test handler and /api/sharing to the control handler', { timeout: 5_000 }, async () => {
+    const hub = await stubHub();
+    const home = tempHome();
+    const { url, relay } = await start(hub.url, home);
+
+    // A pause body sent to the test route must not be read as the control: the test route sends a probe.
+    const test = await post(`${url}/test`, { paused: true });
+    expect(test.status).toBe(200);
+    expect((await test.json()) as { state: string }).toMatchObject({ state: 'online' });
+    expect(hub.seen.filter((s) => s.path === '/api/events')).toHaveLength(1);
+    expect(relay.state().state).toBe('online');
+
+    // The control route itself still pauses, and writes nothing to the hub.
+    const control = await post(url, { paused: true });
+    expect(control.status).toBe(200);
+    expect(await control.json()).toMatchObject({ state: 'paused' });
     relay.stop();
   });
 });

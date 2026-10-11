@@ -37,6 +37,8 @@ export interface RelayState {
   hub: string;
   queued: number;
   dropped: number;
+  /** Events thrown away by a pause (#91): they were in the queue and will never leave. Shown nowhere else. */
+  discardedOnPause: number;
   lastSentAt?: number;
   lastError?: string;
   /** The last event that actually left this machine, after the content was stripped: never the token. */
@@ -53,6 +55,7 @@ export function createRelay(opts: RelayOptions) {
 
   const queue: Record<string, unknown>[] = [];
   let dropped = 0;
+  let discardedOnPause = 0;
   let revoked = false;
   let stopped = false;
   let inFlight = false;
@@ -232,6 +235,7 @@ export function createRelay(opts: RelayOptions) {
     hub,
     queued: queue.length,
     dropped,
+    discardedOnPause,
     ...(lastSentAt !== undefined ? { lastSentAt } : {}),
     ...(lastError !== undefined ? { lastError } : {}),
     ...(lastPayload !== undefined ? { lastPayload } : {}),
@@ -243,11 +247,17 @@ export function createRelay(opts: RelayOptions) {
     clearHbTimer();
   };
 
-  /** Pause (#91): stop sending and stop queueing. Events accepted from now on stay local. */
+  /**
+   * Pause (#91): stop sending and stop queueing. Events accepted from now on stay local, and whatever is
+   * already queued is thrown away (counted in discardedOnPause): the pause promises that nothing collected
+   * before or during it leaves later, so a resume must not flush a backlog built while the user watched.
+   */
   const pause = () => {
     paused = true;
     clearTimer();
     clearHbTimer();
+    discardedOnPause += queue.length;
+    queue.length = 0;
   };
 
   /** Resume: the heartbeats start again, and new events are queued and sent as before. */

@@ -14,6 +14,7 @@ import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
 import { userHome, warnIfInRepo } from './home.ts';
 import { crossSite } from './guard.ts';
+import { stopOnClose } from './lifecycle.ts';
 import { isLoopback, isRemote } from './auth.ts';
 import { createRelay } from './relay.ts';
 import { sharingHandler } from './sharing.ts';
@@ -112,20 +113,26 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
 
       // Sharing (#91): reads what a satellite is relaying, and the two local controls — pause and the
       // hub test. state() never carries the token; a local server answers { state: 'off' }.
-      server.middlewares.use('/api/sharing', sharingHandler({ home: USER_HOME, relay, hub: hubOpts.hub }));
+      // connect() matches a mount by prefix, so /api/sharing would also receive /api/sharing/test (as
+      // '/test') and answer it as a pause request. The test is mounted first, and each handler answers
+      // only its own mount root (req.url '' or '/'), so neither can shadow the other.
+      const sharing = sharingHandler({ home: USER_HOME, relay, hub: hubOpts.hub });
+      server.middlewares.use('/api/sharing/test', sharing.test);
+      server.middlewares.use('/api/sharing', sharing.control);
 
       // History (#84) lives in the user's folder, never the repo. An old Node without node:sqlite disables
       // it with one message: the live view keeps working, the hub simply gets no onAccepted.
       const opened = await openHistory(join(USER_HOME, 'history.db'));
       if ('disabled' in opened) server.config.logger.warn(`flow-tower: ${opened.disabled}`);
       const history = 'disabled' in opened ? undefined : createHistory(opened.db);
+      let prune: NodeJS.Timeout | undefined;
       if (history) {
         // Retention policy (#84): prune once on start, then hourly. unref() so the timer never keeps the
         // dev server process alive on its own.
         history.prune();
-        setInterval(() => history.prune(), 3_600_000).unref();
+        prune = setInterval(() => history.prune(), 3_600_000);
+        prune.unref();
       }
-
       const hub = createEventHub(        () => state?.workspace,
         (events) => server.ws.send(EVENTS_EVENT, events),
         // The user folder holds the per-sender tokens (#83); FLOW_TOWER_TOKEN stays the shared legacy secret.
@@ -181,6 +188,14 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         const remote = isRemote(req, { hub: hubOpts.hub });
         send(res, 200, versionPayload(update, remote));
       });
+
+      // Everything this plugin started with a timer (the relay's flush/heartbeat, the history prune, the
+      // reload debounce) stops with the dev server: a restart must not leave the old ones running (#91, #99).
+      stopOnClose(server, [
+        () => relay?.stop(),
+        () => { if (prune) clearInterval(prune); },
+        () => clearTimeout(timer),
+      ]);
     },
   };
 }
@@ -220,6 +235,18 @@ function targetsSelf(url: string, server: ViteDevServer): boolean {
 export function versionPayload(update: UpdateInfo, remote: boolean): Record<string, unknown> {
   return remote ? { ...update } : { ...update, command: UPDATE_COMMAND };
 }
+
+/**
+ * Stops what the plugin started when the dev server closes (#91, #99). Vite 8 restarts the server when a
+ * src/server file or the config changes, and every restart closes the old http server: without this, the
+ * old relay kept beating at the hub and its timers kept the whole previous server alive, so memory grew
+ * across restarts (#99). A probe confirmed the old httpServer really emits 'close' on a restart (Vite
+ * closes and re-creates the server), which is what makes this hook the right place to stop the old timers.
+ * The relay's stop() and any interval the plugin started go through here; the httpServer is optional (it is
+ * undefined before listen), so the wiring is a no-op then. Re-exported from lifecycle.ts, where it is tested
+ * with a plain EventEmitter instead of a real Vite server.
+ */
+export { stopOnClose } from './lifecycle.ts';
 
 /** Names a voice alias may point at: projects, layers, nodes and agents of the given towers. */
 function namesOf(state: LoadResult | undefined, ids: string[]): string[] {

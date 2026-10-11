@@ -1,7 +1,9 @@
 import { createServer, type Server } from 'node:http';
+import { EventEmitter } from 'node:events';
 import type { AddressInfo } from 'node:net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRelay, type RelayOptions } from '../src/server/relay';
+import { stopOnClose } from '../src/server/lifecycle';
 import type { FlowEvent } from '../src/core/events';
 
 /** One accepted event as ingest hands it to the relay: server-owned fields and content still attached. */
@@ -213,5 +215,33 @@ describe('satellite relay (#91)', () => {
     expect(relay.state().lastPayload).not.toHaveProperty('message');
     expect(relay.state().lastPayload).not.toHaveProperty('data');
     relay.stop();
+  });
+});
+
+describe('dev server close stops the relay (#91, #99)', () => {
+  // Vite restarts the server when a src/server file or the config changes and closes the old http server.
+  // Without wiring close -> stop, the old relay kept beating at the hub and its unref'd timers kept the
+  // previous server alive, so memory grew across restarts (#99). A plain EventEmitter stands in for the
+  // httpServer, since only its 'close' event and once() matter here.
+  it('calls every cleanup once when the server closes', () => {
+    const server = { httpServer: new EventEmitter() };
+    const stopped = vi.fn();
+    stopOnClose(server, [stopped]);
+
+    server.httpServer.emit('close');
+    expect(stopped).toHaveBeenCalledTimes(1);
+    // once(): a second close must not run the cleanups again.
+    server.httpServer.emit('close');
+    expect(stopped).toHaveBeenCalledTimes(1);
+  });
+
+  it('is a no-op when there is no http server yet, and a throwing cleanup cannot stop the others', () => {
+    expect(() => stopOnClose({ httpServer: undefined }, [vi.fn()])).not.toThrow();
+
+    const server = { httpServer: new EventEmitter() };
+    const after = vi.fn();
+    stopOnClose(server, [() => { throw new Error('boom'); }, after]);
+    server.httpServer.emit('close');
+    expect(after).toHaveBeenCalledTimes(1);
   });
 });

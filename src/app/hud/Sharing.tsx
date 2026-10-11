@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { STATIC } from '../staticData';
-import { agoText, SAT_CLASS, satText, satTitle, SHARING_OFF, type SharingState } from '../sharing';
+import { agoText, queueText, SAT_CLASS, satText, satTitle, SHARING_OFF, type SharingState } from '../sharing';
 import { usePrefs } from '../settings';
 import { Row, Toggle } from './Settings';
 
@@ -78,7 +78,8 @@ export function SharingSection() {
       .finally(() => setBusy(false));
   };
 
-  const queue = `${sharing.queued ?? 0} queued, ${sharing.dropped ?? 0} dropped while offline`;
+  // The wording follows the state; queueText keeps that rule in one place so it can be unit-tested.
+  const queue = queueText(sharing);
   return (
     <section id="settings-sharing">
       <h3>Sharing</h3>
