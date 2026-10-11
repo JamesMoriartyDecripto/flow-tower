@@ -49,8 +49,15 @@ describe('libraryOrigins (#121c)', () => {
   const entries = [mineFile, join(checkout, 'examples')];
 
   it('maps the project ids the loader will use to their origin', () => {
-    const origins = libraryOrigins(entries, ['proj/app.tower.yaml', 'checkout/examples/demo/demo.tower.yaml'], { checkout, mine: [proj] });
-    expect(origins).toEqual({ 'proj/app.tower.yaml': 'mine', 'checkout/examples/demo/demo.tower.yaml': 'example' });
+    // Two entries with unrelated folders: the ids are per entry (#121), so `proj` and `examples` label them.
+    const origins = libraryOrigins(entries, ['proj/app.tower.yaml', 'examples/demo/demo.tower.yaml'], { checkout, mine: [proj] });
+    expect(origins).toEqual({ 'proj/app.tower.yaml': 'mine', 'examples/demo/demo.tower.yaml': 'example' });
+  });
+
+  it('tags an example when it is the only entry, with today\'s common-folder id', () => {
+    // A single entry keeps the old ids, so a badge there still matches the loader.
+    const origins = libraryOrigins([join(checkout, 'examples')], ['demo.tower.yaml'], { checkout, mine: [proj] });
+    expect(origins).toEqual({ 'demo.tower.yaml': 'example' });
   });
 
   it('keeps only projects, never a nested tower id', () => {

@@ -5,7 +5,7 @@
  * no badge. Kept out of plugin.ts so the wiring there stays one line.
  */
 import { join } from 'node:path';
-import { commonDir, findTowerFiles, toId } from '../core/loader.ts';
+import { findTowerFiles, towerIds } from '../core/loader.ts';
 import { realOrSelf, within } from '../core/secrets.ts';
 
 export type Origin = 'mine' | 'example';
@@ -38,18 +38,18 @@ export function classifyOrigin(file: string, { checkout, mine }: OriginOptions):
 }
 
 /**
- * The origins of the projects a serve will load. `findTowerFiles`, `commonDir` and `toId` are the loader's
- * own: the ids must match `workspace.projects`, so they are not re-derived here; `projects` is passed in to
- * keep nested towers out.
+ * The origins of the projects a serve will load. `findTowerFiles` and `towerIds` are the loader's own: the
+ * ids must match `workspace.projects` (one id per file, entry label and all), so they are not re-derived
+ * here; `projects` is passed in to keep nested towers out.
  */
 export function libraryOrigins(entries: string[], projects: string[], opts: OriginOptions): Record<string, Origin> {
   const files = findTowerFiles(entries);
   if (!files.length) return {};
-  const base = commonDir(files);
+  const idOf = towerIds(entries, files);
   const wanted = new Set(projects);
   const out: Record<string, Origin> = {};
   for (const file of files) {
-    const id = toId(base, file);
+    const id = idOf(file);
     if (!wanted.has(id)) continue;
     const origin = classifyOrigin(file, opts);
     if (origin) out[id] = origin;

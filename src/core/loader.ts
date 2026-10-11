@@ -1,6 +1,6 @@
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseDocument } from 'yaml';
 import type { z } from 'zod';
 import { TowerSchema, type TowerDef } from './schema.ts';
@@ -126,6 +126,56 @@ export function commonDir(files: string[]): string {
   return base;
 }
 
+/** True when `abs` is `folder` itself or inside it, by path text (both are absolute and unresolved). */
+const inFolder = (folder: string, abs: string) => {
+  const rel = relative(folder, abs);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+};
+
+/**
+ * The folder an entry stands for: the entry itself when it is a folder, its parent for a tower file. An
+ * entry that vanished cannot be told apart from a file: its parent is guessed, which keeps ids stable
+ * while it is served and re-created.
+ */
+const entryFolder = (entry: string) => {
+  const abs = resolve(entry);
+  try { if (statSync(abs).isDirectory()) return abs; } catch { /* gone: fall through to the parent guess */ }
+  return dirname(abs);
+};
+
+/**
+ * The id of every tower file, as the client sees it (#121): with one entry (or none) the ids stay exactly
+ * what they always were — the path under the common folder — so `npm run dev`, the e2e and the demo build
+ * keep their ids. With several entries the common folder can be `/`, which would put the user name and
+ * personal paths into URLs and screenshots, and would make one file's id depend on what else is served:
+ * each file is then `<entry label>/<path under its entry folder>` instead. A label is the entry folder's
+ * basename, made unique with `-2`, `-3` in entry order.
+ */
+export function towerIds(entries: string[], files: string[]): (file: string) => string {
+  const fallback = (file: string) => toId(files.length ? commonDir(files) : resolve('.'), file);
+  if (entries.length < 2) return fallback;
+
+  const folders = entries.map((entry) => resolve(entryFolder(entry)));
+  const labels = new Map<string, string>();
+  const used = new Set<string>();
+  for (const folder of new Set(folders)) {
+    const name = basename(folder) || folder;
+    let label = name;
+    for (let n = 2; used.has(label); n++) label = `${name}-${n}`;
+    used.add(label);
+    labels.set(folder, label);
+  }
+  return (file: string) => {
+    // The deepest entry folder that holds the file wins: a tower inside another entry's tree is not there.
+    const abs = resolve(file);
+    const owner = folders.filter((f) => inFolder(f, abs)).sort((a, b) => b.length - a.length)[0];
+    // No entry holds the file (a nested tower elsewhere in its project): the old common-folder id is all
+    // there is to fall back on.
+    if (!owner) return fallback(abs);
+    return [labels.get(owner), relative(owner, abs).split(sep).join('/')].join('/');
+  };
+}
+
 /**
  * Loads every tower found in `entries` plus the nested towers they reference.
  * Towers referenced by another tower are nested; the others become library projects.
@@ -140,7 +190,7 @@ export async function loadLibrary(entries: string[]): Promise<LoadResult> {
     const project = projectOf(entry);
     for (const f of findTowerFiles([entry])) if (!projects.has(f)) projects.set(f, project);
   }
-  const base = files.length ? commonDir(files) : resolve('.');
+  const idOf = towerIds(entries, files);
   const result: LoadResult = {
     workspace: { projects: [], towers: {}, loadedAt: new Date().toISOString() },
     roots: new Map(),
@@ -151,7 +201,7 @@ export async function loadLibrary(entries: string[]): Promise<LoadResult> {
   const queue = [...files];
   while (queue.length) {
     const file = queue.shift()!;
-    const id = toId(base, file);
+    const id = idOf(file);
     if (result.workspace.towers[id]) continue;
     const project = projects.get(file) ?? projectOf(file);
     const { tower, root, nested } = await loadTower(file, id, project, result.watched, result.missing);
@@ -159,13 +209,13 @@ export async function loadLibrary(entries: string[]): Promise<LoadResult> {
     result.roots.set(id, root);
     for (const n of nested) {
       if (!projects.has(n.abs)) projects.set(n.abs, project);
-      const nid = toId(base, n.abs);
+      const nid = idOf(n.abs);
       if (nid !== id) nestedIds.add(nid);
       queue.push(n.abs);
       patchTowerRef(tower, n.ref, nid);
     }
   }
-  const ids = files.map((f) => toId(base, f));
+  const ids = files.map(idOf);
   const top = ids.filter((id) => !nestedIds.has(id));
   // Towers that only reference each other (a cycle) would all look nested: keep the first of each
   // group that no project reaches as a project too, or they vanish from the library.
