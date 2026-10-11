@@ -1,0 +1,30 @@
+{
+  "resourceLogs": [{
+    "resource": {
+      "attributes": [
+        { "key": "service.name", "value": { "stringValue": "codex_cli_rs" } },
+        { "key": "user.id", "value": { "stringValue": "user-9" } },
+        { "key": "conversation.id", "value": { "stringValue": "conv-7" } }
+      ]
+    },
+    "scopeLogs": [{
+      "logRecords": [
+        {
+          "attributes": [
+            { "key": "event.name", "value": { "stringValue": "codex.sse_event" } },
+            { "key": "event.kind", "value": { "stringValue": "response.completed" } },
+            { "key": "model", "value": { "stringValue": "gpt-5.1-codex" } },
+            { "key": "input_token_count", "value": { "intValue": "800" } },
+            { "key": "output_token_count", "value": { "intValue": "200" } }
+          ]
+        },
+        {
+          "attributes": [
+            { "key": "event.name", "value": { "stringValue": "codex.turn_cost" } },
+            { "key": "usage.estimated_usd", "value": { "doubleValue": 0.05 } }
+          ]
+        }
+      ]
+    }]
+  }]
+}

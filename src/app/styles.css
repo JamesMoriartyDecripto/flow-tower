@@ -252,6 +252,9 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .feed-row .k { color: var(--amber); }
 .feed-row .who { overflow-wrap: anywhere; }
 .feed-row .who em { color: var(--dim); font-style: normal; font-size: 10px; }
+/* Host/user chips of a row: small, dimmed, aligned under the message. */
+.feed-chips { grid-column: 3; display: flex; gap: 4px; }
+.feed-chips .chip { font-size: 9px; padding: 0 5px; color: var(--dim); border-color: var(--line-soft); }
 .feed-row .msg { grid-column: 3; color: #9fb2d3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* row tone = same palette as the 3D overlay */
 .feed-row.run { border-left-color: color-mix(in srgb, var(--live-run) 55%, transparent); }

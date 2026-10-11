@@ -1,6 +1,5 @@
 import { claudeCode } from './claudeCode.ts';
 import type { FlowEventInput } from './events.ts';
-
 /**
  * Source adapters: map each runtime's native payload onto FlowEvent.
  * Field names follow the official docs (see docs/realtime.md for links and versions).
@@ -12,7 +11,7 @@ type Adapter = (raw: Raw) => FlowEventInput[];
 const str = (v: unknown) => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : undefined);
 const num = (v: unknown) => (typeof v === 'number' ? v : undefined);
 const obj = (v: unknown) => (v && typeof v === 'object' ? (v as Raw) : {});
-const clip = (v: unknown, n = 240) => {
+export const clip = (v: unknown, n = 240) => {
   const s = typeof v === 'string' ? v : v === undefined || v === null ? undefined : JSON.stringify(v);
   return s && s.length > n ? `${s.slice(0, n - 1)}…` : s;
 };
@@ -165,13 +164,29 @@ const ADAPTERS: Record<string, Adapter> = { 'claude-code': claudeCode, 'agent-sd
 
 export const SOURCES = Object.keys(ADAPTERS);
 
+/**
+ * Identity is orthogonal to the event kind: a payload may carry who/where/what on the envelope,
+ * and every event mapped from it must keep it (#82). Undefined values are dropped so events
+ * keep the exact shape each adapter produced.
+ */
+const IDENTITY_KEYS = ['user', 'host', 'runtime', 'project'] as const;
+const identity = (r: Raw) => {
+  const id: Raw = {};
+  for (const k of IDENTITY_KEYS) {
+    const v = str(r[k]);
+    if (v !== undefined) id[k] = v;
+  }
+  return id;
+};
+
 /** Turns a raw payload from `source` into normalized events. Already-normalized events pass through. */
 export function normalize(source: string | undefined, raw: unknown): unknown[] {
   if (!raw || typeof raw !== 'object') return [];
   const r = raw as Raw;
   const src = source ?? str(r.source);
   if ('kind' in r) return [{ ...r, source: src ?? 'custom' }];
-  if (src && ADAPTERS[src]) return ADAPTERS[src](r);
-  if ('hook_event_name' in r) return claudeCode(r);
-  return [];
+  const events = src && ADAPTERS[src] ? ADAPTERS[src](r) : 'hook_event_name' in r ? claudeCode(r) : [];
+  const id = identity(r);
+  // Envelope identity first, event fields last: an event's own value (if any) wins.
+  return events.map((e) => ({ ...id, ...e }));
 }

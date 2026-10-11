@@ -1,6 +1,6 @@
 # OTel Collector (per host)
 
-`collector.yaml` runs one [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/) (contrib distribution) per machine. Agents send to it on `127.0.0.1:4318`; it adds host, cloud and user tags (`resourcedetection`, `resource`), deletes prompt and tool-input fields (`transform`), and forwards OTLP/HTTP JSON to Flow Tower. A file-backed queue in `~/.flow-tower/otel-queue` keeps data while the laptop is offline. Remote hubs: #83.
+`collector.yaml` runs one [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/) (contrib distribution) per machine. Agents send to it on `127.0.0.1:4318`; it adds host and user tags (`resource_detection`, `resource`; add a cloud detector on a cloud host), deletes prompt and tool-input **attributes** as a second line of defence (`transform`; the first is keeping the agents' prompt logging off, its default), and forwards OTLP/HTTP JSON to Flow Tower. A file-backed queue in `~/.flow-tower/otel-queue` keeps data while the laptop is offline. Remote hubs: #83.
 
 ## Run
 

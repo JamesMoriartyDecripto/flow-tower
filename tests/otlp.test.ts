@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { otlpLogsToEvents } from '../src/core/otlp';
+
+/** Real-world batches, kept as files so the identity cascades stay honest. */
+const fixture = (name: string) => JSON.parse(readFileSync(new URL(`./fixtures/otlp/${name}`, import.meta.url), 'utf8'));
 
 const s = (key: string, v: string) => ({ key, value: { stringValue: v } });
 const i = (key: string, v: number) => ({ key, value: { intValue: String(v) } });
@@ -60,5 +64,39 @@ describe('OTLP logs', () => {
     for (const bad of [undefined, null, 42, 'x', {}, { resourceLogs: 'no' }, { resourceLogs: [{ scopeLogs: [{ logRecords: [null, {}, { body: {} }] }] }] }]) {
       expect(() => otlpLogsToEvents(bad)).not.toThrow();
     }
+  });
+});
+
+describe('OTLP identity (#82)', () => {
+  it('carries who/where/what from the resource on a Claude Code request', () => {
+    const [e] = otlpLogsToEvents(fixture('claude-code.json'));
+    expect(e).toMatchObject({
+      source: 'claude-code', user: 'dev@example.com', runtime: 'claude-code', session: 'sess-1',
+      tokens: 1500, tokens_detail: { input: 1200, output: 300, cache_read: 5000, cache_write: 0 },
+    });
+  });
+
+  it('reads the Codex conversation and reports the agent cost, not an estimate', () => {
+    const events = otlpLogsToEvents(fixture('codex.json'));
+    expect(events[0]).toMatchObject({ source: 'codex', user: 'user-9', runtime: 'codex_cli_rs', session: 'conv-7', tokens: 1000, tokens_detail: { input: 800, output: 200 } });
+    expect(events[1]).toMatchObject({ user: 'user-9', session: 'conv-7', cost_usd: 0.05 });
+    expect(events[1]!.tokens).toBeUndefined();
+  });
+
+  it('maps Gemini CLI token counts through the generic usage branch', () => {
+    const [e] = otlpLogsToEvents(fixture('gemini-cli.json'));
+    expect(e).toMatchObject({
+      kind: 'usage', source: 'gemini-cli', runtime: 'gemini-cli', project: 'my-project',
+      session: 'g-sess', model: 'gemini-2.5-pro', tokens: 140, tokens_detail: { input: 100, output: 40 },
+    });
+    expect(e!.cost_usd).toBeUndefined();
+    expect(e!.user).toBeUndefined();
+  });
+
+  it('lets a collector-added enduser.id beat the agent-reported user.email', () => {
+    const [e] = otlpLogsToEvents(fixture('collector-enriched.json'));
+    expect(e).toMatchObject({
+      user: 'alice@example.com', host: 'ip-10-0-0-1', runtime: 'claude-code/production', session: 'sess-99',
+    });
   });
 });

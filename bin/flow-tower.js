@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { hostname, homedir, userInfo } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
 import { parseArgs } from 'node:util';
+import { clipIdentity, identityDefaults } from './identity.js';
 
 const HELP = `flow-tower — 3D tower visualizer for agentic systems
 
@@ -14,6 +15,7 @@ Usage
   flow-tower init [file.tower.yaml]
   flow-tower emit --source <claude-code|codex|pi|hermes> [--tower t] < payload.json  (hooks; JSONL streams live)
   flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [-m text]
+                     [--user u] [--machine m] [--runtime r] [--session s] [--project-name p]
   flow-tower validate <file.tower.yaml | dir>... [--json]
   flow-tower guide                                      print the procedure to generate a tower from a codebase
   flow-tower install-skill [--target <t>] [--project]   install it as an Agent Skill for your coding agent
@@ -29,6 +31,10 @@ Options
       --no-update-check  Do not ask GitHub once a day whether a newer release exists
                  (also FLOW_TOWER_NO_UPDATE_CHECK=1; always off in CI)
       --url      emit: server URL (default http://127.0.0.1:5317); a second server runs on another --port
+                 user and machine are added by default only for a loopback URL (127.0.0.1, ::1, localhost):
+                 to any other host they are sent only when given explicitly (--user/--machine, or
+                 FLOW_TOWER_USER / FLOW_TOWER_MACHINE set to a non-empty value). FLOW_TOWER_USER=''
+                 disables the user default everywhere.
       --tower    emit: only match towers whose id or name contains this (two versions in one library)
   -h, --help     Show this help`;
 
@@ -107,6 +113,13 @@ const { values, positionals } = parseArgs({
     tower: { type: 'string' },
     status: { type: 'string' },
     message: { type: 'string', short: 'm' },
+    // Identity (#82): who/where/what on every event. `--machine` maps to host, `--project-name` to project:
+    // `--host` is reserved for the bind address (#83) and `--project` is install-skill's boolean.
+    user: { type: 'string' },
+    machine: { type: 'string' },
+    runtime: { type: 'string' },
+    session: { type: 'string' },
+    'project-name': { type: 'string' },
     json: { type: 'boolean', default: false },
     project: { type: 'boolean', default: false },
     target: { type: 'string', default: 'claude' },
@@ -187,11 +200,19 @@ async function emit() {
     method: 'POST', headers, body: JSON.stringify(events), signal: AbortSignal.timeout(1500),
   }).catch(() => {});
 
+  // Defaults so identity is never empty on a loopback target; a payload or an explicit flag always wins (#82).
+  const defaults = identityDefaults(values.url, env, { username: userInfo().username, hostname: hostname() });
+  const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+  const withIdentity = (event) => clipIdentity({ ...defaults, ...clean(event), ...clean(identity) });
+  const identity = {
+    user: values.user, host: values.machine, runtime: values.runtime, session: values.session, project: values['project-name'],
+  };
+
   if (values.kind) {
     const { kind, source = 'custom', agent, tool, node, tower, status, message } = values;
-    await post([{ kind, source, agent, tool, node, tower, status, message }]);
+    await post([withIdentity({ ...identity, kind, source, agent, tool, node, tower, status, message })]);
   } else if (!process.stdin.isTTY) {
-    await streamStdin(post);
+    await streamStdin((events) => post(events.map(withIdentity)));
   }
 }
 
