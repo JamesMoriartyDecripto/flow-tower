@@ -1,0 +1,19 @@
+# Public VPS without a tailnet: Caddy terminates TLS and forwards only the sender routes.
+# Adapted from integrations/hub/Caddyfile. The hub stays on loopback (its default --host).
+#   caddy run --config deploy/Caddyfile
+# Viewing is not routed here: the hub recognises viewers only by the tailscale-user-login header, so
+# over Caddy a remote page is refused anyway. The owner views through an SSH local forward instead.
+hub.example.com {
+	# Events, satellite heartbeats and the OTLP receivers: every request needs a sender token.
+	@ingest {
+		path /api/events /api/heartbeat /v1/*
+	}
+	handle @ingest {
+		reverse_proxy 127.0.0.1:5317
+	}
+
+	# Everything else: nothing to see.
+	handle {
+		respond 404
+	}
+}

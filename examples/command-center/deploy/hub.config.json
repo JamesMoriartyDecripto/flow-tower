@@ -1,0 +1,6 @@
+{
+  "hub": true,
+  "allowedHosts": ["hub.example.ts.net", "hub.example.com"],
+  "viewers": ["owner@example.com"],
+  "retentionDays": 14
+}
