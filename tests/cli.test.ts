@@ -361,6 +361,57 @@ describe('cli emit reads the config file (#90)', () => {
   });
 });
 
+describe('cli emit on a satellite (#91)', () => {
+  const home = mkdtempSync(join(tmpdir(), 'flow-tower-cli-emit-sat-'));
+  afterAll(() => rmSync(home, { recursive: true, force: true }));
+
+  /** A stub that records each POST's token header, so a test can assert what the CLI sent where. */
+  async function stub() {
+    const got: { token?: string; url: string }[] = [];
+    const server = createServer((req, res) => {
+      got.push({ token: req.headers['x-flow-tower-token'] as string | undefined, url: req.url ?? '' });
+      req.on('data', () => {});
+      req.on('end', () => res.writeHead(204).end());
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const { port } = server.address() as { port: number };
+    return { url: `http://127.0.0.1:${port}`, got, close: () => server.close() };
+  }
+
+  const emitAgainst = (target: string, args: string[] = []) =>
+    new Promise<void>((done, fail) => {
+      const child = spawn(process.execPath, [CLI, 'emit', '--url', target, '--kind', 'log', ...args], {
+        stdio: ['pipe', 'ignore', 'inherit'],
+        env: { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_URL: '' },
+      });
+      child.on('error', fail);
+      child.on('close', () => done());
+      child.stdin.end('');
+    });
+
+  it('posts to the local server with no token, leaving the hub token to the relay', async () => {
+    const local = await stub();
+    // A satellite config: url/token name the HUB; emit must not send them to the local relay.
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ role: 'satellite', url: 'https://hub.example.com', token: 'ft_hub_secret' }), { mode: 0o600 });
+    await emitAgainst(local.url);
+    local.close();
+
+    expect(local.got).toHaveLength(1);
+    expect(local.got[0].token).toBeUndefined();
+  });
+
+  it('never sends the config token to a different origin named by --url', async () => {
+    const other = await stub();
+    // Non-satellite: the config url is the hub, but --url points elsewhere: the hub token must not follow.
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ url: 'https://hub.example.com', token: 'ft_hub_secret' }), { mode: 0o600 });
+    await emitAgainst(other.url);
+    other.close();
+
+    expect(other.got).toHaveLength(1);
+    expect(other.got[0].token).toBeUndefined();
+  });
+});
+
 describe('cli validate', () => {
   it('passes on the examples and reports JSON', () => {
     const r = run('validate', 'examples/dev-squad', '--json');
