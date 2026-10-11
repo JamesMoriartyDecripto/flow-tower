@@ -1,6 +1,6 @@
 # Command Center
 
-A Flow Tower hub on your own server or VPS. Copy this folder to the server and follow the steps. `command-center.tower.yaml` shows the whole deployment as a tower; `deploy/` holds the files it references.
+A Flow Tower hub on your own server or VPS: the **one home of the server install steps**. Copy this folder to the server and follow the steps. Why each part exists, config precedence and troubleshooting: [docs/command-center.md](../../docs/command-center.md). `command-center.tower.yaml` shows the whole deployment as a tower; `deploy/` holds the files it references.
 
 **What the hub never receives:** prompts, commands or file contents. Satellites and `emit` send event metadata only (agent, tool, status, counts).
 

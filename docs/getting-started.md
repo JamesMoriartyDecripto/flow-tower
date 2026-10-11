@@ -1,7 +1,8 @@
 # Getting started
 
-From a fresh clone to your own towers. For a shared server that collects events from several machines,
-see [command-center.md](command-center.md).
+From a fresh clone to your own towers: the **one home of the local install steps**. Read it first on a new
+machine. Instead: a shared server for several machines in [command-center.md](command-center.md); generating
+a tower from code in [generate-a-tower.md](generate-a-tower.md).
 
 Requirements: **Node 22.12 or newer** (`node -v`), git, a browser. Nothing is published on npm: you run
 Flow Tower from your clone.
@@ -121,4 +122,4 @@ Point your agent's hooks at the local server and the nodes light up as it works:
 
 Your settings, keys, tokens and history live in your user folder, `~/.config/flow-tower` (or
 `FLOW_TOWER_HOME`), never in the repo or in your towers. See the README,
-[Where your data lives](../README.md#where-your-data-lives).
+[Where your data lives](voice.md#where-your-data-lives).

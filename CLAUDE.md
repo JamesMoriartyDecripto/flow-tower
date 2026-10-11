@@ -10,7 +10,11 @@
 | Change the YAML schema | [docs/schema.md](docs/schema.md) + `src/core/schema.ts` |
 | Write or fix a tower | [docs/what-goes-where.md](docs/what-goes-where.md) (layers, nodes, edges, nested towers); [examples/README.md](examples/README.md): copy the closest example; [docs/generate-a-tower.md](docs/generate-a-tower.md) for codebases |
 | Live events / integrations | [docs/realtime.md](docs/realtime.md), `src/core/adapters.ts`, `integrations/` |
-| Voice (commands, agent, spoken replies) | README § Voice commands, `src/app/voice/` (parser, mic, agent, tools), `src/server/voice.ts`, the `voice-commands` example tower |
+| Voice (commands, agent, spoken replies) | [docs/voice.md](docs/voice.md), `src/app/voice/` (parser, mic, agent, tools), `src/server/voice.ts`, the `voice-commands` example tower |
+| Your own towers (copy, starter, from scratch) | [docs/getting-started.md](docs/getting-started.md) |
+| Team hub, command center, config, satellite | [docs/command-center.md](docs/command-center.md) (setup, config precedence), [docs/hub-reference.md](docs/hub-reference.md) (security model, recipes), then `src/server/{config,hub,auth,relay}.ts` as needed |
+| The command-center kit (deploy files) | [examples/command-center/README.md](examples/command-center/README.md) |
+| Cost and model choice | [skills/flow-tower-costs/SKILL.md](skills/flow-tower-costs/SKILL.md) |
 | The agent skill | [skills/flow-tower/SKILL.md](skills/flow-tower/SKILL.md), [reference.md](skills/flow-tower/reference.md) |
 
 ## Conventions
@@ -36,6 +40,11 @@
 - Never mutate zustand state in place (useSyncExternalStore loops). The live store is copy-on-write.
 - The camera projection is offset to the free area between HUD panels (`scene/hudFrame.ts`): frame things with `fitScale`, not the raw viewport.
 - CSS `zoom` (interface size) does not rescale `vh`/`vw`: use `var(--vh)` / `var(--vw)` in HUD styles.
+- An empty env var counts as unset (`FLOW_TOWER_HUB=''` never overrides the config file): keep it that way in `src/server/config.ts`.
+- The `token` in config.json is a **sender** credential (emit, satellite relay), never this server's secret: the server's secret is `FLOW_TOWER_TOKEN` or `tokens.json`.
+- The hub lights only towers in its own library: events from a machine whose tower is not there match no node.
+- A test that spawns `serve` or the CLI needs an explicit `{ timeout }` (see `tests/connect.test.ts`).
+- Each Vite restart (editing `src/server/*`) can leave the old server on its port and bind the next one (#99): check `lsof -nP -iTCP -sTCP:LISTEN` before trusting a port.
 - Some environments block shell commands containing `.env` or `pip install`: use `import { env } from 'node:process'` and file-edit tools.
 - zsh does not word-split unquoted `$var`; use `${=var}`.
 - Tower files read only inside their project (git root or opened folder; `loader.ts` `projectOf`). A dogfood tower can use `root: ../..` because the repo is the project.

@@ -1,8 +1,9 @@
 # Command center (hub)
 
-One server that collects the live events of many machines: your laptops, a teammate, a VPS, CI. It is a
-normal Flow Tower started in **hub mode**. Reference details: [realtime.md](realtime.md#connect-remote-sources)
-and its [Security model](realtime.md#security-model). Your first towers: [getting-started.md](getting-started.md).
+How to run one server that collects live events from many machines (laptops, teammates, a VPS, CI), and the
+**one home of the config file and its precedence**. Read it to set up or debug a hub or satellite.
+Instead: copy-paste server steps in the [kit README](../examples/command-center/README.md); token rules, who
+can view and the recipes in [hub-reference.md](hub-reference.md); a single machine in [getting-started.md](getting-started.md).
 
 ## Three roles
 
@@ -30,19 +31,11 @@ explains the parts.
 **Rule: the hub lights up only the towers in its library.** Put each connected machine's tower in the
 hub's `towers/` folder, or its events arrive but match no node.
 
-## Set up the hub on a VPS or dedicated server
+## Set up the hub
 
-The kit's README has the exact steps; in short:
-
-```bash
-# as an unprivileged user, e.g. "flowtower"
-git clone https://github.com/JamesMoriartyDecripto/flow-tower.git /opt/flow-tower
-cd /opt/flow-tower && npm ci && npm link        # Node >= 22.12; `which node` for the unit below
-cp -R /opt/flow-tower/examples/command-center /srv/command-center   # the kit; towers go in its towers/
-```
-
-`~/.config/flow-tower/config.json` on the hub (`chmod 600`; all keys in
-[config.example.json](../config.example.json)):
+Install, `config.json`, tokens and the service (systemd unit or docker compose): follow the
+[kit README](../examples/command-center/README.md) steps 1 to 3. The hub's config (all keys in
+[config.example.json](../config.example.json); precedence [below](#configuration-file)):
 
 ```jsonc
 {
@@ -50,40 +43,15 @@ cp -R /opt/flow-tower/examples/command-center /srv/command-center   # the kit; t
   "role": "hub",
   "allowedHosts": ["hub.example.ts.net"],   // the name the proxy forwards with
   "viewers": ["alice@example.com"],         // tailnet logins allowed to view, read-only
-  "retentionDays": 14
+  "retentionDays": 14                       // raw history kept, 1..21
 }
 ```
 
-One token per machine or person. The plaintext is printed once; only its sha256 is stored:
-
-```bash
-flow-tower token add laptop        # ft_laptop_… : hand it to that machine
-flow-tower token list              # revoke <id> | pause <id> | resume <id>
-```
-
-A hub with no token refuses to start (`hub mode needs a token to accept any event`).
-
-**Run it as a service.** A systemd unit, `/etc/systemd/system/flow-tower.service`:
-
-```ini
-[Unit]
-Description=Flow Tower hub
-After=network-online.target
-
-[Service]
-User=flowtower
-WorkingDirectory=/opt/flow-tower
-ExecStart=/usr/bin/node /opt/flow-tower/bin/flow-tower.js /srv/command-center --no-open --no-update-check
-Restart=on-failure
-NoNewPrivileges=true
-
-[Install]
-WantedBy=multi-user.target
-```
-
-`sudo systemctl enable --now flow-tower`; logs with `journalctl -u flow-tower -f`. It binds
-`127.0.0.1:5317` and nothing else: a proxy below is what other machines reach. Containers sending *to*
-the hub: [integrations/hub/docker-compose.yml](../integrations/hub/docker-compose.yml).
+One token per machine or person: `flow-tower token add laptop` prints it once (rules:
+[hub-reference.md § Security model](hub-reference.md#security-model)). A hub with no token refuses to start
+(`hub mode needs a token to accept any event`). The hub binds `127.0.0.1:5317` only: other machines reach
+it through a proxy. Containers sending *to* the hub:
+[integrations/hub/docker-compose.yml](../integrations/hub/docker-compose.yml).
 
 ## Put a transport in front
 
@@ -94,8 +62,8 @@ let other people **view** the hub UI:
 tailscale serve --bg --https=443 http://127.0.0.1:5317    # never `tailscale funnel`
 ```
 
-Tailscale adds `tailscale-user-login` to each request; the hub shows the UI only when that login is in
-`viewers` (and the request comes from the local proxy). Everyone else may only send events with a token.
+Only tailnet logins listed in `viewers` may view the UI; everyone else may only send events with a token
+([who can do what](hub-reference.md#security-model)).
 ACLs and tags: [integrations/hub/tailscale-serve.md](../integrations/hub/tailscale-serve.md),
 [acl.hujson](../integrations/hub/acl.hujson).
 
@@ -130,9 +98,8 @@ flow-tower ~/my-project            # run your library as usual: accepted events 
 
 `connect` writes `role`, `url`, `token` (and machine/user) into the user folder's `config.json`, then
 sends one heartbeat: `connected to … as laptop`, or a 401 / unreachable message (the config is written
-anyway). Only metadata is relayed (kind, tool, model, tokens, cost, timing); prompts, messages and tool
-output stay on the machine. While the hub is down events queue in memory (max 5000, oldest dropped).
-`curl http://127.0.0.1:5317/api/sharing` on the satellite shows `online` | `queued` | `revoked`.
+anyway). Only metadata is relayed; while the hub is down events queue in memory
+([what is relayed, the queue, `/api/sharing`](hub-reference.md#satellite-a-local-library-that-relays-to-the-hub)).
 
 Hooks on a satellite should post to the local server without a token: Claude Code's `http` hooks do.
 `flow-tower emit` reads the hub token from the same config file and the local server refuses it (401,
@@ -145,8 +112,14 @@ in its `config.json`, or set `FLOW_TOWER_URL` / `FLOW_TOWER_TOKEN`, then use hoo
 
 **Remote hosts with OpenTelemetry** (tokens and cost): run the collector next to the agent and let it
 forward usage only: [integrations/otel-collector](../integrations/otel-collector),
-[realtime.md § VPS recipe](realtime.md#recipe-a-vps--docker-host-collector-sidecar).
-GitHub Actions and Lambda: [realtime.md § Recipes](realtime.md#recipe-github-actions).
+[hub-reference.md § VPS recipe](hub-reference.md#recipe-a-vps--docker-host-collector-sidecar).
+GitHub Actions and Lambda: [hub-reference.md § Recipes](hub-reference.md#recipe-github-actions).
+
+## Configuration file
+
+Hub and `emit` settings share one file: `~/.config/flow-tower/config.json` (or `$FLOW_TOWER_HOME/config.json`), JSONC. It holds the hub's `hub`, `host`, `allowedHosts`, `ingestOnly`, `viewers`, `retentionDays` and a sender's `url`, `user`, `machine`, `token`, so one machine needs no pile of environment variables. A checkout may also carry a git-ignored `flow-tower.local.json` next to `package.json` for the machine it sits on; the user's own file wins key by key. [`config.example.json`](../config.example.json) lists every key with a one-line comment.
+
+Precedence is **flags > environment > config file > defaults** for every key both a flag and a file can set. An empty environment variable counts as unset: `FLOW_TOWER_HUB=''` (a common compose or CI default) never switches off a hub the file turns on. After `npm link`, `flow-tower config path` prints the files a load would read and which exist, and `flow-tower config show` prints every effective value with its source (the token redacted). `tokens.json` and `history.db` are **data**, not config: they stay in the user folder and are never read from `config.json`.
 
 ## Check it
 
@@ -167,7 +140,7 @@ GitHub Actions and Lambda: [realtime.md § Recipes](realtime.md#recipe-github-ac
 | `/api/sharing` says `queued` | hub unreachable: check the URL, the tailnet and the hub service |
 | `/api/sharing` says `revoked` | the hub refused the token; sending stops until a new token and `connect` |
 | port already in use | another server runs there: `--port 5318`, or stop it |
-| a setting is ignored | flags > environment > config file; an empty env var (`FLOW_TOWER_HUB=''`) counts as unset |
+| a setting is ignored | see [precedence](#configuration-file); an empty env var counts as unset |
 | `allowedHosts` refused | it requires hub mode (`"hub": true` or `--hub`) |
 
 ## Privacy
