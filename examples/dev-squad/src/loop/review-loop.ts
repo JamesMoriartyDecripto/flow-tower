@@ -66,7 +66,7 @@ export async function reviewLoop(issue: number, plan: string, wt: Worktree): Pro
     if (!blocking.length) return { outcome: 'approved', rounds: round, costUsd, followUps, open: [], seen };
     if (round === REVIEW.maxRounds) return { outcome: 'escalate', rounds: round, costUsd, followUps, open: blocking, seen };
 
-    // Optimizer step. The last fix round leaves DeepSeek for Claude Opus: cheap first, smart when stuck.
+    // Optimizer step. The last fix round leaves Haiku for Claude Opus: cheap first, smart when stuck.
     const route = round + 1 >= REVIEW.escalateOnRound ? REVIEW.escalateTo : ROLE_MODEL.coder;
     const fix = await runAgent(agents.coder, renderPrompt('fix-round', {
       branch: wt.branch,
