@@ -90,6 +90,13 @@ describe('loadConfig', () => {
     expect(loadConfig({ home: safe.home, checkout: safe.checkout }).warnings).toEqual([]);
   });
 
+  it('warns when the checkout local file is readable by group or others', () => {
+    const { home, checkout, write } = dirs();
+    const path = write(checkout, 'flow-tower.local.json', '{ "token": "ft_x_secret" }', 0o644);
+    const warnings = loadConfig({ home, checkout }).warnings;
+    expect(warnings.some((w) => w.startsWith(path) && /readable by group or others/.test(w))).toBe(true);
+  });
+
   it('is ignored by git in the checkout', () => {
     // The rule lives at the repo root; this file may hold a sender token, so it must never be committed.
     const r = spawnSync('git', ['check-ignore', '-q', 'flow-tower.local.json'], { cwd: process.cwd() });

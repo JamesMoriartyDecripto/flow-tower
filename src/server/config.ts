@@ -128,11 +128,13 @@ export function loadConfig({ home = userHome(), checkout = PKG_ROOT }: { home?: 
     }
   }
 
-  // The user's own file may hold a token: anything but owner-only is readable by another account.
-  const ownFile = join(home, 'config.json');
-  try {
-    if (statSync(ownFile).mode & 0o077) warnings.push(`${ownFile}: readable by group or others (mode should be 0600): it may hold a token`);
-  } catch { /* not there: nothing to warn about */ }
+  // The user's own file and the checkout's local one may hold a token: anything but owner-only is
+  // readable by another account.
+  for (const file of [join(home, 'config.json'), join(checkout, 'flow-tower.local.json')]) {
+    try {
+      if (statSync(file).mode & 0o077) warnings.push(`${file}: readable by group or others (mode should be 0600): it may hold a token`);
+    } catch { /* not there: nothing to warn about */ }
+  }
 
   return { config, sources, warnings };
 }

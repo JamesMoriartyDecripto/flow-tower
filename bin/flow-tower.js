@@ -23,6 +23,9 @@ Usage
                                                         per-sender hub tokens stored under the user folder
   flow-tower config path | show                         the config files in use, and the effective settings
                                                         (hub + emit in one config.json under the user folder)
+  flow-tower connect <hub-url> --token <t> [--machine <name>] [--user <name>]
+                                                        make this machine a satellite: writes role satellite into
+                                                        the user folder's config.json, then sends one heartbeat
   flow-tower history export [--user <u>] | delete --user <u> | info
                                                         content-free events and totals in the user folder:
                                                         export prints JSONL, delete erases one user's rows
@@ -161,12 +164,12 @@ const explicit = (name) => process.argv.some((a) => a === `--${name}` || a.start
 
 /**
  * The effective settings from src/server/config.ts (#90), printed as JSON by its own CLI so the flags >
- * environment > config precedence lives in one place. `--with-token` keeps the token for an internal use
- * (the header, the hub's legacy secret); a failure to run it yields {} and the built-in defaults.
+ * environment > config precedence lives in one place. Serve reads no token from here: the config's token
+ * is the sender credential, so `json` always redacts it; a failure to run it yields {} and the defaults.
  */
 function configJson(flags = []) {
   const script = join(pkgRoot, 'src', 'cli', 'config.ts');
-  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, 'json', '--with-token', ...flags], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, 'json', ...flags], { encoding: 'utf8' });
   try { return JSON.parse(r.stdout); } catch { return {}; }
 }
 
@@ -203,6 +206,17 @@ if (positionals[0] === 'history') {
   // (with its exact value, the empty string included) or `history export|delete --user` would lose it.
   const script = join(pkgRoot, 'src', 'cli', 'history.ts');
   const args = [...positionals.slice(1), ...(values.user === undefined ? [] : ['--user', values.user])];
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
+}
+
+if (positionals[0] === 'connect') {
+  // Same trick as token: the config writer is TypeScript, run it with Node's type stripping.
+  // --token/--user/--machine are this parser's own options, so they are stripped from the positionals:
+  // append each one back (its exact value, so `--user ''` survives) or connect would see no token.
+  const script = join(pkgRoot, 'src', 'cli', 'connect.ts');
+  const args = [...positionals.slice(1)];
+  for (const name of ['token', 'user', 'machine']) if (values[name] !== undefined) args.push(`--${name}`, values[name]);
   const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
   process.exit(r.status ?? 1);
 }
@@ -344,7 +358,8 @@ if (missing.length) {
 /**
  * Hub mode (#83): the server may be reached from off this machine. Ingest then needs a token, viewing
  * needs the tailnet user in config.json (or the legacy hub.json), everything else is refused (src/server/hub.ts).
- * hub/host/allowedHosts/ingestOnly/token default from the config file (#90); the flags still win.
+ * hub/host/allowedHosts/ingestOnly default from the config file (#90); the flags still win. The token
+ * does not: see below.
  */
 const isLoopbackHost = (h) => h === 'localhost' || h === '::1' || h === '[::1]' || /^127\./.test(h);
 const serveFlags = [];
@@ -352,7 +367,6 @@ if (values.hub) serveFlags.push('--hub');
 if (values.host !== undefined) serveFlags.push('--host', values.host);
 for (const h of values['allowed-host'] ?? []) serveFlags.push('--allowed-host', h);
 if (values['ingest-only']) serveFlags.push('--ingest-only');
-if (values.token !== undefined) serveFlags.push('--token', values.token);
 const cfg = configJson(serveFlags);
 const hub = cfg.hub ?? values.hub;
 const ingestOnly = cfg.ingestOnly ?? values['ingest-only'];
@@ -369,8 +383,11 @@ if (!hub && allowedHosts.length) {
   console.error(`an allowed host means the server is reachable through a proxy: add --hub (and a token)`);
   process.exit(1);
 }
-// The token may come from the config too, so the "needs a token" refusal reads the effective one.
-const token = cfg.token ?? env.FLOW_TOWER_TOKEN;
+// The config's token is this machine's credential for the hub it SENDS to (emit, the satellite relay):
+// it is never a secret guarding this server, or a revoked/paused token pasted into config.json would
+// still authenticate here. This server's shared secret stays FLOW_TOWER_TOKEN; per-sender tokens live
+// in tokens.json. So the "needs a token" refusal ignores the config file.
+const token = env.FLOW_TOWER_TOKEN;
 if ((hub || ingestOnly) && !token && !hasActiveToken()) {
   console.error(`${hub ? 'hub mode' : '--ingest-only'} needs a token to accept any event.
 create one: flow-tower token add <id>\nThen send it as x-flow-tower-token (or FLOW_TOWER_TOKEN for a shared secret).`);
@@ -390,7 +407,7 @@ if (values['no-update-check']) env.FLOW_TOWER_NO_UPDATE_CHECK = '1';
 // The resolved hub settings go out as the same env vars as today, so src/server/hub.ts keeps one path.
 if (hub) env.FLOW_TOWER_HUB = '1';
 if (ingestOnly) env.FLOW_TOWER_INGEST_ONLY = '1';
-if (token) env.FLOW_TOWER_TOKEN = token;
+// FLOW_TOWER_TOKEN is passed on unchanged: serve never rewrites it from the config's sender token.
 // Vite opens the page with the `open` package, which reads $BROWSER.
 if (values.browser) env.BROWSER = values.browser;
 const { createServer } = await import('vite');

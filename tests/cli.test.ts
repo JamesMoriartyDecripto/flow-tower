@@ -311,6 +311,13 @@ describe('cli serve reads the config file (#90)', () => {
     expect(r.stderr).toContain('reachable through a proxy');
   });
 
+  it('ignores the config token for hub mode: it is the sender credential, not this server secret', () => {
+    write('{ "hub": true, "token": "ft_sender_secret" }');
+    const r = serve('--no-open');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('hub mode needs a token');
+  });
+
   it('lets a --hub flag win over a config that says no', () => {
     write('{ "hub": false }');
     const r = serve('--hub', '--no-open');

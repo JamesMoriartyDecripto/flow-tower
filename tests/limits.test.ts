@@ -127,11 +127,14 @@ describe('ingest abuse limits (#83 phase 3)', () => {
     expect(hub.ingest({ kind: 'tool.end', call: 'call_1' }, undefined, undefined, 'dana')).toEqual({ accepted: 0, rejected: 1 });
     // The same call id from another sender is a different event.
     expect(hub.ingest({ kind: 'tool.end', call: 'call_1' }, undefined, undefined, 'erin')).toEqual({ accepted: 1, rejected: 0 });
+    // A tool's start and end share the call id: both are kept.
+    expect(hub.ingest({ kind: 'tool.start', call: 'call_2' }, undefined, undefined, 'dana')).toEqual({ accepted: 1, rejected: 0 });
+    expect(hub.ingest({ kind: 'tool.end', call: 'call_2' }, undefined, undefined, 'dana')).toEqual({ accepted: 1, rejected: 0 });
 
     expect(hub.ingest({ kind: 'log', ts: c.now() - TS_WINDOW_MS - 1 })).toEqual({ accepted: 0, rejected: 1 });
     expect(hub.ingest({ kind: 'log', ts: c.now() + TS_WINDOW_MS + 1 })).toEqual({ accepted: 0, rejected: 1 });
     expect(hub.ingest({ kind: 'log', ts: c.now() })).toEqual({ accepted: 1, rejected: 0 });
-    expect(hub.recent()).toHaveLength(3);
+    expect(hub.recent()).toHaveLength(5);
     expect(hub.recent().every((e) => typeof e.ts === 'number')).toBe(true);
   });
 

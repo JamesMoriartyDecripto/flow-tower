@@ -8,12 +8,15 @@ import type { Plugin, ViteDevServer } from 'vite';
 import { loadLibrary, type LoadResult } from '../core/loader.ts';
 import { readTowerFile } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
+import { createSatellites } from './satellites.ts';
 import { checkForUpdate, updateCheckDisabled, type UpdateInfo } from './update.ts';
 import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
 import { userHome, warnIfInRepo } from './home.ts';
 import { crossSite } from './guard.ts';
-import { isRemote } from './auth.ts';
+import { isLoopback, isRemote } from './auth.ts';
+import { createRelay } from './relay.ts';
+import { effective, loadConfig } from './config.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 import { openHistory } from './history/db.ts';
 import { createHistory } from './history/store.ts';
@@ -93,6 +96,11 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         });
       }
 
+      // Satellite relay (#91): a local library forwards what it accepted to the hub, metadata only.
+      const relay = createRelayFor(server, hubOpts, VERSION);
+      // The hub side of #91: heartbeats and accepted events keep this list fresh; the UI reads it below.
+      const satellites = createSatellites();
+
       // Reads are for this page only: Vite's default CORS would let a page on another localhost port read them.
       server.middlewares.use('/api/workspace', (req, res) => {
         if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
@@ -100,6 +108,13 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         send(res, 200, state.workspace);
       });
       server.middlewares.use('/api/file', (req, res) => void serveFile(req, res, state));
+
+      // Sharing state (#91): a satellite reports what it is relaying, a local server says it is off. Read
+      // like /api/workspace (crossSite-guarded), and it never carries the token.
+      server.middlewares.use('/api/sharing', (req, res) => {
+        if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
+        send(res, 200, relay?.state() ?? { state: 'off' });
+      });
 
       // History (#84) lives in the user's folder, never the repo. An old Node without node:sqlite disables
       // it with one message: the live view keeps working, the hub simply gets no onAccepted.
@@ -118,8 +133,12 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         // The user folder holds the per-sender tokens (#83); FLOW_TOWER_TOKEN stays the shared legacy secret.
         { legacy: env.FLOW_TOWER_TOKEN, home: userHome(), hub: hubOpts.hub, ingestOnly: hubOpts.ingestOnly },
         // History must never break ingest: a full disk makes the INSERT throw, and the live view is what
-        // matters. Warn once, then stay quiet so a broken DB cannot flood the log.
-        { onAccepted: (events) => { try { history?.write(events); } catch (err) { warnHistoryOnce(server, err); } } },
+        // matters. Warn once, then stay quiet so a broken DB cannot flood the log. The relay runs in its own
+        // try/catch for the same reason: a dead hub must never cost us a local event.
+        { onAccepted: (events) => {
+          try { history?.write(events); } catch (err) { warnHistoryOnce(server, err); }
+          try { relay?.push(events); } catch { /* the relay must never break ingest or history */ }
+        }, satellites },
       );
       // History reads (#84 phase 4): a viewing route like /api/workspace, so hub mode's remote-viewer
       // rule decides who sees it and crossSite keeps other pages on this machine out.
@@ -128,6 +147,13 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       server.middlewares.use('/api/history', views.totals);
 
       server.middlewares.use('/api/events', hub.handle);
+      server.middlewares.use('/api/heartbeat', hub.heartbeat);
+      // The hub's satellite list (#91): a viewing route like /api/history, so hub mode's remote-viewer
+      // rule decides who sees it. Never tokens, only what each satellite reported.
+      server.middlewares.use('/api/hub/satellites', (req, res) => {
+        if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
+        send(res, 200, satellites.list());
+      });
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.
       server.middlewares.use('/v1/logs', hub.otlp('logs'));
       server.middlewares.use('/v1/metrics', hub.otlp('metrics'));
@@ -159,6 +185,37 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       });
     },
   };
+}
+
+/**
+ * The satellite relay of this server, if any (#91). A server that is itself a hub, or ingest-only behind a
+ * proxy, must not relay: the hub would receive its own events. A url pointing back at this same server
+ * would make the relay feed itself — a loop — so it is refused too.
+ */
+function createRelayFor(server: ViteDevServer, hubOpts: { hub: boolean; ingestOnly: boolean }, version: string) {
+  const settings = effective(loadConfig().config);
+  if (settings.role !== 'satellite' || !settings.url) return undefined;
+  if (hubOpts.hub || hubOpts.ingestOnly || settings.hub || settings.ingestOnly) {
+    server.config.logger.warn('flow-tower: satellite relay refused: this server is a hub or ingest-only');
+    return undefined;
+  }
+  if (targetsSelf(settings.url, server)) {
+    server.config.logger.warn('flow-tower: satellite relay refused: url points at this same server (would loop)');
+    return undefined;
+  }
+  return createRelay({ url: settings.url, token: settings.token, user: settings.user, machine: settings.machine, version });
+}
+
+/** Loopback host on the port we bound to: relaying there would feed this server its own events. */
+function targetsSelf(url: string, server: ViteDevServer): boolean {
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { return false; }
+  if (!isLoopback(parsed.hostname)) return false;
+  // The bound port is not in the Vite config: read it from the live http server, if it is already up.
+  const addr = server.httpServer?.address();
+  const port = typeof addr === 'object' && addr ? addr.port : server.config.server.port;
+  // A url without a port means the scheme default, which is never the dev server's port.
+  return parsed.port !== '' && Number(parsed.port) === port;
 }
 
 /** The version payload: everything except the update command, which embeds this checkout's path. */
