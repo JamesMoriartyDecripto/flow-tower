@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { create } from 'zustand';
 import { ago, hubPill, machineState, nowRows, type NowRow, type NowState } from '../hub';
 import { useLive } from '../live';
@@ -181,10 +181,13 @@ function NowTab({ rows, now }: { rows: NowRow[]; now: number }) {
       {rows.map((r) => (
         <div className="hub-row" key={`${r.machine}\n${r.runtime}\n${r.project}\n${r.startedBy}`}>
           <span className={`hub-dot ${r.state}`} title={r.state}>{DOT[r.state]}</span>
-          <span className="hub-cell">{r.machine}</span>
-          <span className="hub-cell">{r.runtime}</span>
-          <span className="hub-cell">{r.project}</span>
-          <span className="hub-cell">{r.startedBy === 'AUTO' ? <span className="chip hub-auto">AUTO</span> : r.startedBy}</span>
+          {/* Every cell is ellipsized by CSS, so its title carries the value the cut hides. */}
+          <span className="hub-cell" title={r.machine}>{r.machine}</span>
+          <span className="hub-cell" title={r.runtime}>{r.runtime}</span>
+          <span className="hub-cell" title={r.project}>{r.project}</span>
+          <span className="hub-cell" title={r.startedBy === 'AUTO' ? 'Started automatically' : r.startedBy}>
+            {r.startedBy === 'AUTO' ? <span className="chip hub-auto">AUTO</span> : r.startedBy}
+          </span>
           <span className="hub-cell hub-state">{r.state} · {ago(now - r.last)}</span>
         </div>
       ))}
@@ -201,20 +204,32 @@ function MachinesTab({ rows, now, failed }: { rows: Machine[]; now: number; fail
     <>
       {failed && <p className="hub-warn">Machines unavailable</p>}
       <div className="hub-rows machines">
-        <div className="hub-row head" aria-hidden="true">
-          <span>SENDER</span><span>TOKEN</span><span>STATE</span><span>RUNTIME</span><span>HOST</span><span>SEEN</span><span>QUEUED</span>
-        </div>
         {rows.map((m) => {
           const st = machineState(m);
+          // Only the parts the hub actually knows: a missing runtime or host is left out, not shown as a dash.
+          const parts = [
+            m.token && { key: 'token', text: m.token, title: m.token },
+            m.runtime && { key: 'runtime', text: m.runtime, title: m.runtime },
+            m.host && { key: 'host', text: m.host, title: m.host },
+            m.queued !== undefined && { key: 'queued', text: `queued ${m.queued}`, title: `queued ${m.queued}` },
+          ].filter((p): p is { key: string; text: string; title: string } => !!p);
           return (
             <div className="hub-row" key={m.sender}>
-              <span className="hub-cell">{m.sender}</span>
-              <span className="hub-cell hub-token">{m.token || '–'}</span>
-              <span className="hub-cell hub-live"><span className={`hub-dot ${st.label}`} title={st.label}>{st.dot}</span>{st.label}</span>
-              <span className="hub-cell">{m.runtime ?? '–'}</span>
-              <span className="hub-cell">{m.host ?? '–'}</span>
-              <span className="hub-cell">{m.lastSeen === undefined ? '–' : ago(now - m.lastSeen)}</span>
-              <span className="hub-cell">{m.queued ?? 0}</span>
+              <div className="hub-main">
+                <span className={`hub-dot ${st.label}`} title={st.label}>{st.dot}</span>
+                {/* Each cell ellipsizes on its own line, so its title carries the full value. */}
+                <span className="hub-sender" title={m.sender}>{m.sender}</span>
+                <span className="hub-live">{st.label}</span>
+                <span className="hub-seen">{m.lastSeen === undefined ? 'never' : `seen ${ago(now - m.lastSeen)}`}</span>
+              </div>
+              <div className="hub-meta">
+                {parts.map((p, i) => (
+                  <Fragment key={p.key}>
+                    {i > 0 && <span className="hub-sep" aria-hidden="true">·</span>}
+                    <span className="hub-cell" title={p.title}>{p.text}</span>
+                  </Fragment>
+                ))}
+              </div>
             </div>
           );
         })}

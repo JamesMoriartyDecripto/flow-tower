@@ -514,7 +514,18 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 /* One grid for the header and the data rows, so the columns line up without a table. */
 .hub-row { display: grid; grid-template-columns: 14px 1fr 1fr 1fr 1fr 1.2fr; gap: 8px; align-items: center;
   padding: 4px 6px; font: 12.5px var(--mono); border-left: 2px solid transparent; }
-.hub-rows.machines .hub-row { grid-template-columns: 1fr 1fr 1.1fr 1fr 1fr 0.8fr 0.6fr; }
+/* Machines: two lines per row. Seven columns never fit the right panel, so identity reads on line 1 and
+   the dim metadata (token, runtime, host, queue) on line 2, each field ellipsizing on its own. */
+.hub-rows.machines .hub-row { grid-template-columns: 1fr; gap: 3px; padding: 6px; }
+.hub-rows.machines .hub-main { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.hub-rows.machines .hub-sender { font-weight: 600; color: var(--white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-rows.machines .hub-seen { color: var(--dim); font-size: 11px; }
+/* Line 2 dim and smaller, indented under the sender (14px dot + 8px gap). min-width:0 lets a long field
+   ellipsize inside its own cell instead of pushing the next one out of the panel. */
+.hub-rows.machines .hub-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding-left: 22px; font-size: 11px; color: var(--dim); }
+.hub-rows.machines .hub-meta .hub-cell { min-width: 0; }
+.hub-sep { color: var(--line); opacity: .7; }
 .hub-row.head { font: 600 9px var(--display); letter-spacing: .14em; color: var(--orange); opacity: .8; border-left-color: transparent; }
 .hub-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-dot { text-align: center; }
@@ -524,7 +535,6 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .hub-dot.paused { color: var(--warn); }
 .hub-dot.revoked { color: var(--live-error); }
 .hub-auto { padding: 0 5px; font-size: 9px; }
-.hub-token { color: var(--dim); }
 .hub-live { display: flex; align-items: center; gap: 5px; }
 .hub-foot { padding: 8px 18px; border-top: 1px solid var(--line-soft); font: 11px var(--mono); color: var(--dim); }
 
