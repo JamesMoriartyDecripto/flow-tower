@@ -11,6 +11,7 @@
 | Write or fix a tower | [docs/what-goes-where.md](docs/what-goes-where.md) (layers, nodes, edges, nested towers); [examples/README.md](examples/README.md): copy the closest example; [docs/generate-a-tower.md](docs/generate-a-tower.md) for codebases |
 | Live events / integrations | [docs/realtime.md](docs/realtime.md), `src/core/adapters.ts`, `integrations/` |
 | Voice (commands, agent, spoken replies) | README § Voice commands, `src/app/voice/` (parser, mic, agent, tools), `src/server/voice.ts`, the `voice-commands` example tower |
+| Model benchmarks | [examples/model-benchmark/README.md](examples/model-benchmark/README.md) |
 | The agent skill | [skills/flow-tower/SKILL.md](skills/flow-tower/SKILL.md), [reference.md](skills/flow-tower/reference.md) |
 
 ## Conventions

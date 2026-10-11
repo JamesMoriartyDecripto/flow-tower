@@ -4,7 +4,12 @@ import { loadAgentFiles } from '../agents';
 import { LIMITS } from '../config';
 import { runAgent } from '../run-agent';
 
-/** Spend of OpenRouter coder runs per worktree; the lead report adds it to the SDK's own total. */
+/**
+ * Spend of OpenRouter coder runs per worktree; the lead report adds it to the SDK's own total.
+ * One worktree per issue, and the lead calls run_coder for one step at a time, so its tasks are
+ * serial on that checkout. Two coder tasks must never share one: they would race on the same
+ * branch and each see the other's half-finished diff, so parallel work needs one worktree per task.
+ */
 const spend = new Map<string, number>();
 export const takeCoderSpend = (cwd: string) => {
   const usd = spend.get(cwd) ?? 0;
