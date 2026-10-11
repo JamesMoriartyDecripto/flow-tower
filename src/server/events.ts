@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createGunzip, createInflate } from 'node:zlib';
 import { FlowEventSchema, resolveTargets, type FlowEvent } from '../core/events.ts';
 import { normalize } from '../core/adapters.ts';
 import { otlpLogsToEvents } from '../core/otlp.ts';
@@ -49,16 +50,11 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     if (!isJson(req)) return json(res, 415, { error: 'content-type must be application/json' });
     if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
     if (token && req.headers['x-flow-tower-token'] !== token) return json(res, 401, { error: 'bad or missing x-flow-tower-token' });
+    const encoding = encodingOf(req);
+    if (!encoding) return json(res, 415, unknownEncoding(req));
 
-    let size = 0;
-    const chunks: Buffer[] = [];
-    req.on('data', (c: Buffer) => {
-      size += c.length;
-      if (size > MAX_BODY) { json(res, 413, { error: 'body too large' }); req.destroy(); return; }
-      chunks.push(c);
-    });
-    req.on('end', () => {
-      if (res.writableEnded) return;
+    void readBody(req, res, MAX_BODY, encoding).then((chunks) => {
+      if (!chunks) return; // the response was already sent (413, 400)
       try {
         const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if (Array.isArray(body) && body.length > MAX_BATCH) return json(res, 413, { error: `at most ${MAX_BATCH} events per request` });
@@ -83,15 +79,10 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     if (!isJson(req)) return json(res, 415, { error: 'content-type must be application/json' });
     if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
     if (token && req.headers['x-flow-tower-token'] !== token) return json(res, 401, { error: 'bad or missing x-flow-tower-token' });
-    let size = 0;
-    const chunks: Buffer[] = [];
-    req.on('data', (c: Buffer) => {
-      size += c.length;
-      if (size > MAX_OTLP_BODY) { json(res, 413, { error: 'body too large' }); req.destroy(); return; }
-      chunks.push(c);
-    });
-    req.on('end', () => {
-      if (res.writableEnded) return;
+    const encoding = encodingOf(req);
+    if (!encoding) return json(res, 415, unknownEncoding(req));
+    void readBody(req, res, MAX_OTLP_BODY, encoding).then((chunks) => {
+      if (!chunks) return; // the response was already sent (413, 400)
       try {
         const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if (signal === 'logs') ingest(otlpLogsToEvents(body).slice(0, MAX_BATCH));
@@ -108,6 +99,47 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
 /** Source from ?source=, or sniffed from headers (Hermes webhooks send X-Hermes-Event). */
 function sourceOf(req: IncomingMessage, url: URL): string | undefined {
   return url.searchParams.get('source') ?? (req.headers['x-hermes-event'] ? 'hermes' : undefined);
+}
+
+/** Content encoding to undo: gzip/deflate are decompressed, identity needs nothing. Undefined means unknown. */
+function encodingOf(req: IncomingMessage): 'identity' | 'gzip' | 'deflate' | undefined {
+  const raw = (req.headers['content-encoding'] ?? '').split(',')[0].trim().toLowerCase();
+  if (!raw || raw === 'identity') return 'identity';
+  if (raw === 'gzip' || raw === 'x-gzip') return 'gzip'; // the OTLP Collector sends this by default
+  if (raw === 'deflate') return 'deflate';
+  return undefined;
+}
+
+function unknownEncoding(req: IncomingMessage) {
+  return { error: `unsupported content-encoding: ${req.headers['content-encoding']} (use identity, gzip or deflate)` };
+}
+
+/**
+ * Reads the body, decompressing gzip/deflate as a stream and capping the DECOMPRESSED size: a small
+ * payload that inflates past the cap is refused with 413, never buffered whole (a zip bomb).
+ * Resolves undefined when the response was already sent.
+ */
+function readBody(req: IncomingMessage, res: ServerResponse, cap: number, encoding: 'identity' | 'gzip' | 'deflate'): Promise<Buffer[] | undefined> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let done = false;
+    const fail = (status: number, body: unknown) => {
+      if (done) return;
+      done = true;
+      json(res, status, body);
+      req.destroy();
+      resolve(undefined);
+    };
+    const source: NodeJS.ReadableStream = encoding === 'identity' ? req : req.pipe(encoding === 'gzip' ? createGunzip() : createInflate());
+    source.on('data', (c: Buffer) => {
+      size += c.length;
+      if (size > cap) return fail(413, { error: 'body too large' });
+      chunks.push(c);
+    });
+    if (encoding !== 'identity') source.on('error', () => fail(400, { error: 'invalid compressed body' }));
+    source.on('end', () => { if (!done) { done = true; resolve(chunks); } });
+  });
 }
 
 function json(res: ServerResponse, status: number, body: unknown) {
