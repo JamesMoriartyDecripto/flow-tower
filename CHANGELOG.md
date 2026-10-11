@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Voice: "chiudi il file" / "close the file" closes only the file viewer and keeps the node selected (agent tool `close_file`), #128.
 - Voice (#130): "apri il suo file" / "open its file" (and "apri il file 2", "open the second file") opens a numbered file of the selected node, and "il prossimo" / "next" (or "il precedente" / "previous", "file successivo" / "next file") steps through the file viewer, the last list shown or the nodes of the layer in flow order; all are fixed phrases the parser handles locally even with the agent on.
 - Hub panel (#92): press `H` on a hub for the Now tab (who runs what right now) and the Machines tab (every sender the hub trusts); a `HUB n/m` top-bar pill (senders seen in the last 5 min / active tokens) and a `READ-ONLY` pill for a remote viewer, fed by `GET /api/hub/machines` and `GET /api/hub/me`.
+- Your own library (#121): `flow-tower library add|list|remove` keeps your towers (a `*.tower.yaml` or a folder) as a list of paths in the user folder's `config.json`; `flow-tower library [--with-examples]` serves them and badges each card MINE or EXAMPLE. A path inside the flow-tower checkout is refused under `examples/` and warned elsewhere, so your towers stay in your own projects; the `flow-tower-my-library` skill walks an agent through it.
 
 ### Security
 - KaTeX 0.16.47 → 0.18.7 (Dependabot alert, low), pinned with an override so rehype-katex and remark-math use the same copy (#119).
@@ -17,6 +18,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `examples/docs-qa` resolves the OpenRouter key the way the squad runner does (environment, user folder key file, git-ignored `.env` of the checkout, then the main checkout's for a worktree) and fails fast with one line and exit 2 before the first question when there is none (#123).
 - The squad runner (`tools/squad`) works from a worktree: the key lookup also finds the git-ignored key file of the main checkout (a worktree has none), and `steps.sh`'s `<write-dirs>` argument may be comma-separated (same as `run.mjs --write`); the CLI tests ignore an exported `FLOW_TOWER_*` environment (#75).
 - `validate` (and the loader) reports a node `files` entry that is a folder like a missing file (`files entry "<path>" is a folder; list the files inside it instead`), instead of accepting it and letting `/api/file` answer 404 in the app (#118).
+- Markdown tables in the file viewer are readable again: cells wrap at word boundaries instead of `overflow-wrap: anywhere`, which dropped a cell's min-content width to one character and squeezed every column to that; headers stay on one line, and a wide table scrolls sideways (#133).
 
 ## [0.6.0] - 2026-10-11
 

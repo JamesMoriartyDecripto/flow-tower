@@ -186,6 +186,10 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .lib-main .lib-name { display: block; }
 .lib-main:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
 .lib-current { font-size: 9px; padding: 1px 6px; }
+/* Library origins (#121) */
+.lib-origin { font-size: 9px; padding: 1px 6px; }
+.lib-origin.mine { color: var(--live-done); border-color: color-mix(in srgb, var(--live-done) 50%, transparent); }
+.lib-origin.example { color: var(--dim); border-color: var(--line-soft); }
 /* Full description, capped at ~4 lines; longer ones scroll inside the card. */
 .lib-desc { margin: 0 0 10px; font-size: 14px; line-height: 1.4; max-height: calc(14px * 1.4 * 4); overflow-y: auto; padding-right: 4px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; overscroll-behavior: contain; }
 .lib-body { display: flex; flex-direction: column; }
@@ -423,7 +427,7 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
   .hud:has(.livefeed) .inspector { bottom: calc(76px + 42 * var(--vh) + 12px); }
 }
 /* Smallest labels: never below ~7px on screen, even at the 0.7× interface floor. */
-.lib-stats dt, .legend-tabs button, .filelist .ext, .lib-current, .chip.sens, .conn .proto { font-size: max(9px, calc(7px / var(--ui-scale, 1))); }
+.lib-stats dt, .legend-tabs button, .filelist .ext, .lib-current, .lib-origin, .chip.sens, .conn .proto { font-size: max(9px, calc(7px / var(--ui-scale, 1))); }
 /* Full-width rows inside scrolling lists: an outer ring would be clipped by the list. */
 .feed-row:focus-visible, .files button:focus-visible, .conn:focus-visible { outline-offset: -2px; }
 @media (prefers-reduced-motion: reduce) {
@@ -456,8 +460,12 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .viewer .code.wrap .md-view pre { white-space: pre-wrap; }
 .md-view blockquote { margin: 0; padding: 2px 14px; border-left: 3px solid var(--orange); color: var(--dim); }
 .md-view table { border-collapse: collapse; margin: 10px 0; font-size: 14px; display: block; overflow-x: auto; }
-.md-view th, .md-view td { border: 1px solid var(--line-soft); padding: 5px 10px; text-align: left; vertical-align: top; }
-.md-view th { color: var(--orange); font-weight: 700; }
+/* `anywhere` (on .md-view) lets a break fall inside a word, which drops a table cell's min-content
+   width to one character: auto-layout then squeezes every column to that. `break-word` still wraps a
+   long URL, but min-content stays the longest word, so wide tables scroll instead. */
+.md-view th, .md-view td { border: 1px solid var(--line-soft); padding: 5px 10px; text-align: left; vertical-align: top; overflow-wrap: break-word; word-break: normal; }
+/* Headers stay on one line: they are short labels, and a wrapped header hides the column's meaning. */
+.md-view th { color: var(--orange); font-weight: 700; white-space: nowrap; }
 .md-view hr { border: 0; border-top: 1px solid var(--line-soft); margin: 18px 0; }
 .md-view ul, .md-view ol { padding-left: 1.4em; }
 .md-view .md-meta { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 0 0 14px; padding: 8px 12px; border: 1px solid var(--line-soft); font: 12px var(--mono); }

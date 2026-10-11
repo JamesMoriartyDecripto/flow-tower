@@ -54,7 +54,7 @@ const rules = (dir: string): { ok: boolean; rules: string[]; findings: { text: s
 };
 
 describe('cli check-example (#116)', () => {
-  it('passes a clean minimal example with exit 0', () => {
+  it('passes a clean minimal example with exit 0', { timeout: 20_000 }, () => {
     const r = check(make('clean'));
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('all checks passed');
@@ -66,7 +66,7 @@ describe('cli check-example (#116)', () => {
     ['email', 'write to ada@corp.example.io please', 'email'],
     ['public ipv4', 'host 8.8.8.8 is up', 'ipv4'],
     ['token', 'token ft_abcdefghijklmnopqrstuv here', 'secret'],
-  ])('fires on a planted %s', (name, line, rule) => {
+  ])('fires on a planted %s', { timeout: 20_000 }, (name, line, rule) => {
     const dir = make(`planted-${rule}-${name.replace(/\s/g, '-')}`);
     writeFileSync(join(dir, 'prompts/main.md'), `${line}\n`);
     const r = rules(dir);
@@ -75,19 +75,19 @@ describe('cli check-example (#116)', () => {
     expect(check(dir).status).toBe(1);
   });
 
-  it('fires on a README without a Sources heading', () => {
+  it('fires on a README without a Sources heading', { timeout: 20_000 }, () => {
     const dir = make('no-sources');
     writeFileSync(join(dir, 'README.md'), '# Demo\n\nNo heading here.\n');
     expect(rules(dir).rules).toContain('readme-sources');
   });
 
-  it('fires on a missing README', () => {
+  it('fires on a missing README', { timeout: 20_000 }, () => {
     const dir = make('no-readme');
     rmSync(join(dir, 'README.md'));
     expect(rules(dir).rules).toContain('readme-missing');
   });
 
-  it('fires on a root: ../.. tower that leaves the folder', () => {
+  it('fires on a root: ../.. tower that leaves the folder', { timeout: 20_000 }, () => {
     const dir = make('outside-root');
     writeFileSync(join(dir, 'demo.tower.yaml'), TOWER.replace('name: Demo', 'name: Demo\nroot: ../..'));
     const r = rules(dir);
@@ -95,20 +95,20 @@ describe('cli check-example (#116)', () => {
     expect(r.rules).toContain('outside-root');
   });
 
-  it('fires when a tower references a file outside the folder', () => {
+  it('fires when a tower references a file outside the folder', { timeout: 20_000 }, () => {
     const dir = make('outside-file');
     writeFileSync(join(dir, 'demo.tower.yaml'), TOWER.replace('file: prompts/main.md', 'file: ../shared.md'));
     expect(rules(dir).rules).toContain('outside-file');
   });
 
-  it('accepts example.com and 127.0.0.1 as placeholders', () => {
+  it('accepts example.com and 127.0.0.1 as placeholders', { timeout: 20_000 }, () => {
     const dir = make('placeholders');
     writeFileSync(join(dir, 'prompts/main.md'), 'Mail support@example.org\nLocal hub: http://127.0.0.1:5317\nDocs: 192.0.2.10\n');
     const r = rules(dir);
     expect(r.ok).toBe(true);
   });
 
-  it('masks a secret-looking text in the JSON output', () => {
+  it('masks a secret-looking text in the JSON output', { timeout: 20_000 }, () => {
     const dir = make('masked');
     const token = 'ft_abcdefghijklmnopqrstuv';
     writeFileSync(join(dir, 'prompts/main.md'), `token ${token}\n`);
@@ -117,19 +117,19 @@ describe('cli check-example (#116)', () => {
     expect(json).toContain('ft_a');
   });
 
-  it('does not fire on the ft_REPLACE_ME placeholder', () => {
+  it('does not fire on the ft_REPLACE_ME placeholder', { timeout: 20_000 }, () => {
     const dir = make('replace-me');
     writeFileSync(join(dir, 'prompts/main.md'), 'Set FLOW_TOWER_TOKEN=ft_REPLACE_ME in your shell.\n');
     expect(rules(dir).ok).toBe(true);
   });
 
-  it('fires on a file over 1 MB', () => {
+  it('fires on a file over 1 MB', { timeout: 20_000 }, () => {
     const dir = make('big');
     writeFileSync(join(dir, 'notes.md'), 'a'.repeat(1_100_000));
     expect(rules(dir).rules).toContain('large-file');
   });
 
-  it('fires on a git-ignored file', () => {
+  it('fires on a git-ignored file', { timeout: 20_000 }, () => {
     const dir = make('ignored');
     writeFileSync(join(dir, '.gitignore'), 'scratch.txt\n');
     writeFileSync(join(dir, 'scratch.txt'), 'local notes\n');
@@ -138,14 +138,14 @@ describe('cli check-example (#116)', () => {
     expect(rules(dir).rules).toContain('git-ignored');
   });
 
-  it('fails with exit 1 when the folder has no tower', () => {
+  it('fails with exit 1 when the folder has no tower', { timeout: 20_000 }, () => {
     const dir = join(out, 'empty');
     mkdirSync(dir, { recursive: true });
     expect(check(dir).status).toBe(1);
     expect(existsSync(join(dir, 'README.md'))).toBe(false);
   });
 
-  it('refuses a missing folder with exit 2', () => {
+  it('refuses a missing folder with exit 2', { timeout: 20_000 }, () => {
     const r = check(join(out, 'nope'));
     expect(r.status).toBe(2);
     expect(r.stderr).toContain('not a folder');

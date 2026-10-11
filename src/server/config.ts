@@ -46,6 +46,7 @@ export const ConfigSchema = z.strictObject({
   alerts: z.record(z.string(), z.boolean()).optional().describe('Per rule name.'),
   noticeRef: z.string().optional(),
   purpose: z.string().optional(),
+  library: z.array(z.string()).optional().describe('Paths of the user\'s own towers (files or folders), outside the flow-tower checkout.'),
 });
 export type Config = z.infer<typeof ConfigSchema>;
 export type Role = (typeof ROLES)[number];

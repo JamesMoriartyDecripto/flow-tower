@@ -103,7 +103,8 @@ flow-tower ~/my-project            # run your library as usual: accepted events 
 
 `connect` writes `role`, `url`, `token` (and machine/user) into the user folder's `config.json`, then
 sends one heartbeat: `connected to … as laptop`, or a 401 / unreachable message (the config is written
-anyway). Only metadata is relayed; while the hub is down events queue in memory
+anyway). The hub lights only towers in its own library, so register the same tower on the hub's machine
+([Your own library](getting-started.md#your-own-library)). Only metadata is relayed; while the hub is down events queue in memory
 ([what is relayed, the queue, `/api/sharing`](hub-reference.md#satellite-a-local-library-that-relays-to-the-hub)).
 
 To pause sharing, set `paused: true` in `config.json` or use Settings › Sharing › Pause; a pause empties

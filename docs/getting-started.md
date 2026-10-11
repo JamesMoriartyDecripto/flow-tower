@@ -121,6 +121,19 @@ Point your agent's hooks at the local server and the nodes light up as it works:
 - tokens and cost per node: [realtime.md § Tokens and cost](realtime.md#tokens-and-cost-opentelemetry)
 - events map to nodes by agent and tool names: [realtime.md § Matching](realtime.md#matching-events-to-nodes)
 
+## Your own library
+
+Your towers live in your own projects, never inside the flow-tower checkout or under `examples/` (the
+server warns, `copy` warns). Keep their paths in one list, `library` in your user folder's `config.json`:
+
+```bash
+flow-tower library add ~/my-project/tower   # a *.tower.yaml or a folder
+flow-tower library list                     # `remove <path>` drops one
+flow-tower library                          # serve your towers: MINE badges; --with-examples adds EXAMPLE ones
+```
+
+Contributing a tower back goes through the [contribute skill](../skills/flow-tower-contribute/SKILL.md).
+
 ## Where your data lives
 
 Your settings, keys, tokens and history live in your user folder, `~/.config/flow-tower` (or

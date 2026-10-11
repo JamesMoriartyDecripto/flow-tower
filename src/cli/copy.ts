@@ -5,7 +5,7 @@
  * TypeScript, run with Node's type stripping like validate/token/config (see bin/flow-tower.js).
  */
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -145,6 +145,15 @@ let validation: { towers?: { name?: string; issues?: { level: string; message: s
 try { validation = JSON.parse(r.stdout); } catch { validation = undefined; }
 
 console.log(`copied examples/${example} -> ${dest} (${copied} files)`);
+// The checkout is often the cwd, so a bare `<dest>` lands next to the repo's own files. Resolve symlinks
+// (realpath) so a dest reached through a link still counts as inside; never refuse, a contribution may want it there.
+const destReal = realpathSync(dest);
+// Inside the checkout the library hint is bad advice, so it stays a `note:` warning here; outside it is a
+// real step and drops into the `next steps` block below (#121).
+const inside = within(realpathSync(pkgRoot), destReal);
+if (inside) {
+  console.log(`note: ${dest} is inside the flow-tower checkout, so it could end up in a commit. Move it to your own project, then flow-tower library add <path>.`);
+}
 if (dogfood) console.log(`warning: this example sets root: ../.., so its paths point at the flow-tower checkout, not at your copy.\n         Fix root: and every files:/prompt path before opening it.`);
 if (validation?.towers) {
   const issues = validation.towers.flatMap((t) => t.issues ?? []);
@@ -154,7 +163,8 @@ if (validation?.towers) {
 } else {
   console.log(`validation: could not run (flow-tower validate ${dest} --json failed)`);
 }
-console.log(`next steps
+console.log(`next steps${inside ? '' : `
+  add it:      flow-tower library add ${dest}`}
   open it:     flow-tower ${dest}
   try it live: npm run simulate -- ${project ?? '<tower file>'} --url http://127.0.0.1:5317   (from ${pkgRoot})
   adapt root: and files: to where the files live in your copy`);

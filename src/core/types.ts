@@ -112,4 +112,10 @@ export interface Workspace {
   projects: string[];
   towers: Record<string, ResolvedTower>;
   loadedAt: string;
+  /**
+   * Project id → where the tower file came from (#121c). Filled only by a `flow-tower library` serve:
+   * `example` under the checkout's examples/, `mine` under one of the user's own paths. Absent without
+   * FLOW_TOWER_LIBRARY, so `npm run dev` on the examples shows no badges.
+   */
+  origins?: Record<string, 'mine' | 'example'>;
 }

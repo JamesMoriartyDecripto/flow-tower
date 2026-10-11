@@ -485,6 +485,29 @@ describe('cli copy (#116)', () => {
     expect(r.stderr).toContain('inside');
   });
 
+  it('warns when the dest is inside the flow-tower checkout', { timeout: 20_000 }, () => {
+    // A temp folder inside the checkout: the case the note exists for (#121), never refused.
+    const dest = mkdtempSync(join(resolve('.'), 'tmp-copy-inside-'));
+    try {
+      const r = copy('starters/rag-bot', dest);
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain(`${dest} is inside the flow-tower checkout`);
+      expect(r.stdout).toContain('flow-tower library add <path>');
+    } finally {
+      rmSync(dest, { recursive: true, force: true });
+    }
+  });
+
+  it('points at the library next step for a dest outside the checkout', { timeout: 20_000 }, () => {
+    const dest = join(out, 'library-hint');
+    const r = copy('starters/rag-bot', dest);
+    expect(r.status).toBe(0);
+    // The hint is a step, so it sits in the block, not between `copied …` and `validation: …` (#121).
+    const steps = r.stdout.slice(r.stdout.indexOf('next steps'));
+    expect(steps).toContain(`  add it:      flow-tower library add ${dest}\n`);
+    expect(steps.split('\n')[1]).toContain('flow-tower library add');
+  });
+
   it('warns that a root: ../.. example points at the flow-tower repo', () => {
     const r = copy('docs-qa', join(out, 'docs-qa'));
     expect(r.status).toBe(0);
@@ -536,7 +559,7 @@ describe('cli install-skill', () => {
     expect(costsMd).toContain(`](${resolve('docs/realtime.md')})`);
     expect(readFileSync(join(costs, 'reference.md'), 'utf8')).not.toContain('](../../');
 
-    for (const name of ['flow-tower-use-example', 'flow-tower-contribute']) {
+    for (const name of ['flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library']) {
       const md = readFileSync(join(cwd, dir, name, 'SKILL.md'), 'utf8');
       expect(md).not.toContain('{{FLOW_TOWER_CLI}}');
       expect(md).not.toContain('](../../');
