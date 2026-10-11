@@ -22,11 +22,14 @@ Press **V** or the **MIC** button (top bar or library header) and say where to g
 | "apri il suo file", "apri il file 2" | "open its file", "open the second file" | Open file N of the selected node (1 = first) |
 | "il prossimo", "il precedente" | "next", "previous" | Move one step through what you are on: the viewer's files, the last list shown, or the layer's nodes |
 | "file successivo", "file precedente" | "next file", "previous file" | Move one step through the open viewer's files only |
+| "scorri giù", "scorri su", "vai in fondo", "vai all'inizio" | "scroll down", "scroll up", "go to the bottom", "go to the top" | Page the file open in the viewer, or jump to its top or bottom |
+| "apri l'hub", "mostra le macchine", "chiudi l'hub" | "open the hub", "show the machines", "close the hub" | Open the Hub panel (Now or Machines), or close it |
+| "mostra solo gli agenti", "mostra tutto" | "show only agents", "show everything" | Show only the named node types (Italian: agente, strumento, modello, decisione, umano, guardia, hook, ingresso, uscita, memoria, processo; English: agent, tool, model, decision, human, guard, hook, entry, output, memory, process), or every type again |
 | "spegni il microfono" | "stop listening" | Microphone off |
 
 A name alone works too ("triage"). Names come from what is on screen: projects, layers, nodes and agents. They match loosely, so a misheard word still finds its target. When a name fits several things, the caption numbers them: say "il primo" or "two" to pick. "Entra" / "enter" opens the selected node's sub-tower, "chiudi" / "close" closes the panel. Listening stops by itself after 2 minutes without a command.
 
-"apri il suo file" / "open its file", "il prossimo" / "next", "il precedente" / "previous" and "file successivo" / "next file" are whole fixed phrases: they are handled by the local parser even when the voice agent is on, so "chiudi il file" closes the viewer and "il prossimo" steps through files, lists or layer nodes without a model call.
+"apri il suo file" / "open its file", "il prossimo" / "next", "il precedente" / "previous", "file successivo" / "next file", the scroll, hub and "mostra solo …" / "show only …" phrases are whole fixed phrases: they are handled by the local parser even when the voice agent is on, so "chiudi il file" closes the viewer, "il prossimo" steps through files, lists or layer nodes, and "mostra solo gli agenti" filters without a model call.
 
 **Noise.** The microphone tells a voice from a fan by the shape of the sound, not only its loudness, after measuring the room in its first 0.7 s. If a laptop fan still starts clips by itself, set **Settings → Voice → Microphone sensitivity** to Low and speak a little louder; High suits quiet rooms and soft voices. A transcript that is only "Grazie." or "Thank you." is what the recognizer writes for noise, so it is ignored.
 
@@ -48,7 +51,13 @@ Questions, and anything the commands above do not cover, go to a voice agent tha
 | "how many MCP servers are there?" | the count and names, highlighted on screen |
 | "what does the fresh verifier do?" | its role, model and tools |
 
-The agent reads the tower on screen through a dozen tools (layers, nodes, connections, files, search) and acts with the same commands as the keyboard, so its answers come from the tower, not from guesses. It keeps the last few exchanges, so "this node" and "the first one" work.
+The agent reads the tower on screen through its tools (layers, nodes, connections, files, search) and acts with the same commands as the keyboard, so its answers come from the tower, not from guesses. It keeps the last few exchanges, so "this node" and "the first one" work. Five tools go with the commands in the table above:
+
+- `scroll_file` — page the file open in the viewer, or jump to its top or bottom.
+- `hub_panel` — open the Hub panel (Now or Machines), or close it.
+- `filter_nodes` — show only the node types you name.
+- `library_filter` — open the project library and filter it by words or tag.
+- `compare_nodes` — two nodes side by side: the fields they share, and the tools only one has.
 
 **Interrupting.** While it answers, and for 0.7 s after, the microphone ignores what it hears, so laptop speakers cannot make the agent answer itself. If you speak in that moment just after a reply, the caption says once "Wait a moment after the reply, or press Esc to interrupt it." Stop a reply with **Esc** (the microphone stays on), **V** or **✕** (both turn it off). Esc while the reply is still being written silences the rest of it and stops its tool calls too (the caption says "Stopped"). With headphones, turn on **Settings → Voice → Interrupt by voice**: three words or "stop" then cut the reply short while it is heard; before its first sentence plays, what you say is a normal command.
 

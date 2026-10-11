@@ -125,3 +125,7 @@ passes when the answer contains it (case-insensitive), and `a / b` means either 
 ## Q30. How do I open the selected node's file and then the next one by voice?
 - docs: docs/voice.md
 - facts: apri il suo file | file successivo | il prossimo
+
+## Q31. How do I show only the agent nodes by voice, and then everything again?
+- docs: docs/voice.md
+- facts: mostra solo gli agenti | mostra tutto

@@ -1,55 +1,12 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ResolvedTower, Workspace } from '../../core/types';
+import type { ResolvedTower } from '../../core/types';
+import { LIBRARY_FILTER_EVENT, projectMatches, projectStats, type LibraryFilter, type Stats } from '../library';
 import { formatUsage, subtreeState, useLive, usageOf, type LiveState } from '../live';
 import { useDescendants } from '../liveHooks';
 import { chooseView } from '../settings';
 import { useStore } from '../store';
 import { RUNTIME_ICON } from '../theme';
 import { MicButton } from './Voice';
-
-interface Stats {
-  layers: number;
-  nodes: number;
-  agents: number;
-  links: number;
-  subTowers: number;
-  depth: number;
-  models: string[];
-  runtimes: [string, number][];
-  errors: number;
-  warnings: number;
-  updatedAt?: string;
-}
-
-/** Aggregates a project and every tower nested below it. */
-export function projectStats(ws: Workspace, id: string): Stats {
-  const s: Stats = { layers: 0, nodes: 0, agents: 0, links: 0, subTowers: 0, depth: 0, models: [], runtimes: [], errors: 0, warnings: 0 };
-  const models = new Set<string>();
-  const kinds = new Map<string, Set<string>>();
-  const seen = new Set<string>();
-  const visit = (tid: string, depth: number) => {
-    const t = ws.towers[tid];
-    if (!t || seen.has(tid)) return;
-    seen.add(tid);
-    s.depth = Math.max(s.depth, depth);
-    if (depth > 0) s.subTowers++;
-    if (t.updatedAt && (!s.updatedAt || t.updatedAt > s.updatedAt)) s.updatedAt = t.updatedAt;
-    for (const i of t.issues) { if (i.level === 'error') s.errors++; if (i.level === 'warning') s.warnings++; }
-    for (const r of Object.values(t.runtimes)) kinds.set(r.kind, (kinds.get(r.kind) ?? new Set()).add(r.id));
-    s.layers += t.layers.length;
-    s.links += t.links.length + t.layers.reduce((a, l) => a + l.edges.length, 0);
-    for (const l of t.layers) for (const n of l.nodes) {
-      s.nodes++;
-      if (n.type === 'agent') s.agents++;
-      if (n.model) models.add(n.model.replace(/^claude-/, ''));
-      if (n.tower) visit(n.tower, depth + 1);
-    }
-  };
-  visit(id, 0);
-  s.models = [...models].sort();
-  s.runtimes = [...kinds].map(([k, ids]) => [k, ids.size] as [string, number]).sort((a, b) => b[1] - a[1]);
-  return s;
-}
 
 /** "5 min ago", "3 h ago", "2 d ago", or a date. */
 function ago(iso?: string) {
@@ -210,6 +167,18 @@ export function Library() {
   const [sort, setSort] = useState<Sort>(loadSort);
   const grid = useRef<HTMLDivElement>(null);
 
+  // The panel accepts a filter from outside it (#145c): the voice agent's library_filter tool
+  // dispatches this event after opening the library, so the tools set the same state the user would.
+  useEffect(() => {
+    const onFilter = (e: Event) => {
+      const f = (e as CustomEvent<LibraryFilter>).detail ?? {};
+      setFilter(f.query ?? '');
+      setTag(f.tag);
+    };
+    window.addEventListener(LIBRARY_FILTER_EVENT, onFilter);
+    return () => window.removeEventListener(LIBRARY_FILTER_EVENT, onFilter);
+  }, []);
+
   const cards = useMemo(() => (workspace?.projects ?? []).map((id) => ({
     id, tower: workspace!.towers[id], stats: projectStats(workspace!, id), origin: workspace!.origins?.[id],
   })), [workspace]);
@@ -236,10 +205,8 @@ export function Library() {
   }, [openProject]);
   if (!library || !workspace) return null;
 
-  const q = filter.trim().toLowerCase();
   const shown = cards
-    .filter((c) => (!tag || c.tower.tags.includes(tag)) &&
-      (!q || [c.tower.name, c.tower.description, c.id, ...c.tower.tags, ...c.stats.models].some((v) => v?.toLowerCase().includes(q))))
+    .filter((c) => projectMatches(c.tower, c.id, filter, tag, c.stats.models))
     .sort((a, b) => sort === 'name' ? a.tower.name.localeCompare(b.tower.name)
       : sort === 'size' ? b.stats.nodes - a.stats.nodes
       : sort === 'live' ? LIVE_RANK[live[b.id] ?? 'idle'] - LIVE_RANK[live[a.id] ?? 'idle']

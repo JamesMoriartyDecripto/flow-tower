@@ -1,3 +1,4 @@
+import type { NodeType } from '../../core/schema';
 import type { ResolvedTower, Workspace } from '../../core/types';
 
 /**
@@ -5,6 +6,11 @@ import type { ResolvedTower, Workspace } from '../../core/types';
  * names of what is on screen (projects, layers, nodes). Matching is instant and runs offline.
  * Pure, so it is unit-tested (tests/voice-commands.test.ts).
  */
+/** Where a `scroll` command goes: a page step, or an end of the file. */
+export type ScrollTo = 'down' | 'up' | 'top' | 'bottom';
+/** A `hub` command either shows one tab or closes the panel. */
+export type HubTab = 'now' | 'machines' | 'close';
+
 export type VoiceAction =
   | { kind: 'library' }
   | { kind: 'tower'; id: string }
@@ -21,6 +27,12 @@ export type VoiceAction =
   // "il prossimo" / "file successivo": one step forward (dir 1) or back (dir -1), through the file
   // viewer, the last list shown, or the nodes of the focused layer (what 'auto').
   | { kind: 'step'; dir: 1 | -1; what: 'auto' | 'file' }
+  // "scorri giù" / "scroll down": move the open file's viewer; the HUD listens for the event (#145b).
+  | { kind: 'scroll'; to: ScrollTo }
+  // "apri l'hub" / "show the machines": the Hub panel and its tab (#145b).
+  | { kind: 'hub'; tab: HubTab }
+  // "mostra solo gli agenti" / "show only agents": hide every other node type. No `only` shows them all.
+  | { kind: 'types'; only?: NodeType[] }
   | { kind: 'mic-off' }
   | { kind: 'ambiguous'; options: { label: string; action: VoiceAction }[] }
   | { kind: 'unknown' };
@@ -34,7 +46,7 @@ export interface VoiceContext { ws: Workspace; tower?: ResolvedTower; library?: 
  * keyword anywhere (`overview`, `view`, `mic-off`) would also fire on real questions like "what does
  * the overview show?", so they keep today's routing to the agent, as do the fuzzy name matches.
  */
-export const FIXED_KINDS = new Set<VoiceAction['kind']>(['close-file', 'close', 'back', 'enter', 'its-file', 'step']);
+export const FIXED_KINDS = new Set<VoiceAction['kind']>(['close-file', 'close', 'back', 'enter', 'its-file', 'step', 'scroll', 'hub', 'types']);
 
 /** The parser matched a whole fixed phrase: a command, so it must not be sent to the agent. */
 export const isFixed = (action: VoiceAction): boolean => FIXED_KINDS.has(action.kind);
@@ -61,6 +73,33 @@ const ORDINALS: Record<string, number> = {
 /** Every number word the parser knows, for the phrases that take one ("apri il file 2", "open the second file"). */
 const NUM = Object.keys(ORDINALS).join('|');
 const NUM_TOKEN = `(?:${NUM}|\\d{1,2})`;
+
+/**
+ * Spoken node-type names, Italian and English, mapped to `NODE_TYPES` (#145c). One table for the whole
+ * feature: the parser reads what follows "mostra solo" / "show only" through it.
+ */
+const TYPE_WORDS: Record<string, NodeType> = {
+  agente: 'agent', agenti: 'agent', agent: 'agent', agents: 'agent',
+  strumento: 'tool', strumenti: 'tool', tool: 'tool', tools: 'tool',
+  modello: 'model', modelli: 'model', model: 'model', models: 'model',
+  decisione: 'decision', decisioni: 'decision', decision: 'decision', decisions: 'decision',
+  umano: 'human', umani: 'human', human: 'human', humans: 'human',
+  guardia: 'guard', guardie: 'guard', guard: 'guard', guards: 'guard',
+  hook: 'hook', hooks: 'hook',
+  ingresso: 'entry', ingressi: 'entry', entry: 'entry', entries: 'entry', input: 'entry', inputs: 'entry',
+  uscita: 'output', uscite: 'output', output: 'output', outputs: 'output',
+  memoria: 'memory', memorie: 'memory', memory: 'memory',
+  processo: 'process', processi: 'process', process: 'process', processes: 'process',
+};
+
+/** The node types named by these words, in the order said; undefined when none of them names a type. */
+function typeWords(words: string[]): NodeType[] | undefined {
+  const only = words.map((w) => TYPE_WORDS[w]).filter((t): t is NodeType => t !== undefined);
+  return only.length ? [...new Set(only)] : undefined;
+}
+
+/** One node type by the word used for it ("agenti", "tools", "le guardie"); undefined when unknown. */
+export const nodeTypeOf = (name: string): NodeType | undefined => TYPE_WORDS[norm(name)];
 
 const has = (words: string[], ...any: string[]) => any.some((w) => words.includes(w));
 /** A command word, forgiving one wrong letter in longer words: Whisper hears "vista matta" for "vista mappa". */
@@ -149,6 +188,25 @@ export function parseCommand(transcript: string, { ws, tower, library }: VoiceCo
   // "progetti" stays exact: one letter from "progetto", which opens a project.
   if (!saysNode && (like(all, 'libreria', 'library') || has(all, 'home', 'progetti', 'projects')) && words.length <= 2) return { kind: 'library' };
   if (phrase(text, /^(indietro|torna indietro|back|go back|esci|su)$/)) return { kind: 'back' };
+  // Scroll commands (#145b). Anchored whole-utterance, and after the `back` check: "su" alone stays
+  // `back`, while "scorri su" / "su di poco" are scrolls. "giù" alone is the down page step.
+  if (phrase(text, /^(scorri (in )?giu|giu|scroll down|page down)$/)) return { kind: 'scroll', to: 'down' };
+  if (phrase(text, /^(scorri (in )?su|su di poco|scroll up|page up)$/)) return { kind: 'scroll', to: 'up' };
+  if (phrase(text, /^(vai in fondo|fine del file|go to the bottom)$/)) return { kind: 'scroll', to: 'bottom' };
+  if (phrase(text, /^(vai all inizio|inizio del file|go to the top)$/)) return { kind: 'scroll', to: 'top' };
+  // Hub panel commands (#145b). norm drops the apostrophe, so "l'hub" arrives as "l hub".
+  if (phrase(text, /^(mostra le macchine|le macchine|show the machines)$/)) return { kind: 'hub', tab: 'machines' };
+  if (phrase(text, /^(chiudi l hub|close the hub)$/)) return { kind: 'hub', tab: 'close' };
+  if (phrase(text, /^(apri l hub|pannello hub|hub|mostra l hub|open the hub|hub panel)$/)) return { kind: 'hub', tab: 'now' };
+  // Node-type filter (#145c). Whole-utterance only: "mostra solo gli agenti" is a command, while
+  // "cosa mostra solo per gli agenti?" stays a question for the agent. Everything after the "only"
+  // keyword goes through one table of type words, so prepositions are simply not type names.
+  if (phrase(text, /^(mostra (solo|soltanto)|show (me )?only) (.+)$/)) {
+    const only = typeWords(all);
+    if (only) return { kind: 'types', only };
+  }
+  // Reset: every type back on screen.
+  if (phrase(text, /^(mostra (tutto|tutti( i nodi)?|ogni tipo)|tutti i nodi|show (everything|all( the nodes| nodes| types)?))$/)) return { kind: 'types' };
   if (phrase(text, /\b(panoramica|overview|insieme|tutta la torre|whole tower|tutti i livelli|all layers)\b/)) return { kind: 'overview' };
   if (!saysNode && like(all, 'mappa', 'map')) return { kind: 'view', view: 'map' };
   if (phrase(text, /\b(vista|view|modalita|mode) (torre|tower|3d)\b|\b(torre|tower) (view|3d)\b/)) return { kind: 'view', view: 'tower' };

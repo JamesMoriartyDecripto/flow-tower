@@ -43,6 +43,28 @@ export function FileViewer() {
   const panel = useRef<HTMLDivElement>(null);
   useDialogFocus(panel, !!file, '.files button.on');
 
+  // Voice scroll (#145b): the parser and the agent tool dispatch the event, the viewer scrolls.
+  // Only while a file is open, so with nothing open the action answers "No file open" (actions.ts).
+  useEffect(() => {
+    if (!file || !path) return;
+    const onScroll = (e: Event) => {
+      const code = panel.current?.querySelector<HTMLElement>('.code');
+      if (!code) return;
+      // Reduced motion: jump instead of animating, matching the HUD's prefers-reduced-motion rule.
+      const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const to = (e as CustomEvent<string>).detail;
+      if (to === 'top') code.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' });
+      else if (to === 'bottom') code.scrollTo({ top: code.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+      else {
+        // A page step is 80% of the visible height, so a couple of lines overlap for context.
+        const by = code.clientHeight * 0.8 * (to === 'up' ? -1 : 1);
+        code.scrollBy({ top: by, behavior: smooth ? 'smooth' : 'auto' });
+      }
+    };
+    window.addEventListener('flow-tower:viewer-scroll', onScroll);
+    return () => window.removeEventListener('flow-tower:viewer-scroll', onScroll);
+  }, [file, path]);
+
   if (!file || !path) return null;
   return (
     <div className="overlay" onClick={() => openFile(undefined)}>

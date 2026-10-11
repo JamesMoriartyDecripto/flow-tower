@@ -10,6 +10,8 @@ describe('voice agent tools (#63)', () => {
 
   beforeAll(async () => {
     vi.stubGlobal('location', { search: '' });
+    // The scroll tool and the Hub panel dispatch DOM events: node has no window, so the tests provide one.
+    vi.stubGlobal('window', new EventTarget());
     ({ useStore } = await import('../src/app/store'));
     ({ runTool: run, TOOLS } = await import('../src/app/voice/tools'));
     const { workspace } = await loadLibrary(['examples/dev-squad']);
@@ -47,6 +49,151 @@ describe('voice agent tools (#63)', () => {
 
   it('lists close_file among the tools', () => {
     expect(TOOLS.map((t) => t.function.name)).toContain('close_file');
+  });
+
+  it('lists the scroll_file and hub_panel tools (#145b)', () => {
+    const names = TOOLS.map((t) => t.function.name);
+    expect(names).toContain('scroll_file');
+    expect(names).toContain('hub_panel');
+  });
+
+  it('lists compare_nodes among the tools (#145d)', () => {
+    expect(TOOLS.map((t) => t.function.name)).toContain('compare_nodes');
+  });
+
+  it('compares two nodes side by side (#145d)', () => {
+    useStore.getState().openFile(undefined);
+    useStore.getState().showLibrary(false);
+    useStore.getState().select(undefined);
+    const r = call('compare_nodes', { a: 'lead', b: 'coder' });
+    expect(r.a).toMatchObject({ label: 'Lead orchestrator', type: 'agent', layer: 'Orchestration', model: 'claude-opus-5-5', runtime: 'Squad container (container)' });
+    expect(r.b).toMatchObject({ label: 'coder', type: 'agent', layer: 'Specialist Agents', model: 'deepseek/deepseek-v4.1-flash', runtime: 'Squad container (container)' });
+    expect(r.a.files).toBe(3);
+    expect(r.b.files).toBe(3);
+    expect(r.a).toMatchObject({ incoming: 3, outgoing: 6 });
+    expect(r.b).toMatchObject({ incoming: 5, outgoing: 3 });
+    // Same fields are named, the differing ones are not.
+    expect(r.same).toEqual(expect.arrayContaining(['type', 'runtime']));
+    expect(r.same).not.toContain('label');
+    expect(r.same).not.toContain('layer');
+    expect(r.same).not.toContain('incoming');
+    // Tools one has and the other has not, in both directions; Read/Grep/Glob are shared, so neither.
+    expect(r.only_a).toEqual(expect.arrayContaining(['Agent', 'TodoWrite', 'mcp__squad__request_approval']));
+    expect(r.only_b).toEqual(expect.arrayContaining(['Edit', 'Write', 'Bash', 'mcp__squad__run_tests']));
+    expect(r.only_a).not.toContain('Read');
+    expect(r.only_b).not.toContain('Grep');
+    // A read tool: the view is untouched.
+    expect(useStore.getState().file).toBeUndefined();
+    expect(useStore.getState().library).toBe(false);
+    expect(useStore.getState().selected).toBeUndefined();
+  });
+
+  it('reports a node compared with itself as fully equal (#145d)', () => {
+    const r = call('compare_nodes', { a: 'triage', b: 'triage router' });
+    expect(r.a).toEqual(r.b);
+    expect(r.only_a).toEqual([]);
+    expect(r.only_b).toEqual([]);
+    expect(r.same).toEqual(expect.arrayContaining(['label', 'type', 'layer', 'tools', 'incoming', 'outgoing']));
+  });
+
+  it('names the node it cannot resolve (#145d)', () => {
+    // The first node resolves; the error names the second, unresolved one.
+    const r = call('compare_nodes', { a: 'triage', b: 'pizza' });
+    expect(r.error).toMatch(/pizza/);
+    expect(r.error).not.toMatch(/triage/);
+    const both = call('compare_nodes', { a: 'pizza', b: 'triage' });
+    expect(both.error).toMatch(/pizza/);
+  });
+
+  it('lists the filter_nodes and library_filter tools (#145c)', () => {
+    const names = TOOLS.map((t) => t.function.name);
+    expect(names).toContain('filter_nodes');
+    expect(names).toContain('library_filter');
+  });
+
+  it('shows only some node types, and resets with an empty list (#145c)', () => {
+    expect(call('filter_nodes', { types: ['agent', 'tool'] })).toEqual({ showing: ['agent', 'tool'] });
+    expect([...useStore.getState().hiddenTypes].sort()).toEqual(
+      ['decision', 'entry', 'guard', 'hook', 'human', 'memory', 'model', 'output', 'process']);
+    expect(call('filter_nodes', { types: [] })).toEqual({ showing: 'every type' });
+    expect(useStore.getState().hiddenTypes.size).toBe(0);
+    // Absent list behaves like an empty one: everything back.
+    expect(call('filter_nodes', { types: ['model'] })).toEqual({ showing: ['model'] });
+    expect(call('filter_nodes')).toEqual({ showing: 'every type' });
+    // Type names are the same words the parser knows, in both languages.
+    expect(call('filter_nodes', { types: ['agenti'] })).toEqual({ showing: ['agent'] });
+    // An invented type is refused, listing what is valid instead of showing nothing.
+    // A refusal leaves the state alone: the set from the previous call is untouched.
+    const before = [...useStore.getState().hiddenTypes].sort();
+    const bad = call('filter_nodes', { types: ['pizza'] });
+    expect(bad.error).toMatch(/pizza/);
+    expect(bad.types).toContain('agent');
+    expect([...useStore.getState().hiddenTypes].sort()).toEqual(before);
+  });
+
+  it('opens the library and filters it (#145c)', () => {
+    const seen: unknown[] = [];
+    window.addEventListener('flow-tower:library-filter', (e) => seen.push((e as CustomEvent<unknown>).detail));
+    // The count is the one on screen: a query matching the project name finds it.
+    expect(call('library_filter', { query: 'dev squad' })).toMatchObject({ projects: 1, query: 'dev squad' });
+    expect(useStore.getState().library).toBe(true);
+    // A query matching nothing is honest about it.
+    expect(call('library_filter', { query: 'nothing here' }).projects).toBe(0);
+    // The event carries both fields, so the panel sets the box and the tag together.
+    expect(call('library_filter', { query: 'x', tag: 'coding' }).tag).toBe('coding');
+    return new Promise<void>((done) => setTimeout(() => {
+      expect(seen).toEqual([{ query: 'dev squad' }, { query: 'nothing here' }, { query: 'x', tag: 'coding' }]);
+      done();
+    }, 20));
+  });
+
+  it('never mutates the hidden set in place (#145c)', () => {
+    useStore.getState().showOnlyTypes(['agent']);
+    const first = useStore.getState().hiddenTypes;
+    useStore.getState().showOnlyTypes(['tool']);
+    const second = useStore.getState().hiddenTypes;
+    expect(second).not.toBe(first);
+    expect(first.has('tool')).toBe(true); // the earlier set is untouched
+    useStore.getState().showOnlyTypes(undefined);
+    expect(useStore.getState().hiddenTypes.size).toBe(0);
+    expect(second.size).toBeGreaterThan(0); // replacing did not clear the old one either
+  });
+
+  it('filters through the same rule the panel uses (#145c)', async () => {
+    const { matchingProjects } = await import('../src/app/library');
+    const ws = useStore.getState().workspace!;
+    expect(matchingProjects(ws, {})).toEqual(ws.projects);
+    expect(matchingProjects(ws, { tag: 'pizza' })).toEqual([]);
+    expect(matchingProjects(ws, { tag: 'coding' })).toEqual(ws.projects);
+  });
+
+  it('scrolls the open file by dispatching the viewer event (#145b)', () => {
+    const seen: string[] = [];
+    window.addEventListener('flow-tower:viewer-scroll', (e) => seen.push((e as CustomEvent<string>).detail));
+    // No file open: the tool says so and dispatches nothing.
+    useStore.getState().openFile(undefined);
+    expect(call('scroll_file', { to: 'down' }).error).toMatch(/No file is open/);
+    expect(seen).toEqual([]);
+    useStore.getState().openFile({ tower: 'dev-squad/dev-squad.tower.yaml', files: ['a.ts'], index: 0 });
+    expect(call('scroll_file', { to: 'bottom' })).toEqual({ scrolled: 'bottom' });
+    expect(seen).toEqual(['bottom']);
+    expect(call('scroll_file', { to: 'sideways' }).error).toMatch(/sideways/);
+    expect(seen).toEqual(['bottom']);
+    useStore.getState().openFile(undefined);
+  });
+
+  it('drives the Hub panel store (#145b)', async () => {
+    const { useHub } = await import('../src/app/hud/Hub');
+    useHub.getState().setMe({ hub: true, readOnly: false, online: 1, tokens: 2 });
+    expect(call('hub_panel', { tab: 'machines' })).toEqual({ shown: 'machines' });
+    expect(useHub.getState()).toMatchObject({ open: true, tab: 'machines' });
+    expect(call('hub_panel', { tab: 'close' })).toEqual({ closed: true });
+    expect(useHub.getState().open).toBe(false);
+    // Not on a hub: opening is refused, closing is not.
+    useHub.getState().setMe({ hub: false, readOnly: false, online: 0, tokens: 0 });
+    expect(call('hub_panel', { tab: 'now' }).error).toMatch(/not on a hub/);
+    expect(useHub.getState().open).toBe(false);
+    expect(call('hub_panel', { tab: 'close' })).toEqual({ closed: true });
   });
 
   it('searches the whole tower', () => {

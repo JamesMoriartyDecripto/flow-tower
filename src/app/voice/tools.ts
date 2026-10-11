@@ -1,11 +1,15 @@
-import type { ResolvedNode, ResolvedTower, Workspace } from '../../core/types';
+import { NODE_TYPES } from '../../core/schema';
+import type { ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from '../../core/types';
 import { fetchFile } from '../api';
 import { allEdges, towerPath } from '../graph';
 import { flowOrder } from '../keynav';
+import { LIBRARY_FILTER_EVENT, matchingProjects, type LibraryFilter } from '../library';
 import { opsMarks } from '../ops';
 import { chooseView } from '../settings';
 import { findNode, useStore } from '../store';
-import { norm, score } from './commands';
+import { useHub } from '../hud/Hub';
+import { SCROLL_EVENT } from './actions';
+import { norm, nodeTypeOf, score } from './commands';
 import { currentList, setList } from './referents';
 
 /**
@@ -33,12 +37,17 @@ export const TOOLS: ToolDef[] = [
   tool('search', 'Find nodes anywhere in the tower on screen by words in their label, type, description or tools ("MCP", "human approval", "database"), best matches first, and highlight them on screen. For questions about the whole tower.', { query: str('Words to look for.') }, ['query']),
   tool('node_info', 'Everything about one node: type, layer, description, agent, model, tools, runtime, operations, status, sub-tower.', { node: NODE }),
   tool('connections', 'Incoming and outgoing edges of a node: the other node, its layer, the edge kind and label.', { node: NODE }),
+  tool('compare_nodes', 'Two nodes side by side, to say what is the same and what differs: label, type, layer, agent, model, runtime, tools, file count and incoming/outgoing edge counts, then "same" (the equal fields) and "only_a"/"only_b" (tools one has and the other has not).', { a: str('First node, named as in node_info.'), b: str('Second node, named as in node_info.') }, ['a', 'b']),
   tool('node_files', 'The files and resources a node references, numbered from 1.', { node: NODE }),
   tool('focus_layer', 'Show one layer on screen.', { layer: LAYER }),
   tool('select_node', 'Select a node: the camera goes to it and its panel opens.', { node: NODE }),
   tool('open_file', 'Open one of a node\'s files in the viewer.', { node: NODE, index: { type: 'integer', description: 'File number from node_files, 1 = first.' } }, ['index']),
   tool('read_file', 'Read a file to explain it: the one open in the viewer, or file number index of a node (it is opened on screen too). Returns its text, cut after about 8000 characters.', { node: NODE, index: { type: 'integer', description: 'File number from node_files, 1 = first. Omit for the file open now.' } }),
   tool('close_file', 'Close the file viewer. The selected node and the view stay as they are.'),
+  tool('scroll_file', 'Scroll the file open in the viewer: down/up one page, or to the top/bottom. Needs a file open.', { to: { type: 'string', enum: ['down', 'up', 'top', 'bottom'] } }, ['to']),
+  tool('hub_panel', 'Open the Hub panel on a tab (now/machines) or close it. Only works on a hub page.', { tab: { type: 'string', enum: ['now', 'machines', 'close'] } }, ['tab']),
+  tool('filter_nodes', `Show only some node types on screen (the legend's type filter). Valid types: ${NODE_TYPES.join(', ')}. An empty or absent list shows every type again.`, { types: { type: 'array', items: { type: 'string' }, description: 'Node types to keep visible; the others are hidden.' } }),
+  tool('library_filter', 'Open the project library and filter it: a text query (name, description, tag or model) and/or a tag. Both are set; an absent one is cleared. Returns how many projects match.', { query: str('Words to match against project name, description, tag or model.'), tag: str('Show only projects carrying this tag.') }),
   tool('open_project', 'Open a project or a sub-tower by name.', { name: str('Project or tower name.') }, ['name']),
   tool('navigate', 'Move the view. back = like Esc: closes the open file first, else deselects the node, else leaves the layer, else goes up one tower, else opens the library.', { to: { type: 'string', enum: ['library', 'overview', 'back', 'map', 'tower', 'enter_sub_tower'] } }, ['to']),
 ];
@@ -81,6 +90,17 @@ function nodeOf(ws: Workspace, tower: ResolvedTower | undefined, ref: unknown): 
 
 const brief = (text?: string, max = 140) => (text && text.length > max ? `${text.slice(0, max - 1)}…` : text);
 const layerTitle = (t: ResolvedTower, key: string) => t.layers.find((l) => l.nodes.some((n) => n.key === key))?.title;
+
+/** The comparable face of a node: what compare_nodes puts side by side, per node. */
+function faceOf(t: ResolvedTower, n: ResolvedNode, edges: ResolvedEdge[]) {
+  return {
+    label: n.label, type: n.type, layer: layerTitle(t, n.key), agent: n.agent?.name, model: n.model,
+    runtime: n.runtime && `${n.runtime.label ?? n.runtime.id} (${n.runtime.kind})`,
+    tools: n.tools, files: n.files.length,
+    incoming: edges.filter((e) => e.to === n.key).length,
+    outgoing: edges.filter((e) => e.from === n.key).length,
+  };
+}
 
 function show(t: ResolvedTower, key: string) {
   const { s, ws, tower } = view();
@@ -161,6 +181,28 @@ export function runTool(name: string, args: Args): string {
         sub_tower: n.tower ? ws.towers[n.tower]?.name : undefined,
       });
     }
+    case 'compare_nodes': {
+      const a = nodeOf(ws, tower, args.a);
+      if (!a) return out({ error: `No node "${args.a ?? ''}". Use layer_nodes to find it.` });
+      const b = nodeOf(ws, tower, args.b);
+      if (!b) return out({ error: `No node "${args.b ?? ''}". Use layer_nodes to find it.` });
+      // Both nodes usually live in the same tower, so one edge scan covers the pair.
+      const edges = allEdges(a.t);
+      const fa = faceOf(a.t, a.n, edges);
+      const fb = faceOf(b.t, b.n, b.t === a.t ? edges : allEdges(b.t));
+      const setA = new Set(fa.tools);
+      const setB = new Set(fb.tools);
+      // Tools compare as sets, so an order difference is not reported as a difference.
+      const equal = (k: keyof typeof fa) => k === 'tools'
+        ? fa.tools.length === fb.tools.length && fa.tools.every((t) => setB.has(t))
+        : fa[k] === fb[k];
+      const fields = Object.keys(fa) as (keyof typeof fa)[];
+      return out({
+        a: fa, b: fb, same: fields.filter(equal),
+        only_a: fa.tools.filter((t) => !setB.has(t)),
+        only_b: fb.tools.filter((t) => !setA.has(t)),
+      });
+    }
     case 'connections': {
       const hit = nodeOf(ws, tower, args.node);
       if (!hit) return out({ error: 'No such node; nothing is selected either.' });
@@ -215,6 +257,23 @@ export function runTool(name: string, args: Args): string {
       s.openFile(undefined);
       return out({ closed });
     }
+    case 'scroll_file': {
+      const to = String(args.to);
+      if (!['down', 'up', 'top', 'bottom'].includes(to)) return out({ error: `Unknown scroll target "${to}".` });
+      if (!s.file) return out({ error: 'No file is open. Open one with open_file first.' });
+      // Same event the parser's scroll action sends (#145b): the viewer does the scrolling.
+      window.dispatchEvent(new CustomEvent(SCROLL_EVENT, { detail: to }));
+      return out({ scrolled: to });
+    }
+    case 'hub_panel': {
+      const tab = String(args.tab);
+      if (!['now', 'machines', 'close'].includes(tab)) return out({ error: `Unknown hub tab "${tab}".` });
+      const hub = useHub.getState();
+      if (tab === 'close') { hub.close(); return out({ closed: true }); }
+      if (hub.me?.hub === false) return out({ error: 'This page is not on a hub.' });
+      hub.show(tab as 'now' | 'machines');
+      return out({ shown: tab });
+    }
     case 'open_project': {
       const words = norm(String(args.name ?? '')).split(' ').filter(Boolean);
       const best = Object.values(ws.towers).map((t) => ({ t, s: score(words, t.name) })).sort((a, b) => b.s - a.s)[0];
@@ -222,6 +281,26 @@ export function runTool(name: string, args: Args): string {
       if (!path) return out({ error: `No project "${args.name}".`, projects: ws.projects.map((id) => ws.towers[id].name) });
       s.openPath(path);
       return out({ opened: best.t.name });
+    }
+    case 'filter_nodes': {
+      const asked = (Array.isArray(args.types) ? args.types : []).map((t) => String(t).trim()).filter(Boolean);
+      const only = asked.map((name) => nodeTypeOf(name));
+      // A type the model invented would silently show nothing: refuse and list what is valid.
+      const unknown = asked.filter((_, i) => only[i] === undefined);
+      if (unknown.length) return out({ error: `Unknown node type(s): ${unknown.join(', ')}.`, types: NODE_TYPES });
+      const types = only.filter((t) => t !== undefined);
+      useStore.getState().showOnlyTypes(types.length ? types : undefined);
+      return out({ showing: types.length ? types : 'every type' });
+    }
+    case 'library_filter': {
+      const filter: LibraryFilter = { ...(args.query !== undefined && { query: String(args.query) }), ...(args.tag !== undefined && { tag: String(args.tag) }) };
+      const count = matchingProjects(ws, filter).length;
+      s.showLibrary(true);
+      // If the Library is mounting now (it was closed), it attaches its listener on the next frame:
+      // dispatching later is what makes the tool's filter the panel's own state (#145c).
+      const frame: (fn: () => void) => unknown = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
+      frame(() => window.dispatchEvent(new CustomEvent<LibraryFilter>(LIBRARY_FILTER_EVENT, { detail: filter })));
+      return out({ projects: count, query: filter.query, tag: filter.tag });
     }
     case 'navigate': {
       switch (args.to) {
