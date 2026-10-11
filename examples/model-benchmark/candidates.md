@@ -10,16 +10,19 @@ How the shortlist per category is built. Prices and capabilities come from OpenR
 4. **Price band.** The cost of a run, not the price per token: a cheap model that takes 3x the steps costs more.
 5. **Families.** At least one candidate from another provider family than the current default, and than the reviewer of its output (a reviewer from the coder's family shares its blind spots).
 
-## Starting shortlist
+## Shortlist used on 2026-10-11
 
-From the field results in `skills/flow-tower-costs/reference.md` (2026-10-10, one run each: illustrative), the models already seen in each role:
+The same 8 models, 7 families, in all five categories run (intent, doc-writer, coder, reviewer, security). Results: [results/2026-10-11.md](results/2026-10-11.md).
 
-| Category | Seen so far | Add before running |
-|---|---|---|
-| voice / chat agent | gemini-3.5-flash-lite, claude-haiku-5.5, gemini-3.1-flash-lite, mercury-2.5, gpt-6-luna (qwen3.8-flash: no endpoint) | none needed: 5 measured; rerun with n ≥ 3 |
-| coder | deepseek-v4-pro, deepseek-v4.1-flash | 3 more with tools, from 3 families |
-| reviewer | glm-5.3 (timed out), glm-5.3-flashx | 3 more, none from the coder's family |
-| security | deepseek-v4.1-flash | 4 more |
-| intent, doc-writer, others | none | 5 from `models.mjs` |
+| Model | Why it was in |
+|---|---|
+| `deepseek/deepseek-v4.1-flash` | squad coder and security default before this run (#70) |
+| `deepseek/deepseek-v4-pro` | #70's first coder: the stronger tier of the same family |
+| `z-ai/glm-5.3-flashx` | squad reviewer default (glm-5.3 timed out in #70) |
+| `google/gemini-3.5-flash-lite` | voice agent default: fastest first sentence on 2026-10-10 |
+| `anthropic/claude-haiku-5.5` | second in the voice test; Anthropic family |
+| `openai/gpt-6-luna` | voice test; OpenAI family, low price |
+| `inception/mercury-2.5` | lowest token price in the voice test; Inception family |
+| `qwen/qwen3.7-flash` | Alibaba family (qwen3.8-flash had no endpoint under the data policy in #70) |
 
 Use the exact ids `models.mjs` prints (`vendor/model`) on the day of the run: ids and prices change, and the date goes in the results.
