@@ -129,12 +129,19 @@ interface CardProps {
   live: LiveState;
   current: boolean;
   view: 'tower' | 'map';
+  /** Where the tower file came from (#121c); undefined when the server did not tag it. */
+  origin?: 'mine' | 'example';
   /** Tokens and cost reported live for the project and its sub-towers, already formatted (keeps memo cheap). */
   usage?: string;
   onOpen(id: string, view?: 'tower' | 'map'): void;
 }
 
-const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, usage, onOpen }: CardProps) {
+const ORIGIN_TITLE = {
+  mine: 'Your own tower (your library)',
+  example: 'Shipped example (read-only reference; copy it before editing)',
+} as const;
+
+const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, origin, usage, onOpen }: CardProps) {
   const open = (v?: 'tower' | 'map') => (e: { stopPropagation(): void }) => { e.stopPropagation(); onOpen(id, v); };
   return (
     // A plain container (clickable anywhere) with one primary button: a card that is itself a button
@@ -148,6 +155,7 @@ const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current,
           </button>
           {live !== 'idle' && <span className={`live-dot ${live}`} title={`Live: ${LIVE_LABEL[live]}`} />}
           {current && <span className="chip lib-current">open</span>}
+          {origin && <span className={`chip lib-origin ${origin}`} title={ORIGIN_TITLE[origin]}>{origin === 'mine' ? 'MINE' : 'EXAMPLE'}</span>}
         </h3>
         {/* Focusable so keyboard users can scroll a long description (↑ ↓ while it has the focus). */}
         <p className="dim lib-desc" tabIndex={0} aria-label={`About ${tower.name}`}>{tower.description ?? id}</p>
@@ -203,7 +211,7 @@ export function Library() {
   const grid = useRef<HTMLDivElement>(null);
 
   const cards = useMemo(() => (workspace?.projects ?? []).map((id) => ({
-    id, tower: workspace!.towers[id], stats: projectStats(workspace!, id),
+    id, tower: workspace!.towers[id], stats: projectStats(workspace!, id), origin: workspace!.origins?.[id],
   })), [workspace]);
   // Most shared tags first: with many projects the full list is a wall of chips, so show the top ones
   // and expand on demand. The filter box matches every tag anyway.
@@ -287,8 +295,8 @@ export function Library() {
         </div>
       )}
       <div className="lib-grid" ref={grid}>
-        {shown.map(({ id, tower, stats }) => (
-          <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} usage={usage[id]} onOpen={onOpen} />
+        {shown.map(({ id, tower, stats, origin }) => (
+          <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} origin={origin} usage={usage[id]} onOpen={onOpen} />
         ))}
         {shown.length === 0 && <p className="mono dim">No project matches. Clear the filter or the tag.</p>}
       </div>
