@@ -120,7 +120,7 @@ async function inside(project: string, root: string, path: string): Promise<stri
   return !real || safeJoin(await realpath(project), real) ? abs : undefined;
 }
 
-function commonDir(files: string[]): string {
+export function commonDir(files: string[]): string {
   let base = dirname(files[0]);
   while (!files.every((f) => f.startsWith(base + sep)) && dirname(base) !== base) base = dirname(base);
   return base;
@@ -183,7 +183,7 @@ export async function loadLibrary(entries: string[]): Promise<LoadResult> {
 
 export const loadWorkspace = (file: string) => loadLibrary([file]);
 
-const toId = (base: string, file: string) => relative(base, file).split(sep).join('/');
+export const toId = (base: string, file: string) => relative(base, file).split(sep).join('/');
 
 /** Rewrites a `tower:` path (relative to root) into the tower id used by the client. */
 function patchTowerRef(tower: ResolvedTower, ref: string, id: string) {

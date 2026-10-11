@@ -20,6 +20,9 @@ const USAGE = 'usage: flow-tower library add <path>... | list | remove <path>';
 /** How deep a folder is searched for a tower: the folder itself is level 0, its own files level 1. */
 const SCAN_DEPTH = 3;
 
+/** Case-insensitive, like the loader's own scan: a file saved as `X.TOWER.YAML` is still a tower. */
+const TOWER_FILE = /\.tower\.yaml$/i;
+
 export interface CheckOptions {
   /** The flow-tower checkout: a path under its examples/ must be copied out, the rest may be committed by mistake. */
   checkout: string;
@@ -38,7 +41,7 @@ function hasTower(dir: string, levels: number): boolean {
   try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return false; } // unreadable: nothing to offer
   for (const e of entries) {
     if (e.name === 'node_modules' || e.name === '.git') continue;
-    if (e.isFile() && e.name.endsWith('.tower.yaml')) return true;
+    if (e.isFile() && TOWER_FILE.test(e.name)) return true;
     if (e.isDirectory() && levels > 0 && hasTower(join(dir, e.name), levels - 1)) return true;
   }
   return false;
@@ -61,7 +64,7 @@ export function checkPath(abs: string, { checkout, home }: CheckOptions): CheckR
 
   const stat = statSync(real);
   if (stat.isFile()) {
-    if (!real.endsWith('.tower.yaml')) return { ok: false, reason: `${abs} is not a *.tower.yaml file: point at the tower file or at a folder that holds one` };
+    if (!TOWER_FILE.test(real)) return { ok: false, reason: `${abs} is not a *.tower.yaml file: point at the tower file or at a folder that holds one` };
   } else if (stat.isDirectory()) {
     if (!hasTower(real, SCAN_DEPTH)) return { ok: false, reason: `${abs} holds no *.tower.yaml in its first ${SCAN_DEPTH} levels: point at the tower file or at a folder that holds one` };
   } else {

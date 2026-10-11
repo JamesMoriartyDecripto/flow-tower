@@ -4,8 +4,8 @@
  * workspace's `origins` only in library mode; `npm run dev` on the examples leaves it undefined and shows
  * no badge. Kept out of plugin.ts so the wiring there stays one line.
  */
-import { dirname, join, relative, sep } from 'node:path';
-import { findTowerFiles } from '../core/loader.ts';
+import { join } from 'node:path';
+import { commonDir, findTowerFiles, toId } from '../core/loader.ts';
 import { realOrSelf, within } from '../core/secrets.ts';
 
 export type Origin = 'mine' | 'example';
@@ -37,19 +37,10 @@ export function classifyOrigin(file: string, { checkout, mine }: OriginOptions):
   return undefined;
 }
 
-/** The loader's id scheme, mirrored: `relative(base, file)` with '/' separators (see src/core/loader.ts). */
-const toId = (base: string, file: string) => relative(base, file).split(sep).join('/');
-
-/** The common directory of every tower file: the base the loader derives its ids against. */
-function commonDir(files: string[]): string {
-  let base = dirname(files[0]);
-  while (!files.every((f) => f.startsWith(base + sep)) && dirname(base) !== base) base = dirname(base);
-  return base;
-}
-
 /**
- * The origins of the projects a serve will load. `findTowerFiles` and `commonDir` are the loader's own
- * inputs, so the ids here match `workspace.projects`; `projects` is passed in to keep nested towers out.
+ * The origins of the projects a serve will load. `findTowerFiles`, `commonDir` and `toId` are the loader's
+ * own: the ids must match `workspace.projects`, so they are not re-derived here; `projects` is passed in to
+ * keep nested towers out.
  */
 export function libraryOrigins(entries: string[], projects: string[], opts: OriginOptions): Record<string, Origin> {
   const files = findTowerFiles(entries);

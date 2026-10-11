@@ -115,6 +115,13 @@ describe('checkPath (#121)', () => {
     if (!r.ok) expect(r.reason).toContain('does not exist');
   });
 
+  it('accepts the tower suffix in any case, like the loader', () => {
+    const project = folder('shouty');
+    writeFileSync(join(project, 'APP.TOWER.YAML'), tower('App'));
+    expect(check(join(project, 'APP.TOWER.YAML'))).toEqual({ ok: true });
+    expect(check(project)).toEqual({ ok: true });
+  });
+
   it('refuses a file that is not a *.tower.yaml', () => {
     const project = folder('not-a-tower');
     writeFileSync(join(project, 'notes.md'), 'hi');
