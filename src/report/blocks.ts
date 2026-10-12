@@ -5,7 +5,7 @@
  */
 
 import { esc } from './escape.ts';
-import { SEVERITIES, type Block, type Finding, type StatusItem } from './model.ts';
+import { SEVERITIES, type BarItem, type Block, type Finding, type StatusItem } from './model.ts';
 
 const DEFAULT_FILL = '#c2410c';
 /*
@@ -74,9 +74,26 @@ function renderText(
 
 function renderFacts(rows: readonly [string, string | number][]): string {
   const body = rows
-    .map(([label, value]) => `<tr><th>${esc(label)}</th><td>${esc(value)}</td></tr>`)
+    .map(([label, value]) => `<tr><th>${esc(label)}</th>${tdOpen(value)}${tableCell(label, value)}</td></tr>`)
     .join('');
   return `<table class="rs-table rs-facts"><tbody>${body}</tbody></table>`;
+}
+
+/*
+ * Short values (an id, a date, a time, a number) must not break over two lines in a narrow column, so their cell
+ * is marked nowrap. The value decides, not the column, so the rule holds in every table and fact row.
+ */
+const SHORT_VALUE = /^(?:[A-Z]{1,3}-\d+|\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?(?: UTC|Z)?)?|\d{2}:\d{2}(?::\d{2})?(?: UTC)?|-?\d[\d,.]*%?)$/;
+
+export function isShortValue(cell: string | number): boolean {
+  return typeof cell === 'number' || SHORT_VALUE.test(cell.trim());
+}
+
+/** The opening `<td>` for a cell: numbers are right-aligned, and short values never wrap. */
+function tdOpen(cell: string | number): string {
+  const classes = [typeof cell === 'number' ? 'rs-cell-num' : '', isShortValue(cell) ? 'rs-nowrap' : '']
+    .filter((c) => c !== '');
+  return classes.length > 0 ? `<td class="${classes.join(' ')}">` : '<td>';
 }
 
 function renderTable(
@@ -88,10 +105,7 @@ function renderTable(
   const body = rows
     .map((row) => {
       const cells = row
-        .map((cell, i) => {
-          const cls = typeof cell === 'number' ? ' class="rs-cell-num"' : '';
-          return `<td${cls}>${tableCell(columns[i] ?? '', cell)}</td>`;
-        })
+        .map((cell, i) => `${tdOpen(cell)}${tableCell(columns[i] ?? '', cell)}</td>`)
         .join('');
       return `<tr>${cells}</tr>`;
     })
@@ -102,7 +116,8 @@ function renderTable(
 
 /*
  * A cell in a column named Severity, RAG or Status shows the same chip as the cards when its value is a
- * severity or a RAG colour. The chip is only drawn for a known value, so other text is still plain escaped text.
+ * severity or a RAG colour. A fact row labelled Overall, Status or RAG gets the same chip. The chip is only drawn
+ * for a known value, so other text is still plain escaped text.
  */
 function tableCell(column: string, cell: string | number): string {
   const name = column.trim().toLowerCase();
@@ -110,7 +125,7 @@ function tableCell(column: string, cell: string | number): string {
   if (name === 'severity' && (SEVERITIES as readonly string[]).includes(value)) {
     return `<span class="rs-chip rs-sev-${value}">${esc(value)}</span>`;
   }
-  if ((name === 'rag' || name === 'status') && RAG_VALUES.has(value)) {
+  if ((name === 'rag' || name === 'status' || name === 'overall') && RAG_VALUES.has(value)) {
     return `<span class="rs-chip rs-rag-${value}">${esc(value)}</span>`;
   }
   return esc(cell);
@@ -152,7 +167,7 @@ function renderFinding(f: Finding, sourceIds: ReadonlySet<string>): string {
 function renderBars(
   caption: string,
   unit: string | undefined,
-  items: readonly { label: string; value: number; tone?: string }[],
+  items: readonly BarItem[],
 ): string {
   const LABEL_W = 180;
   const BAR_W = 300;
@@ -165,7 +180,7 @@ function renderBars(
       const value = Number.isFinite(item.value) ? Math.max(0, item.value) : 0;
       const width = max > 0 ? (value / max) * BAR_W : 0;
       const fill = TONE_FILL[item.tone ?? ''] ?? DEFAULT_FILL;
-      const shown = unit ? `${value} ${unit}` : `${value}`;
+      const shown = item.shown ?? (unit ? `${value} ${unit}` : `${value}`);
       return (
         `<text x="${LABEL_W - 6}" y="${y + 15}" text-anchor="end" font-size="11">${esc(item.label)}</text>` +
         `<rect x="${LABEL_W}" y="${y + 4}" width="${BAR_W}" height="12" fill="#e5e7eb"/>` +

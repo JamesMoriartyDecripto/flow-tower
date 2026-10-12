@@ -5,6 +5,7 @@
  */
 
 import { type Block, type Finding, type Rag, type ReportDoc, type Source } from '../model.ts';
+import { formatMoney, formatPercent } from '../format.ts';
 import { appendixSection } from './appendix.ts';
 import {
   asObject, fail, optBoolean, optStringList, oneOf, reqArray, reqNumber, reqString, type Obj,
@@ -105,11 +106,12 @@ function build(input: unknown, sources: Source[]): ReportDoc {
   const done = data.milestones.filter((m) => m.done).length;
   const countRag = (rag: Rag) => data.milestones.filter((m) => m.rag === rag).length;
 
+  // Overall is a fact like the others, so its RAG chip sits in the same table as the counts.
   const summary: Block[] = [
-    { kind: 'status', items: [{ label: 'Overall', rag: data.overall }] },
     {
       kind: 'facts',
       rows: [
+        ['Overall', data.overall],
         ['Milestones', data.milestones.length],
         ['Done', done],
         ['Red milestones', countRag('red')],
@@ -119,15 +121,8 @@ function build(input: unknown, sources: Source[]): ReportDoc {
     },
   ];
 
+  // One table only: the RAG column carries the chip, so a separate status list would repeat every row.
   const milestones: Block[] = [
-    {
-      kind: 'status',
-      items: data.milestones.map((m) => ({
-        label: m.name,
-        rag: m.rag,
-        note: m.done ? 'done' : `due ${m.due}`,
-      })),
-    },
     {
       kind: 'table',
       columns: ['Milestone', 'Due', 'Done', 'RAG'],
@@ -150,11 +145,11 @@ function build(input: unknown, sources: Source[]): ReportDoc {
           caption: 'Planned against actual spend',
           unit: data.budget.currency,
           items: [
-            { label: 'Planned', value: data.budget.planned },
-            { label: 'Actual', value: data.budget.actual },
+            { label: 'Planned', value: data.budget.planned, shown: formatMoney(data.budget.planned, data.budget.currency) },
+            { label: 'Actual', value: data.budget.actual, shown: formatMoney(data.budget.actual, data.budget.currency) },
           ],
         },
-        { kind: 'facts', rows: [['Variance', `${variancePercent(data.budget)}%`]] },
+        { kind: 'facts', rows: [['Variance', formatPercent(variancePercent(data.budget))]] },
       ]
     : [{ kind: 'text', text: 'No budget was stated for this period.', origin: 'data' }];
 

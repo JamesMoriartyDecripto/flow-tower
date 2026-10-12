@@ -10,9 +10,10 @@ export const REPORT_CSS = `
   margin: 26mm 14mm 18mm;
   @top-left { font: 800 9pt "Orbitron", sans-serif; letter-spacing: .16em; color: #111827; vertical-align: bottom; padding-bottom: 3mm; border-bottom: .3mm solid #c2410c; }
   @top-right { font: 600 7pt "Segoe UI", system-ui, sans-serif; letter-spacing: .12em; color: #4b5563; vertical-align: bottom; padding-bottom: 3mm; border-bottom: .3mm solid #c2410c; }
+  /* One scheme for the whole document: the page counter is never reset, so the cover's neighbours count on. */
   @bottom-right { content: counter(page) " / " counter(pages); font: 8.5pt monospace; color: #4b5563; }
 }
-/* The cover is a named page: it has no margin boxes, so it carries no running header. */
+/* The cover is a named page: it has no margin boxes, so it carries no running header and no page number. */
 @page rs-cover { margin: 0; @top-left { content: none; } @top-right { content: none; } @bottom-right { content: none; } }
 
 html, body { background: #ffffff; color: #111827; margin: 0; }
@@ -63,6 +64,8 @@ ol, ul { padding-left: 18px; }
 .rs-facts th { width: 30%; color: #4b5563; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
 .rs-facts td { border-bottom: 1px solid #e5e7eb; }
 .rs-cell-num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Ids, dates, times and numbers stay on one line; a narrow column wraps the words, never the value. */
+.rs-nowrap { white-space: nowrap; }
 .rs-findings-summary { width: auto; min-width: 40%; }
 
 /* Contents: numbers and anchors; a nested section is indented one step. */

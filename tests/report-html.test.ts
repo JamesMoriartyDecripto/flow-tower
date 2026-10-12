@@ -177,6 +177,49 @@ describe('renderReport', () => {
     expect(() => renderReport(unknown)).toThrow(/unknown source/);
   });
 
+  it('keeps ids, dates, times and numbers on one line, and leaves words to wrap', () => {
+    const cells: ReportDoc = {
+      ...doc,
+      sections: [
+        {
+          id: 'cells',
+          title: 'Cells',
+          blocks: [
+            {
+              kind: 'table',
+              columns: ['Id', 'Due', 'Note', 'Amount'],
+              rows: [['A-01', '2026-09-17', 'a long sentence that may wrap', '18,420.50 EUR']],
+            },
+            { kind: 'facts', rows: [['Started', '2026-09-03 14:02 UTC'], ['Count', 12]] },
+          ],
+        },
+      ],
+    };
+    const html = renderReport(cells);
+    expect(html).toContain('<td class="rs-nowrap">A-01</td>');
+    expect(html).toContain('<td class="rs-nowrap">2026-09-17</td>');
+    expect(html).toContain('<td>a long sentence that may wrap</td>');
+    expect(html).toContain('<td class="rs-nowrap">2026-09-03 14:02 UTC</td>');
+    expect(html).toContain('<td class="rs-cell-num rs-nowrap">12</td>');
+  });
+
+  it('shows overall RAG as a chip in the facts row', () => {
+    const facts: ReportDoc = {
+      ...doc,
+      sections: [{ id: 'sum', title: 'Sum', blocks: [{ kind: 'facts', rows: [['Overall', 'amber']] }] }],
+    };
+    expect(renderReport(facts)).toContain('<td><span class="rs-chip rs-rag-amber">amber</span></td>');
+  });
+
+  it('numbers pages from the cover on with one scheme: no reset, and no number on the cover', () => {
+    const html = renderReport(doc);
+    const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+    expect(css).toContain('counter(page) " / " counter(pages)');
+    expect(css).not.toMatch(/counter-reset/);
+    const coverRule = css.slice(css.indexOf('@page rs-cover'), css.indexOf('\n', css.indexOf('@page rs-cover')));
+    expect(coverRule).toContain('@bottom-right { content: none; }');
+  });
+
   it('is identical on two renders', () => {
     expect(renderReport(doc)).toBe(renderReport(doc));
   });

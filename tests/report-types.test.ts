@@ -3,8 +3,9 @@ import { checkReport, failed } from '../src/report/checks.ts';
 import { renderReport } from '../src/report/html.ts';
 import type { Source } from '../src/report/model.ts';
 import { getType, REPORT_TYPES } from '../src/report/types/index.ts';
-import { changePercent, money, varianceSeverity } from '../src/report/types/cost.ts';
-import { duration } from '../src/report/types/postmortem.ts';
+import { formatMoney, formatPercent } from '../src/report/format.ts';
+import { changePercent, varianceSeverity } from '../src/report/types/cost.ts';
+import { duration, formatDuration, formatTime } from '../src/report/types/postmortem.ts';
 import { cvssSeverity } from '../src/report/types/security.ts';
 import { variancePercent } from '../src/report/types/status.ts';
 
@@ -123,7 +124,27 @@ describe('report types', () => {
     expect(variancePercent({ planned: 800, actual: 600, currency: 'EUR' })).toBe(-25);
     const doc = getType('project-status').build(STATUS_INPUT, SOURCES);
     const budget = doc.sections.find((s) => s.id === 'budget')!.blocks;
-    expect(budget).toContainEqual({ kind: 'facts', rows: [['Variance', '10%']] });
+    expect(budget).toContainEqual({ kind: 'facts', rows: [['Variance', '10.0%']] });
+  });
+
+  it('shows overall as a facts row with its RAG value and milestones once, as a table', () => {
+    const doc = getType('project-status').build(STATUS_INPUT, SOURCES);
+    const summary = doc.sections.find((s) => s.id === 'summary')!.blocks;
+    expect(summary[0]).toEqual({
+      kind: 'facts',
+      rows: [
+        ['Overall', 'amber'],
+        ['Milestones', 2],
+        ['Done', 1],
+        ['Red milestones', 1],
+        ['Open risks', 1],
+        ['High-impact risks', 1],
+      ],
+    });
+    const milestones = doc.sections.find((s) => s.id === 'milestones')!.blocks;
+    expect(milestones).toHaveLength(1);
+    expect(milestones[0].kind).toBe('table');
+    expect(milestones.some((b) => b.kind === 'status')).toBe(false);
   });
 
   it('names the field in an invalid status input', () => {
@@ -133,21 +154,36 @@ describe('report types', () => {
     expect(() => getType('project-status').build(noBase, SOURCES)).toThrow(/budget\.planned/);
   });
 
-  it('computes postmortem durations from the timestamps as h m', () => {
-    expect(duration('2024-08-01T10:00:00Z', '2024-08-01T10:30:00Z')).toBe('0h 30m');
-    expect(duration('2024-08-01T10:00:00Z', '2024-08-01T14:15:00Z')).toBe('4h 15m');
+  it('formats ISO times as UTC to the minute', () => {
+    expect(formatTime('2026-09-03T14:02:00Z')).toBe('2026-09-03 14:02 UTC');
+    expect(formatTime('2026-09-03T14:02:45Z')).toBe('2026-09-03 14:02 UTC');
+    expect(formatTime('2026-01-09T07:05:00+02:00')).toBe('2026-01-09 05:05 UTC');
+  });
+
+  it('formats durations as minutes, then hours and minutes', () => {
+    expect(formatDuration(7)).toBe('7 min');
+    expect(formatDuration(32)).toBe('32 min');
+    expect(formatDuration(138)).toBe('2 h 18 min');
+    expect(formatDuration(120)).toBe('2 h');
+    expect(duration('2024-08-01T10:00:00Z', '2024-08-01T10:30:00Z')).toBe('30 min');
+    expect(duration('2024-08-01T10:00:00Z', '2024-08-01T14:15:00Z')).toBe('4 h 15 min');
+  });
+
+  it('renders postmortem times and durations in the summary and timeline', () => {
     const doc = getType('postmortem').build(POSTMORTEM_INPUT, SOURCES);
     const summary = doc.sections.find((s) => s.id === 'summary')!.blocks[0];
     expect(summary).toEqual({
       kind: 'facts',
       rows: [
         ['Severity', 'SEV-2'],
-        ['Started', '2024-08-01T10:00:00Z'],
-        ['Time to detect', '0h 30m'],
-        ['Time to mitigate', '1h 30m'],
-        ['Time to resolve', '4h 15m'],
+        ['Started', '2024-08-01 10:00 UTC'],
+        ['Time to detect', '30 min'],
+        ['Time to mitigate', '1 h 30 min'],
+        ['Time to resolve', '4 h 15 min'],
       ],
     });
+    const timeline = doc.sections.find((s) => s.id === 'timeline')!.blocks[0];
+    expect(timeline.kind === 'table' && timeline.rows[1][0]).toBe('2024-08-01 10:30 UTC');
   });
 
   it('rejects postmortem timestamps out of order, naming the field', () => {
@@ -161,7 +197,6 @@ describe('report types', () => {
   });
 
   it('computes cost change, share and variance severity', () => {
-    expect(money(1234.5)).toBe('1234.50');
     expect(changePercent({ service: 's', actual: 150, previous: 100 })).toBe(50);
     expect(changePercent({ service: 's', actual: 150 })).toBeUndefined();
     expect(varianceSeverity(60)).toBe('high');
@@ -169,14 +204,29 @@ describe('report types', () => {
     expect(varianceSeverity(10)).toBe('low');
   });
 
-  it('lists over-budget and fast-growing lines as variance findings, sorted by actual', () => {
+  it('formats money with two decimals and a thousands separator', () => {
+    expect(formatMoney(18420.5, 'EUR')).toBe('18,420.50 EUR');
+    expect(formatMoney(1234.5)).toBe('1,234.50');
+    expect(formatMoney(999.999)).toBe('1,000.00');
+    expect(formatMoney(1234567)).toBe('1,234,567.00');
+    expect(formatMoney(-2500, 'EUR')).toBe('-2,500.00 EUR');
+    expect(formatMoney(0)).toBe('0.00');
+  });
+
+  it('formats percentages with one decimal place, always', () => {
+    expect(formatPercent(3)).toBe('3.0%');
+    expect(formatPercent(-25)).toBe('-25.0%');
+    expect(formatPercent(12.34)).toBe('12.3%');
+  });
+
+  it('lists over-budget and fast-growing lines as variance findings, numbered C-01 onward', () => {
     const doc = getType('cost-review').build(COST_INPUT, SOURCES);
     const summary = doc.sections.find((s) => s.id === 'summary')!.blocks;
     expect(summary[0]).toEqual({
       kind: 'facts',
       rows: [
         ['Period', '2024-07'],
-        ['Total actual', '1000.00 EUR'],
+        ['Total actual', '1,000.00 EUR'],
         ['Services', 3],
         ['Over budget', 1],
       ],
@@ -184,9 +234,27 @@ describe('report types', () => {
     const byService = doc.sections.find((s) => s.id === 'by-service')!.blocks[0];
     expect(byService.kind === 'table' && byService.rows.map((r) => r[0])).toEqual(['db', 'web', 'cache']);
     const variance = doc.sections.find((s) => s.id === 'variance')!.blocks[0];
-    expect(variance.kind === 'findings' && variance.items.map((f) => [f.id, f.severity])).toEqual([
-      ['var-db', 'medium'],
-      ['var-cache', 'high'],
+    expect(variance.kind === 'findings' && variance.items.map((f) => [f.id, f.title, f.severity])).toEqual([
+      ['C-01', 'db', 'medium'],
+      ['C-02', 'cache', 'high'],
     ]);
+  });
+
+  it('shows money and percentages in the cost tables and bars with the same format', () => {
+    const big = {
+      ...COST_INPUT,
+      lines: [{ service: 'Data Lake', owner: 'data', actual: 18420.5, budget: 15000, previous: 12000 }],
+    };
+    const doc = getType('cost-review').build(big, SOURCES);
+    const bars = doc.sections.find((s) => s.id === 'summary')!.blocks[1];
+    expect(bars.kind === 'bars' && bars.items[0].shown).toBe('18,420.50 EUR');
+    const table = doc.sections.find((s) => s.id === 'by-service')!.blocks[0];
+    expect(table.kind === 'table' && table.rows[0]).toEqual([
+      'Data Lake', 'data', '18,420.50', '15,000.00', '12,000.00', '53.5%', '100.0%',
+    ]);
+    const variance = doc.sections.find((s) => s.id === 'variance')!.blocks[0];
+    expect(variance.kind === 'findings' && variance.items[0].detail).toBe(
+      'over budget by 3,420.50 EUR (22.8%); up 53.5% against the previous period',
+    );
   });
 });

@@ -6,6 +6,7 @@
  */
 
 import { type Block, type Finding, type ReportDoc, type Severity, type Source } from '../model.ts';
+import { formatMoney, formatPercent } from '../format.ts';
 import { appendixSection } from './appendix.ts';
 import { asObject, fail, optNumber, optString, reqArray, reqNumber, reqString, type Obj } from './input.ts';
 import type { ReportType } from './index.ts';
@@ -49,11 +50,6 @@ function parse(input: unknown) {
   };
 }
 
-/** Money with two decimals, as the finance team reads it. The currency code is shown beside it, not inside it. */
-export function money(value: number): string {
-  return value.toFixed(2);
-}
-
 /** Change against the previous period, as a percentage with one decimal. Undefined when there is no base to compare. */
 export function changePercent(line: CostLine): number | undefined {
   if (line.previous === undefined || line.previous === 0) return undefined;
@@ -78,7 +74,11 @@ export function varianceSeverity(sizePercent: number): Severity {
   return 'low';
 }
 
-/** Lines that need a look: over budget, or grown past the flag threshold against the previous period. */
+/**
+ * Lines that need a look: over budget, or grown past the flag threshold against the previous period. The ids are
+ * `C-01`, `C-02`… in the order the lines are listed: a service name holds spaces and capitals, which read badly as
+ * an id and would break the anchors that link to them.
+ */
 function varianceFindings(lines: CostLine[], currency: string): Finding[] {
   const findings: Finding[] = [];
   for (const line of lines) {
@@ -90,11 +90,12 @@ function varianceFindings(lines: CostLine[], currency: string): Finding[] {
     const size = Math.max(over ?? 0, grew ? (change as number) : 0);
     const parts: string[] = [];
     if (over !== undefined) {
-      parts.push(`over budget by ${money(line.actual - (line.budget as number))} ${currency} (${Math.round(over)}%)`);
+      const excess = formatMoney(line.actual - (line.budget as number), currency);
+      parts.push(`over budget by ${excess} (${formatPercent(over)})`);
     }
-    if (grew) parts.push(`up ${change}% against the previous period`);
+    if (grew) parts.push(`up ${formatPercent(change as number)} against the previous period`);
     findings.push({
-      id: `var-${line.service}`,
+      id: `C-${String(findings.length + 1).padStart(2, '0')}`,
       severity: varianceSeverity(size),
       title: line.service,
       ref: line.owner,
@@ -117,7 +118,7 @@ function build(input: unknown, sources: Source[]): ReportDoc {
       kind: 'facts',
       rows: [
         ['Period', data.period],
-        ['Total actual', `${money(total)} ${data.currency}`],
+        ['Total actual', formatMoney(total, data.currency)],
         ['Services', data.lines.length],
         ['Over budget', overBudget],
       ],
@@ -126,7 +127,7 @@ function build(input: unknown, sources: Source[]): ReportDoc {
       kind: 'bars',
       caption: `Top ${top.length} services by actual spend`,
       unit: data.currency,
-      items: top.map((l) => ({ label: l.service, value: Number(money(l.actual)) })),
+      items: top.map((l) => ({ label: l.service, value: l.actual, shown: formatMoney(l.actual, data.currency) })),
     },
   ];
 
@@ -138,11 +139,11 @@ function build(input: unknown, sources: Source[]): ReportDoc {
       return [
         l.service,
         l.owner ?? 'unassigned',
-        money(l.actual),
-        l.budget === undefined ? 'n/a' : money(l.budget),
-        l.previous === undefined ? 'n/a' : money(l.previous),
-        change === undefined ? 'n/a' : `${change}%`,
-        `${sharePercent(l.actual, total)}%`,
+        formatMoney(l.actual),
+        l.budget === undefined ? 'n/a' : formatMoney(l.budget),
+        l.previous === undefined ? 'n/a' : formatMoney(l.previous),
+        change === undefined ? 'n/a' : formatPercent(change),
+        formatPercent(sharePercent(l.actual, total)),
       ];
     }),
   }];

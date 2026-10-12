@@ -111,10 +111,31 @@ function parse(input: unknown) {
   };
 }
 
-/** A duration as `h m`, rounded to the minute. The inputs are already checked to be in order, so it is never negative. */
+/**
+ * An ISO time as `2026-09-03 14:02 UTC`. It is always shown in UTC, so the reader never has to guess the zone of
+ * the machine that wrote the report.
+ */
+export function formatTime(iso: string): string {
+  const d = new Date(Date.parse(iso));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const date = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  return `${date} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+}
+
+/**
+ * A length in minutes as `7 min`, or `2 h 18 min` from an hour up. A whole number of hours drops the zero minutes,
+ * so `2 h` reads as the exact figure it is.
+ */
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
+/** The time between two ISO moments, rounded to the minute. The inputs are already in order, so it is never negative. */
 export function duration(fromIso: string, toIso: string): string {
-  const minutes = Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 60000);
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return formatDuration(Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 60000));
 }
 
 function build(input: unknown, sources: Source[]): ReportDoc {
@@ -124,7 +145,7 @@ function build(input: unknown, sources: Source[]): ReportDoc {
     kind: 'facts',
     rows: [
       ['Severity', data.severity],
-      ['Started', data.started],
+      ['Started', formatTime(data.started)],
       ['Time to detect', duration(data.started, data.detected)],
       ['Time to mitigate', duration(data.detected, data.mitigated)],
       ['Time to resolve', duration(data.started, data.resolved)],
@@ -139,7 +160,7 @@ function build(input: unknown, sources: Source[]): ReportDoc {
     ? [{
         kind: 'table',
         columns: ['Time', 'Event'],
-        rows: data.timeline.map((e) => [e.at, e.event]),
+        rows: data.timeline.map((e) => [formatTime(e.at), e.event]),
       }]
     : [{ kind: 'text', text: 'No timeline entries were recorded.', origin: 'data' }];
 
@@ -192,7 +213,7 @@ function build(input: unknown, sources: Source[]): ReportDoc {
     type: POSTMORTEM.id,
     typeTitle: POSTMORTEM.title,
     title: data.title,
-    subtitle: `${data.severity}, started ${data.started}`,
+    subtitle: `${data.severity}, started ${formatTime(data.started)}`,
     classification: 'confidential',
     sources,
     sections: [

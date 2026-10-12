@@ -34,6 +34,8 @@ export interface BarItem {
   label: string;
   value: number;
   tone?: string;
+  /** The value as the reader sees it (e.g. money with a separator); the bar length still follows `value`. */
+  shown?: string;
 }
 
 export interface StatusItem {
