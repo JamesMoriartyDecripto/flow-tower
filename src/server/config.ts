@@ -21,6 +21,13 @@ export const ROLES = ['local', 'hub', 'satellite'] as const;
 export const PROFILES = ['personal', 'freelancers', 'employees'] as const;
 export const CADENCES = ['always-on', 'on-demand', 'scheduled'] as const;
 
+/**
+ * A folder this satellite shares with its hub (#164). `dir` is absolute, `name` the folder the hub keeps it
+ * under, `files` whether the files the towers reference travel too (otherwise YAML only).
+ */
+export const ShareSchema = z.strictObject({ dir: z.string(), name: z.string(), files: z.boolean() });
+export type Share = z.infer<typeof ShareSchema>;
+
 /** Every key optional: a config file names only what it changes (defaults live in `effective`). */
 export const ConfigSchema = z.strictObject({
   hub: z.boolean().optional().describe('Run as a shared hub.'),
@@ -47,6 +54,7 @@ export const ConfigSchema = z.strictObject({
   noticeRef: z.string().optional(),
   purpose: z.string().optional(),
   library: z.array(z.string()).optional().describe('Paths of the user\'s own towers (files or folders), outside the flow-tower checkout.'),
+  shares: z.array(ShareSchema).optional().describe('Towers this satellite shares with its hub (#164).'),
 });
 export type Config = z.infer<typeof ConfigSchema>;
 export type Role = (typeof ROLES)[number];

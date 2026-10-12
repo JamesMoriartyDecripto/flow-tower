@@ -51,6 +51,29 @@ function connect(args: string[], env: NodeJS.ProcessEnv = {}) {
   });
 }
 
+/** A stub hub answering per path: `enroll` to /api/hub/enroll, `beat` to the heartbeat. Captures both. */
+async function routedHub(enroll: { status: number; body: unknown }, beat = 204) {
+  const seen: { path?: string; body: unknown; headers: Record<string, string | string[] | undefined> }[] = [];
+  const server = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => {
+      seen.push({ path: req.url, body: JSON.parse(Buffer.concat(chunks).toString('utf8')), headers: req.headers });
+      if (req.url === '/api/hub/enroll') {
+        res.statusCode = enroll.status;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify(enroll.body));
+        return;
+      }
+      res.statusCode = beat;
+      res.end();
+    });
+  });
+  servers.push(server);
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, seen };
+}
+
 const configOf = () => JSON.parse(readFileSync(join(home, 'config.json'), 'utf8')) as Record<string, unknown>;
 const configPath = join(home, 'config.json');
 
@@ -132,5 +155,64 @@ describe('flow-tower connect (#91)', () => {
     expect(existsSync(local)).toBe(before);
     // The home folder holds the one file this command owns: no tokens.json, no local fallback.
     expect(readdirSync(home).sort()).toEqual(['config.json']);
+  });
+
+  it('without --token enrols with the hub, then writes the minted token and beats', { timeout: 15_000 }, async () => {
+    rmSync(configPath, { force: true });
+    const hub = await routedHub({ status: 200, body: { token: 'ft_box-1_abcdefghijk', machine: 'box-1', rotated: false } });
+    const r = await connect([hub.url, '--machine', 'box-1']);
+
+    expect(r.status).toBe(0);
+    expect(hub.seen[0].path).toBe('/api/hub/enroll');
+    expect(hub.seen[0].body).toEqual({ machine: 'box-1' });
+    expect(configOf()).toMatchObject({ role: 'satellite', url: hub.url, token: 'ft_box-1_abcdefghijk', machine: 'box-1' });
+    expect(hub.seen[1].path).toBe('/api/heartbeat');
+    expect(hub.seen[1].headers['x-flow-tower-token']).toBe('ft_box-1_abcdefghijk');
+    // The minted token is written and sent, never printed.
+    expect(r.stdout).not.toContain('ft_box-1_abcdefghijk');
+    expect(r.stderr).not.toContain('ft_box-1_abcdefghijk');
+    expect(r.stdout).toContain(`connected to ${hub.url} as box-1`);
+    expect(r.stdout).not.toContain('previous token');
+  });
+
+  it('says the previous token was revoked when the hub rotated it', { timeout: 15_000 }, async () => {
+    rmSync(configPath, { force: true });
+    const hub = await routedHub({ status: 200, body: { token: 'ft_box-1_abcdefghijk', machine: 'box-1', rotated: true } });
+    const r = await connect([hub.url, '--machine', 'box-1']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('(the previous token of this machine was revoked)');
+  });
+
+  it('on enrolment 403 prints the hub error and the fix, writes nothing, exits 1', { timeout: 15_000 }, async () => {
+    const other = mkdtempSync(join(tmpdir(), 'flow-tower-connect-403-'));
+    const hub = await routedHub({ status: 403, body: { error: 'x' } });
+    const r = await connect([hub.url, '--machine', 'box-1'], { FLOW_TOWER_HOME: other });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('x');
+    expect(r.stderr).toContain('tailscale serve');
+    expect(existsSync(join(other, 'config.json'))).toBe(false);
+    rmSync(other, { recursive: true, force: true });
+  });
+
+  it('on enrolment 409 names --machine and exits 1', { timeout: 15_000 }, async () => {
+    const other = mkdtempSync(join(tmpdir(), 'flow-tower-connect-409-'));
+    const hub = await routedHub({ status: 409, body: { error: 'taken' } });
+    const r = await connect([hub.url, '--machine', 'box-1'], { FLOW_TOWER_HOME: other });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('--machine');
+    expect(existsSync(join(other, 'config.json'))).toBe(false);
+    rmSync(other, { recursive: true, force: true });
+  });
+});
+
+describe('machineId (#164)', () => {
+  it('slugs the hostname: lower case, first label, separators to dashes', async () => {
+    const { machineId } = await import('../src/cli/machine-id.ts');
+    expect(machineId('MacBook-Pro.local')).toBe('macbook-pro');
+    expect(machineId('fedora_box 2')).toBe('fedora-box-2');
+    expect(machineId('---')).toBe('');
+    expect(machineId('a'.repeat(50))).toHaveLength(32);
+    // A cut that lands on a dash must not leave it at the end: the hub would still accept it, but it reads as a typo.
+    expect(machineId(`${'a'.repeat(31)}-bbb`)).toBe('a'.repeat(31));
   });
 });

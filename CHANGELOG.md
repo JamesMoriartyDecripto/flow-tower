@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Hub: one-step connect on a tailnet. `flow-tower connect https://<hub>.ts.net` without `--token` asks the hub (`POST /api/hub/enroll`), which mints the machine's token for a tailnet login listed in `viewers` (a `*.ts.net` Host behind `tailscale serve`; never a tagged device, a missing login or a non-tailnet hub). The machine name defaults to the hostname; the same login reconnecting rotates its token, another login gets a 409 (#164).
+- Hub: tower sharing. `flow-tower share <folder> [--files]` uploads a tower to the hub, which writes it to `towers/<machine>/<name>/` in its library and reloads; YAML only by default, `--files` adds the referenced files inside the folder (text types only, never secret-looking names or symlinks out of the folder). `unshare` removes it, `share --list` shows the shares, and the local library re-sends a shared tower within ~15 s of a change (`/api/sharing` reports `towers`) (#164).
+- Skills: `flow-tower-satellite` is rewritten as a guided, one-question-at-a-time walk-through of connect and share, with one fix per known error (#164).
 - Community: `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), YAML issue forms for bug, feature and example with Discussions and private advisories as contact links, and `SUPPORT.md` (#122).
 - CLI: `flow-tower --version` prints the installed version (#122).
 - CI: a job checks the DCO sign-off on every commit of a PR, and a step runs `check-example` on the example folders a PR adds (#122).
@@ -14,6 +17,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Hub: live chips name the machine a node runs on (`Triage · Bash @decripto`), and library cards list the machines that sent events for a project in the last 15 minutes (#95).
 
 ### Changed
+- Hub: a hub with `viewers` may start without any token, since enrolment mints them (#164).
+- Command-center kit: the systemd unit and docker compose let the hub write `towers/`; README step 5 is connect and share, `token add` stays for CI and non-tailnet senders (#164).
 - `CONTRIBUTING.md` covers issue first, fork workflow, Conventional Commits, DCO sign-off, review, inbound = outbound licence, AI-assisted contributions and SemVer (#122).
 - `SECURITY.md` lists supported versions, what to include in a report and the response time (#122).
 - The PR template is the only checklist and gains AI assistance and Example tower blocks (#122).
