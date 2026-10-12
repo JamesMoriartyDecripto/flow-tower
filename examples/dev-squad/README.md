@@ -51,7 +51,7 @@ Prices as of 2026-10-10, from `https://openrouter.ai/api/v1/models`; Haiku's fro
 `node skills/flow-tower-costs/models.mjs anthropic/claude-haiku-5.5`. Field numbers from issue #70
 of the flow-tower repo: coder round 1, 50 steps, $0.13, 231 tests green; reviewer 6 steps, $0.085, one
 blocking bug found; security auditor 9 steps, $0.06. The coder moved from DeepSeek to Haiku after the
-2026-10-11 benchmark and field trial: half the steps and a third of DeepSeek's cost on a real task. Full GLM 5.3 was tried first as the reviewer: it
+2026-10-11 benchmark and field trial: about a third of the steps and of the cost on a real task. Full GLM 5.3 was tried first as the reviewer: it
 reasoned 1-2.5 min per step and timed out at step 9 ($0.24), so the squad uses its FlashX variant.
 
 The OpenRouter roles run in `src/openrouter-agent.ts`, an OpenAI-style tool loop (sample code: the

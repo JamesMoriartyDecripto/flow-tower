@@ -1,5 +1,5 @@
 #!/bin/zsh
-# steps.sh <issue> <dir> <write-dirs> <title>: run the DeepSeek coder on each step file in order;
+# steps.sh <issue> <dir> <write-dirs> <title>: run the coder (Haiku by default, CODER_MODEL overrides) on each step file in order;
 # <write-dirs> is a comma-separated list, same as run.mjs --write, e.g. src,tests;
 # after each, npm run check must pass, then one commit per step. Stops at the first red step.
 # REPO (default: this checkout) is where the steps run; SQUAD_TRAILERS adds extra commit trailer lines.

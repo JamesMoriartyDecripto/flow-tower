@@ -626,7 +626,7 @@ layers:
         type: model
         label: Haiku 5.5 (OR)
         model: anthropic/claude-haiku-5.5
-        description: "Coder, at low effort. $0.10 in / $0.50 out per M tokens. Chosen by the 2026-10-11 benchmark and field trial: half the steps and a third of DeepSeek's cost on a real task. Anthropic caches only on request, so the loop sends a top-level cache_control."
+        description: "Coder, at low effort. $0.10 in / $0.50 out per M tokens. Chosen by the 2026-10-11 benchmark and field trial: about a third of the steps and of the cost on a real task. Anthropic caches only on request, so the loop sends a top-level cache_control."
       - id: deepseek
         runtime: openrouter
         type: model

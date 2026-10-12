@@ -2,14 +2,15 @@
 
 The small harness the maintainer drives by hand. Three scripts and a task file, no build step, no
 dependency beyond Node and the flow-tower CLI. It is **not** the product: the product sample of a mixed-model
-squad is [`examples/dev-squad`](../../examples/dev-squad/README.md) (a whole pipeline, meant to be read). This folder is what actually ran the field sessions.
+squad is [`examples/dev-squad`](../../examples/dev-squad/README.md) (a whole pipeline, meant to be read). This
+folder is what actually ran the field sessions.
 
 ## Roles
 
 | Role | Model | Why | Writes |
 |---|---|---|---|
 | Lead (Claude, you) | the session model | plans, verifies, commits | task files, commits |
-| Coder | `anthropic/claude-haiku-5.5` | cleanest result, 11 steps (#126) | `src/ tests/ e2e/` (or `--write a,b`) |
+| Coder | `anthropic/claude-haiku-5.5` | cleanest result, 11 steps (#126); `CODER_MODEL` overrides | `src/ tests/ e2e/` (or `--write a,b`) |
 | Reviewer | `z-ai/glm-5.3-flashx` | 3 steps, cheapest on the same PR | nothing (read-only, JSON verdict) |
 | Security | `deepseek/deepseek-v4.1-flash` | 6/6 in the benchmark, fastest | nothing |
 
