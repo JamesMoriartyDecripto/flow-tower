@@ -159,6 +159,13 @@ describe('hub guard: remote reading (#83)', () => {
   });
 });
 
+describe('hub guard: shared towers (#164)', () => {
+  it('lets a remote PUT /api/hub/towers/<name> through only with a sender token', () => {
+    expect(run(opts, remote('PUT', '/api/hub/towers/demo')).status).toBe(401);
+    expect(run(opts, remote('PUT', '/api/hub/towers/demo', { 'x-flow-tower-token': token })).status).toBe(200);
+  });
+});
+
 describe('hub guard: --ingest-only (#83)', () => {
   it('answers 404 on everything but ingest, remote and local alike', () => {
     expect(run(ingestOnly, local('GET', '/')).status).toBe(404);

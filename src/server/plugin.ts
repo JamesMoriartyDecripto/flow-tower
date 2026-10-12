@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env, loadEnvFile } from 'node:process';
@@ -25,6 +25,7 @@ import { effective, loadConfig } from './config.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 import { hubViews } from './hub-views.ts';
 import { enrollHandler } from './enroll.ts';
+import { sharedTowersHandler } from './shared-towers.ts';
 import { openHistory } from './history/db.ts';
 import { createHistory } from './history/store.ts';
 import { historyHandler } from './history/api.ts';
@@ -174,6 +175,10 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       // Enrolment (#164): a POST that hands a listed viewer its machine's token. No other /api/hub mount is a
       // prefix of it, so nothing else swallows it. The route itself refuses anything but a tailnet viewer.
       server.middlewares.use('/api/hub/enroll', enrollHandler({ home: USER_HOME, hub: hubOpts.hub }));
+      // Shared towers (#164): a satellite uploads its folder here, signed with its token. The first library
+      // entry that is a directory is where the hub writes it; none means the route answers 503.
+      const library = entries.map((e) => resolve(e)).find((p) => isDirectory(p));
+      server.middlewares.use('/api/hub/towers', sharedTowersHandler({ library, home: USER_HOME, hub: hubOpts.hub, legacy: env.FLOW_TOWER_TOKEN }));
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.
       server.middlewares.use('/v1/logs', hub.otlp('logs'));
       server.middlewares.use('/v1/metrics', hub.otlp('metrics'));
@@ -294,6 +299,11 @@ function namesOf(state: LoadResult | undefined, ids: string[]): string[] {
     }
   }
   return [...names].slice(0, 600);
+}
+
+/** A library entry that exists and is a folder; a missing or file entry is not a place to write shares. */
+function isDirectory(path: string): boolean {
+  try { return statSync(path).isDirectory(); } catch { return false; }
 }
 
 /** Nearest existing directory of each missing file: watching it reports the file when it appears. */
