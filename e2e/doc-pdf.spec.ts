@@ -80,6 +80,21 @@ test('the overview charts: the root chapter has the layer matrix and the sub-tow
   for (const n of counts) expect(n, 'charts in a chapter').toBeGreaterThanOrEqual(5);
 });
 
+test('every chart table fits its card: no table is wider than the card that holds it', async ({ page }) => {
+  await page.goto('/?doc=dev-squad&level=2&snap=0');
+  await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
+  const tables = page.locator('.chart-card table');
+  const n = await tables.count();
+  expect(n, 'the chapters have chart tables').toBeGreaterThan(0);
+  for (let i = 0; i < n; i++) {
+    const fits = await tables.nth(i).evaluate((t) => {
+      const card = t.closest('.chart-card') as HTMLElement;
+      return { scroll: (t as HTMLElement).scrollWidth, client: card.clientWidth };
+    });
+    expect(fits.scroll, `table ${i} is not wider than its card`).toBeLessThanOrEqual(fits.client);
+  }
+});
+
 test('the cover carries one wordmark, and the running header comes from the page margin under print', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'print media and the margin boxes are checked in Chromium only');
   const all = await workspace(page);

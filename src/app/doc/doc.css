@@ -208,6 +208,12 @@ table.chart-table th, table.chart-table td { overflow-wrap: break-word; white-sp
 table.chart-table th.num, table.chart-table td.num { white-space: nowrap; }
 table.chart-table tbody tr:nth-child(even) td { background: var(--zebra); }
 .chart-name { max-width: 240px; }
+/* Layer tables have a fixed layout, so they never outgrow the card: the layer column takes 28% and the model or
+   runtime columns share the rest. Headers are smaller, and break only after `/` and `-` (see headerParts): a
+   stray break inside a word would read as a different name. */
+table.chart-table.layer-table { table-layout: fixed; }
+table.chart-table.layer-table th:first-child, table.chart-table.layer-table td:first-child { width: 28%; }
+table.chart-table.layer-table thead th { font-size: 7.5pt; white-space: normal; overflow-wrap: normal; }
 ul.tree, ul.tree ul { list-style: none; margin: 0; padding-left: 18px; border-left: 1px solid var(--rule); }
 ul.tree { padding-left: 0; border-left: 0; }
 ul.tree li { position: relative; padding: 3px 0 3px 12px; font-size: 9.5pt; }

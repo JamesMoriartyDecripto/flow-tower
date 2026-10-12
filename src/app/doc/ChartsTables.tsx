@@ -1,5 +1,15 @@
+import { Fragment } from 'react';
 import type { ConnectedNode, LayerTable, TowerTree } from '../../core/docCharts';
+import { headerParts, shapeLayerTable } from '../../core/layerTableShape';
 import { ChartCard } from './ChartCard';
+
+/** A header text with a line break allowed after each `/` and `-`; the text itself is unchanged. */
+function breakableHeader(text: string) {
+  const parts = headerParts(text);
+  return parts.map((p, i) => (
+    <Fragment key={i}>{p}{i < parts.length - 1 && <wbr />}</Fragment>
+  ));
+}
 
 /*
  * The chart figures that are tables, not drawings: a table reads better than bars when a reader looks up
@@ -62,22 +72,26 @@ function TreeNode({ node }: { node: TowerTree }) {
 /**
  * Nodes per layer against one column each (runtime or model). A zero is a dot, so an empty cell is not
  * mistaken for a missing one. The table takes the card's width, and its model ids wrap only at `/` and `-`.
+ * A table with too many columns is turned over (items as rows), so it still fits the card.
  */
 export function LayerTableFigure({ name, table, title, note, span }: {
   name: string; table: LayerTable; title: string; note: string; span: 6 | 12;
 }) {
+  const shaped = shapeLayerTable(table, name === 'models' ? 'Model' : 'Runtime');
   return (
     <ChartCard name={name} title={title} note={note} span={span}>
-      <table className="chart-table">
+      <table className="chart-table layer-table">
         <thead>
-          <tr><th>Layer</th>{table.columns.map((c) => <th key={c} className="num">{c}</th>)}</tr>
+          <tr>{shaped.headers.map((h, i) => (
+            <th key={`${i}-${h}`} className={i > 0 ? 'num' : undefined}>{breakableHeader(h)}</th>
+          ))}</tr>
         </thead>
         <tbody>
-          {table.rows.map((r) => (
-            <tr key={r.code}>
-              <td className="mono">{r.code} {r.title}</td>
-              {r.counts.map((n, i) => (
-                <td key={table.columns[i]} className="num">{n > 0 ? n : <span className="muted">·</span>}</td>
+          {shaped.rows.map((r) => (
+            <tr key={r.label}>
+              <td className="mono">{r.label}</td>
+              {r.cells.map((n, i) => (
+                <td key={i} className="num">{n > 0 ? n : <span className="muted">·</span>}</td>
               ))}
             </tr>
           ))}

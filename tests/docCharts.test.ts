@@ -4,6 +4,7 @@ import {
   CONTROLS, PAGE_B_FLOW_LINES, TOP_CONNECTED, edgesByKind, governanceCoverage, isWideTable, layerComposition, layerMatrix,
   modelsByLayer, pageBFlows, pageBLines, runtimesByLayer, topConnected, type ChapterCharts, type LayerTable,
 } from '../src/core/docCharts';
+import { TRANSPOSE_COLUMNS, headerParts, shapeLayerTable } from '../src/core/layerTableShape';
 import type { ResolvedTower, Workspace } from '../src/core/types';
 
 const ROOT = 'dev-squad.tower.yaml';
@@ -90,6 +91,41 @@ function chapter(over: Partial<{ edges: number; connected: number; runtimes: num
     tree,
   };
 }
+
+describe('the layer table shape', () => {
+  const layerTable = (columns: string[]): LayerTable => ({
+    columns,
+    rows: [
+      { code: 'L01', title: 'Intake', counts: columns.map((_, i) => i + 1) },
+      { code: 'L02', title: 'Review', counts: columns.map(() => 0) },
+    ],
+  });
+
+  it('keeps a table of up to eight columns as built, with the layers as rows', () => {
+    const shaped = shapeLayerTable(layerTable(Array.from({ length: TRANSPOSE_COLUMNS }, (_, i) => `c${i}`)), 'Model');
+    expect(shaped.transposed).toBe(false);
+    expect(shaped.headers[0]).toBe('Layer');
+    expect(shaped.rows.length).toBe(2);
+  });
+
+  it('turns a table of more than eight columns over: items become rows, layers become columns', () => {
+    const columns = Array.from({ length: TRANSPOSE_COLUMNS + 1 }, (_, i) => `m${i}`);
+    const shaped = shapeLayerTable(layerTable(columns), 'Model');
+    expect(shaped.transposed).toBe(true);
+    expect(shaped.headers).toEqual(['Model', 'L01', 'L02']);
+    expect(shaped.rows.map((r) => r.label)).toEqual(columns);
+    // No count is lost in the turn.
+    const total = (t: { rows: { cells: number[] }[] }) => t.rows.reduce((n, r) => n + r.cells.reduce((a, b) => a + b, 0), 0);
+    expect(total(shaped)).toBe(total({ rows: layerTable(columns).rows.map((r) => ({ cells: r.counts })) }));
+  });
+
+  it('breaks a header only after a slash or a hyphen, and joining the pieces gives the text back', () => {
+    const id = 'deepseek/deepseek-v4.1-flash';
+    expect(headerParts(id)).toEqual(['deepseek/', 'deepseek-', 'v4.1-', 'flash']);
+    expect(headerParts(id).join('')).toBe(id);
+    expect(headerParts('')).toEqual([]);
+  });
+});
 
 describe('the page split of a chapter', () => {
   it('counts page B lines: the governance rows, edges, connected nodes, table rows and tree towers', () => {
