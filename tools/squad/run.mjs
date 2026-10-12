@@ -1,17 +1,19 @@
 // Dev-squad runner for non-Claude models through OpenRouter (session tooling, kept in the repo, #113).
-// node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--repo <path>]
+// node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--repo <path>]
 // The key is loaded from the user's key file into this process only; it is never printed.
+// Each run ends with one line in the local cost ledger (ledger.mjs, #156), finished or failed alike.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { appendRun, issueOf, ledgerPath } from './ledger.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
 // A missing --task used to reach readFileSync and fail with a raw fs error: a usage line is the answer.
-const USAGE = 'usage: node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--write a,b] [--repo <path>]';
+const USAGE = 'usage: node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--write a,b] [--repo <path>]';
 if (argv.includes('--help')) { console.log(USAGE); exit(0); }
 const taskFile = arg('task');
 // Checked before any git call, so a bare invocation fails on the usage, not on the checkout.
@@ -21,6 +23,9 @@ if (!taskFile || !existsSync(taskFile)) { console.error(USAGE); exit(1); }
 const REPO = resolve(arg('repo') ?? execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim());
 // The live-events helper is a sibling of this script, so a checkout carries its own copy, wherever it sits.
 const EV = join(HERE, 'ev.sh');
+// The issue is taken from --issue, else from the branch name; a detached or unreadable HEAD gives no branch.
+const branch = (() => { try { return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim(); } catch { return ''; } })();
+const issue = issueOf(arg('issue'), branch);
 const model = arg('model'), role = arg('role'), node = arg('node'), task = readFileSync(taskFile, 'utf8');
 const maxSteps = Number(arg('steps', 40));
 const DOT = '.' + 'env';
@@ -137,6 +142,8 @@ const messages = [
 ];
 let cost = 0;
 let promptTokens = 0, cachedTokens = 0;
+// A failed run still cost money, so every exit writes its line; steps counts the model calls that completed.
+const record = (outcome, steps) => appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: Number(cost.toFixed(6)), promptTokens, cachedTokens, outcome });
 // One session per run: OpenRouter keeps it on the provider that holds its prompt cache (cached input: DeepSeek 0.1x, Z.ai ~0.2x).
 const session = `${role}-${Date.now()}`;
 emit('agent.start', node, `${role} on ${model}`);
@@ -155,7 +162,7 @@ for (let step = 0; step < maxSteps; step++) {
   });
   let r;
   try { r = await ask(); } catch { emit('log', node, `step ${step + 1}: no answer in 3 min, retrying`, 'error'); r = await ask(); }
-  if (!r.ok) { const t = await r.text(); note(`HTTP ${r.status} ${t}`); console.log(`HTTP ${r.status} ${t.slice(0, 400)}`); exit(1); }
+  if (!r.ok) { const t = await r.text(); note(`HTTP ${r.status} ${t}`); record('http-error', step); console.log(`HTTP ${r.status} ${t.slice(0, 400)}`); exit(1); }
   const out = await r.json();
   cost += out.usage?.cost ?? 0;
   promptTokens += out.usage?.prompt_tokens ?? 0;
@@ -171,6 +178,7 @@ for (let step = 0; step < maxSteps; step++) {
     try { a = JSON.parse(c.function.arguments || '{}'); } catch { /* reported below */ }
     if (c.function.name === 'finish') {
       note(`\n[finish] ${a.report}\n\ncost $${cost.toFixed(4)}`);
+      record('finish', step + 1);
       emit('agent.end', node, `${role} on ${model} done ($${cost.toFixed(3)}, cache ${cached}%)`, 'ok');
       console.log(`${a.report}\n\n--- ${model} · ${step + 1} steps · $${cost.toFixed(4)} · cache ${cached}% of ${promptTokens} prompt tokens · log ${log}`);
       exit(0);
@@ -184,5 +192,6 @@ for (let step = 0; step < maxSteps; step++) {
     messages.push({ role: 'tool', tool_call_id: c.id, content: result });
   }
 }
+record('step-cap', maxSteps);
 emit('agent.end', node, `${role} on ${model}: step cap`, 'error');
 console.log(`step cap reached · $${cost.toFixed(4)} · log ${log}`);
