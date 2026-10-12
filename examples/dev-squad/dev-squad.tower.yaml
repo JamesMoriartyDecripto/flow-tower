@@ -298,6 +298,10 @@ layers:
     description: >-
       Evaluator-optimizer, max 3 rounds. Reviewer and security auditor grade in parallel
       in fresh sessions; a fresh-context verifier and a human close the loop.
+      With no deadline a round can be cheaper: a grader whose input is the whole diff answers in one
+      turn, which a provider batch API takes at about half price (results within 24 h). The graders here
+      read the repo with tools, so this sample keeps them synchronous; the repo's own squad batches its
+      reviews in unattended runs (tools/squad, SQUAD_PACE=overnight).
     nodes:
       - id: fanout
         runtime: vps
