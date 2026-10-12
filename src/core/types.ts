@@ -118,4 +118,9 @@ export interface Workspace {
    * FLOW_TOWER_LIBRARY, so `npm run dev` on the examples shows no badges.
    */
   origins?: Record<string, 'mine' | 'example'>;
+  /**
+   * Project id → `local` (this machine) or the id of the device that shared it into the hub library (#165).
+   * Present only when at least one project was shared by a device, so a plain library shows nothing new.
+   */
+  sources?: Record<string, string>;
 }

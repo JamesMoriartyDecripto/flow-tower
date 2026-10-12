@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Library: each card names its source (THIS HUB, or the device that shared it with `flow-tower share`), and a FROM row filters by device, with an online dot and the choice kept in the URL (`?source=`); voice `library_filter` takes a `source` (#165).
 - Hub: one-step connect on a tailnet. `flow-tower connect https://<hub>.ts.net` without `--token` asks the hub (`POST /api/hub/enroll`), which mints the machine's token for a tailnet login listed in `viewers` (a `*.ts.net` Host behind `tailscale serve`; never a tagged device, a missing login or a non-tailnet hub). The machine name defaults to the hostname; the same login reconnecting rotates its token, another login gets a 409 (#164).
 - Hub: tower sharing. `flow-tower share <folder> [--files]` uploads a tower to the hub, which writes it to `towers/<machine>/<name>/` in its library and reloads; YAML only by default, `--files` adds the referenced files inside the folder (text types only, never secret-looking names or symlinks out of the folder). `unshare` removes it, `share --list` shows the shares, and the local library re-sends a shared tower within ~15 s of a change (`/api/sharing` reports `towers`) (#164).
 - Skills: `flow-tower-satellite` is rewritten as a guided, one-question-at-a-time walk-through of connect and share, with one fix per known error (#164).

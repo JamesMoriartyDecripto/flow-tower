@@ -190,6 +190,13 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .lib-origin { font-size: 9px; padding: 1px 6px; }
 .lib-origin.mine { color: var(--live-done); border-color: color-mix(in srgb, var(--live-done) 50%, transparent); }
 .lib-origin.example { color: var(--dim); border-color: var(--line-soft); }
+/* Source chips (#165): THIS HUB is quiet, a shared machine gets its own accent, apart from MINE and EXAMPLE. */
+.lib-source { font-size: 9px; padding: 1px 6px; white-space: nowrap; flex-shrink: 0; } /* a long title must not break MAC-ANA in two */
+.lib-source.local { color: var(--dim); border-color: var(--line-soft); }
+.lib-source.device { color: var(--live-run); border-color: color-mix(in srgb, var(--live-run) 50%, transparent); }
+.lib-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 6px; }
+.lib-row-label { font-size: 10px; letter-spacing: .08em; margin-right: 2px; }
+.lib-online { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--live-done); margin-right: 5px; vertical-align: middle; }
 /* Full description, capped at ~4 lines; longer ones scroll inside the card. */
 .lib-desc { margin: 0 0 10px; font-size: 14px; line-height: 1.4; max-height: calc(14px * 1.4 * 4); overflow-y: auto; padding-right: 4px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; overscroll-behavior: contain; }
 .lib-body { display: flex; flex-direction: column; }
