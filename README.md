@@ -211,7 +211,7 @@ docs/           getting started, command center, schema, architecture, realtime,
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). To add your tower to the examples gallery, the [contribute skill](skills/flow-tower-contribute/SKILL.md) anonymises it, runs `flow-tower check-example <dir>` and opens the PR. Please report security issues privately ([SECURITY.md](SECURITY.md)).
+See [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and [SUPPORT.md](SUPPORT.md). To add your tower to the examples gallery, the [contribute skill](skills/flow-tower-contribute/SKILL.md) anonymises it, runs `flow-tower check-example <dir>` and opens the PR. Please report security issues privately ([SECURITY.md](SECURITY.md)).
 
 ## License
 

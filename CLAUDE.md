@@ -28,6 +28,7 @@
 - Never work on `main`: one branch per feature or issue (`feat/…`, `fix/…`) from an up-to-date `main`. The user merges, or asks Claude to. `main` is protected by the "Protect main" ruleset (PR + CI + CODEOWNERS review; the admin can merge their own PRs, nobody can push or force-push).
 - Stacked PRs: merge bottom-up with merge commits; retarget the next PR to `main` *before* deleting a merged base branch (GitHub closes PRs whose base disappears).
 - Commit and push after every completed piece of work; then check CI (`gh pr checks`): local runs can pass on files git ignores.
+- Commits follow Conventional Commits and are signed off (`git commit -s`, DCO; CI rejects unsigned commits). Contribution rules: [CONTRIBUTING.md](CONTRIBUTING.md).
 - Update `CHANGELOG.md` under `[Unreleased]` (Added / Changed / Fixed / Security).
 - Check current library docs (Context7) before using an API: React 19, r3f 9, drei 10, three 0.186, Vite 8, zod 4, TypeScript 7.
 - Files under ~400 lines; plain functions over classes; comments explain *why*.
