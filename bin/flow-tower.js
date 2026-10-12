@@ -383,7 +383,10 @@ if (!hub && allowedHosts.length) {
 // still authenticate here. This server's shared secret stays FLOW_TOWER_TOKEN; per-sender tokens live
 // in tokens.json. So the "needs a token" refusal ignores the config file.
 const token = env.FLOW_TOWER_TOKEN;
-if ((hub || ingestOnly) && !token && !hasActiveToken()) {
+// A tailnet hub with viewers can start with no token yet: `connect` enrols each viewer's machine and the
+// hub mints its token then (#164). Until one exists the hub still accepts no event, so nothing is unsigned.
+const canEnrol = hub && !ingestOnly && (cfg.viewers ?? []).length > 0;
+if ((hub || ingestOnly) && !token && !canEnrol && !hasActiveToken()) {
   console.error(`${hub ? 'hub mode' : '--ingest-only'} needs a token to accept any event.
 create one: flow-tower token add <id>\nThen send it as x-flow-tower-token (or FLOW_TOWER_TOKEN for a shared secret).`);
   process.exit(1);
