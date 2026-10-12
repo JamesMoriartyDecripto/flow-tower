@@ -23,6 +23,17 @@ export const TS_COMMANDS = [
     script: 'connect.ts',
     extra: (values) => ['token', 'user', 'machine'].flatMap((name) => (values[name] === undefined ? [] : [`--${name}`, values[name]])),
   },
+  // --pdf, --level, --out and --port are stripped from the positionals: each goes back with its exact value.
+  {
+    name: 'export',
+    script: 'export.ts',
+    // `port` has a default (5317) in parseArgs, so it is passed only when it was typed: the export picks a free port otherwise.
+    extra: (values) => [
+      ...(values.pdf ? ['--pdf'] : []),
+      ...['level', 'out'].flatMap((name) => (values[name] === undefined ? [] : [`--${name}`, values[name]])),
+      ...(process.argv.some((a) => a === '--port' || a.startsWith('--port=') || a === '-p') ? ['--port', values.port] : []),
+    ],
+  },
   // `library` is a TS command only with a subcommand (add/list/remove); see findTsCommand.
   { name: 'library', script: 'library.ts', extra: () => [] },
 ];

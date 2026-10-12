@@ -28,7 +28,8 @@ export function docImages(ws: Workspace, doc: TowerDoc, layouts: Record<string, 
     const tower = ws.towers[c.towerId];
     const layout = layouts[c.towerId];
     if (!tower || !layout) continue;
-    for (const l of c.layers) out.layers[l.id] = towerSvg(tower, layout, { layers: [l.index], palette: PAPER });
+    // Bare: the layer heading above the drawing already carries its title, so the drawing does not repeat it.
+    for (const l of c.layers) out.layers[l.id] = towerSvg(tower, layout, { layers: [l.index], palette: PAPER, bare: true });
   }
   return out;
 }
