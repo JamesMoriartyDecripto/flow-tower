@@ -50,7 +50,7 @@
 - The `token` in config.json is a **sender** credential (emit, satellite relay), never this server's secret: the server's secret is `FLOW_TOWER_TOKEN` or `tokens.json`.
 - The hub lights only towers in its own library: events from a machine whose tower is not there match no node.
 - A test that spawns `serve` or the CLI needs an explicit `{ timeout }` (see `tests/connect.test.ts`).
-- Each Vite restart (editing `src/server/*`) can leave the old server on its port and bind the next one (#99): check `lsof -nP -iTCP -sTCP:LISTEN` before trusting a port.
+- The CLI server (`bin/flow-tower.js`: `npm run dev`, the e2e server, every `flow-tower` serve) loads `vite.config.ts` once and passes it inline, so editing `src/server/*` or `src/core/*` never restarts it: restart it by hand to run new server code. In-process restarts leaked the old server each time (#99, upstream Rolldown #10887).
 - Some environments block shell commands containing `.env` or `pip install`: use `import { env } from 'node:process'` and file-edit tools.
 - zsh does not word-split unquoted `$var`; use `${=var}`.
 - Tower files read only inside their project (git root or opened folder; `loader.ts` `projectOf`). A dogfood tower can use `root: ../..` because the repo is the project.

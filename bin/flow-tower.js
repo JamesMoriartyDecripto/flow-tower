@@ -11,6 +11,7 @@ import { findTsCommand, runTsCommand } from './commands.js';
 import { STARTER } from './starter.js';
 import { clipIdentity, identityDefaults } from './identity.js';
 import { EMPTY_LIBRARY, libraryEntries, warnInCheckout } from './library.js';
+import { serveConfig } from './vite-config.js';
 
 const HELP = `flow-tower — 3D tower visualizer for agentic systems
 
@@ -401,9 +402,8 @@ if (ingestOnly) env.FLOW_TOWER_INGEST_ONLY = '1';
 // Vite opens the page with the `open` package, which reads $BROWSER.
 if (values.browser) env.BROWSER = values.browser;
 const { createServer } = await import('vite');
-const server = await createServer({
+const server = await createServer(await serveConfig(pkgRoot, {
   root: pkgRoot,
-  configFile: join(pkgRoot, 'vite.config.ts'),
   // One dependency cache per port: two servers from this checkout (a second --port, or the e2e server) would
   // otherwise re-optimize the same files under each other, and an open page fails to load renamed chunks.
   cacheDir: join(pkgRoot, 'node_modules', '.vite', `port-${values.port}`),
@@ -417,7 +417,7 @@ const server = await createServer({
     // Only when the user named hosts: an explicit list must not replace Vite's localhost/IP defaults for nothing.
     ...(allowedHosts.length ? { allowedHosts } : {}),
   },
-});
+}));
 try {
   await server.listen();
 } catch (err) {
