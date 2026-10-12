@@ -49,9 +49,22 @@ test('the document view shows every node of the root tower, with anchors and a d
     expect(await page.locator(`[id="${id}"]`).count(), `anchor ${href} has a target`).toBeGreaterThan(0);
   }
 
+  // Level 2 has no node sheets, so a node link there would be a dead one.
+  expect(await page.locator('main a[href^="#node-"]').count(), 'no node sheet links at level 2').toBe(0);
+  // Structured values are printed as text, never as raw JSON.
+  expect(text, 'no raw JSON in the document').not.toContain('{"');
+
   expect(await page.locator('main svg').count(), 'inline diagram per layer').toBeGreaterThanOrEqual(root.layers.length);
   mkdirSync('test-results', { recursive: true });
   await page.screenshot({ path: 'test-results/doc-level2.png', fullPage: true });
+});
+
+test('the full document links node names to their sheets and prints no raw JSON', async ({ page }) => {
+  await page.goto('/?doc=dev-squad&level=3');
+  await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
+  const text = await page.locator('main').innerText();
+  expect(text, 'no raw JSON in the document').not.toContain('{"');
+  expect(await page.locator('main a[href^="#node-"]').count(), 'node names link to their sheets').toBeGreaterThan(0);
 });
 
 test('the document prints to PDF at each level, and the full one is larger', async ({ page, browserName }) => {

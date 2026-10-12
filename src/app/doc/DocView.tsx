@@ -9,9 +9,10 @@ import { IssuesBlock, LegendBlock, NodeDetail, SourcesBlock } from './DocDetails
 import { afterPaint } from './afterPaint';
 import { loadWorkspace } from './loadWorkspace';
 import { clampLevel, resolveTower } from './resolve';
+import { APP_VERSION } from './version';
 import './doc.css';
 
-interface Built { doc: TowerDoc; images: DocImages; title: string }
+interface Built { doc: TowerDoc; images: DocImages; title: string; footer: string }
 
 /** Lays out every tower in the document (the cover map and each layer need its positions). */
 async function layoutsOf(ws: Workspace, doc: TowerDoc): Promise<Record<string, TowerLayout>> {
@@ -39,7 +40,7 @@ export function DocView({ ws, towerId, level, print }: { ws: Workspace; towerId:
     const doc = towerDoc(ws, towerId, level);
     layoutsOf(ws, doc)
       .then((layouts) => docImages(ws, doc, layouts))
-      .then((images) => live && setBuilt({ doc, images, title: `${ws.towers[towerId].name} — ${LEVEL_NAMES[level]}` }))
+      .then((images) => live && setBuilt({ doc, images, title: `${ws.towers[towerId].name} — ${LEVEL_NAMES[level]}`, footer: `${doc.title} · ${LEVEL_NAMES[level]}` }))
       .catch((e: Error) => {
         if (!live) return;
         root.docError = e.message;
@@ -55,6 +56,7 @@ export function DocView({ ws, towerId, level, print }: { ws: Workspace; towerId:
 
 function Document({ built, level, print }: { built: Built; level: 1 | 2 | 3; print: boolean }) {
   const { doc, images } = built;
+  // The cover names the version (from package.json at build time) and the tower id: no date, so the same tower prints the same file.
 
   useEffect(() => {
     // Runs after this document is committed to the DOM; the fonts and two frames let it paint before the flag.
@@ -62,6 +64,8 @@ function Document({ built, level, print }: { built: Built; level: 1 | 2 | 3; pri
     void afterPaint(document.fonts.ready, requestAnimationFrame).then(() => {
       if (!live) return;
       document.title = built.title;
+      // The running footer (CSS @page) reads this: the tower title and the level, the same as the page title.
+      document.documentElement.style.setProperty('--doc-footer', JSON.stringify(built.footer));
       document.documentElement.dataset.docReady = '1';
       if (print) window.print();
     });
@@ -70,7 +74,7 @@ function Document({ built, level, print }: { built: Built; level: 1 | 2 | 3; pri
 
   return (
     <main className={`doc level-${level}`}>
-      <Cover doc={doc} map={images.cover} />
+      <Cover doc={doc} map={images.cover} version={APP_VERSION} />
       {level >= 2 && <Toc entries={doc.toc} />}
       {doc.chapters.map((c) => (
         <article key={c.id} className="chapter">
@@ -91,7 +95,6 @@ function Document({ built, level, print }: { built: Built; level: 1 | 2 | 3; pri
       {doc.legend && <LegendBlock legend={doc.legend} />}
       {doc.issues && <IssuesBlock issues={doc.issues} />}
       {doc.sources && <SourcesBlock sources={doc.sources} />}
-      <footer className="doc-foot">{LEVEL_NAMES[level]} · Flow Tower</footer>
     </main>
   );
 }

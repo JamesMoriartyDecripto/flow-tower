@@ -1,21 +1,26 @@
-/* The document page: white paper, dark text, the accent for headings and rules. Print-first; readable on screen. */
+/* The document page: white paper, dark text, the accent for headings and rules only. Print-first; readable on screen. */
 
-:root { --paper: #ffffff; --ink: #111827; --muted: #4b5563; --accent: #c2410c; --rule: #e5e7eb; }
+:root {
+  --paper: #ffffff; --ink: #111827; --muted: #4b5563; --accent: #c2410c; --rule: #e5e7eb; --zebra: #f8fafc;
+  --sans: "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
 
+/* Running header and footer: the tower title and the level on the left, page / pages on the right. */
 @page {
   size: A4;
   margin: 16mm 14mm 18mm;
-  @bottom-left { content: var(--doc-title, ""); font: 9pt "Rajdhani", system-ui, sans-serif; color: var(--muted); }
-  @bottom-right { content: counter(page) " / " counter(pages); font: 9pt "JetBrains Mono", monospace; color: var(--muted); }
+  @bottom-left { content: var(--doc-footer, ""); font: 8.5pt var(--sans); color: var(--muted); }
+  @bottom-right { content: counter(page) " / " counter(pages); font: 8.5pt var(--mono); color: var(--muted); }
 }
 
-/* Layer drawings are wide: they get a landscape page of their own. */
-@page layer-image { size: A4 landscape; }
+/* Layer pages are wide: the heading and its drawing share one landscape page. */
+@page layer { size: A4 landscape; margin: 12mm 14mm 16mm; }
 
 html, body { background: var(--paper); color: var(--ink); margin: 0; }
 
 body {
-  font: 11pt/1.45 "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  font: 10pt/1.5 var(--sans);
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
@@ -23,32 +28,47 @@ body {
 .doc { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; }
 @media print { .doc { max-width: none; padding: 0; margin: 0; } }
 
-h1, h2, h3, h4, h5 { font-family: "Rajdhani", system-ui, sans-serif; color: var(--accent); line-height: 1.2; margin: 0.9em 0 0.4em; }
+/* Headings: the accent, sans; sizes from the print scale (20 / 14 / 11 pt). */
+h1, h2, h3, h4, h5 { font-family: var(--sans); color: var(--accent); line-height: 1.25; margin: 0.9em 0 0.4em; }
 h1 { font-size: 30pt; font-weight: 700; margin-top: 0; }
-h2 { font-size: 18pt; font-weight: 700; border-bottom: 1.5px solid var(--accent); padding-bottom: 2px; }
+h2 { font-size: 20pt; font-weight: 700; border-bottom: 1.5px solid var(--accent); padding-bottom: 2px; }
 h3 { font-size: 14pt; font-weight: 700; }
-h4 { font-size: 12pt; font-weight: 700; color: var(--ink); }
-h5 { font-size: 9.5pt; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0.6em 0 0.2em; }
+h4 { font-size: 11pt; font-weight: 700; color: var(--ink); margin: 0; }
+h5 { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0.6em 0 0.2em; }
 
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
-.muted { color: var(--muted); }
-.lead { color: var(--muted); }
-code, .counts { font: 9.5pt "JetBrains Mono", ui-monospace, monospace; }
-.kicker { font: 600 10pt "Rajdhani", system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin: 0; }
+.muted, .lead { color: var(--muted); }
+.mono, code { font-family: var(--mono); font-size: 0.9em; }
+code { background: var(--zebra); border: 1px solid var(--rule); border-radius: 2px; padding: 0 3px; color: var(--ink); }
+.kicker { font: 600 10pt var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin: 0; }
 
-.tag { display: inline-block; border: 1px solid var(--accent); color: var(--accent); border-radius: 3px; padding: 0 5px; margin: 0 4px 4px 0; font-size: 9pt; }
+/* Chips: type and status, small and coloured. Greyscale still reads by the label. */
+.chip { display: inline-block; font: 600 7.5pt var(--sans); letter-spacing: 0.03em; text-transform: lowercase; border-radius: 3px; padding: 0 5px; margin: 0 3px 0 0; line-height: 1.5; border: 1px solid transparent; }
+.chip-type { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+.chip-green { background: #dcfce7; color: #166534; border-color: #86efac; }
+.chip-amber { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.chip-blue { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+.chip-grey { background: #e5e7eb; color: #4b5563; border-color: #d1d5db; }
+.chip-tag { background: transparent; color: var(--accent); border-color: var(--accent); font-size: 8.5pt; text-transform: none; padding: 0 6px; }
 
-/* Cover: one page, the map under the title. */
-.cover { break-after: page; }
-.cover .image { margin-top: 18px; }
+/* Cover: title, description, tags, stat tiles, then the whole-tower map filling the rest of the page. */
+.cover { break-after: page; display: flex; flex-direction: column; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+.tile { border: 1px solid var(--rule); border-top: 2px solid var(--accent); border-radius: 3px; padding: 6px 10px; }
+.tile strong { display: block; font: 700 18pt var(--sans); color: var(--ink); }
+.tile span { font-size: 8.5pt; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.meta { color: var(--muted); font-size: 9.5pt; margin: 4px 0; }
+.cover .image.map { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; margin-top: 14px; }
+.cover .image.map svg { max-height: 100%; width: auto; max-width: 100%; }
+.doc-credit { color: var(--muted); font-size: 8.5pt; margin: 10px 0 0; }
 
 /* Contents */
 .toc { break-after: page; }
 .toc ol { list-style: none; padding: 0; margin: 0; }
 .toc li { border-bottom: 1px dotted var(--rule); padding: 3px 0; }
 .toc li.depth-1 { padding-left: 18px; }
-.toc li.depth-2 { padding-left: 36px; font-size: 10pt; }
+.toc li.depth-2 { padding-left: 36px; font-size: 9.5pt; }
 
 /* Chapters and layers start on a new page. */
 .chapter { break-before: page; }
@@ -56,35 +76,58 @@ code, .counts { font: 9.5pt "JetBrains Mono", ui-monospace, monospace; }
 .layer-block { break-before: page; }
 .layer-block:first-of-type { break-before: auto; }
 
-/* Images: scale to the page, never cut. The layer drawing gets its own landscape page. */
+/* A layer page: heading and drawing together, on landscape, scaled to fit the page area without cutting. */
+.layer { break-inside: auto; }
+.layer-page { page: layer; break-after: avoid; }
+.layer-page h3 { margin-top: 0; }
+.layer-page .code { color: var(--accent); margin-right: 4px; }
+.layer-image { display: flex; justify-content: center; }
 .image svg { display: block; max-width: 100%; height: auto; }
-.layer-image { break-before: page; page: layer-image; }
+.layer-image svg { max-width: 100%; max-height: 150mm; width: auto; }
 
-/* Node table: one line per row, header repeats on each page. */
-table { width: 100%; border-collapse: collapse; font-size: 10pt; margin: 8px 0 14px; }
+/* Node table: header repeats on each page, rows zebra, the summary column wider. */
+table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 8px 0 14px; }
+caption { caption-side: top; text-align: left; font: 600 10pt var(--sans); color: var(--ink); padding-bottom: 4px; }
 thead { display: table-header-group; }
 th { text-align: left; color: var(--accent); border-bottom: 1.5px solid var(--accent); padding: 4px 6px; }
 td { border-bottom: 1px solid var(--rule); padding: 4px 6px; vertical-align: top; }
+tr.zebra td { background: var(--zebra); }
 tr { break-inside: avoid; }
+td.name { font-weight: 600; }
+td.runtime { font-size: 8.5pt; }
+th.summary, td.summary { width: 42%; }
 
-/* Node details */
+/* Node cards: each one kept whole unless it is taller than a page. */
 .details { margin-top: 10px; }
 .node { break-inside: avoid; border-top: 1px solid var(--rule); padding: 10px 0; }
-.node h4 { margin-top: 0; }
-dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 6px 0; font-size: 10pt; }
-dl > div { display: contents; }
-dt { color: var(--muted); }
-dd { margin: 0; overflow-wrap: anywhere; }
-.edges ul, .files ul, .legend ul, .issues ul, .sources ul, .links ul { padding-left: 18px; margin: 2px 0; font-size: 10pt; }
+.node-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.node-head .chip { margin: 0; }
+.node .subtower { margin: 4px 0; font-size: 9.5pt; }
+
+/* Fields: label | value in two columns; a list or a pairs table nests inside the value. */
+.fields { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin: 6px 0; font-size: 9.5pt; }
+.fields > div { display: contents; }
+.fields dt { color: var(--muted); }
+.fields dd { margin: 0; overflow-wrap: anywhere; }
+.fields ul.plain { list-style: none; padding: 0; margin: 0; }
+.fields ul.plain li { margin: 0; }
+table.pairs { width: auto; font-size: 9pt; margin: 0; }
+table.pairs th, table.pairs td { border: none; padding: 0 10px 0 0; text-align: left; font-weight: 400; color: var(--ink); }
+table.pairs th { color: var(--muted); }
+
+/* Edges: incoming and outgoing side by side, each as `label · kind` with a linked node. */
+.edge-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px; }
+.edges ul, .files ul, .legend ul, .issues ul, .sources ul, .links ul { padding-left: 18px; margin: 2px 0; font-size: 9.5pt; }
+.edges li { margin-bottom: 2px; }
+.files li { font-family: var(--mono); font-size: 8.5pt; word-break: break-all; }
+.files ul.mono, .sources ul.mono { font-family: var(--mono); font-size: 8.5pt; }
 .links { break-inside: avoid; margin-top: 18px; }
 .legend, .issues, .sources { margin-top: 24px; break-inside: avoid-page; }
-
-.doc-foot { margin-top: 32px; color: var(--muted); font-size: 9pt; text-align: right; }
 
 .doc-message { padding-top: 48px; text-align: center; }
 
 @media print {
-  .toc, .doc-foot { break-inside: avoid; }
+  .toc { break-inside: avoid; }
   a { color: inherit; }
   .doc-message a { color: var(--accent); }
 }

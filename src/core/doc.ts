@@ -1,5 +1,6 @@
 import { EDGE_KINDS, NODE_TYPES, type EdgeKind, type NodeType, type OpsDef, type Status } from './schema.ts';
 import type { Issue, ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from './types.ts';
+import { fieldsOf, type Field } from './docFields.ts';
 
 /*
  * The content of a tower's PDF document, as plain data. The HTML view, the CLI and the tests all read
@@ -42,12 +43,13 @@ export interface NodeDetail {
   key: string;
   label: string;
   type: NodeType;
+  status: Status;
   description?: string;
   agent?: { name?: string; model?: string; prompt?: string };
   tools: string[];
   runtime?: string;
-  /** Operational facts as [label, value] pairs, short text. */
-  ops: [string, string][];
+  /** Operational facts, formatted for print (see docFields.ts): never raw JSON. */
+  ops: Field[];
   incoming: EdgeRef[];
   outgoing: EdgeRef[];
   files: string[];
@@ -72,7 +74,8 @@ export interface Chapter {
   depth: number;
   layers: LayerSection[];
   links: LinkRow[];
-  budget?: string[];
+  /** The run-wide budget and limits of this tower, formatted for print. */
+  budget?: Field[];
 }
 
 export interface TocEntry {
@@ -138,15 +141,9 @@ function firstSentence(text?: string): string | undefined {
   return cut(m ? m[0].trim() : s, 140);
 }
 
-function shortValue(v: unknown): string {
-  return cut(typeof v === 'string' ? collapse(v) : JSON.stringify(v), 200);
-}
-
-/** Operational facts that are set, in the schema's own order. */
-function opsRows(ops: Partial<OpsDef>): [string, string][] {
-  return Object.entries(ops as Record<string, unknown>)
-    .filter(([, v]) => v !== undefined)
-    .map(([k, v]) => [k.replace(/_/g, ' '), shortValue(v)]);
+/** Operational facts that are set, in the schema's own order. Values are never cut: a field must reach print. */
+function opsFields(ops: Partial<OpsDef>): Field[] {
+  return fieldsOf(ops as Record<string, unknown>);
 }
 
 function titleCase(s: string): string {
@@ -220,7 +217,7 @@ function chapterOf(
     depth: depths.get(id) ?? 0,
     layers,
     links: t.links.map((e) => ({ label: e.label, kind: e.kind, from: nodeRef(e.from), to: nodeRef(e.to) })),
-    budget: t.run ? opsRows({ budget: t.run.budget, limits: t.run.limits }).map(([k, v]) => `${k}: ${v}`) : undefined,
+    budget: t.run ? opsFields({ budget: t.run.budget, limits: t.run.limits }) : undefined,
   };
 }
 
@@ -236,13 +233,14 @@ function nodeDetail(
     key: n.key,
     label: n.label,
     type: n.type,
+    status: n.status,
     description: n.description ? collapse(n.description) : undefined,
     agent: n.agent
       ? { name: n.agent.name, model: n.model ?? n.agent.model, prompt: prompt }
       : undefined,
     tools: n.tools,
     runtime: n.runtime?.label ?? n.runtime?.id,
-    ops: opsRows(n.ops),
+    ops: opsFields(n.ops),
     incoming: allEdges.filter((e) => e.to === n.key).map((e) => ({ label: e.label, kind: e.kind, other: nodeRef(e.from) })),
     outgoing: allEdges.filter((e) => e.from === n.key).map((e) => ({ label: e.label, kind: e.kind, other: nodeRef(e.to) })),
     files: n.files,
