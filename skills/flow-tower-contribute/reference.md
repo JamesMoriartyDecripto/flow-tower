@@ -80,16 +80,6 @@ gh pr create -R JamesMoriartyDecripto/flow-tower --head <you>:examples/<name> \
 
 ## PR checklist
 
-Copy into `pr-body.md`:
+The PR body is the repo's `.github/pull_request_template.md`: fill every section and keep the "Example tower" block.
 
-```markdown
-Adds `examples/<name>`: <one line>.
-
-- [ ] `flow-tower check-example examples/<name>` passes
-- [ ] `npm run check` green (tests/examples.test.ts: 0 errors, 0 warnings)
-- [ ] Anonymised: no personal paths, hosts, IPs, emails, tokens, keys; real company/customer data replaced
-- [ ] Self-contained: no `root: ../..`, every referenced file in the folder
-- [ ] README: what it shows, how to run it, Sources; illustrative numbers labelled
-- [ ] Row added to the right section of examples/README.md
-- [ ] English only
-```
+Link the issue with `Fixes #<n>`.
