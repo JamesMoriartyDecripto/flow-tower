@@ -14,13 +14,13 @@ runtimes:
 layers:
   - id: machines
     title: Machines
-    description: Everything that sends events. Each sender has its own token (flow-tower token add <id> on the hub).
+    description: Everything that sends events. Each sender has its own token, minted by the hub when a tailnet machine connects, or made with flow-tower token add <id> for CI and non-tailnet senders.
     nodes:
       - id: laptop
         type: entry
         label: Laptop satellite
         runtime: laptop
-        description: "Runs its own library (flow-tower ~/towers) after `flow-tower connect <url> --token ft_…`. The relay forwards event metadata to the hub, queues up to 5000 while the hub is unreachable, and beats every interval."
+        description: "`flow-tower connect https://hub.example.ts.net` (the hub mints this machine's token: the user's tailnet login is in viewers), then `flow-tower share <tower folder>` per tower (YAML only by default, --files adds referenced files). Its own library (flow-tower ~/towers) relays event metadata, queues up to 5000 while the hub is unreachable, beats every interval and re-sends a shared tower within ~15 s of a change."
         files: [deploy/satellite.config.json]
         resources:
           - { kind: config, label: Satellite config.json, path: deploy/satellite.config.json }
@@ -73,7 +73,7 @@ layers:
         type: entry
         label: Ingest routes
         runtime: hub-vps
-        description: "/api/events, /api/heartbeat and the OTLP receivers: the only routes a remote sender may use. Each checks the token against tokens.json."
+        description: "/api/events, /api/heartbeat and the OTLP receivers, plus /api/hub/towers for shared towers: the routes a remote sender may use, each checking the token against tokens.json. /api/hub/enroll mints a machine's token for a tailnet viewer (a *.ts.net Host and a tailscale-user-login listed in viewers)."
         limits: { description: "A token bucket per token and per sender: an empty bucket answers 429 (src/server/limits.ts)." }
       - id: service
         type: process
@@ -120,13 +120,13 @@ layers:
 
   - id: library
     title: Hub Library
-    description: The hub can only light up towers it has. Copy each machine's tower into towers/.
+    description: The hub can only light up towers it has. Each machine shares its towers (flow-tower share), unshares them (flow-tower unshare), and keeps them in sync with no step on the hub.
     nodes:
       - id: towers
         type: memory
         label: towers/
         runtime: hub-vps
-        description: One subfolder per connected machine. Events match a tower by name or id.
+        description: "towers/<machine>/<name>/, written by the hub when a satellite shares a tower (PUT /api/hub/towers, signed by its token; staged, then renamed in) and removed when it unshares. Text files only, at most 200 files and 4 MB per tower. Events match a tower by name or id. Senders without a library (CI) still copy theirs here by hand."
         files: [towers/README.md]
       - id: matcher
         type: process
@@ -161,7 +161,8 @@ layers:
     edges: []
 
 links:
-  - "machines.laptop -> transport.ts-serve [data]: events + heartbeat"
+  - "machines.laptop -> transport.ts-serve [data]: events, heartbeat, shared towers"
+  - "hub.ingest -> library.towers [data]: shared towers"
   - "machines.agent-host -> transport.ts-serve [data]: emit"
   - "machines.ci-runner -> transport.ts-serve [data]: emit"
   - "machines.otel -> transport.caddy [data]: OTLP /v1/*"
