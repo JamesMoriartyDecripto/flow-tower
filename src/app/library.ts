@@ -77,6 +77,23 @@ export function sourceOf(ws: Workspace, id: string): string {
   return ws.sources?.[id] ?? 'local';
 }
 
+/** The sources the library can show: this hub's own ('local') and each machine that shares projects. */
+export function knownSources(ws: Workspace): string[] {
+  const machines = new Set(Object.values(ws.sources ?? {}).filter((s) => s !== 'local'));
+  return ['local', ...[...machines].sort()];
+}
+
+/**
+ * Matches a spoken source to a known id. Speech varies in case, spaces and dashes ("Box-1", "box 1"
+ * both mean box-1), so both sides are compared with those removed; "this hub" is the hub's own source.
+ */
+export function sourceNamed(known: string[], spoken: unknown): string | undefined {
+  const key = (v: string) => v.toLowerCase().replace(/[\s-]/g, '');
+  const said = key(String(spoken));
+  if (said === 'thishub') return 'local';
+  return known.find((id) => key(id) === said);
+}
+
 /** The chip text and title for a source; a machine's name is shown upper case, as the other chips are. */
 export function sourceChip(source: string): { label: string; title: string; cls: 'local' | 'device' } {
   if (source === 'local') return { label: 'THIS HUB', title: "Part of this server's own library", cls: 'local' };

@@ -190,6 +190,41 @@ describe('voice agent tools (#63)', () => {
     expect(matchingProjects(shared, {})).toEqual(ws.projects);
   });
 
+  it('matches a spoken source case-, space- and dash-insensitively (#165)', async () => {
+    const { knownSources, sourceNamed } = await import('../src/app/library');
+    const ws = useStore.getState().workspace!;
+    const shared = { ...ws, sources: { [ws.projects[0]]: 'box-1', [ws.projects[1]]: 'mac-ana' } };
+    const known = knownSources(shared);
+    expect(known).toEqual(['local', 'box-1', 'mac-ana']);
+    expect(sourceNamed(known, 'Box-1')).toBe('box-1');
+    expect(sourceNamed(known, 'box 1')).toBe('box-1');
+    expect(sourceNamed(known, 'MAC ANA')).toBe('mac-ana');
+    // "this hub" and "local" both name the hub's own source.
+    expect(sourceNamed(known, 'this hub')).toBe('local');
+    expect(sourceNamed(known, 'Local')).toBe('local');
+    // A name that is not known matches nothing, and "box one" is not "box-1".
+    expect(sourceNamed(known, 'laptop')).toBeUndefined();
+    expect(sourceNamed(known, 'box one')).toBeUndefined();
+  });
+
+  it('library_filter takes a source: refuses an unknown one and changes nothing (#165)', () => {
+    const ws = useStore.getState().workspace!;
+    const seen: unknown[] = [];
+    const onEvent = (e: Event) => seen.push((e as CustomEvent<unknown>).detail);
+    window.addEventListener('flow-tower:library-filter', onEvent);
+    // Without workspace.sources the only known source is this hub's own.
+    const bad = call('library_filter', { source: 'laptop' });
+    expect(bad.error).toMatch(/laptop/);
+    expect(bad.sources).toEqual(['local']);
+    expect(call('library_filter', { source: 'this hub' })).toMatchObject({ projects: ws.projects.length, source: 'local' });
+    return new Promise<void>((done) => setTimeout(() => {
+      window.removeEventListener('flow-tower:library-filter', onEvent);
+      // The refused call dispatched nothing; the accepted one carries the source.
+      expect(seen).toEqual([{ source: 'local' }]);
+      done();
+    }, 20));
+  });
+
   it('scrolls the open file by dispatching the viewer event (#145b)', () => {
     const seen: string[] = [];
     window.addEventListener('flow-tower:viewer-scroll', (e) => seen.push((e as CustomEvent<string>).detail));
