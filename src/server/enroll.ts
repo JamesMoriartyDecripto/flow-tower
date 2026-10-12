@@ -28,13 +28,16 @@ const send = (res: ServerResponse, status: number, body: unknown) => {
 };
 
 /**
- * The request Host without its port, in lower case. A bracketed IPv6 literal keeps its brackets, so a
- * port is stripped only after the closing one.
+ * The host of a Host header without its port, in lower case. A bracketed IPv6 literal keeps its brackets, and
+ * its port (if any) comes after the closing one; any other host loses a trailing `:digits`.
  */
-const hostname = (req: IncomingMessage): string => {
-  const host = (req.headers.host ?? '').toLowerCase();
-  return host.replace(/:\d+$/, '');
-};
+export function hostnameOf(host: string): string {
+  const h = host.toLowerCase();
+  if (h.startsWith('[')) return h.replace(/^(\[[^\]]*\]):\d+$/, '$1');
+  return h.replace(/:\d+$/, '');
+}
+
+const hostname = (req: IncomingMessage): string => hostnameOf(req.headers.host ?? '');
 
 /** One JSON body under MAX_BODY, or undefined after a 413 was sent. Unparseable JSON comes back as undefined too. */
 async function readBody(req: IncomingMessage, res: ServerResponse): Promise<unknown> {

@@ -13,7 +13,9 @@ import { collectTower, fingerprint, uploadTower, type CollectResult } from './sh
 export interface ShareSyncOptions {
   /** The user folder holding config.json. */
   home: string;
+  /** Fallback hub url, used only while the config has none; the config is read on every tick. */
   url: string;
+  /** Fallback sender token, used only while the config has none. */
   token: string;
   intervalMs?: number;
   /** Receives one line per share and distinct error; the token never reaches it. */
@@ -46,9 +48,12 @@ function sharesOf(config: Record<string, unknown>): Share[] {
 }
 
 export function startShareSync(opts: ShareSyncOptions): ShareSync {
-  const { home, url, token, warn } = opts;
+  const { home, warn } = opts;
   const intervalMs = opts.intervalMs ?? DEFAULT_INTERVAL_MS;
 
+  // The hub the uploads go to. `flow-tower connect` may rotate the token or point at another hub while the
+  // server runs, so each tick re-reads it; this is the last one used, to notice a change.
+  let target = { url: opts.url, token: opts.token };
   // The fingerprint the hub last accepted, per share name. Kept on failure, so the next tick retries.
   const sent = new Map<string, string>();
   // The state word per share name, rebuilt from the config on every tick.
@@ -65,7 +70,7 @@ export function startShareSync(opts: ShareSyncOptions): ShareSync {
   };
 
   /** One share: collect, compare, upload. Any failure is recorded and retried by a later tick. */
-  const syncOne = async (share: Share, previous: TowerSyncState | undefined) => {
+  const syncOne = async (share: Share, previous: TowerSyncState | undefined, hub: { url: string; token: string }) => {
     const fail = (message: string): TowerSyncState => {
       warnOnce(share.name, message);
       return { name: share.name, ...(previous?.syncedAt !== undefined ? { syncedAt: previous.syncedAt } : {}), error: message };
@@ -81,7 +86,7 @@ export function startShareSync(opts: ShareSyncOptions): ShareSync {
     const fp = fingerprint(collected.files);
     const unchanged = sent.get(share.name) === fp;
     if (!unchanged) {
-      const r = await uploadTower(url, token, share.name, collected.files);
+      const r = await uploadTower(hub.url, hub.token, share.name, collected.files);
       if (!r.ok) return fail(r.error);
       sent.set(share.name, fp);
       warned.delete(share.name);
@@ -96,6 +101,16 @@ export function startShareSync(opts: ShareSyncOptions): ShareSync {
     const config = readUserConfig(home);
     // The user's sharing pause covers towers too: nothing leaves while it is on.
     if (config.paused === true) return;
+    // The config wins; the start options are only the fallback for a config that names no hub or no token.
+    const hub = {
+      url: typeof config.url === 'string' && config.url ? config.url : opts.url,
+      token: typeof config.token === 'string' && config.token ? config.token : opts.token,
+    };
+    // A new hub may hold nothing, so every remembered fingerprint is forgotten: the next upload goes out again.
+    if (hub.url !== target.url || hub.token !== target.token) {
+      sent.clear();
+      target = hub;
+    }
     const shares = sharesOf(config);
     const next = new Map<string, TowerSyncState>();
     // Forget what a removed share left behind, so a later share under the same name starts fresh.
@@ -103,7 +118,7 @@ export function startShareSync(opts: ShareSyncOptions): ShareSync {
     for (const name of [...sent.keys()]) if (!names.has(name)) sent.delete(name);
     for (const name of [...warned.keys()]) if (!names.has(name)) warned.delete(name);
     for (const share of shares) {
-      next.set(share.name, await syncOne(share, status.get(share.name)));
+      next.set(share.name, await syncOne(share, status.get(share.name), hub));
     }
     status = next;
   }

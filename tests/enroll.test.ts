@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { createServer, request, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, describe, expect, it } from 'vitest';
-import { enrollHandler } from '../src/server/enroll';
+import { enrollHandler, hostnameOf } from '../src/server/enroll';
 import { tokenStore } from '../src/server/tokens';
 
 /**
@@ -52,6 +52,23 @@ const ok = (machine: string) => JSON.stringify({ machine });
 afterAll(() => {
   servers.forEach((s) => s.close());
   rmSync(home, { recursive: true, force: true });
+});
+
+describe('hostnameOf (#164)', () => {
+  it('strips a trailing port from a name', () => {
+    expect(hostnameOf('Hub.Tail1234.ts.net:443')).toBe('hub.tail1234.ts.net');
+    expect(hostnameOf('hub.ts.net')).toBe('hub.ts.net');
+  });
+
+  it('keeps the brackets of an IPv6 literal and strips only the port after them', () => {
+    expect(hostnameOf('[::1]:8443')).toBe('[::1]');
+    expect(hostnameOf('[::1]')).toBe('[::1]');
+    expect(hostnameOf('[2001:db8::1]:443')).toBe('[2001:db8::1]');
+  });
+
+  it('does not treat the colons inside an IPv6 literal as a port', () => {
+    expect(hostnameOf('[2001:db8::1]')).toBe('[2001:db8::1]');
+  });
 });
 
 describe('enrolment: POST /api/hub/enroll (#164)', () => {

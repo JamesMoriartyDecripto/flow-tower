@@ -38,6 +38,11 @@ function insideRelative(root: string, abs: string): string | undefined {
   return rel.split(/[\\/]/).join('/');
 }
 
+/** The message of a filesystem error, without the stack: the user needs the reason, not the trace. */
+function reasonOf(err: unknown): string {
+  return err instanceof Error ? (err as NodeJS.ErrnoException).code ?? err.message : String(err);
+}
+
 /**
  * The files a satellite sends for the folder `dir`: its tower files, and with `withFiles` the files those
  * towers reference. Anything the loader reached outside `dir`, or that the share rules refuse, is listed
@@ -60,7 +65,12 @@ export async function collectTower(dir: string, opts: { withFiles: boolean }): P
   for (const abs of towers) {
     const rel = insideRelative(root, abs) ?? basename(abs);
     seen.add(rel);
-    files.push({ path: rel, content: readFileSync(abs, 'utf8') });
+    // A tower that vanished or is unreadable is reported, not thrown: a stack out of the CLI helps nobody.
+    try {
+      files.push({ path: rel, content: readFileSync(abs, 'utf8') });
+    } catch (err) {
+      return { error: `cannot read ${rel}: ${reasonOf(err)}` };
+    }
   }
 
   if (opts.withFiles) {
@@ -76,8 +86,13 @@ export async function collectTower(dir: string, opts: { withFiles: boolean }): P
       // The same path rules the hub enforces: a file it would refuse is reported here, not sent to fail the share.
       const pathError = checkPath(rel);
       if (pathError) { skipped.push({ path: rel, reason: pathError }); continue; }
-      if (statSync(abs).size > MAX_FILE_BYTES) { skipped.push({ path: rel, reason: 'over 256 KB' }); continue; }
-      files.push({ path: rel, content: readFileSync(abs, 'utf8') });
+      // A referenced file that cannot be read is skipped with a reason, like the other refusals above.
+      let content: string;
+      try {
+        if (statSync(abs).size > MAX_FILE_BYTES) { skipped.push({ path: rel, reason: 'over 256 KB' }); continue; }
+        content = readFileSync(abs, 'utf8');
+      } catch { skipped.push({ path: rel, reason: 'cannot read' }); continue; }
+      files.push({ path: rel, content });
     }
   }
 

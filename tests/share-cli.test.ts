@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { shareName } from '../src/server/share-client.ts';
+import { withShare, withoutShare } from '../src/server/share-entries.ts';
 import { cleanEnv } from './fixtures/clean-env';
 
 /**
@@ -166,6 +167,17 @@ describe('flow-tower share (#164)', () => {
     expect(configOf().shares).toEqual([]);
   });
 
+  it('unshare drops the entry when the hub holds nothing under that name (404)', { timeout: 30_000 }, async () => {
+    rmSync(configPath, { force: true });
+    const hub = await stubHub(404);
+    connectedConfig(hub.url, { shares: [{ dir: '/x/zeta', name: 'zeta', files: false }] });
+    const r = await run(['unshare', 'zeta']);
+
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('unshared zeta (it was not on the hub)');
+    expect(configOf().shares).toEqual([]);
+  });
+
   it('unshare by dir still drops the entry', { timeout: 30_000 }, async () => {
     rmSync(configPath, { force: true });
     const hub = await stubHub(204);
@@ -216,5 +228,29 @@ describe('flow-tower share (#164)', () => {
     connectedConfig(hub.url);
     const r = await run(['share', towerFolder(), '--name', 'alpha']);
     expect(r.stdout + r.stderr).not.toContain(TOKEN);
+  });
+});
+
+describe('share list edits (#164): a write builds on the entries on disk', () => {
+  const beta = { dir: '/x/beta', name: 'beta', files: false };
+  const gamma = { dir: '/x/gamma', name: 'gamma', files: true };
+
+  it('withShare adds the entry and keeps the others', () => {
+    expect(withShare([beta], gamma)).toEqual([beta, gamma]);
+  });
+
+  it('withShare replaces an entry with the same name or the same folder', () => {
+    expect(withShare([beta, gamma], { dir: '/x/other', name: 'beta', files: true })).toEqual([gamma, { dir: '/x/other', name: 'beta', files: true }]);
+    expect(withShare([beta], { dir: '/x/beta', name: 'beta2', files: false })).toEqual([{ dir: '/x/beta', name: 'beta2', files: false }]);
+  });
+
+  it('withShare keeps a hand-edited entry the schema refuses', () => {
+    const broken = { dir: 42 };
+    expect(withShare([broken, beta], gamma)).toEqual([broken, beta, gamma]);
+  });
+
+  it('withoutShare drops the named entry only', () => {
+    expect(withoutShare([beta, gamma], 'beta')).toEqual([gamma]);
+    expect(withoutShare([beta], 'nope')).toEqual([beta]);
   });
 });

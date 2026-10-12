@@ -162,6 +162,35 @@ describe('shared towers sync (#164)', () => {
     expect(sync.state()[0].syncedAt).toEqual(expect.any(Number));
   });
 
+  it('uploads with the token the config holds now, after connect rotated it', async () => {
+    const { url, hub } = await stubHub();
+    const { home, dir, configPath } = setup(url);
+    const sync = start(home, url);
+    await sync.syncNow();
+    expect(hub.puts[0].token).toBe(TOKEN);
+
+    // `flow-tower connect` wrote a new token while the server runs: the next upload must carry it.
+    const ROTATED = 'ft_laptop_rotatedvalue';
+    writeFileSync(configPath, JSON.stringify({ role: 'satellite', url, token: ROTATED, shares: [{ dir, name: 'alpha', files: false }] }));
+    writeFileSync(join(dir, 'alpha.tower.yaml'), 'name: alpha\nlayers: [rotated]\n');
+    await sync.syncNow();
+    expect(hub.puts).toHaveLength(2);
+    expect(hub.puts[1].token).toBe(ROTATED);
+  });
+
+  it('re-uploads an unchanged folder to a new hub: the new hub may hold nothing', async () => {
+    const first = await stubHub();
+    const second = await stubHub();
+    const { home, dir, configPath } = setup(first.url);
+    const sync = start(home, first.url);
+    await sync.syncNow();
+    expect(first.hub.puts).toHaveLength(1);
+
+    writeFileSync(configPath, JSON.stringify({ role: 'satellite', url: second.url, token: TOKEN, shares: [{ dir, name: 'alpha', files: false }] }));
+    await sync.syncNow();
+    expect(second.hub.puts).toHaveLength(1);
+  });
+
   it('stop() clears the timer and later syncs do nothing', async () => {
     const { url, hub } = await stubHub();
     const { home } = setup(url);

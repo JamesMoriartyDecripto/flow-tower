@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -115,6 +115,21 @@ describe('collectTower', () => {
     const dir = folder('x');
     const missing = join(dir, 'nope');
     expect(await collectTower(missing, { withFiles: false })).toEqual({ error: `not a folder: ${missing}` });
+  });
+
+  // Mode 000 only denies a non-root user, so the test is skipped where it cannot hold (Windows, root).
+  const canDeny = process.platform !== 'win32' && process.getuid?.() !== 0;
+  it.skipIf(!canDeny)('a tower file that cannot be read is an error, not a throw', async () => {
+    const dir = folder('demo');
+    write(join(dir, 'demo.tower.yaml'), 'name: demo\nlayers: []\n');
+    const locked = join(dir, 'locked.tower.yaml');
+    write(locked, 'name: locked\n');
+    chmodSync(locked, 0o000);
+    try {
+      expect(await collectTower(dir, { withFiles: false })).toEqual({ error: 'cannot read locked.tower.yaml: EACCES' });
+    } finally {
+      chmodSync(locked, 0o600);
+    }
   });
 
   it('never sends .env beside the tower, in either mode', async () => {

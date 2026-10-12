@@ -11,8 +11,8 @@ import { resolve } from 'node:path';
 import { exit } from 'node:process';
 import { parseArgs } from 'node:util';
 import { userHome } from '../core/secrets.ts';
-import { ShareSchema } from '../server/config.ts';
 import type { Share } from '../server/config.ts';
+import { asShare, withShare, withoutShare } from '../server/share-entries.ts';
 import { collectTower, listShared, removeTower, shareName, uploadTower } from '../server/share-client.ts';
 import { shareName as validShareName } from '../server/share-rules.ts';
 import { readUserConfig, writeUserConfig } from '../server/user-config.ts';
@@ -42,15 +42,18 @@ function fail(message: string): never {
   exit(1);
 }
 
-/** A share entry the schema accepts; a hand-edited one that it refuses is left in the file untouched. */
-function asShare(raw: unknown): Share | undefined {
-  const parsed = ShareSchema.safeParse(raw);
-  return parsed.success ? parsed.data : undefined;
-}
-
-/** The raw entries of config `shares`, kept as they are so a rewrite never drops what it does not understand. */
+/** The raw entries of config `shares` as read at start; the write re-reads them, see `rawSharesNow`. */
 function rawShares(): unknown[] {
   return Array.isArray(config.shares) ? config.shares : [];
+}
+
+/**
+ * The entries as they are on disk now. The hub call takes a while, and another `share` or `unshare` may have
+ * written meanwhile: a write must build on what is there, not on the snapshot taken at start.
+ */
+function rawSharesNow(): unknown[] {
+  const fresh = readUserConfig(home).shares;
+  return Array.isArray(fresh) ? fresh : [];
 }
 
 function recorded(): Share[] {
@@ -84,12 +87,7 @@ async function share(dir: string | undefined) {
   // The config is not written on failure: a share the hub refused must not show up as shared.
   if (!sent.ok) fail(`${sent.error}\nnothing was recorded: ${name} is not shared.`);
 
-  // A share is replaced when either its name or its folder is taken: one folder is one share on the hub.
-  const kept = rawShares().filter((s) => {
-    const old = asShare(s);
-    return !old || (old.name !== name && old.dir !== absDir);
-  });
-  writeUserConfig(home, { shares: [...kept, { dir: absDir, name, files: values.files }] });
+  writeUserConfig(home, { shares: withShare(rawSharesNow(), { dir: absDir, name, files: values.files }) });
 
   const sender = tokenId(token) ?? 'this-machine';
   console.log(`shared ${name} with ${hub}: it appears on the hub as towers/${sender}/${name}`);
@@ -119,19 +117,17 @@ async function unshare(target: string | undefined) {
   const r = hub && token
     ? await removeTower(hub, token, match.name)
     : { ok: false as const, status: 0, error: 'not connected: run flow-tower connect <hub-url> first' };
-  if (!r.ok && r.status !== 0) fail(`the hub refused the unshare: ${r.error}\n${match.name} stays in config.`);
-  if (!r.ok && !values.force) {
+  // A 404 means the hub holds nothing under that name, which is what unshare wants: drop the entry.
+  const gone = !r.ok && r.status === 404;
+  if (!r.ok && !gone && r.status !== 0) fail(`the hub refused the unshare: ${r.error}\n${match.name} stays in config.`);
+  if (!r.ok && !gone && !values.force) {
     fail(`cannot reach the hub (${r.error}): ${match.name} stays shared.\nUse --force to drop it from config only.`);
   }
 
-  // Dropped from config only after the hub agreed, or on --force when it could not be asked.
-  writeUserConfig(home, {
-    shares: rawShares().filter((s) => {
-      const old = asShare(s);
-      return !(old && old.name === match.name && old.dir === match.dir);
-    }),
-  });
-  console.log(r.ok ? `unshared ${match.name}` : `unshared ${match.name} (hub unreachable: dropped from config only)`);
+  // Dropped from config only after the hub agreed (or had nothing), or on --force when it could not be asked.
+  writeUserConfig(home, { shares: withoutShare(rawSharesNow(), match.name) });
+  if (gone) console.log(`unshared ${match.name} (it was not on the hub)`);
+  else console.log(r.ok ? `unshared ${match.name}` : `unshared ${match.name} (hub unreachable: dropped from config only)`);
 }
 
 if (values.unshare) await unshare(positionals[0]);
