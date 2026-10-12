@@ -15,7 +15,7 @@ walks an agent through it.
 |---|---|
 | 1 · Intake | Which tower, what matters (cost, latency, quality, risk), which files a model may read |
 | 2 · Inventory (scripted) | `validate`, then `audit --json` saved as the "before". [scripts/snapshot.mjs](scripts/snapshot.mjs) |
-| 3 · Structure audit | Rules AUD01-AUD11 ([docs/best-practices.md](../../docs/best-practices.md)), then a pattern review against [rubric.md](rubric.md); a guard drops findings whose quote is not at the node |
+| 3 · Structure audit | Rules AUD01-AUD11 ([docs/best-practices.md](../../docs/best-practices.md)), then a pattern review against [rubric.md](rubric.md); a guard drops findings whose quote is not at the node ([scripts/check-quotes.mjs](scripts/check-quotes.mjs)) |
 | 4 · Model fit per role | Role classes from facts in the tower, OpenRouter categories, shortlist, benchmark. [categories.md](categories.md) |
 | 5 · Proposals | One validated diff per change, ranked, approved one by one. [proposals.md](proposals.md) |
 | 6 · Verify (scripted) | The same audit again; fixed, new and open findings, deltas, model changes. A new warning fails. [scripts/compare.mjs](scripts/compare.mjs) |

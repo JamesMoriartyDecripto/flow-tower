@@ -140,7 +140,9 @@ layers:
       - id: grounded
         type: guard
         label: Grounded?
-        description: "Drops any finding whose quoted YAML is not at the node it names."
+        description: "Drops any finding whose quoted YAML is not at the node it names: a script, not a model."
+        runtime: laptop
+        files: [scripts/check-quotes.mjs]
       - id: findings
         type: memory
         label: Findings
