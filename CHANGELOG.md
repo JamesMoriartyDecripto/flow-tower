@@ -20,6 +20,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Fixed
 - `check-example` accepts every reserved example domain (RFC 2606, RFC 6761) (#122).
+- The server no longer grows until out of memory in long sessions: it loads its Vite config once, so edits to its own source no longer restart it in-process, which leaked the previous server each time (upstream Rolldown #10887) (#99).
 
 ## [0.8.0] - 2026-10-12
 
