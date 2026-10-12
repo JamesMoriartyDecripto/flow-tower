@@ -108,6 +108,18 @@ test('the full document links node names to their sheets and prints no raw JSON'
   await expectNoDeadLinks(page);
 });
 
+test('the project files appendix prints the full text of a referenced file, with line numbers', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/?doc=dev-squad&level=3');
+  await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 110_000 });
+  const entry = page.locator('main .file-entry[data-file-key$=":: src/triage.ts"]');
+  await expect(entry, 'src/triage.ts is in the appendix').toHaveCount(1);
+  await expect(entry.locator('.file-text .file-no').first(), 'the text has line numbers').toHaveText('1');
+  const shown = await entry.locator('.file-text').innerText();
+  expect(shown.length, 'the full text, not a stub').toBeGreaterThan(100);
+  expect(entry.locator('.file-skipped')).toHaveCount(0);
+});
+
 test('the document prints to PDF at each level, and the full one is larger', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'page.pdf works in Chromium only');
   test.setTimeout(240_000);
@@ -142,7 +154,7 @@ test('the 3D figures: the root and both sub-tower chapters each hold a snapshot 
   await page.goto('/?doc=dev-squad&level=2');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 150_000 });
   const chapters = page.locator('main article.chapter');
-  // The root and its two sub-towers are the chapters the figures belong to.
+  // The root and its two sub-towers are the chapters the figures belong to: level 2 prints every tower.
   expect(await chapters.count(), 'root and both sub-tower chapters').toBeGreaterThanOrEqual(3);
   const figures = chapters.locator('figure.snap-figure');
   expect(await figures.count(), 'one 3D figure per chapter').toBeGreaterThanOrEqual(3);

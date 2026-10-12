@@ -12,8 +12,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { argv, env, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { checkDocument, failedChecks, type DomFacts, type WorkspaceFacts } from '../core/doc-check.ts';
+import { checkDocument, coverage, failedChecks, type DomFacts, type WorkspaceFacts } from '../core/doc-check.ts';
 import { towerDoc } from '../core/doc.ts';
+import { fileKey } from '../core/docFiles.ts';
 import { libraryDoc, libraryProjects } from '../core/docLibrary.ts';
 import { loadLibrary } from '../core/loader.ts';
 
@@ -42,6 +43,11 @@ const PAGE_FACTS = `(() => {
     if (k === 'Nodes') control.nodes = v;
     if (k === 'Sub-towers') control.subTowers = v;
   }
+  const chapters = [...document.querySelectorAll('main article.chapter h2[id]')].map((h) => h.id);
+  const appendix = [...document.querySelectorAll('main .file-entry')].map((el) => ({
+    key: el.dataset.fileKey ?? '',
+    printed: el.dataset.printed === '1',
+  }));
   return {
     docError: document.documentElement.dataset.docError,
     buildingText: document.body.innerText.includes('Building the document'),
@@ -51,6 +57,8 @@ const PAGE_FACTS = `(() => {
     hrefs: [...document.querySelectorAll('a[href^="#"]')].map((a) => a.getAttribute('href')),
     ids: [...document.querySelectorAll('[id]')].map((el) => el.id),
     control,
+    chapters,
+    appendix,
   };
 })()`;
 
@@ -127,6 +135,8 @@ async function workspaceFacts(target: string, towerId: string, level: 1 | 2 | 3 
   const doc = level === 4
     ? libraryDoc(workspace, libraryProjects(workspace))
     : towerDoc(workspace, towerId, level);
+  // Every printed tower, once each: a library lists the towers of every project.
+  const towers = [...new Set(doc.chapters.map((c) => c.towerId))];
   return {
     towerId: level === 4 ? 'library' : towerId,
     chapters: doc.chapters.map((c) => ({
@@ -135,6 +145,8 @@ async function workspaceFacts(target: string, towerId: string, level: 1 | 2 | 3 
       nodeLabels: c.layers.flatMap((l) => l.nodes.map((n) => n.label)),
     })),
     counts: { layers: doc.control.layers, nodes: doc.control.nodes, subTowers: doc.control.subTowers },
+    files: (doc.files ?? []).map((f) => fileKey(f)),
+    towers,
   };
 }
 
@@ -196,6 +208,8 @@ async function run(opts: Options, signal: AbortSignal): Promise<number> {
     }
     writeFileSync(out, bytes);
     const kb = (statSync(out).size / 1024).toFixed(0);
+    const cov = coverage(dom, facts);
+    console.log(`towers ${cov.towers[0]}/${cov.towers[1]}, files ${cov.files[0]}/${cov.files[1]}`);
     console.log(`wrote ${out}: ${pageCount(bytes)} pages, ${kb} KB, 3D snapshots: ${snaps.ok}/${snaps.total}, checks: ${results.length}/${results.length} passed`);
     return 0;
   } finally {

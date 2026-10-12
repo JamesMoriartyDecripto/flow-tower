@@ -8,20 +8,40 @@ import { fieldsOf, type Field } from './docFields.ts';
  * Kept apart from doc.ts (which holds the chapters) so each file stays a readable size.
  */
 
-/** The towers to print, with their depth from the root, in discovery order (root first, then its
- * nested towers, layer by layer). A map keeps each tower once, so a cycle stops at the second visit. */
-export function includedTowers(ws: Workspace, rootId: string, maxDepth: number): Map<string, number> {
+/**
+ * Hard safety limit on the towers one document prints. A project is meant to be small; the limit only
+ * stops a runaway workspace, and the document says so when it is hit.
+ */
+export const MAX_TOWERS = 50;
+
+/**
+ * Every tower reachable from the root, with its depth from the root, in discovery order (root first, then
+ * its nested towers, layer by layer). A map keeps each tower once, so a cycle stops at the second visit.
+ * `limit` caps the number of towers returned; the walk stops there.
+ */
+export function includedTowers(ws: Workspace, rootId: string, limit = Infinity): Map<string, number> {
   const depths = new Map<string, number>([[rootId, 0]]);
   // A Map iterator also visits the entries added while looping: this is a breadth-first walk.
   for (const [id, depth] of depths) {
-    if (depth >= maxDepth) continue;
     for (const layer of ws.towers[id]?.layers ?? []) {
       for (const n of layer.nodes) {
+        if (depths.size >= limit) return depths;
         if (n.tower && ws.towers[n.tower] && !depths.has(n.tower)) depths.set(n.tower, depth + 1);
       }
     }
   }
   return depths;
+}
+
+/**
+ * The towers one document prints: every tower reachable from the root, up to MAX_TOWERS. Past the limit the
+ * extra towers are dropped and `limited` says so, so the document can state it rather than hide it.
+ */
+export function printedTowers(ws: Workspace, rootId: string): { depths: Map<string, number>; limited: boolean } {
+  // One tower past the limit is walked, so a workspace of exactly MAX_TOWERS towers is not reported as cut.
+  const all = includedTowers(ws, rootId, MAX_TOWERS + 1);
+  if (all.size <= MAX_TOWERS) return { depths: all, limited: false };
+  return { depths: new Map([...all].slice(0, MAX_TOWERS)), limited: true };
 }
 
 /**
@@ -82,14 +102,12 @@ export interface DocSummary {
 }
 
 /**
- * Every count the summary page prints, over the towers `maxDepth` reaches (the same towers the chapters
- * print: level 2 is the root alone, level 3 reaches its nested towers). Validation counts the root's issues,
- * as the issues block does.
+ * Every count the summary page prints, over the towers the document prints (`depths`: the same towers the
+ * chapters print). Validation counts the root's issues, as the issues block does.
  */
-export function docSummary(ws: Workspace, towerId: string, maxDepth: number): DocSummary {
+export function docSummary(ws: Workspace, towerId: string, depths: Map<string, number>): DocSummary {
   const root = ws.towers[towerId];
   if (!root) throw new Error(`unknown tower: ${towerId}`);
-  const depths = includedTowers(ws, towerId, maxDepth);
 
   const byType = new Map<NodeType, number>();
   const byStatus = new Map<Status, number>();

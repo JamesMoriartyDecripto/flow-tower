@@ -22,6 +22,10 @@ export interface DomFacts {
   ids: string[];
   /** The counts in the document control table. */
   control: { layers: number; nodes: number; subTowers: number };
+  /** The chapter ids of the printed towers (`towerId`s), as the page shows them. */
+  chapters: string[];
+  /** Every appendix entry shown on the page: its `fileKey`, and whether its text or a reason is printed. */
+  appendix: { key: string; printed: boolean }[];
 }
 
 /** What the workspace says the document must contain. */
@@ -32,6 +36,10 @@ export interface WorkspaceFacts {
   chapters: { towerId: string; layerTitles: string[]; nodeLabels: string[] }[];
   /** The control counts the workspace implies for this level. */
   counts: { layers: number; nodes: number; subTowers: number };
+  /** Level 3: every file the appendix must list, as `fileKey` (tower and path). Empty below level 3. */
+  files: string[];
+  /** Towers the document must print: the root and every reachable tower, once each. */
+  towers: string[];
   /** Pages in the written PDF, when it was written; undefined before the file exists. */
   pdfPages?: number;
 }
@@ -86,6 +94,19 @@ export function checkDocument(dom: DomFacts, ws: WorkspaceFacts): CheckResult[] 
   const nodeWanted = ws.chapters.flatMap((c) => c.nodeLabels);
   results.push(listCheck('every node label shown', nodeWanted, dom.nodeLabels));
 
+  // b2. Every tower of the project is a chapter, and every file of the project is in the appendix.
+  results.push(listCheck('every tower is a chapter', ws.towers, dom.chapters));
+  if (ws.files.length > 0 || dom.appendix.length > 0) {
+    results.push(listCheck('every referenced file in the appendix', ws.files, dom.appendix.map((a) => a.key)));
+    // A listed file must also carry its text or its reason, never an empty entry.
+    const blank = dom.appendix.filter((a) => !a.printed).map((a) => a.key);
+    results.push({
+      name: 'every appendix file has text or a reason',
+      ok: blank.length === 0,
+      detail: blank.length ? `${blank.length} blank: ${listed(blank)}` : '',
+    });
+  }
+
   // c. The control table counts equal the workspace's.
   const mismatched = (['layers', 'nodes', 'subTowers'] as const).filter((k) => dom.control[k] !== ws.counts[k]);
   results.push({
@@ -125,4 +146,17 @@ function decodeSafe(s: string): string {
 /** The checks that failed, for the CLI to print. Empty means the export may proceed. */
 export function failedChecks(results: CheckResult[]): CheckResult[] {
   return results.filter((r) => !r.ok);
+}
+
+/**
+ * The `towers n/n, files n/n` the CLI prints: how many of the project's towers and referenced files the page
+ * holds, against how many the workspace has. A count that is short is the one a reader should look at.
+ */
+export function coverage(dom: DomFacts, ws: WorkspaceFacts): { towers: [number, number]; files: [number, number] } {
+  const chapters = new Set(dom.chapters);
+  const shown = new Set(dom.appendix.filter((a) => a.printed).map((a) => a.key));
+  return {
+    towers: [ws.towers.filter((t) => chapters.has(t)).length, ws.towers.length],
+    files: [ws.files.filter((f) => shown.has(f)).length, ws.files.length],
+  };
 }

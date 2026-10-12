@@ -123,11 +123,3 @@ export function FindingsBlock({ findings, severities }: { findings: Finding[]; s
 
 const SEVERITY_CHIP: Record<IssueLevel, string> = { error: 'chip-red', warning: 'chip-amber', info: 'chip-blue' };
 
-export function SourcesBlock({ sources }: { sources: string[] }) {
-  return (
-    <section className="sources">
-      <h2>Sources</h2>
-      <ul className="mono">{sources.map((s) => <li key={s}>{s}</li>)}</ul>
-    </section>
-  );
-}

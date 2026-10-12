@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { loadLibrary } from '../src/core/loader';
 import { anchor, canonicalJson, classificationOf, docSummary, findingsOf, severityCounts, towerDoc, type Chapter, type TowerDoc } from '../src/core/doc';
+import { includedTowers, MAX_TOWERS, printedTowers } from '../src/core/docSummary';
+import { fileKey } from '../src/core/docFiles';
 import { formatValue, type FieldValue } from '../src/core/docFields';
 import type { Workspace } from '../src/core/types';
 
@@ -121,7 +123,7 @@ describe('docSummary', () => {
   it('counts every layer, node, agent and human checkpoint of the workspace', async () => {
     const ws = await load();
     const root = ws.towers['dev-squad.tower.yaml'];
-    const s = docSummary(ws, 'dev-squad.tower.yaml', 0);
+    const s = docSummary(ws, 'dev-squad.tower.yaml', new Map([['dev-squad.tower.yaml', 0]]));
     const nodes = root.layers.flatMap((l) => l.nodes);
     expect(s.layers).toBe(root.layers.length);
     expect(s.nodes).toBe(nodes.length);
@@ -131,7 +133,7 @@ describe('docSummary', () => {
 
   it('splits the nodes by type and by status, each summing to the node count', async () => {
     const ws = await load();
-    const s = docSummary(ws, 'dev-squad.tower.yaml', 0);
+    const s = docSummary(ws, 'dev-squad.tower.yaml', new Map([['dev-squad.tower.yaml', 0]]));
     expect(s.byType.reduce((n, t) => n + t.nodes, 0)).toBe(s.nodes);
     expect(s.byStatus.reduce((n, t) => n + t.nodes, 0)).toBe(s.nodes);
     for (const t of s.byType) expect(t.nodes).toBeGreaterThan(0);
@@ -139,7 +141,7 @@ describe('docSummary', () => {
 
   it('lists the models in use by node count, most first, and reads a verdict from the issues', async () => {
     const ws = await load();
-    const s = docSummary(ws, 'dev-squad.tower.yaml', 0);
+    const s = docSummary(ws, 'dev-squad.tower.yaml', new Map([['dev-squad.tower.yaml', 0]]));
     const counts = s.models.map((m) => m.nodes);
     expect(counts).toEqual([...counts].sort((a, b) => b - a));
     expect(s.models.every((m) => m.model.length > 0)).toBe(true);
@@ -152,10 +154,11 @@ describe('docSummary', () => {
     expect(s.validation.warnings).toBe(warnings);
   });
 
-  it('counts nested towers only when the depth reaches them', async () => {
+  it('counts every reachable nested tower', async () => {
     const ws = await load();
-    expect(docSummary(ws, 'dev-squad.tower.yaml', 0).subTowers).toBe(0);
-    expect(docSummary(ws, 'dev-squad.tower.yaml', 3).subTowers).toBe(towerDoc(ws, 'dev-squad.tower.yaml', 3).chapters.length - 1);
+    const root = 'dev-squad.tower.yaml';
+    expect(docSummary(ws, root, new Map([[root, 0]])).subTowers).toBe(0);
+    expect(docSummary(ws, root, printedTowers(ws, root).depths).subTowers).toBe(towerDoc(ws, root, 3).chapters.length - 1);
   });
 });
 
@@ -239,7 +242,29 @@ describe('towerDoc', () => {
     const anchors = anchorsOf(doc);
     for (const a of referencedAnchors(doc)) expect(anchors.has(a), `anchor ${a}`).toBe(true);
     expect(doc.findings?.length).toBe(ws.towers['dev-squad.tower.yaml'].issues.length);
-    expect(doc.sources).toEqual([...new Set(doc.sources)].sort());
+  });
+
+  it('level 3 lists every referenced file once per tower, sorted, with the nodes that use it', async () => {
+    const ws = await load();
+    const doc = towerDoc(ws, 'dev-squad.tower.yaml', 3);
+    const files = doc.files ?? [];
+    expect(files.length).toBeGreaterThan(0);
+    const keys = files.map((f) => fileKey(f));
+    expect(new Set(keys).size).toBe(keys.length);
+    const paths = files.map((f) => f.path);
+    expect(paths).toEqual([...paths].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+    for (const f of files) expect(f.refs.length).toBeGreaterThan(0);
+    // The triage tower file the e2e test names: its source is in the appendix with the node that uses it.
+    const triage = files.find((f) => f.path === 'src/triage.ts');
+    expect(triage, 'src/triage.ts is listed').toBeDefined();
+    // Each ref names the node by its code (N-Lxx.yy), so a reader can find it in the layer table.
+    expect(triage!.refs.every((r) => /N-L\d{2}\.\d{2}$/.test(r))).toBe(true);
+  });
+
+  it('levels 1 and 2 carry no appendix', async () => {
+    const ws = await load();
+    expect(towerDoc(ws, 'dev-squad.tower.yaml', 1).files).toBeUndefined();
+    expect(towerDoc(ws, 'dev-squad.tower.yaml', 2).files).toBeUndefined();
   });
 
   it.each([
@@ -270,14 +295,29 @@ describe('towerDoc', () => {
     expect(doc.toc.every((e) => !e.anchor?.startsWith('node-'))).toBe(true);
   });
 
-  it('stops nested chapters at maxDepth and does not loop', async () => {
+  it('prints every reachable tower at every level, each once, and does not loop', async () => {
     const ws = await load();
-    const shallow = towerDoc(ws, 'dev-squad.tower.yaml', 3, { maxDepth: 1 });
-    expect(shallow.chapters.every((c) => c.depth <= 1)).toBe(true);
-    const none = towerDoc(ws, 'dev-squad.tower.yaml', 3, { maxDepth: 0 });
-    expect(chapterCount(none)).toBe(1);
-    const ids = towerDoc(ws, 'dev-squad.tower.yaml', 3).chapters.map((c: Chapter) => c.towerId);
-    expect(new Set(ids).size).toBe(ids.length);
+    const root = 'dev-squad.tower.yaml';
+    const reachable = includedTowers(ws, root).size;
+    for (const level of [1, 2, 3, 4] as const) {
+      const doc = level === 4 ? towerDoc(ws, root, 4) : towerDoc(ws, root, level);
+      const ids = doc.chapters.map((c: Chapter) => c.towerId);
+      expect(ids.length, `level ${level}: every reachable tower`).toBe(reachable);
+      expect(new Set(ids).size, `level ${level}: each tower once`).toBe(ids.length);
+    }
+  });
+
+  it('keeps a hard limit of towers, and says so when it is hit', () => {
+    // A ring of MAX_TOWERS + 5 towers, each pointing at the next: the walk must stop at the limit.
+    const n = MAX_TOWERS + 5;
+    const towers: Record<string, unknown> = {};
+    for (let i = 0; i < n; i++) {
+      towers[`t${i}`] = { layers: [{ id: 'l', index: 0, nodes: [{ key: 'k', tower: `t${(i + 1) % n}` }] }] };
+    }
+    const ws = { towers } as unknown as Workspace;
+    const { depths, limited } = printedTowers(ws, 't0');
+    expect(depths.size).toBe(MAX_TOWERS);
+    expect(limited).toBe(true);
   });
 
   it('carries the status of every node and the formatted ops of the detail', async () => {

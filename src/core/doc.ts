@@ -1,8 +1,9 @@
 import { EDGE_KINDS, NODE_TYPES, type EdgeKind, type NodeType, type OpsDef, type Status } from './schema.ts';
 import type { ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from './types.ts';
 import { fieldsOf, type Field } from './docFields.ts';
-import { classificationOf, docSummary, includedTowers, nodeCode, type DocSummary } from './docSummary.ts';
+import { classificationOf, docSummary, MAX_TOWERS, nodeCode, printedTowers, type DocSummary } from './docSummary.ts';
 import { findingsOf, severityCounts, type Finding, type SeverityCount } from './docFindings.ts';
+import { appendixFiles, type AppendixFile } from './docFiles.ts';
 
 export { canonicalJson, classificationOf, docSummary, type DocSummary } from './docSummary.ts';
 export { findingsOf, severityCounts, type Finding, type SeverityCount } from './docFindings.ts';
@@ -134,7 +135,7 @@ export interface TowerDoc {
     counts: { layers: number; nodes: number; agents: number; subTowers: number };
   };
   control: ControlBlock;
-  /** Level 2 and 3: the counts of the executive summary page. */
+  /** Level 2 and up: the counts of the executive summary page. */
   summary?: DocSummary;
   toc: TocEntry[];
   chapters: Chapter[];
@@ -143,7 +144,10 @@ export interface TowerDoc {
   findings?: Finding[];
   /** Level 2 and 3: the Error / Warning / Info counts. */
   severities?: SeverityCount[];
-  sources?: string[];
+  /** Level 3: every file the printed towers reference, with the nodes that use it (text is loaded by the view). */
+  files?: AppendixFile[];
+  /** Set when the project has more towers than MAX_TOWERS: the printed document names the cut. */
+  limitNote?: string;
   /** Level 4 only: one level-2 document per project, in workspace order, each with its own anchors. */
   projects?: TowerDoc[];
 }
@@ -199,10 +203,9 @@ interface Usage {
   types: Set<NodeType>;
   edgeKinds: Set<EdgeKind>;
   runtimes: Map<string, string>;
-  sources: Set<string>;
 }
 
-/** What one chapter needs from the document: its depths, the level and the id prefix of its project. */
+/** What one chapter needs from the document: its depths, the detail level and the id prefix of its project. */
 interface Scope {
   ws: Workspace;
   depths: Map<string, number>;
@@ -262,10 +265,8 @@ function nodeDetail(
   t: ResolvedTower, n: ResolvedNode, ref: string, allEdges: ResolvedEdge[],
   nodeRef: (key: string) => NodeRef, scope: Scope,
 ): NodeDetail {
-  const { ws, depths, usage, prefix } = scope;
+  const { ws, depths, prefix } = scope;
   const prompt = n.prompt?.source ?? n.agent?.prompt?.source;
-  if (prompt) usage.sources.add(prompt);
-  for (const f of n.files) usage.sources.add(f);
   return {
     id: nodeAnchor(prefix, t.id, n.key),
     ref,
@@ -340,23 +341,26 @@ export function clearDeadAnchors(doc: TowerDoc): void {
 }
 
 /**
- * The document of one tower. Level 1: the layer map only. Level 2: every node as a row. Level 3: a
- * detail per node, the nested towers (up to `maxDepth`), issues and the source files. `idPrefix` scopes
- * every anchor to one project (see `scoped`). Same input, same output: order follows the tower, sets are sorted.
+ * The document of one project. Every tower reachable from the root is a chapter at every level; the level
+ * only sets the detail per element. Level 1: the layer map and the 3D view. Level 2: + node tables, charts
+ * and connections. Level 3: + a detail per node, issues and the project files appendix. Level 4 (a
+ * library) uses level 2 per project. `idPrefix` scopes every anchor to one project (see `scoped`). Same
+ * input, same output: order follows the tower, sets are sorted.
  */
 export function towerDoc(
-  ws: Workspace, towerId: string, level: 1 | 2 | 3, opts: { maxDepth?: number; generator?: string; idPrefix?: string } = {},
+  ws: Workspace, towerId: string, level: DocLevel, opts: { generator?: string; idPrefix?: string } = {},
 ): TowerDoc {
   const root = ws.towers[towerId];
   if (!root) throw new Error(`unknown tower: ${towerId}`);
-  const depths = includedTowers(ws, towerId, level === 3 ? (opts.maxDepth ?? 3) : 0);
-  const usage: Usage = { types: new Set(), edgeKinds: new Set(), runtimes: new Map(), sources: new Set() };
-  const scope: Scope = { ws, depths, level, usage, prefix: opts.idPrefix ?? '' };
+  const { depths, limited } = printedTowers(ws, towerId);
+  const detailLevel = level === 4 ? 2 : level;
+  const usage: Usage = { types: new Set(), edgeKinds: new Set(), runtimes: new Map() };
+  const scope: Scope = { ws, depths, level: detailLevel, usage, prefix: opts.idPrefix ?? '' };
 
   const chapters = [...depths.keys()].map((id) => chapterOf(ws.towers[id], scope));
 
   // One summary feeds the cover, the control block and the summary page, so every count agrees.
-  const summary = docSummary(ws, towerId, level === 3 ? (opts.maxDepth ?? 3) : 0);
+  const summary = docSummary(ws, towerId, depths);
   const { layers, nodes, agents, subTowers } = summary;
   const doc: TowerDoc = {
     title: root.name,
@@ -376,8 +380,10 @@ export function towerDoc(
     },
     toc: tocOf(chapters),
     chapters,
+    // Shown on the cover and the summary, so a cut-off document says so rather than looking complete.
+    limitNote: limited ? `Stopped at ${MAX_TOWERS} towers: the project has more, and they are not printed.` : undefined,
   };
-  if (level >= 2) {
+  if (detailLevel >= 2) {
     doc.summary = summary;
     doc.severities = severityCounts(root.issues);
     doc.legend = {
@@ -392,9 +398,9 @@ export function towerDoc(
         .map(([value, label]) => ({ value, label })),
     };
   }
-  if (level === 3) {
+  if (detailLevel === 3) {
     doc.findings = findingsOf(root.issues, root.name);
-    doc.sources = [...usage.sources].sort();
+    doc.files = appendixFiles(ws, depths);
   }
   clearDeadAnchors(doc);
   return doc;

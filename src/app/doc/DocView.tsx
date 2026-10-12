@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { canonicalJson, towerDoc, type DocLevel, type TowerDoc } from '../../core/doc';
 import { libraryDoc, libraryProjects } from '../../core/docLibrary';
@@ -9,7 +9,8 @@ import { snapshotOf, type Snapshot } from './snapshots';
 import { SnapFigure } from './SnapFigure';
 import { ChapterHead, Cover, LayerBlock, Letterhead, LinkList, LEVEL_NAMES, Toc } from './DocParts';
 import { LibraryDocument } from './DocLibraryBody';
-import { FindingsBlock, LegendBlock, NodeDetail, SourcesBlock } from './DocDetails';
+import { FindingsBlock, LegendBlock, NodeDetail } from './DocDetails';
+import { FilesAppendix } from './DocFiles';
 import { ControlTable, SummaryPage } from './DocSummaryPage';
 import { afterPaint } from './afterPaint';
 import { cssString } from './cssString';
@@ -114,7 +115,12 @@ function Document({ built, level, print }: { built: Built; level: DocLevel; prin
   const { doc, images, snaps } = built;
   // The cover names the version (from package.json at build time) and the tower id: no date, so the same tower prints the same file.
 
+  // The appendix's file texts load after the first paint; the document is ready only once they are in place.
+  const [filesReady, setFilesReady] = useState(!doc.files);
+  const onFilesReady = useCallback(() => setFilesReady(true), []);
+
   useEffect(() => {
+    if (!filesReady) return;
     // Runs after this document is committed to the DOM; the fonts and two frames let it paint before the flag.
     let live = true;
     void afterPaint(document.fonts.ready, requestAnimationFrame).then(() => {
@@ -129,7 +135,7 @@ function Document({ built, level, print }: { built: Built; level: DocLevel; prin
       if (print) window.print();
     });
     return () => { live = false; };
-  }, [built, print]);
+  }, [built, print, filesReady]);
 
   // The library has its own body; the ready signal above still covers it, since the hook runs first.
   if (level === 4) return <LibraryDocument doc={doc} images={images} snaps={snaps} />;
@@ -160,7 +166,7 @@ function Document({ built, level, print }: { built: Built; level: DocLevel; prin
       ))}
       {doc.legend && <LegendBlock legend={doc.legend} />}
       {doc.findings && <FindingsBlock findings={doc.findings} severities={doc.severities ?? []} />}
-      {doc.sources && <SourcesBlock sources={doc.sources} />}
+      {doc.files && <FilesAppendix files={doc.files} onReady={onFilesReady} />}
     </main>
   );
 }

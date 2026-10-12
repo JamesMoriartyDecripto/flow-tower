@@ -1,5 +1,5 @@
 import { anchor, clearDeadAnchors, LEVEL_NAMES, towerDoc, type TowerDoc } from './doc.ts';
-import { classificationOf, includedTowers } from './docSummary.ts';
+import { classificationOf, printedTowers } from './docSummary.ts';
 import type { Workspace } from './types.ts';
 
 /*
@@ -32,7 +32,7 @@ export function libraryDoc(ws: Workspace, projectIds: string[], opts: { generato
 
   // One classification for the whole library: the highest sensitivity on any printed node in any project.
   const depths = new Map<string, number>();
-  for (const id of projectIds) for (const [k, v] of includedTowers(ws, id, 0)) if (!depths.has(k)) depths.set(k, v);
+  for (const id of projectIds) for (const [k, v] of printedTowers(ws, id).depths) if (!depths.has(k)) depths.set(k, v);
 
   const doc: TowerDoc = {
     title: LIBRARY_TITLE,

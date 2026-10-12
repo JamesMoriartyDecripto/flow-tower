@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkDocument, failedChecks, type DomFacts, type WorkspaceFacts } from '../src/core/doc-check';
+import { checkDocument, coverage, failedChecks, type DomFacts, type WorkspaceFacts } from '../src/core/doc-check';
 
 const TOWER = 'demo/demo.tower.yaml';
 
@@ -14,6 +14,8 @@ function goodDom(over: Partial<DomFacts> = {}): DomFacts {
     hrefs: ['#layer-demo-intake'],
     ids: ['layer-demo-intake'],
     control: { layers: 2, nodes: 2, subTowers: 0 },
+    chapters: [TOWER],
+    appendix: [],
     ...over,
   };
 }
@@ -23,6 +25,8 @@ function goodWs(over: Partial<WorkspaceFacts> = {}): WorkspaceFacts {
     towerId: TOWER,
     chapters: [{ towerId: TOWER, layerTitles: ['Intake', 'Review'], nodeLabels: ['Triage', 'Reviewer'] }],
     counts: { layers: 2, nodes: 2, subTowers: 0 },
+    files: [],
+    towers: [TOWER],
     pdfPages: 3,
     ...over,
   };
@@ -38,8 +42,34 @@ const pick = (results: ReturnType<typeof checkDocument>, name: string) => {
 describe('checkDocument', () => {
   it('passes every check on a complete, consistent document', () => {
     const results = checkDocument(goodDom(), goodWs());
-    expect(results).toHaveLength(7);
+    // Seven base checks, plus the tower check; the file checks appear only when the project has files.
+    expect(results).toHaveLength(8);
     expect(failedChecks(results)).toEqual([]);
+  });
+
+  it('c: fails and names a tower that is not a chapter', () => {
+    const r = pick(checkDocument(goodDom({ chapters: [TOWER] }), goodWs({ towers: [TOWER, 'demo/sub.tower.yaml'] })), 'every tower is a chapter');
+    expect(r.ok).toBe(false);
+    expect(r.detail).toContain('demo/sub.tower.yaml');
+  });
+
+  it('c: fails and names a referenced file missing from the appendix', () => {
+    const dom = goodDom({ appendix: [{ key: 'demo :: a.md', printed: true }] });
+    const r = pick(checkDocument(dom, goodWs({ files: ['demo :: a.md', 'demo :: src/triage.ts'] })), 'every referenced file in the appendix');
+    expect(r.ok).toBe(false);
+    expect(r.detail).toContain('demo :: src/triage.ts');
+  });
+
+  it('c: fails when an appendix entry has neither text nor a reason', () => {
+    const dom = goodDom({ appendix: [{ key: 'demo :: a.md', printed: false }] });
+    const r = pick(checkDocument(dom, goodWs({ files: ['demo :: a.md'] })), 'every appendix file has text or a reason');
+    expect(r.ok).toBe(false);
+  });
+
+  it('c: counts the towers and files the page holds, for the CLI summary', () => {
+    const dom = goodDom({ chapters: [TOWER], appendix: [{ key: 'demo :: a.md', printed: true }] });
+    const ws = goodWs({ towers: [TOWER, 'demo/sub.tower.yaml'], files: ['demo :: a.md', 'demo :: b.md'] });
+    expect(coverage(dom, ws)).toEqual({ towers: [1, 2], files: [1, 2] });
   });
 
   it('a: fails when the page reports an error or still shows the placeholder', () => {
