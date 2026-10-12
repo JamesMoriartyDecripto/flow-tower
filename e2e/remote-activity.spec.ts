@@ -42,7 +42,9 @@ test('remote activity: chips and library cards name the machines (#95)', async (
   const card = page.locator(`[data-card="${id}"]`);
   await expect(card.locator('.lib-hosts')).toContainText('@alpha');
   await expect(card.locator('.lib-hosts')).toContainText('@beta');
-  await page.screenshot({ path: 'test-results/remote-activity-library.png' });
+  // Shoot the card itself: the dev-squad card is scrolled out of view on a full-page shot.
+  await card.scrollIntoViewIfNeeded();
+  await card.screenshot({ path: 'test-results/remote-activity-library.png' });
 
   // Close both runs so later specs do not see running nodes.
   for (const host of ['alpha', 'beta']) {

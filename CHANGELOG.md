@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - CI: a job checks the DCO sign-off on every commit of a PR, and a step runs `check-example` on the example folders a PR adds (#122).
 - Squad: `tools/squad/cost.mjs <issue>` prints an issue's total cost from the local ledger, and step commits carry a `Squad-Cost:` trailer (#156).
 - Voice: "cosa sta succedendo?" / "what is happening?" calls the new `live_status` tool: errors, running and busiest nodes of the last 10 minutes (on a hub, machines running or silent), metadata only; it selects the node in trouble (#160).
+- Hub: live chips name the machine a node runs on (`Triage · Bash @decripto`), and library cards list the machines that sent events for a project in the last 15 minutes (#95).
 
 ### Changed
 - `CONTRIBUTING.md` covers issue first, fork workflow, Conventional Commits, DCO sign-off, review, inbound = outbound licence, AI-assisted contributions and SemVer (#122).
