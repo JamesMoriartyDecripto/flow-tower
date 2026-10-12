@@ -5,6 +5,7 @@ import type { ReportDoc } from '../src/report/model.ts';
 
 const doc: ReportDoc = {
   type: 'validation',
+  typeTitle: 'Validation review',
   title: 'Tower review',
   subtitle: 'Q3 pass',
   audience: 'the platform team',
@@ -63,6 +64,76 @@ describe('renderReport', () => {
     expect(html).not.toContain('<script>bad');
     expect(html).toContain('&lt;script&gt;bad()&lt;/script&gt;');
     expect(esc(`a&<>"'`)).toBe('a&amp;&lt;&gt;&quot;&#39;');
+  });
+
+  it('shows the type title on the cover, not the id slug', () => {
+    const html = renderReport(doc);
+    const cover = html.slice(html.indexOf('id="cover"'), html.indexOf('id="control"'));
+    expect(cover).toContain('Validation review');
+    expect(cover).not.toContain('>validation<');
+  });
+
+  it('renders one sources table, filled into the appendix when the type declares one', () => {
+    const withAppendix: ReportDoc = {
+      ...doc,
+      sections: [
+        ...doc.sections,
+        { id: 'appendix-sources', title: 'Appendix: sources', blocks: [] },
+      ],
+    };
+    const html = renderReport(withAppendix);
+    expect(html.match(/id="src-S1"/g)).toHaveLength(1);
+    expect(html.match(/<h2>Sources<\/h2>/g) ?? []).toHaveLength(0);
+    expect(html).toContain('<section class="rs-section" id="appendix-sources">');
+    const appendix = html.slice(html.indexOf('id="appendix-sources"'));
+    expect(appendix).toContain('id="src-S1"');
+  });
+
+  it('appends its own sources section only when the doc has no appendix', () => {
+    const html = renderReport(doc);
+    expect(html.match(/id="src-S1"/g)).toHaveLength(1);
+    expect(html).toContain('<section class="rs-appendix" id="sources"><h2>Sources</h2>');
+  });
+
+  it('shows a severity chip in a Severity cell and a RAG chip in a Status cell', () => {
+    const tabled: ReportDoc = {
+      ...doc,
+      sections: [
+        {
+          id: 'remediation',
+          title: 'Remediation',
+          blocks: [{ kind: 'table', columns: ['Id', 'Severity', 'Status'], rows: [['F-1', 'high', 'amber']] }],
+        },
+      ],
+    };
+    const html = renderReport(tabled);
+    expect(html).toContain('<span class="rs-chip rs-sev-high">high</span>');
+    expect(html).toContain('<span class="rs-chip rs-rag-amber">amber</span>');
+  });
+
+  it('mutes a fixed finding and keeps an open one plain', () => {
+    const mixed: ReportDoc = {
+      ...doc,
+      sections: [
+        {
+          id: 'findings',
+          title: 'Findings',
+          blocks: [
+            {
+              kind: 'findings',
+              items: [
+                { id: 'F-1', severity: 'high', title: 'Done', detail: 'd', status: 'fixed' },
+                { id: 'F-2', severity: 'low', title: 'Open', detail: 'd', status: 'open' },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const html = renderReport(mixed);
+    expect(html).toContain('<article class="rs-finding rs-sev-high rs-finding-closed">');
+    expect(html).toContain('<article class="rs-finding rs-sev-low">');
+    expect(html).toContain('2 findings: 1 high, 1 low');
   });
 
   it('numbers sections 1, 1.1 and 2', () => {

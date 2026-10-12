@@ -8,12 +8,25 @@ import { esc } from './escape.ts';
 import { SEVERITIES, type Block, type Finding, type StatusItem } from './model.ts';
 
 const DEFAULT_FILL = '#c2410c';
+/*
+ * One palette for every bar: severities and RAG colours share it, so a "high" bar and a "red" bar read as the
+ * same family of colour on the page. Unknown tones fall back to the accent, never to an invented colour.
+ */
 const TONE_FILL: Record<string, string> = {
+  critical: '#7f1d1d',
+  high: '#ea580c',
+  medium: '#d97706',
+  low: '#1e40af',
+  info: '#6b7280',
   red: '#b91c1c',
   amber: '#d97706',
   green: '#15803d',
-  muted: '#94a3b8',
+  neutral: '#6b7280',
 };
+
+/** Statuses that close a finding: it is still listed, but muted so the open ones stand out. */
+const CLOSED_STATUSES: ReadonlySet<string> = new Set(['fixed', 'closed', 'accepted']);
+const RAG_VALUES: ReadonlySet<string> = new Set(['red', 'amber', 'green']);
 
 export function renderBlock(block: Block, sourceIds: ReadonlySet<string>): string {
   switch (block.kind) {
@@ -75,9 +88,9 @@ function renderTable(
   const body = rows
     .map((row) => {
       const cells = row
-        .map((cell) => {
+        .map((cell, i) => {
           const cls = typeof cell === 'number' ? ' class="rs-cell-num"' : '';
-          return `<td${cls}>${esc(cell)}</td>`;
+          return `<td${cls}>${tableCell(columns[i] ?? '', cell)}</td>`;
         })
         .join('');
       return `<tr>${cells}</tr>`;
@@ -87,16 +100,31 @@ function renderTable(
   return `<table class="rs-table">${cap}<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
+/*
+ * A cell in a column named Severity, RAG or Status shows the same chip as the cards when its value is a
+ * severity or a RAG colour. The chip is only drawn for a known value, so other text is still plain escaped text.
+ */
+function tableCell(column: string, cell: string | number): string {
+  const name = column.trim().toLowerCase();
+  const value = typeof cell === 'string' ? cell.trim().toLowerCase() : '';
+  if (name === 'severity' && (SEVERITIES as readonly string[]).includes(value)) {
+    return `<span class="rs-chip rs-sev-${value}">${esc(value)}</span>`;
+  }
+  if ((name === 'rag' || name === 'status') && RAG_VALUES.has(value)) {
+    return `<span class="rs-chip rs-rag-${value}">${esc(value)}</span>`;
+  }
+  return esc(cell);
+}
+
 function renderFindings(items: readonly Finding[], sourceIds: ReadonlySet<string>): string {
-  const summaryRows = SEVERITIES.map((sev) => {
-    const count = items.filter((f) => f.severity === sev).length;
-    return `<tr><td><span class="rs-chip rs-sev-${sev}">${sev}</span></td><td class="rs-cell-num">${count}</td></tr>`;
-  }).join('');
-  const summary =
-    `<table class="rs-table rs-findings-summary"><thead><tr><th>Severity</th><th class="rs-cell-num">Count</th></tr></thead>` +
-    `<tbody>${summaryRows}</tbody></table>`;
+  // The summary is one line: the per-severity counts already sit in the summary section, so no table repeats them.
+  const counts = SEVERITIES.map((sev) => ({ sev, n: items.filter((f) => f.severity === sev).length }))
+    .filter((c) => c.n > 0)
+    .map((c) => `${c.n} ${c.sev}`);
+  const total = items.length;
+  const line = total === 0 ? '0 findings' : `${total} ${total === 1 ? 'finding' : 'findings'}: ${counts.join(', ')}`;
   const cards = items.map((f) => renderFinding(f, sourceIds)).join('');
-  return `${summary}${cards}`;
+  return `<p class="rs-finding-count">${esc(line)}</p>${cards}`;
 }
 
 function renderFinding(f: Finding, sourceIds: ReadonlySet<string>): string {
@@ -106,8 +134,11 @@ function renderFinding(f: Finding, sourceIds: ReadonlySet<string>): string {
     ? `<p class="rs-finding-line"><strong>Recommendation:</strong> ${esc(f.recommendation)}</p>`
     : '';
   const cites = f.cites && f.cites.length > 0 ? `<p class="rs-finding-line">${renderCites(f.cites, sourceIds)}</p>` : '';
+  // A closed finding keeps its place and its chip, but its card is muted so open work stands out.
+  const closed = f.status !== undefined && CLOSED_STATUSES.has(f.status.trim().toLowerCase());
+  const cls = closed ? `rs-finding rs-sev-${f.severity} rs-finding-closed` : `rs-finding rs-sev-${f.severity}`;
   return (
-    `<article class="rs-finding rs-sev-${f.severity}">` +
+    `<article class="${cls}">` +
     `<header class="rs-finding-head"><span class="rs-chip rs-sev-${f.severity}">${f.severity}</span>` +
     `<span class="rs-fid">${esc(f.id)}</span>${ref}<h4>${esc(f.title)}</h4></header>` +
     `<p class="rs-finding-line">${esc(f.detail)}</p>${rec}${status}${cites}</article>`

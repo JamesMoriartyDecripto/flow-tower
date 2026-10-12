@@ -119,6 +119,7 @@ function build(input: unknown, sources: Source[]): ReportDoc {
 
   return {
     type: SECURITY_ASSESSMENT.id,
+    typeTitle: SECURITY_ASSESSMENT.title,
     title: data.title,
     subtitle: data.window,
     audience: data.client,

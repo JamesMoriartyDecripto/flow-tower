@@ -60,11 +60,15 @@ export interface Section {
 
 export interface ReportDoc {
   type: string;
+  /** The type's human title for the cover and control, e.g. "Security assessment"; `type` is the id slug. */
+  typeTitle?: string;
   title: string;
   subtitle?: string;
   audience?: string;
   classification: Classification;
   brand?: string;
+  /** Extra label/value facts shown on the cover, after the audience and classification. */
+  coverFacts?: [string, string][];
   sources: Source[];
   sections: Section[];
 }

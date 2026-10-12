@@ -190,6 +190,7 @@ function build(input: unknown, sources: Source[]): ReportDoc {
 
   return {
     type: POSTMORTEM.id,
+    typeTitle: POSTMORTEM.title,
     title: data.title,
     subtitle: `${data.severity}, started ${data.started}`,
     classification: 'confidential',

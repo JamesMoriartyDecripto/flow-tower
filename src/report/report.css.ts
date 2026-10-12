@@ -34,15 +34,21 @@ ol, ul { padding-left: 18px; }
 .rs-subtitle { font-size: 13pt; color: #4b5563; margin: 6px 0 0; }
 .rs-hash { font-size: 8pt; }
 
-/* Cover: a navy band across the top, the title in white, the rest on paper. */
-.rs-cover { break-after: page; page: rs-cover; }
-.rs-band { background: #0a1f3f; color: #e8f1ff; padding: 28px 32px 24px; min-height: 70mm; display: flex; flex-direction: column; justify-content: flex-end; }
+/*
+ * Cover: a full page of its own. The named page has no margin, so the cover pads itself (20mm); the navy band
+ * holds the title, the facts sit under it, and the brand is pinned to the foot of the page.
+ */
+.rs-cover { break-after: page; page: rs-cover; box-sizing: border-box; min-height: 297mm; padding: 20mm; display: flex; flex-direction: column; }
+.rs-band { background: #0a1f3f; color: #e8f1ff; padding: 28px 32px 24px; display: flex; flex-direction: column; justify-content: flex-end; }
 .rs-band .rs-kicker { color: #ff8a1f; }
 .rs-band h1 { color: #ffffff; font-family: "Orbitron", sans-serif; font-size: 26pt; letter-spacing: .04em; margin: 8px 0 4px; overflow-wrap: break-word; }
-.rs-cover > .rs-muted { margin: 18px 0 0; }
+.rs-band .rs-subtitle { color: #cbd5e1; }
+.rs-cover-facts { margin-top: 24px; }
+.rs-cover-facts td, .rs-cover-facts th { padding: 6px 8px; }
+.rs-cover-brand { margin-top: auto; font: 800 12pt "Orbitron", sans-serif; letter-spacing: .16em; color: #0a1f3f; text-transform: uppercase; }
 
-/* Document control: a framed label | value table, no date. */
-.rs-control { break-after: page; }
+/* Document control: a framed label | value table, no date. It shares its page with the contents. */
+.rs-control { margin-bottom: 18px; }
 .rs-frame { border: 1.5px solid #c2410c; }
 .rs-frame th { width: 30%; color: #4b5563; font-weight: 600; text-align: left; }
 
@@ -93,6 +99,10 @@ ol, ul { padding-left: 18px; }
 .rs-finding-head h4 { flex: 1 1 100%; margin-top: 2px; }
 .rs-fid, .rs-ref { font-family: monospace; font-size: 8.5pt; color: #4b5563; }
 .rs-finding-line { font-size: 9.5pt; margin: 4px 0 0; }
+/* A closed finding is muted: grey rule and border, lighter text, so the open findings read first. */
+.rs-finding-closed { border-color: #d1d5db; border-left-color: #9ca3af; color: #6b7280; }
+.rs-finding-closed h4 { color: #6b7280; }
+.rs-finding-count { font-weight: 600; margin: 10px 0 0; }
 
 /* Draft text: a small badge says the prose was drafted, and its citations are links to the appendix. */
 .rs-badge { display: inline-block; font: 600 7pt "Rajdhani", sans-serif; text-transform: uppercase; letter-spacing: .08em; color: #4b5563; border: 1px solid #9ca3af; border-radius: 2px; padding: 0 4px; margin-right: 6px; vertical-align: middle; }

@@ -160,6 +160,7 @@ function build(input: unknown, sources: Source[]): ReportDoc {
 
   return {
     type: PROJECT_STATUS.id,
+    typeTitle: PROJECT_STATUS.title,
     title: `${data.project}: project status`,
     subtitle: data.period,
     classification: 'internal',

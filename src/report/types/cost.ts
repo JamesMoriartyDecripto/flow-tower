@@ -154,6 +154,7 @@ function build(input: unknown, sources: Source[]): ReportDoc {
 
   return {
     type: COST_REVIEW.id,
+    typeTitle: COST_REVIEW.title,
     title: data.title,
     subtitle: data.period,
     classification: 'internal',

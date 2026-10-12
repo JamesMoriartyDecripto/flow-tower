@@ -15,15 +15,20 @@ const CLASSIFICATION_LABEL: Record<Classification, string> = {
   confidential: 'Confidential',
 };
 
+/** The section a type uses for its sources; the engine fills it instead of adding a second list. */
+const APPENDIX_ID = 'appendix-sources';
+
 export function renderReport(doc: ReportDoc): string {
   const sourceIds = new Set(doc.sources.map((s) => s.id));
   const numbered = numberSections(doc.sections);
+  // A type that declares the appendix gets its table filled in place; only a doc without one gets our own.
+  const hasAppendix = doc.sections.some((s) => s.id === APPENDIX_ID);
   const body = [
     renderCover(doc),
     renderControl(doc),
     renderToc(numbered),
-    ...numbered.map((s) => renderSection(s, sourceIds)),
-    renderSourcesAppendix(doc.sources),
+    ...numbered.map((s) => renderSection(s, sourceIds, doc.sources)),
+    ...(hasAppendix ? [] : [renderSourcesAppendix(doc.sources)]),
   ].join('\n');
   return [
     '<!doctype html>',
@@ -71,18 +76,31 @@ function runningHeaderCss(doc: ReportDoc): string {
   return `@page { @top-left { content: ${cssString(doc.title)}; } @top-right { content: ${cssString(label)}; } }`;
 }
 
+/*
+ * The cover is one full page: the title band on top, a block of facts under it, and the brand at the bottom.
+ * The type's title (not its id slug) is the kicker, so the reader sees "Security assessment".
+ */
 function renderCover(doc: ReportDoc): string {
-  const brand = doc.brand ? `<p class="rs-kicker">${esc(doc.brand)}</p>` : '';
   const subtitle = doc.subtitle ? `<p class="rs-subtitle">${esc(doc.subtitle)}</p>` : '';
-  const audience = doc.audience ? `<p class="rs-muted">Prepared for ${esc(doc.audience)}</p>` : '';
+  const facts: [string, string][] = [];
+  if (doc.audience) facts.push(['Prepared for', esc(doc.audience)]);
+  facts.push(['Classification', `<span class="rs-chip rs-classification">${CLASSIFICATION_LABEL[doc.classification]}</span>`]);
+  for (const [label, value] of doc.coverFacts ?? []) facts.push([esc(label), esc(value)]);
+  const factRows = facts.map(([label, cell]) => `<tr><th>${label}</th><td>${cell}</td></tr>`).join('');
+  const brand = doc.brand ? `<p class="rs-cover-brand">${esc(doc.brand)}</p>` : '';
   return (
     `<section class="rs-cover" id="cover">` +
-    `<div class="rs-band">${brand}<p class="rs-kicker">${esc(doc.type)}</p>` +
+    `<div class="rs-band"><p class="rs-kicker">${esc(typeTitle(doc))}</p>` +
     `<h1>${esc(doc.title)}</h1>${subtitle}</div>` +
-    `${audience}` +
-    `<p><span class="rs-chip rs-classification">${CLASSIFICATION_LABEL[doc.classification]}</span></p>` +
+    `<table class="rs-table rs-facts rs-cover-facts"><tbody>${factRows}</tbody></table>` +
+    `${brand}` +
     `</section>`
   );
+}
+
+/** The type's title for people to read; the bare type id only when a doc was built without one. */
+function typeTitle(doc: ReportDoc): string {
+  return doc.typeTitle ?? doc.type;
 }
 
 /** The document control: what the document is, what it was made from, and by what. No date, by design. */
@@ -92,12 +110,13 @@ function renderControl(doc: ReportDoc): string {
     ? doc.sources.map((s) => `${esc(s.id)} ${esc(s.label)}${shortHashSuffix(s)}`).join('<br>')
     : 'none';
   const rows: [string, string][] = [
-    ['Type', esc(doc.type)],
+    ['Type', esc(typeTitle(doc))],
     ['Sources', sources],
     ['Generator', esc('flow-tower report')],
     ['Classification', esc(CLASSIFICATION_LABEL[doc.classification])],
   ];
   const body = rows.map(([label, cell]) => `<tr><th>${esc(label)}</th><td>${cell}</td></tr>`).join('');
+  // No page break after it: the control shares its page with the contents that follow.
   return (
     `<section class="rs-control" id="control"><h2>Document control</h2>` +
     `<table class="rs-table rs-frame"><tbody>${body}</tbody></table></section>`
@@ -124,11 +143,15 @@ function tocItems(sections: readonly NumberedSection[]): string {
     .join('');
 }
 
-function renderSection(n: NumberedSection, sourceIds: ReadonlySet<string>): string {
+function renderSection(n: NumberedSection, sourceIds: ReadonlySet<string>, sources: readonly Source[]): string {
   // Headings step down with depth, capped at h4, so deep trees stay valid and readable.
   const level = Math.min(n.depth + 2, 4);
-  const blocks = n.section.blocks.map((b) => renderBlock(b, sourceIds)).join('\n');
-  const children = n.children.map((c) => renderSection(c, sourceIds)).join('\n');
+  // The appendix is filled from the document's sources; an empty doc keeps the type's own note.
+  const blocks =
+    n.section.id === APPENDIX_ID && sources.length > 0
+      ? renderSourcesTable(sources)
+      : n.section.blocks.map((b) => renderBlock(b, sourceIds)).join('\n');
+  const children = n.children.map((c) => renderSection(c, sourceIds, sources)).join('\n');
   return (
     `<section class="rs-section" id="${esc(n.section.id)}">` +
     `<h${level}><span class="rs-num">${n.number}</span> ${esc(n.section.title)}</h${level}>` +
@@ -136,10 +159,16 @@ function renderSection(n: NumberedSection, sourceIds: ReadonlySet<string>): stri
   );
 }
 
+/** Our own sources appendix, for a doc whose type does not declare one. */
 function renderSourcesAppendix(sources: readonly Source[]): string {
   if (sources.length === 0) {
     return `<section class="rs-appendix" id="sources"><h2>Sources</h2><p class="rs-muted">No sources.</p></section>`;
   }
+  return `<section class="rs-appendix" id="sources"><h2>Sources</h2>${renderSourcesTable(sources)}</section>`;
+}
+
+/** The sources as one table; the id anchors let a citation link here. */
+function renderSourcesTable(sources: readonly Source[]): string {
   const rows = sources
     .map((s) => {
       const where = s.path ? esc(s.path) : s.url ? esc(s.url) : '';
@@ -151,8 +180,7 @@ function renderSourcesAppendix(sources: readonly Source[]): string {
     })
     .join('');
   return (
-    `<section class="rs-appendix" id="sources"><h2>Sources</h2>` +
     `<table class="rs-table"><thead><tr><th>Id</th><th>Label</th><th>Location</th><th>SHA-256</th></tr></thead>` +
-    `<tbody>${rows}</tbody></table></section>`
+    `<tbody>${rows}</tbody></table>`
   );
 }
