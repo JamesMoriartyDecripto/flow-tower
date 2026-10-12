@@ -327,6 +327,8 @@ export function Library() {
       </header>
       {hasSources && (
         <div className="lib-sources">
+          {/* Labelled: without it this row reads like a second row of tags (#165). */}
+          <span className="lib-row-label mono dim">FROM</span>
           <button className={`chip clickable ${!activeSource ? 'on' : ''}`} onClick={() => setSource(undefined)} title="Show projects from every source">ALL</button>
           {['local', ...machines].map((s) => {
             const chip = sourceChip(s);
