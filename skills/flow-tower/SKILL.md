@@ -11,6 +11,8 @@ CLI: `{{FLOW_TOWER_CLI}}`. If this still shows a placeholder, use `flow-tower` i
 
 **Read and follow [the full procedure](../../docs/generate-a-tower.md)** before starting. Load the rest only when needed: [reference.md](reference.md) for the schema cheat sheet, layer playbook and per-framework signals; the flow-tower repo's `examples/README.md` to copy the closest example; `docs/schema.md` for every field.
 
+Companion skills (asked for by name, not part of this procedure): the [command-center skill](../flow-tower-command-center/SKILL.md) runs the shared hub and the [satellite skill](../flow-tower-satellite/SKILL.md) connects a machine to it.
+
 ## Checklist
 
 1. **Scope:** system root, one tower per system, output `<root>/<system>.tower.yaml` (nested towers in `<root>/towers/`). Existing tower → update it, preserving manual choices.
