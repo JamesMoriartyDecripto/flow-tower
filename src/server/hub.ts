@@ -121,6 +121,9 @@ export function hubGuard(opts: HubOptions) {
       return next();
     }
     if (!isRemote(req, { hub: opts.hub })) return next(); // local requests keep today's behaviour
+    // Enrolment (#164) is the one POST a remote viewer may make: the route checks the tailnet login itself,
+    // and the guard lets it through only for a listed viewer, so a stranger still gets the refusal below.
+    if (req.method === 'POST' && path === '/api/hub/enroll' && isViewer(req, opts.home)) return next();
     if (isViewing(req.method, path)) {
       if (isViewer(req, opts.home)) return next();
       return deny(res, 403, { error: 'remote viewing is not allowed for this user (see viewers in config.json on the hub; hub.json is only a deprecated fallback)' });

@@ -24,6 +24,7 @@ import { sharingHandler } from './sharing.ts';
 import { effective, loadConfig } from './config.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 import { hubViews } from './hub-views.ts';
+import { enrollHandler } from './enroll.ts';
 import { openHistory } from './history/db.ts';
 import { createHistory } from './history/store.ts';
 import { historyHandler } from './history/api.ts';
@@ -170,6 +171,9 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       const hubPanel = hubViews({ satellites, home: USER_HOME, hub: hubOpts.hub });
       server.middlewares.use('/api/hub/machines', hubPanel.machines);
       server.middlewares.use('/api/hub/me', hubPanel.me);
+      // Enrolment (#164): a POST that hands a listed viewer its machine's token. No other /api/hub mount is a
+      // prefix of it, so nothing else swallows it. The route itself refuses anything but a tailnet viewer.
+      server.middlewares.use('/api/hub/enroll', enrollHandler({ home: USER_HOME, hub: hubOpts.hub }));
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.
       server.middlewares.use('/v1/logs', hub.otlp('logs'));
       server.middlewares.use('/v1/metrics', hub.otlp('metrics'));
