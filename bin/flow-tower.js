@@ -38,6 +38,11 @@ Usage
   flow-tower connect <hub-url> --token <t> [--machine <name>] [--user <name>]
                                                         make this machine a satellite: writes role satellite into
                                                         the user folder's config.json, then sends one heartbeat
+  flow-tower share <dir> [--files] [--name <name>] | --list
+                                                        give a tower folder to the hub (satellite): YAML only, or with
+                                                        --files also the files the towers reference; --list shows them
+  flow-tower unshare <name|dir> [--force]               take a shared folder back from the hub; --force drops it from
+                                                        config only when the hub cannot be reached
   flow-tower history export [--user <u>] | delete --user <u> | info
                                                         content-free events and totals in the user folder:
                                                         export prints JSONL, delete erases one user's rows
@@ -135,6 +140,10 @@ const { values, positionals } = parseArgs({
     json: { type: 'boolean', default: false },
     list: { type: 'boolean', default: false },
     'with-examples': { type: 'boolean', default: false },
+    // share / unshare (#164): --name is the hub folder's name, --files adds the referenced files, --force unshares offline.
+    name: { type: 'string' },
+    files: { type: 'boolean', default: false },
+    force: { type: 'boolean', default: false },
     project: { type: 'boolean', default: false },
     target: { type: 'string', default: 'claude' },
   },
