@@ -34,9 +34,9 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 8. #85 privacy profiles
 9. #93 admin
 10. #94 alerts
-11. #95 remote activity
+11. #95 the rest of remote activity (runtime rings, off-runtime mark, History tab, sparklines)
 12. #86 fan-out
-13. #97 systemd, compose, Caddy and Tailscale on the real server
+13. #97 the docker compose and Caddy variants (systemd and Tailscale tested)
 14. #5 live events with Pi (P1, needs a machine with Pi)
 15. #65
 16. On hold: #129 voice 2 items 4–8 (clarifying questions, proactive alerts, browser VAD, push-to-talk), until the maintainer asks
