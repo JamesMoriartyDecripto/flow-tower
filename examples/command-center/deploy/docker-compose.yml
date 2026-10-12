@@ -21,5 +21,7 @@ services:
     volumes:
       - ${FLOW_TOWER_REPO:?path to the flow-tower checkout}:/app
       - ..:/library:ro
+      # towers/ stays writable: satellites share their towers into it (flow-tower share, #164).
+      - ../towers:/library/towers
       # config.json, tokens.json, history.db: keep them on the host, owner-only.
       - ${FLOW_TOWER_DATA:-/home/flowtower/.config/flow-tower}:/data
