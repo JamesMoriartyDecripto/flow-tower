@@ -1,5 +1,6 @@
 // Dev-squad runner for non-Claude models through OpenRouter (session tooling, kept in the repo, #113).
-// node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--repo <path>]
+// node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--repo <path>] [--oneshot|--batch]
+// --oneshot and --batch (reviewer and security only) answer in one request with no tools (oneshot.mjs, #169).
 // The key is loaded from the user's key file into this process only; it is never printed.
 // Each run ends with one line in the local cost ledger (ledger.mjs, #156), finished or failed alike.
 import { execFileSync } from 'node:child_process';
@@ -9,11 +10,14 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { appendRun, issueOf, ledgerPath } from './ledger.mjs';
+import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
+import { realRelIfAllowed, realTarget } from './guard.mjs';
+import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './oneshot.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
 // A missing --task used to reach readFileSync and fail with a raw fs error: a usage line is the answer.
-const USAGE = 'usage: node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--write a,b] [--repo <path>]';
+const USAGE = 'usage: node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--write a,b] [--repo <path>] [--oneshot | --batch]';
 if (argv.includes('--help')) { console.log(USAGE); exit(0); }
 const taskFile = arg('task');
 // Checked before any git call, so a bare invocation fails on the usage, not on the checkout.
@@ -28,6 +32,27 @@ const branch = (() => { try { return execFileSync('git', ['rev-parse', '--abbrev
 const issue = issueOf(arg('issue'), branch);
 const model = arg('model'), role = arg('role'), node = arg('node'), task = readFileSync(taskFile, 'utf8');
 const maxSteps = Number(arg('steps', 40));
+// Modes (#169): the tool loop stays the default; reviewer and security can answer in one request instead. SQUAD_PACE
+// sets their default: relaxed is one direct request (a daytime review in minutes), overnight is a batch (half the price,
+// hours of wait, for work left running overnight). An explicit flag wins over the pace. The coder always needs its tools.
+// The role names the log file below, so only the three known roles pass (no path characters from the command line).
+if (!['coder', 'reviewer', 'security'].includes(role)) { console.error(USAGE); exit(1); }
+const flagOneshot = argv.includes('--oneshot'), flagBatch = argv.includes('--batch');
+const oneshotRole = role === 'reviewer' || role === 'security';
+if ((flagOneshot || flagBatch) && !oneshotRole) {
+  console.error(role === 'coder' ? 'the coder needs tools: --oneshot/--batch are for reviewer and security' : USAGE);
+  exit(1);
+}
+if (flagOneshot && flagBatch) { console.error('--oneshot and --batch are exclusive'); exit(1); }
+// An unknown pace is refused rather than read as now: a typo must not silently pick the paid mode.
+const PACE = env.SQUAD_PACE;
+if (PACE !== undefined && !['now', 'relaxed', 'overnight'].includes(PACE)) { console.error('SQUAD_PACE must be now, relaxed or overnight'); exit(1); }
+const paceMode = PACE === 'relaxed' ? 'oneshot' : PACE === 'overnight' ? 'batch' : undefined;
+const fromPace = !flagOneshot && !flagBatch && oneshotRole ? paceMode : undefined;
+const mode = flagBatch ? 'batch' : flagOneshot ? 'oneshot' : fromPace ?? 'loop';
+// The mode that was paid for: a batch that has no endpoint for the model falls back to oneshot, and the ledger says so.
+let paidMode = mode;
+console.log(`mode: ${mode}${fromPace ? ` (SQUAD_PACE=${PACE})` : ''}`);
 const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or
 // FLOW_TOWER_HOME. The git-ignored .env of the checkout is the fallback. Real environment variables win.
@@ -54,6 +79,14 @@ const inRepo = (p) => {
   const rel = relative(REPO, abs);
   if (!rel || rel.startsWith('..') || SECRET.test(rel)) throw new Error(`path not allowed: ${p}`);
   return { abs, rel };
+};
+// Every write is checked on its real path, so a symlink inside the repo cannot lead the write out of it (#169 review).
+// Returns the real path to write to; the role's writable folders and the secret patterns still apply.
+const writable = (abs, rel) => {
+  if (!WRITABLE.test(rel)) throw new Error(`read-only for ${role}: ${rel}`);
+  const real = realRelIfAllowed({ repo: REPO, abs, secret: SECRET, writable: WRITABLE });
+  if (real === null) throw new Error(`write outside the repo or through a link: ${rel}`);
+  return realTarget(abs);
 };
 const git = (...a) => execFileSync('git', a, { cwd: REPO, encoding: 'utf8', maxBuffer: 20e6 });
 const cap = (s, n = 40_000) => (s.length > n ? `${s.slice(0, n)}\n…[cut ${s.length - n} chars]` : s);
@@ -90,30 +123,31 @@ const tools = {
     return cap(lines.slice(from - 1, to).map((l, i) => `${from + i}\t${l}`).join('\n'));
   },
   grep: ({ pattern, path = '.' }) => { try { return cap(git('grep', '-n', '-I', '-E', String(pattern), '--', path === '.' ? '.' : inRepo(path).rel), 15_000); } catch { return 'no match'; } },
+  // A write goes where its real path (symlinks followed) says, so that path is what is checked (guard.mjs).
   edit_file: ({ path, old, new: next }) => {
     const { abs, rel } = inRepo(path);
-    if (!WRITABLE.test(rel)) throw new Error(`read-only for ${role}: ${rel}`);
-    const text = readFileSync(abs, 'utf8');
+    const real = writable(abs, rel);
+    const text = readFileSync(real, 'utf8');
     const n = text.split(old).length - 1;
     if (n !== 1) throw new Error(`old text found ${n} times: it must match exactly once`);
-    writeFileSync(abs, text.replace(old, () => next));
+    writeFileSync(real, text.replace(old, () => next));
     return `edited ${rel}`;
   },
   write_file: ({ path, content }) => {
     const { abs, rel } = inRepo(path);
-    if (!WRITABLE.test(rel)) throw new Error(`read-only for ${role}: ${rel}`);
     // The coder kept leaving probe files despite the prompt (#75 finding 8): refuse them at the tool.
     if (SCRATCH.test(rel)) throw new Error(`probe/scratch files are not allowed in the repo: ${rel}. Use run vitest on a real test file, or reason from the code.`);
-    mkdirSync(dirname(abs), { recursive: true });
-    writeFileSync(abs, content);
+    const real = writable(abs, rel);
+    mkdirSync(dirname(real), { recursive: true });
+    writeFileSync(real, content);
     return `wrote ${rel}`;
   },
   // Without a delete tool the coder replaced a file it was told to remove with an empty placeholder (#75).
   delete_file: ({ path }) => {
     const { abs, rel } = inRepo(path);
-    if (!WRITABLE.test(rel)) throw new Error(`read-only for ${role}: ${rel}`);
-    if (!existsSync(abs)) return `not there: ${rel}`;
-    rmSync(abs);
+    const real = writable(abs, rel);
+    if (!existsSync(real)) return `not there: ${rel}`;
+    rmSync(real);
     return `deleted ${rel}`;
   },
   run: ({ command, file }) => { const f = RUNS[command]; if (!f) throw new Error(`commands: ${Object.keys(RUNS).join(', ')}`); return f(file); },
@@ -133,32 +167,109 @@ const TOOLS = [
   fn('finish', 'End with your final report (the format your task asks for).', { report: S }, ['report']),
 ];
 
-// Prompt caching is opt-in per request and only Claude models honour it here: cache reads cost 0.1x, writes 1.25x.
-const cacheControl = (id) => (id.startsWith('anthropic/') ? { cache_control: { type: 'ephemeral' } } : {});
-
 const messages = [
   { role: 'system', content: `You are the ${role} of a dev squad working on the repo Flow Tower (TypeScript, React 19, Vite 8, vitest) at ${REPO}. You work only through the tools. English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines. Never touch secret files. When done, call finish with your report.` },
   { role: 'user', content: task },
 ];
 let cost = 0;
+// Set when a batch answer's cost could not be read: the ledger then gets null and costUnknown, not a false 0.
+let costUnknown = false;
 let promptTokens = 0, cachedTokens = 0;
 // A failed run still cost money, so every exit writes its line; steps counts the model calls that completed.
 let recorded = false, stepsDone = 0;
-const record = (outcome, steps) => { recorded = true; appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: Number(cost.toFixed(6)), promptTokens, cachedTokens, outcome }); };
+const record = (outcome, steps) => {
+  recorded = true;
+  appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: costUnknown ? null : Number(cost.toFixed(6)), ...(costUnknown && { costUnknown: true }), promptTokens, cachedTokens, outcome, mode: paidMode });
+};
 // An unhandled throw (two failed fetches, a bad JSON body) ends the process without any explicit record: the exit
 // handler catches those. appendFileSync is synchronous, so the write completes inside the handler.
 process.on('exit', () => { if (!recorded) record('crash', stepsDone); });
 // A default-handled SIGINT or SIGTERM kills the process without emitting 'exit', so a run stopped with Ctrl-C
 // (the usual answer to a stuck model call) left no ledger line. Listening here records it; exit() then sets the code.
-process.on('SIGINT', () => { if (!recorded) record('interrupted', stepsDone); exit(130); });
-process.on('SIGTERM', () => { if (!recorded) record('interrupted', stepsDone); exit(143); });
+// A pending batch is deleted first: exit() skips batchOne's finally, and a batch is kept 30 days otherwise.
+// The DELETE is bounded to 5 s so a dead network cannot hold the interrupt forever.
+let pendingBatch;
+const onInterrupt = async (code) => {
+  if (pendingBatch) {
+    const id = pendingBatch;
+    pendingBatch = undefined;
+    const gone = await deleteBatch(env.OPENROUTER_API_KEY, id, AbortSignal.timeout(5_000));
+    console.log(gone ? `squad batch ${id}: deleted on interrupt` : `squad batch ${id}: not deleted on interrupt, delete it by hand`);
+  }
+  if (!recorded) record('interrupted', stepsDone);
+  exit(code);
+};
+process.on('SIGINT', () => { onInterrupt(130); });
+process.on('SIGTERM', () => { onInterrupt(143); });
+// A failed HTTP answer is logged as its status and a short error code only: the provider's body can echo the
+// request, and the log and the console must not carry that. The body is read here, for the code, and dropped.
+async function httpFailure(r) {
+  const j = await r.json().catch(() => null);
+  const code = j?.error?.code;
+  const short = typeof code === 'string' || typeof code === 'number' ? String(code) : '';
+  return `HTTP ${r.status}${/^[\w.-]{1,40}$/.test(short) ? ` ${short}` : ''}`;
+}
+// One request with no tools, shared by --oneshot and by a batch that fell back. No retry on the 10 min cap:
+// one long answer, the failure is the answer.
+async function oneshotCall(body) {
+  const r = await fetch(chatUrl(), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'X-Title': 'Flow Tower dev-squad' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(ONESHOT_TIMEOUT_MS),
+  });
+  if (!r.ok) { const f = await httpFailure(r); note(f); record('http-error', 0); console.log(f); exit(1); }
+  const out = await r.json();
+  return { content: out.choices?.[0]?.message?.content, usage: out.usage ?? {} };
+}
 // One session per run: OpenRouter keeps it on the provider that holds its prompt cache (cached input: DeepSeek 0.1x, Z.ai ~0.2x).
 const session = `${role}-${Date.now()}`;
 emit('agent.start', node, `${role} on ${model}`);
 note(`# ${role} ${model}\n${task}\n`);
+// One request (or one batch) with the task as the whole input: no tool loop, one step, then exit.
+if (mode !== 'loop') {
+  const body = oneshotBody({ model, system: oneshotSystem(role, REPO), task, session });
+  let answer;
+  if (mode === 'oneshot') answer = await oneshotCall(body);
+  else {
+    // The batch is slower but about half the price; BATCH_NOTE says where the inputs stay meanwhile.
+    console.log(BATCH_NOTE);
+    const progress = (line) => { console.log(line); emit('log', node, line.slice(0, 120)); };
+    const res = await batchOne({ key: env.OPENROUTER_API_KEY, body, log: progress, onCreated: (id) => { pendingBatch = id; } });
+    pendingBatch = undefined;
+    if (res.noBatch) {
+      // Not every model has a batch endpoint: the review still runs, at full price, and the ledger says so.
+      console.log(`${model} has no batch endpoint: falling back to --oneshot (full price)`);
+      paidMode = 'oneshot';
+      answer = await oneshotCall(body);
+    } else {
+      if (!res.ok) { note(`batch error ${res.error}`); record('batch-error', 0); console.log(`batch failed: ${res.error}`); exit(1); }
+      answer = { content: res.content, usage: res.usage, generationId: res.generationId };
+    }
+  }
+  const { content, usage } = answer;
+  if (typeof content !== 'string' || content === '') { note('empty answer'); record('empty-answer', 0); console.log('empty answer'); exit(1); }
+  stepsDone = 1;
+  // A batch result has no usage.cost: it is read from the generation endpoint. Still unknown is null, never a false 0.
+  let callCost = usage.cost;
+  if (typeof callCost !== 'number' && answer.generationId) {
+    callCost = await generationCost({ key: env.OPENROUTER_API_KEY, id: answer.generationId, log: (l) => note(l) });
+  }
+  costUnknown = typeof callCost !== 'number';
+  if (!costUnknown) cost += callCost;
+  promptTokens += usage.prompt_tokens ?? 0;
+  cachedTokens += usage.prompt_tokens_details?.cached_tokens ?? 0;
+  const cached = promptTokens ? Math.round((100 * cachedTokens) / promptTokens) : 0;
+  const shown = costUnknown ? 'cost unknown' : `$${cost.toFixed(4)}`;
+  note(`\n[finish] ${content}\n\ncost ${shown}`);
+  record('finish', 1);
+  emit('agent.end', node, `${role} on ${model} done (${shown}, ${paidMode})`, 'ok');
+  console.log(`${content}\n\n--- ${model} · 1 step · ${shown} · cache ${cached}% of ${promptTokens} prompt tokens${paidMode === 'batch' ? ' (batch)' : ''} · log ${log}`);
+  exit(0);
+}
 for (let step = 0; step < maxSteps; step++) {
   // A call stuck for minutes (GLM once sat 7 min on one) is retried once, then the run stops.
-  const ask = () => fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const ask = () => fetch(chatUrl(), {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'X-Title': 'Flow Tower dev-squad' },
     body: JSON.stringify({ model, messages, tools: TOOLS, max_tokens: 16000, usage: { include: true }, session_id: session,
@@ -170,7 +281,7 @@ for (let step = 0; step < maxSteps; step++) {
   });
   let r;
   try { r = await ask(); } catch { emit('log', node, `step ${step + 1}: no answer in 3 min, retrying`, 'error'); r = await ask(); }
-  if (!r.ok) { const t = await r.text(); note(`HTTP ${r.status} ${t}`); record('http-error', step); console.log(`HTTP ${r.status} ${t.slice(0, 400)}`); exit(1); }
+  if (!r.ok) { const f = await httpFailure(r); note(f); record('http-error', step); console.log(f); exit(1); }
   const out = await r.json();
   stepsDone++;
   cost += out.usage?.cost ?? 0;
