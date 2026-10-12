@@ -1,4 +1,4 @@
-import type { ResolvedEdge, ResolvedNode, ResolvedTower } from './types.ts';
+import type { ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from './types.ts';
 
 /**
  * Tower audit: phase 2 (inventory) and phase 3a (lint) of the optimizer flow. Pure and deterministic:
@@ -14,6 +14,7 @@ export const RULES = {
   AUD05: 'agent feeds an output directly with no evals on it or on a guard between them',
   AUD06: 'node with more than 15 tools',
   AUD07: 'node with no outgoing edge that is not a call target',
+  AUD08: 'nested towers deeper than 3 levels',
   AUD09: 'agent node with no model',
   AUD10: 'tower with 3+ agents and no tower-level budget or limits',
   AUD11: 'shell or code-execution tool with no sandbox',
@@ -209,6 +210,31 @@ export function auditTower(tower: ResolvedTower): Finding[] {
   }
 
   return findings.sort((a, b) => (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : (a.node ?? '') < (b.node ?? '') ? -1 : (a.node ?? '') > (b.node ?? '') ? 1 : 0));
+}
+
+/**
+ * AUD08: nested towers go through `node.tower` (the loader folds `agent.tower` into it, as the app
+ * does). The root is level 1; a node that opens level 4 gets a finding, so one finding per too-deep
+ * branch, not one per deeper level. `workspace` is the loaded set, looked up by tower id; a tower
+ * that is missing or already on the path is skipped, so a cycle of references ends.
+ */
+export function auditNesting(workspace: Workspace, rootId: string): Finding[] {
+  const findings: Finding[] = [];
+  const MAX_DEPTH = 3;
+  const walk = (towerId: string, depth: number, path: string[]) => {
+    const tower = workspace.towers[towerId];
+    if (!tower) return;
+    for (const n of nodesOf(tower)) {
+      if (!n.tower || path.includes(n.tower)) continue;
+      if (depth + 1 > MAX_DEPTH) {
+        findings.push({ rule: 'AUD08', level: 'info', node: n.key, message: `nested tower deeper than ${MAX_DEPTH} levels: flatten it or split the job` });
+        continue;
+      }
+      walk(n.tower, depth + 1, [...path, n.tower]);
+    }
+  };
+  if (workspace.towers[rootId]) walk(rootId, 1, [rootId]);
+  return findings.sort((a, b) => ((a.node ?? '') < (b.node ?? '') ? -1 : (a.node ?? '') > (b.node ?? '') ? 1 : 0));
 }
 
 /** "Bash(git:*)" → "bash", "mcp__box__shell" → "shell". Compared lowercase against SHELL_TOOLS. */

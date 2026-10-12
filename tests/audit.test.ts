@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { auditTower, inventory, RULES, type Finding } from '../src/core/audit';
+import { auditNesting, auditTower, inventory, RULES, type Finding } from '../src/core/audit';
 import { buildTower, loadLibrary } from '../src/core/loader';
 import { TowerSchema, type TowerDef } from '../src/core/schema';
-import type { ResolvedTower } from '../src/core/types';
+import type { ResolvedTower, Workspace } from '../src/core/types';
 
 const none = { read: async () => undefined };
 
@@ -146,6 +146,41 @@ describe('AUD11 shell tool with no sandbox', () => {
     expect(rulesOf(auditTower(bad), 'AUD11')).toHaveLength(1);
     const ok = await build({ nodes: [{ id: 'a', type: 'agent', model: 'm', tools: ['Bash(git:*)'], sandbox: { network: 'none' } }] });
     expect(rulesOf(auditTower(ok), 'AUD11')).toEqual([]);
+  });
+});
+
+describe('AUD08 nesting deeper than 3 levels', () => {
+  /** A workspace where each tower opens the next through a node: `chain[0]` is the root. */
+  async function chain(ids: string[]): Promise<Workspace> {
+    const towers: Record<string, ResolvedTower> = {};
+    for (let i = 0; i < ids.length; i++) {
+      const sub = ids[i + 1];
+      const node = sub ? { id: 'sub', type: 'process', tower: sub } : { id: 'leaf', type: 'process' };
+      towers[ids[i]] = await build({ nodes: [node] });
+    }
+    return { projects: [ids[0]], towers, loadedAt: '' };
+  }
+
+  it('is quiet within 3 levels', async () => {
+    const ws = await chain(['a', 'b', 'c']);
+    expect(auditNesting(ws, 'a')).toEqual([]);
+  });
+
+  it('flags the node that opens the 4th level', async () => {
+    const ws = await chain(['a', 'b', 'c', 'd']);
+    const fs = auditNesting(ws, 'a');
+    expect(fs).toHaveLength(1);
+    expect(fs[0]).toMatchObject({ rule: 'AUD08', level: 'info', node: 'l.sub' });
+  });
+
+  it('a cycle of tower references ends without a loop', async () => {
+    const ws = await chain(['a', 'b']);
+    ws.towers.b = await build({ nodes: [{ id: 'sub', type: 'process', tower: 'a' }] });
+    expect(auditNesting(ws, 'a')).toEqual([]);
+  });
+
+  it('an unknown root gives no findings', async () => {
+    expect(auditNesting({ projects: [], towers: {}, loadedAt: '' }, 'missing')).toEqual([]);
   });
 });
 
