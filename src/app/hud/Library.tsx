@@ -157,13 +157,13 @@ const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current,
             </span>
           )}
         </div>
+        {hosts && <div className="lib-hosts" title="Machines that sent events for this project in the last 15 minutes">{hosts}</div>}
         <footer className="lib-foot">
           <span className="mono dim" title={id}>
             {stats.errors > 0 && <span className="chip err">{stats.errors} ERR</span>}
             {stats.warnings > 0 && <span className="chip warn">{stats.warnings} WARN</span>}
             {ago(stats.updatedAt)}
             {usage && <span className="lib-usage" title="Tokens and cost reported by live telemetry, from the events the local server keeps (the last 2000), sub-towers included"> · {usage}</span>}
-            {hosts && <span className="lib-hosts" title="Machines that sent events for this project in the last 15 minutes">{hosts}</span>}
           </span>
           <span className="lib-open">
             <button className="btn" onClick={open('tower')} title="Open as a tower (sets the default view)">Tower</button>
