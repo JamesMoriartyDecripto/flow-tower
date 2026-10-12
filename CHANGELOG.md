@@ -9,10 +9,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Model benchmark (#149): `--warm` repeats each run on the same session to price a warm cache, and `--batch` runs single-step public tasks through the OpenRouter Batch API at about half price; the cost modes are in `examples/model-benchmark/README.md`.
 - Voice (#145): "scorri giù" / "scroll down" (and "scorri su", "vai in fondo", "vai all'inizio") pages the open file viewer; "apri l'hub" / "open the hub" ("mostra le macchine", "chiudi l'hub") opens the Hub panel on its Now or Machines tab; "mostra solo gli agenti" / "show only agents" keeps one node type on screen and "mostra tutto" / "show everything" shows them all again; all are fixed phrases the parser handles locally. The voice agent gains five tools (`scroll_file`, `hub_panel`, `filter_nodes`, `library_filter`, `compare_nodes`), and the action execution lives in `src/app/voice/actions.ts`.
 - Command-center and satellite skills (#148): `skills/flow-tower-command-center` walks an agent through the hub side and `skills/flow-tower-satellite` the sender side; both are routed from `CLAUDE.md`, [docs/command-center.md](docs/command-center.md) and the README.
+- Model benchmark (#105): `bench.mjs` and `judge.mjs` light the model-benchmark tower live with `--url` (metadata only); the first full run (2026-10-11: 8 models, 5 categories, 240 runs, $0.19) with blind scores from two verifier families is in `examples/model-benchmark/results/`, and its picks per category are in the cost skill reference.
 
 ### Changed
 - Anthropic models get `cache_control` breakpoints on the squad, the voice agent and the model benchmark (#149), so their prompt prefix is cached.
 - `bin/flow-tower.js` is closer to the 400-line rule (519 → 426 lines): the TypeScript subcommand dispatch moved to `bin/commands.js` and the `init` starter to `bin/starter.js`, with no behaviour change (#126).
+- The dev squad codes with `anthropic/claude-haiku-5.5` (was DeepSeek 4.1 Flash): in a field trial on #126 it took 11 steps and $0.016 against 36 steps and $0.048, with the cleanest result. GLM 5.3 FlashX stays the reviewer (3 steps on the same PR; Gemini Flash Lite missed the finding), DeepSeek 4.1 Flash audits security. `CODER_MODEL` overrides; the dev-squad example follows (#105).
 
 ## [0.7.0] - 2026-10-11
 
