@@ -35,7 +35,7 @@ Usage
                                                         config.json, outside the flow-tower checkout
   flow-tower library [--with-examples] [--port N]       serve your library, plus the checkout's examples
                                                         with --with-examples (other serve flags apply too)
-  flow-tower connect <hub-url> --token <t> [--machine <name>] [--user <name>]
+  flow-tower connect <hub-url> [--token <t>] [--machine <name>] [--user <name>]
                                                         make this machine a satellite: writes role satellite into
                                                         the user folder's config.json, then sends one heartbeat
   flow-tower share <dir> [--files] [--name <name>] | --list
