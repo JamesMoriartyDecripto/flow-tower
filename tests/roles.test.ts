@@ -69,7 +69,7 @@ describe('classifyNode', () => {
   it('an outgoing spawn edge makes an orchestrator', async () => {
     const t = await build({ nodes: [{ id: 'a', type: 'agent', model: 'm' }, { id: 'b', type: 'agent', model: 'm' }], edges: ['a -> b [spawn]'] });
     const n = t.layers[0].nodes.find((x) => x.id === 'a')!;
-    expect(classifyNode(n, true)).toEqual({ role: 'orchestrator', why: 'has an outgoing spawn or handoff edge' });
+    expect(classifyNode(n, true)).toEqual({ role: 'orchestrator', why: 'has an outgoing spawn edge' });
     expect(classifyNode(n).role).toBe('general');
   });
 
@@ -117,7 +117,7 @@ describe('classifyNode', () => {
 });
 
 describe('modelFit', () => {
-  it('returns one entry per agent or model node, with the role class fields', async () => {
+  it('returns one entry per node that runs a model, with the role class fields', async () => {
     const t = await build({
       nodes: [
         { id: 'a', type: 'agent', model: 'openai/whisper-1' },
@@ -126,7 +126,7 @@ describe('modelFit', () => {
       ],
     });
     const fits = modelFit(t);
-    expect(fits.map((f) => f.node)).toEqual(['l.a', 'l.p']);
+    expect(fits.map((f) => f.node)).toEqual(['l.a']);
     expect(fits[0]).toMatchObject({ role: 'voice-stt', model: 'openai/whisper-1' });
     expect(fits[0].needs).toContain('streaming-audio');
   });
@@ -148,5 +148,24 @@ describe('modelFit', () => {
   it('reads the orchestrator role from the tower edges', async () => {
     const t = await build({ nodes: [{ id: 'a', type: 'agent', model: 'm' }, { id: 'b', type: 'agent', model: 'm' }], edges: ['a -> b [spawn]'] });
     expect(modelFit(t).find((f) => f.node === 'l.a')?.role).toBe('orchestrator');
+  });
+
+  it('a handoff back to the lead does not make the worker an orchestrator', async () => {
+    const t = await build({ nodes: [{ id: 'w', type: 'agent', model: 'm', label: 'Worker' }, { id: 'lead', type: 'agent', model: 'm' }], edges: ['w -> lead [handoff]'] });
+    expect(modelFit(t).find((f) => f.node === 'l.w')?.role).toBe('general');
+  });
+
+  it('keeps decision and guard nodes that have a model, drops those without one', async () => {
+    const t = await build({
+      nodes: [
+        { id: 'd', type: 'decision', model: 'm', decision: { output: 'binary', fail: 'closed' } },
+        { id: 'g', type: 'guard', model: 'm' },
+        { id: 'h', type: 'human' },
+        { id: 'p', type: 'process' },
+        { id: 'dn', type: 'decision', decision: { output: 'binary', fail: 'closed' } },
+      ],
+    });
+    const fits = modelFit(t);
+    expect(fits.map((f) => [f.node, f.role])).toEqual([['l.d', 'router'], ['l.g', 'guard']]);
   });
 });

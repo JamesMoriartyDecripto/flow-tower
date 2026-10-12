@@ -80,14 +80,14 @@ const modelOf = (node: ResolvedNode): string | undefined => node.model ?? node.a
  * Bash is still a reviewer, and a lead that spawns agents is an orchestrator, not a coder.
  *  1. node type: guard → guard, decision → router (the type says what the node is for).
  *  2. model id hints: a specialised model (whisper, tts, realtime, embed, image, video) names its role.
- *  3. delegation: outgoing spawn or handoff edges, or id/label words lead, orchestrat, planner,
- *     manager → orchestrator.
+ *  3. delegation: an outgoing spawn edge, or id/label words lead, orchestrat, planner,
+ *     manager → orchestrator. A handoff is not delegation: it is how a worker hands back to the lead.
  *  4. id/label words review, judge, critic, verif, audit → review.
  *  5. tools: file or shell tools → coding, web or fetch tools → research.
  *  6. other keywords in id, label or description: writing, data, router (see KEYWORDS).
  *  7. nothing matched → general.
- * `delegates` is true when the tower has an outgoing spawn or handoff edge from the node, since a
- * node does not carry its edges.
+ * `delegates` is true when the tower has an outgoing spawn edge from the node, since a node does not
+ * carry its edges.
  */
 export function classifyNode(node: ResolvedNode, delegates = false): { role: RoleId; why: string } {
   if (node.type === 'guard') return { role: 'guard', why: 'node type is guard' };
@@ -102,7 +102,7 @@ export function classifyNode(node: ResolvedNode, delegates = false): { role: Rol
   }
 
   const name = [node.id, node.label ?? ''].join(' ').toLowerCase();
-  if (delegates) return { role: 'orchestrator', why: 'has an outgoing spawn or handoff edge' };
+  if (delegates) return { role: 'orchestrator', why: 'has an outgoing spawn edge' };
   const lead = ORCHESTRATOR_WORDS.find((w) => name.includes(w));
   if (lead) return { role: 'orchestrator', why: `"${lead}" in id or label` };
 
@@ -140,7 +140,11 @@ export interface ModelFit {
  */
 const NO_FIT_TYPES = new Set(['model', 'tool', 'memory', 'hook', 'entry', 'output']);
 
-/** Per agent node (and other work nodes): the role, and the categories and needs to look for in a model. */
+/**
+ * Per node that runs a model (type agent, or any node with a model on it): the role, and the
+ * categories and needs to look for in a model. A process or human node with no model runs no model,
+ * so it has no fit; a decision or guard with a model is a router or guard and stays in.
+ */
 export function modelFit(tower: ResolvedTower): ModelFit[] {
   const nodes = tower.layers.flatMap((l) => l.nodes);
   const edges = [...tower.layers.flatMap((l) => l.edges), ...tower.links];
@@ -148,7 +152,8 @@ export function modelFit(tower: ResolvedTower): ModelFit[] {
   for (const n of nodes) {
     if (NO_FIT_TYPES.has(n.type)) continue;
     const model = modelOf(n);
-    const delegates = edges.some((e) => e.from === n.key && (e.kind === 'spawn' || e.kind === 'handoff'));
+    if (n.type !== 'agent' && !model) continue;
+    const delegates = edges.some((e) => e.from === n.key && e.kind === 'spawn');
     const { role } = classifyNode(n, delegates);
     const cls = roleById.get(role)!;
     out.push({ node: n.key, role, model, categories: cls.categories, needs: cls.needs, prefer: cls.prefer });
