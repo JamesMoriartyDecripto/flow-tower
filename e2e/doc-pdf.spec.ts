@@ -31,6 +31,15 @@ function pageCount(path: string): number {
   return [...readFileSync(path).toString('latin1').matchAll(/\/Type\s*\/Page[^s]/g)].length;
 }
 
+/** Every in-page link must point at an id that exists, or the printed PDF has dead references. */
+async function expectNoDeadLinks(page: Page): Promise<void> {
+  const hrefs = await page.locator('a[href^="#"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')!));
+  for (const href of hrefs) {
+    const id = decodeURIComponent(href.slice(1));
+    expect(await page.locator(`[id="${id}"]`).count(), `anchor ${href} has a target`).toBeGreaterThan(0);
+  }
+}
+
 test('the document view shows every node of the root tower, with anchors and a diagram per layer', async ({ page }) => {
   const all = await workspace(page);
   const root = all.towers[towerIdFor(all, 'dev-squad')];
@@ -42,12 +51,7 @@ test('the document view shows every node of the root tower, with anchors and a d
     for (const node of layer.nodes) expect(text, `node "${node.label}" on the page`).toContain(node.label);
   }
 
-  // Every in-page link must point at an id that exists, or the printed PDF has dead references.
-  const hrefs = await page.locator('a[href^="#"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')!));
-  for (const href of hrefs) {
-    const id = decodeURIComponent(href.slice(1));
-    expect(await page.locator(`[id="${id}"]`).count(), `anchor ${href} has a target`).toBeGreaterThan(0);
-  }
+  await expectNoDeadLinks(page);
 
   // Level 2 has no node sheets, so a node link there would be a dead one.
   expect(await page.locator('main a[href^="#node-"]').count(), 'no node sheet links at level 2').toBe(0);
@@ -65,6 +69,7 @@ test('the full document links node names to their sheets and prints no raw JSON'
   const text = await page.locator('main').innerText();
   expect(text, 'no raw JSON in the document').not.toContain('{"');
   expect(await page.locator('main a[href^="#node-"]').count(), 'node names link to their sheets').toBeGreaterThan(0);
+  await expectNoDeadLinks(page);
 });
 
 test('the document prints to PDF at each level, and the full one is larger', async ({ page, browserName }) => {

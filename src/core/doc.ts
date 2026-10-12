@@ -10,8 +10,8 @@ import { fieldsOf, type Field } from './docFields.ts';
 export interface NodeRef {
   key: string;
   label: string;
-  /** Anchor of the node's detail in the document, so the view can link to it. */
-  anchor: string;
+  /** Anchor of the node's detail; cleared when the document does not print that detail. */
+  anchor?: string;
 }
 
 export interface EdgeRef {
@@ -28,8 +28,9 @@ export interface LinkRow {
 }
 
 export interface NodeRow {
-  id: string;
   key: string;
+  /** Anchor of the node's detail; cleared when the document does not print that detail. */
+  anchor?: string;
   label: string;
   type: NodeType;
   description?: string;
@@ -79,9 +80,12 @@ export interface Chapter {
 }
 
 export interface TocEntry {
-  id: string;
+  /** The chapter or layer the row names; cleared if that target is not printed. */
+  anchor?: string;
   label: string;
   depth: number;
+  /** 0-based layer index for a layer row; absent for a chapter heading. */
+  index?: number;
 }
 
 export interface LegendItem {
@@ -196,8 +200,8 @@ function chapterOf(
       usage.types.add(n.type);
       if (n.runtime) usage.runtimes.set(n.runtime.id, n.runtime.label ?? n.runtime.id);
       return {
-        id: nodeAnchor(id, n.key),
         key: n.key,
+        anchor: nodeAnchor(id, n.key),
         label: n.label,
         type: n.type,
         description: firstSentence(n.description),
@@ -255,16 +259,49 @@ function nodeDetail(
   };
 }
 
-function tocOf(chapters: Chapter[], level: 1 | 2 | 3): TocEntry[] {
+/**
+ * Chapters and layers only: nodes are reached through their layer's table, so a TOC of every node
+ * would run to pages. The root's title is the cover's, so only nested towers get a heading row.
+ */
+function tocOf(chapters: Chapter[]): TocEntry[] {
   const toc: TocEntry[] = [];
   for (const c of chapters) {
-    toc.push({ id: c.id, label: c.title, depth: c.depth });
-    for (const l of c.layers) {
-      toc.push({ id: l.id, label: l.title, depth: c.depth + 1 });
-      if (level === 3) for (const n of l.nodes) toc.push({ id: n.id, label: n.label, depth: c.depth + 2 });
-    }
+    if (c.depth > 0) toc.push({ anchor: c.id, label: c.title, depth: c.depth });
+    // The root's layers sit at the margin; a nested tower's layers sit one step under its heading.
+    const depth = c.depth === 0 ? 0 : c.depth + 1;
+    for (const l of c.layers) toc.push({ anchor: l.id, label: l.title, depth, index: l.index });
   }
   return toc;
+}
+
+/**
+ * Clears every reference whose target the document does not print. The defined anchors are the
+ * chapters, the layers and the node details; an edge, a link row, a sub-tower or a TOC row that points
+ * anywhere else would be a dead link, so the view prints it as plain text. Level 2 has no details, so
+ * its node references are cleared here. Only this fresh document is touched.
+ */
+function clearDeadAnchors(doc: TowerDoc): void {
+  const defined = new Set<string>();
+  for (const c of doc.chapters) {
+    defined.add(c.id);
+    for (const l of c.layers) {
+      defined.add(l.id);
+      for (const d of l.details ?? []) defined.add(d.id);
+    }
+  }
+  const live = (a?: string) => (a !== undefined && defined.has(a) ? a : undefined);
+  const ref = (r: NodeRef) => { r.anchor = live(r.anchor); };
+  for (const c of doc.chapters) {
+    for (const l of c.links) { ref(l.from); ref(l.to); }
+    for (const l of c.layers) {
+      for (const n of l.nodes) n.anchor = live(n.anchor);
+      for (const d of l.details ?? []) {
+        for (const e of [...d.incoming, ...d.outgoing]) ref(e.other);
+        if (d.subTower) d.subTower.anchor = live(d.subTower.anchor);
+      }
+    }
+  }
+  for (const e of doc.toc) e.anchor = live(e.anchor);
 }
 
 /**
@@ -299,7 +336,7 @@ export function towerDoc(
     towerId,
     level,
     generated: { tags: root.tags, counts: { layers, nodes, agents, subTowers: depths.size - 1 } },
-    toc: tocOf(chapters, level),
+    toc: tocOf(chapters),
     chapters,
   };
   if (level >= 2) {
@@ -319,5 +356,6 @@ export function towerDoc(
     doc.issues = root.issues.map((i) => ({ ...i }));
     doc.sources = [...usage.sources].sort();
   }
+  clearDeadAnchors(doc);
   return doc;
 }

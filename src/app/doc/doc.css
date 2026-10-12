@@ -63,12 +63,22 @@ code { background: var(--zebra); border: 1px solid var(--rule); border-radius: 2
 .cover .image.map svg { max-height: 100%; width: auto; max-width: 100%; }
 .doc-credit { color: var(--muted); font-size: 8.5pt; margin: 10px 0 0; }
 
-/* Contents */
+/* Contents: chapters as heading rows, layers under them. One indent step per depth (14pt); on paper the
+   rows flow in two columns, and a nested chapter's heading spans both so its layers start below it. */
 .toc { break-after: page; }
 .toc ol { list-style: none; padding: 0; margin: 0; }
-.toc li { border-bottom: 1px dotted var(--rule); padding: 3px 0; }
-.toc li.depth-1 { padding-left: 18px; }
-.toc li.depth-2 { padding-left: 36px; font-size: 9.5pt; }
+.toc li { border-bottom: 1px dotted var(--rule); padding: 3px 0 3px calc(var(--depth, 0) * 14pt); break-inside: avoid; }
+.toc li.depth-0 { --depth: 0; }
+.toc li.depth-1 { --depth: 1; }
+.toc li.depth-2 { --depth: 2; }
+.toc li.depth-3 { --depth: 3; }
+.toc li.toc-chapter { font-weight: 700; color: var(--accent); border-bottom-style: solid; border-bottom-color: var(--rule); margin-top: 6px; }
+.toc li.toc-layer { font-size: 9.5pt; }
+.toc li .code { color: var(--accent); margin-right: 6px; }
+@media print {
+  .toc ol { columns: 2; column-gap: 24px; }
+  .toc li.toc-chapter { column-span: all; }
+}
 
 /* Chapters and layers start on a new page. */
 .chapter { break-before: page; }

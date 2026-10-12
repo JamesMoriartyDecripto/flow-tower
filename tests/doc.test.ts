@@ -20,15 +20,31 @@ function leaves(v: unknown): string[] {
 
 const load = async (): Promise<Workspace> => (await loadLibrary(['examples/dev-squad'])).workspace;
 
-/** Every anchor the document defines: chapters, layers, node rows and details. */
+/** Every anchor the document defines: chapters, layers and node details. */
 function anchorsOf(doc: TowerDoc): Set<string> {
   const out = new Set<string>();
   for (const c of doc.chapters) {
     out.add(c.id);
     for (const l of c.layers) {
       out.add(l.id);
-      for (const n of l.nodes) out.add(n.id);
       for (const d of l.details ?? []) out.add(d.id);
+    }
+  }
+  return out;
+}
+
+/** Every anchor the document refers to: node rows, edges, link rows, sub-towers and the TOC. */
+function referencedAnchors(doc: TowerDoc): string[] {
+  const out: string[] = [];
+  for (const e of doc.toc) if (e.anchor) out.push(e.anchor);
+  for (const c of doc.chapters) {
+    for (const l of c.links) out.push(...[l.from.anchor, l.to.anchor].filter((a): a is string => !!a));
+    for (const l of c.layers) {
+      for (const n of l.nodes) if (n.anchor) out.push(n.anchor);
+      for (const d of l.details ?? []) {
+        for (const e of [...d.incoming, ...d.outgoing]) if (e.other.anchor) out.push(e.other.anchor);
+        if (d.subTower?.anchor) out.push(d.subTower.anchor);
+      }
     }
   }
   return out;
@@ -122,20 +138,37 @@ describe('towerDoc', () => {
     }
 
     const anchors = anchorsOf(doc);
-    const tocIds = doc.toc.map((t) => t.id);
-    for (const id of tocIds) expect(anchors.has(id)).toBe(true);
-    for (const c of doc.chapters) {
-      for (const l of c.links) {
-        expect(anchors.has(l.from.anchor)).toBe(true);
-        expect(anchors.has(l.to.anchor)).toBe(true);
-      }
-      for (const d of c.layers.flatMap((l) => l.details ?? [])) {
-        for (const e of [...d.incoming, ...d.outgoing]) expect(anchors.has(e.other.anchor)).toBe(true);
-        if (d.subTower?.anchor) expect(anchors.has(d.subTower.anchor)).toBe(true);
-      }
-    }
+    for (const a of referencedAnchors(doc)) expect(anchors.has(a), `anchor ${a}`).toBe(true);
     expect(doc.issues).toEqual(ws.towers['dev-squad.tower.yaml'].issues);
     expect(doc.sources).toEqual([...new Set(doc.sources)].sort());
+  });
+
+  it.each([
+    ['dev-squad', 'dev-squad.tower.yaml'],
+    ['game-studio', 'game-studio.tower.yaml'],
+  ])('every referenced anchor of %s is defined at levels 1, 2 and 3', async (folder, towerId) => {
+    const ws = (await loadLibrary([`examples/${folder}`])).workspace;
+    for (const level of [1, 2, 3] as const) {
+      const doc = towerDoc(ws, towerId, level);
+      const defined = anchorsOf(doc);
+      for (const a of referencedAnchors(doc)) expect(defined.has(a), `level ${level}: ${a}`).toBe(true);
+    }
+  });
+
+  it('the TOC lists chapters and layers only, with the layer code and one indent per depth', async () => {
+    const ws = await load();
+    const doc = towerDoc(ws, 'dev-squad.tower.yaml', 3);
+    // A layer row carries its index; a chapter heading does not and is only for nested towers (depth > 0).
+    const layerRows = doc.toc.filter((e) => e.index !== undefined);
+    const chapterRows = doc.toc.filter((e) => e.index === undefined);
+    expect(layerRows.length).toBe(doc.chapters.reduce((n, c) => n + c.layers.length, 0));
+    expect(chapterRows.length).toBe(doc.chapters.length - 1);
+    expect(chapterRows.every((e) => e.depth > 0)).toBe(true);
+    // The root's layers sit at depth 0; a nested tower's layers sit one step under its heading.
+    expect(layerRows.filter((e) => e.depth === 0).length).toBe(doc.chapters[0].layers.length);
+    expect(layerRows.every((e) => e.depth === 0 || e.depth >= 2)).toBe(true);
+    // Nodes are not in the TOC: they are reached through the layer tables.
+    expect(doc.toc.every((e) => !e.anchor?.startsWith('node-'))).toBe(true);
   });
 
   it('stops nested chapters at maxDepth and does not loop', async () => {

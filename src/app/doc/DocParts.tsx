@@ -1,4 +1,4 @@
-import type { Chapter, LayerSection, NodeRow, TocEntry, TowerDoc } from '../../core/doc';
+import type { Chapter, LayerSection, NodeRef, NodeRow, TocEntry, TowerDoc } from '../../core/doc';
 import type { LinkRow } from '../../core/doc';
 import { Chip } from './DocChips';
 import { FieldGrid, Text } from './DocText';
@@ -45,13 +45,17 @@ export function Cover({ doc, map, version }: { doc: TowerDoc; map?: string; vers
   );
 }
 
+/** Chapters as heading rows, layers under them with their code; a row links only to a printed target. */
 export function Toc({ entries }: { entries: TocEntry[] }) {
   return (
     <nav className="toc" aria-label="Contents">
       <h2>Contents</h2>
       <ol>
-        {entries.map((e) => (
-          <li key={e.id} className={`depth-${e.depth}`}><a href={`#${e.id}`}>{e.label}</a></li>
+        {entries.map((e, i) => (
+          <li key={i} className={`${e.index === undefined ? 'toc-chapter' : 'toc-layer'} depth-${e.depth}`}>
+            {e.index !== undefined && <span className="code mono">{layerNumber(e.index)}</span>}
+            {e.anchor ? <a href={`#${e.anchor}`}>{e.label}</a> : e.label}
+          </li>
         ))}
       </ol>
     </nav>
@@ -60,9 +64,9 @@ export function Toc({ entries }: { entries: TocEntry[] }) {
 
 /**
  * The node table: a row per node, type and status as chips, runtime muted. The name links to its sheet
- * only at level 3, where the sheet exists; level 2 has none, so it prints the name as plain text.
+ * only when the model kept the anchor (level 3); at level 2 there is no sheet, so it prints as text.
  */
-function NodeTable({ rows, linked, caption }: { rows: NodeRow[]; linked: boolean; caption: string }) {
+function NodeTable({ rows, caption }: { rows: NodeRow[]; caption: string }) {
   return (
     <table className="nodes">
       <caption>{caption}</caption>
@@ -71,8 +75,8 @@ function NodeTable({ rows, linked, caption }: { rows: NodeRow[]; linked: boolean
       </thead>
       <tbody>
         {rows.map((r, i) => (
-          <tr key={r.id} className={i % 2 ? 'zebra' : undefined}>
-            <td className="name">{linked ? <a href={`#${r.id}`}>{r.label}</a> : r.label}</td>
+          <tr key={r.key} className={i % 2 ? 'zebra' : undefined}>
+            <td className="name">{r.anchor ? <a href={`#${r.anchor}`}>{r.label}</a> : r.label}</td>
             <td><Chip kind="type" value={r.type} /></td>
             <td><Chip kind="status" value={r.status} /></td>
             <td className="muted runtime">{r.runtime ?? '—'}</td>
@@ -100,10 +104,15 @@ export function LayerBlock({ section, level, markup }: {
         {markup && <Svg className="image layer-image" markup={markup} />}
       </div>
       {level >= 2 && section.nodes.length > 0 && (
-        <NodeTable rows={section.nodes} linked={level === 3} caption={`${code} · ${section.title} — nodes`} />
+        <NodeTable rows={section.nodes} caption={`${code} · ${section.title} — nodes`} />
       )}
     </section>
   );
+}
+
+/** A node name as a link to its detail when the document prints one, else as plain text. */
+export function linkTo(ref: NodeRef) {
+  return ref.anchor ? <a href={`#${ref.anchor}`}>{ref.label}</a> : ref.label;
 }
 
 export function LinkList({ links }: { links: LinkRow[] }) {
@@ -113,7 +122,7 @@ export function LinkList({ links }: { links: LinkRow[] }) {
       <ul>
         {links.map((l, i) => (
           <li key={i}>
-            <a href={`#${l.from.anchor}`}>{l.from.label}</a> → <a href={`#${l.to.anchor}`}>{l.to.label}</a>
+            {linkTo(l.from)} → {linkTo(l.to)}
             {' '}<span className="muted">{l.label ? <><Text text={l.label} /> · </> : null}{l.kind}</span>
           </li>
         ))}

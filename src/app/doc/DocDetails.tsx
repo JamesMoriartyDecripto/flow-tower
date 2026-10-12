@@ -3,7 +3,7 @@ import type { Field } from '../../core/docFields';
 import type { Issue } from '../../core/types';
 import { Chip } from './DocChips';
 import { FieldGrid, Text } from './DocText';
-
+import { linkTo } from './DocParts';
 
 /**
  * One node's card at level 3: header with type and status chips, the fields, incoming and outgoing side
@@ -54,7 +54,7 @@ function EdgeList({ title, items }: { title: string; items: EdgeRef[] }) {
       <ul>
         {items.map((e, i) => (
           <li key={i}>
-            <a href={`#${e.other.anchor}`}>{e.other.label}</a>
+            {linkTo(e.other)}
             {' '}<span className="muted">{e.label ? <><Text text={e.label} /> · </> : null}{e.kind}</span>
           </li>
         ))}
