@@ -187,6 +187,30 @@ describe('tower-optimizer compare', () => {
     expect(JSON.parse(readFileSync(out, 'utf8'))).toEqual([{ node: 'review.gate', quote: 'Blocks on risk' }]);
   });
 
+  it('check-quotes CLI without --out keeps the tower file argument and prints the summary', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'quotes-noout-'));
+    const tower = join(dir, 'x.tower.yaml');
+    const findings = join(dir, 'findings.json');
+    writeFileSync(tower, quoteTower);
+    writeFileSync(findings, JSON.stringify([{ node: 'review.gate', quote: 'Blocks on risk' }, { node: 'review.gate', quote: 'Reads the brief' }]));
+    const stdout = execFileSync(process.execPath, [checkQuotesScript, tower, findings], { encoding: 'utf8', timeout: 10_000 });
+    expect(stdout).not.toContain('usage:');
+    expect(stdout).toContain('kept 1, dropped 1');
+    expect(stdout).toContain('dropped review.gate: quote not found in node review.gate');
+  });
+
+  it('check-quotes CLI with --out in front of the file arguments writes the kept findings', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'quotes-outfirst-'));
+    const tower = join(dir, 'x.tower.yaml');
+    const findings = join(dir, 'findings.json');
+    const out = join(dir, 'kept.json');
+    writeFileSync(tower, quoteTower);
+    writeFileSync(findings, JSON.stringify([{ node: 'review.gate', quote: 'Blocks on risk' }, { node: 'review.gate', quote: 'Reads the brief' }]));
+    const stdout = execFileSync(process.execPath, [checkQuotesScript, '--out', out, tower, findings], { encoding: 'utf8', timeout: 10_000 });
+    expect(stdout).toContain('kept 1, dropped 1');
+    expect(JSON.parse(readFileSync(out, 'utf8'))).toEqual([{ node: 'review.gate', quote: 'Blocks on risk' }]);
+  });
+
   it('renders the markdown headings for each section', () => {
     const md = toMarkdown(result);
     for (const heading of ['# Tower optimizer', '## shop — Shop', '### Findings fixed', '### Findings new', '### Findings still open', '### Inventory', '### Model changes']) {

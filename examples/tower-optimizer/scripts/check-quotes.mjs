@@ -93,7 +93,8 @@ function main() {
   const args = argv.slice(2);
   const outAt = args.indexOf('--out');
   const out = outAt >= 0 ? args[outAt + 1] : undefined;
-  const files = args.filter((a, i) => a !== '--out' && i !== outAt + 1);
+  // Only the `--out` pair is removed. Without the flag, outAt is -1, so nothing may be skipped.
+  const files = args.filter((_, i) => outAt < 0 || (i !== outAt && i !== outAt + 1));
   if (files.length !== 2 || (outAt >= 0 && !out)) {
     console.error('usage: check-quotes.mjs <tower.yaml> <findings.json> [--out kept.json]');
     exit(2);
