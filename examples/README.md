@@ -53,6 +53,7 @@ Running Flow Tower for a team and measuring the models behind it: copy these to 
 |---|---|---|
 | [`command-center`](command-center) | 5 | Self-hosted hub as a tower: machines, transport, hub service, library, viewers; ready deploy files (systemd, compose, Caddy, config) |
 | [`model-benchmark`](model-benchmark) | 8 | A method you can run: pick a model per role with real tasks, one runner for all candidates, deterministic judges then a blind rubric, repeat runs and variance; runnable scripts (`bench.mjs --dry-run` needs no key) |
+| [`tower-optimizer`](tower-optimizer) | 6 | A method you can run on any tower: scripted inventory, best-practice rules (AUD01-AUD11), a pattern review against a written rubric, model fit per role, proposals approved one by one, a scripted before/after (`snapshot.mjs`, `compare.mjs`; real reports on dev-squad) |
 | [`docs-qa`](docs-qa) | 4 | Docs Q&A over this repo, dogfooded: just-in-time routing (CLAUDE.md table, doc headers) instead of embeddings, citation guard, and an eval loop whose failures are doc gaps; `root: ../..`, runnable scripts with a dry run |
 
 ## Flow Tower's own towers (dogfood)

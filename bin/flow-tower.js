@@ -211,7 +211,7 @@ or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follo
   writeFileSync(join(target, 'procedure.md'), procedure().replaceAll(`](${join(pkgRoot, 'skills', 'flow-tower', 'reference.md')})`, '](reference.md)'));
 
   // Install the other skills next to flow-tower: their `../flow-tower/...` links then resolve as is.
-  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library', 'flow-tower-command-center', 'flow-tower-satellite'].map((name) => join(base, ...skills, name));
+  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library', 'flow-tower-command-center', 'flow-tower-satellite', 'flow-tower-optimize'].map((name) => join(base, ...skills, name));
   for (const dir of others) {
     cpSync(join(pkgRoot, 'skills', basename(dir)), dir, { recursive: true });
     for (const f of readdirSync(dir).filter((f) => f.endsWith('.md'))) {

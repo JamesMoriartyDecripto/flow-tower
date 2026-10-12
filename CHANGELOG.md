@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Tower optimizer (#173): `flow-tower audit <tower> [--json]` prints an inventory, deterministic best-practice findings AUD01-AUD11 tied to nodes (loops without limits, orchestrators without a cap, irreversible actions without approval, decisions without a fallback, outputs without evals, overloaded agents, dead ends, deep nesting, unpinned models, no system budget, code without a sandbox) and the role of each model node with the OpenRouter categories to shortlist from. `docs/best-practices.md` explains each rule with sources. The `examples/tower-optimizer` tower draws the six-phase method, with a review rubric, a role table, scripts for a before/after snapshot and compare, and real reports on dev-squad. New skill `flow-tower-optimize`, installed with the others.
 - Community: `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), YAML issue forms for bug, feature and example with Discussions and private advisories as contact links, and `SUPPORT.md` (#122).
 - CLI: `flow-tower --version` prints the installed version (#122).
 - CI: a job checks the DCO sign-off on every commit of a PR, and a step runs `check-example` on the example folders a PR adds (#122).
