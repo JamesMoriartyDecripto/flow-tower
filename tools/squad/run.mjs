@@ -143,7 +143,11 @@ const messages = [
 let cost = 0;
 let promptTokens = 0, cachedTokens = 0;
 // A failed run still cost money, so every exit writes its line; steps counts the model calls that completed.
-const record = (outcome, steps) => appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: Number(cost.toFixed(6)), promptTokens, cachedTokens, outcome });
+let recorded = false, stepsDone = 0;
+const record = (outcome, steps) => { recorded = true; appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: Number(cost.toFixed(6)), promptTokens, cachedTokens, outcome }); };
+// An unhandled throw (two failed fetches, a bad JSON body) ends the process without any explicit record: the exit
+// handler catches those. appendFileSync is synchronous, so the write completes inside the handler.
+process.on('exit', () => { if (!recorded) record('crash', stepsDone); });
 // One session per run: OpenRouter keeps it on the provider that holds its prompt cache (cached input: DeepSeek 0.1x, Z.ai ~0.2x).
 const session = `${role}-${Date.now()}`;
 emit('agent.start', node, `${role} on ${model}`);
@@ -164,6 +168,7 @@ for (let step = 0; step < maxSteps; step++) {
   try { r = await ask(); } catch { emit('log', node, `step ${step + 1}: no answer in 3 min, retrying`, 'error'); r = await ask(); }
   if (!r.ok) { const t = await r.text(); note(`HTTP ${r.status} ${t}`); record('http-error', step); console.log(`HTTP ${r.status} ${t.slice(0, 400)}`); exit(1); }
   const out = await r.json();
+  stepsDone++;
   cost += out.usage?.cost ?? 0;
   promptTokens += out.usage?.prompt_tokens ?? 0;
   cachedTokens += out.usage?.prompt_tokens_details?.cached_tokens ?? 0;
