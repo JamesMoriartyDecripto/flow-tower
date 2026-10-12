@@ -55,6 +55,9 @@ const SENSITIVE = /^\/api\/(file|voice)(\/|\.|$)/;
 const isViteFs = (path: string) => path === '/@fs' || path.startsWith('/@fs/');
 const isSensitive = (path: string) => SENSITIVE.test(path) || isViteFs(path);
 
+/** /api/hub/towers and everything under it: the shared-towers route (#164), signed by a sender token. */
+const isSharedTowers = (path: string) => path === '/api/hub/towers' || path.startsWith('/api/hub/towers/');
+
 /** A remote read: the UI, its assets and every read endpoint (workspace, events, history, version). */
 const isViewing = (method: string | undefined, path: string) => (method === 'GET' || method === 'HEAD') && !isSensitive(path);
 
@@ -121,6 +124,16 @@ export function hubGuard(opts: HubOptions) {
       return next();
     }
     if (!isRemote(req, { hub: opts.hub })) return next(); // local requests keep today's behaviour
+    // Enrolment (#164) is the one POST a remote viewer may make: the route checks the tailnet login itself,
+    // and the guard lets it through only for a listed viewer, so a stranger still gets the refusal below.
+    if (req.method === 'POST' && path === '/api/hub/enroll' && isViewer(req, opts.home)) return next();
+    // Shared towers (#164) are signed by a satellite's own token, not by a tailnet login: a remote sender
+    // passes the guard only with a valid token, whatever the method, and the route checks the sender itself.
+    if (isSharedTowers(path)) {
+      const authz = authorize(req, { legacy: opts.legacy, home: opts.home, hub: opts.hub });
+      if (!authz.ok || !authz.sender) return deny(res, 401, { error: 'a sender token is required' });
+      return next();
+    }
     if (isViewing(req.method, path)) {
       if (isViewer(req, opts.home)) return next();
       return deny(res, 403, { error: 'remote viewing is not allowed for this user (see viewers in config.json on the hub; hub.json is only a deprecated fallback)' });

@@ -25,9 +25,54 @@ export const TS_COMMANDS = [
     script: 'connect.ts',
     extra: (values) => ['token', 'user', 'machine'].flatMap((name) => (values[name] === undefined ? [] : [`--${name}`, values[name]])),
   },
+  // --pdf, --level, --out and --port are stripped from the positionals: each goes back with its exact value.
+  {
+    name: 'export',
+    script: 'export.ts',
+    // `port` has a default (5317) in parseArgs, so it is passed only when it was typed: the export picks a free port otherwise.
+    extra: (values) => [
+      ...(values.pdf ? ['--pdf'] : []),
+      ...['level', 'out'].flatMap((name) => (values[name] === undefined ? [] : [`--${name}`, values[name]])),
+      ...(process.argv.some((a) => a === '--port' || a.startsWith('--port=') || a === '-p') ? ['--port', values.port] : []),
+    ],
+  },
+  // `--source` repeats, which the shared parser cannot hold (its `source` is emit's single string), so every
+  // occurrence is read back from argv; --list, --out, --html and --drafts come back from the parsed values.
+  {
+    name: 'report',
+    script: 'report.ts',
+    extra: (values) => [
+      ...(values.list ? ['--list'] : []),
+      ...['out', 'html', 'drafts'].flatMap((name) => (values[name] === undefined ? [] : [`--${name}`, values[name]])),
+      ...sourceArgs(process.argv),
+    ],
+  },
+  // --name with its exact value, plus --files and --list: `share --list` is a flag, not a folder.
+  {
+    name: 'share',
+    script: 'share.ts',
+    extra: (values) => [
+      ...(values.name === undefined ? [] : ['--name', values.name]),
+      ...(values.files ? ['--files'] : []),
+      ...(values.list ? ['--list'] : []),
+    ],
+  },
+  // The script is shared with `share`: --unshare tells it which command this is, since it only sees the
+  // arguments after the command word.
+  { name: 'unshare', script: 'share.ts', extra: (values) => ['--unshare', ...(values.force ? ['--force'] : [])] },
   // `library` is a TS command only with a subcommand (add/list/remove); see findTsCommand.
   { name: 'library', script: 'library.ts', extra: () => [] },
 ];
+
+/** Every `--source <file>` and `--source=<file>` on the command line, in order, as `--source <file>` pairs. */
+function sourceArgs(args) {
+  const out = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--source') out.push('--source', args[++i]);
+    else if (args[i].startsWith('--source=')) out.push('--source', args[i].slice('--source='.length));
+  }
+  return out;
+}
 
 /**
  * The TS command to run for these positionals, or undefined. A bare `library` (or one followed by a flag)

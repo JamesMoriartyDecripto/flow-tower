@@ -35,7 +35,7 @@ function edgeColor(kind: EdgeKind, p: Palette) {
 }
 
 /** One layer: title, frame, edges, nodes; its frame is `width` wide with the top-left corner at (x0, y0). */
-function drawLayer(layer: ResolvedLayer, ll: LayerLayout, x0: number, y0: number, width: number, p: Palette): string[] {
+function drawLayer(layer: ResolvedLayer, ll: LayerLayout, x0: number, y0: number, width: number, p: Palette, bare = false): string[] {
   // World units back to ELK pixels (the layout was scaled by SCALE).
   const px = (v: number) => v / SCALE;
   const w = px(ll.width);
@@ -48,9 +48,12 @@ function drawLayer(layer: ResolvedLayer, ll: LayerLayout, x0: number, y0: number
   const parts: string[] = [];
 
   parts.push(`<g class="layer" id="layer-${esc(layer.id)}">`);
-  parts.push(`<text x="${x0}" y="${y0 + 22}" font-family="${MONO}" font-size="14" fill="${p.accent}">${label}</text>`);
-  parts.push(`<text x="${x0 + 44}" y="${y0 + 22}" font-family="${UI}" font-size="20" font-weight="700" fill="${p.text}">${esc(layer.title)}</text>`);
-  if (layer.description) parts.push(`<text x="${x0 + 44}" y="${y0 + 42}" font-family="${UI}" font-size="13" fill="${p.dim}">${esc(fit(layer.description, width - 44, 6.2))}</text>`);
+  // Bare: the layer's heading in the document already names it, so the code and title are not drawn twice.
+  if (!bare) {
+    parts.push(`<text x="${x0}" y="${y0 + 22}" font-family="${MONO}" font-size="14" fill="${p.accent}">${label}</text>`);
+    parts.push(`<text x="${x0 + 44}" y="${y0 + 22}" font-family="${UI}" font-size="20" font-weight="700" fill="${p.text}">${esc(layer.title)}</text>`);
+    if (layer.description) parts.push(`<text x="${x0 + 44}" y="${y0 + 42}" font-family="${UI}" font-size="13" fill="${p.dim}">${esc(fit(layer.description, width - 44, 6.2))}</text>`);
+  }
   parts.push(`<rect x="${x0}" y="${oy - 12}" width="${width}" height="${h + 24}" rx="6" fill="none" stroke="${p.accent}" stroke-opacity="0.35"/>`);
 
   for (const e of ll.edges) {
@@ -96,6 +99,11 @@ export interface SvgOptions {
   scale?: number;
   /** Extra CSS inside <defs> (embedded @font-face for rasterizing: an SVG image cannot load page fonts). */
   css?: string;
+  /**
+   * No layer titles and no bottom caption: frames, nodes and edges only. The document view prints the
+   * layer title in its own heading and the tower name in its running header, so the drawing repeats neither.
+   */
+  bare?: boolean;
 }
 
 /** Height of a layer cell: title, frame and its padding. */
@@ -117,7 +125,7 @@ export function towerSvg(tower: ResolvedTower, layout: TowerLayout, opts: SvgOpt
     let y = PAD;
     for (let r = 0; r < drawn.length; r += cols) {
       const row = drawn.slice(r, r + cols);
-      row.forEach((d, c) => parts.push(...drawLayer(d.layer, d.ll, PAD + c * (cellW + GAP), y, cellW, p)));
+      row.forEach((d, c) => parts.push(...drawLayer(d.layer, d.ll, PAD + c * (cellW + GAP), y, cellW, p, opts.bare)));
       y += Math.max(...row.map((d) => cellH(d.ll))) + GAP;
     }
     width = PAD * 2 + cols * cellW + (cols - 1) * GAP;
@@ -125,7 +133,7 @@ export function towerSvg(tower: ResolvedTower, layout: TowerLayout, opts: SvgOpt
   } else {
     let y = PAD;
     for (const d of drawn) {
-      parts.push(...drawLayer(d.layer, d.ll, PAD, y, cellW, p));
+      parts.push(...drawLayer(d.layer, d.ll, PAD, y, cellW, p, opts.bare));
       y += cellH(d.ll) + GAP;
     }
     width = cellW + PAD * 2;
@@ -137,15 +145,17 @@ export function towerSvg(tower: ResolvedTower, layout: TowerLayout, opts: SvgOpt
   const title = `${tower.name}${drawn.length === 1 ? ` — ${drawn[0].layer.title}` : ''}`;
   const k = opts.scale ?? 1;
   const [W, H] = [width.toFixed(0), height.toFixed(0)];
+  // The bare drawing keeps its accessible <title> (the tooltip of an image), so only the visible text goes.
+  const caption = opts.bare ? '' : `<text x="${(width - PAD).toFixed(0)}" y="${(height - 10).toFixed(0)}" text-anchor="end" font-family="${MONO}" font-size="10" fill="${p.dim}">${esc(tower.name)} · Flow Tower</text>`;
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${(width * k).toFixed(0)}" height="${(height * k).toFixed(0)}" viewBox="0 0 ${W} ${H}">`,
     `<title>${esc(title)}</title>`,
     `<defs>${opts.css ? `<style>${opts.css}</style>` : ''}${markers}</defs>`,
     `<rect width="100%" height="100%" fill="${p.bg}"/>`,
     ...parts,
-    `<text x="${(width - PAD).toFixed(0)}" y="${(height - 10).toFixed(0)}" text-anchor="end" font-family="${MONO}" font-size="10" fill="${p.dim}">${esc(tower.name)} · Flow Tower</text>`,
+    caption,
     '</svg>',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 export const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'tower';

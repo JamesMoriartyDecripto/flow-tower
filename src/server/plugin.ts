@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env, loadEnvFile } from 'node:process';
@@ -15,15 +15,19 @@ import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
 import { userHome, warnIfInRepo } from './home.ts';
 import { libraryOrigins, minePaths } from './origins.ts';
+import { projectSources } from './sources.ts';
 import { crossSite } from './guard.ts';
 import { stopOnClose } from './lifecycle.ts';
 import { isLoopbackUrl } from '../../bin/identity.js';
 import { isRemote } from './auth.ts';
 import { createRelay } from './relay.ts';
 import { sharingHandler } from './sharing.ts';
+import { startShareSync } from './share-sync.ts';
 import { effective, loadConfig } from './config.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 import { hubViews } from './hub-views.ts';
+import { enrollHandler } from './enroll.ts';
+import { sharedTowersHandler } from './shared-towers.ts';
 import { openHistory } from './history/db.ts';
 import { createHistory } from './history/store.ts';
 import { historyHandler } from './history/api.ts';
@@ -52,6 +56,9 @@ const warnHistoryOnce = (server: ViteDevServer, err: unknown) => {
 export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES ?? '[]')): Plugin {
   let state: LoadResult | undefined;
   let timer: NodeJS.Timeout | undefined;
+  // The hub's library folder (#164): the first entry that is a directory. Shared towers are written there, and
+  // the sources of the projects are read against it (#165), so both use this one value.
+  const library = entries.map((e) => resolve(e)).find((p) => isDirectory(p));
   // chokidar keeps one listener per add() call even for paths it already watches: add only new ones.
   const watching = new Set<string>();
   const watch = (server: ViteDevServer, paths: string[]) => {
@@ -67,6 +74,10 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
     if (env.FLOW_TOWER_LIBRARY === '1') {
       state.workspace.origins = libraryOrigins(entries, state.workspace.projects, { checkout: PKG_ROOT, mine: minePaths(env.FLOW_TOWER_MINE) });
     }
+    // Every serve, not only a library one: a hub shows which machine each shared tower came from (#165).
+    const loaded = state;
+    const projects = loaded.workspace.projects.flatMap((id) => { const file = loaded.files.get(id); return file ? [{ id, file }] : []; });
+    loaded.workspace.sources = projectSources(projects, library);
     if (server) {
       watch(server, [...state.watched, ...existingDirs(state.missing)]);
       server.ws.send(UPDATE_EVENT, { loadedAt: state.workspace.loadedAt });
@@ -106,6 +117,12 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
 
       // Satellite relay (#91): a local library forwards what it accepted to the hub, metadata only.
       const relay = createRelayFor(server, hubOpts, VERSION);
+      // Shared towers (#164): the sync runs beside the relay, only where the relay exists (a satellite with
+      // a url and token). A change to a shared folder reaches the hub on the next tick, with no manual step.
+      const relaySettings = effective(loadConfig().config);
+      const shareSync = relay && relaySettings.url && relaySettings.token
+        ? startShareSync({ home: USER_HOME, url: relaySettings.url, token: relaySettings.token, warn: (message) => server.config.logger.warn(message) })
+        : undefined;
       // The hub side of #91: heartbeats and accepted events keep this list fresh; the UI reads it below.
       const satellites = createSatellites();
 
@@ -122,7 +139,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       // connect() matches a mount by prefix, so /api/sharing would also receive /api/sharing/test (as
       // '/test') and answer it as a pause request. The test is mounted first, and each handler answers
       // only its own mount root (req.url '' or '/'), so neither can shadow the other.
-      const sharing = sharingHandler({ home: USER_HOME, relay, hub: hubOpts.hub });
+      const sharing = sharingHandler({ home: USER_HOME, relay, sync: shareSync, hub: hubOpts.hub });
       server.middlewares.use('/api/sharing/test', sharing.test);
       server.middlewares.use('/api/sharing', sharing.control);
 
@@ -170,6 +187,12 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       const hubPanel = hubViews({ satellites, home: USER_HOME, hub: hubOpts.hub });
       server.middlewares.use('/api/hub/machines', hubPanel.machines);
       server.middlewares.use('/api/hub/me', hubPanel.me);
+      // Enrolment (#164): a POST that hands a listed viewer its machine's token. No other /api/hub mount is a
+      // prefix of it, so nothing else swallows it. The route itself refuses anything but a tailnet viewer.
+      server.middlewares.use('/api/hub/enroll', enrollHandler({ home: USER_HOME, hub: hubOpts.hub }));
+      // Shared towers (#164): a satellite uploads its folder here, signed with its token. The first library
+      // entry that is a directory is where the hub writes it; none means the route answers 503.
+      server.middlewares.use('/api/hub/towers', sharedTowersHandler({ library, home: USER_HOME, hub: hubOpts.hub, legacy: env.FLOW_TOWER_TOKEN }));
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.
       server.middlewares.use('/v1/logs', hub.otlp('logs'));
       server.middlewares.use('/v1/metrics', hub.otlp('metrics'));
@@ -217,6 +240,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       // reload debounce) stops with the dev server: a restart must not leave the old ones running (#91, #99).
       stopOnClose(server, [
         () => relay?.stop(),
+        () => shareSync?.stop(),
         () => { if (prune) clearInterval(prune); },
         () => clearTimeout(timer),
       ]);
@@ -290,6 +314,11 @@ function namesOf(state: LoadResult | undefined, ids: string[]): string[] {
     }
   }
   return [...names].slice(0, 600);
+}
+
+/** A library entry that exists and is a folder; a missing or file entry is not a place to write shares. */
+function isDirectory(path: string): boolean {
+  try { return statSync(path).isDirectory(); } catch { return false; }
 }
 
 /** Nearest existing directory of each missing file: watching it reports the file when it appears. */

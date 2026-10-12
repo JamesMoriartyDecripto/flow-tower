@@ -608,7 +608,7 @@ describe('cli install-skill', () => {
     expect(costsMd).toContain(`](${resolve('docs/realtime.md')})`);
     expect(readFileSync(join(costs, 'reference.md'), 'utf8')).not.toContain('](../../');
 
-    for (const name of ['flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library', 'flow-tower-command-center', 'flow-tower-satellite', 'flow-tower-optimize']) {
+    for (const name of ['flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library', 'flow-tower-command-center', 'flow-tower-satellite', 'flow-tower-report', 'flow-tower-optimize']) {
       const md = readFileSync(join(cwd, dir, name, 'SKILL.md'), 'utf8');
       expect(md).not.toContain('{{FLOW_TOWER_CLI}}');
       expect(md).not.toContain('](../../');

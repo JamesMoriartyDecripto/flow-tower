@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [react(), flowTower()],
   server: {
     host: '127.0.0.1',
+    // Transform the app (the entry and its static imports) at start: a hub runs with --no-open, so without this
+    // the first viewer pays for a cold cache, about 45 s over a tailnet (#166).
+    warmup: { clientFiles: ['./index.html', './src/app/main.tsx'] },
     // A list here replaces Vite's defaults, so they are repeated (Vite 8.3 defaults), plus the voice journal
     // and memory: the dev server never serves them, wherever FLOW_TOWER_HOME points.
     fs: {
