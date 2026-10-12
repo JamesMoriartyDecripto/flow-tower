@@ -6,6 +6,7 @@ import { layoutTower, type TowerLayout } from '../layout';
 import { docImages, type DocImages } from './DocImages';
 import { ChapterHead, Cover, LayerBlock, LinkList, LEVEL_NAMES, Toc } from './DocParts';
 import { IssuesBlock, LegendBlock, NodeDetail, SourcesBlock } from './DocDetails';
+import { afterPaint } from './afterPaint';
 import { loadWorkspace } from './loadWorkspace';
 import { clampLevel, resolveTower } from './resolve';
 import './doc.css';
@@ -19,28 +20,54 @@ async function layoutsOf(ws: Workspace, doc: TowerDoc): Promise<Record<string, T
   return out;
 }
 
-/** The document page: the same data as the PDF, rendered as print-first HTML. */
-export function DocView({ ws, towerId, level }: { ws: Workspace; towerId: string; level: 1 | 2 | 3 }) {
+/**
+ * The document page: the same data as the PDF, rendered as print-first HTML. It owns the ready signal,
+ * because only the finished document (not the loading screen) may tell a script or the print dialog to go.
+ */
+export function DocView({ ws, towerId, level, print }: { ws: Workspace; towerId: string; level: 1 | 2 | 3; print: boolean }) {
   const [built, setBuilt] = useState<Built>();
   const [error, setError] = useState<string>();
 
   useEffect(() => {
+    // A new build must not inherit the ready flag of the previous level, so clear it before anything else.
+    const root = document.documentElement.dataset;
+    delete root.docReady;
+    delete root.docError;
     let live = true;
+    setBuilt(undefined);
+    setError(undefined);
     const doc = towerDoc(ws, towerId, level);
     layoutsOf(ws, doc)
       .then((layouts) => docImages(ws, doc, layouts))
-      .then((images) => live && setBuilt({ doc, images, title: doc.title }))
-      .catch((e: Error) => live && setError(e.message));
+      .then((images) => live && setBuilt({ doc, images, title: `${ws.towers[towerId].name} — ${LEVEL_NAMES[level]}` }))
+      .catch((e: Error) => {
+        if (!live) return;
+        root.docError = e.message;
+        setError(e.message);
+      });
     return () => { live = false; };
   }, [ws, towerId, level]);
 
   if (error) return <Message text={`Could not build the document: ${error}`} />;
   if (!built) return <Message text="Building the document…" />;
-  return <Document built={built} level={level} />;
+  return <Document built={built} level={level} print={print} />;
 }
 
-function Document({ built, level }: { built: Built; level: 1 | 2 | 3 }) {
+function Document({ built, level, print }: { built: Built; level: 1 | 2 | 3; print: boolean }) {
   const { doc, images } = built;
+
+  useEffect(() => {
+    // Runs after this document is committed to the DOM; the fonts and two frames let it paint before the flag.
+    let live = true;
+    void afterPaint(document.fonts.ready, requestAnimationFrame).then(() => {
+      if (!live) return;
+      document.title = built.title;
+      document.documentElement.dataset.docReady = '1';
+      if (print) window.print();
+    });
+    return () => { live = false; };
+  }, [built, print]);
+
   return (
     <main className={`doc level-${level}`}>
       <Cover doc={doc} map={images.cover} />
@@ -87,8 +114,8 @@ const appHref = () => {
 };
 
 /**
- * Entry point of the document page (called by main.tsx). Sets the PDF file name and the ready flag only
- * once the workspace is rendered and the fonts are in, so a print or a screenshot never catches a half page.
+ * Entry point of the document page (called by main.tsx). Reads the page parameters and mounts the loader;
+ * the ready signal itself comes from the DocView once the document is painted.
  */
 export function mountDoc(root: HTMLElement) {
   const q = new URLSearchParams(location.search);
@@ -107,20 +134,11 @@ function Loader({ doc, level, print }: { doc: string; level: 1 | 2 | 3; print: b
 
   useEffect(() => {
     if (!ws) return;
-    const id = resolveTower(ws, doc);
-    setTowerId(id);
-    if (!id) return;
-    const name = ws.towers[id].name;
-    // The browser suggests the PDF name from the title; the flag tells a script the page is complete.
-    void document.fonts.ready.then(() => {
-      document.title = `${name} — ${LEVEL_NAMES[level]}`;
-      document.documentElement.dataset.docReady = '1';
-      if (print) window.print();
-    });
-  }, [ws, doc, level, print]);
+    setTowerId(resolveTower(ws, doc));
+  }, [ws, doc]);
 
   if (failed) return <Message text={`Could not load the workspace: ${failed}`} />;
   if (!ws) return <Message text="Loading…" />;
   if (!towerId) return <Message text={`No tower matches “${doc}”.`} />;
-  return <DocView ws={ws} towerId={towerId} level={level} />;
+  return <DocView ws={ws} towerId={towerId} level={level} print={print} />;
 }
