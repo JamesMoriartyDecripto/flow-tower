@@ -101,18 +101,52 @@ describe('squad --oneshot and --batch', () => {
     expect(seen).toHaveLength(0);
   });
 
-  it('SQUAD_PACE=relaxed makes a reviewer batch, and the batch is deleted', SPAWN, async () => {
+  it('SQUAD_PACE=relaxed makes a reviewer oneshot: one chat request, no batch call', SPAWN, async () => {
     const { ledger, args } = setup();
     seen = [];
     const r = await run(['--role', 'reviewer', ...args], { SQUAD_PACE: 'relaxed' }, ledger);
     expect(r.code).toBe(0);
-    expect(r.stdout.split('\n')[0]).toBe('mode: batch (SQUAD_PACE=relaxed)');
+    expect(r.stdout.split('\n')[0]).toBe('mode: oneshot (SQUAD_PACE=relaxed)');
+    expect(r.stdout).toContain(ANSWER);
+    expect(r.stdout).toMatch(/--- vendor-a\/model-x · 1 step · \$0\.0042/);
+    expect(seen.filter((s) => s.url.endsWith('/chat/completions'))).toHaveLength(1);
+    expect(seen.some((s) => s.url.includes('/batches'))).toBe(false);
+
+    const row = JSON.parse(readFileSync(ledger, 'utf8').trim().split('\n').at(-1) ?? '{}');
+    expect(row).toMatchObject({ mode: 'oneshot', steps: 1, outcome: 'finish' });
+  });
+
+  it('SQUAD_PACE=overnight makes a reviewer batch, and the batch is deleted', SPAWN, async () => {
+    const { ledger, args } = setup();
+    seen = [];
+    const r = await run(['--role', 'reviewer', ...args], { SQUAD_PACE: 'overnight' }, ledger);
+    expect(r.code).toBe(0);
+    expect(r.stdout.split('\n')[0]).toBe('mode: batch (SQUAD_PACE=overnight)');
     expect(r.stdout).toContain(ANSWER);
     expect(r.stdout).toMatch(/--- vendor-a\/model-x · 1 step · \$0\.0021 .*\(batch\)/);
     expect(seen.some((s) => s.method === 'DELETE' && s.url.endsWith('/batches/batch-1'))).toBe(true);
 
     const row = JSON.parse(readFileSync(ledger, 'utf8').trim().split('\n').at(-1) ?? '{}');
     expect(row).toMatchObject({ mode: 'batch', steps: 1, outcome: 'finish' });
+  });
+
+  it('an unknown SQUAD_PACE value exits 1 and makes no request', SPAWN, async () => {
+    const { ledger, args } = setup();
+    seen = [];
+    const r = await run(['--role', 'reviewer', ...args], { SQUAD_PACE: 'daily' }, ledger);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain('SQUAD_PACE must be now, relaxed or overnight');
+    expect(seen).toHaveLength(0);
+  });
+
+  it('the coder ignores SQUAD_PACE and runs the tool loop', SPAWN, async () => {
+    const { ledger, args } = setup();
+    seen = [];
+    const r = await run(['--role', 'coder', ...args], { SQUAD_PACE: 'relaxed' }, ledger);
+    expect(r.stdout.split('\n')[0]).toBe('mode: loop');
+    const chats = seen.filter((s) => s.url.endsWith('/chat/completions'));
+    expect(chats[0].body).toHaveProperty('tools');
+    expect(seen.some((s) => s.url.includes('/batches'))).toBe(false);
   });
 
   it('an explicit flag wins over SQUAD_PACE=relaxed', SPAWN, async () => {

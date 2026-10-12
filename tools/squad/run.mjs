@@ -31,8 +31,9 @@ const branch = (() => { try { return execFileSync('git', ['rev-parse', '--abbrev
 const issue = issueOf(arg('issue'), branch);
 const model = arg('model'), role = arg('role'), node = arg('node'), task = readFileSync(taskFile, 'utf8');
 const maxSteps = Number(arg('steps', 40));
-// Modes (#169): the tool loop stays the default; reviewer and security can answer in one request instead. An explicit
-// flag wins over SQUAD_PACE=relaxed, which makes those two roles batch by default. The coder always needs its tools.
+// Modes (#169): the tool loop stays the default; reviewer and security can answer in one request instead. SQUAD_PACE
+// sets their default: relaxed is one direct request (a daytime review in minutes), overnight is a batch (half the price,
+// hours of wait, for work left running overnight). An explicit flag wins over the pace. The coder always needs its tools.
 const flagOneshot = argv.includes('--oneshot'), flagBatch = argv.includes('--batch');
 const oneshotRole = role === 'reviewer' || role === 'security';
 if ((flagOneshot || flagBatch) && !oneshotRole) {
@@ -40,11 +41,15 @@ if ((flagOneshot || flagBatch) && !oneshotRole) {
   exit(1);
 }
 if (flagOneshot && flagBatch) { console.error('--oneshot and --batch are exclusive'); exit(1); }
-const relaxedBatch = !flagOneshot && !flagBatch && env.SQUAD_PACE === 'relaxed' && oneshotRole;
-const mode = flagBatch || relaxedBatch ? 'batch' : flagOneshot ? 'oneshot' : 'loop';
+// An unknown pace is refused rather than read as now: a typo must not silently pick the paid mode.
+const PACE = env.SQUAD_PACE;
+if (PACE !== undefined && !['now', 'relaxed', 'overnight'].includes(PACE)) { console.error('SQUAD_PACE must be now, relaxed or overnight'); exit(1); }
+const paceMode = PACE === 'relaxed' ? 'oneshot' : PACE === 'overnight' ? 'batch' : undefined;
+const fromPace = !flagOneshot && !flagBatch && oneshotRole ? paceMode : undefined;
+const mode = flagBatch ? 'batch' : flagOneshot ? 'oneshot' : fromPace ?? 'loop';
 // The mode that was paid for: a batch that has no endpoint for the model falls back to oneshot, and the ledger says so.
 let paidMode = mode;
-console.log(`mode: ${mode}${relaxedBatch ? ' (SQUAD_PACE=relaxed)' : ''}`);
+console.log(`mode: ${mode}${fromPace ? ` (SQUAD_PACE=${PACE})` : ''}`);
 const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or
 // FLOW_TOWER_HOME. The git-ignored .env of the checkout is the fallback. Real environment variables win.
