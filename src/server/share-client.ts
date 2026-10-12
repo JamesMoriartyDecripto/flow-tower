@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { basename, isAbsolute, relative, resolve } from 'node:path';
 import { loadLibrary } from '../core/loader.ts';
 import { allowedFile, checkFiles, checkPath, isTowerFile, MAX_FILE_BYTES } from './share-rules.ts';
@@ -19,6 +19,8 @@ export type CollectResult = { files: SharedFile[]; skipped: SkippedFile[] } | { 
 export type HubResult<T extends object = object> = ({ ok: true } & T) | { ok: false; status: number; error: string };
 
 const TIMEOUT_MS = 15_000;
+/** The skip reason for a file whose real path lies outside the folder; the user sees why it did not travel. */
+const SYMLINK_LEAVES = 'symlink leaves the tower folder';
 
 /** Tower files under `dir`, recursively; never into node_modules or hidden folders, as the loader does. */
 function towerFiles(dir: string, out: string[] = []): string[] {
@@ -59,6 +61,9 @@ export async function collectTower(dir: string, opts: { withFiles: boolean }): P
   const towers = towerFiles(root).sort();
   if (towers.length === 0) return { error: `no *.tower.yaml in ${dir}` };
 
+  // A symlink is followed by the filesystem, not by the lexical path: the real path decides what may travel.
+  // Both sides are resolved, so a symlink to a file inside the folder still goes, and one to outside does not.
+  const realRoot = realpathSync(root);
   const files: SharedFile[] = [];
   const skipped: SkippedFile[] = [];
   const seen = new Set<string>();
@@ -66,12 +71,21 @@ export async function collectTower(dir: string, opts: { withFiles: boolean }): P
     const rel = insideRelative(root, abs) ?? basename(abs);
     seen.add(rel);
     // A tower that vanished or is unreadable is reported, not thrown: a stack out of the CLI helps nobody.
+    let real: string;
     try {
-      files.push({ path: rel, content: readFileSync(abs, 'utf8') });
+      real = realpathSync(abs);
+    } catch (err) {
+      return { error: `cannot read ${rel}: ${reasonOf(err)}` };
+    }
+    if (insideRelative(realRoot, real) === undefined) { skipped.push({ path: rel, reason: SYMLINK_LEAVES }); continue; }
+    try {
+      files.push({ path: rel, content: readFileSync(real, 'utf8') });
     } catch (err) {
       return { error: `cannot read ${rel}: ${reasonOf(err)}` };
     }
   }
+  // Every tower was a symlink out of the folder: nothing to share, the same error as a folder with no tower.
+  if (files.length === 0) return { error: `no *.tower.yaml in ${dir}` };
 
   if (opts.withFiles) {
     // The loader follows every reference the towers make: node `files`, resources, prompt files, nested towers.
@@ -87,10 +101,15 @@ export async function collectTower(dir: string, opts: { withFiles: boolean }): P
       const pathError = checkPath(rel);
       if (pathError) { skipped.push({ path: rel, reason: pathError }); continue; }
       // A referenced file that cannot be read is skipped with a reason, like the other refusals above.
+      let real: string;
+      try {
+        real = realpathSync(abs);
+      } catch { skipped.push({ path: rel, reason: 'cannot read' }); continue; }
+      if (insideRelative(realRoot, real) === undefined) { skipped.push({ path: rel, reason: SYMLINK_LEAVES }); continue; }
       let content: string;
       try {
-        if (statSync(abs).size > MAX_FILE_BYTES) { skipped.push({ path: rel, reason: 'over 256 KB' }); continue; }
-        content = readFileSync(abs, 'utf8');
+        if (statSync(real).size > MAX_FILE_BYTES) { skipped.push({ path: rel, reason: 'over 256 KB' }); continue; }
+        content = readFileSync(real, 'utf8');
       } catch { skipped.push({ path: rel, reason: 'cannot read' }); continue; }
       files.push({ path: rel, content });
     }

@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -103,6 +103,38 @@ describe('collectTower', () => {
     if ('error' in r) return;
     expect(r.files.map((f) => f.path)).toEqual(['demo.tower.yaml']);
     expect(r.skipped).toEqual([expect.objectContaining({ reason: 'outside the tower folder' })]);
+  });
+
+  it('with files: skips a symlink whose target lies outside the folder, and never reads it', async () => {
+    const parent = folder('outer');
+    const dir = join(parent, 'inner');
+    mkdirSync(dir, { recursive: true });
+    // As in the test above: the project is the repo above the folder, so the loader accepts the link by its
+    // target and records it in `referenced`. Only the real-path check in collectTower keeps it out.
+    mkdirSync(join(parent, '.git'));
+    write(join(parent, 'private', 'x.md'), 'SECRET-OUTSIDE');
+    write(join(dir, 'demo.tower.yaml'), TOWER_WITH_DOC);
+    mkdirSync(join(dir, 'docs'), { recursive: true });
+    symlinkSync(join(parent, 'private', 'x.md'), join(dir, 'docs', 'a.md'));
+    const r = await collectTower(dir, { withFiles: true });
+    expect('error' in r).toBe(false);
+    if ('error' in r) return;
+    expect(r.files.map((f) => f.path)).toEqual(['demo.tower.yaml']);
+    expect(r.skipped).toEqual([{ path: 'docs/a.md', reason: 'symlink leaves the tower folder' }]);
+    expect(JSON.stringify(r)).not.toContain('SECRET-OUTSIDE');
+  });
+
+  it('with files: still sends a symlink whose target lies inside the folder', async () => {
+    const dir = folder('demo');
+    write(join(dir, 'demo.tower.yaml'), TOWER_WITH_DOC);
+    write(join(dir, 'data', 'real.md'), 'inside');
+    mkdirSync(join(dir, 'docs'), { recursive: true });
+    symlinkSync(join(dir, 'data', 'real.md'), join(dir, 'docs', 'a.md'));
+    const r = await collectTower(dir, { withFiles: true });
+    expect('error' in r).toBe(false);
+    if ('error' in r) return;
+    expect(r.files.find((f) => f.path === 'docs/a.md')?.content).toBe('inside');
+    expect(r.skipped).toEqual([]);
   });
 
   it('a folder without a tower file is an error', async () => {

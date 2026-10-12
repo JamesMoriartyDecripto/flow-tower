@@ -86,14 +86,22 @@ describe('token enrolment', () => {
     expect(store.list().find((t) => t.id === 'hand-made')?.login).toBeUndefined();
   });
 
-  it('lets a revoked id be enrolled again', () => {
+  it('lets the same login enrol a revoked id again, and refuses another login', () => {
     const home = mkdtempSync(join(tmpdir(), 'flow-tower-tokens-'));
     const store = tokenStore(home);
     store.enroll('laptop-2', 'bob@example.com');
     store.revoke('laptop-2');
-    const again = store.enroll('laptop-2', 'mallory@example.com');
+    // The revoked record still names its owner, so a stranger cannot take the id and its shared towers.
+    expect(() => store.enroll('laptop-2', 'mallory@example.com')).toThrow(/^conflict:/);
+    const again = store.enroll('laptop-2', 'bob@example.com');
     expect(again.rotated).toBe(false);
     expect(store.verify(again.token)).toEqual({ id: 'laptop-2' });
+  });
+
+  it('refuses the reserved id default', () => {
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-tokens-'));
+    const store = tokenStore(home);
+    expect(() => store.enroll('default', 'alice@example.com')).toThrow(/^conflict: default is reserved/);
   });
 
   it('keeps a paused machine paused when its owner enrols it again', () => {

@@ -99,13 +99,18 @@ function createTokenStore(home: string) {
     /**
      * A tailnet viewer's machine (#164). Re-enrolling by the same login rotates the token, so a reconnect
      * replaces the old one; any other login, or a hand-made token, is refused so nobody takes over an id.
+     * Every record with the id counts, revoked ones too: a revoked id keeps the towers its old owner shared
+     * under `towers/<id>/`, so a stranger must not inherit them. The hub owner can still free an id by hand
+     * (editing tokens.json); `token add` is not a path around this.
      */
     enroll(id: string, login: string): { token: string; rotated: boolean } {
       if (!ID.test(id)) throw new Error('a token id is 1-32 characters of a-z, 0-9 or -');
       if (typeof login !== 'string' || login.trim() === '') throw new Error('enrolment needs a non-empty tailnet login');
+      // `default` is the legacy FLOW_TOWER_TOKEN sender; no machine may take its name.
+      if (id === 'default') throw new Error('conflict: default is reserved');
       const list = load();
+      if (list.some((t) => t.id === id && t.login !== login)) throw new Error(`conflict: token ${id} belongs to another user`);
       const current = active(list, id);
-      if (current && current.login !== login) throw new Error(`conflict: token ${id} belongs to another user`);
       const { token, record } = mint(id, login);
       // A machine the hub owner paused stays paused: re-enrolling must not be a way around that switch.
       if (current?.paused) record.paused = true;
