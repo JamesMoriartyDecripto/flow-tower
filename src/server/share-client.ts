@@ -64,10 +64,10 @@ export async function collectTower(dir: string, opts: { withFiles: boolean }): P
   }
 
   if (opts.withFiles) {
-    // The loader follows every reference the towers make and records what it read in `watched`. A
-    // reference that is not in that set was never read, so it cannot be sent.
+    // The loader follows every reference the towers make: node `files`, resources, prompt files, nested towers.
+    // `referenced` holds all of them, including a node's `files` that are only checked and never read.
     const lib = await loadLibrary([root]);
-    for (const abs of [...lib.watched].sort()) {
+    for (const abs of [...lib.referenced].sort()) {
       const rel = insideRelative(root, abs);
       if (rel === undefined) { skipped.push({ path: abs, reason: 'outside the tower folder' }); continue; }
       if (seen.has(rel)) continue;

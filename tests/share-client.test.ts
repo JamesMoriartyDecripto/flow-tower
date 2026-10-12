@@ -59,6 +59,36 @@ describe('collectTower', () => {
     expect(r.files.find((f) => f.path === 'docs/a.md')?.content).toBe('hello');
   });
 
+  it('with files: sends a node files entry, which the loader only checks, and never the .env beside it', async () => {
+    const dir = folder('demo');
+    write(join(dir, 'demo.tower.yaml'), [
+      'name: demo',
+      'layers:',
+      '  - id: main',
+      '    title: Main',
+      '    nodes:',
+      '      - { id: start, type: entry, label: Start, files: [docs/a.md] }',
+      '',
+    ].join('\n'));
+    write(join(dir, 'docs/a.md'), 'hello');
+    write(join(dir, '.env'), 'API_KEY=secret');
+    const r = await collectTower(dir, { withFiles: true });
+    expect('error' in r).toBe(false);
+    if ('error' in r) return;
+    expect(r.files.map((f) => f.path).sort()).toEqual(['demo.tower.yaml', 'docs/a.md']);
+    expect(JSON.stringify(r)).not.toContain('API_KEY');
+  });
+
+  it('YAML only: a node files entry is not sent', async () => {
+    const dir = folder('demo');
+    write(join(dir, 'demo.tower.yaml'), TOWER_WITH_DOC.replace('    file: docs/a.md', '    file: docs/a.md\n    files: [docs/a.md]'));
+    write(join(dir, 'docs/a.md'), 'hello');
+    const r = await collectTower(dir, { withFiles: false });
+    expect('error' in r).toBe(false);
+    if ('error' in r) return;
+    expect(r.files.map((f) => f.path)).toEqual(['demo.tower.yaml']);
+  });
+
   it('with files: skips a referenced file that lies outside the folder', async () => {
     const parent = folder('outer');
     const dir = join(parent, 'inner');

@@ -15,6 +15,12 @@ export interface LoadResult {
   roots: Map<string, string>;
   /** Every file the workspace depends on, for live reload. */
   watched: Set<string>;
+  /**
+   * Every existing file a tower points to, read or only checked (a node's `files`, a resource path, a nested
+   * tower), for callers that need the full list, e.g. sharing with files. Not in `watched`: a docs edit must
+   * not reload the whole library.
+   */
+  referenced: Set<string>;
   /** Referenced files that do not exist yet: creating one must reload (its warning goes away). */
   missing: Set<string>;
 }
@@ -195,6 +201,7 @@ export async function loadLibrary(entries: string[]): Promise<LoadResult> {
     workspace: { projects: [], towers: {}, loadedAt: new Date().toISOString() },
     roots: new Map(),
     watched: new Set(),
+    referenced: new Set(),
     missing: new Set(),
   };
   const nestedIds = new Set<string>();
@@ -204,7 +211,7 @@ export async function loadLibrary(entries: string[]): Promise<LoadResult> {
     const id = idOf(file);
     if (result.workspace.towers[id]) continue;
     const project = projects.get(file) ?? projectOf(file);
-    const { tower, root, nested } = await loadTower(file, id, project, result.watched, result.missing);
+    const { tower, root, nested } = await loadTower(file, id, project, result.watched, result.referenced, result.missing);
     result.workspace.towers[id] = tower;
     result.roots.set(id, root);
     for (const n of nested) {
@@ -243,7 +250,9 @@ function patchTowerRef(tower: ResolvedTower, ref: string, id: string) {
   }
 }
 
-async function loadTower(file: string, id: string, project: string, watched: Set<string>, missing: Set<string>) {
+async function loadTower(
+  file: string, id: string, project: string, watched: Set<string>, referenced: Set<string>, missing: Set<string>,
+) {
   watched.add(file);
   const issues: Issue[] = [];
   const empty = (root: string) => ({
@@ -290,7 +299,11 @@ async function loadTower(file: string, id: string, project: string, watched: Set
       // A prompt or an agent file is shown in /api/workspace: never a key file, nor the user's journal.
       if (await isForbidden(await realpath(abs).catch(() => abs), path)) { secret(path); return undefined; }
       watched.add(abs);
-      try { return await readFile(abs, 'utf8'); } catch { missing.add(abs); return undefined; }
+      try {
+        const text = await readFile(abs, 'utf8');
+        referenced.add(abs);
+        return text;
+      } catch { missing.add(abs); return undefined; }
     },
   };
   const tower = await buildTower(def, id, fs, issues, (p, where) => {
@@ -300,9 +313,11 @@ async function loadTower(file: string, id: string, project: string, watched: Set
     if (!existsSync(abs)) { missing.add(abs); return false; }
     // A folder listed as a file reads fine here but 404s from /api/file in the app (issue #118): report it
     // like a missing file. Only node `files` carry the node's path, so a folder resource stays accepted.
-    if (where && statSync(abs).isDirectory()) {
-      issues.push({ level: 'warning', message: `files entry "${p}" is a folder; list the files inside it instead`, path: where });
+    if (statSync(abs).isDirectory()) {
+      if (where) issues.push({ level: 'warning', message: `files entry "${p}" is a folder; list the files inside it instead`, path: where });
+      return true;
     }
+    referenced.add(abs);
     return true;
   });
   const refs = new Set(tower.layers.flatMap((l) => l.nodes.flatMap((n) => [n.tower, n.agent?.tower])).filter(Boolean) as string[]);
@@ -311,7 +326,7 @@ async function loadTower(file: string, id: string, project: string, watched: Set
     const abs = await inside(project, root, ref);
     if (!abs) outside(`tower ${ref}`);
     else if (await isForbidden(await realpath(abs).catch(() => abs), ref)) secret(`tower ${ref}`);
-    else nested.push({ ref, abs });
+    else { referenced.add(abs); nested.push({ ref, abs }); }
   }
   tower.updatedAt = await stat(file).then((st) => st.mtime.toISOString(), () => undefined);
   return { tower, root, nested };
