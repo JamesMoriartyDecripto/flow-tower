@@ -26,6 +26,7 @@ export const GROUPS: [string, [string, string][]][] = [
     ['O', 'Auto-orbit on / off'],
     ['P', 'Download the 3D view as PNG'],
     ['X', 'Download the focused layer (or all layers) as SVG'],
+    ['D', 'Documentation as PDF: images, overview or full'],
     ['W  V', 'File viewer: wrap long lines · Markdown formatted / source'],
   ]],
   ['Panels', [

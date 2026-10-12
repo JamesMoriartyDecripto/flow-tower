@@ -1,0 +1,223 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+version: 1
+name: Report Studio
+tags: [reports, pdf, documents, audit, security, method]
+description: >-
+  Professional reports of any type from the user's own sources, in eight fixed phases: intake, an outline from the
+  type's template, scripted extraction, optional drafting with citations, one print engine, blocking checks, review of
+  the rendered pages, delivery. Numbers and facts come from code; a model may draft prose only where the type allows
+  it, marked as drafted, citing sources, with no digits. Report types are plug-ins: security assessment, project
+  status, incident postmortem, cost review, and the tower documentation of #65.
+
+runtimes:
+  laptop:
+    kind: local
+    label: User machine
+    description: "Node 22, the flow-tower CLI and a Playwright Chromium (npx playwright install chromium). Sources stay here."
+  openrouter:
+    kind: saas
+    label: OpenRouter
+    provider: openrouter
+    url: https://openrouter.ai/models
+    description: "Only for the optional drafting step, and only with the sources the user agreed to send."
+
+agents:
+  drafter:
+    name: Prose drafter
+    description: >-
+      Writes the few prose paragraphs a report type allows (a summary sentence, context), as drafts/<name>.json:
+      section, text, cites. It never writes a number: the checks reject digits in drafted text, so figures stay in the
+      data blocks. Each paragraph cites the source ids it rests on.
+    model: anthropic/claude-sonnet-5.5
+    runtime: openrouter
+    tools: [read_file, finish]
+    files: [drafts/status.json]
+    limits: { max_iterations: 6, timeout: 180s }
+    evals:
+      - { name: cited drafts, target: 100, unit: "%", description: "Share of drafted paragraphs whose cites all exist; enforced by the cites check." }
+  reviewer:
+    name: Page reviewer
+    description: >-
+      Looks at every rendered page (PNG from pdftoppm) against review.md: cover, document control, tables that break,
+      chips, empty pages, overflow. Each problem found becomes a check or a test, so it cannot come back.
+    model: anthropic/claude-sonnet-5.5
+    runtime: openrouter
+    tools: [read_file, finish]
+    files: [review.md]
+    limits: { max_iterations: 8, timeout: 300s }
+
+budget: { amount: 0.5, currency: USD, description: "Per report: optional drafting and the page review. Extraction, layout and checks cost nothing." }
+limits: { max_iterations: 3, timeout: 20m, description: "At most three review rounds before a person decides." }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: intake
+    title: 1 · Intake
+    description: Which type, for whom, from which sources.
+    nodes:
+      - id: request
+        type: entry
+        label: Make a report
+        description: "The user names the report type (`flow-tower report --list`), the audience and the source files."
+        trigger: { kind: chat, source: user }
+        resources:
+          - { kind: doc, label: "Issue #174", url: "https://github.com/JamesMoriartyDecripto/flow-tower/issues/174" }
+      - id: sources
+        type: memory
+        label: Source files
+        description: "The type's input (YAML or JSON) and any supporting files; each becomes S1, S2… with its SHA-256."
+        files: [samples/security.yaml, samples/status.yaml, samples/postmortem.yaml, samples/cost.yaml]
+        data: { sensitivity: confidential, description: "Reports are often confidential: nothing leaves the machine unless drafting is asked for." }
+    edges:
+      - request -> sources
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: outline
+    title: 2 · Outline
+    description: The type's template fixes the sections; the checks require them.
+    nodes:
+      - id: types
+        type: process
+        label: Report types
+        description: >-
+          Plug-ins in src/report/types: each parses its input, builds the document and names its required sections.
+          Security assessment (CVSS v4.0 bands), project status (RAG), postmortem (SRE book), cost review (FinOps).
+        runtime: laptop
+        resources:
+          - { kind: script, label: "src/report/types", url: "https://github.com/JamesMoriartyDecripto/flow-tower/tree/main/src/report/types" }
+      - id: tower_doc
+        type: process
+        label: Tower docs
+        description: "The tower PDF of #65 as a type: `flow-tower report tower-documentation <tower>` runs `flow-tower export`."
+        runtime: laptop
+    edges:
+      - "types -> tower_doc [call]: tower type"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: extract
+    title: 3 · Extraction (scripted)
+    description: Facts and numbers from the sources, by code only.
+    nodes:
+      - id: build
+        type: process
+        label: Build the document
+        description: >-
+          Pure functions: counts, severities from CVSS scores, RAG, durations from timestamps, variances, totals. Input
+          that contradicts itself (a severity outside its CVSS band, timestamps out of order) stops the run.
+        runtime: laptop
+      - id: valid
+        type: guard
+        label: Valid input
+        description: "An invalid field fails with its name, before anything is drawn."
+        runtime: laptop
+    edges:
+      - valid -> build
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: draft
+    title: 4 · Drafting (optional)
+    description: Prose only where the type allows it, marked and cited.
+    nodes:
+      - id: consent
+        type: human
+        label: Send to a model?
+        description: "The user decides whether drafting runs and which sources a model may read."
+        approval: { by: user, actions: [approve, reject] }
+      - id: write
+        agent: drafter
+        label: Draft prose
+    edges:
+      - "consent -> write [flow]: approved"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: layout
+    title: 5 · Layout
+    description: One print engine for every type.
+    nodes:
+      - id: html
+        type: process
+        label: HTML and print CSS
+        description: >-
+          src/report/html.ts: cover, document control and contents, numbered sections, findings cards, severity and RAG
+          chips, SVG bars, sources appendix; @page margin boxes for the running header and page numbers. Classes are
+          prefixed rs- (a bare class once broke a table into one row per page). No dates: the same input gives the same
+          HTML.
+        runtime: laptop
+      - id: print
+        type: tool
+        label: Headless Chromium
+        description: "page.pdf with preferCSSPageSize, printBackground, a tagged PDF and an outline."
+        runtime: laptop
+    edges:
+      - "html -> print [call]"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: checks
+    title: 6 · Blocking checks
+    description: No file is written unless every check passes.
+    nodes:
+      - id: check
+        type: decision
+        label: All checks pass?
+        description: >-
+          src/report/checks.ts: required sections, no empty section, unique finding ids, every cite resolves, drafted
+          text cited and without digits, no raw JSON, every internal link has a target, deterministic HTML.
+        runtime: laptop
+        decision: { output: binary, candidates: [pass, fail], fail: closed }
+      - id: fail
+        type: output
+        label: Failed checks
+        description: "Every failed check printed; exit 1; no file."
+    edges:
+      - "check -> fail [flow]: fail"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: review
+    title: 7 · Review the rendered pages
+    description: Most real layout bugs are only visible on the page.
+    nodes:
+      - id: pages
+        type: process
+        label: Pages to PNG
+        description: "pdftoppm -r 60 -png report.pdf pages/p, then look at every page."
+        runtime: laptop
+      - id: look
+        agent: reviewer
+        label: Look at each page
+      - id: fix
+        type: decision
+        label: Problems?
+        description: "A problem becomes a fix plus a check or a test; then render again."
+        decision: { output: binary, candidates: [clean, fix], fail: closed }
+    edges:
+      - pages -> look
+      - look -> fix
+
+  # 8 ───────────────────────────────────────────────────────────────
+  - id: deliver
+    title: 8 · Delivery
+    nodes:
+      - id: pdf
+        type: output
+        label: Report PDF
+        description: "One PDF per report; the sample outputs of the four types are in output/."
+        files: [output/security.pdf, output/status.pdf, output/postmortem.pdf, output/cost.pdf]
+      - id: signoff
+        type: human
+        label: Sign-off
+        description: "The author reads it and sends it; a report goes out under a person's name."
+        approval: { by: author, actions: [approve, edit, reject] }
+    edges:
+      - signoff -> pdf
+
+links:
+  - intake.sources -> extract.valid
+  - intake.sources -> outline.types
+  - outline.types -> extract.valid
+  - "extract.build -> draft.consent [flow]: type allows prose"
+  - extract.build -> layout.html
+  - "draft.write -> layout.html [data]: drafts.json"
+  - layout.print -> checks.check
+  - "checks.check -> review.pages [flow]: pass"
+  - "review.fix -> layout.html [return]: fix"
+  - "review.fix -> deliver.signoff [flow]: clean"

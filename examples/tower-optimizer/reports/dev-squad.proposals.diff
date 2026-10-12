@@ -1,0 +1,56 @@
+diff --git a/examples/dev-squad/dev-squad.tower.yaml b/examples/dev-squad/dev-squad.tower.yaml
+index b4506a9..39dda20 100644
+--- a/examples/dev-squad/dev-squad.tower.yaml
++++ b/examples/dev-squad/dev-squad.tower.yaml
+@@ -185,7 +185,7 @@ layers:
+         type: decision
+         label: Route?
+         description: "Model proposes a route; deterministic policy decides last: the squad:skip label rejects first, then quickfixes with complexity > 2 or a sensitive area (auth, billing, payment, privacy, personal data...) are upgraded to full, and a full route in a sensitive area gets risk high, so its plan always needs a human sign-off."
+-        decision: { output: choice, candidates: [quickfix, full, needs_info, reject] }
++        decision: { output: choice, candidates: [quickfix, full, needs_info, reject], fail: closed }
+         files: [src/triage.ts]
+       - id: quickfix
+         runtime: vps
+@@ -263,14 +263,16 @@ layers:
+         agent: researcher
+       - id: coder
+         agent: coder
++        sandbox: { network: allowlist, allow: [openrouter.ai, github.com], filesystem: workspace }
+       - id: tester
+         agent: tester
++        sandbox: { network: allowlist, allow: [openrouter.ai, github.com], filesystem: workspace }
+       - id: green
+         runtime: vps
+         type: decision
+         label: Suite green?
+         description: "Tester result. Red goes back to the coder at most 2 extra times before the lead reports blocked (a rule in the lead's prompt, not enforced in code)."
+-        decision: { output: binary, candidates: [green, red] }
++        decision: { output: binary, candidates: [green, red], fail: closed }
+         files: [.claude/agents/tester.md]
+       - id: doc_writer
+         agent: doc-writer
+@@ -309,6 +311,7 @@ layers:
+         files: [src/loop/review-loop.ts, prompts/review-round.md]
+       - id: reviewer
+         agent: reviewer
++        sandbox: { network: allowlist, allow: [openrouter.ai, github.com], filesystem: workspace }
+         label: Reviewer
+       - id: security
+         agent: security
+@@ -318,7 +321,7 @@ layers:
+         type: decision
+         label: All pass?
+         description: "Passes when nothing blocks: the reviewer's blocking findings plus critical/high security findings. Lower security findings become follow-ups on the PR."
+-        decision: { output: binary, candidates: [approved, changes] }
++        decision: { output: binary, candidates: [approved, changes], fail: closed }
+         files: [src/loop/review-loop.ts]
+       - id: round_cap
+         runtime: vps
+@@ -336,6 +339,7 @@ layers:
+         files: [src/pipeline.ts]
+       - id: verifier
+         agent: verifier
++        sandbox: { network: allowlist, allow: [openrouter.ai, github.com], filesystem: workspace }
+         label: Fresh verifier
+         description: "Only the issue and the branch. Ships when its verdict is ship, the suite is green and every criterion is met: checked in code, whatever the model says."
+       - id: approval

@@ -35,12 +35,27 @@ Usage
                                                         config.json, outside the flow-tower checkout
   flow-tower library [--with-examples] [--port N]       serve your library, plus the checkout's examples
                                                         with --with-examples (other serve flags apply too)
-  flow-tower connect <hub-url> --token <t> [--machine <name>] [--user <name>]
+  flow-tower connect <hub-url> [--token <t>] [--machine <name>] [--user <name>]
                                                         make this machine a satellite: writes role satellite into
                                                         the user folder's config.json, then sends one heartbeat
+  flow-tower share <dir> [--files] [--name <name>] | --list
+                                                        give a tower folder to the hub (satellite): YAML only, or with
+                                                        --files also the files the towers reference; --list shows them
+  flow-tower unshare <name|dir> [--force]               take a shared folder back from the hub; --force drops it from
+                                                        config only when the hub cannot be reached
   flow-tower history export [--user <u>] | delete --user <u> | info
                                                         content-free events and totals in the user folder:
                                                         export prints JSONL, delete erases one user's rows
+  flow-tower export <file.tower.yaml | dir> --pdf [--level 1|2|3] [--out <file.pdf>] [--port N]
+                                                        the tower's document as a PDF, from headless Chromium;
+                                                        every check must pass or no file is written (needs a browser:
+                                                        npx playwright install chromium)
+  flow-tower report <type> <input.yaml|json> [--source <file>]... [--drafts <drafts.json>] [--out <file.pdf>] [--html <file.html>]
+                                                        a report (security-assessment, project-status, postmortem,
+                                                        cost-review) as a PDF from headless Chromium; every blocking
+                                                        check must pass or no file is written. --html alone needs no
+                                                        browser (a PDF needs: npx playwright install chromium).
+                                                        --list prints the types and their required sections
   flow-tower guide                                      print the procedure to generate a tower from a codebase
   flow-tower install-skill [--target <t>] [--project]   install all seven skills for your coding agent
                                                         <t>: claude (default), codex, pi, hermes, cursor, agents
@@ -135,6 +150,17 @@ const { values, positionals } = parseArgs({
     json: { type: 'boolean', default: false },
     list: { type: 'boolean', default: false },
     'with-examples': { type: 'boolean', default: false },
+    // export: the PDF of a tower's document (src/cli/export.ts); the options are re-appended in commands.js.
+    pdf: { type: 'boolean', default: false },
+    level: { type: 'string' },
+    out: { type: 'string' },
+    // report: the document from a model-free input (src/cli/report.ts); --drafts and --html are re-appended in commands.js.
+    drafts: { type: 'string' },
+    html: { type: 'string' },
+    // share / unshare (#164): --name is the hub folder's name, --files adds the referenced files, --force unshares offline.
+    name: { type: 'string' },
+    files: { type: 'boolean', default: false },
+    force: { type: 'boolean', default: false },
     project: { type: 'boolean', default: false },
     target: { type: 'string', default: 'claude' },
   },
@@ -209,7 +235,7 @@ or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follo
   writeFileSync(join(target, 'procedure.md'), procedure().replaceAll(`](${join(pkgRoot, 'skills', 'flow-tower', 'reference.md')})`, '](reference.md)'));
 
   // Install the other skills next to flow-tower: their `../flow-tower/...` links then resolve as is.
-  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library', 'flow-tower-command-center', 'flow-tower-satellite'].map((name) => join(base, ...skills, name));
+  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library', 'flow-tower-command-center', 'flow-tower-satellite', 'flow-tower-report', 'flow-tower-optimize'].map((name) => join(base, ...skills, name));
   for (const dir of others) {
     cpSync(join(pkgRoot, 'skills', basename(dir)), dir, { recursive: true });
     for (const f of readdirSync(dir).filter((f) => f.endsWith('.md'))) {
@@ -374,7 +400,10 @@ if (!hub && allowedHosts.length) {
 // still authenticate here. This server's shared secret stays FLOW_TOWER_TOKEN; per-sender tokens live
 // in tokens.json. So the "needs a token" refusal ignores the config file.
 const token = env.FLOW_TOWER_TOKEN;
-if ((hub || ingestOnly) && !token && !hasActiveToken()) {
+// A tailnet hub with viewers can start with no token yet: `connect` enrols each viewer's machine and the
+// hub mints its token then (#164). Until one exists the hub still accepts no event, so nothing is unsigned.
+const canEnrol = hub && !ingestOnly && (cfg.viewers ?? []).length > 0;
+if ((hub || ingestOnly) && !token && !canEnrol && !hasActiveToken()) {
   console.error(`${hub ? 'hub mode' : '--ingest-only'} needs a token to accept any event.
 create one: flow-tower token add <id>\nThen send it as x-flow-tower-token (or FLOW_TOWER_TOKEN for a shared secret).`);
   process.exit(1);

@@ -132,6 +132,10 @@ describe('sharing controls on a satellite (#91)', () => {
     const { url, relay } = await start(hub.url, home, { hub: true });
     expect((await post(url, { paused: true }, { 'X-Forwarded-For': '10.0.0.9' })).status).toBe(403);
     expect(relay.state().state).toBe('online');
+    // A remote viewer's page polls the state: a quiet 'off', never this relay's state, never a 403 (#166).
+    const read = await fetch(url, { headers: { 'X-Forwarded-For': '10.0.0.9' } });
+    expect(read.status).toBe(200);
+    expect(await read.json()).toEqual({ state: 'off' });
     relay.stop();
   });
 

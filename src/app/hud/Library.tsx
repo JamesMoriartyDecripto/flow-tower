@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ResolvedTower } from '../../core/types';
-import { hostsLabel, LIBRARY_FILTER_EVENT, projectMatches, projectStats, recentHosts, type LibraryFilter, type Stats } from '../library';
+import { hostsLabel, LIBRARY_FILTER_EVENT, projectMatches, projectStats, recentHosts, sourceChip, sourceOf, type LibraryFilter, type Stats } from '../library';
 import { formatUsage, subtreeState, useLive, usageOf, type LiveState } from '../live';
 import { useDescendants } from '../liveHooks';
 import { chooseView } from '../settings';
@@ -85,6 +85,36 @@ function useProjectsHosts(projects: string[], active: boolean) {
   return hosts;
 }
 
+/** Which machines the hub lists as online (#91), refreshed every 30 s while the library is open. Errors leave no dot. */
+const SATELLITES_MS = 30_000;
+function useOnlineMachines(active: boolean) {
+  const [online, setOnline] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (!active) return;
+    const ac = new AbortController();
+    const read = async () => {
+      try {
+        const res = await fetch('/api/hub/satellites', { signal: ac.signal });
+        if (!res.ok) throw new Error(String(res.status));
+        const rows = (await res.json()) as { sender: string; online: boolean }[];
+        setOnline(new Set(rows.filter((r) => r.online).map((r) => r.sender)));
+      } catch {
+        // Not a hub, or the hub is down: no dot, and nothing to report.
+        if (!ac.signal.aborted) setOnline(new Set());
+      }
+    };
+    void read();
+    const t = setInterval(() => void read(), SATELLITES_MS);
+    return () => { ac.abort(); clearInterval(t); };
+  }, [active]);
+  return online;
+}
+
+/** The source the URL names (`?source=<id>`), read once on load so a shared link opens the same view. */
+function sourceFromUrl(): string | undefined {
+  return new URLSearchParams(window.location.search).get('source') ?? undefined;
+}
+
 type Sort = 'updated' | 'name' | 'size' | 'live';
 const SORTS: [Sort, string, string][] = [
   ['updated', 'Recent', 'Most recently modified tower files first'],
@@ -111,6 +141,8 @@ interface CardProps {
   usage?: string;
   /** Machines that sent events for the project in the last 15 minutes, pre-joined ("@a · @b +N"). */
   hosts?: string;
+  /** Where the project came from (`workspace.sources`); undefined when the server sent no sources. */
+  source?: string;
   onOpen(id: string, view?: 'tower' | 'map'): void;
 }
 
@@ -119,7 +151,8 @@ const ORIGIN_TITLE = {
   example: 'Shipped example (read-only reference; copy it before editing)',
 } as const;
 
-const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, origin, usage, hosts, onOpen }: CardProps) {
+const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, origin, usage, hosts, source, onOpen }: CardProps) {
+  const src = source === undefined ? undefined : sourceChip(source);
   const open = (v?: 'tower' | 'map') => (e: { stopPropagation(): void }) => { e.stopPropagation(); onOpen(id, v); };
   return (
     // A plain container (clickable anywhere) with one primary button: a card that is itself a button
@@ -134,6 +167,7 @@ const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current,
           {live !== 'idle' && <span className={`live-dot ${live}`} title={`Live: ${LIVE_LABEL[live]}`} />}
           {current && <span className="chip lib-current">open</span>}
           {origin && <span className={`chip lib-origin ${origin}`} title={ORIGIN_TITLE[origin]}>{origin === 'mine' ? 'MINE' : 'EXAMPLE'}</span>}
+          {src && <span className={`chip lib-source ${src.cls}`} title={src.title}>{src.label}</span>}
         </h3>
         {/* Focusable so keyboard users can scroll a long description (↑ ↓ while it has the focus). */}
         <p className="dim lib-desc" tabIndex={0} aria-label={`About ${tower.name}`}>{tower.description ?? id}</p>
@@ -186,6 +220,7 @@ export function Library() {
   const showLibrary = useStore((s) => s.showLibrary);
   const [filter, setFilter] = useState('');
   const [tag, setTag] = useState<string>();
+  const [source, setSource] = useState<string | undefined>(sourceFromUrl);
   const [sort, setSort] = useState<Sort>(loadSort);
   const grid = useRef<HTMLDivElement>(null);
 
@@ -196,6 +231,7 @@ export function Library() {
       const f = (e as CustomEvent<LibraryFilter>).detail ?? {};
       setFilter(f.query ?? '');
       setTag(f.tag);
+      setSource(f.source);
     };
     window.addEventListener(LIBRARY_FILTER_EVENT, onFilter);
     return () => window.removeEventListener(LIBRARY_FILTER_EVENT, onFilter);
@@ -203,7 +239,28 @@ export function Library() {
 
   const cards = useMemo(() => (workspace?.projects ?? []).map((id) => ({
     id, tower: workspace!.towers[id], stats: projectStats(workspace!, id), origin: workspace!.origins?.[id],
+    source: workspace!.sources ? sourceOf(workspace!, id) : undefined,
   })), [workspace]);
+  // Source chips exist only when the server sent sources. An id that names no source shows all (#165).
+  const hasSources = workspace?.sources !== undefined;
+  const machines = useMemo(() => [...new Set(Object.values(workspace?.sources ?? {}).filter((s) => s !== 'local'))].sort(), [workspace]);
+  const activeSource = hasSources && source && (source === 'local' || machines.includes(source)) ? source : undefined;
+  // Kept in the URL with replaceState so a filter change does not add a history entry (#165). It names the
+  // active source, not the raw state: a `?source=` for a machine that shares nothing now is dropped, since
+  // every project is shown and the link should say so. Closed library or no sources: the URL is left alone.
+  useEffect(() => {
+    if (!library || !hasSources) return;
+    const url = new URL(window.location.href);
+    if (activeSource) url.searchParams.set('source', activeSource);
+    else url.searchParams.delete('source');
+    window.history.replaceState(window.history.state, '', url);
+  }, [activeSource, library, hasSources]);
+  const sourceCount = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const c of cards) if (c.source) count.set(c.source, (count.get(c.source) ?? 0) + 1);
+    return count;
+  }, [cards]);
+  const online = useOnlineMachines(library && hasSources);
   // Most shared tags first: with many projects the full list is a wall of chips, so show the top ones
   // and expand on demand. The filter box matches every tag anyway.
   const tags = useMemo(() => {
@@ -229,7 +286,7 @@ export function Library() {
   if (!library || !workspace) return null;
 
   const shown = cards
-    .filter((c) => projectMatches(c.tower, c.id, filter, tag, c.stats.models))
+    .filter((c) => projectMatches(c.tower, c.id, filter, tag, c.stats.models, c.source ?? 'local', activeSource))
     .sort((a, b) => sort === 'name' ? a.tower.name.localeCompare(b.tower.name)
       : sort === 'size' ? b.stats.nodes - a.stats.nodes
       : sort === 'live' ? LIVE_RANK[live[b.id] ?? 'idle'] - LIVE_RANK[live[a.id] ?? 'idle']
@@ -270,6 +327,25 @@ export function Library() {
         </div>
         {stack.length > 0 && <button className="btn" onClick={() => showLibrary(false)} title="Close the library and return to the tower you were viewing (Esc)">Back ✕</button>}
       </header>
+      {hasSources && (
+        <div className="lib-sources">
+          {/* Labelled: without it this row reads like a second row of tags (#165). */}
+          <span className="lib-row-label mono dim">FROM</span>
+          <button className={`chip clickable ${!activeSource ? 'on' : ''}`} onClick={() => setSource(undefined)} title="Show projects from every source">ALL</button>
+          {['local', ...machines].map((s) => {
+            const chip = sourceChip(s);
+            const n = sourceCount.get(s) ?? 0;
+            return (
+              <button key={s} className={`chip clickable lib-source ${chip.cls} ${activeSource === s ? 'on' : ''}`}
+                onClick={() => setSource(activeSource === s ? undefined : s)}
+                title={`${chip.title} (click again to clear)`}>
+                {s !== 'local' && online.has(s) && <span className="lib-online" title="Online now" />}
+                {chip.label}<span className="dim"> {n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {tags.length > 0 && (
         <div className="lib-tags">
           <button className={`chip clickable ${!tag ? 'on' : ''}`} onClick={() => setTag(undefined)} title="Show every project">ALL</button>
@@ -285,8 +361,8 @@ export function Library() {
         </div>
       )}
       <div className="lib-grid" ref={grid}>
-        {shown.map(({ id, tower, stats, origin }) => (
-          <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} origin={origin} usage={usage[id]} hosts={hosts[id] || undefined} onOpen={onOpen} />
+        {shown.map(({ id, tower, stats, origin, source }) => (
+          <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} origin={origin} usage={usage[id]} hosts={hosts[id] || undefined} source={source} onOpen={onOpen} />
         ))}
         {shown.length === 0 && <p className="mono dim">No project matches. Clear the filter or the tag.</p>}
       </div>

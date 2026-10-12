@@ -56,7 +56,7 @@ The agent reads the tower on screen through its tools (layers, nodes, connection
 - `scroll_file` — page the file open in the viewer, or jump to its top or bottom.
 - `hub_panel` — open the Hub panel (Now or Machines), or close it.
 - `filter_nodes` — show only the node types you name.
-- `library_filter` — open the project library and filter it by words or tag.
+- `library_filter` — open the project library and filter it by words, tag or source (a connected device's name, or this hub).
 - `compare_nodes` — two nodes side by side: the fields they share, and the tools only one has.
 - `live_status` — what is happening now, from the last 10 minutes of live events: errors, running nodes, the busiest nodes (and, on a hub, the machines running or silent). It selects the node in trouble on the tower on screen. Metadata only: no event messages.
 

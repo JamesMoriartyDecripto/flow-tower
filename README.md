@@ -106,7 +106,7 @@ Every example ships real prompt, agent, code, config and log files, so the popup
 
 ## Generate a tower from your code (any coding agent)
 
-Your coding agent reads the codebase and writes the tower. The procedure is harness-neutral: [docs/generate-a-tower.md](docs/generate-a-tower.md). Install it as an [Agent Skill](https://agentskills.io) for your agent (further skills: [flow-tower-costs](skills/flow-tower-costs/SKILL.md) uses the tower to cut model cost and latency with benchmarks on real cases, [flow-tower-my-library](skills/flow-tower-my-library/SKILL.md) keeps your own towers in one library, [flow-tower-command-center](skills/flow-tower-command-center/SKILL.md) sets up the shared hub, [flow-tower-satellite](skills/flow-tower-satellite/SKILL.md) connects a machine to it):
+Your coding agent reads the codebase and writes the tower. The procedure is harness-neutral: [docs/generate-a-tower.md](docs/generate-a-tower.md). Install it as an [Agent Skill](https://agentskills.io) for your agent (further skills: [flow-tower-costs](skills/flow-tower-costs/SKILL.md) uses the tower to cut model cost and latency with benchmarks on real cases, [flow-tower-report](skills/flow-tower-report/SKILL.md) makes professional PDF reports from your sources, [flow-tower-optimize](skills/flow-tower-optimize/SKILL.md) audits a tower against [best practices](docs/best-practices.md) and proposes changes, [flow-tower-my-library](skills/flow-tower-my-library/SKILL.md) keeps your own towers in one library, [flow-tower-command-center](skills/flow-tower-command-center/SKILL.md) sets up the shared hub, [flow-tower-satellite](skills/flow-tower-satellite/SKILL.md) connects a machine to it):
 
 ```bash
 node bin/flow-tower.js install-skill                  # Claude Code: ~/.claude/skills
@@ -160,11 +160,25 @@ Wire Claude Code, the Agent SDK, Codex, Pi, Hermes, your own scripts, and tokens
 | **F**, **O** | Live feed, auto-orbit |
 | **V** | Voice commands: start / stop listening (also in the library); see [docs/voice.md](docs/voice.md) |
 | **P**, **X** | Download a ZIP of every layer and the map of the project and its sub-towers: Full HD PNGs (plus the 3D view), or editable SVGs |
+| **D** | Documentation as PDF: the menu picks one of the four levels (below) for the root project |
 | **?** | Every keyboard shortcut |
 
 Everything works without a mouse: **Tab** moves between HUD buttons, **Enter / Space** press them.
 
 The bottom bar toggles orbit, flow particles and the rendering quality (`eco` / `balanced` / `high`), and has the PNG / SVG export buttons. You can also force a preset with `?quality=eco`.
+
+### Documentation as PDF
+
+The PDF menu (**D**, or the PDF button) prints the document in a new tab. Four levels:
+
+| Level | What it prints |
+|---|---|
+| 1 Images | One page per layer: the drawing |
+| 2 Overview | Cover, document control, summary, and a table of the layers and nodes |
+| 3 Full documentation | Level 2 plus a sheet for every node, nested towers, findings and sources |
+| 4 Library | Several projects in one file: a library cover, a contents list, then each project at level 2. Shown when the workspace has more than one project; `?doc=library&level=4&projects=a,b` names the projects (all of them when omitted) |
+
+From the command line, `flow-tower export <tower file | dir> --pdf [--level 1|2|3|4] [--out file.pdf]` writes the PDF. Before writing it, the export runs blocking checks (every layer, node and sub-tower is printed, the counts match the workspace, every link has a target, no raw JSON); a failed check prints what it found and writes no file. Level 4 needs a directory and runs the same checks for each project.
 
 Links can open a tower, a layer or a node directly: `?tower=request` (the id, the file name without `.tower.yaml`, or the name), `&layer=security` (focuses the layer), `&node=handle.problem` (selects the node). Handy for sharing and for screenshots.
 
@@ -202,7 +216,7 @@ src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /
 src/app/        React + three.js app: scene/ (3D) and hud/ (overlay UI)
 src/cli/        TypeScript CLI commands (validate, library)
 schema/         generated JSON Schema
-skills/         Agent Skills: flow-tower (generates towers from a codebase), flow-tower-costs (model cost/latency), flow-tower-my-library (keep your own towers in one library), flow-tower-command-center (set up the shared hub), flow-tower-satellite (connect a machine to the hub)
+skills/         Agent Skills: flow-tower (generates towers from a codebase), flow-tower-costs (model cost/latency), flow-tower-report (PDF reports), flow-tower-optimize (audit and improve a tower), flow-tower-my-library (keep your own towers in one library), flow-tower-command-center (set up the shared hub), flow-tower-satellite (connect a machine to the hub)
 integrations/   live-event configs for Claude Code, Agent SDK, Codex, Pi, Hermes
 examples/       starters (1–3 layers) and researched presets, indexed by pattern in examples/README.md
 scripts/        schema, stress-tower and event-simulator scripts

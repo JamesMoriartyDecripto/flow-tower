@@ -1,0 +1,247 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+version: 1
+name: Tower Optimizer
+tags: [method, best-practices, audit, model-selection, cost, evals]
+description: >-
+  How to make any tower better, in six fixed phases whose content adapts to the tower: intake, a scripted
+  inventory, a structure audit (deterministic rules, then a pattern review against a written rubric), model fit
+  per role, proposals a human approves one by one, and a scripted before/after check. Facts come from
+  `flow-tower audit`; a model only reviews patterns and drafts proposals, and every finding names a node.
+
+runtimes:
+  laptop:
+    kind: local
+    label: User machine
+    description: "Node 22 and the flow-tower CLI. The tower, its repo and its history stay here unless the user agrees otherwise."
+  openrouter:
+    kind: saas
+    label: OpenRouter
+    provider: openrouter
+    url: https://openrouter.ai/models
+    description: "Model list, prices and categories for the shortlist; the benchmark runs through it."
+
+prompts:
+  reviewer:
+    file: rubric.md
+    description: "The pattern-review rubric: seven lines, each answered with a node, the YAML it quotes and a source."
+
+agents:
+  reviewer:
+    name: Pattern reviewer
+    description: >-
+      Reads the tower YAML, the inventory and the audit findings, and answers the rubric line by line. It never
+      invents a finding: each one quotes the YAML of the node it names and cites a source from best-practices.md.
+    prompt: reviewer
+    model: anthropic/claude-sonnet-5.5
+    runtime: openrouter
+    tools: [read_file, finish]
+    files: [rubric.md]
+    limits: { max_iterations: 12, timeout: 300s, description: "One pass per tower; the context is the YAML plus the audit JSON." }
+    evals:
+      - { name: grounded findings, target: 100, unit: "%", description: "Share of findings whose quoted YAML exists at the named node; checked by script before a human reads them." }
+  drafter:
+    name: Proposal drafter
+    description: >-
+      Turns accepted findings into tower diffs: one change per proposal, with the expected effect on cost, latency,
+      quality or risk. Each diff must validate before it is shown.
+    model: anthropic/claude-haiku-5.5
+    runtime: openrouter
+    tools: [read_file, write_file, run_validate, finish]
+    sandbox: { network: none, filesystem: workspace }
+    limits: { max_iterations: 20, timeout: 300s }
+    files: [proposals.md]
+
+budget: { amount: 1, currency: USD, description: "Per tower optimized: the review and the drafts; the benchmark has its own budget in model-benchmark." }
+limits: { max_iterations: 40, timeout: 30m }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: intake
+    title: 1 · Intake
+    description: What is being optimized and what may leave the machine.
+    nodes:
+      - id: request
+        type: entry
+        label: Optimize my tower
+        description: >-
+          A user points the flow-tower-optimize skill at a tower: from the gallery, a copy of one, or their own.
+          They say what matters most (cost, latency, quality, risk) before anything runs.
+        trigger: { kind: chat, source: user }
+        resources:
+          - { kind: doc, label: "Issue #173", url: "https://github.com/JamesMoriartyDecripto/flow-tower/issues/173" }
+      - id: sources
+        type: memory
+        label: Tower and repo
+        description: >-
+          The *.tower.yaml, the repo it describes, and, when wired, live events and history (cost, latency, errors
+          per node). Only what the user names is read.
+        data: { sensitivity: internal, description: "Stays local; nothing goes to a model without the user's consent." }
+      - id: consent
+        type: human
+        label: Consent
+        description: >-
+          The user agrees which files a model may read in phases 3-5. Phases 2 and 6 are scripts and need no consent.
+        approval: { by: user, actions: [approve, reject, edit] }
+    edges:
+      - request -> sources
+      - "sources -> consent [flow]: what may be sent"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: inventory
+    title: 2 · Inventory (scripted)
+    description: Facts only. No model is involved.
+    nodes:
+      - id: snapshot
+        type: process
+        label: snapshot.mjs
+        description: >-
+          Runs `flow-tower audit --json` and saves inventory, findings and model fit with a timestamp: the
+          "before" picture. Counts per type, edges per kind, models, runtimes, and which nodes have budget, limits,
+          approval, evals or sandbox.
+        runtime: laptop
+        files: [scripts/snapshot.mjs, reports/dev-squad.before.json]
+      - id: validate
+        type: guard
+        label: Valid tower
+        description: "`flow-tower validate` first: an invalid tower is fixed before it is optimized."
+        runtime: laptop
+      - id: measured
+        type: memory
+        label: Measured costs
+        description: >-
+          From the history, when the tower is wired: cost, latency and errors per node. Without it, the proposals
+          say their effect is estimated.
+    edges:
+      - validate -> snapshot
+      - "measured -> snapshot [data]"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: audit
+    title: 3 · Structure audit
+    description: Deterministic rules first, then a review of the pattern against a written rubric.
+    nodes:
+      - id: lint
+        type: process
+        label: Rules AUD01-AUD11
+        description: >-
+          `flow-tower audit`: loops without limits, orchestrators without a cap, irreversible actions without a
+          gate, decisions without a fallback, outputs without evals, overloaded agents, dead ends, deep nesting,
+          unpinned models, no system budget, code without a sandbox. Each rule is a section of best-practices.md.
+        runtime: laptop
+        resources:
+          - { kind: doc, label: "Best practices", url: "https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/docs/best-practices.md" }
+          - { kind: script, label: "src/core/audit.ts", url: "https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/src/core/audit.ts" }
+      - id: review
+        agent: reviewer
+        label: Pattern review
+        description: >-
+          Is this the simplest pattern that works (chaining, routing, parallelization, orchestrator-workers,
+          evaluator-optimizer, autonomous)? The rubric's seven lines, each finding tied to a node.
+      - id: grounded
+        type: guard
+        label: Grounded?
+        description: "Drops any finding whose quoted YAML is not at the node it names: a script, not a model."
+        runtime: laptop
+        files: [scripts/check-quotes.mjs]
+      - id: findings
+        type: memory
+        label: Findings
+        description: "Rule findings and review findings, one list, each with node, source and level."
+    edges:
+      - lint -> findings
+      - review -> grounded
+      - grounded -> findings
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: models
+    title: 4 · Model fit per role
+    description: What each role needs, where to shortlist, how to decide on evidence.
+    nodes:
+      - id: classify
+        type: process
+        label: Role classes
+        description: >-
+          From facts in the tower (node type, model id, tools, spawn edges, then words in id and label): coding,
+          review, orchestrator, router, research, writing, data, voice, vision, image, video, embeddings, guard.
+          Each class lists what it needs and the OpenRouter categories to look in.
+        runtime: laptop
+        files: [categories.md]
+      - id: shortlist
+        type: process
+        label: Shortlist
+        description: "`skills/flow-tower-costs/models.mjs` with today's prices; role and data-policy filters before price."
+        runtime: openrouter
+      - id: benchmark
+        type: process
+        label: Benchmark
+        description: >-
+          The model-benchmark method on the project's own cases, when a change of model is proposed for a role that
+          matters. Pick a pace per role: now, relaxed or overnight.
+        resources:
+          - { kind: doc, label: "Model Benchmark example", url: "https://github.com/JamesMoriartyDecripto/flow-tower/tree/main/examples/model-benchmark" }
+    edges:
+      - classify -> shortlist
+      - "shortlist -> benchmark [flow]: role matters"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: proposals
+    title: 5 · Proposals
+    description: Ranked changes, each a validated diff, each approved by a person.
+    nodes:
+      - id: draft
+        agent: drafter
+        label: Draft diffs
+        description: "One change per proposal, ranked by expected effect over effort; each diff passes validate."
+      - id: approve
+        type: human
+        label: Approve each
+        description: "The user accepts, edits or rejects each proposal. Nothing is applied without it."
+        approval: { by: user, actions: [approve, edit, reject] }
+      - id: apply
+        type: process
+        label: Apply
+        description: "Accepted diffs go into the tower; code changes in the repo become a PR."
+        exactly_once: true
+        approval: { by: user, actions: [approve] }
+    edges:
+      - draft -> approve
+      - "approve -> apply [flow]: accepted"
+      - "approve -> draft [return]: edit"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: verify
+    title: 6 · Verify (scripted)
+    description: Same audit after the changes; the difference is the report.
+    nodes:
+      - id: after
+        type: process
+        label: snapshot.mjs again
+        runtime: laptop
+        files: [scripts/snapshot.mjs, reports/dev-squad.after.json]
+      - id: compare
+        type: decision
+        label: compare.mjs
+        description: >-
+          Findings fixed, new and still open; deltas in budget, limits, approval, evals, sandbox; model changes per
+          node. A new warning is a regression and fails the run.
+        runtime: laptop
+        files: [scripts/compare.mjs]
+        decision: { output: binary, candidates: [better, regression], fail: closed }
+      - id: report
+        type: output
+        label: Before / after
+        description: "The markdown report, and optionally a PDF of the improved tower."
+        files: [reports/dev-squad.compare.md]
+    edges:
+      - after -> compare
+      - "compare -> report [flow]: better"
+
+links:
+  - intake.consent -> inventory.validate
+  - inventory.snapshot -> audit.lint
+  - "intake.consent -> audit.review [flow]: allowed files"
+  - audit.findings -> models.classify
+  - audit.findings -> proposals.draft
+  - "models.benchmark -> proposals.draft [data]: evidence"
+  - proposals.apply -> verify.after
+  - "verify.compare -> proposals.draft [return]: regression"
