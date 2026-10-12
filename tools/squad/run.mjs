@@ -1,5 +1,6 @@
 // Dev-squad runner for non-Claude models through OpenRouter (session tooling, kept in the repo, #113).
-// node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--repo <path>]
+// node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--repo <path>] [--oneshot|--batch]
+// --oneshot and --batch (reviewer and security only) answer in one request with no tools (oneshot.mjs, #169).
 // The key is loaded from the user's key file into this process only; it is never printed.
 // Each run ends with one line in the local cost ledger (ledger.mjs, #156), finished or failed alike.
 import { execFileSync } from 'node:child_process';
@@ -9,11 +10,13 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { appendRun, issueOf, ledgerPath } from './ledger.mjs';
+import { BATCH_NOTE, batchOne, chatUrl } from './batch.mjs';
+import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './oneshot.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
 // A missing --task used to reach readFileSync and fail with a raw fs error: a usage line is the answer.
-const USAGE = 'usage: node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--write a,b] [--repo <path>]';
+const USAGE = 'usage: node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--write a,b] [--repo <path>] [--oneshot | --batch]';
 if (argv.includes('--help')) { console.log(USAGE); exit(0); }
 const taskFile = arg('task');
 // Checked before any git call, so a bare invocation fails on the usage, not on the checkout.
@@ -28,6 +31,18 @@ const branch = (() => { try { return execFileSync('git', ['rev-parse', '--abbrev
 const issue = issueOf(arg('issue'), branch);
 const model = arg('model'), role = arg('role'), node = arg('node'), task = readFileSync(taskFile, 'utf8');
 const maxSteps = Number(arg('steps', 40));
+// Modes (#169): the tool loop stays the default; reviewer and security can answer in one request instead. An explicit
+// flag wins over SQUAD_PACE=relaxed, which makes those two roles batch by default. The coder always needs its tools.
+const flagOneshot = argv.includes('--oneshot'), flagBatch = argv.includes('--batch');
+const oneshotRole = role === 'reviewer' || role === 'security';
+if ((flagOneshot || flagBatch) && !oneshotRole) {
+  console.error(role === 'coder' ? 'the coder needs tools: --oneshot/--batch are for reviewer and security' : USAGE);
+  exit(1);
+}
+if (flagOneshot && flagBatch) { console.error('--oneshot and --batch are exclusive'); exit(1); }
+const relaxedBatch = !flagOneshot && !flagBatch && env.SQUAD_PACE === 'relaxed' && oneshotRole;
+const mode = flagBatch || relaxedBatch ? 'batch' : flagOneshot ? 'oneshot' : 'loop';
+console.log(`mode: ${mode}${relaxedBatch ? ' (SQUAD_PACE=relaxed)' : ''}`);
 const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or
 // FLOW_TOWER_HOME. The git-ignored .env of the checkout is the fallback. Real environment variables win.
@@ -133,9 +148,6 @@ const TOOLS = [
   fn('finish', 'End with your final report (the format your task asks for).', { report: S }, ['report']),
 ];
 
-// Prompt caching is opt-in per request and only Claude models honour it here: cache reads cost 0.1x, writes 1.25x.
-const cacheControl = (id) => (id.startsWith('anthropic/') ? { cache_control: { type: 'ephemeral' } } : {});
-
 const messages = [
   { role: 'system', content: `You are the ${role} of a dev squad working on the repo Flow Tower (TypeScript, React 19, Vite 8, vitest) at ${REPO}. You work only through the tools. English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines. Never touch secret files. When done, call finish with your report.` },
   { role: 'user', content: task },
@@ -144,7 +156,7 @@ let cost = 0;
 let promptTokens = 0, cachedTokens = 0;
 // A failed run still cost money, so every exit writes its line; steps counts the model calls that completed.
 let recorded = false, stepsDone = 0;
-const record = (outcome, steps) => { recorded = true; appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: Number(cost.toFixed(6)), promptTokens, cachedTokens, outcome }); };
+const record = (outcome, steps) => { recorded = true; appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: Number(cost.toFixed(6)), promptTokens, cachedTokens, outcome, mode }); };
 // An unhandled throw (two failed fetches, a bad JSON body) ends the process without any explicit record: the exit
 // handler catches those. appendFileSync is synchronous, so the write completes inside the handler.
 process.on('exit', () => { if (!recorded) record('crash', stepsDone); });
@@ -156,9 +168,46 @@ process.on('SIGTERM', () => { if (!recorded) record('interrupted', stepsDone); e
 const session = `${role}-${Date.now()}`;
 emit('agent.start', node, `${role} on ${model}`);
 note(`# ${role} ${model}\n${task}\n`);
+// One request (or one batch) with the task as the whole input: no tool loop, one step, then exit.
+if (mode !== 'loop') {
+  const body = oneshotBody({ model, system: oneshotSystem(role, REPO), task, session });
+  let content, usage = {};
+  if (mode === 'oneshot') {
+    // One long answer, not a loop: no retry on the 10 min cap, the failure is the answer.
+    const r = await fetch(chatUrl(), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'X-Title': 'Flow Tower dev-squad' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(ONESHOT_TIMEOUT_MS),
+    });
+    if (!r.ok) { const t = await r.text(); note(`HTTP ${r.status} ${t}`); record('http-error', 0); console.log(`HTTP ${r.status} ${t.slice(0, 400)}`); exit(1); }
+    const out = await r.json();
+    content = out.choices?.[0]?.message?.content;
+    usage = out.usage ?? {};
+  } else {
+    // The batch is slower but about half the price; BATCH_NOTE says where the inputs stay meanwhile.
+    console.log(BATCH_NOTE);
+    const progress = (line) => { console.log(line); emit('log', node, line.slice(0, 120)); };
+    const res = await batchOne({ key: env.OPENROUTER_API_KEY, body, log: progress });
+    if (!res.ok) { note(`batch error ${res.error}`); record('batch-error', 0); console.log(`batch failed: ${res.error}`); exit(1); }
+    content = res.content;
+    usage = res.usage;
+  }
+  if (typeof content !== 'string' || content === '') { note('empty answer'); record('empty-answer', 0); console.log('empty answer'); exit(1); }
+  stepsDone = 1;
+  cost += usage.cost ?? 0;
+  promptTokens += usage.prompt_tokens ?? 0;
+  cachedTokens += usage.prompt_tokens_details?.cached_tokens ?? 0;
+  const cached = promptTokens ? Math.round((100 * cachedTokens) / promptTokens) : 0;
+  note(`\n[finish] ${content}\n\ncost $${cost.toFixed(4)}`);
+  record('finish', 1);
+  emit('agent.end', node, `${role} on ${model} done ($${cost.toFixed(3)}, ${mode})`, 'ok');
+  console.log(`${content}\n\n--- ${model} · 1 step · $${cost.toFixed(4)} · cache ${cached}% of ${promptTokens} prompt tokens${mode === 'batch' ? ' (batch)' : ''} · log ${log}`);
+  exit(0);
+}
 for (let step = 0; step < maxSteps; step++) {
   // A call stuck for minutes (GLM once sat 7 min on one) is retried once, then the run stops.
-  const ask = () => fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const ask = () => fetch(chatUrl(), {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'X-Title': 'Flow Tower dev-squad' },
     body: JSON.stringify({ model, messages, tools: TOOLS, max_tokens: 16000, usage: { include: true }, session_id: session,
