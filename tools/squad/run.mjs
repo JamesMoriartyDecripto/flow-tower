@@ -9,6 +9,7 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { writeDirs } from './args.mjs';
 import { appendRun, issueOf, ledgerPath } from './ledger.mjs';
 import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
 import { realRelIfAllowed, realTarget } from './guard.mjs';
@@ -71,7 +72,9 @@ const emit = (...a) => { try { execFileSync('sh', [EV, ...a.filter((x) => x !== 
 
 const SECRET = /(^|\/)(\.env[^/]*|.*\.(key|pem|p12|pfx|crt)|id_rsa[^/]*|\.npmrc|\.git|node_modules|\.ssh|\.config\/flow-tower)(\/|$)/i;
 // Reviewers are read-only; the coder writes src/ tests/ e2e/, or the folders a task names with --write a,b.
-const dirs = arg('write', 'src,tests,e2e').split(',').map((d) => d.replace(/[^\w.-]/g, '')).filter(Boolean);
+// A bad --write (empty, absolute or with "..") is refused with the usage, before the checkout is touched.
+const dirs = writeDirs(arg('write', 'src,tests,e2e'));
+if (!dirs) { console.error(USAGE); exit(2); }
 const WRITABLE = role === 'coder' ? new RegExp(`^(${dirs.map((d) => d.replace(/[.]/g, "\\.")).join("|")})(/|$)`) : /^$/;
 const SCRATCH = /(^|\/)(tmp[-_.]|zz[-_]|[^/]*(probe|scratch)[^/]*$)/i;
 const inRepo = (p) => {
@@ -168,7 +171,7 @@ const TOOLS = [
 ];
 
 const messages = [
-  { role: 'system', content: `You are the ${role} of a dev squad working on the repo Flow Tower (TypeScript, React 19, Vite 8, vitest) at ${REPO}. You work only through the tools. English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines. Never touch secret files. When done, call finish with your report.` },
+  { role: 'system', content: `You are the ${role} of a dev squad working on the repo Flow Tower (TypeScript, React 19, Vite 8, vitest) at ${REPO}. You work only through the tools. English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines. Never touch secret files. Code passed to Playwright's page.evaluate runs as plain JavaScript in the browser, so keep TypeScript syntax out of it. When done, call finish with your report, and end that report with a \`Known gaps:\` line (or \`Known gaps: none\`).` },
   { role: 'user', content: task },
 ];
 let cost = 0;

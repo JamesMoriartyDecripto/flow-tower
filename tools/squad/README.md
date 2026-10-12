@@ -36,6 +36,15 @@ Files: tools/squad/run.mjs
 Header rules beat a long prompt: state the language, the comment rule, the file size, and the exact
 verification command. End with `finish` and its report format, so the run has one exit.
 
+The `Files:` line is a contract, checked after the step (`files-check.mjs`): every entry must appear in the step's
+changes (tracked diff since the step started, plus new untracked files), else the step is RED with the missing paths.
+Green tests alone are not enough: on #65 a step passed its own tests with half its task missing (#176). Entries are
+comma-separated; a directory or a glob (`*` within one segment, `**` any depth) is satisfied by any changed path under or
+matching it; a trailing `+` marks a new file; `(optional)` drops the entry from the check. Only the last `Files:` line counts.
+
+Coders end their report with `Known gaps:` (or `Known gaps: none`); `steps.sh` prints them under each step, and the
+lead reads them before the next step: gaps never stop the chain.
+
 ## A step chain
 
 ```bash
@@ -43,10 +52,11 @@ git worktree add ../wt-113 -b fix/113-tools      # one worktree per task: two co
 tools/squad/steps.sh 113 tasks/113 tools "keep the squad runner in the repo"
 ```
 
-`steps.sh <issue> <dir> <write-dirs> <title>` runs `run.mjs` on every `dir/*.md` in order, one commit per step.
-`<write-dirs>` is a comma-separated list, same as `run.mjs --write` (e.g. `src,tests`). `REPO` picks the worktree
-(default: this checkout). For simple tasks, `CODER_MODEL=openai/gpt-6-luna`. It stops at the first red step: a failed
-coder run, no change at all, or a red `npm run check`. Each commit stages every changed tracked path (`git add -u`),
+`steps.sh <issue> <dir> <write-dirs> <title>` (bash) runs `run.mjs` on every `dir/*.md` in order, one commit per step.
+`<write-dirs>` is a comma-separated list, same as `run.mjs --write` (e.g. `src,tests` or `tools/squad`). `REPO` picks the worktree
+(default: this checkout); `NODE` picks the Node binary (default `node`; e.g. `NODE=/opt/node22/bin/node` where the
+system Node is older than 22). For simple tasks, `CODER_MODEL=openai/gpt-6-luna`. It stops at the first red step: a failed
+coder run, no change at all, a red `npm run check`, or a `Files:` entry the step did not touch. Each commit stages every changed tracked path (`git add -u`),
 not a fixed list, so files like `package.json` or `NEXT.md` are never left out; new files are staged inside the
 `write-dirs`, and anything untracked outside them is reported as `UNTRACKED LEFT (not committed)`. Probe files the
 coder dropped (`tmp*`, `probe`, `scratch`) are removed first. Trailers are session-specific, so pass them in
@@ -123,6 +133,18 @@ SQUAD_PACE=relaxed node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash
 - Let it dry-run `examples/*/scripts/*.mjs` with the key stripped, or it cannot verify a script at all.
 - Fail the chain on a coder failure: a green check on unchanged code is not a done step.
 - One commit per green step, per-path staging, never `git add -A` over the whole tree.
+
+## Field findings (#176: 60+ steps on #164, #165, #169, #65)
+
+- Green is not done: check the task's `Files:` against the diff (above), and read the coder's known gaps.
+- Big context goes oneshot: a tool loop whose context keeps growing times out; pack the code and send one request
+  (`pack.mjs` + `--oneshot`, § Pace).
+- Code passed to Playwright's `page.evaluate` runs as plain JS: a coder wrote `querySelectorAll<HTMLElement>(…)`, which
+  ran as a comparison. The coder's system prompt says so.
+- Prefix the CSS classes of a printed document (`doc-summary`, not `summary`): one bare class styled a page-breaking
+  section and a table cell, giving one table row per page.
+- The lead looks at rendered output after every UI or print step (Playwright screenshots, `pdftoppm` pages): most real
+  bugs on #65 were visible only there, never in a green check.
 
 ## Cost
 
