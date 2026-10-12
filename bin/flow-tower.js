@@ -23,6 +23,8 @@ Usage
   flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [-m text]
                      [--user u] [--machine m] [--runtime r] [--session s] [--project-name p]
   flow-tower validate <file.tower.yaml | dir>... [--json]
+  flow-tower audit <file.tower.yaml | dir>... [--json]  advice per tower: inventory, lint findings (AUD01-AUD11),
+                                                        model fit per agent; exit 0 whatever it finds
   flow-tower copy <example> [dest] | --list          copy an examples/ tower into a new folder (default ./<name>) and validate it
   flow-tower check-example <dir> [--json]            pre-flight an example folder before proposing it: validate
                                                         clean, self-contained, README with Sources, no personal data
