@@ -5,6 +5,8 @@
  */
 
 import type { ReportDoc, Source } from '../model.ts';
+import { COST_REVIEW } from './cost.ts';
+import { POSTMORTEM } from './postmortem.ts';
 import { PROJECT_STATUS } from './status.ts';
 import { SECURITY_ASSESSMENT } from './security.ts';
 
@@ -18,7 +20,12 @@ export interface ReportType {
   build(input: unknown, sources: Source[]): ReportDoc;
 }
 
-export const REPORT_TYPES: readonly ReportType[] = [SECURITY_ASSESSMENT, PROJECT_STATUS];
+export const REPORT_TYPES: readonly ReportType[] = [
+  SECURITY_ASSESSMENT,
+  PROJECT_STATUS,
+  POSTMORTEM,
+  COST_REVIEW,
+];
 
 /** The report type with this id. An unknown id is an error, since a caller cannot build a report without one. */
 export function getType(id: string): ReportType {

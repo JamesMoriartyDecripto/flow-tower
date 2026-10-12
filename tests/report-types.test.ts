@@ -3,6 +3,8 @@ import { checkReport, failed } from '../src/report/checks.ts';
 import { renderReport } from '../src/report/html.ts';
 import type { Source } from '../src/report/model.ts';
 import { getType, REPORT_TYPES } from '../src/report/types/index.ts';
+import { changePercent, money, varianceSeverity } from '../src/report/types/cost.ts';
+import { duration } from '../src/report/types/postmortem.ts';
 import { cvssSeverity } from '../src/report/types/security.ts';
 import { variancePercent } from '../src/report/types/status.ts';
 
@@ -34,6 +36,38 @@ const STATUS_INPUT = {
   budget: { planned: 1000, actual: 1100, currency: 'EUR' },
 };
 
+const POSTMORTEM_INPUT = {
+  title: 'API outage',
+  severity: 'SEV-2',
+  started: '2024-08-01T10:00:00Z',
+  detected: '2024-08-01T10:30:00Z',
+  mitigated: '2024-08-01T12:00:00Z',
+  resolved: '2024-08-01T14:15:00Z',
+  impact: ['Checkout errors for 2h'],
+  timeline: [
+    { at: '2024-08-01T10:00:00Z', event: 'Deploy 1.4.2' },
+    { at: '2024-08-01T10:30:00Z', event: 'Pager fires' },
+  ],
+  causes: ['Missing index on orders.user_id'],
+  trigger: 'Deploy 1.4.2',
+  actions: [
+    { id: 'A-1', action: 'Add index check to CI', owner: 'api', due: '2024-08-15', kind: 'prevent', status: 'open' },
+    { id: 'A-2', action: 'Alert on p99 latency', owner: 'sre', due: '2024-08-20', kind: 'detect', status: 'done' },
+  ],
+  lessons: { well: ['Rollback was quick'], badly: ['Alert was late'], lucky: [] },
+};
+
+const COST_INPUT = {
+  title: 'July cloud cost',
+  period: '2024-07',
+  currency: 'EUR',
+  lines: [
+    { service: 'db', owner: 'data', actual: 600, budget: 500, previous: 400 },
+    { service: 'web', owner: 'front', actual: 300, budget: 400, previous: 290 },
+    { service: 'cache', actual: 100, previous: 40 },
+  ],
+};
+
 describe('report types', () => {
   it('registers both types with unique ids', () => {
     const ids = REPORT_TYPES.map((t) => t.id);
@@ -45,6 +79,8 @@ describe('report types', () => {
   it.each([
     ['security-assessment', SECURITY_INPUT],
     ['project-status', STATUS_INPUT],
+    ['postmortem', POSTMORTEM_INPUT],
+    ['cost-review', COST_INPUT],
   ])('%s builds a document that passes every blocking check', (id, input) => {
     const type = getType(id);
     const doc = type.build(input, SOURCES);
@@ -95,5 +131,62 @@ describe('report types', () => {
     expect(() => getType('project-status').build(bad, SOURCES)).toThrow(/input\.overall: must be one of red, amber, green/);
     const noBase = { ...STATUS_INPUT, budget: { planned: 0, actual: 5, currency: 'EUR' } };
     expect(() => getType('project-status').build(noBase, SOURCES)).toThrow(/budget\.planned/);
+  });
+
+  it('computes postmortem durations from the timestamps as h m', () => {
+    expect(duration('2024-08-01T10:00:00Z', '2024-08-01T10:30:00Z')).toBe('0h 30m');
+    expect(duration('2024-08-01T10:00:00Z', '2024-08-01T14:15:00Z')).toBe('4h 15m');
+    const doc = getType('postmortem').build(POSTMORTEM_INPUT, SOURCES);
+    const summary = doc.sections.find((s) => s.id === 'summary')!.blocks[0];
+    expect(summary).toEqual({
+      kind: 'facts',
+      rows: [
+        ['Severity', 'SEV-2'],
+        ['Started', '2024-08-01T10:00:00Z'],
+        ['Time to detect', '0h 30m'],
+        ['Time to mitigate', '1h 30m'],
+        ['Time to resolve', '4h 15m'],
+      ],
+    });
+  });
+
+  it('rejects postmortem timestamps out of order, naming the field', () => {
+    const bad = { ...POSTMORTEM_INPUT, mitigated: '2024-08-01T09:00:00Z' };
+    expect(() => getType('postmortem').build(bad, SOURCES)).toThrow(/input\.mitigated: is earlier than detected/);
+    const badTimeline = {
+      ...POSTMORTEM_INPUT,
+      timeline: [{ at: '2024-08-01T11:00:00Z', event: 'a' }, { at: '2024-08-01T10:00:00Z', event: 'b' }],
+    };
+    expect(() => getType('postmortem').build(badTimeline, SOURCES)).toThrow(/timeline\[1\]\.at/);
+  });
+
+  it('computes cost change, share and variance severity', () => {
+    expect(money(1234.5)).toBe('1234.50');
+    expect(changePercent({ service: 's', actual: 150, previous: 100 })).toBe(50);
+    expect(changePercent({ service: 's', actual: 150 })).toBeUndefined();
+    expect(varianceSeverity(60)).toBe('high');
+    expect(varianceSeverity(30)).toBe('medium');
+    expect(varianceSeverity(10)).toBe('low');
+  });
+
+  it('lists over-budget and fast-growing lines as variance findings, sorted by actual', () => {
+    const doc = getType('cost-review').build(COST_INPUT, SOURCES);
+    const summary = doc.sections.find((s) => s.id === 'summary')!.blocks;
+    expect(summary[0]).toEqual({
+      kind: 'facts',
+      rows: [
+        ['Period', '2024-07'],
+        ['Total actual', '1000.00 EUR'],
+        ['Services', 3],
+        ['Over budget', 1],
+      ],
+    });
+    const byService = doc.sections.find((s) => s.id === 'by-service')!.blocks[0];
+    expect(byService.kind === 'table' && byService.rows.map((r) => r[0])).toEqual(['db', 'web', 'cache']);
+    const variance = doc.sections.find((s) => s.id === 'variance')!.blocks[0];
+    expect(variance.kind === 'findings' && variance.items.map((f) => [f.id, f.severity])).toEqual([
+      ['var-db', 'medium'],
+      ['var-cache', 'high'],
+    ]);
   });
 });
