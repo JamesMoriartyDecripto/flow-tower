@@ -34,9 +34,30 @@ export const TS_COMMANDS = [
       ...(process.argv.some((a) => a === '--port' || a.startsWith('--port=') || a === '-p') ? ['--port', values.port] : []),
     ],
   },
+  // `--source` repeats, which the shared parser cannot hold (its `source` is emit's single string), so every
+  // occurrence is read back from argv; --list, --out, --html and --drafts come back from the parsed values.
+  {
+    name: 'report',
+    script: 'report.ts',
+    extra: (values) => [
+      ...(values.list ? ['--list'] : []),
+      ...['out', 'html', 'drafts'].flatMap((name) => (values[name] === undefined ? [] : [`--${name}`, values[name]])),
+      ...sourceArgs(process.argv),
+    ],
+  },
   // `library` is a TS command only with a subcommand (add/list/remove); see findTsCommand.
   { name: 'library', script: 'library.ts', extra: () => [] },
 ];
+
+/** Every `--source <file>` and `--source=<file>` on the command line, in order, as `--source <file>` pairs. */
+function sourceArgs(args) {
+  const out = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--source') out.push('--source', args[++i]);
+    else if (args[i].startsWith('--source=')) out.push('--source', args[i].slice('--source='.length));
+  }
+  return out;
+}
 
 /**
  * The TS command to run for these positionals, or undefined. A bare `library` (or one followed by a flag)
