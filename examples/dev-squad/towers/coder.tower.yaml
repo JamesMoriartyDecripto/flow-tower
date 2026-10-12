@@ -23,7 +23,7 @@ runtimes:
   openrouter:
     kind: saas
     label: "OpenRouter"
-    description: "OpenAI-style API in front of DeepSeek: the coder's tool loop calls it."
+    description: "OpenAI-style API in front of Claude Haiku: the coder's tool loop calls it."
     provider: "openrouter"
     url: "https://openrouter.ai"
 
@@ -31,7 +31,7 @@ agents:
   coder:
     runtime: vps
     from: .claude/agents/coder.md
-    model: deepseek/deepseek-v4.1-flash
+    model: anthropic/claude-haiku-5.5
     harness: { provider: openrouter, max_steps: 60, max_attempts: 3, context: isolated }
     files: [src/openrouter-agent.ts]
 
@@ -142,8 +142,8 @@ layers:
       - id: model
         runtime: openrouter
         type: model
-        label: DeepSeek 4.1 Flash
-        model: deepseek/deepseek-v4.1-flash
+        label: Haiku 5.5 (OR)
+        model: anthropic/claude-haiku-5.5
         description: Default coder model, through OpenRouter, at low effort. The review loop swaps in Claude Opus for the last fix round.
         files: [src/config.ts]
       - id: done

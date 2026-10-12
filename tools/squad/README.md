@@ -2,21 +2,19 @@
 
 The small harness the maintainer drives by hand. Three scripts and a task file, no build step, no
 dependency beyond Node and the flow-tower CLI. It is **not** the product: the product sample of a mixed-model
-squad is [`examples/dev-squad`](../../examples/dev-squad/README.md) (a whole pipeline, meant to be read).
-This folder is what actually ran the field sessions.
+squad is [`examples/dev-squad`](../../examples/dev-squad/README.md) (a whole pipeline, meant to be read). This
+folder is what actually ran the field sessions.
 
 ## Roles
 
-| Role | Model | Writes |
-|---|---|---|
-| Lead (Claude, you) | the session model | task files, verification, commits |
-| Coder | `deepseek/deepseek-v4.1-flash` | `src/ tests/ e2e/` (or `--write a,b`) |
-| Reviewer | `z-ai/glm-5.3-flashx` | nothing (read-only, JSON verdict) |
-| Security | `deepseek/deepseek-v4.1-flash` | nothing |
+| Role | Model | Why | Writes |
+|---|---|---|---|
+| Lead (Claude, you) | the session model | plans, verifies, commits | task files, commits |
+| Coder | `anthropic/claude-haiku-5.5` | cleanest result, 11 steps (#126); `CODER_MODEL` overrides | `src/ tests/ e2e/` (or `--write a,b`) |
+| Reviewer | `z-ai/glm-5.3-flashx` | 3 steps, cheapest on the same PR | nothing (read-only, JSON verdict) |
+| Security | `deepseek/deepseek-v4.1-flash` | 6/6 in the benchmark, fastest | nothing |
 
-All at low reasoning effort: quick passes, and the review rounds re-check the work. [OpenRouter](https://openrouter.ai)
-is just the gateway: one key for every model family. The point is that the reviewer comes from another
-family (GLM vs DeepSeek), so it does not share the coder's blind spots.
+All at low reasoning effort: quick passes, and the review rounds re-check the work. [OpenRouter](https://openrouter.ai) is just the gateway. Three families, so no reviewer shares the coder's blind spots.
 
 ## A task file
 
@@ -45,19 +43,19 @@ git worktree add ../wt-113 -b fix/113-tools      # one worktree per task: two co
 tools/squad/steps.sh 113 tasks/113 tools "keep the squad runner in the repo"
 ```
 
-`steps.sh <issue> <dir> <write-dirs> <title>` runs `run.mjs` on every `dir/*.md` in order, one commit per
-step. `<write-dirs>` is a comma-separated list, same as `run.mjs --write` (e.g. `src,tests`). `REPO` picks
-the worktree (default: this checkout). It stops at the first red step: a failed coder run,
-no change at all, or a red `npm run check`. Each commit stages every changed tracked path (`git add -u`),
-not a fixed list, so files like `package.json` or `NEXT.md` are never left out; new files are staged inside
-the `write-dirs`, and anything untracked outside them is reported as `UNTRACKED LEFT (not committed)`. Probe
-files the coder dropped (`tmp*`, `probe`, `scratch`) are removed first. Trailers are session-specific, so
-pass them in `SQUAD_TRAILERS` (one per line) or leave them out.
+`steps.sh <issue> <dir> <write-dirs> <title>` runs `run.mjs` on every `dir/*.md` in order, one commit per step.
+`<write-dirs>` is a comma-separated list, same as `run.mjs --write` (e.g. `src,tests`). `REPO` picks the worktree
+(default: this checkout). For simple tasks, `CODER_MODEL=openai/gpt-6-luna`. It stops at the first red step: a failed
+coder run, no change at all, or a red `npm run check`. Each commit stages every changed tracked path (`git add -u`),
+not a fixed list, so files like `package.json` or `NEXT.md` are never left out; new files are staged inside the
+`write-dirs`, and anything untracked outside them is reported as `UNTRACKED LEFT (not committed)`. Probe files the
+coder dropped (`tmp*`, `probe`, `scratch`) are removed first. Trailers are session-specific, so pass them in
+`SQUAD_TRAILERS` (one per line) or leave them out.
 
-`run.mjs` needs `OPENROUTER_API_KEY`: the environment, else `~/.config/flow-tower/.env` (or
-`FLOW_TOWER_HOME`), else the git-ignored `.env` of the checkout. The key never leaves the process and is
-never printed. `--node specialists.coder` names the tower node that shows the run live; `ev.sh` posts those
-events to `FLOW_TOWER_URL` (default `http://127.0.0.1:5317`) and is silent when no tower listens.
+`run.mjs` needs `OPENROUTER_API_KEY`: the environment, else `~/.config/flow-tower/.env` (or `FLOW_TOWER_HOME`), else the
+git-ignored `.env` of the checkout. The key never leaves the process and is never printed. `--node specialists.coder`
+names the tower node that shows the run live; `ev.sh` posts those events to `FLOW_TOWER_URL` (default
+`http://127.0.0.1:5317`) and is silent when no tower listens.
 
 ## A review
 
@@ -66,10 +64,15 @@ node tools/squad/run.mjs --model z-ai/glm-5.3-flashx --role reviewer --node spec
   --task tasks/113-review.md --steps 20 --repo ../wt-113
 ```
 
-The reviewer is read-only, so put everything it needs in the task: the diff (`git diff origin/main`) embedded
-as text, the item it was meant to fulfil, and the answer format (JSON with a `verdict` and a finding list,
-each finding `file:line`, what is wrong, why it matters, a fix). Read the log afterwards: `role-*.log` next
-to the script holds every call.
+The reviewer is read-only, so put everything it needs in the task: the diff (`git diff origin/main`) embedded as text,
+the item it was meant to fulfil, and the answer format (JSON with a `verdict` and a finding list, each finding
+`file:line`, what is wrong, why it matters, a fix). Read the log afterwards: `role-*.log` next to the script holds
+every call.
+
+```bash
+node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node specialists.security \
+  --task tasks/113-security.md --steps 10 --repo ../wt-113
+```
 
 ## Field findings (#75)
 
@@ -82,10 +85,9 @@ to the script holds every call.
 
 ## Cost
 
-Cents per task: a coder step on DeepSeek Flash sits in the low tens of cents at a low step count, and a GLM
-FlashX review is a few cents, so a three-step task with two review rounds stays well under a dollar
-(illustrative, measured on the sessions that produced this folder). The run reports its own total at
-`finish`: `$0.xxxx` and the prompt-cache hit rate, which is what keeps the later steps cheap.
+Field trial #126, four coders on one task. Coder: Haiku 5.5 took 11 steps for $0.016 (DeepSeek Flash: 36 steps, $0.048).
+Reviewer: GLM FlashX took 3 steps for $0.007 (DeepSeek: 16 steps, $0.058). The run reports its own total at `finish`
+and the cache hit rate; method and older figures: [skills/flow-tower-costs/reference.md](../../skills/flow-tower-costs/reference.md).
 
 ## Where else to look
 

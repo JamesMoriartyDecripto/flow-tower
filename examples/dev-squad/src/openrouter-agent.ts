@@ -137,8 +137,11 @@ export async function runOpenRouterAgent(o: { role: string; model: string; syste
   emit({ ...base, kind: 'agent.start', message: o.prompt.slice(0, 200) });
 
   for (let step = 1; step <= o.maxSteps; step++) {
+    // Anthropic caches only on request, and OpenRouter's top-level form moves the breakpoint forward as the loop grows
+    // (https://openrouter.ai/docs/guides/best-practices/prompt-caching).
+    const cache = o.model.startsWith('anthropic/') ? { cache_control: { type: 'ephemeral' } } : {};
     const res = await fetch(API, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: o.model, messages, tools, usage: { include: true },
+      body: JSON.stringify({ model: o.model, messages, tools, usage: { include: true }, ...cache,
         // session_id keeps the run on the provider holding its prompt cache; low effort: the review rounds re-check.
         session_id: session, reasoning: { effort: 'low' },
         provider: { require_parameters: true, data_collection: 'deny' } }) });

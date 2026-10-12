@@ -13,6 +13,8 @@ export const MODELS = {
   haiku: 'claude-haiku-5-5',
   // Flash, at low effort: quick passes, the review rounds re-check the work (V4 Pro coded round 1 of #70).
   deepseek: 'deepseek/deepseek-v4.1-flash',
+  // Chosen by the 2026-10-11 benchmark and field trial: about a third of the steps and of the cost on a real task.
+  haikuOpenRouter: 'anthropic/claude-haiku-5.5',
   // The fast variant: full GLM 5.3 reasoned 1-2.5 min per step and timed out on #70; FlashX reviewed in 6 steps.
   glm: 'z-ai/glm-5.3-flashx',
 } as const;
@@ -23,15 +25,16 @@ const claude = (model: string): RoleModel => ({ provider: 'claude', model });
 const openrouter = (model: string): RoleModel => ({ provider: 'openrouter', model });
 
 /**
- * Cross-model review: GLM (Z.ai) reviews what DeepSeek wrote, so the evaluator does not share
- * the coder's blind spots; Claude plans, arbitrates and verifies with a fresh context.
+ * Cross-model review: GLM (Z.ai) reviews what Haiku wrote, so the evaluator does not share
+ * the coder's blind spots; DeepSeek audits security; Claude plans, arbitrates and verifies
+ * with a fresh context.
  */
 export const ROLE_MODEL = {
   triage: claude(MODELS.haiku),
   lead: claude(MODELS.opus),
   architect: claude(MODELS.opus),
   researcher: claude(MODELS.sonnet),
-  coder: openrouter(MODELS.deepseek),
+  coder: openrouter(MODELS.haikuOpenRouter),
   tester: claude(MODELS.sonnet),
   reviewer: openrouter(MODELS.glm),
   'security-auditor': openrouter(MODELS.deepseek),

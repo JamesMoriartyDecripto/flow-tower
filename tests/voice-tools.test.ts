@@ -67,7 +67,7 @@ describe('voice agent tools (#63)', () => {
     useStore.getState().select(undefined);
     const r = call('compare_nodes', { a: 'lead', b: 'coder' });
     expect(r.a).toMatchObject({ label: 'Lead orchestrator', type: 'agent', layer: 'Orchestration', model: 'claude-opus-5-5', runtime: 'Squad container (container)' });
-    expect(r.b).toMatchObject({ label: 'coder', type: 'agent', layer: 'Specialist Agents', model: 'deepseek/deepseek-v4.1-flash', runtime: 'Squad container (container)' });
+    expect(r.b).toMatchObject({ label: 'coder', type: 'agent', layer: 'Specialist Agents', model: 'anthropic/claude-haiku-5.5', runtime: 'Squad container (container)' });
     expect(r.a.files).toBe(3);
     expect(r.b.files).toBe(3);
     expect(r.a).toMatchObject({ incoming: 3, outgoing: 6 });

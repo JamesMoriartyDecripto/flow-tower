@@ -28,7 +28,7 @@ export interface LeadReport {
 
 /**
  * Orchestrator-workers: an Opus lead plans with the architect, fans research out
- * in parallel, then walks the plan step by step with coders (DeepSeek via run_coder). Each subagent
+ * in parallel, then walks the plan step by step with coders (Haiku via run_coder). Each subagent
  * has its own context window; only its final report comes back to the lead.
  * A risky plan ends the session with status `awaiting_approval`; the pipeline then resumes
  * the same session (`resume`) with the human's answer as the next prompt.
