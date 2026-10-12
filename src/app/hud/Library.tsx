@@ -237,14 +237,6 @@ export function Library() {
     return () => window.removeEventListener(LIBRARY_FILTER_EVENT, onFilter);
   }, []);
 
-  // Kept in the URL with replaceState so a filter change does not add a history entry (#165).
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    if (source) url.searchParams.set('source', source);
-    else url.searchParams.delete('source');
-    window.history.replaceState(window.history.state, '', url);
-  }, [source]);
-
   const cards = useMemo(() => (workspace?.projects ?? []).map((id) => ({
     id, tower: workspace!.towers[id], stats: projectStats(workspace!, id), origin: workspace!.origins?.[id],
     source: workspace!.sources ? sourceOf(workspace!, id) : undefined,
@@ -253,6 +245,16 @@ export function Library() {
   const hasSources = workspace?.sources !== undefined;
   const machines = useMemo(() => [...new Set(Object.values(workspace?.sources ?? {}).filter((s) => s !== 'local'))].sort(), [workspace]);
   const activeSource = hasSources && source && (source === 'local' || machines.includes(source)) ? source : undefined;
+  // Kept in the URL with replaceState so a filter change does not add a history entry (#165). It names the
+  // active source, not the raw state: a `?source=` for a machine that shares nothing now is dropped, since
+  // every project is shown and the link should say so. Closed library or no sources: the URL is left alone.
+  useEffect(() => {
+    if (!library || !hasSources) return;
+    const url = new URL(window.location.href);
+    if (activeSource) url.searchParams.set('source', activeSource);
+    else url.searchParams.delete('source');
+    window.history.replaceState(window.history.state, '', url);
+  }, [activeSource, library, hasSources]);
   const sourceCount = useMemo(() => {
     const count = new Map<string, number>();
     for (const c of cards) if (c.source) count.set(c.source, (count.get(c.source) ?? 0) + 1);

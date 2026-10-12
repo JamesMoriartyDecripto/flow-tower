@@ -77,6 +77,18 @@ test('each card names its source; the row filters by machine and the URL keeps i
   await expect(row.locator('button', { hasText: 'MAC-ANA' })).toHaveClass(/\bon\b/);
 });
 
+test('a source that shares nothing now is dropped from the URL and shows every project', async ({ page }) => {
+  await injectSources(page);
+  // A link from a machine that no longer shares anything: no project has that source.
+  await page.goto('/?quality=eco&source=gone-box');
+  if (!(await state(page)).library) await page.keyboard.press('l');
+  await expect(page.locator('[data-card]').first()).toBeVisible();
+  const cards = await page.locator('[data-card]').count();
+  await expect(page.locator('[data-card]')).toHaveCount(cards);
+  await expect(page.locator('.lib-sources button').nth(0)).toHaveClass(/\bon\b/);
+  await expect.poll(() => new URL(page.url()).searchParams.has('source')).toBe(false);
+});
+
 test('without sources no source chip or row appears', async ({ page }) => {
   // The plain dev server sends no `sources`: the cards and the header stay as they were before #165.
   await openLibrary(page);

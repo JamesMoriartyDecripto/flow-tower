@@ -53,7 +53,7 @@ export const TOOLS: ToolDef[] = [
   tool('library_filter', 'Open the project library and filter it: a text query (name, description, tag or model), a tag and/or a source. All are set; an absent one is cleared. Returns how many projects match.', {
     query: str('Words to match against project name, description, tag or model.'),
     tag: str('Show only projects carrying this tag.'),
-    source: str("Show only projects from this device: a machine name, or 'this hub' / 'local' for the hub's own."),
+    source: str("Show only projects from one source: a machine name, or 'this hub', 'this machine', 'this server' or 'local' for the hub's own."),
   }),
   tool('open_project', 'Open a project or a sub-tower by name.', { name: str('Project or tower name.') }, ['name']),
   tool('navigate', 'Move the view. back = like Esc: closes the open file first, else deselects the node, else leaves the layer, else goes up one tower, else opens the library.', { to: { type: 'string', enum: ['library', 'overview', 'back', 'map', 'tower', 'enter_sub_tower'] } }, ['to']),

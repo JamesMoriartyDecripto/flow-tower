@@ -207,6 +207,43 @@ describe('voice agent tools (#63)', () => {
     expect(sourceNamed(known, 'box one')).toBeUndefined();
   });
 
+  it('treats _ and . like spaces and dashes in source names (#165)', async () => {
+    const { knownSources, sourceNamed } = await import('../src/app/library');
+    const ws = useStore.getState().workspace!;
+    const shared = { ...ws, sources: { [ws.projects[0]]: 'box-1', [ws.projects[1]]: 'mac-ana' } };
+    const known = knownSources(shared);
+    // Folders copied by hand may carry _ or . in place of the dash.
+    expect(sourceNamed(known, 'box_1')).toBe('box-1');
+    expect(sourceNamed(known, 'box.1')).toBe('box-1');
+    expect(sourceNamed(known, 'Box 1')).toBe('box-1');
+    expect(sourceNamed(known, 'mac.ana')).toBe('mac-ana');
+  });
+
+  it('prefers an exact id over a separator-normalized one (#165)', async () => {
+    const { sourceNamed } = await import('../src/app/library');
+    // Two ids differing only by separator: the exact spelling wins, the other one is still reachable.
+    const known = ['local', 'box-1', 'box_1'];
+    expect(sourceNamed(known, 'box_1')).toBe('box_1');
+    expect(sourceNamed(known, 'box-1')).toBe('box-1');
+    expect(sourceNamed(known, 'Box 1')).toBe('box-1');
+  });
+
+  it('names the hub\'s own source as "this machine" and "this server" too (#165)', async () => {
+    const { sourceNamed } = await import('../src/app/library');
+    const known = ['local', 'mac-ana'];
+    expect(sourceNamed(known, 'this machine')).toBe('local');
+    expect(sourceNamed(known, 'This Server')).toBe('local');
+    expect(sourceNamed(known, 'this hub')).toBe('local');
+  });
+
+  it('describes the source parameter with every local wording (#165)', () => {
+    const lib = TOOLS.find((t) => t.function.name === 'library_filter')!;
+    const desc = JSON.stringify(lib.function.parameters);
+    expect(desc).toContain('this machine');
+    expect(desc).toContain('this server');
+    expect(desc).toContain('this hub');
+  });
+
   it('library_filter takes a source: refuses an unknown one and changes nothing (#165)', () => {
     const ws = useStore.getState().workspace!;
     const seen: unknown[] = [];

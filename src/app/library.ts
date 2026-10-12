@@ -84,13 +84,19 @@ export function knownSources(ws: Workspace): string[] {
 }
 
 /**
- * Matches a spoken source to a known id. Speech varies in case, spaces and dashes ("Box-1", "box 1"
- * both mean box-1), so both sides are compared with those removed; "this hub" is the hub's own source.
+ * Matches a spoken source to a known id. Speech and hand-copied folders vary in case and in separators
+ * ("Box-1", "box 1", "box_1", "box.1" all mean box-1), so both sides are compared with those removed.
+ * An exact id wins first, so two ids that differ only by a separator stay distinct when named exactly.
+ * "this hub", "this machine" and "this server" all mean the hub's own source ('local').
  */
+const THIS_HUB = new Set(['thishub', 'thismachine', 'thisserver']);
 export function sourceNamed(known: string[], spoken: unknown): string | undefined {
-  const key = (v: string) => v.toLowerCase().replace(/[\s-]/g, '');
-  const said = key(String(spoken));
-  if (said === 'thishub') return 'local';
+  const raw = String(spoken);
+  const exact = known.find((id) => id === raw);
+  if (exact !== undefined) return exact;
+  const key = (v: string) => v.toLowerCase().replace(/[\s._-]/g, '');
+  const said = key(raw);
+  if (THIS_HUB.has(said)) return 'local';
   return known.find((id) => key(id) === said);
 }
 
