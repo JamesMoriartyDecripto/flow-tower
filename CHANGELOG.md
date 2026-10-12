@@ -6,7 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
-- Squad: a pace setting (#169). `run.mjs --oneshot` and `--batch` answer a reviewer or security task in one request with no tools; `--batch` goes through the OpenRouter Batch API (about half price, always deleted once read) and falls back to a oneshot when the model has no batch endpoint. `SQUAD_PACE=relaxed` makes reviews batch by default; the coder always runs the tool loop. `tools/squad/pack.mjs` builds such a task with the brief, the diff and the files embedded. Ledger lines record the `mode`.
+- Squad: a pace setting (#169). `run.mjs --oneshot` and `--batch` answer a reviewer or security task in one request with no tools; `--batch` goes through the OpenRouter Batch API (about half price, always deleted once read) and falls back to a oneshot when the model has no batch endpoint. `SQUAD_PACE` picks the review mode: `now` (tool loop, default), `relaxed` (oneshot), `overnight` (batch); the coder always runs the tool loop. `tools/squad/pack.mjs` builds such a task with the brief, the diff and the files embedded. Ledger lines record the `mode`.
 - Community: `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), YAML issue forms for bug, feature and example with Discussions and private advisories as contact links, and `SUPPORT.md` (#122).
 - CLI: `flow-tower --version` prints the installed version (#122).
 - CI: a job checks the DCO sign-off on every commit of a PR, and a step runs `check-example` on the example folders a PR adds (#122).

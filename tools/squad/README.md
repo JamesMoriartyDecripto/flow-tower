@@ -81,8 +81,19 @@ writes and runs `npm run check` over many steps, which no single request can do.
 
 | Pace | When | Reviewer and security | Cost | Wait |
 |---|---|---|---|---|
-| `now` (default) | the maintainer is waiting, or the change is security-sensitive and needs repo reads | tool loop (`run.mjs`, as below); `--oneshot` when the context is large | full price | minutes |
-| `relaxed` | "no hurry": most issues | `SQUAD_PACE=relaxed`: `--batch`, one request through the OpenRouter Batch API | about half | median minutes, at most 24 h |
+| `now` (default) | the maintainer is waiting, or a security pass must read the repo | tool loop (`run.mjs`, as below) | full price, grows with each step | minutes |
+| `relaxed` | daytime, no hurry: most issues | `SQUAD_PACE=relaxed`: `--oneshot`, one direct request with the code packed | full price for one request ($0.008–0.011 on #164/#169) | a few minutes |
+| `overnight` | work left to run unattended (overnight, a weekend) | `SQUAD_PACE=overnight`: `--batch`, the same request through the OpenRouter Batch API | about half | median minutes, but the first real run sat `in_progress` for 30+ min; cap 24 h |
+
+**In a hurry, also pick faster models** (benchmark and field numbers in the [cost skill reference](../../skills/flow-tower-costs/reference.md#benchmark-2026-10-11)); the defaults stay, because speed can cost quality:
+
+| Role | Default | Faster | Use the faster one when |
+|---|---|---|---|
+| Coder | `anthropic/claude-haiku-5.5` (212 s on #126) | `CODER_MODEL=openai/gpt-6-luna` (67 s, but missed the size goal) | the task is simple and mechanical |
+| Reviewer | `z-ai/glm-5.3-flashx` | none: GLM is already the fastest that found the real issue (Gemini Flash-Lite approved it blind) | — |
+| Security | `deepseek/deepseek-v4.1-flash` (6/6) | `openai/gpt-6-luna` (5/6, 8 s) | the change does not touch auth, tokens, paths or anything a remote request reaches |
+
+Never batch in a hurry: `now` and `relaxed` never touch the Batch API.
 
 `--oneshot` and `--batch` have no tools: the task must hold the code. Build it with `pack.mjs`:
 
