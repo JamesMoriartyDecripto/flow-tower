@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Report studio (#174): `flow-tower report <type> <input> [--source f]... [--drafts d.json] [--html f] [--out f.pdf] [--list]` makes a professional PDF from the user's sources. Types are plug-ins in `src/report/types`: `security-assessment` (severity from CVSS v4.0 bands), `project-status` (RAG), `postmortem` (SRE-book structure, computed times), `cost-review` (FinOps reporting, variance flags) and `tower-documentation` (runs `flow-tower export`). Facts come from code; drafted prose is optional, marked, cited and digit-free; blocking checks run before any file is written. `examples/report-studio` (tower, samples, PDFs, page-review checklist), `docs/reports.md` with sources, and a `flow-tower-report` skill.
 - Community: `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), YAML issue forms for bug, feature and example with Discussions and private advisories as contact links, and `SUPPORT.md` (#122).
 - CLI: `flow-tower --version` prints the installed version (#122).
 - CI: a job checks the DCO sign-off on every commit of a PR, and a step runs `check-example` on the example folders a PR adds (#122).

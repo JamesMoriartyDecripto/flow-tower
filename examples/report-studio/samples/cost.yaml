@@ -1,0 +1,12 @@
+# Illustrative input: a fictional month of cloud and AI spend. Services and amounts are examples.
+title: Cloud and AI spend review
+period: September 2026
+currency: EUR
+lines:
+  - { service: Compute (Kubernetes), owner: Platform, actual: 18420.50, budget: 19000, previous: 17980.10 }
+  - { service: LLM APIs, owner: AI products, actual: 9310.00, budget: 6000, previous: 5120.40 }
+  - { service: Managed database, owner: Platform, actual: 6205.75, budget: 6500, previous: 6190.00 }
+  - { service: Object storage, owner: Data, actual: 2140.30, budget: 2500, previous: 1650.00 }
+  - { service: Observability, owner: SRE, actual: 1890.00, budget: 2000, previous: 1875.00 }
+  - { service: CDN, owner: Web, actual: 640.20, budget: 900, previous: 655.80 }
+  - { service: CI runners, owner: Engineering, actual: 1210.00, previous: 980.00 }

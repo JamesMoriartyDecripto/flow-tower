@@ -16,6 +16,7 @@
 | Team hub, command center, Hub panel (H), config, satellite | [docs/command-center.md](docs/command-center.md) (setup, config precedence), [docs/hub-reference.md](docs/hub-reference.md) (security model, recipes), [skills/flow-tower-command-center](skills/flow-tower-command-center/SKILL.md), [skills/flow-tower-satellite](skills/flow-tower-satellite/SKILL.md), then `src/server/{config,hub,auth,relay}.ts` as needed |
 | The command-center kit (deploy files) | [examples/command-center/README.md](examples/command-center/README.md) |
 | Release a version | [NEXT.md](NEXT.md) § Releasing, `examples/release-auditor` |
+| Reports (`flow-tower report`, types, print engine, checks) | [docs/reports.md](docs/reports.md), `src/report/`, [skills/flow-tower-report](skills/flow-tower-report/SKILL.md), [examples/report-studio](examples/report-studio/README.md) |
 | Cost and model choice | [skills/flow-tower-costs/SKILL.md](skills/flow-tower-costs/SKILL.md) |
 | How the hub works inside | [examples/team-hub](examples/team-hub/README.md): the tower of the hub's own code |
 | Model benchmarks | [examples/model-benchmark/README.md](examples/model-benchmark/README.md) |
