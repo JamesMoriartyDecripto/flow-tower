@@ -8,6 +8,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Added
 - Voice (#145): "scorri giù" / "scroll down" (and "scorri su", "vai in fondo", "vai all'inizio") pages the open file viewer; "apri l'hub" / "open the hub" ("mostra le macchine", "chiudi l'hub") opens the Hub panel on its Now or Machines tab; "mostra solo gli agenti" / "show only agents" keeps one node type on screen and "mostra tutto" / "show everything" shows them all again; all are fixed phrases the parser handles locally. The voice agent gains five tools (`scroll_file`, `hub_panel`, `filter_nodes`, `library_filter`, `compare_nodes`), and the action execution lives in `src/app/voice/actions.ts`.
 
+### Changed
+- `bin/flow-tower.js` is closer to the 400-line rule (519 → 426 lines): the TypeScript subcommand dispatch moved to `bin/commands.js` and the `init` starter to `bin/starter.js`, with no behaviour change (#126).
+
 ## [0.7.0] - 2026-10-11
 
 ### Added
