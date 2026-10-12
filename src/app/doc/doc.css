@@ -121,7 +121,7 @@ html, body, .doc, .cover, .exec-summary, .control, .node, .chip, .seg, .band { -
 .control-page { break-after: page; }
 table.frame { border: 1.5px solid var(--accent); font-size: 9.5pt; }
 table.frame th { width: 30%; color: var(--muted); font-weight: 600; text-align: left; border-bottom: 1px solid var(--rule); padding: 6px 10px; }
-table.frame td { border-bottom: 1px solid var(--rule); padding: 6px 10px; overflow-wrap: anywhere; }
+table.frame td { border-bottom: 1px solid var(--rule); padding: 6px 10px; overflow-wrap: break-word; }
 table.frame tr:last-child th, table.frame tr:last-child td { border-bottom: 0; }
 
 /* Executive summary: counts only, one page. The verdict tile takes the dashboard's live colours. */
@@ -248,12 +248,17 @@ td.ref { color: var(--accent); white-space: nowrap; font-size: 8.5pt; }
 .fields { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin: 6px 0; font-size: 9.5pt; }
 .fields > div { display: contents; }
 .fields dt { color: var(--muted); }
-.fields dd { margin: 0; overflow-wrap: anywhere; }
+.fields dd { margin: 0; overflow-wrap: break-word; min-width: 0; }
 .fields ul.plain { list-style: none; padding: 0; margin: 0; }
 .fields ul.plain li { margin: 0; }
 table.pairs { width: auto; font-size: 9pt; margin: 0; }
 table.pairs th, table.pairs td { border: none; padding: 0 10px 0 0; text-align: left; font-weight: 400; color: var(--ink); }
-table.pairs th { color: var(--muted); }
+/* Keys never break ("Acti/ons" read as noise): the key column takes its natural width and only values wrap. */
+table.pairs th { color: var(--muted); white-space: nowrap; width: 1%; vertical-align: top; overflow-wrap: normal; }
+table.pairs td { overflow-wrap: break-word; vertical-align: top; }
+table.pairs { width: 100%; }
+.fields dt, th, td.ref, td.type, td.status, .chip { overflow-wrap: normal; word-break: normal; }
+th { white-space: nowrap; }
 
 /* Edges: incoming and outgoing side by side, each as `label · kind` with a linked node. */
 .edge-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px; }
