@@ -57,3 +57,50 @@ describe('token store', () => {
     expect(b.verify(token)).toBeUndefined();
   });
 });
+
+/** Tailnet enrolment (#164): the same login rotates its own machine's token, nobody else can take it over. */
+describe('token enrolment', () => {
+  it('mints on first enrol and rotates for the same login', () => {
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-tokens-'));
+    const store = tokenStore(home);
+    const first = store.enroll('laptop-1', 'alice@example.com');
+    expect(first.rotated).toBe(false);
+    expect(store.verify(first.token)).toEqual({ id: 'laptop-1' });
+
+    const second = store.enroll('laptop-1', 'alice@example.com');
+    expect(second.rotated).toBe(true);
+    expect(store.verify(first.token)).toBeUndefined();
+    expect(store.verify(second.token)).toEqual({ id: 'laptop-1' });
+    expect(store.list().find((t) => t.id === 'laptop-1' && t.revokedAt === undefined)).toMatchObject({ login: 'alice@example.com' });
+  });
+
+  it('refuses another login, a missing login, and a hand-made id', () => {
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-tokens-'));
+    const store = tokenStore(home);
+    const { token } = store.enroll('laptop-1', 'alice@example.com');
+    expect(() => store.enroll('laptop-1', 'mallory@example.com')).toThrow(/^conflict:/);
+    expect(store.verify(token)).toEqual({ id: 'laptop-1' });
+
+    store.create('hand-made');
+    expect(() => store.enroll('hand-made', 'alice@example.com')).toThrow(/^conflict:/);
+    expect(store.list().find((t) => t.id === 'hand-made')?.login).toBeUndefined();
+  });
+
+  it('lets a revoked id be enrolled again', () => {
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-tokens-'));
+    const store = tokenStore(home);
+    store.enroll('laptop-2', 'bob@example.com');
+    store.revoke('laptop-2');
+    const again = store.enroll('laptop-2', 'mallory@example.com');
+    expect(again.rotated).toBe(false);
+    expect(store.verify(again.token)).toEqual({ id: 'laptop-2' });
+  });
+
+  it('rejects a bad id or an empty login', () => {
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-tokens-'));
+    const store = tokenStore(home);
+    expect(() => store.enroll('Bad Id', 'alice@example.com')).toThrow(/a-z/);
+    expect(() => store.enroll('laptop-3', '')).toThrow(/login/);
+    expect(() => store.enroll('laptop-3', '   ')).toThrow(/login/);
+  });
+});
