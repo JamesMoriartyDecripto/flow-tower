@@ -10,7 +10,8 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { appendRun, issueOf, ledgerPath } from './ledger.mjs';
-import { BATCH_NOTE, batchOne, chatUrl, deleteBatch } from './batch.mjs';
+import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
+import { realRelIfAllowed, realTarget } from './guard.mjs';
 import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './oneshot.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -34,6 +35,8 @@ const maxSteps = Number(arg('steps', 40));
 // Modes (#169): the tool loop stays the default; reviewer and security can answer in one request instead. SQUAD_PACE
 // sets their default: relaxed is one direct request (a daytime review in minutes), overnight is a batch (half the price,
 // hours of wait, for work left running overnight). An explicit flag wins over the pace. The coder always needs its tools.
+// The role names the log file below, so only the three known roles pass (no path characters from the command line).
+if (!['coder', 'reviewer', 'security'].includes(role)) { console.error(USAGE); exit(1); }
 const flagOneshot = argv.includes('--oneshot'), flagBatch = argv.includes('--batch');
 const oneshotRole = role === 'reviewer' || role === 'security';
 if ((flagOneshot || flagBatch) && !oneshotRole) {
@@ -77,6 +80,14 @@ const inRepo = (p) => {
   if (!rel || rel.startsWith('..') || SECRET.test(rel)) throw new Error(`path not allowed: ${p}`);
   return { abs, rel };
 };
+// Every write is checked on its real path, so a symlink inside the repo cannot lead the write out of it (#169 review).
+// Returns the real path to write to; the role's writable folders and the secret patterns still apply.
+const writable = (abs, rel) => {
+  if (!WRITABLE.test(rel)) throw new Error(`read-only for ${role}: ${rel}`);
+  const real = realRelIfAllowed({ repo: REPO, abs, secret: SECRET, writable: WRITABLE });
+  if (real === null) throw new Error(`write outside the repo or through a link: ${rel}`);
+  return realTarget(abs);
+};
 const git = (...a) => execFileSync('git', a, { cwd: REPO, encoding: 'utf8', maxBuffer: 20e6 });
 const cap = (s, n = 40_000) => (s.length > n ? `${s.slice(0, n)}\n…[cut ${s.length - n} chars]` : s);
 const sh = (cmd, a) => {
@@ -112,30 +123,31 @@ const tools = {
     return cap(lines.slice(from - 1, to).map((l, i) => `${from + i}\t${l}`).join('\n'));
   },
   grep: ({ pattern, path = '.' }) => { try { return cap(git('grep', '-n', '-I', '-E', String(pattern), '--', path === '.' ? '.' : inRepo(path).rel), 15_000); } catch { return 'no match'; } },
+  // A write goes where its real path (symlinks followed) says, so that path is what is checked (guard.mjs).
   edit_file: ({ path, old, new: next }) => {
     const { abs, rel } = inRepo(path);
-    if (!WRITABLE.test(rel)) throw new Error(`read-only for ${role}: ${rel}`);
-    const text = readFileSync(abs, 'utf8');
+    const real = writable(abs, rel);
+    const text = readFileSync(real, 'utf8');
     const n = text.split(old).length - 1;
     if (n !== 1) throw new Error(`old text found ${n} times: it must match exactly once`);
-    writeFileSync(abs, text.replace(old, () => next));
+    writeFileSync(real, text.replace(old, () => next));
     return `edited ${rel}`;
   },
   write_file: ({ path, content }) => {
     const { abs, rel } = inRepo(path);
-    if (!WRITABLE.test(rel)) throw new Error(`read-only for ${role}: ${rel}`);
     // The coder kept leaving probe files despite the prompt (#75 finding 8): refuse them at the tool.
     if (SCRATCH.test(rel)) throw new Error(`probe/scratch files are not allowed in the repo: ${rel}. Use run vitest on a real test file, or reason from the code.`);
-    mkdirSync(dirname(abs), { recursive: true });
-    writeFileSync(abs, content);
+    const real = writable(abs, rel);
+    mkdirSync(dirname(real), { recursive: true });
+    writeFileSync(real, content);
     return `wrote ${rel}`;
   },
   // Without a delete tool the coder replaced a file it was told to remove with an empty placeholder (#75).
   delete_file: ({ path }) => {
     const { abs, rel } = inRepo(path);
-    if (!WRITABLE.test(rel)) throw new Error(`read-only for ${role}: ${rel}`);
-    if (!existsSync(abs)) return `not there: ${rel}`;
-    rmSync(abs);
+    const real = writable(abs, rel);
+    if (!existsSync(real)) return `not there: ${rel}`;
+    rmSync(real);
     return `deleted ${rel}`;
   },
   run: ({ command, file }) => { const f = RUNS[command]; if (!f) throw new Error(`commands: ${Object.keys(RUNS).join(', ')}`); return f(file); },
@@ -160,10 +172,15 @@ const messages = [
   { role: 'user', content: task },
 ];
 let cost = 0;
+// Set when a batch answer's cost could not be read: the ledger then gets null and costUnknown, not a false 0.
+let costUnknown = false;
 let promptTokens = 0, cachedTokens = 0;
 // A failed run still cost money, so every exit writes its line; steps counts the model calls that completed.
 let recorded = false, stepsDone = 0;
-const record = (outcome, steps) => { recorded = true; appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: Number(cost.toFixed(6)), promptTokens, cachedTokens, outcome, mode: paidMode }); };
+const record = (outcome, steps) => {
+  recorded = true;
+  appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: costUnknown ? null : Number(cost.toFixed(6)), ...(costUnknown && { costUnknown: true }), promptTokens, cachedTokens, outcome, mode: paidMode });
+};
 // An unhandled throw (two failed fetches, a bad JSON body) ends the process without any explicit record: the exit
 // handler catches those. appendFileSync is synchronous, so the write completes inside the handler.
 process.on('exit', () => { if (!recorded) record('crash', stepsDone); });
@@ -184,6 +201,14 @@ const onInterrupt = async (code) => {
 };
 process.on('SIGINT', () => { onInterrupt(130); });
 process.on('SIGTERM', () => { onInterrupt(143); });
+// A failed HTTP answer is logged as its status and a short error code only: the provider's body can echo the
+// request, and the log and the console must not carry that. The body is read here, for the code, and dropped.
+async function httpFailure(r) {
+  const j = await r.json().catch(() => null);
+  const code = j?.error?.code;
+  const short = typeof code === 'string' || typeof code === 'number' ? String(code) : '';
+  return `HTTP ${r.status}${/^[\w.-]{1,40}$/.test(short) ? ` ${short}` : ''}`;
+}
 // One request with no tools, shared by --oneshot and by a batch that fell back. No retry on the 10 min cap:
 // one long answer, the failure is the answer.
 async function oneshotCall(body) {
@@ -193,7 +218,7 @@ async function oneshotCall(body) {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(ONESHOT_TIMEOUT_MS),
   });
-  if (!r.ok) { const t = await r.text(); note(`HTTP ${r.status} ${t}`); record('http-error', 0); console.log(`HTTP ${r.status} ${t.slice(0, 400)}`); exit(1); }
+  if (!r.ok) { const f = await httpFailure(r); note(f); record('http-error', 0); console.log(f); exit(1); }
   const out = await r.json();
   return { content: out.choices?.[0]?.message?.content, usage: out.usage ?? {} };
 }
@@ -219,20 +244,27 @@ if (mode !== 'loop') {
       answer = await oneshotCall(body);
     } else {
       if (!res.ok) { note(`batch error ${res.error}`); record('batch-error', 0); console.log(`batch failed: ${res.error}`); exit(1); }
-      answer = { content: res.content, usage: res.usage };
+      answer = { content: res.content, usage: res.usage, generationId: res.generationId };
     }
   }
   const { content, usage } = answer;
   if (typeof content !== 'string' || content === '') { note('empty answer'); record('empty-answer', 0); console.log('empty answer'); exit(1); }
   stepsDone = 1;
-  cost += usage.cost ?? 0;
+  // A batch result has no usage.cost: it is read from the generation endpoint. Still unknown is null, never a false 0.
+  let callCost = usage.cost;
+  if (typeof callCost !== 'number' && answer.generationId) {
+    callCost = await generationCost({ key: env.OPENROUTER_API_KEY, id: answer.generationId, log: (l) => note(l) });
+  }
+  costUnknown = typeof callCost !== 'number';
+  if (!costUnknown) cost += callCost;
   promptTokens += usage.prompt_tokens ?? 0;
   cachedTokens += usage.prompt_tokens_details?.cached_tokens ?? 0;
   const cached = promptTokens ? Math.round((100 * cachedTokens) / promptTokens) : 0;
-  note(`\n[finish] ${content}\n\ncost $${cost.toFixed(4)}`);
+  const shown = costUnknown ? 'cost unknown' : `$${cost.toFixed(4)}`;
+  note(`\n[finish] ${content}\n\ncost ${shown}`);
   record('finish', 1);
-  emit('agent.end', node, `${role} on ${model} done ($${cost.toFixed(3)}, ${paidMode})`, 'ok');
-  console.log(`${content}\n\n--- ${model} · 1 step · $${cost.toFixed(4)} · cache ${cached}% of ${promptTokens} prompt tokens${paidMode === 'batch' ? ' (batch)' : ''} · log ${log}`);
+  emit('agent.end', node, `${role} on ${model} done (${shown}, ${paidMode})`, 'ok');
+  console.log(`${content}\n\n--- ${model} · 1 step · ${shown} · cache ${cached}% of ${promptTokens} prompt tokens${paidMode === 'batch' ? ' (batch)' : ''} · log ${log}`);
   exit(0);
 }
 for (let step = 0; step < maxSteps; step++) {
@@ -249,7 +281,7 @@ for (let step = 0; step < maxSteps; step++) {
   });
   let r;
   try { r = await ask(); } catch { emit('log', node, `step ${step + 1}: no answer in 3 min, retrying`, 'error'); r = await ask(); }
-  if (!r.ok) { const t = await r.text(); note(`HTTP ${r.status} ${t}`); record('http-error', step); console.log(`HTTP ${r.status} ${t.slice(0, 400)}`); exit(1); }
+  if (!r.ok) { const f = await httpFailure(r); note(f); record('http-error', step); console.log(f); exit(1); }
   const out = await r.json();
   stepsDone++;
   cost += out.usage?.cost ?? 0;

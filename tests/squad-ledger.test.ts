@@ -57,6 +57,26 @@ describe('squad ledger (#156)', () => {
     expect(s.total.cost).toBeCloseTo(0.7);
   });
 
+  it('skips null costs in the totals and counts them as unknownCost', () => {
+    const runs = [
+      { issue: '5', role: 'reviewer', model: 'a', steps: 1, cost: 0.2, promptTokens: 1, cachedTokens: 0 },
+      { issue: '5', role: 'reviewer', model: 'a', steps: 1, cost: null, costUnknown: true, promptTokens: 1, cachedTokens: 0 },
+    ];
+    const s = summarize(runs, '5');
+    expect(s.total).toMatchObject({ runs: 2, steps: 2, unknownCost: 1 });
+    expect(s.total.cost).toBeCloseTo(0.2);
+    expect(s.rows[0]).toMatchObject({ runs: 2, unknownCost: 1 });
+  });
+
+  it('cost.mjs says how many runs have an unknown cost', () => {
+    const ledger = join(dir, 'costs.jsonl');
+    appendRun(ledger, { issue: '9', role: 'reviewer', model: 'a', steps: 1, cost: 0.25, promptTokens: 4, cachedTokens: 0 });
+    appendRun(ledger, { issue: '9', role: 'reviewer', model: 'a', steps: 1, cost: null, costUnknown: true, promptTokens: 4, cachedTokens: 0 });
+    const script = fileURLToPath(new URL('../tools/squad/cost.mjs', import.meta.url));
+    const out = execFileSync(process.execPath, [script, '9'], { env: { ...process.env, SQUAD_LEDGER: ledger }, encoding: 'utf8', timeout: 20_000 });
+    expect(out).toContain('**Squad cost for #9:** $0.2500 (1 with unknown cost, not counted) over 2 runs, 2 steps.');
+  });
+
   it('cost.mjs prints the issue block, or a no-runs line', () => {
     const ledger = join(dir, 'costs.jsonl');
     appendRun(ledger, { issue: '7', role: 'coder', model: 'a', steps: 4, cost: 0.1, promptTokens: 10, cachedTokens: 5 });

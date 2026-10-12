@@ -65,6 +65,16 @@ describe('squad pack (#169)', () => {
     expect(r.stderr).toContain('trimmed to fit');
   });
 
+  it('refuses a non-numeric --issue and a base that is not a commit or starts with a dash', () => {
+    const badIssue = run(['--role', 'reviewer', '--issue', '169; rm -rf x']);
+    expect(badIssue.status).not.toBe(0);
+    const badBase = spawnSync(process.execPath, [script, '--role', 'reviewer', '--issue', '169', '--repo', repo, '--base', 'no-such-ref', '--brief', briefFile], { encoding: 'utf8', timeout: 20_000 });
+    expect(badBase.status).not.toBe(0);
+    expect(badBase.stderr).toContain('base is not a commit');
+    const dash = spawnSync(process.execPath, [script, '--role', 'reviewer', '--issue', '169', '--repo', repo, '--base=--output=x', '--brief', briefFile], { encoding: 'utf8', timeout: 20_000 });
+    expect(dash.status).not.toBe(0);
+  });
+
   it('refuses secret-looking paths and paths outside the repo', () => {
     writeFileSync(join(repo, '.env'), 'TOKEN=x\n');
     const env = run(['--role', 'reviewer', '--issue', '169', '--files', '.env']);

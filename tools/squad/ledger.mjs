@@ -40,18 +40,22 @@ export function readRuns(path) {
 }
 
 // Groups one issue's runs by role and model; rows are sorted by cost so the expensive part reads first.
+// A run whose cost is unknown (cost null, a batch the generation endpoint could not price) adds nothing to the
+// cost, and is counted in unknownCost so the total is never read as complete when it is not.
 export function summarize(runs, issue) {
   const rows = new Map();
-  const total = { runs: 0, steps: 0, cost: 0 };
+  const total = { runs: 0, steps: 0, cost: 0, unknownCost: 0 };
   for (const r of runs) {
     if (String(r.issue) !== String(issue)) continue;
     const key = `${r.role}\u0000${r.model}`;
-    if (!rows.has(key)) rows.set(key, { role: r.role, model: r.model, runs: 0, steps: 0, cost: 0, promptTokens: 0, cachedTokens: 0 });
+    if (!rows.has(key)) rows.set(key, { role: r.role, model: r.model, runs: 0, steps: 0, cost: 0, unknownCost: 0, promptTokens: 0, cachedTokens: 0 });
     const row = rows.get(key);
+    const known = r.cost !== null && r.cost !== undefined && Number.isFinite(Number(r.cost));
     for (const t of [row, total]) {
       t.runs += 1;
       t.steps += Number(r.steps) || 0;
-      t.cost += Number(r.cost) || 0;
+      if (known) t.cost += Number(r.cost);
+      else t.unknownCost += 1;
     }
     row.promptTokens += Number(r.promptTokens) || 0;
     row.cachedTokens += Number(r.cachedTokens) || 0;

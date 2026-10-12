@@ -18,6 +18,12 @@ let base = '';
 let seen: Seen[] = [];
 // Set by one test: the batch create answers the "no batch endpoint" refusal that OpenRouter gives some models.
 let refuseBatch = false;
+// Set by one test: the batch answer carries no usage.cost, as a real batch result does.
+let batchNoCost = false;
+// 'ok' answers the generation endpoint with a total_cost of 0.0007; 'missing' answers with none.
+let genCostMode: 'ok' | 'missing' = 'ok';
+// Set by one test: the chat endpoint answers an error whose body echoes the prompt.
+let chatFail = false;
 
 beforeAll(async () => {
   server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -27,16 +33,23 @@ beforeAll(async () => {
       const body = raw ? JSON.parse(raw) as Record<string, unknown> : undefined;
       seen.push({ method: req.method ?? '', url: req.url ?? '', body });
       const send = (obj: unknown, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
+      if (req.url?.endsWith('/chat/completions') && chatFail) {
+        return send({ error: { code: 'insufficient_credits', message: 'echoed-prompt-secret' } }, 402);
+      }
       if (req.url?.endsWith('/chat/completions')) {
         return send({ choices: [{ message: { content: ANSWER } }], usage: { cost: 0.0042, prompt_tokens: 100 } });
+      }
+      if (req.url?.startsWith('/api/v1/generation?id=')) {
+        return genCostMode === 'ok' ? send({ data: { total_cost: 0.0007 } }) : send({ data: {} });
       }
       if (req.method === 'POST' && req.url?.endsWith('/batches') && refuseBatch) {
         return send({ error: { message: "Model 'vendor-a/model-x' does not have a :batch endpoint.", code: 400 } }, 400);
       }
       if (req.method === 'POST' && req.url?.endsWith('/batches')) {
+        const usage = batchNoCost ? { prompt_tokens: 100 } : { cost: 0.0021, prompt_tokens: 100 };
         return send({
           id: 'batch-1', status: 'completed',
-          results: [{ custom_id: 'squad', response: { status_code: 200, body: { choices: [{ message: { content: ANSWER } }], usage: { cost: 0.0021, prompt_tokens: 100 } } } }],
+          results: [{ custom_id: 'squad', response: { status_code: 200, body: { id: 'gen-1', choices: [{ message: { content: ANSWER } }], usage } } }],
         });
       }
       send({ id: 'batch-1', status: 'completed' });
@@ -174,6 +187,65 @@ describe('squad --oneshot and --batch', () => {
       expect(row).toMatchObject({ mode: 'oneshot', outcome: 'finish', steps: 1 });
     } finally {
       refuseBatch = false;
+    }
+  });
+
+  it('a batch with no usage.cost reads the cost from the generation endpoint, and the ledger has it', SPAWN, async () => {
+    const { ledger, args } = setup();
+    seen = [];
+    genCostMode = 'ok';
+    batchNoCost = true;
+    try {
+      const r = await run(['--role', 'reviewer', '--batch', ...args], {}, ledger);
+      expect(r.code).toBe(0);
+      expect(r.stdout).toMatch(/--- vendor-a\/model-x · 1 step · \$0\.0007 .*\(batch\)/);
+      // The generation id is the answer's own id (gen-1 in the stub), not the batch id.
+      expect(seen.some((s) => s.url.includes('/generation?id=gen-1'))).toBe(true);
+      const row = JSON.parse(readFileSync(ledger, 'utf8').trim().split('\n').at(-1) ?? '{}');
+      expect(row).toMatchObject({ mode: 'batch', cost: 0.0007, outcome: 'finish' });
+      expect(row).not.toHaveProperty('costUnknown');
+    } finally {
+      batchNoCost = false;
+      genCostMode = 'ok';
+    }
+  });
+
+  it('a batch whose cost stays unknown records null and costUnknown, and says cost unknown', SPAWN, async () => {
+    const { ledger, args } = setup();
+    seen = [];
+    genCostMode = 'missing';
+    batchNoCost = true;
+    try {
+      const r = await run(['--role', 'reviewer', '--batch', ...args], {}, ledger);
+      expect(r.code).toBe(0);
+      expect(r.stdout).toMatch(/--- vendor-a\/model-x · 1 step · cost unknown/);
+      const row = JSON.parse(readFileSync(ledger, 'utf8').trim().split('\n').at(-1) ?? '{}');
+      expect(row).toMatchObject({ mode: 'batch', cost: null, costUnknown: true, outcome: 'finish' });
+    } finally {
+      batchNoCost = false;
+      genCostMode = 'ok';
+    }
+  });
+
+  it('an unknown --role is refused before any file or request', SPAWN, async () => {
+    const { ledger, args } = setup();
+    seen = [];
+    const r = await run(['--role', '../evil', ...args], {}, ledger);
+    expect(r.code).toBe(1);
+    expect(seen).toHaveLength(0);
+  });
+
+  it('an HTTP error logs the status and a short code, never the provider body', SPAWN, async () => {
+    const { ledger, args } = setup();
+    seen = [];
+    chatFail = true;
+    try {
+      const r = await run(['--role', 'reviewer', '--oneshot', ...args], {}, ledger);
+      expect(r.code).toBe(1);
+      expect(r.stdout).toContain('HTTP 402 insufficient_credits');
+      expect(r.stdout).not.toContain('echoed-prompt-secret');
+    } finally {
+      chatFail = false;
     }
   });
 

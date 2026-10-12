@@ -14,11 +14,21 @@ if (argv.includes('--help')) { stdout.write(`${USAGE}\n`); exit(0); }
 
 const role = arg('role');
 const issue = arg('issue');
-if (!['reviewer', 'security'].includes(role) || !issue) { stderr.write(`${USAGE}\n`); exit(1); }
+// The issue goes into the title and the gh call: digits only, so nothing else can ride along (#169 review).
+if (!['reviewer', 'security'].includes(role) || !/^\d+$/.test(String(issue ?? ''))) { stderr.write(`${USAGE}\n`); exit(1); }
 const base = arg('base', 'origin/main');
+// A base is a revision, never an option: one starting with '-' would be read by git as a flag.
+if (String(base).startsWith('-')) { stderr.write(`base must be a revision, not an option: ${base}\n`); exit(1); }
 const maxKb = Number(arg('max-kb', '120'));
 if (!Number.isFinite(maxKb) || maxKb <= 0) { stderr.write(`${USAGE}\n`); exit(1); }
 const REPO = resolve(arg('repo') ?? execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim());
+// The base must name a commit in this repo; --verify --quiet makes a bad one a plain failure, not a git error text.
+try {
+  execFileSync('git', ['rev-parse', '--verify', '--quiet', `${base}^{commit}`], { cwd: REPO, encoding: 'utf8', stdio: 'ignore' });
+} catch {
+  stderr.write(`base is not a commit: ${base}\n`);
+  exit(1);
+}
 
 // Same idea as run.mjs: never hand over env files, keys, npm/ssh config, git internals or the user's tower folder.
 const SECRET = /(^|\/)(\.env[^/]*|.*\.(key|pem|p12|pfx|crt)|id_rsa[^/]*|\.npmrc|\.git|node_modules|\.ssh|\.config\/flow-tower)(\/|$)/i;
@@ -95,6 +105,7 @@ const head = [
 
 // Tests are left out on purpose: they are large and the review is of src, bin and tools.
 const diffRaw = git('diff', base, '--', 'src', 'bin', 'tools');
+// (the -- above keeps the paths from being read as options; base was checked as a commit already)
 const diffHead = '## Diff\n\nTests are not included (git diff '
   + `${base} -- src bin tools).\n\n\`\`\`diff\n`;
 const diffTail = '\n```\n';

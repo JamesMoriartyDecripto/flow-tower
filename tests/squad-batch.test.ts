@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BATCH_NOTE, batchOne, chatUrl } from '../tools/squad/batch.mjs';
+import { BATCH_NOTE, batchOne, chatUrl, generationCost } from '../tools/squad/batch.mjs';
 
 const KEY = 'sk-or-test-secret-key';
 const body = { model: 'vendor-a/model-x', messages: [{ role: 'user', content: 'review this diff' }] };
@@ -148,6 +148,119 @@ describe('squad batch (one review through the Batch API)', () => {
     expect(all).not.toContain(KEY);
     expect(all).not.toContain('review this diff');
     expect(lines.some((l) => l.includes('batch-1'))).toBe(true);
+  });
+
+  it('a create that answers 2xx without an id logs that a batch may exist, and does not poll', async () => {
+    const lines: string[] = [];
+    const calls: Call[] = [];
+    const fetchImpl = async (url: string, init: { method?: string } = {}) => {
+      calls.push({ method: init.method ?? 'GET', url });
+      return { ok: true, status: 200, json: async () => ({ status: 'in_progress' }) };
+    };
+    expect(await run(fetchImpl, { log: (l: string) => lines.push(l) })).toEqual({ ok: false, error: 'create failed' });
+    expect(calls.map((c) => c.method)).toEqual(['POST']);
+    expect(lines.join('\n')).toContain('a batch may have been created and cannot be deleted');
+  });
+
+  it('a 2xx create whose body is not JSON still counts as created when it has an id', async () => {
+    const calls: Call[] = [];
+    const fetchImpl = async (url: string, init: { method?: string } = {}) => {
+      const method = init.method ?? 'GET';
+      calls.push({ method, url });
+      if (method === 'POST') return { ok: true, status: 200, json: async () => { throw new SyntaxError('bad json'); } };
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+    expect(await run(fetchImpl)).toEqual({ ok: false, error: 'create failed' });
+    expect(calls.map((c) => c.method)).toEqual(['POST']);
+  });
+
+  it('retries the delete once, logs deleted only on success, and never logs the body', async () => {
+    const lines: string[] = [];
+    let deletes = 0;
+    const fetchImpl = async (_url: string, init: { method?: string } = {}) => {
+      const method = init.method ?? 'GET';
+      if (method === 'POST') return { ok: true, status: 200, json: async () => ({ id: 'batch-1', status: 'completed', results: [answer('ok')] }) };
+      if (method === 'DELETE') {
+        deletes++;
+        return deletes === 1 ? { ok: false, status: 500, json: async () => ({ secret: 'x' }) } : { ok: true, status: 200, json: async () => ({}) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+    expect(await run(fetchImpl, { log: (l: string) => lines.push(l) })).toMatchObject({ ok: true });
+    expect(deletes).toBe(2);
+    expect(lines).toContain('squad batch batch-1: deleted');
+  });
+
+  it('when both deletes fail, logs the HTTP status and that the batch stays up to 30 days', async () => {
+    const lines: string[] = [];
+    const fetchImpl = async (_url: string, init: { method?: string } = {}) => {
+      const method = init.method ?? 'GET';
+      if (method === 'POST') return { ok: true, status: 200, json: async () => ({ id: 'batch-1', status: 'completed', results: [answer('ok')] }) };
+      if (method === 'DELETE') return { ok: false, status: 503, json: async () => ({ error: { message: KEY } }) };
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+    await run(fetchImpl, { log: (l: string) => lines.push(l) });
+    expect(lines).toContain('squad batch batch-1: delete failed (HTTP 503): the batch stays on OpenRouter up to 30 days');
+    expect(lines.join('\n')).not.toContain(KEY);
+  });
+
+  it('encodes the id in every batch URL, so a hostile id cannot change the path', async () => {
+    const calls: Call[] = [];
+    const evil = 'x/../../chat?a=1';
+    const fetchImpl = async (url: string, init: { method?: string } = {}) => {
+      const method = init.method ?? 'GET';
+      calls.push({ method, url });
+      if (method === 'POST') return { ok: true, status: 200, json: async () => ({ id: evil, status: 'completed', results: [answer('ok')] }) };
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+    await run(fetchImpl);
+    const batchCalls = calls.filter((c) => c.url.includes('/batches/'));
+    expect(batchCalls.length).toBeGreaterThan(0);
+    for (const c of batchCalls) expect(c.url).toContain(encodeURIComponent(evil));
+  });
+
+  it('gives every batch request an abort signal', async () => {
+    const signals: unknown[] = [];
+    const fetchImpl = async (_url: string, init: { method?: string; signal?: unknown } = {}) => {
+      signals.push(init.signal);
+      if ((init.method ?? 'GET') === 'POST') return { ok: true, status: 200, json: async () => ({ id: 'batch-1', status: 'completed', results: [answer('ok')] }) };
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+    await run(fetchImpl);
+    expect(signals.length).toBeGreaterThan(1);
+    for (const s of signals) expect(s).toBeInstanceOf(AbortSignal);
+  });
+
+  it('generationCost reads total_cost from the generation endpoint, with the id encoded', async () => {
+    const urls: string[] = [];
+    const fetchImpl = async (url: string) => {
+      urls.push(url);
+      return { ok: true, status: 200, json: async () => ({ data: { total_cost: 0.0031 } }) };
+    };
+    expect(await generationCost({ key: KEY, id: 'gen-1&x', fetchImpl, sleep: async () => {} })).toBe(0.0031);
+    expect(urls).toEqual(['https://openrouter.ai/api/v1/generation?id=gen-1%26x']);
+  });
+
+  it('generationCost retries three times five seconds apart, then gives null, never 0', async () => {
+    const sleeps: number[] = [];
+    let tries = 0;
+    const fetchImpl = async () => { tries++; return { ok: true, status: 200, json: async () => ({ data: {} }) }; };
+    const out = await generationCost({ key: KEY, id: 'gen-1', fetchImpl, sleep: async (ms: number) => { sleeps.push(ms); } });
+    expect(out).toBeNull();
+    expect(tries).toBe(3);
+    expect(sleeps).toEqual([5000, 5000]);
+  });
+
+  it('generationCost takes a later try when the first one lags', async () => {
+    let tries = 0;
+    const fetchImpl = async () => {
+      tries++;
+      return tries < 2
+        ? { ok: false, status: 404, json: async () => ({}) }
+        : { ok: true, status: 200, json: async () => ({ data: { total_cost: 0.5 } }) };
+    };
+    expect(await generationCost({ key: KEY, id: 'gen-1', fetchImpl, sleep: async () => {} })).toBe(0.5);
+    expect(tries).toBe(2);
   });
 
   it('exposes the chat URL under the API base and a one-line note about the 30-day policy', () => {
