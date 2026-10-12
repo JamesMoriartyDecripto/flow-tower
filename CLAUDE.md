@@ -52,7 +52,11 @@
 - A test that spawns `serve` or the CLI needs an explicit `{ timeout }` (see `tests/connect.test.ts`).
 - The CLI server (`bin/flow-tower.js`: `npm run dev`, the e2e server, every `flow-tower` serve) loads `vite.config.ts` once and passes it inline, so editing `src/server/*` or `src/core/*` never restarts it: restart it by hand to run new server code. In-process restarts leaked the old server each time (#99, upstream Rolldown #10887).
 - Some environments block shell commands containing `.env` or `pip install`: use `import { env } from 'node:process'` and file-edit tools.
-- zsh does not word-split unquoted `$var`; use `${=var}`.
+- zsh does not word-split unquoted `$var`; use `${=var}`. The Linux test server has no zsh (so no `tools/squad/steps.sh`, #176) and Node 20 as `/usr/bin/node`: use `/opt/node22/bin`.
+- On the test server, port 5317 is the live hub (the `flowtower` systemd service): run e2e and scratch servers on another port, never `reuseExistingServer` against it.
+- `pkill -f "<pattern>"` also matches the shell running it when the pattern is in its own command line: kill by PID.
+- Code passed to Playwright's `page.evaluate` runs as plain JS: no TypeScript syntax inside it (a generic became a comparison).
+- `flow-tower export --pdf` needs a Playwright browser (`npx playwright install chromium`); the document page waits for 3D snapshots (software WebGL on a server: 20-60 s per page). e2e tests not about 3D use `snap=0`.
 - Tower files read only inside their project (git root or opened folder; `loader.ts` `projectOf`). A dogfood tower can use `root: ../..` because the repo is the project.
 - Each server port has its own Vite cache (`node_modules/.vite/port-<port>`, set in `bin/flow-tower.js`): never point two servers at one cache, or open pages fail on renamed dependency chunks.
 - E2E: Playwright's bundled Chromium does not run on macOS 13, so `playwright.config.ts` uses `channel: 'chrome'`. Tests read state through `window.__flowTower.store` (dev only). Never edit `src/` or `examples/` while `npm run e2e` runs: HMR and library reloads make it flaky. Playwright empties `test-results/` at start: do not redirect output there. A CLI `--reporter` replaces the config reporters, so `examples/release-auditor/reports/e2e.log` is only written by a plain `npm run e2e`; commit it only from a full run. E2E specs cannot import app modules that load font files (`theme.ts` and what imports it): Node has no loader for `.woff`.
