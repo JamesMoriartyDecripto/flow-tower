@@ -121,7 +121,10 @@ writes them to `towers/<machine>/<name>/` in its library and reloads. `--files` 
 reference (inside the folder, text types only, never `.env`, keys or similar), so viewers can open them;
 the default sends no file contents. The local library re-sends a shared tower within ~15 s of a change
 (`/api/sharing` shows each tower's `syncedAt`), and nothing while sharing is paused. `flow-tower unshare
-<name>` removes it from the hub; `share --list` shows what is shared. Only metadata is relayed; while the hub is down events queue in memory
+<name>` removes it from the hub; `share --list` shows what is shared.
+
+On the hub, each library card names its source (THIS HUB, or the device that shared it), and the FROM row filters by
+device, with a green dot for a device online now; the filter stays in the URL (`?source=<machine>`). Only metadata is relayed; while the hub is down events queue in memory
 ([what is relayed, the queue, `/api/sharing`](hub-reference.md#satellite-a-local-library-that-relays-to-the-hub)).
 
 To pause sharing, set `paused: true` in `config.json` or use Settings › Sharing › Pause; a pause empties
