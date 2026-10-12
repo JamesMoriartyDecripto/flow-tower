@@ -10,13 +10,15 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { argv, env, exit, on } from 'node:process';
+import { argv, env, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { checkDocument, failedChecks, type DomFacts, type WorkspaceFacts } from '../core/doc-check.ts';
 import { towerDoc } from '../core/doc.ts';
 import { libraryDoc, libraryProjects } from '../core/docLibrary.ts';
 import { loadLibrary } from '../core/loader.ts';
-import { slug } from '../app/exportSvg.ts';
+
+/** The file-name slug; the app's own copy lives in exportSvg.ts, which Node cannot load here (extensionless imports). */
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'tower';
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PAGE_TIMEOUT_MS = 120_000;
@@ -203,7 +205,7 @@ export async function main(args = argv.slice(2)): Promise<void> {
   try { opts = parseArgs(args); } catch (err) { console.error((err as Error).message); exit(1); }
   // Ctrl-C aborts the run: its finally closes the browser and kills the server before the process exits.
   const ctrl = new AbortController();
-  on('SIGINT', () => ctrl.abort());
+  process.on('SIGINT', () => ctrl.abort());
   try {
     const code = await run(opts, ctrl.signal);
     exit(ctrl.signal.aborted ? 130 : code);
