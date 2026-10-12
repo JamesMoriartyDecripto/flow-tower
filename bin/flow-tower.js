@@ -46,6 +46,10 @@ Usage
   flow-tower history export [--user <u>] | delete --user <u> | info
                                                         content-free events and totals in the user folder:
                                                         export prints JSONL, delete erases one user's rows
+  flow-tower export <file.tower.yaml | dir> --pdf [--level 1|2|3] [--out <file.pdf>] [--port N]
+                                                        the tower's document as a PDF, from headless Chromium;
+                                                        every check must pass or no file is written (needs a browser:
+                                                        npx playwright install chromium)
   flow-tower guide                                      print the procedure to generate a tower from a codebase
   flow-tower install-skill [--target <t>] [--project]   install all seven skills for your coding agent
                                                         <t>: claude (default), codex, pi, hermes, cursor, agents
@@ -140,6 +144,10 @@ const { values, positionals } = parseArgs({
     json: { type: 'boolean', default: false },
     list: { type: 'boolean', default: false },
     'with-examples': { type: 'boolean', default: false },
+    // export: the PDF of a tower's document (src/cli/export.ts); the options are re-appended in commands.js.
+    pdf: { type: 'boolean', default: false },
+    level: { type: 'string' },
+    out: { type: 'string' },
     // share / unshare (#164): --name is the hub folder's name, --files adds the referenced files, --force unshares offline.
     name: { type: 'string' },
     files: { type: 'boolean', default: false },

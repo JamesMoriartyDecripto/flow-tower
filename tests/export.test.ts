@@ -57,6 +57,24 @@ describe('SVG export', () => {
     expect(layerFile(folders[0].tower.layers[2])).toMatch(/^L03-[a-z0-9-]+$/);
   });
 
+  it('bare drops the layer title and the caption, and keeps the frames, nodes and edges', async () => {
+    const { workspace } = await loadLibrary(['examples/dev-squad']);
+    const tower = workspace.towers[workspace.projects[0]];
+    const layout = await layoutTower(tower);
+    const full = towerSvg(tower, layout, { layers: [1] });
+    const bare = towerSvg(tower, layout, { layers: [1], bare: true });
+    // The accessible <title> keeps the layer name; only the visible title text and the caption are dropped.
+    expect(bare).not.toContain(`>${tower.layers[1].title}</text>`);
+    expect(bare).not.toContain('· Flow Tower</text>');
+    expect(count(bare, /<g class="node"/g)).toBe(tower.layers[1].nodes.length);
+    expect(count(bare, /marker-end=/g)).toBe(tower.layers[1].edges.length);
+    expect(count(bare, /<rect x="\d+(\.\d+)?" y="\d+(\.\d+)?" width="\d+(\.\d+)?" height="\d+(\.\d+)?" rx="6"/g)).toBe(1);
+    expect(size(bare)).toEqual(size(full));
+    // The default output is untouched: the title and caption are still there.
+    expect(full).toContain(tower.layers[1].title);
+    expect(full).toContain('· Flow Tower');
+  });
+
   it('escapes text and stays well-formed', async () => {
     const def = TowerSchema.parse({
       name: 'A & B <tower>',

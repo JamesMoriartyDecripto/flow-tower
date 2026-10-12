@@ -160,11 +160,25 @@ Wire Claude Code, the Agent SDK, Codex, Pi, Hermes, your own scripts, and tokens
 | **F**, **O** | Live feed, auto-orbit |
 | **V** | Voice commands: start / stop listening (also in the library); see [docs/voice.md](docs/voice.md) |
 | **P**, **X** | Download a ZIP of every layer and the map of the project and its sub-towers: Full HD PNGs (plus the 3D view), or editable SVGs |
+| **D** | Documentation as PDF: the menu picks one of the four levels (below) for the root project |
 | **?** | Every keyboard shortcut |
 
 Everything works without a mouse: **Tab** moves between HUD buttons, **Enter / Space** press them.
 
 The bottom bar toggles orbit, flow particles and the rendering quality (`eco` / `balanced` / `high`), and has the PNG / SVG export buttons. You can also force a preset with `?quality=eco`.
+
+### Documentation as PDF
+
+The PDF menu (**D**, or the PDF button) prints the document in a new tab. Four levels:
+
+| Level | What it prints |
+|---|---|
+| 1 Images | One page per layer: the drawing |
+| 2 Overview | Cover, document control, summary, and a table of the layers and nodes |
+| 3 Full documentation | Level 2 plus a sheet for every node, nested towers, findings and sources |
+| 4 Library | Several projects in one file: a library cover, a contents list, then each project at level 2. Shown when the workspace has more than one project; `?doc=library&level=4&projects=a,b` names the projects (all of them when omitted) |
+
+From the command line, `flow-tower export <tower file | dir> --pdf [--level 1|2|3|4] [--out file.pdf]` writes the PDF. Before writing it, the export runs blocking checks (every layer, node and sub-tower is printed, the counts match the workspace, every link has a target, no raw JSON); a failed check prints what it found and writes no file. Level 4 needs a directory and runs the same checks for each project.
 
 Links can open a tower, a layer or a node directly: `?tower=request` (the id, the file name without `.tower.yaml`, or the name), `&layer=security` (focuses the layer), `&node=handle.problem` (selects the node). Handy for sharing and for screenshots.
 

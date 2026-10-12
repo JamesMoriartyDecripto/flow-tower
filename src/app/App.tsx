@@ -10,6 +10,7 @@ import { LiveFeed } from './hud/LiveFeed';
 import { LiveChips } from './hud/LiveChips';
 import { Settings } from './hud/Settings';
 import { Shortcuts } from './hud/Shortcuts';
+import { PdfMenu, usePdfMenu } from './hud/PdfMenu';
 import { cycleConnection, jumpBack } from './hud/Connections';
 import { focusInspector, panelKey, panelOf } from './hud/focusNav';
 import { Tooltip } from './hud/Tooltip';
@@ -23,6 +24,7 @@ import { useLive, useLiveSync } from './live';
 import { useDemoSimulator } from './demo';
 import { exportPng, exportSvg } from './exporter';
 import { Snapshot } from './scene/Snapshot';
+import { snapTowerOf, useSnapshotPost } from './SnapPage';
 import { navigate, nextSubTower, nudgeCamera, stepLayer, type Dir } from './keynav';
 import { Effects } from './scene/Effects';
 import { TowerScene } from './scene/Tower';
@@ -43,6 +45,9 @@ export function App() {
   const hubOpen = useHub((s) => s.open);
   const feedOpen = useLive((s) => s.feedOpen);
   useDefaultView();
+  // A snapshot page (`?snap=1`) is the bare 3D tower for the document view: no HUD, and it posts its PNG to the parent.
+  const snap = snapTowerOf(location.search);
+  useSnapshotPost(snap);
   const [showIssues, setShowIssues] = useState(false);
   const broken = tower && tower.layers.length === 0;
 
@@ -63,6 +68,7 @@ export function App() {
           <Snapshot />
         </Suspense>
       </Canvas>
+      {snap === undefined && <>
       <div className="scanlines" />
       <LiveChips />
       <div className="hud">
@@ -83,10 +89,12 @@ export function App() {
       <FileViewer />
       <Settings />
       <Shortcuts />
+      <PdfMenu />
       <Tooltip />
       <Library />
       <VoiceCaption />
-      {!tower && (
+      </>}
+      {snap === undefined && !tower && (
         <div className="boot">
           <div>
             <div className="title">{error ? 'Link failure' : 'Initializing tower'}</div>
@@ -153,6 +161,8 @@ function useKeyboard() {
       if (e.key === '?') { prefs.set({ help: !prefs.help }); return; }
       if (prefs.help) { if (e.key === 'Escape') prefs.set({ help: false }); return; }
       if (prefs.open) { if (e.key === 'Escape') prefs.set({ open: false }); return; }
+      // The PDF menu is modal too: Esc closes it, other keys wait until it is closed.
+      if (usePdfMenu.getState().open) { if (e.key === 'Escape') usePdfMenu.getState().show(false); return; }
       // The Hub panel has no modal: it takes Esc before the usual chain (file → node → layer → tower).
       if (e.key === 'Escape' && useHub.getState().open) { useHub.getState().close(); return; }
       if (e.key === ',') { e.preventDefault(); prefs.set({ open: true }); return; }
@@ -233,6 +243,8 @@ function useKeyboard() {
         void exportPng();
       } else if (key === 'x' && tower) {
         void exportSvg();
+      } else if (key === 'd' && tower) {
+        usePdfMenu.getState().show(true);
       }
     };
     window.addEventListener('keydown', onKey);

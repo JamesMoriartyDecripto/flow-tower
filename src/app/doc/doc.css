@@ -1,0 +1,354 @@
+/* The document page: white paper, dark text, the accent for headings and rules only. Print-first; readable on screen. */
+
+:root {
+  --paper: #ffffff; --ink: #111827; --muted: #4b5563; --accent: #c2410c; --rule: #e5e7eb; --zebra: #f8fafc;
+  --sans: "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/*
+ * Page frame: the running header and the footer are CSS margin boxes, which repeat on every page inside the
+ * margin and never overlap the content. Chrome prints them for portrait and landscape pages alike. The
+ * margin boxes are repeated in the named landscape page, because a named page does not inherit them. The
+ * icon stroke and rules take the accent as a hex value: a data URL cannot read the CSS variable.
+ */
+@page {
+  size: A4;
+  margin: 26mm 14mm 18mm;
+  @top-left {
+    content: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 32 32'><g fill='none' stroke='%23c2410c' stroke-width='3'><path d='M6 8h20M6 16h20M6 24h20'/></g></svg>") "  FLOW//TOWER";
+    font: 800 9pt "Orbitron", sans-serif; letter-spacing: .16em; color: var(--ink); vertical-align: bottom;
+    padding-bottom: 3mm; border-bottom: .3mm solid #c2410c;
+  }
+  @top-right {
+    content: var(--doc-running, ""); font: 600 7pt var(--sans); letter-spacing: .12em; color: var(--muted);
+    vertical-align: bottom; padding-bottom: 3mm; border-bottom: .3mm solid #c2410c;
+  }
+  @bottom-left { content: var(--doc-footer, ""); font: 8.5pt var(--sans); color: var(--muted); }
+  @bottom-right { content: counter(page) " / " counter(pages); font: 8.5pt var(--mono); color: var(--muted); }
+}
+/* The title page carries no running header: its own large mark and title stand for it. */
+@page :first {
+  @top-left { content: none; border: 0; }
+  @top-right { content: none; border: 0; }
+}
+
+/* Layer pages are wide: the heading and its drawing share one landscape page. */
+@page layer-image {
+  size: A4 landscape;
+  margin: 26mm 14mm 16mm;
+  @top-left {
+    content: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 32 32'><g fill='none' stroke='%23c2410c' stroke-width='3'><path d='M6 8h20M6 16h20M6 24h20'/></g></svg>") "  FLOW//TOWER";
+    font: 800 9pt "Orbitron", sans-serif; letter-spacing: .16em; color: var(--ink); vertical-align: bottom;
+    padding-bottom: 3mm; border-bottom: .3mm solid #c2410c;
+  }
+  @top-right {
+    content: var(--doc-running, ""); font: 600 7pt var(--sans); letter-spacing: .12em; color: var(--muted);
+    vertical-align: bottom; padding-bottom: 3mm; border-bottom: .3mm solid #c2410c;
+  }
+  @bottom-left { content: var(--doc-footer, ""); font: 8.5pt var(--sans); color: var(--muted); }
+  @bottom-right { content: counter(page) " / " counter(pages); font: 8.5pt var(--mono); color: var(--muted); }
+}
+
+html, body { background: var(--paper); color: var(--ink); margin: 0; }
+
+body {
+  font: 10pt/1.5 var(--sans);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.doc { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; }
+@media print { .doc { max-width: none; padding: 0; margin: 0; } }
+
+/* Headings: the accent, sans; sizes from the print scale (20 / 14 / 11 pt). */
+h1, h2, h3, h4, h5 { font-family: var(--sans); color: var(--accent); line-height: 1.25; margin: 0.9em 0 0.4em; }
+h1 { font-size: 30pt; font-weight: 700; margin-top: 0; }
+h2 { font-size: 20pt; font-weight: 700; border-bottom: 1.5px solid var(--accent); padding-bottom: 2px; }
+h3 { font-size: 14pt; font-weight: 700; }
+h4 { font-size: 11pt; font-weight: 700; color: var(--ink); margin: 0; }
+h5 { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0.6em 0 0.2em; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.muted, .lead { color: var(--muted); }
+.mono, code { font-family: var(--mono); font-size: 0.9em; }
+code { background: var(--zebra); border: 1px solid var(--rule); border-radius: 2px; padding: 0 3px; color: var(--ink); }
+.kicker { font: 600 10pt var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin: 0; }
+
+/* Chips: type and status, small and coloured. Greyscale still reads by the label. */
+.chip { display: inline-block; font: 600 7.5pt var(--sans); letter-spacing: 0.03em; text-transform: lowercase; border-radius: 3px; padding: 0 5px; margin: 0 3px 0 0; line-height: 1.5; border: 1px solid transparent; }
+.chip-type { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+.chip-green { background: #dcfce7; color: #166534; border-color: #86efac; }
+.chip-amber { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.chip-blue { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+.chip-grey { background: #e5e7eb; color: #4b5563; border-color: #d1d5db; }
+.chip-tag { background: transparent; color: var(--accent); border-color: var(--accent); font-size: 8.5pt; text-transform: none; padding: 0 6px; }
+
+/* Dashboard cues, print-safe: the navy plate and the live colours of the app, kept to the cover, the
+   status borders and the verdict. The print-colour-adjust rule keeps the navy band when the printer asks for none. */
+:root {
+  --plate: #0a1f3f; --bg: #030a18; --orange-ink: #ff8a1f; --live-run: #3ee6ff; --live-done: #5cff9d; --live-error: #ff4d5e;
+}
+html, body, .doc, .cover, .exec-summary, .control, .node, .chip, .seg, .band { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+/* Cover: a navy band across the top third with the mark and title, then the description, tiles and the map on white. */
+.cover { break-after: page; display: flex; flex-direction: column; }
+.cover .band {
+  position: relative; background: var(--plate); color: #e8f1ff; margin: -24px -16px 18px; padding: 28px 32px 24px;
+  min-height: 33vh; display: flex; flex-direction: column; justify-content: flex-end;
+}
+/* On paper the cover is exactly one page tall (A4 minus the @page margins), so the map shrinks to the room left
+   instead of pushing the footer onto a second page. */
+@media print {
+  .cover .band { margin: 0 0 18px; min-height: 70mm; }
+  .cover { height: calc(297mm - 26mm - 18mm - 2mm); overflow: hidden; }
+}
+.cover .band h1 { color: #ffffff; font-family: "Orbitron", var(--sans); font-size: 26pt; letter-spacing: .04em; margin: 8px 0 4px; }
+.cover .band .kicker { color: var(--orange-ink); }
+.cover .band .mark { color: #e8f1ff; }
+.cover .band .mark-word b { color: var(--orange-ink); }
+.cover .band .mark-icon { color: var(--orange-ink); }
+/* Corner brackets, as the library cards carry them: two short strokes in the top-left and bottom-right. */
+.corners { position: relative; }
+.corners::before, .corners::after { content: ''; position: absolute; width: 12px; height: 12px; pointer-events: none; }
+.corners::before { top: 0; left: 0; border-top: 1.5px solid var(--orange-ink); border-left: 1.5px solid var(--orange-ink); }
+.corners::after { bottom: 0; right: 0; border-bottom: 1.5px solid var(--orange-ink); border-right: 1.5px solid var(--orange-ink); }
+.cover .band.corners::before, .cover .band.corners::after { border-color: var(--live-run); }
+.tile.corners::before, .tile.corners::after { border-color: var(--accent); width: 8px; height: 8px; }
+
+/* Document control: a framed table, label | value, no date. */
+.control-page { break-after: page; }
+table.frame { border: 1.5px solid var(--accent); font-size: 9.5pt; }
+table.frame th { width: 30%; color: var(--muted); font-weight: 600; text-align: left; border-bottom: 1px solid var(--rule); padding: 6px 10px; }
+table.frame td { border-bottom: 1px solid var(--rule); padding: 6px 10px; overflow-wrap: break-word; }
+table.frame tr:last-child th, table.frame tr:last-child td { border-bottom: 0; }
+
+/* Executive summary: counts only, one page. The verdict tile takes the dashboard's live colours. */
+.exec-summary { break-after: page; }
+.exec-summary .tiles { grid-template-columns: repeat(4, 1fr); }
+.tile.verdict-pass { border-top-color: var(--live-done); }
+.tile.verdict-pass strong { color: #0f7a3a; }
+.tile.verdict-warnings { border-top-color: #d97706; }
+.tile.verdict-warnings strong { color: #92400e; }
+.tile.verdict-errors { border-top-color: var(--live-error); }
+.tile.verdict-errors strong { color: #b91c1c; }
+.stack { margin: 12px 0; }
+.bar { display: flex; height: 22px; border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; }
+.bar .seg { display: flex; align-items: center; justify-content: center; min-width: 0; font: 600 8pt var(--mono); color: #111827; flex-basis: 0; }
+.seg-type { background: #e2e8f0; }
+/* Type segments: eight steps between the dashboard's navy plate and its cyan, so neighbours stay distinct in print. */
+.seg-type.t0 { background: #0a1f3f; } .seg-type.t1 { background: #1d4e89; } .seg-type.t2 { background: #2f80c0; }
+.seg-type.t3 { background: #3ee6ff; } .seg-type.t4 { background: #9adbe8; } .seg-type.t5 { background: #c2410c; }
+.seg-type.t6 { background: #f59e0b; } .seg-type.t7 { background: #94a3b8; }
+.bar .seg + .seg { border-left: 1px solid #ffffff; }
+.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.seg-chip-green { background: #bbf7d0; }
+.seg-chip-amber { background: #fde68a; }
+.seg-chip-blue { background: #bfdbfe; }
+.seg-chip-grey { background: #d1d5db; }
+.legend-line { margin: 4px 0 0; font-size: 8.5pt; color: var(--muted); }
+.legend-item { margin-right: 12px; }
+table.models { width: auto; min-width: 60%; margin-top: 12px; }
+td.num, th.num { text-align: right; }
+
+/*
+ * Overview charts. One 12-column grid with a fixed 6mm gutter; every chart is a card, and a card spans 6 or 12
+ * columns. Cards in a row stretch to the same height, so the drawing scales inside its card. Two fixed pages:
+ * page B starts a new page, unless the chapter is short (the class is set from the data, not measured), in which
+ * case its rows flow on after page A's snapshot.
+ */
+.overview { margin: 0; }
+.overview h3 { margin: 0 0 3mm; }
+.overview .page-b { break-before: page; }
+.overview-flow .page-b { break-before: auto; margin-top: 6mm; }
+.overview-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6mm; align-items: stretch; }
+.overview-grid > .span-6 { grid-column: span 6; }
+.overview-grid > .span-12 { grid-column: span 12; }
+.page-a .overview-grid { margin-top: 6mm; }
+
+/* The shared metrics of every bar chart: the label column, the track and the value column are the same width in
+   every card, so the bars start at one x. */
+:root { --bar-label-w: 34mm; --bar-h: 3.5mm; --bar-gap: 1.6mm; --bar-value-w: 12mm; }
+
+.chart-card {
+  margin: 0; min-width: 0; box-sizing: border-box; padding: 4mm;
+  border: .2mm solid var(--rule); border-radius: 2px; break-inside: avoid;
+}
+.chart-card > figcaption { display: block; margin: 0 0 3mm; }
+.chart-title {
+  display: block; font: 700 8.5pt var(--sans); font-variant: small-caps; letter-spacing: .08em;
+  color: var(--accent);
+}
+.chart-note { display: block; font-size: 8pt; color: var(--muted); margin-top: 0.5mm; }
+.chart-body { min-width: 0; }
+.chart-body svg { display: block; }
+/* The matrix is square: its viewBox is square, so the width of the card sets the cell size. */
+svg.matrix { width: 100%; height: auto; }
+.matrix-head { font-family: var(--sans); font-size: 9px; font-weight: 700; }
+
+/* Bar rows: label | track | value. The track is a hairline bar; the fill is the share of the largest. */
+.bars { list-style: none; margin: 0; padding: 0; }
+.bar-row {
+  display: grid; grid-template-columns: var(--bar-label-w) minmax(0, 1fr) var(--bar-value-w);
+  align-items: center; column-gap: 2mm; margin-bottom: var(--bar-gap);
+  font-size: 8pt; line-height: 1.2;
+}
+.bar-row:last-child { margin-bottom: 0; }
+.bar-label { text-align: right; color: var(--muted); overflow-wrap: break-word; }
+.bar-track { display: block; height: var(--bar-h); background: var(--rule); }
+.bar-fill { display: flex; height: 100%; max-width: 100%; }
+.bar-seg { display: block; height: 100%; min-width: 0; }
+.bar-seg + .bar-seg { border-left: .2mm solid #ffffff; }
+.bar-value { text-align: left; color: var(--ink); padding-left: 1.5mm; font-variant-numeric: tabular-nums; }
+
+/* Tables in a card take the card's width, with the doc's table style: zebra rows and a repeated header. */
+table.chart-table { width: 100%; margin: 0; font-size: 8.5pt; }
+table.chart-table th, table.chart-table td { overflow-wrap: break-word; white-space: normal; }
+table.chart-table th.num, table.chart-table td.num { white-space: nowrap; }
+table.chart-table tbody tr:nth-child(even) td { background: var(--zebra); }
+.chart-name { max-width: 240px; }
+/* Layer tables have a fixed layout, so they never outgrow the card: the layer column takes 28% and the model or
+   runtime columns share the rest. Headers are smaller, and break only after `/` and `-` (see headerParts): a
+   stray break inside a word would read as a different name. */
+table.chart-table.layer-table { table-layout: fixed; }
+table.chart-table.layer-table th:first-child, table.chart-table.layer-table td:first-child { width: 28%; }
+table.chart-table.layer-table thead th { font-size: 7.5pt; white-space: normal; overflow-wrap: normal; }
+ul.tree, ul.tree ul { list-style: none; margin: 0; padding-left: 18px; border-left: 1px solid var(--rule); }
+ul.tree { padding-left: 0; border-left: 0; }
+ul.tree li { position: relative; padding: 3px 0 3px 12px; font-size: 9.5pt; }
+ul.tree ul > li::before { content: ''; position: absolute; left: -18px; top: 0.9em; width: 12px; border-top: 1px solid var(--rule); }
+.tree-name { font-weight: 600; }
+
+/* Validation: a small severity table, then the numbered findings. */
+table.severity { width: auto; min-width: 40%; }
+table.findings td:first-child { width: 8%; }
+.chip-red { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+.tile { border: 1px solid var(--rule); border-top: 2px solid var(--accent); border-radius: 3px; padding: 6px 10px; }
+.tile strong { display: block; font: 700 18pt var(--sans); color: var(--ink); }
+.tile span { font-size: 8.5pt; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.meta { color: var(--muted); font-size: 9.5pt; margin: 4px 0; }
+.cover .image.map { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; margin-top: 14px; }
+.cover .image.map svg { max-height: 100%; width: auto; max-width: 100%; }
+.doc-credit { color: var(--muted); font-size: 8.5pt; margin: 10px 0 0; }
+.cover .mark-lg { margin-bottom: 18px; }
+.cover .kicker { margin-top: 2px; }
+
+/* The mark: the three-stroke icon and the FLOW//TOWER wordmark, as in the app's top bar. */
+.mark { display: inline-flex; align-items: center; gap: 0.45em; color: var(--ink); }
+.mark-icon { display: block; color: var(--accent); }
+.mark-word { font: 800 1em/1 "Orbitron", sans-serif; letter-spacing: 0.16em; white-space: nowrap; }
+.mark-word b { color: var(--accent); font-weight: 800; }
+.mark-lg { font-size: 30pt; gap: 0.35em; }
+.mark-lg .mark-icon { width: 11mm; height: 11mm; }
+
+/*
+ * The on-screen header line: the tower and level, right-aligned, over a hairline accent rule. It is not
+ * fixed; in print it is hidden, since the @page margin boxes draw the running header instead.
+ */
+.letterhead {
+  display: flex; justify-content: flex-end; align-items: center;
+  margin: 0 0 14px; padding-bottom: 2px; border-bottom: 0.5pt solid var(--accent);
+}
+.letterhead-title { font: 600 8.5pt var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); text-align: right; }
+@media print { .letterhead { display: none; } }
+
+/* Contents: chapters as heading rows, layers under them. One indent step per depth (14pt); on paper the
+   rows flow in two columns, and a nested chapter's heading spans both so its layers start below it. */
+.toc { break-after: page; }
+.toc ol { list-style: none; padding: 0; margin: 0; }
+.toc li { border-bottom: 1px dotted var(--rule); padding: 3px 0 3px calc(var(--depth, 0) * 14pt); break-inside: avoid; }
+.toc li.depth-0 { --depth: 0; }
+.toc li.depth-1 { --depth: 1; }
+.toc li.depth-2 { --depth: 2; }
+.toc li.depth-3 { --depth: 3; }
+.toc li.toc-chapter { font-weight: 700; color: var(--accent); border-bottom-style: solid; border-bottom-color: var(--rule); margin-top: 6px; }
+.toc li.toc-layer { font-size: 9.5pt; }
+.toc li .code { color: var(--accent); margin-right: 6px; }
+@media print {
+  .toc ol { columns: 2; column-gap: 24px; }
+  .toc li.toc-chapter { column-span: all; }
+}
+
+/* Chapters and layers start on a new page. */
+.chapter { break-before: page; }
+.chapter-head h2 { margin-top: 0; }
+/* The 3D figure: full content width, and a height cap so the heading, the figure and the description fit one portrait page. */
+.snap-figure { margin: 0 0 12px; break-inside: avoid; }
+/* The plate is the dashboard's dark field, with the doc's rounded frame; the image is cropped to the tower, so it fills the width. */
+.snap-plate { position: relative; border-radius: 3px; background: var(--plate); padding: 6px; box-sizing: border-box; overflow: hidden; }
+/* A fixed height and a cover crop: every chapter's 3D view takes the same space on page A. */
+.snap-figure img { display: block; width: 100%; height: 95mm; object-fit: cover; }
+.snap-figure figcaption { font: 600 8.5pt var(--sans); color: var(--muted); margin-top: 4px; }
+.snap-missing { border: .3mm dashed var(--rule); padding: 10mm; text-align: center; color: var(--muted); font: 600 9pt var(--sans); }
+.layer-block { break-before: page; }
+.layer-block:first-of-type { break-before: auto; }
+
+/* A layer page: heading and drawing together, on landscape, scaled to fit the page area without cutting. */
+.layer { break-inside: auto; }
+.layer-page { page: layer-image; break-after: avoid; }
+.layer-page h3 { margin-top: 0; }
+.layer-page .code { color: var(--accent); margin-right: 4px; }
+.layer-image { display: flex; justify-content: center; }
+.image svg { display: block; max-width: 100%; height: auto; }
+.layer-image svg { max-width: 100%; max-height: 150mm; width: auto; }
+
+/* Node table: header repeats on each page, rows zebra, the summary column wider. */
+table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 8px 0 14px; }
+caption { caption-side: top; text-align: left; font: 600 10pt var(--sans); color: var(--ink); padding-bottom: 4px; }
+thead { display: table-header-group; }
+th { text-align: left; color: var(--accent); border-bottom: 1.5px solid var(--accent); padding: 4px 6px; }
+td { border-bottom: 1px solid var(--rule); padding: 4px 6px; vertical-align: top; }
+tr.zebra td { background: var(--zebra); }
+tr { break-inside: avoid; }
+td.name { font-weight: 600; }
+td.runtime { font-size: 8.5pt; }
+th.summary, td.summary { width: 42%; }
+
+/* Node cards: each one kept whole unless it is taller than a page. */
+.details { margin-top: 10px; }
+/* A card is a finding: the left border takes the node's status colour, so the status reads at a glance. */
+.node { break-inside: avoid; border-top: 1px solid var(--rule); border-left: 3px solid var(--rule); padding: 10px 0 10px 10px; }
+.node.status-active { border-left-color: #16a34a; }
+.node.status-experimental { border-left-color: #d97706; }
+.node.status-planned { border-left-color: #2563eb; }
+.node.status-deprecated { border-left-color: #6b7280; }
+.node .ref { color: var(--accent); font-size: 8.5pt; margin-right: 6px; }
+td.ref { color: var(--accent); white-space: nowrap; font-size: 8.5pt; }
+.node-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.node-head .chip { margin: 0; }
+.node .subtower { margin: 4px 0; font-size: 9.5pt; }
+
+/* Fields: label | value in two columns; a list or a pairs table nests inside the value. */
+.fields { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin: 6px 0; font-size: 9.5pt; }
+.fields > div { display: contents; }
+.fields dt { color: var(--muted); }
+.fields dd { margin: 0; overflow-wrap: break-word; min-width: 0; }
+.fields ul.plain { list-style: none; padding: 0; margin: 0; }
+.fields ul.plain li { margin: 0; }
+table.pairs { width: auto; font-size: 9pt; margin: 0; }
+table.pairs th, table.pairs td { border: none; padding: 0 10px 0 0; text-align: left; font-weight: 400; color: var(--ink); }
+/* Keys never break ("Acti/ons" read as noise): the key column takes its natural width and only values wrap. */
+table.pairs th { color: var(--muted); white-space: nowrap; width: 1%; vertical-align: top; overflow-wrap: normal; }
+table.pairs td { overflow-wrap: break-word; vertical-align: top; }
+table.pairs { width: 100%; }
+.fields dt, th, td.ref, td.type, td.status, .chip { overflow-wrap: normal; word-break: normal; }
+th { white-space: nowrap; }
+
+/* Edges: incoming and outgoing side by side, each as `label · kind` with a linked node. */
+.edge-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px; }
+.edges ul, .files ul, .legend ul, .issues ul, .sources ul, .links ul { padding-left: 18px; margin: 2px 0; font-size: 9.5pt; }
+.edges li { margin-bottom: 2px; }
+.files li { font-family: var(--mono); font-size: 8.5pt; word-break: break-all; }
+.files ul.mono, .sources ul.mono { font-family: var(--mono); font-size: 8.5pt; }
+.links { break-inside: avoid; margin-top: 18px; }
+.legend, .issues, .sources { margin-top: 24px; break-inside: avoid-page; }
+
+.doc-message { padding-top: 48px; text-align: center; }
+
+@media print {
+  .toc { break-inside: avoid; }
+  a { color: inherit; }
+  .doc-message a { color: var(--accent); }
+}

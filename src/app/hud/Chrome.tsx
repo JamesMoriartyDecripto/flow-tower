@@ -14,6 +14,7 @@ import { MicButton } from './Voice';
 import { HubChip } from './Hub';
 import { SatChip } from './Sharing';
 import { VERSION_EVENT } from './Updates';
+import { usePdfMenu } from './PdfMenu';
 
 /** Logo, breadcrumb through nested towers, search, validation badge and live-reload indicator. */
 export function TopBar({ onIssues }: { onIssues(): void }) {
@@ -312,6 +313,7 @@ export function Controls() {
       <button className="btn" onClick={resetView} title="Reset the camera to the overview (0)">Reset</button>
       <button className="btn" onClick={() => void exportPng()} disabled={!!busy} title="Download a ZIP of Full HD PNGs: every layer, the map of each tower and its sub-towers, and the 3D view (P)">{busy === 'png' ? `PNG${progress}` : 'PNG'}</button>
       <button className="btn" onClick={() => void exportSvg()} disabled={!!busy} title="Download a ZIP of editable SVG diagrams: every layer and the map of each tower and its sub-towers (X)">{busy === 'svg' ? `SVG${progress}` : 'SVG'}</button>
+      <button className="btn" onClick={() => usePdfMenu.getState().show(true)} title="Documentation as PDF for the whole project, the root tower and not the sub-tower on screen (D)">PDF</button>
     </div>
   );
 }

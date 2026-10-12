@@ -15,12 +15,17 @@ export interface AppState {
   file: boolean;
 }
 
-/** Snapshot of the app store through the dev-only hook (src/app/main.tsx). */
-export const state = (page: Page): Promise<AppState> =>
-  page.evaluate(() => {
+/**
+ * Snapshot of the app store through the dev-only hook (src/app/mountApp.tsx). The app is loaded by a dynamic
+ * import, so the hook can appear after `page.goto` has returned: wait for it instead of assuming it.
+ */
+export const state = async (page: Page): Promise<AppState> => {
+  await page.waitForFunction(() => '__flowTower' in window, undefined, { timeout: 10_000 });
+  return page.evaluate(() => {
     const s = (window as unknown as { __flowTower: { store: { getState(): AppState & { file?: unknown } } } }).__flowTower.store.getState();
     return { stack: s.stack, library: s.library, selected: s.selected, focusedLayer: s.focusedLayer, view: s.view, file: !!s.file };
   });
+};
 
 /** Reports audit progress to the Release Auditor tower, so the sweep is visible live in flow-tower itself. */
 export async function emit(node: string, kind: string, message: string, status?: 'ok' | 'error') {
