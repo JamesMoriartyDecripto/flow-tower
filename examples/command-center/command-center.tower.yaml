@@ -79,7 +79,7 @@ layers:
         type: process
         label: flow-tower --hub
         runtime: hub-vps
-        description: "systemd: Node 22 from /opt/node22 (the official tarball, SHA256-checked; Ubuntu 24.04's /usr/bin/node is Node 20), Restart=on-failure, FLOW_TOWER_HOME set, the library is this folder. ProtectHome=read-only, so ReadWritePaths lists the user folder and Vite's node_modules/.vite and .vite-temp (the bundled config: without it the unit fails at start). Vite warmup transforms the app at start, so the first viewer skips a cold cache. Or docker compose with host networking."
+        description: "systemd: Node 22 from /opt/node22 (the official tarball, SHA256-checked; Ubuntu 24.04's /usr/bin/node is Node 20), Restart=on-failure, FLOW_TOWER_HOME set, the library is this folder. ProtectHome=read-only, so ReadWritePaths lists the user folder, Vite's node_modules/.vite and .vite-temp (the bundled config: without it the unit fails at start) and the library's towers/ (where satellites share their towers). Vite warmup transforms the app at start, so the first viewer skips a cold cache. Or docker compose with host networking."
         files: [deploy/flow-tower.service, deploy/docker-compose.yml]
         resources:
           - { kind: config, label: systemd unit, path: deploy/flow-tower.service }

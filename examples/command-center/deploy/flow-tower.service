@@ -22,13 +22,13 @@ Environment=FLOW_TOWER_HOME=/home/flowtower/.config/flow-tower
 ExecStart=/opt/node22/bin/node /home/flowtower/flow-tower/bin/flow-tower.js /srv/command-center --hub --no-open --port 5317
 Restart=on-failure
 RestartSec=5
-# Hardening: the hub writes only its user folder and Vite's caches. node_modules/.vite-temp holds the bundled
+# Hardening: the hub writes only its user folder, Vite's caches and towers/ of its library (shared towers, #164). node_modules/.vite-temp holds the bundled
 # vite.config: without it ProtectHome=read-only stops the service at start.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/flowtower/.config/flow-tower /home/flowtower/flow-tower/node_modules/.vite /home/flowtower/flow-tower/node_modules/.vite-temp
+ReadWritePaths=/home/flowtower/.config/flow-tower /home/flowtower/flow-tower/node_modules/.vite /home/flowtower/flow-tower/node_modules/.vite-temp /srv/command-center/towers
 
 [Install]
 WantedBy=multi-user.target
