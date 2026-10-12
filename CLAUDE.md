@@ -52,7 +52,7 @@
 - A test that spawns `serve` or the CLI needs an explicit `{ timeout }` (see `tests/connect.test.ts`).
 - The CLI server (`bin/flow-tower.js`: `npm run dev`, the e2e server, every `flow-tower` serve) loads `vite.config.ts` once and passes it inline, so editing `src/server/*` or `src/core/*` never restarts it: restart it by hand to run new server code. In-process restarts leaked the old server each time (#99, upstream Rolldown #10887).
 - Some environments block shell commands containing `.env` or `pip install`: use `import { env } from 'node:process'` and file-edit tools.
-- zsh does not word-split unquoted `$var`; use `${=var}`. The Linux test server has no zsh (so no `tools/squad/steps.sh`, #176) and Node 20 as `/usr/bin/node`: use `/opt/node22/bin`.
+- zsh does not word-split unquoted `$var`; use `${=var}`. `tools/squad/steps.sh` is bash since #176. The Linux test server has no zsh and Node 20 as `/usr/bin/node`: use `/opt/node22/bin` (`NODE=/opt/node22/bin/node` for `steps.sh`).
 - On the test server, port 5317 is the live hub (the `flowtower` systemd service): run e2e and scratch servers on another port, never `reuseExistingServer` against it.
 - `pkill -f "<pattern>"` also matches the shell running it when the pattern is in its own command line: kill by PID.
 - Code passed to Playwright's `page.evaluate` runs as plain JS: no TypeScript syntax inside it (a generic became a comparison).

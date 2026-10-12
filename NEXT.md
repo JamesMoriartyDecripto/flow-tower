@@ -26,9 +26,10 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   | #170 | #164 | one-step `connect` on a tailnet (the hub mints the token for a viewer), `share` / `unshare` / auto-sync of towers (YAML only by default, `--files` opt-in), guided satellite skill tested by two fresh agents | #168 |
   | #172 | #165 | library: source badge per card (THIS HUB or the device), FROM filter row with online dots, `?source=`, voice `source` | #170 |
   | #171 | #169 | squad pace: `SQUAD_PACE=now` (loop, faster models, no batch) / `relaxed` (oneshot) / `overnight` (Batch API); `pack.mjs`; real batch run took ~2 h | `main` |
+  | #178 | #176 | squad runner: bash `steps.sh` (`NODE`), `Files:` check makes a step RED when a listed path is untouched, `Known gaps:` printed per step, `--write tools/squad` fix | #171 |
   | #175 | #65 | tower documentation as PDF: levels 1-4, audit-report style, letterhead, 3D snapshot and infographics per tower, every tower and file of the project, `flow-tower export --pdf` with blocking checks; approved by the maintainer after three review rounds | `main` |
 
-  **Merge order:** #168 → #170 → #172 bottom-up (retarget the next PR to `main` before deleting a merged base branch); #171 and #175 independently. Before merging #175, run `npm run e2e` on the maintainer's machine: on the test server 12 `towers.spec` cases time out (software WebGL), the same on `main`.
+  **Merge order:** #168 → #170 → #172 bottom-up (retarget the next PR to `main` before deleting a merged base branch); #171 → #178 (retarget #178 to `main` first); #175 and #177 independently. Before merging #175, run `npm run e2e` on the maintainer's machine: on the test server 12 `towers.spec` cases time out (software WebGL), the same on `main`.
 - **Squad cost on 2026-10-12:** #164 $0.33, #165 $0.06, #169 $0.11, #65 $0.89 (post each on its issue when it closes: `node tools/squad/cost.mjs <n>`).
 - **Dev squad models** (from the benchmark and a field trial): Claude Haiku 5.5 codes, GLM 5.3 FlashX reviews, DeepSeek 4.1 Flash audits. See [tools/squad](tools/squad/README.md) and the cost skill reference § Benchmark 2026-10-11.
 - **Live:** the #97 two-computer test passed: the [command-center](examples/command-center) kit as a systemd service of a dedicated user, Tailscale Serve, two satellites on two computers lighting their towers together.
@@ -37,7 +38,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 ## Next, in order
 
 1. Merge the PRs above (the maintainer), then a real tailnet test of #164 with the Mac and the Fedora (`connect` without a token, `share`, an edit syncing).
-2. #176 squad runner: bash `steps.sh` (no zsh on the server), a "files touched" check (a step came back green with half its work missing on #65)
+2. (done in #178) #176 squad runner
 3. #69 tower names as an STT prompt
 4. #143 split `docs/architecture.md` (docs-qa Q24; it grew again with #164/#165/#65)
 5. #137 optional runtime files (schema)
