@@ -8,7 +8,16 @@ import { cropToContent } from './cropToContent';
  * so one bad load does not leave a placeholder in the printed document.
  */
 
-export type Snapshot = { png: string } | { error: string };
+/** What one iframe capture yields: a PNG, or the reason it failed. */
+type Captured = { png: string } | { error: string };
+
+export type Snapshot = Captured | { skipped: true };
+
+/**
+ * The placeholder for a page opened with `snap=0`. It is for the e2e tests only (the PDF menu and the CLI
+ * never ask for it), so a page that needs no 3D figure does not wait on software WebGL.
+ */
+export const SKIPPED: Snapshot = { skipped: true };
 
 const TIMEOUT_MS = 25_000; // the page itself gives up after 20 s; the margin covers the iframe load
 const ATTEMPTS = 3; // the first try and two retries
@@ -23,7 +32,7 @@ export function snapshotOf(towerId: string): Promise<Snapshot> {
 }
 
 async function captureWithRetries(towerId: string): Promise<Snapshot> {
-  let last: Snapshot = { error: 'not captured' };
+  let last: Captured = { error: 'not captured' };
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     last = await capture(towerId);
     if ('png' in last) {
@@ -45,7 +54,7 @@ async function frame(towerId: string, png: string): Promise<string> {
   }
 }
 
-function capture(towerId: string): Promise<Snapshot> {
+function capture(towerId: string): Promise<Captured> {
   return new Promise((resolve) => {
     const frame = Object.assign(document.createElement('iframe'), {
       // Eco quality: no post-processing, so software WebGL stays cheap. The fixed size keeps the PNGs consistent.
@@ -53,7 +62,7 @@ function capture(towerId: string): Promise<Snapshot> {
     });
     Object.assign(frame.style, { position: 'fixed', left: '-10000px', top: '0', width: '1600px', height: '1000px', border: '0', visibility: 'hidden' });
     let settled = false;
-    const finish = (result: Snapshot) => {
+    const finish = (result: Captured) => {
       if (settled) return;
       settled = true;
       window.removeEventListener('message', onMessage);

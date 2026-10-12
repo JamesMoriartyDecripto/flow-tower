@@ -7,7 +7,7 @@ import { chapterCharts, type ChapterCharts } from '../../core/docCharts';
 import { layoutTower, type TowerLayout } from '../layout';
 import { ChapterOverview } from './Charts';
 import { docImages, type DocImages } from './DocImages';
-import { snapshotOf, type Snapshot } from './snapshots';
+import { SKIPPED, snapshotOf, type Snapshot } from './snapshots';
 import { SnapFigure } from './SnapFigure';
 import { ChapterHead, Cover, LayerBlock, Letterhead, LinkList, LEVEL_NAMES, Toc } from './DocParts';
 import { LibraryDocument } from './DocLibraryBody';
@@ -73,8 +73,8 @@ async function imagesOf(ws: Workspace, doc: TowerDoc): Promise<DocImages> {
  * The document page: the same data as the PDF, rendered as print-first HTML. It owns the ready signal,
  * because only the finished document (not the loading screen) may tell a script or the print dialog to go.
  */
-export function DocView({ ws, towerId, level, print, projectNames }: {
-  ws: Workspace; towerId: string; level: DocLevel; print: boolean; projectNames?: string[];
+export function DocView({ ws, towerId, level, print, projectNames, snapshots = true }: {
+  ws: Workspace; towerId: string; level: DocLevel; print: boolean; projectNames?: string[]; snapshots?: boolean;
 }) {
   const [built, setBuilt] = useState<Built>();
   const [error, setError] = useState<string>();
@@ -98,7 +98,8 @@ export function DocView({ ws, towerId, level, print, projectNames }: {
     const snapsOf = async (d: TowerDoc): Promise<Record<string, Snapshot>> => {
       const out: Record<string, Snapshot> = {};
       const ids = level === 4 ? (d.projects ?? []).map((p) => p.towerId) : d.chapters.map((c) => c.towerId);
-      for (const id of ids) out[id] = await snapshotOf(id);
+      // snap=0 skips the captures entirely, so the ready signal does not wait on software WebGL.
+      for (const id of ids) out[id] = snapshots ? await snapshotOf(id) : SKIPPED;
       return out;
     };
     Promise.all([imagesOf(ws, doc), fingerprintOf(ws, fp), snapsOf(doc)])
@@ -121,7 +122,7 @@ export function DocView({ ws, towerId, level, print, projectNames }: {
         setError(e.message);
       });
     return () => { live = false; };
-  }, [ws, towerId, level, projectNames]);
+  }, [ws, towerId, level, projectNames, snapshots]);
 
   if (error) return <Message text={`Could not build the document: ${error}`} />;
   if (!built) return <Message text="Building the document…" />;
@@ -215,11 +216,20 @@ export function mountDoc(root: HTMLElement) {
   const level = clampLevel(q.get('level'));
   const projects = parseProjects(q.get('projects'));
   createRoot(root).render(
-    <Loader doc={q.get('doc') ?? ''} level={level} print={q.get('print') === '1'} projects={projects} />,
+    <Loader
+      doc={q.get('doc') ?? ''}
+      level={level}
+      print={q.get('print') === '1'}
+      projects={projects}
+      // snap=0 is for the e2e tests only: the PDF menu and the CLI always capture the 3D figures.
+      snapshots={q.get('snap') !== '0'}
+    />,
   );
 }
 
-function Loader({ doc, level, print, projects }: { doc: string; level: DocLevel; print: boolean; projects?: string[] }) {
+function Loader({ doc, level, print, projects, snapshots }: {
+  doc: string; level: DocLevel; print: boolean; projects?: string[]; snapshots: boolean;
+}) {
   const [ws, setWs] = useState<Workspace>();
   const [failed, setFailed] = useState<string>();
   const [towerId, setTowerId] = useState<string>();
@@ -237,7 +247,7 @@ function Loader({ doc, level, print, projects }: { doc: string; level: DocLevel;
   if (failed) return <Message text={`Could not load the workspace: ${failed}`} />;
   if (!ws) return <Message text="Loading…" />;
   if (!towerId) return <Message text={`No tower matches “${doc}”.`} />;
-  return <DocView ws={ws} towerId={towerId} level={level} print={print} projectNames={projects} />;
+  return <DocView ws={ws} towerId={towerId} level={level} print={print} projectNames={projects} snapshots={snapshots} />;
 }
 
 /** `?projects=a,b` is a comma list of project names; an empty or absent list means every project. */

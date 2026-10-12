@@ -5,10 +5,15 @@ import { expect, openProject, test, ws } from './fixtures.ts';
 /**
  * The document view (?doc=…&level=N) is what the PDF menu prints: its HTML must hold every node, its
  * anchors must resolve, and page.pdf must produce real files at each level.
+ *
+ * Every 3D figure costs software WebGL time, so the tests that do not check the figures load the page with
+ * `snap=0` (the placeholder text, no captures). Only the figure test and the PDF-per-level test take snapshots.
  */
 
 const PDF_DIR = 'test-results/pdf';
 const TOWERS = ['dev-squad', 'game-studio'];
+// Snapshots: up to 3 tries of 20 s per chapter, one chapter at a time, so a load can take minutes.
+const SNAP_READY_MS = 180_000;
 
 interface Ws { towers: Record<string, { name: string; layers: { title: string; nodes: { label: string }[] }[] }>; projects: string[] }
 
@@ -43,7 +48,7 @@ async function expectNoDeadLinks(page: Page): Promise<void> {
 test('the document view shows every node of the root tower, with anchors and a diagram per layer', async ({ page }) => {
   const all = await workspace(page);
   const root = all.towers[towerIdFor(all, 'dev-squad')];
-  await page.goto('/?doc=dev-squad&level=2');
+  await page.goto('/?doc=dev-squad&level=2&snap=0');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
 
   const text = await page.locator('main').innerText();
@@ -64,7 +69,7 @@ test('the document view shows every node of the root tower, with anchors and a d
 });
 
 test('the overview charts: the root chapter has the layer matrix and the sub-tower tree', async ({ page }) => {
-  await page.goto('/?doc=dev-squad&level=2');
+  await page.goto('/?doc=dev-squad&level=2&snap=0');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
   const root = page.locator('main article.chapter').first();
   await expect(root.locator('[data-chart="matrix"]'), 'the layer-to-layer matrix').toHaveCount(1);
@@ -79,7 +84,7 @@ test('the cover carries one wordmark, and the running header comes from the page
   test.skip(browserName !== 'chromium', 'print media and the margin boxes are checked in Chromium only');
   const all = await workspace(page);
   const title = all.towers[towerIdFor(all, 'dev-squad')].name;
-  await page.goto('/?doc=dev-squad&level=2');
+  await page.goto('/?doc=dev-squad&level=2&snap=0');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
   // The wordmark is real text: selectable and searchable in the PDF. The cover has one mark, not two.
   await expect(page.locator('main .cover .mark-word')).toHaveText('FLOW//TOWER');
@@ -104,7 +109,7 @@ async function fingerprintOf(page: Page, url: string): Promise<string> {
 }
 
 test('the document control table shows a 16-hex fingerprint, the same on every load', async ({ page }) => {
-  const url = '/?doc=dev-squad&level=2';
+  const url = '/?doc=dev-squad&level=2&snap=0';
   const first = await fingerprintOf(page, url);
   expect(first).toMatch(/^[0-9a-f]{16}$/);
   const second = await fingerprintOf(page, url);
@@ -112,7 +117,7 @@ test('the document control table shows a 16-hex fingerprint, the same on every l
 });
 
 test('the full document links node names to their sheets and prints no raw JSON', async ({ page }) => {
-  await page.goto('/?doc=dev-squad&level=3');
+  await page.goto('/?doc=dev-squad&level=3&snap=0');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
   const text = await page.locator('main').innerText();
   expect(text, 'no raw JSON in the document').not.toContain('{"');
@@ -122,7 +127,7 @@ test('the full document links node names to their sheets and prints no raw JSON'
 
 test('the project files appendix prints the full text of a referenced file, with line numbers', async ({ page }) => {
   test.setTimeout(120_000);
-  await page.goto('/?doc=dev-squad&level=3');
+  await page.goto('/?doc=dev-squad&level=3&snap=0');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 110_000 });
   const entry = page.locator('main .file-entry[data-file-key$=":: src/triage.ts"]');
   await expect(entry, 'src/triage.ts is in the appendix').toHaveCount(1);
@@ -134,7 +139,8 @@ test('the project files appendix prints the full text of a referenced file, with
 
 test('the document prints to PDF at each level, and the full one is larger', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'page.pdf works in Chromium only');
-  test.setTimeout(240_000);
+  // Six loads with snapshots (two towers, three levels), each waiting up to 180 s, plus the PDF writes.
+  test.setTimeout(900_000);
   mkdirSync(PDF_DIR, { recursive: true });
   const all = await workspace(page);
 
@@ -144,7 +150,7 @@ test('the document prints to PDF at each level, and the full one is larger', asy
     const pages: Record<number, number> = {};
     for (const level of [1, 2, 3]) {
       await page.goto(`/?doc=${folder}&level=${level}`);
-      await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
+      await page.waitForSelector('html[data-doc-ready="1"]', { timeout: SNAP_READY_MS });
       // A half-built page must never be printed: the placeholder is gone and the document is in place.
       await expect(page.getByText('Building the document…')).toHaveCount(0);
       await expect(page.locator('main.doc')).toHaveCount(1);
@@ -164,7 +170,7 @@ test('the document prints to PDF at each level, and the full one is larger', asy
 /** One load of the level-2 page: every 3D figure is checked, and the drawn count is returned. */
 async function checkFiguresOnce(page: Page, browserName: string, run: number): Promise<number> {
   await page.goto('/?doc=dev-squad&level=2');
-  await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 150_000 });
+  await page.waitForSelector('html[data-doc-ready="1"]', { timeout: SNAP_READY_MS });
   const chapters = page.locator('main article.chapter');
   // The root and its two sub-towers are the chapters the figures belong to: level 2 prints every tower.
   expect(await chapters.count(), 'root and both sub-tower chapters').toBeGreaterThanOrEqual(3);
@@ -193,15 +199,15 @@ async function checkFiguresOnce(page: Page, browserName: string, run: number): P
 }
 
 test('the 3D figures: the level-2 page draws every figure, three runs in a row', async ({ page, browserName }) => {
-  // Three loads, each with up to 150 s of snapshots: the budget covers all of them.
-  test.setTimeout(480_000);
+  // Three loads, each waiting up to 180 s for its snapshots (one chapter at a time, up to 3 tries each).
+  test.setTimeout(600_000);
   for (let run = 1; run <= 3; run++) {
     await checkFiguresOnce(page, browserName, run);
   }
 });
 
 test('the library (level 4) prints every named project with its own cover, and no dead link', async ({ page, browserName }) => {
-  await page.goto('/?doc=library&level=4&projects=dev-squad,game-studio');
+  await page.goto('/?doc=library&level=4&projects=dev-squad,game-studio&snap=0');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
   await expect(page.getByText('Building the document…')).toHaveCount(0);
   await expect(page.locator('main.doc.level-4')).toHaveCount(1);
