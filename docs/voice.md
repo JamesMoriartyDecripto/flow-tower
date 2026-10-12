@@ -58,6 +58,7 @@ The agent reads the tower on screen through its tools (layers, nodes, connection
 - `filter_nodes` — show only the node types you name.
 - `library_filter` — open the project library and filter it by words or tag.
 - `compare_nodes` — two nodes side by side: the fields they share, and the tools only one has.
+- `live_status` — what is happening now, from the last 10 minutes of live events: errors, running nodes, the busiest nodes (and, on a hub, the machines running or silent). It selects the node in trouble on the tower on screen. Metadata only: no event messages.
 
 **Interrupting.** While it answers, and for 0.7 s after, the microphone ignores what it hears, so laptop speakers cannot make the agent answer itself. If you speak in that moment just after a reply, the caption says once "Wait a moment after the reply, or press Esc to interrupt it." Stop a reply with **Esc** (the microphone stays on), **V** or **✕** (both turn it off). Esc while the reply is still being written silences the rest of it and stops its tool calls too (the caption says "Stopped"). With headphones, turn on **Settings → Voice → Interrupt by voice**: three words or "stop" then cut the reply short while it is heard; before its first sentence plays, what you say is a normal command.
 

@@ -8,8 +8,10 @@ import { opsMarks } from '../ops';
 import { chooseView } from '../settings';
 import { findNode, useStore } from '../store';
 import { useHub } from '../hud/Hub';
+import { useLive } from '../live';
 import { SCROLL_EVENT } from './actions';
 import { norm, nodeTypeOf, score } from './commands';
+import { liveStatus } from './live-status';
 import { currentList, setList } from './referents';
 
 /**
@@ -38,6 +40,7 @@ export const TOOLS: ToolDef[] = [
   tool('node_info', 'Everything about one node: type, layer, description, agent, model, tools, runtime, operations, status, sub-tower.', { node: NODE }),
   tool('connections', 'Incoming and outgoing edges of a node: the other node, its layer, the edge kind and label.', { node: NODE }),
   tool('compare_nodes', 'Two nodes side by side, to say what is the same and what differs: label, type, layer, agent, model, runtime, tools, file count and incoming/outgoing edge counts, then "same" (the equal fields) and "only_a"/"only_b" (tools one has and the other has not).', { a: str('First node, named as in node_info.'), b: str('Second node, named as in node_info.') }, ['a', 'b']),
+  tool('live_status', 'What is happening now, from the live events of the last 10 minutes: errors (newest first), nodes running, the busiest nodes, and on a hub the machines running or gone silent. quiet=true means nothing happened. It selects the node of the newest error when it is on the tower on screen. Metadata only: no event messages.'),
   tool('node_files', 'The files and resources a node references, numbered from 1.', { node: NODE }),
   tool('focus_layer', 'Show one layer on screen.', { layer: LAYER }),
   tool('select_node', 'Select a node: the camera goes to it and its panel opens.', { node: NODE }),
@@ -202,6 +205,20 @@ export function runTool(name: string, args: Args): string {
         only_a: fa.tools.filter((t) => !setB.has(t)),
         only_b: fb.tools.filter((t) => !setA.has(t)),
       });
+    }
+    case 'live_status': {
+      const live = useLive.getState();
+      const status = liveStatus({
+        events: live.events, nodes: live.nodes, ws, towerId: tower?.id,
+        hub: useHub.getState().me?.hub === true, now: Date.now(),
+      });
+      // The node in trouble is put on screen, so the answer "there is an error in X" is shown as well as said.
+      const err = status.newest_error;
+      if (err?.on_screen && tower) {
+        show(tower, err.key);
+        return out({ ...status, selected: err.node });
+      }
+      return out(status);
     }
     case 'connections': {
       const hit = nodeOf(ws, tower, args.node);

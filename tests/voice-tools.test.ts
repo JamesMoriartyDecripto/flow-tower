@@ -88,6 +88,10 @@ describe('voice agent tools (#63)', () => {
     expect(useStore.getState().selected).toBeUndefined();
   });
 
+  it('reports quiet when there are no live events (#160)', () => {
+    expect(call('live_status')).toMatchObject({ quiet: true, events: 0, errors: [], running: [] });
+  });
+
   it('reports a node compared with itself as fully equal (#145d)', () => {
     const r = call('compare_nodes', { a: 'triage', b: 'triage router' });
     expect(r.a).toEqual(r.b);
