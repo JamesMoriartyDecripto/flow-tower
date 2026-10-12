@@ -89,6 +89,18 @@ Field trial #126, four coders on one task. Coder: Haiku 5.5 took 11 steps for $0
 Reviewer: GLM FlashX took 3 steps for $0.007 (DeepSeek: 16 steps, $0.058). The run reports its own total at `finish`
 and the cache hit rate; method and older figures: [skills/flow-tower-costs/reference.md](../../skills/flow-tower-costs/reference.md).
 
+## Cost per issue
+
+Every run (coder, reviewer, security, failed runs too) appends one line to `~/.config/flow-tower/squad-costs.jsonl`
+(`SQUAD_LEDGER` overrides the path). The run is tagged with `--issue <n>`, or with the number in the branch name.
+`steps.sh` adds a `Squad-Cost: $0.0123` trailer to each step commit. To see an issue's total:
+
+```bash
+node tools/squad/cost.mjs 156          # Markdown block; --json for the raw summary
+```
+
+The lead posts that table on the issue when it closes.
+
 ## Where else to look
 
 - `src/server/plugin.ts`, `src/server/secrets.ts`: how the key file and the user folder are found and guarded.

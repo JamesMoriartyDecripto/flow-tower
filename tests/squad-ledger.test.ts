@@ -1,6 +1,8 @@
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error plain ESM helper under tools/, no type declarations
 import { appendRun, issueOf, ledgerPath, readRuns, summarize } from '../tools/squad/ledger.mjs';
@@ -53,5 +55,21 @@ describe('squad ledger (#156)', () => {
     expect(s.total.runs).toBe(3);
     expect(s.total.steps).toBe(18);
     expect(s.total.cost).toBeCloseTo(0.7);
+  });
+
+  it('cost.mjs prints the issue block, or a no-runs line', () => {
+    const ledger = join(dir, 'costs.jsonl');
+    appendRun(ledger, { issue: '7', role: 'coder', model: 'a', steps: 4, cost: 0.1, promptTokens: 10, cachedTokens: 5 });
+    appendRun(ledger, { issue: '7', role: 'coder', model: 'a', steps: 2, cost: 0.02, promptTokens: 0, cachedTokens: 0 });
+    appendRun(ledger, { issue: '7', role: 'reviewer', model: 'b', steps: 1, cost: 0.03, promptTokens: 4, cachedTokens: 0 });
+    const env = { ...process.env, SQUAD_LEDGER: ledger };
+    const script = fileURLToPath(new URL('../tools/squad/cost.mjs', import.meta.url));
+    const out = execFileSync(process.execPath, [script, '7'], { env, encoding: 'utf8', timeout: 20_000 });
+    expect(out).toContain('**Squad cost for #7:** $0.1500 over 3 runs, 7 steps.');
+    expect(out).toContain('| Role | Model | Runs | Steps | Cost | Cache |');
+    expect(out).toContain('| coder | a | 2 | 6 | $0.1200 | 50% |');
+    expect(out).toContain('| reviewer | b | 1 | 1 | $0.0300 | 0% |');
+    const none = execFileSync(process.execPath, [script, '8'], { env, encoding: 'utf8', timeout: 20_000 });
+    expect(none).toContain('No squad runs recorded for #8.');
   });
 });

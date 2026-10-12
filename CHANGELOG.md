@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Community: `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), YAML issue forms for bug, feature and example with Discussions and private advisories as contact links, and `SUPPORT.md` (#122).
 - CLI: `flow-tower --version` prints the installed version (#122).
 - CI: a job checks the DCO sign-off on every commit of a PR, and a step runs `check-example` on the example folders a PR adds (#122).
+- Squad: `tools/squad/cost.mjs <issue>` prints an issue's total cost from the local ledger, and step commits carry a `Squad-Cost:` trailer (#156).
 
 ### Changed
 - `CONTRIBUTING.md` covers issue first, fork workflow, Conventional Commits, DCO sign-off, review, inbound = outbound licence, AI-assisted contributions and SemVer (#122).
