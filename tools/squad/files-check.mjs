@@ -6,7 +6,8 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const USAGE = 'usage: node tools/squad/files-check.mjs <task.md> <base-rev> [repo]';
+const USAGE = 'usage: node tools/squad/files-check.mjs <task.md> <base-rev> [repo]\n'
+  + '       node tools/squad/files-check.mjs --gaps <report.txt>';
 
 // The last Files: line wins: a task may quote an earlier one in its prose. A trailing "+" marks a new file (the
 // check does not need it), and "(optional)" marks a path that need not be touched.
@@ -76,6 +77,19 @@ function changedPaths(base, repo) {
 }
 
 function main(args) {
+  // --gaps prints the Known gaps text of a coder report (steps.sh feeds it the text after the last [finish] line).
+  // Nothing is printed when there is no gap, so the caller can test for empty output.
+  if (args[0] === '--gaps') {
+    if (!args[1]) { console.error(USAGE); return 2; }
+    try {
+      const gaps = knownGaps(readFileSync(args[1], 'utf8'));
+      if (gaps) console.log(gaps);
+      return 0;
+    } catch (e) {
+      console.error(`files check: ${e.message}`);
+      return 2;
+    }
+  }
   const [taskFile, base, repo = process.cwd()] = args;
   if (!taskFile || !base) { console.error(USAGE); return 2; }
   let entries, changed;

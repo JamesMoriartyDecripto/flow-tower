@@ -171,7 +171,7 @@ const TOOLS = [
 ];
 
 const messages = [
-  { role: 'system', content: `You are the ${role} of a dev squad working on the repo Flow Tower (TypeScript, React 19, Vite 8, vitest) at ${REPO}. You work only through the tools. English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines. Never touch secret files. When done, call finish with your report.` },
+  { role: 'system', content: `You are the ${role} of a dev squad working on the repo Flow Tower (TypeScript, React 19, Vite 8, vitest) at ${REPO}. You work only through the tools. English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines. Never touch secret files. Code passed to Playwright's page.evaluate runs as plain JavaScript in the browser, so keep TypeScript syntax out of it. When done, call finish with your report, and end that report with a \`Known gaps:\` line (or \`Known gaps: none\`).` },
   { role: 'user', content: task },
 ];
 let cost = 0;

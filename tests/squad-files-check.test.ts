@@ -50,6 +50,25 @@ describe('squad files check (#176)', () => {
     expect(knownGaps('no section at all')).toBe('');
   });
 
+  it('CLI --gaps: prints the gap text, prints nothing when there is none', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'files-gaps-'));
+    try {
+      const report = join(dir, 'report.txt');
+      writeFileSync(report, 'Done.\nKnown gaps: the batch path is untested\n');
+      const gap = spawnSync(process.execPath, [cli, '--gaps', report], { encoding: 'utf8' });
+      expect(gap.status).toBe(0);
+      expect(gap.stdout).toBe('the batch path is untested\n');
+      writeFileSync(report, 'Done.\nKnown gaps: none\n');
+      const none = spawnSync(process.execPath, [cli, '--gaps', report], { encoding: 'utf8' });
+      expect(none.status).toBe(0);
+      expect(none.stdout).toBe('');
+      const usage = spawnSync(process.execPath, [cli, '--gaps'], { encoding: 'utf8' });
+      expect(usage.status).toBe(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('CLI: ok when all listed paths changed, missing otherwise, 2 on bad usage', () => {
     const repo = mkdtempSync(join(tmpdir(), 'files-check-'));
     try {
