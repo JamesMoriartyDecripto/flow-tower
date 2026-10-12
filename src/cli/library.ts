@@ -84,6 +84,21 @@ function storedLibrary(config: Record<string, unknown>): string[] {
 /** The same tower, however it is spelled: one real path, so a symlinked duplicate cannot be added twice. */
 const same = (a: string, b: string) => a === b || realOrSelf(a) === realOrSelf(b);
 
+/**
+ * Adds one tower to the library in the user folder's config. Shared by `library add` and `share` (#164), so
+ * both refuse and deduplicate the same way. The config is re-read right before the write: another command
+ * may have written meanwhile, and the write must build on what is on disk now.
+ */
+export function addToLibrary(home: string, abs: string): { added: boolean; reason?: string; warning?: string } {
+  const check = checkPath(abs, { checkout: PKG_ROOT, home });
+  if (!check.ok) return { added: false, reason: check.reason };
+  const library = storedLibrary(readUserConfig(home));
+  // Write only when the list grew: an add that changed nothing must not rewrite the user's file.
+  if (library.some((p) => same(p, abs))) return { added: false };
+  writeUserConfig(home, { library: [...library, abs] });
+  return { added: true, warning: check.warning };
+}
+
 /** The three commands. Returns the exit code instead of calling exit, so a caller can decide. */
 export function run(args: string[]): number {
   const [cmd, ...rest] = args;
@@ -94,19 +109,15 @@ export function run(args: string[]): number {
   switch (cmd) {
     case 'add': {
       if (!rest.length) { console.error(USAGE); return 1; }
-      const next = [...library];
       let refused = false;
       for (const arg of rest) {
         const abs = resolve(arg);
-        const check = checkPath(abs, { checkout: PKG_ROOT, home });
-        if (!check.ok) { console.log(`refused: ${check.reason}`); refused = true; continue; }
-        if (next.some((p) => same(p, abs))) { console.log(`already in: ${abs}`); continue; }
-        next.push(abs);
+        const r = addToLibrary(home, abs);
+        if (r.reason !== undefined) { console.log(`refused: ${r.reason}`); refused = true; continue; }
+        if (!r.added) { console.log(`already in: ${abs}`); continue; }
         console.log(`added: ${abs}`);
-        if (check.warning) console.log(`  warning: ${check.warning}`);
+        if (r.warning) console.log(`  warning: ${r.warning}`);
       }
-      // Write only when the list grew: an `add` that changed nothing must not rewrite the user's file.
-      if (next.length !== library.length) writeUserConfig(home, { library: next });
       return refused ? 1 : 0;
     }
     case 'list': {

@@ -229,6 +229,54 @@ describe('flow-tower share (#164)', () => {
     const r = await run(['share', towerFolder(), '--name', 'alpha']);
     expect(r.stdout + r.stderr).not.toContain(TOKEN);
   });
+
+  it('prints each sent path, indented', { timeout: 30_000 }, async () => {
+    rmSync(configPath, { force: true });
+    const hub = await stubHub(200);
+    connectedConfig(hub.url);
+    const r = await run(['share', towerFolder(), '--files', '--name', 'listed']);
+
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('  alpha.tower.yaml\n');
+    expect(r.stdout).toContain('  prompts/a.md\n');
+    expect(r.stdout).not.toContain('.env');
+  });
+
+  it('adds the shared folder to the library, once', { timeout: 30_000 }, async () => {
+    rmSync(configPath, { force: true });
+    const hub = await stubHub(200);
+    connectedConfig(hub.url);
+    const dir = towerFolder();
+    const first = await run(['share', dir, '--name', 'lib-once']);
+
+    expect(first.status).toBe(0);
+    expect(first.stdout).toContain(`added to your library: ${dir}`);
+    expect(configOf().library).toEqual([dir]);
+
+    const second = await run(['share', dir, '--name', 'lib-once']);
+    expect(second.status).toBe(0);
+    expect(second.stdout).not.toContain('added to your library');
+    expect(configOf().library).toEqual([dir]);
+  });
+
+  it('a share the hub refused does not add the folder to the library', { timeout: 30_000 }, async () => {
+    rmSync(configPath, { force: true });
+    const hub = await stubHub(400);
+    connectedConfig(hub.url);
+    const r = await run(['share', towerFolder()]);
+    expect(r.status).toBe(1);
+    expect(configOf().library).toBeUndefined();
+  });
+
+  it('unshare leaves the library alone', { timeout: 30_000 }, async () => {
+    rmSync(configPath, { force: true });
+    const hub = await stubHub(204);
+    connectedConfig(hub.url, { shares: [{ dir: '/x/eta', name: 'eta', files: false }], library: ['/x/eta'] });
+    const r = await run(['unshare', 'eta']);
+    expect(r.status).toBe(0);
+    expect(configOf().library).toEqual(['/x/eta']);
+    expect(r.stdout).not.toContain('library');
+  });
 });
 
 describe('share list edits (#164): a write builds on the entries on disk', () => {

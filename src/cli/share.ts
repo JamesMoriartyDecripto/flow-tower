@@ -12,6 +12,7 @@ import { exit } from 'node:process';
 import { parseArgs } from 'node:util';
 import { userHome } from '../core/secrets.ts';
 import type { Share } from '../server/config.ts';
+import { addToLibrary } from './library.ts';
 import { asShare, withShare, withoutShare } from '../server/share-entries.ts';
 import { collectTower, listShared, removeTower, shareName, uploadTower } from '../server/share-client.ts';
 import { shareName as validShareName } from '../server/share-rules.ts';
@@ -20,6 +21,9 @@ import { readUserConfig, writeUserConfig } from '../server/user-config.ts';
 const USAGE = 'usage: flow-tower share <dir> [--files] [--name <name>]\n'
   + '       flow-tower share --list\n'
   + '       flow-tower unshare <name|dir> [--force]';
+
+/** How many sent paths `share` lists before it says "and K more": a big folder must not flood the terminal. */
+const SENT_LIST_CAP = 30;
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -81,6 +85,9 @@ async function share(dir: string | undefined) {
 
   const { files, skipped } = collected;
   console.log(`sharing ${name}: ${files.length} files, ${values.files ? 'YAML and referenced files' : 'YAML only'}`);
+  // The user sees exactly what leaves the machine; the list is capped so a big folder stays readable.
+  for (const f of files.slice(0, SENT_LIST_CAP)) console.log(`  ${f.path}`);
+  if (files.length > SENT_LIST_CAP) console.log(`  … and ${files.length - SENT_LIST_CAP} more`);
   for (const s of skipped) console.log(`  skipped ${s.path}: ${s.reason}`);
 
   const sent = await uploadTower(hub, token, name, files);
@@ -88,6 +95,12 @@ async function share(dir: string | undefined) {
   if (!sent.ok) fail(`${sent.error}\nnothing was recorded: ${name} is not shared.`);
 
   writeUserConfig(home, { shares: withShare(rawSharesNow(), { dir: absDir, name, files: values.files }) });
+
+  // A shared tower is one of the user's own towers: add it to the library so `library` and the sync see it (#164).
+  const lib = addToLibrary(home, absDir);
+  if (lib.reason !== undefined) console.log(`not added to your library: ${lib.reason}`);
+  else if (lib.added) console.log(`added to your library: ${absDir}`);
+  if (lib.warning) console.log(`  warning: ${lib.warning}`);
 
   const sender = tokenId(token) ?? 'this-machine';
   console.log(`shared ${name} with ${hub}: it appears on the hub as towers/${sender}/${name}`);
