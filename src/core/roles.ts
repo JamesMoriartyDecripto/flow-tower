@@ -47,8 +47,9 @@ const roleById = new Map<RoleId, RoleClass>(ROLE_CLASSES.map((r) => [r.id, r]));
 /** Model id fragments that name a specialised model, checked in this order (first hit wins). */
 const MODEL_HINTS: [RegExp, RoleId][] = [
   [/whisper|stt|transcrib/, 'voice-stt'],
-  [/tts|speech|voice/, 'voice-tts'],
+  // realtime before tts|speech|voice: "gpt-realtime-voice" is realtime voice, not TTS.
   [/realtime/, 'realtime-voice'],
+  [/tts|speech|voice/, 'voice-tts'],
   [/embed/, 'embeddings'],
   [/image|flux|dall/, 'image-gen'],
   [/video|veo|sora/, 'video-gen'],

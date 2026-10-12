@@ -50,6 +50,12 @@ describe('classifyNode', () => {
     expect(r.why).toContain('whisper');
   });
 
+  it('realtime wins over voice: a realtime voice model is not TTS', async () => {
+    const r = classifyNode(await one({ type: 'agent', model: 'openai/gpt-realtime-voice' }));
+    expect(r.role).toBe('realtime-voice');
+    expect(r.why).toContain('realtime');
+  });
+
   it('model id hint for embeddings', async () => {
     expect(classifyNode(await one({ type: 'agent', model: 'openai/text-embed-3' })).role).toBe('embeddings');
   });
