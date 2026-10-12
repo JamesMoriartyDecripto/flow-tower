@@ -1,6 +1,12 @@
+import { execFileSync } from 'node:child_process';
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { compare, toMarkdown } from '../examples/tower-optimizer/scripts/compare.mjs';
 import type { Snapshot } from '../examples/tower-optimizer/scripts/compare.d.mts';
+
+const snapshotScript = join(import.meta.dirname, '..', 'examples', 'tower-optimizer', 'scripts', 'snapshot.mjs');
 
 const inventory = (nodes: number, budget = 0) => ({
   layers: 1,
@@ -81,6 +87,22 @@ describe('tower-optimizer compare', () => {
     };
     expect(compare(before, infoOnly).regression).toBe(false);
     expect(compare(before, before).regression).toBe(false);
+  });
+
+  it('snapshot records the path as given and creates a missing output folder', () => {
+    // A stub audit binary keeps the test independent of a real tower; FLOW_TOWER_BIN selects it.
+    const dir = mkdtempSync(join(tmpdir(), 'snapshot-'));
+    const stub = join(dir, 'flow-tower');
+    writeFileSync(stub, '#!/bin/sh\necho \'{"towers":[]}\'\n');
+    chmodSync(stub, 0o755);
+    const out = join(dir, 'reports', 'nested', 'x.json');
+    execFileSync(process.execPath, [snapshotScript, 'my-tower', out], {
+      env: { ...process.env, FLOW_TOWER_BIN: stub },
+      cwd: dir,
+    });
+    const saved = JSON.parse(readFileSync(out, 'utf8'));
+    expect(saved.path).toBe('my-tower');
+    expect(readFileSync(out, 'utf8')).not.toContain(dir);
   });
 
   it('renders the markdown headings for each section', () => {

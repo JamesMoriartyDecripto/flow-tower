@@ -4,7 +4,7 @@
 //   node scripts/snapshot.mjs <tower-or-dir> <out.json>
 // FLOW_TOWER_BIN points at an installed `flow-tower` instead of the bin/flow-tower.js of this repo.
 import { execFileSync } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { argv, env, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -47,10 +47,13 @@ function main() {
     console.error('usage: snapshot.mjs <tower-or-dir> <out.json>');
     exit(2);
   }
-  const path = resolve(target);
-  const audit = runAudit(path);
+  const audit = runAudit(resolve(target));
+  // Reports are committed and shared, so record the target exactly as the user typed it:
+  // the resolved absolute path would leak the local home folder into the file.
   // takenAt and path come first so a reader sees when and what was measured before the towers.
-  const snapshot = { takenAt: new Date().toISOString(), path, ...audit };
+  const snapshot = { takenAt: new Date().toISOString(), path: target, ...audit };
+  // The parent folder may not exist yet (e.g. reports/); create it instead of failing with ENOENT.
+  mkdirSync(dirname(resolve(out)), { recursive: true });
   writeFileSync(out, `${JSON.stringify(snapshot, null, 2)}\n`);
   console.log(`snapshot: ${audit.towers?.length ?? 0} tower(s) -> ${out}`);
 }
