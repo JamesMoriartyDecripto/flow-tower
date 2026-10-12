@@ -63,19 +63,23 @@ test('the document view shows every node of the root tower, with anchors and a d
   await page.screenshot({ path: 'test-results/doc-level2.png', fullPage: true });
 });
 
-test('the cover carries the wordmark, and the letterhead is fixed under print so every page repeats it', async ({ page, browserName }) => {
-  test.skip(browserName !== 'chromium', 'print media and the fixed header are checked in Chromium only');
+test('the cover carries one wordmark, and the running header comes from the page margin under print', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'print media and the margin boxes are checked in Chromium only');
+  const all = await workspace(page);
+  const title = all.towers[towerIdFor(all, 'dev-squad')].name;
   await page.goto('/?doc=dev-squad&level=2');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
-  // The wordmark is real text: selectable and searchable in the PDF.
+  // The wordmark is real text: selectable and searchable in the PDF. The cover has one mark, not two.
   await expect(page.locator('main .cover .mark-word')).toHaveText('FLOW//TOWER');
+  await expect(page.locator('main .cover .mark')).toHaveCount(1);
 
+  // The running header is drawn by CSS @page margin boxes, so the old on-page header must not show in print.
   await page.emulateMedia({ media: 'print' });
-  const position = await page.locator('main .letterhead').evaluate((el) => getComputedStyle(el).position);
-  expect(position, 'the letterhead repeats on every printed page').toBe('fixed');
+  await expect(page.locator('main .letterhead')).toBeHidden();
+  const running = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--doc-running'));
+  expect(running, 'the running header names the tower').toContain(title.toUpperCase());
   await page.emulateMedia({ media: 'screen' });
-  const screenPosition = await page.locator('main .letterhead').evaluate((el) => getComputedStyle(el).position);
-  expect(screenPosition, 'on screen the letterhead is the top of the page, not fixed').not.toBe('fixed');
+  await expect(page.locator('main .letterhead')).toBeVisible();
 });
 
 test('the full document links node names to their sheets and prints no raw JSON', async ({ page }) => {

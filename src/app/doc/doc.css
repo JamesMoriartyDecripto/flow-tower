@@ -7,18 +7,48 @@
 }
 
 /*
- * Page frame: the letterhead (a fixed band in the top margin, see .letterhead) and the footer (CSS margin
- * boxes, which are the only place a page counter works in Chrome). The top margin leaves room for the band.
+ * Page frame: the running header and the footer are CSS margin boxes, which repeat on every page inside the
+ * margin and never overlap the content. Chrome prints them for portrait and landscape pages alike. The
+ * margin boxes are repeated in the named landscape page, because a named page does not inherit them. The
+ * icon stroke and rules take the accent as a hex value: a data URL cannot read the CSS variable.
  */
 @page {
   size: A4;
-  margin: 22mm 14mm 18mm;
+  margin: 26mm 14mm 18mm;
+  @top-left {
+    content: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 32 32'><g fill='none' stroke='%23c2410c' stroke-width='3'><path d='M6 8h20M6 16h20M6 24h20'/></g></svg>") "  FLOW//TOWER";
+    font: 800 9pt "Orbitron", sans-serif; letter-spacing: .16em; color: var(--ink); vertical-align: bottom;
+    padding-bottom: 3mm; border-bottom: .3mm solid #c2410c;
+  }
+  @top-right {
+    content: var(--doc-running, ""); font: 600 7pt var(--sans); letter-spacing: .12em; color: var(--muted);
+    vertical-align: bottom; padding-bottom: 3mm; border-bottom: .3mm solid #c2410c;
+  }
   @bottom-left { content: var(--doc-footer, ""); font: 8.5pt var(--sans); color: var(--muted); }
   @bottom-right { content: counter(page) " / " counter(pages); font: 8.5pt var(--mono); color: var(--muted); }
 }
+/* The title page carries no running header: its own large mark and title stand for it. */
+@page :first {
+  @top-left { content: none; border: 0; }
+  @top-right { content: none; border: 0; }
+}
 
 /* Layer pages are wide: the heading and its drawing share one landscape page. */
-@page layer { size: A4 landscape; margin: 22mm 14mm 16mm; }
+@page layer-image {
+  size: A4 landscape;
+  margin: 26mm 14mm 16mm;
+  @top-left {
+    content: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 32 32'><g fill='none' stroke='%23c2410c' stroke-width='3'><path d='M6 8h20M6 16h20M6 24h20'/></g></svg>") "  FLOW//TOWER";
+    font: 800 9pt "Orbitron", sans-serif; letter-spacing: .16em; color: var(--ink); vertical-align: bottom;
+    padding-bottom: 3mm; border-bottom: .3mm solid #c2410c;
+  }
+  @top-right {
+    content: var(--doc-running, ""); font: 600 7pt var(--sans); letter-spacing: .12em; color: var(--muted);
+    vertical-align: bottom; padding-bottom: 3mm; border-bottom: .3mm solid #c2410c;
+  }
+  @bottom-left { content: var(--doc-footer, ""); font: 8.5pt var(--sans); color: var(--muted); }
+  @bottom-right { content: counter(page) " / " counter(pages); font: 8.5pt var(--mono); color: var(--muted); }
+}
 
 html, body { background: var(--paper); color: var(--ink); margin: 0; }
 
@@ -73,24 +103,19 @@ code { background: var(--zebra); border: 1px solid var(--rule); border-radius: 2
 .mark-icon { display: block; color: var(--accent); }
 .mark-word { font: 800 1em/1 "Orbitron", sans-serif; letter-spacing: 0.16em; white-space: nowrap; }
 .mark-word b { color: var(--accent); font-weight: 800; }
-.mark-sm { font-size: 11pt; }
-.mark-sm .mark-icon { width: 4.2mm; height: 4.2mm; }
 .mark-lg { font-size: 30pt; gap: 0.35em; }
 .mark-lg .mark-icon { width: 11mm; height: 11mm; }
 
 /*
- * The letterhead: the mark on the left, the tower and level on the right, a hairline accent rule under.
- * In print it is fixed, so Chrome repeats it on every page inside the top margin (22mm). On screen it is
- * the first line of the page and is shown once.
+ * The on-screen header line: the tower and level, right-aligned, over a hairline accent rule. It is not
+ * fixed; in print it is hidden, since the @page margin boxes draw the running header instead.
  */
 .letterhead {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  height: 10mm; margin: 0 0 14px; padding-bottom: 2px; border-bottom: 0.5pt solid var(--accent);
+  display: flex; justify-content: flex-end; align-items: center;
+  margin: 0 0 14px; padding-bottom: 2px; border-bottom: 0.5pt solid var(--accent);
 }
 .letterhead-title { font: 600 8.5pt var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); text-align: right; }
-@media print {
-  .letterhead { position: fixed; top: 6mm; left: 14mm; right: 14mm; margin: 0; z-index: 1; }
-}
+@media print { .letterhead { display: none; } }
 
 /* Contents: chapters as heading rows, layers under them. One indent step per depth (14pt); on paper the
    rows flow in two columns, and a nested chapter's heading spans both so its layers start below it. */
@@ -117,7 +142,7 @@ code { background: var(--zebra); border: 1px solid var(--rule); border-radius: 2
 
 /* A layer page: heading and drawing together, on landscape, scaled to fit the page area without cutting. */
 .layer { break-inside: auto; }
-.layer-page { page: layer; break-after: avoid; }
+.layer-page { page: layer-image; break-after: avoid; }
 .layer-page h3 { margin-top: 0; }
 .layer-page .code { color: var(--accent); margin-right: 4px; }
 .layer-image { display: flex; justify-content: center; }
@@ -169,14 +194,4 @@ table.pairs th { color: var(--muted); }
   .toc { break-inside: avoid; }
   a { color: inherit; }
   .doc-message a { color: var(--accent); }
-  /*
-   * The cover is a title page: no running header. The fixed letterhead repeats on every page, so the cover
-   * paints the top margin band over it. The band is absolute inside the cover, so it starts on the cover's
-   * page only, and it does not change the cover's height.
-   */
-  .cover { position: relative; }
-  .cover::before {
-    content: ""; position: absolute; top: -22mm; left: -14mm; right: -14mm; height: 22mm;
-    background: var(--paper); z-index: 2;
-  }
 }

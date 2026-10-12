@@ -7,13 +7,13 @@ import { Mark } from './Mark';
 export const LEVEL_NAMES: Record<1 | 2 | 3, string> = { 1: 'Images', 2: 'Overview', 3: 'Full documentation' };
 
 /**
- * The header band of the document: the mark on the left, the tower and the level on the right. In print
- * it is fixed, so Chrome repeats it on every page; on screen it is the top line of the page, shown once.
+ * The header line of the document on screen: the tower and the level. In print it is hidden, because the
+ * running header is drawn in the page margin by CSS @page boxes (doc.css), which repeat on every page and
+ * leave the content area alone. The cover's large mark is the only mark on the first page.
  */
 export function Letterhead({ title, level }: { title: string; level: 1 | 2 | 3 }) {
   return (
     <header className="letterhead">
-      <Mark size="sm" />
       <span className="letterhead-title">{title} · {LEVEL_NAMES[level]}</span>
     </header>
   );
