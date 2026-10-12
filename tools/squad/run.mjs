@@ -148,6 +148,10 @@ const record = (outcome, steps) => { recorded = true; appendRun(ledgerPath(env),
 // An unhandled throw (two failed fetches, a bad JSON body) ends the process without any explicit record: the exit
 // handler catches those. appendFileSync is synchronous, so the write completes inside the handler.
 process.on('exit', () => { if (!recorded) record('crash', stepsDone); });
+// A default-handled SIGINT or SIGTERM kills the process without emitting 'exit', so a run stopped with Ctrl-C
+// (the usual answer to a stuck model call) left no ledger line. Listening here records it; exit() then sets the code.
+process.on('SIGINT', () => { if (!recorded) record('interrupted', stepsDone); exit(130); });
+process.on('SIGTERM', () => { if (!recorded) record('interrupted', stepsDone); exit(143); });
 // One session per run: OpenRouter keeps it on the provider that holds its prompt cache (cached input: DeepSeek 0.1x, Z.ai ~0.2x).
 const session = `${role}-${Date.now()}`;
 emit('agent.start', node, `${role} on ${model}`);
