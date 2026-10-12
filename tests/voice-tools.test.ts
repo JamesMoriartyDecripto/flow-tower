@@ -169,6 +169,25 @@ describe('voice agent tools (#63)', () => {
     expect(matchingProjects(ws, {})).toEqual(ws.projects);
     expect(matchingProjects(ws, { tag: 'pizza' })).toEqual([]);
     expect(matchingProjects(ws, { tag: 'coding' })).toEqual(ws.projects);
+    // Without workspace.sources every project is 'local', so a machine filter matches nothing.
+    expect(matchingProjects(ws, { source: 'local' })).toEqual(ws.projects);
+    expect(matchingProjects(ws, { source: 'laptop' })).toEqual([]);
+  });
+
+  it('filters projects by source (#165)', async () => {
+    const { projectMatches, matchingProjects } = await import('../src/app/library');
+    const ws = useStore.getState().workspace!;
+    const tower = ws.towers[ws.projects[0]];
+    // Unset source means every source; a wanted one must equal the project's own.
+    expect(projectMatches(tower, 'x', '', undefined, [], 'laptop')).toBe(true);
+    expect(projectMatches(tower, 'x', '', undefined, [], 'laptop', 'laptop')).toBe(true);
+    expect(projectMatches(tower, 'x', '', undefined, [], 'laptop', 'local')).toBe(false);
+    expect(projectMatches(tower, 'x', '', undefined, [], 'local', 'local')).toBe(true);
+    // matchingProjects reads the source from workspace.sources; absent means every project is local.
+    const shared = { ...ws, sources: { [ws.projects[0]]: 'laptop' } };
+    expect(matchingProjects(shared, { source: 'laptop' })).toEqual([ws.projects[0]]);
+    expect(matchingProjects(shared, { source: 'local' })).toEqual(ws.projects.slice(1));
+    expect(matchingProjects(shared, {})).toEqual(ws.projects);
   });
 
   it('scrolls the open file by dispatching the viewer event (#145b)', () => {

@@ -52,8 +52,12 @@ export function projectStats(ws: Workspace, id: string): Stats {
   return s;
 }
 
-/** What the filter box and the tag chip match on: name, description, id, tags and the models in use. */
-export function projectMatches(tower: ResolvedTower, id: string, query: string, tag: string | undefined, models: string[]): boolean {
+/**
+ * What the filter box, the tag chip and the source chip match on: name, description, id, tags and the models in use.
+ * `source` is where the project came from ('local' or a machine id); `wanted` undefined means every source.
+ */
+export function projectMatches(tower: ResolvedTower, id: string, query: string, tag: string | undefined, models: string[], source = 'local', wanted?: string): boolean {
+  if (wanted !== undefined && source !== wanted) return false;
   if (tag && !tower.tags.includes(tag)) return false;
   const q = query.trim().toLowerCase();
   if (!q) return true;
@@ -63,10 +67,21 @@ export function projectMatches(tower: ResolvedTower, id: string, query: string, 
 /**
  * The window event the Library panel listens for: the voice agent's `library_filter` tool dispatches it
  * so the filter box and the tag chip on screen are the ones the tool said it set (#145c).
- * `detail: { query?, tag? }` sets both; an absent field clears that one.
+ * `detail: { query?, tag?, source? }` sets them all; an absent field clears that one.
  */
 export const LIBRARY_FILTER_EVENT = 'flow-tower:library-filter';
-export interface LibraryFilter { query?: string; tag?: string }
+export interface LibraryFilter { query?: string; tag?: string; source?: string }
+
+/** The source of a project: `workspace.sources` names a machine id for a shared one; absent means this hub's own. */
+export function sourceOf(ws: Workspace, id: string): string {
+  return ws.sources?.[id] ?? 'local';
+}
+
+/** The chip text and title for a source; a machine's name is shown upper case, as the other chips are. */
+export function sourceChip(source: string): { label: string; title: string; cls: 'local' | 'device' } {
+  if (source === 'local') return { label: 'THIS HUB', title: "Part of this server's own library", cls: 'local' };
+  return { label: source.toUpperCase(), title: `Shared by ${source} with flow-tower share`, cls: 'device' };
+}
 
 /** A card lists the machines that sent events for its project within this window: the hub's idle threshold. */
 export const RECENT_HOSTS_MS = IDLE_MS;
@@ -97,5 +112,5 @@ export function hostsLabel(hosts: string[]): string {
 
 /** The top-level projects matching a filter, in library order: what the panel shows and the tool counts. */
 export function matchingProjects(ws: Workspace, filter: LibraryFilter): string[] {
-  return ws.projects.filter((id) => projectMatches(ws.towers[id], id, filter.query ?? '', filter.tag, projectStats(ws, id).models));
+  return ws.projects.filter((id) => projectMatches(ws.towers[id], id, filter.query ?? '', filter.tag, projectStats(ws, id).models, sourceOf(ws, id), filter.source));
 }
