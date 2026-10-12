@@ -203,7 +203,10 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .lib-models { min-width: 0; }
 .lib-runtimes { display: flex; gap: 8px; flex: none; color: var(--white); }
 .lib-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line-soft); padding-top: 10px; }
-.lib-foot .mono { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.lib-foot .mono { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 11px; }
+/* One line whatever the chips, age and usage: the usage is cut with an ellipsis, its title keeps it whole (#166). */
+.lib-foot .lib-usage { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lib-foot .lib-open { flex-shrink: 0; }
 .lib-open { display: flex; gap: 6px; }
 .lib-open .btn { padding: 4px 10px; font-size: 10px; }
 .lib-hint { margin-top: 18px; font-size: 11px; }

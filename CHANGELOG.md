@@ -20,6 +20,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - The `flow-tower-contribute` skill starts from an issue, adds a CHANGELOG step and sign-off, and runs four more anonymisation checks (#122).
 
 ### Fixed
+- Hub: a remote viewer's page no longer fills the console with 403s: `GET /api/sharing` answers a remote viewer a quiet `{ state: 'off' }` (writes stay refused) (#166).
+- Hub: the dev server warms the app at start (Vite `server.warmup`), so the first page over a tailnet skips a cold cache (about 45 s before) (#166).
+- Library: a card footer with ERR, WARN, age and usage stays on one line; the usage is cut with an ellipsis (#166).
+- Command-center kit: the systemd unit runs Node 22 from `/opt/node22` (Ubuntu 24.04's `/usr/bin/node` is Node 20) and can write `node_modules/.vite-temp`, without which it failed at start; the README installs the official tarball with a SHA256 check, and covers the one-time Tailscale Serve admin step and testing from another tailnet device (#166).
 - `check-example` accepts every reserved example domain (RFC 2606, RFC 6761) (#122).
 - The server no longer grows until out of memory in long sessions: it loads its Vite config once, so edits to its own source no longer restart it in-process, which leaked the previous server each time (upstream Rolldown #10887) (#99).
 

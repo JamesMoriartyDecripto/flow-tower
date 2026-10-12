@@ -58,10 +58,18 @@ const isMountRoot = (url: string | undefined) => {
 };
 
 export function sharingHandler({ home, relay, hub }: SharingOptions) {
-  /** A local control: another page must not reach it, a remote viewer must not either. */
+  /**
+   * A local control: another page must not reach it, a remote viewer must not either. A remote viewer's
+   * page still polls the state every 5 s: its GET gets a quiet { state: 'off' } (the chip stays hidden and
+   * nothing about this server's relay leaks) instead of a 403 that fills the console (#166).
+   */
   const allowed = (req: IncomingMessage, res: ServerResponse): boolean => {
     if (crossSite(req)) { send(res, 403, { error: 'cross-site requests are refused' }); return false; }
-    if (isRemote(req, { hub })) { send(res, 403, { error: 'remote requests are refused' }); return false; }
+    if (isRemote(req, { hub })) {
+      if (req.method === 'GET') send(res, 200, { state: 'off' });
+      else send(res, 403, { error: 'remote requests are refused' });
+      return false;
+    }
     return true;
   };
 
