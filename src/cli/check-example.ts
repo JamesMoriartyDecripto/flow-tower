@@ -80,8 +80,13 @@ const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const IPV4 = /\b(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b/g;
 /** Loopback and the documentation ranges (RFC 5737): an example may name those on purpose. */
 const IP_OK = /^(127\.0\.0\.1|0\.0\.0\.0|192\.0\.2\.\d{1,3}|198\.51\.100\.\d{1,3}|203\.0\.113\.\d{1,3})$/;
-/** An email on a reserved domain is a placeholder, not somebody's address. */
-const EMAIL_OK = /@example\.(com|org|net)$/i;
+/**
+ * An email on a reserved domain is a placeholder, not somebody's address. RFC 2606 reserves example.com,
+ * example.org and example.net (and their subdomains) for documentation; RFC 6761 reserves the .example,
+ * .test, .invalid and .localhost TLDs. The anchored pattern stops at the end of the domain, so a lookalike
+ * such as example.com.evil.io or notexample.com is still flagged.
+ */
+const EMAIL_OK = /@(?:[a-z0-9-]+\.)*(?:example\.(?:com|org|net)|example|test|invalid|localhost)$/i;
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** Whole-token match: a hostname inside a longer word is not what leaked. */

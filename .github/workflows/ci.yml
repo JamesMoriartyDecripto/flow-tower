@@ -11,9 +11,51 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the PR base commit is available for the diff below.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run check
+      # Only folders a PR adds are checked: dogfood towers and older examples
+      # predate the anonymisation checker and would fail it by design.
+      - name: check-example on example folders this PR adds
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          status=0
+          while read -r d; do
+            [ -n "$d" ] || continue
+            [ -d "examples/$d" ] || continue
+            # Existing folders are skipped: they were never subject to the checker.
+            if git cat-file -e "$BASE:examples/$d" 2>/dev/null; then continue; fi
+            node bin/flow-tower.js check-example "examples/$d" || status=1
+          done < <(git diff --name-only "$BASE"...HEAD -- examples/ | cut -d/ -f2 | sort -u)
+          exit $status
+  dco:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Every commit is signed off (DCO)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          status=0
+          while read -r c; do
+            # DCO requires a Signed-off-by trailer on every non-merge commit.
+            if ! git log -1 --format=%B "$c" | grep -q '^Signed-off-by: '; then
+              echo "::error::commit $c has no Signed-off-by line: see CONTRIBUTING.md (git commit -s)"
+              status=1
+            fi
+          done < <(git rev-list --no-merges "$BASE..$HEAD_SHA")
+          exit $status

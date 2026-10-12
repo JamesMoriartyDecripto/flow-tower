@@ -23,10 +23,10 @@ for f in $dir/*.md(n); do
   if ! (cd $R && npm run check > $OUT/check-$step.log 2>&1); then
     echo "RED after step $step: see $OUT/check-$step.log"; grep -E "error TS|FAIL|✗|×" $OUT/check-$step.log | head -8; exit 1
   fi
-  # Trailers (session link, co-author) are session-specific: the caller passes them in SQUAD_TRAILERS, one per line.
+  # Sign-off (DCO) is automatic: git commit -s. Trailers (session link, co-author) are session-specific: the caller passes them in SQUAD_TRAILERS, one per line.
   trailers=''
   [ -n "$SQUAD_TRAILERS" ] && trailers=$'\n\n'"$SQUAD_TRAILERS"
-  (cd $R && git ls-files --others --exclude-standard | grep -E "(^|/)(tmp[-_.]|zz[-_])|probe|scratch" | while read -r junk; do echo "removed coder probe file: $junk"; rm -f -- "$junk"; done; git add -u; for p in ${(s:,:)write}; do [ -e $p ] && git add -A -- $p; done; git status --short | grep "^??" && echo "UNTRACKED LEFT (outside the write dirs, not committed)"; git commit -q -m "$title, step $step (#$issue)
+  (cd $R && git ls-files --others --exclude-standard | grep -E "(^|/)(tmp[-_.]|zz[-_])|probe|scratch" | while read -r junk; do echo "removed coder probe file: $junk"; rm -f -- "$junk"; done; git add -u; for p in ${(s:,:)write}; do [ -e $p ] && git add -A -- $p; done; git status --short | grep "^??" && echo "UNTRACKED LEFT (outside the write dirs, not committed)"; git commit -s -q -m "$title, step $step (#$issue)
 
 Coder: $CODER.${trailers}" && git log --oneline -1)
 done

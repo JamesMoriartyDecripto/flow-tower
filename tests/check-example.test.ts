@@ -108,6 +108,26 @@ describe('cli check-example (#116)', () => {
     expect(r.ok).toBe(true);
   });
 
+  it.each([
+    ['example.com', 'ops@example.com'],
+    ['a subdomain of a reserved TLD', 'assistant@jpark.example.com'],
+    ['the .example TLD', 'privacy@kestrel.example'],
+    ['the .test TLD', 'a@b.test'],
+  ])('accepts a reserved-domain email (%s)', { timeout: 20_000 }, (_name, email) => {
+    const dir = make(`reserved-${email.replace(/[^a-z0-9]/gi, '-')}`);
+    writeFileSync(join(dir, 'prompts/main.md'), `Contact ${email}\n`);
+    expect(rules(dir).rules).not.toContain('email');
+  });
+
+  it.each([
+    ['a real-looking domain under a reserved name', 'ada@corp.example.io'],
+    ['a reserved domain with a suffix', 'x@example.com.evil.io'],
+  ])('still flags an email on %s', { timeout: 20_000 }, (_name, email) => {
+    const dir = make(`flagged-${email.replace(/[^a-z0-9]/gi, '-')}`);
+    writeFileSync(join(dir, 'prompts/main.md'), `Contact ${email}\n`);
+    expect(rules(dir).rules).toContain('email');
+  });
+
   it('masks a secret-looking text in the JSON output', { timeout: 20_000 }, () => {
     const dir = make('masked');
     const token = 'ft_abcdefghijklmnopqrstuv';
