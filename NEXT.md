@@ -2,27 +2,37 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
-## Status on 2026-10-11
+## Status on 2026-10-12
 
-- **v0.7.0 released:** the Hub panel (#92), your own library (#121), voice that closes files and resolves "its file" / "the next one" locally (#128, #130), Settings › Updates (#141), the #136 field notes, wide Markdown tables (#133), `validate` folder refs (#118), KaTeX (#119). Gates and e2e: [report](examples/release-auditor/reports/v0.7.0.md).
+- **v0.8.0 released:**
+  - voice: scroll, the Hub panel, filters, compare (#145);
+  - command-center and satellite skills (#148);
+  - the model benchmark's first full run, with live tower events (#105);
+  - `--warm`, `--batch` and `cache_control` (#149);
+  - the CLI split (#126).
+  
+  Gates and e2e: [report](examples/release-auditor/reports/v0.8.0.md).
+- **Dev squad models** (from the benchmark and a field trial): Claude Haiku 5.5 codes, GLM 5.3 FlashX reviews, DeepSeek 4.1 Flash audits. See [tools/squad](tools/squad/README.md) and the cost skill reference § Benchmark 2026-10-11.
 - **Live:** a hub on the test server running the [command-center](examples/command-center) kit, and a laptop satellite relaying to it.
-- **Voice 2 plan:** [#129](https://github.com/JamesMoriartyDecripto/flow-tower/issues/129); item 1 (referents) shipped.
+- **Voice 2 plan:** [#129](https://github.com/JamesMoriartyDecripto/flow-tower/issues/129). Items 1 (referents) and 2 (tools) shipped.
 
 ## Next, in order
 
-1. #122 contribution path: open-source best practices (needs the maintainer's choices: DCO, code-of-conduct contact, Discussions)
-2. #129 voice 2: the remaining tools, then `live_status`, clarifying questions, proactive alerts, browser VAD
-3. #137 optional runtime files (schema)
-4. #85 privacy profiles
-5. #93 admin
-6. #94 alerts
-7. #95 remote activity
-8. #86 fan-out
-9. #126 split `bin/flow-tower.js`
-10. #97 systemd, compose, Caddy and Tailscale on the real server
-11. #99 dev-server heap and port leak
-12. #105 model benchmarks ([model-benchmark](examples/model-benchmark))
-13. #69, #65, #5
+1. #129 voice 2: `live_status` ("cosa sta succedendo?"), clarifying questions, then proactive alerts, browser VAD, push-to-talk
+2. #69 tower names as an STT prompt
+3. #143 split `docs/architecture.md` (docs-qa Q24)
+4. #122 contribution path: open-source best practices (needs the maintainer's choices: DCO, code-of-conduct contact, Discussions)
+5. #137 optional runtime files (schema)
+6. #147 Blender and Unreal benchmark categories; a live `--batch` and `--warm` run (#149)
+7. #85 privacy profiles
+8. #93 admin
+9. #94 alerts
+10. #95 remote activity
+11. #86 fan-out
+12. #97 systemd, compose, Caddy and Tailscale on the real server
+13. #99 dev-server heap and port leak
+14. #5 live events with Pi (P1, needs a machine with Pi)
+15. #65
 
 ## How work is done
 
