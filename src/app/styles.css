@@ -291,6 +291,7 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .live-chip i { font-style: normal; color: var(--live-run); animation: pulse 1.2s infinite; }
 .live-chip b { font: 700 12px var(--ui); letter-spacing: .03em; }
 .live-chip span { color: #9fe9f5; }
+.live-chip em { font-style: normal; color: var(--dim, #8aa); font-weight: 500; }
 .live-chip.error { border-color: var(--live-error); box-shadow: 0 0 12px color-mix(in srgb, var(--live-error) 50%, transparent); }
 .live-chip.error i, .live-chip.error span { color: var(--live-error); }
 
@@ -445,6 +446,7 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .update-chip { padding: 4px 10px; font-size: 10px; text-transform: none; text-decoration: none; }
 .feed-usage { margin-left: auto; margin-right: 10px; font-size: 11px; color: var(--live-done); }
 .lib-usage { color: var(--live-done); }
+.lib-hosts { margin: 4px 0 0; font: 600 11px var(--mono); color: var(--live-done); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .run-limits { padding: 0 6px 8px; font-size: 11px; line-height: 1.4; color: var(--amber); }
 
 /* File viewer: wrap and formatted Markdown */

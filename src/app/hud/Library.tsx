@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ResolvedTower } from '../../core/types';
-import { LIBRARY_FILTER_EVENT, projectMatches, projectStats, type LibraryFilter, type Stats } from '../library';
+import { hostsLabel, LIBRARY_FILTER_EVENT, projectMatches, projectStats, recentHosts, type LibraryFilter, type Stats } from '../library';
 import { formatUsage, subtreeState, useLive, usageOf, type LiveState } from '../live';
 import { useDescendants } from '../liveHooks';
 import { chooseView } from '../settings';
@@ -66,6 +66,25 @@ function useProjectsLive(projects: string[], active: boolean) {
   return states;
 }
 
+/** Machines that recently sent events for each project (sub-towers included), polled every second; re-renders only on change. */
+function useProjectsHosts(projects: string[], active: boolean) {
+  const desc = useDescendants();
+  const [hosts, setHosts] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!active) return;
+    const tick = () => {
+      const nodes = useLive.getState().nodes;
+      const now = Date.now();
+      const next = Object.fromEntries(projects.map((p) => [p, hostsLabel(recentHosts(nodes, new Set([p, ...(desc.get(p) ?? [])]), now))]));
+      setHosts((prev) => (projects.every((p) => prev[p] === next[p]) ? prev : next));
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [projects, desc, active]);
+  return hosts;
+}
+
 type Sort = 'updated' | 'name' | 'size' | 'live';
 const SORTS: [Sort, string, string][] = [
   ['updated', 'Recent', 'Most recently modified tower files first'],
@@ -90,6 +109,8 @@ interface CardProps {
   origin?: 'mine' | 'example';
   /** Tokens and cost reported live for the project and its sub-towers, already formatted (keeps memo cheap). */
   usage?: string;
+  /** Machines that sent events for the project in the last 15 minutes, pre-joined ("@a · @b +N"). */
+  hosts?: string;
   onOpen(id: string, view?: 'tower' | 'map'): void;
 }
 
@@ -98,7 +119,7 @@ const ORIGIN_TITLE = {
   example: 'Shipped example (read-only reference; copy it before editing)',
 } as const;
 
-const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, origin, usage, onOpen }: CardProps) {
+const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, origin, usage, hosts, onOpen }: CardProps) {
   const open = (v?: 'tower' | 'map') => (e: { stopPropagation(): void }) => { e.stopPropagation(); onOpen(id, v); };
   return (
     // A plain container (clickable anywhere) with one primary button: a card that is itself a button
@@ -136,6 +157,7 @@ const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current,
             </span>
           )}
         </div>
+        {hosts && <div className="lib-hosts" title="Machines that sent events for this project in the last 15 minutes">{hosts}</div>}
         <footer className="lib-foot">
           <span className="mono dim" title={id}>
             {stats.errors > 0 && <span className="chip err">{stats.errors} ERR</span>}
@@ -197,6 +219,7 @@ export function Library() {
     const u = usageOf(usageMap, new Set([p, ...(desc.get(p) ?? [])]));
     return u ? [[p, formatUsage(u)]] : [];
   })), [usageMap, desc, workspace]);
+  const hosts = useProjectsHosts(workspace?.projects ?? NO_PROJECTS, library);
   useEffect(() => { try { localStorage.setItem('flow-tower:library-sort', sort); } catch { /* ignore */ } }, [sort]);
   // Stable, so the memoized cards do not all re-render when one project's live state changes.
   const onOpen = useCallback((id: string, v?: 'tower' | 'map') => {
@@ -263,7 +286,7 @@ export function Library() {
       )}
       <div className="lib-grid" ref={grid}>
         {shown.map(({ id, tower, stats, origin }) => (
-          <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} origin={origin} usage={usage[id]} onOpen={onOpen} />
+          <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} origin={origin} usage={usage[id]} hosts={hosts[id] || undefined} onOpen={onOpen} />
         ))}
         {shown.length === 0 && <p className="mono dim">No project matches. Clear the filter or the tag.</p>}
       </div>

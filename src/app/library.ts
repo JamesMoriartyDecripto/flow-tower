@@ -1,4 +1,7 @@
 import type { ResolvedTower, Workspace } from '../core/types';
+import { splitTarget } from '../core/events';
+import type { NodeLive } from './live';
+import { IDLE_MS } from './hub';
 
 /**
  * The project gallery's own logic, kept free of React: the panel renders it and the voice agent's
@@ -64,6 +67,33 @@ export function projectMatches(tower: ResolvedTower, id: string, query: string, 
  */
 export const LIBRARY_FILTER_EVENT = 'flow-tower:library-filter';
 export interface LibraryFilter { query?: string; tag?: string }
+
+/** A card lists the machines that sent events for its project within this window: the hub's idle threshold. */
+export const RECENT_HOSTS_MS = IDLE_MS;
+/** Up to this many machine names on a card; the rest become a "+N". */
+const SHOWN_HOSTS = 3;
+
+/**
+ * The distinct machines that recently ran nodes of the given towers (a project and its sub-towers),
+ * most recent first. A machine is named by the events it sent, so a stale one drops off on its own.
+ */
+export function recentHosts(nodes: Map<string, NodeLive>, towers: Set<string>, now: number): string[] {
+  const latest = new Map<string, number>();
+  for (const [key, n] of nodes) {
+    const w = n.where;
+    if (!w?.host || w.ts < now - RECENT_HOSTS_MS || !towers.has(splitTarget(key)[0])) continue;
+    latest.set(w.host, Math.max(latest.get(w.host) ?? 0, w.ts));
+  }
+  return [...latest].sort((a, b) => b[1] - a[1]).map(([host]) => host);
+}
+
+/** "@a · @b · @c +N", or '' when no machine is recent. Pre-joined so the memoized cards stay cheap. */
+export function hostsLabel(hosts: string[]): string {
+  if (!hosts.length) return '';
+  const shown = hosts.slice(0, SHOWN_HOSTS).map((h) => `@${h}`).join(' · ');
+  const more = hosts.length - SHOWN_HOSTS;
+  return more > 0 ? `${shown} +${more}` : shown;
+}
 
 /** The top-level projects matching a filter, in library order: what the panel shows and the tool counts. */
 export function matchingProjects(ws: Workspace, filter: LibraryFilter): string[] {
