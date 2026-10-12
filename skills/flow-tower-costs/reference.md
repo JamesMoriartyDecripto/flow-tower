@@ -8,7 +8,8 @@
 - **Parallel tools.** Ask for tools called together in one step: fewer round trips, fewer re-sent prompts.
 - **Escalation.** Cheap default; escalate to a strong model only on the last fix round or after a failed check.
 - **Checklist: `cache_control`.** Claude models need `cache_control` breakpoints to cache at all; the squad, the voice agent and the benchmark send them.
-- **Batch.** `:batch` variants (or provider batch APIs) for offline work.
+- **Batch.** `:batch` variants (or provider batch APIs) for offline work: about half price, results within 24 h (median minutes), one turn and no tools, so only for steps whose input can be packed whole (a review with the diff and files embedded, a benchmark task). Not every model has one (GLM 5.3 FlashX has none on OpenRouter, 2026-10-12): fall back to a single synchronous request. Delete the batch once read: providers keep inputs up to 30 days.
+- **Pace.** Ask how urgent the work is and let it pick the mode: in a hurry, the tool loop (or one synchronous request for a large packed input); no hurry, the batch for every step that fits it. Tool-using roles (a coder) never batch. The squad's switch is `SQUAD_PACE=relaxed` ([tools/squad § Pace](../../tools/squad/README.md#pace-how-fast-versus-how-cheap)). Field numbers (#164): a security review as one request with the code packed cost $0.011 and answered in 2.5 min, where the tool loop timed out three times.
 - **Timeouts.** Per-call timeout + one retry: a stuck step costs time and money.
 - **Fewer agent turns.** A local parser for commands, the LLM only for questions.
 - **Fixed outputs.** Cached audio / phrases for fixed outputs (acknowledgements, greetings).

@@ -13,7 +13,7 @@ Pick the cheapest model per role **that still does the job**, measured on the sy
 2. **Current prices**: `node <skill>/models.mjs [filter] [--tools] [--since YYYY-MM-DD]` (OpenRouter's public models list, no key): input/output/cached-input price, tool support, context, release date.
 3. **Shortlist** 3–5 candidates per role with the same capabilities and data policy. Cheaper is not enough.
 4. **Benchmark on real cases**, not on price: same inputs through the real loop (the app's own tool loop; a throwaway server per model if the model is an env setting). Measure time to first useful output, correctness against what the code/tower says, steps, cost per run, failures ([recipe](reference.md#benchmark-recipe)). One run is illustrative: say so.
-5. **Levers** beyond swapping the model: caching, reasoning effort, step caps, escalation, batch, fewer turns ([reference.md § Levers](reference.md#levers)).
+5. **Levers** beyond swapping the model: caching, reasoning effort, step caps, escalation, batch, fewer turns ([reference.md § Levers](reference.md#levers)). Ask how urgent the work is: with no hurry, every one-turn step that can take its whole input goes through a batch API at about half price; the pace rule is in [reference.md § Levers](reference.md#levers).
 6. **Decide per role and record it**: model nodes with price + date, `budget`, `evals` with the measured numbers labelled illustrative, an options page with the benchmark table, the changelog. Keep `FLOW_TOWER_*`-style env overrides so users can switch back.
 7. **Report**: before/after cost and latency per role; what was measured vs assumed.
 

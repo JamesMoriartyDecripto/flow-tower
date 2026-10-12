@@ -45,6 +45,8 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 The dev squad (`tools/squad`, PR #115): the lead (Claude) writes a task file per step and verifies; the Claude Haiku coder writes the code, GLM reviews, DeepSeek checks security; the maintainer merges. Every commit is signed off (DCO), and each issue's squad cost (`tools/squad/cost.mjs`) is posted on it when it closes.
 
+**Pace** (#169): the maintainer is usually in no hurry, so reviews run with `SQUAD_PACE=relaxed` (one request through the Batch API, about half price; a model without a batch endpoint falls back to a oneshot), tasks built with `tools/squad/pack.mjs`. Use the default tool loop when the maintainer is waiting or a security pass needs to read the repo. The coder always runs the loop. [tools/squad § Pace](tools/squad/README.md#pace-how-fast-versus-how-cheap).
+
 ## Setup on a new machine
 
 The history was rewritten before going public (2026-10-09): **re-clone**, do not pull into an older clone.

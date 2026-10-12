@@ -74,6 +74,36 @@ node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --
   --task tasks/113-security.md --steps 10 --repo ../wt-113
 ```
 
+## Pace: how fast versus how cheap
+
+The maintainer sets the pace; the lead picks the review mode from it. The coder always runs the tool loop: it reads,
+writes and runs `npm run check` over many steps, which no single request can do.
+
+| Pace | When | Reviewer and security | Cost | Wait |
+|---|---|---|---|---|
+| `now` (default) | the maintainer is waiting, or the change is security-sensitive and needs repo reads | tool loop (`run.mjs`, as below); `--oneshot` when the context is large | full price | minutes |
+| `relaxed` | "no hurry": most issues | `SQUAD_PACE=relaxed`: `--batch`, one request through the OpenRouter Batch API | about half | median minutes, at most 24 h |
+
+`--oneshot` and `--batch` have no tools: the task must hold the code. Build it with `pack.mjs`:
+
+```bash
+node tools/squad/pack.mjs --role security --issue 164 --files src/server/enroll.ts,src/server/shared-towers.ts > tasks/164-security.md
+SQUAD_PACE=relaxed node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node specialists.security --task tasks/164-security.md --issue 164
+```
+
+- **Not every model has a batch endpoint.** GLM 5.3 FlashX has none on OpenRouter (2026-10-12); DeepSeek 4.1 Flash does.
+  `--batch` on such a model prints `has no batch endpoint: falling back to --oneshot (full price)` and runs it as a oneshot.
+- **Pick `--oneshot` over the loop** when the diff is big: on #164 the security loop timed out three times on the 180 s
+  per-call cap as its context grew, while one request with the code embedded answered in 2.5 minutes for $0.011.
+- **A one-request review sees only what you packed.** It cannot follow a call into a file you left out, so pack every
+  file the change touches and, for security, the guards it relies on. When it finds something, verify it in the code
+  before acting: on #164 two of five security findings did not apply.
+- **Ctrl-C while a batch waits** deletes the batch before the runner exits; a failed poll is retried twice, then the run
+  fails instead of waiting out the 12 h deadline.
+- **The Batch API keeps inputs and results up to 30 days** unless deleted. The runner always deletes the batch after
+  reading it, and only this public repo's diffs go through it, never a task that holds a secret.
+- The ledger line records `mode` (`loop`, `oneshot`, `batch`), so `cost.mjs` shows what each pace cost.
+
 ## Field findings (#75)
 
 - One or two items per task: the Flash coder burned its step cap on multi-item files.
