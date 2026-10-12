@@ -92,11 +92,13 @@ function startServer(target: string, port: number, home: string): ChildProcess {
 /** Launches Chromium; if the bundled one is missing, the installed Chrome. Null when neither starts. */
 async function launchBrowser() {
   const { chromium } = await import('@playwright/test');
+  // Software WebGL (SwiftShader): the 3D figures render on servers without a GPU, where the default GL is missing.
+  const args = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
   try {
-    return await chromium.launch();
+    return await chromium.launch({ args });
   } catch {
     try {
-      return await chromium.launch({ channel: 'chrome' });
+      return await chromium.launch({ channel: 'chrome', args });
     } catch {
       return null;
     }
@@ -173,6 +175,10 @@ async function run(opts: Options, signal: AbortSignal): Promise<number> {
     await page.waitForSelector('html[data-doc-ready="1"], html[data-doc-error]', { timeout: PAGE_TIMEOUT_MS });
     if (signal.aborted) return 130;
     const dom = await page.evaluate(PAGE_FACTS) as DomFacts;
+    // A missing 3D figure is a warning, not a failed check: its placeholder already says so on the page.
+    const snaps = await page.evaluate(() => ({ total: document.querySelectorAll('figure.snap-figure').length, ok: document.querySelectorAll('figure.snap-figure img').length }));
+    console.log(`3D snapshots: ${snaps.ok}/${snaps.total}`);
+    if (snaps.ok < snaps.total) console.warn(`warning: ${snaps.total - snaps.ok} 3D view(s) unavailable: see the placeholder in the document`);
     const facts = await workspaceFacts(target, towerId, opts.level);
     await page.emulateMedia({ media: 'print' });
 
@@ -190,7 +196,7 @@ async function run(opts: Options, signal: AbortSignal): Promise<number> {
     }
     writeFileSync(out, bytes);
     const kb = (statSync(out).size / 1024).toFixed(0);
-    console.log(`wrote ${out}: ${pageCount(bytes)} pages, ${kb} KB, checks: ${results.length}/${results.length} passed`);
+    console.log(`wrote ${out}: ${pageCount(bytes)} pages, ${kb} KB, 3D snapshots: ${snaps.ok}/${snaps.total}, checks: ${results.length}/${results.length} passed`);
     return 0;
   } finally {
     await browser?.close();

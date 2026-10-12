@@ -3,6 +3,8 @@ import type { DocImages } from './DocImages';
 import { ChapterHead, Cover, LayerBlock, LinkList, Toc } from './DocParts';
 import { LibraryCover } from './DocLibrary';
 import { ControlTable, SummaryPage } from './DocSummaryPage';
+import { SnapFigure } from './SnapFigure';
+import type { Snapshot } from './snapshots';
 import { APP_VERSION } from './version';
 
 /**
@@ -10,7 +12,7 @@ import { APP_VERSION } from './version';
  * document (its own cover, control table, summary and chapters). Every anchor is project-prefixed, so one
  * page holds them all. The library's control table comes first, so the totals are what the checks read.
  */
-export function LibraryDocument({ doc, images }: { doc: TowerDoc; images: DocImages }) {
+export function LibraryDocument({ doc, images, snaps }: { doc: TowerDoc; images: DocImages; snaps: Record<string, Snapshot> }) {
   return (
     <main className="doc level-4">
       <LibraryCover doc={doc} version={APP_VERSION} />
@@ -19,6 +21,7 @@ export function LibraryDocument({ doc, images }: { doc: TowerDoc; images: DocIma
       {(doc.projects ?? []).map((p) => (
         <section key={p.towerId} className="library-project">
           <Cover doc={p} map={images.cover} version={APP_VERSION} />
+          <SnapFigure towerTitle={p.title} layers={p.control.layers} snap={snaps[p.towerId]} />
           <div className="control-page"><ControlTable control={p.control} /></div>
           {p.summary && <SummaryPage summary={p.summary} />}
           {p.chapters.map((c) => (

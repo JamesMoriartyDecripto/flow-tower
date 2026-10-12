@@ -5,6 +5,8 @@ import { libraryDoc, libraryProjects } from '../../core/docLibrary';
 import type { Workspace } from '../../core/types';
 import { layoutTower, type TowerLayout } from '../layout';
 import { docImages, type DocImages } from './DocImages';
+import { snapshotOf, type Snapshot } from './snapshots';
+import { SnapFigure } from './SnapFigure';
 import { ChapterHead, Cover, LayerBlock, Letterhead, LinkList, LEVEL_NAMES, Toc } from './DocParts';
 import { LibraryDocument } from './DocLibraryBody';
 import { FindingsBlock, LegendBlock, NodeDetail, SourcesBlock } from './DocDetails';
@@ -16,7 +18,7 @@ import { clampLevel, resolveTower } from './resolve';
 import { APP_VERSION } from './version';
 import './doc.css';
 
-interface Built { doc: TowerDoc; images: DocImages; title: string; running: string; footer: string }
+interface Built { doc: TowerDoc; images: DocImages; snaps: Record<string, Snapshot>; title: string; running: string; footer: string }
 
 /**
  * The first 16 hex digits of a sha256 over the canonical JSON of the resolved tower. The same tower gives
@@ -74,10 +76,19 @@ export function DocView({ ws, towerId, level, print, projectNames }: {
       ? libraryDoc(ws, libraryProjects(ws, projectNames), { generator })
       : towerDoc(ws, towerId, level, { generator });
     const fp = level === 4 ? ws.projects.join('|') : towerId;
-    Promise.all([imagesOf(ws, doc), fingerprintOf(ws, fp)])
-      .then(([images, fingerprint]) => live && setBuilt({
+    // The 3D figures are one at a time (snapshotOf queues them), and they are part of the ready state.
+    // Level 4 shows only each project's root tower, so it captures one snapshot per project, not every chapter.
+    const snapsOf = async (d: TowerDoc): Promise<Record<string, Snapshot>> => {
+      const out: Record<string, Snapshot> = {};
+      const ids = level === 4 ? (d.projects ?? []).map((p) => p.towerId) : d.chapters.map((c) => c.towerId);
+      for (const id of ids) out[id] = await snapshotOf(id);
+      return out;
+    };
+    Promise.all([imagesOf(ws, doc), fingerprintOf(ws, fp), snapsOf(doc)])
+      .then(([images, fingerprint, snaps]) => live && setBuilt({
         doc: { ...doc, control: { ...doc.control, fingerprint } },
         images,
+        snaps,
         title: level === 4 ? `${doc.title} — ${LEVEL_NAMES[4]}` : `${ws.towers[towerId].name} — ${LEVEL_NAMES[level]}`,
         // The running header is upper case, as the letterhead was; the footer names the classification,
         // the build and the tower, as the classification is the first thing a reader of a print looks for.
@@ -100,7 +111,7 @@ export function DocView({ ws, towerId, level, print, projectNames }: {
 }
 
 function Document({ built, level, print }: { built: Built; level: DocLevel; print: boolean }) {
-  const { doc, images } = built;
+  const { doc, images, snaps } = built;
   // The cover names the version (from package.json at build time) and the tower id: no date, so the same tower prints the same file.
 
   useEffect(() => {
@@ -121,7 +132,7 @@ function Document({ built, level, print }: { built: Built; level: DocLevel; prin
   }, [built, print]);
 
   // The library has its own body; the ready signal above still covers it, since the hook runs first.
-  if (level === 4) return <LibraryDocument doc={doc} images={images} />;
+  if (level === 4) return <LibraryDocument doc={doc} images={images} snaps={snaps} />;
 
   return (
     <main className={`doc level-${level}`}>
@@ -133,6 +144,7 @@ function Document({ built, level, print }: { built: Built; level: DocLevel; prin
       {doc.chapters.map((c) => (
         <article key={c.id} className="chapter">
           <ChapterHead chapter={c} />
+          <SnapFigure towerTitle={c.title} layers={c.layers.length} snap={snaps[c.towerId]} />
           {c.layers.map((l) => (
             <div key={l.id} className="layer-block">
               <LayerBlock section={l} level={level} markup={images.layers[l.id]} />

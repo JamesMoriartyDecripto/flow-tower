@@ -24,6 +24,7 @@ import { useLive, useLiveSync } from './live';
 import { useDemoSimulator } from './demo';
 import { exportPng, exportSvg } from './exporter';
 import { Snapshot } from './scene/Snapshot';
+import { snapTowerOf, useSnapshotPost } from './SnapPage';
 import { navigate, nextSubTower, nudgeCamera, stepLayer, type Dir } from './keynav';
 import { Effects } from './scene/Effects';
 import { TowerScene } from './scene/Tower';
@@ -44,6 +45,9 @@ export function App() {
   const hubOpen = useHub((s) => s.open);
   const feedOpen = useLive((s) => s.feedOpen);
   useDefaultView();
+  // A snapshot page (`?snap=1`) is the bare 3D tower for the document view: no HUD, and it posts its PNG to the parent.
+  const snap = snapTowerOf(location.search);
+  useSnapshotPost(snap);
   const [showIssues, setShowIssues] = useState(false);
   const broken = tower && tower.layers.length === 0;
 
@@ -64,6 +68,7 @@ export function App() {
           <Snapshot />
         </Suspense>
       </Canvas>
+      {snap === undefined && <>
       <div className="scanlines" />
       <LiveChips />
       <div className="hud">
@@ -88,7 +93,8 @@ export function App() {
       <Tooltip />
       <Library />
       <VoiceCaption />
-      {!tower && (
+      </>}
+      {snap === undefined && !tower && (
         <div className="boot">
           <div>
             <div className="title">{error ? 'Link failure' : 'Initializing tower'}</div>

@@ -137,6 +137,36 @@ test('the document prints to PDF at each level, and the full one is larger', asy
   }
 });
 
+test('the 3D figures: the root and both sub-tower chapters each hold a snapshot or a placeholder', async ({ page, browserName }) => {
+  test.setTimeout(180_000);
+  await page.goto('/?doc=dev-squad&level=2');
+  await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 150_000 });
+  const chapters = page.locator('main article.chapter');
+  // The root and its two sub-towers are the chapters the figures belong to.
+  expect(await chapters.count(), 'root and both sub-tower chapters').toBeGreaterThanOrEqual(3);
+  const figures = chapters.locator('figure.snap-figure');
+  expect(await figures.count(), 'one 3D figure per chapter').toBeGreaterThanOrEqual(3);
+  let images = 0;
+  for (let i = 0; i < 3; i++) {
+    const fig = figures.nth(i);
+    const img = fig.locator('img');
+    if (await img.count()) {
+      const src = await img.getAttribute('src');
+      expect(src, `figure ${i} is a PNG data URL`).toMatch(/^data:image\/png/);
+      const width = await img.evaluate((el: HTMLImageElement) => el.naturalWidth);
+      expect(width, `figure ${i} is wider than 800 px`).toBeGreaterThan(800);
+      images++;
+    } else {
+      await expect(fig.locator('.snap-missing'), `figure ${i} shows a placeholder`).toContainText('3D view unavailable:');
+    }
+  }
+  // The root figure must be an image under Chromium: the placeholder alone is not enough there.
+  if (browserName === 'chromium') expect(await figures.nth(0).locator('img').count(), 'the root 3D view is an image').toBe(1);
+  expect(images, 'at least the root figure is drawn').toBeGreaterThanOrEqual(1);
+  // The PDF output carries the figure count, so a reader of the test log sees how many 3D views printed.
+  console.log(`3D figures: ${images}/${await figures.count()} drawn`);
+});
+
 test('the library (level 4) prints every named project with its own cover, and no dead link', async ({ page, browserName }) => {
   await page.goto('/?doc=library&level=4&projects=dev-squad,game-studio');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
