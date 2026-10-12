@@ -84,7 +84,7 @@ async function share(dir: string | undefined) {
   if ('error' in collected) fail(collected.error);
 
   const { files, skipped } = collected;
-  console.log(`sharing ${name}: ${files.length} files, ${values.files ? 'YAML and referenced files' : 'YAML only'}`);
+  console.log(`sharing ${name}: ${files.length} ${files.length === 1 ? 'file' : 'files'}, ${values.files ? 'YAML and referenced files' : 'YAML only'}`);
   // The user sees exactly what leaves the machine; the list is capped so a big folder stays readable.
   for (const f of files.slice(0, SENT_LIST_CAP)) console.log(`  ${f.path}`);
   if (files.length > SENT_LIST_CAP) console.log(`  … and ${files.length - SENT_LIST_CAP} more`);

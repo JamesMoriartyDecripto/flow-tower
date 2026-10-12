@@ -15,9 +15,9 @@ Background, only when needed: [docs/command-center.md](../../docs/command-center
 
 | Check | Command | Fine when | If not |
 |---|---|---|---|
-| Node | `node --version` | 22.13 or newer | Look for a newer Node already installed (`ls /opt/node*/bin`, nvm, Homebrew); else ask before installing Node 22 LTS. Then run every CLI command with that Node. (Too old, the CLI fails with `bad option: --experimental-strip-types`.) |
-| Flow Tower up to date | `git -C <checkout> fetch -q && git -C <checkout> status -sb` | the first line shows `...origin/<branch>` and no `behind` | `behind`: offer `git pull` and `npm ci`. No `...origin/` part: the checkout tracks nothing; compare `git -C <checkout> log -1 --format=%cd origin/main` with `HEAD` and say so. |
-| Tailscale | `tailscale status --json \| jq '{BackendState, tailnet: .CurrentTailnet.Name, suffix: .MagicDNSSuffix, login: .User[(.Self.UserID\|tostring)].LoginName}'` | `BackendState` is `Running` | Stopped or missing: this machine must join the hub's tailnet (`tailscale up` with the same account). Ask before installing anything. Keep `login`: the hub must list it. |
+| Node | `node --version` | 22.13 or newer | Look for a newer Node already installed (`ls /opt/node*/bin`, nvm, Homebrew); take the highest version, else ask before installing Node 22 LTS. Then call the CLI with that binary's full path (`/opt/node22/bin/node <checkout>/bin/flow-tower.js …`) or put its `bin` first in `PATH`, here and in step 6. (Too old, the CLI fails with `bad option: --experimental-strip-types`.) |
+| Flow Tower up to date | `git -C <checkout> fetch -q && git -C <checkout> status -sb` | the first line shows `...origin/<branch>` and no `behind` | `behind`: offer `git pull` and `npm ci`. No `...origin/` part: `git -C <checkout> rev-list --left-right --count HEAD...origin/main`; the second number is how many commits it is behind `origin/main` (0: up to date). |
+| Tailscale | `tailscale status --json \| jq '{BackendState, tailnet: .CurrentTailnet.Name, suffix: .MagicDNSSuffix, login: .User[(.Self.UserID\|tostring)].LoginName}'` | `BackendState` is `Running` | Stopped or missing: this machine must join the hub's tailnet (`tailscale up` with the same account). Ask before installing anything. Keep `login`: the hub must list it. No `jq`: read those fields from `tailscale status --json` yourself. macOS app without the CLI: `/Applications/Tailscale.app/Contents/MacOS/Tailscale`. |
 | Already connected? | `{{FLOW_TOWER_CLI}} config show` | `role` is `local` and no `url` | A `url` and `role: satellite`: it was connected before. Say to which hub, and ask whether to keep it. |
 | Port free | `curl -s -m 2 http://127.0.0.1:<port>/api/sharing` | no answer (nothing listens) | Something answers: a flow-tower is already running there. Use it if its `hub` is the right one, else pick another `--port`. |
 
@@ -34,23 +34,23 @@ Hubs that are not on a tailnet (a VPS behind Caddy): the hub owner runs `token a
 
 ## 4. Share towers
 
-1. **Which towers.** `{{FLOW_TOWER_CLI}} library list` shows the folders already in the user's library. Empty (`no towers yet`): ask where their tower folders are, or look: `find ~ -name '*.tower.yaml' -not -path '*/node_modules/*' 2>/dev/null`. Ask which ones to share.
+1. **Which towers.** `{{FLOW_TOWER_CLI}} library list` shows the folders already in the user's library. Empty (`no towers yet`): ask where their tower folders are, then look there (`find <that folder> -name '*.tower.yaml' -not -path '*/node_modules/*' 2>/dev/null`; all of `~` only if they do not know). A tower folder is the folder that holds a `.tower.yaml`. Ask which ones to share.
 2. **YAML only or with files**, per tower:
    - **YAML only** (default): the structure the hub needs to light the nodes. No file contents leave the machine.
-   - **With files**: also the files the tower references, so people viewing the hub can open them. Only files inside the tower folder, only text types; `.env`, keys and similar are never sent.
+   - **With files**: also the files the tower references (its nodes' `files:` and prompt files), so people viewing the hub can open them. Only files inside the tower folder, only text types; `.env`, keys and similar are never sent. Name those files in the OK; `share` prints the exact list and anything it skipped.
 3. **The OK.** Say exactly what will go (tower names, YAML only or with which files, to which hub) and wait for yes.
 4. Per tower: `{{FLOW_TOWER_CLI}} share <tower folder>` (add `--files` for the second choice). It prints every file it sends and any it skipped with the reason, and adds the folder to the user's library if it was not there.
 
-To stop later: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub. `{{FLOW_TOWER_CLI}} share --list` shows what is shared.
+To stop later: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub; `<name>` is what `share --list` shows (the folder name, not the YAML `name:`).
 
 ## 5. Start the local library
 
-`{{FLOW_TOWER_CLI}} library --no-open [--port N]`, and keep it running: in the background (`nohup … > ~/flow-tower.log 2>&1 &`) or in a terminal the user leaves open. If it was already running, restart it: it reads the connection at start. The relay and the tower sync run inside it: `connect` and `share` alone send no live events and keep nothing in sync. From now on a change to a shared tower reaches the hub within ~15 s.
+`{{FLOW_TOWER_CLI}} library --no-open [--port N]`, and keep it running: in the background (`nohup … > ~/flow-tower.log 2>&1 & echo $! > ~/flow-tower.pid`, keeping any `FLOW_TOWER_HOME` the machine uses on the same line) or in a terminal the user leaves open. If it was already running, restart it (`kill $(cat ~/flow-tower.pid)`, or `pkill -f 'flow-tower.js library'`; never a pattern your own command line contains): it reads the connection at start. An `ExperimentalWarning` about SQLite in the log is normal. The relay and the tower sync run inside it: `connect` and `share` alone send no live events and keep nothing in sync. From now on a change to a shared tower reaches the hub within ~15 s.
 
 ## 6. Live events from the agents (ask first)
 
 Claude Code: merge the `hooks` of [`integrations/claude-code/settings.json`](../../integrations/claude-code/settings.json) into `~/.claude/settings.json` (every project) or `<project>/.claude/settings.json` (one project), adding to the existing `hooks` keys, never replacing them. Two changes on a satellite:
-- the `SessionStart` command becomes `{{FLOW_TOWER_CLI}} emit --source claude-code --token ''` (`emit` would otherwise send the hub token to the local server, which refuses it);
+- the `SessionStart` command becomes `{{FLOW_TOWER_CLI}} emit --source claude-code --token ''`, written in full with the Node from step 1 (a bare `flow-tower` may not resolve), and with `--token ''` because `emit` would otherwise send the hub token to the local server, which refuses it;
 - with `--port N`, change `5317` to N in every hook URL.
 
 Other agents: [docs/realtime.md](../../docs/realtime.md#sources).
@@ -60,6 +60,7 @@ Other agents: [docs/realtime.md](../../docs/realtime.md#sources).
 - `curl -s http://127.0.0.1:<port>/api/sharing`: `state` is `online`, and each shared tower has a `syncedAt` and no `error`. Right after the start `towers` can be empty: wait ~15 s and check again.
 - `curl -s -X POST -H 'content-type: application/json' -d '{}' http://127.0.0.1:<port>/api/sharing/test`: `state` is `online`.
 - `{{FLOW_TOWER_CLI}} share --list`: every share is listed as on the hub.
+- With hooks wired (step 6): start a new agent session, then `/api/sharing` shows a newer `lastSentAt` and `queued` back at 0.
 - In the UI (optional): the top-bar chip reads `SAT → <hub host> · <time since the last send>`, green when online; Settings › Sharing › **Send a test event** › **Send test** answers `Last test: online`.
 
 ## When something fails (one fix each)
