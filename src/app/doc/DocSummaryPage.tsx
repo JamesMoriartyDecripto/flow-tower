@@ -54,7 +54,7 @@ export function SummaryPage({ summary }: { summary: DocSummary }) {
   ];
   const v = summary.validation;
   return (
-    <section className="summary">
+    <section className="exec-summary">
       <h2>Executive summary</h2>
       <div className="tiles">
         {tiles.map(([n, label]) => (
@@ -67,7 +67,7 @@ export function SummaryPage({ summary }: { summary: DocSummary }) {
       <p className="legend-line">
         Validation: {v.errors} error{v.errors === 1 ? '' : 's'} · {v.warnings} warning{v.warnings === 1 ? '' : 's'} · {v.info} info
       </p>
-      <Stack title="Nodes by type" kind="type" parts={summary.byType.map((t) => ({ label: t.type, n: t.nodes, cls: 'seg-type' }))} />
+      <Stack title="Nodes by type" kind="type" parts={summary.byType.map((t, i) => ({ label: t.type, n: t.nodes, cls: `seg-type t${i % 8}` }))} />
       <Stack
         title="Nodes by status"
         kind="status"
@@ -92,7 +92,11 @@ export function SummaryPage({ summary }: { summary: DocSummary }) {
   );
 }
 
-/** A single horizontal bar, split into one segment per item, each labelled with its name and count. */
+/**
+ * A single horizontal bar, one segment per item. Counts live in the legend under it, never inside the segments: a
+ * narrow segment cannot hold its number, and numbers piled up there read as noise. Each legend item carries a swatch
+ * of its segment's colour, so the two are matched without labels on the bar.
+ */
 function Stack({ title, kind, parts }: { title: string; kind: 'type' | 'status'; parts: { label: string; n: number; cls: string }[] }) {
   if (parts.reduce((s, p) => s + p.n, 0) === 0) return null;
   return (
@@ -100,12 +104,12 @@ function Stack({ title, kind, parts }: { title: string; kind: 'type' | 'status';
       <h5>{title}</h5>
       <div className="bar" role="img" aria-label={parts.map((p) => `${p.label} ${p.n}`).join(', ')}>
         {parts.map((p) => (
-          <span key={p.label} className={`seg ${p.cls}`} style={{ flexGrow: p.n }}>{p.n}</span>
+          <span key={p.label} className={`seg ${p.cls}`} style={{ flexGrow: p.n }} title={`${p.label} ${p.n}`} />
         ))}
       </div>
       <p className="legend-line">
         {parts.map((p) => (
-          <span key={p.label} className="legend-item"><Chip kind={kind} value={p.label} /> {p.n}</span>
+          <span key={p.label} className="legend-item"><span className={`swatch ${p.cls}`} /><Chip kind={kind} value={p.label} /> {p.n}</span>
         ))}
       </p>
     </div>
