@@ -107,6 +107,8 @@ function createTokenStore(home: string) {
       const current = active(list, id);
       if (current && current.login !== login) throw new Error(`conflict: token ${id} belongs to another user`);
       const { token, record } = mint(id, login);
+      // A machine the hub owner paused stays paused: re-enrolling must not be a way around that switch.
+      if (current?.paused) record.paused = true;
       if (current) current.revokedAt = Date.now();
       list.push(record);
       save(list);

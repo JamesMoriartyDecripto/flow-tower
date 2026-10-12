@@ -96,6 +96,17 @@ describe('token enrolment', () => {
     expect(store.verify(again.token)).toEqual({ id: 'laptop-2' });
   });
 
+  it('keeps a paused machine paused when its owner enrols it again', () => {
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-tokens-'));
+    const store = tokenStore(home);
+    store.enroll('laptop-4', 'alice@example.com');
+    store.pause('laptop-4', true);
+    const again = store.enroll('laptop-4', 'alice@example.com');
+    expect(store.verify(again.token)).toBeUndefined();
+    store.pause('laptop-4', false);
+    expect(store.verify(again.token)).toEqual({ id: 'laptop-4' });
+  });
+
   it('rejects a bad id or an empty login', () => {
     const home = mkdtempSync(join(tmpdir(), 'flow-tower-tokens-'));
     const store = tokenStore(home);
