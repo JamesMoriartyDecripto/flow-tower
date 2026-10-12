@@ -54,11 +54,14 @@ const MODEL_HINTS: [RegExp, RoleId][] = [
   [/video|veo|sora/, 'video-gen'],
 ];
 
+/** Id or label words that say the node leads other agents (checked before review, see classifyNode). */
+const ORCHESTRATOR_WORDS = ['lead', 'orchestrat', 'planner', 'manager'];
+/** Id or label words that say the node judges work. Checked before tools: a reviewer with Bash still reviews. */
+const REVIEW_WORDS = ['review', 'judge', 'critic', 'verif', 'audit'];
 /** Tool names (after "Name(args)" or "mcp__server__") that change files or run commands. */
 const CODING_TOOLS = ['edit', 'write', 'bash'];
 const RESEARCH_TOOLS = ['web', 'search', 'fetch'];
 const KEYWORDS: [string[], RoleId][] = [
-  [['review', 'judge', 'critic'], 'review'],
   [['translat', 'write', 'draft', 'copy'], 'writing'],
   [['extract', 'parse'], 'data'],
   [['classif'], 'router'],
@@ -72,16 +75,21 @@ function toolBase(name: string): string {
 const modelOf = (node: ResolvedNode): string | undefined => node.model ?? node.agent?.model;
 
 /**
- * The role of one node, from facts only. Order (first match wins), and `why` names the fact used:
+ * The role of one node, from facts only. Order (first match wins), and `why` names the fact used.
+ * The order follows what the node is *for* before the tools it happens to carry: a reviewer with
+ * Bash is still a reviewer, and a lead that spawns agents is an orchestrator, not a coder.
  *  1. node type: guard → guard, decision → router (the type says what the node is for).
  *  2. model id hints: a specialised model (whisper, tts, realtime, embed, image, video) names its role.
- *  3. tools: file or shell tools → coding, web or fetch tools → research.
- *  4. outgoing spawn edges → orchestrator (the node hands work to other agents).
- *  5. keywords in id, label or description: review, writing, data, router (see KEYWORDS).
- *  6. nothing matched → general.
- * `outgoingSpawn` comes from the tower's edges, since a node does not carry its edges.
+ *  3. delegation: outgoing spawn or handoff edges, or id/label words lead, orchestrat, planner,
+ *     manager → orchestrator.
+ *  4. id/label words review, judge, critic, verif, audit → review.
+ *  5. tools: file or shell tools → coding, web or fetch tools → research.
+ *  6. other keywords in id, label or description: writing, data, router (see KEYWORDS).
+ *  7. nothing matched → general.
+ * `delegates` is true when the tower has an outgoing spawn or handoff edge from the node, since a
+ * node does not carry its edges.
  */
-export function classifyNode(node: ResolvedNode, outgoingSpawn = false): { role: RoleId; why: string } {
+export function classifyNode(node: ResolvedNode, delegates = false): { role: RoleId; why: string } {
   if (node.type === 'guard') return { role: 'guard', why: 'node type is guard' };
   if (node.type === 'decision') return { role: 'router', why: 'node type is decision' };
 
@@ -93,15 +101,21 @@ export function classifyNode(node: ResolvedNode, outgoingSpawn = false): { role:
     }
   }
 
+  const name = [node.id, node.label ?? ''].join(' ').toLowerCase();
+  if (delegates) return { role: 'orchestrator', why: 'has an outgoing spawn or handoff edge' };
+  const lead = ORCHESTRATOR_WORDS.find((w) => name.includes(w));
+  if (lead) return { role: 'orchestrator', why: `"${lead}" in id or label` };
+
+  const review = REVIEW_WORDS.find((w) => name.includes(w));
+  if (review) return { role: 'review', why: `"${review}" in id or label` };
+
   const bases = node.tools.map(toolBase);
   const coding = bases.find((b) => CODING_TOOLS.some((t) => b.includes(t)));
   if (coding) return { role: 'coding', why: `tool "${coding}" edits files or runs commands` };
   const research = bases.find((b) => RESEARCH_TOOLS.some((t) => b.includes(t)));
   if (research) return { role: 'research', why: `tool "${research}" searches or fetches the web` };
 
-  if (outgoingSpawn) return { role: 'orchestrator', why: 'has an outgoing spawn edge' };
-
-  const text = [node.id, node.label, node.description ?? ''].join(' ').toLowerCase();
+  const text = [name, node.description ?? ''].join(' ');
   for (const [words, role] of KEYWORDS) {
     const hit = words.find((w) => text.includes(w));
     if (hit) return { role, why: `keyword "${hit}" in id, label or description` };
@@ -120,16 +134,22 @@ export interface ModelFit {
   prefer: string;
 }
 
-/** Per agent or model node: the role, and the categories and needs to look for in a model. */
+/**
+ * Node types that never get a model fit. A `model` node is a model registry entry, not a role; the
+ * rest are plumbing (tools, memory, hooks) or the ends of the flow (entry, output).
+ */
+const NO_FIT_TYPES = new Set(['model', 'tool', 'memory', 'hook', 'entry', 'output']);
+
+/** Per agent node (and other work nodes): the role, and the categories and needs to look for in a model. */
 export function modelFit(tower: ResolvedTower): ModelFit[] {
   const nodes = tower.layers.flatMap((l) => l.nodes);
   const edges = [...tower.layers.flatMap((l) => l.edges), ...tower.links];
   const out: ModelFit[] = [];
   for (const n of nodes) {
-    if (n.type !== 'agent' && n.type !== 'model') continue;
+    if (NO_FIT_TYPES.has(n.type)) continue;
     const model = modelOf(n);
-    const spawns = edges.some((e) => e.from === n.key && e.kind === 'spawn');
-    const { role } = classifyNode(n, spawns);
+    const delegates = edges.some((e) => e.from === n.key && (e.kind === 'spawn' || e.kind === 'handoff'));
+    const { role } = classifyNode(n, delegates);
     const cls = roleById.get(role)!;
     out.push({ node: n.key, role, model, categories: cls.categories, needs: cls.needs, prefer: cls.prefer });
   }

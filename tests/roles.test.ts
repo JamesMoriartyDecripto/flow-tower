@@ -69,8 +69,26 @@ describe('classifyNode', () => {
   it('an outgoing spawn edge makes an orchestrator', async () => {
     const t = await build({ nodes: [{ id: 'a', type: 'agent', model: 'm' }, { id: 'b', type: 'agent', model: 'm' }], edges: ['a -> b [spawn]'] });
     const n = t.layers[0].nodes.find((x) => x.id === 'a')!;
-    expect(classifyNode(n, true)).toEqual({ role: 'orchestrator', why: 'has an outgoing spawn edge' });
+    expect(classifyNode(n, true)).toEqual({ role: 'orchestrator', why: 'has an outgoing spawn or handoff edge' });
     expect(classifyNode(n).role).toBe('general');
+  });
+
+  it('a reviewer with Bash is review, not coding (what the node is for beats its tools)', async () => {
+    const n = await one({ id: 'reviewer', type: 'agent', model: 'm', tools: ['Bash(git:*)'] });
+    expect(classifyNode(n)).toEqual({ role: 'review', why: '"review" in id or label' });
+  });
+
+  it('a lead with spawn edges is an orchestrator, even with file tools', async () => {
+    const t = await build({
+      nodes: [{ id: 'lead', type: 'agent', model: 'm', tools: ['Edit', 'Bash'] }, { id: 'b', type: 'agent', model: 'm' }],
+      edges: ['lead -> b [spawn]'],
+    });
+    const n = t.layers[0].nodes.find((x) => x.id === 'lead')!;
+    expect(classifyNode(n, true).role).toBe('orchestrator');
+  });
+
+  it('a lead id is an orchestrator even with no edges', async () => {
+    expect(classifyNode(await one({ id: 'lead', type: 'agent', model: 'm', tools: ['Bash'] })).role).toBe('orchestrator');
   });
 
   it('keywords in the label decide review, writing, data, router', async () => {
@@ -108,9 +126,23 @@ describe('modelFit', () => {
       ],
     });
     const fits = modelFit(t);
-    expect(fits.map((f) => f.node)).toEqual(['l.a', 'l.m']);
+    expect(fits.map((f) => f.node)).toEqual(['l.a', 'l.p']);
     expect(fits[0]).toMatchObject({ role: 'voice-stt', model: 'openai/whisper-1' });
     expect(fits[0].needs).toContain('streaming-audio');
+  });
+
+  it('skips model registry nodes and plumbing types', async () => {
+    const t = await build({
+      nodes: [
+        { id: 'm', type: 'model', model: 'x/y' },
+        { id: 'tl', type: 'tool' },
+        { id: 'mem', type: 'memory' },
+        { id: 'hk', type: 'hook' },
+        { id: 'in', type: 'entry' },
+        { id: 'out', type: 'output' },
+      ],
+    });
+    expect(modelFit(t)).toEqual([]);
   });
 
   it('reads the orchestrator role from the tower edges', async () => {

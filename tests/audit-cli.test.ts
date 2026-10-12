@@ -34,6 +34,8 @@ describe('flow-tower audit (#173-03)', () => {
     expect(dev).toHaveProperty('modelFit');
     expect(Array.isArray(dev.findings)).toBe(true);
     expect(Array.isArray(dev.modelFit)).toBe(true);
+    const fits = dev.modelFit as { node: string; role: string }[];
+    expect(fits.find((f) => f.node === 'quality.reviewer')?.role).toBe('review');
   });
 
   it('prints a header line per tower in text mode', { timeout: 30_000 }, async () => {
