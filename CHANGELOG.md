@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-12
+
 ### Added
 - Model benchmark (#149): `--warm` repeats each run on the same session to price a warm cache, and `--batch` runs single-step public tasks through the OpenRouter Batch API at about half price; the cost modes are in `examples/model-benchmark/README.md`.
 - Voice (#145): "scorri giù" / "scroll down" (and "scorri su", "vai in fondo", "vai all'inizio") pages the open file viewer; "apri l'hub" / "open the hub" ("mostra le macchine", "chiudi l'hub") opens the Hub panel on its Now or Machines tab; "mostra solo gli agenti" / "show only agents" keeps one node type on screen and "mostra tutto" / "show everything" shows them all again; all are fixed phrases the parser handles locally. The voice agent gains five tools (`scroll_file`, `hub_panel`, `filter_nodes`, `library_filter`, `compare_nodes`), and the action execution lives in `src/app/voice/actions.ts`.
@@ -313,7 +315,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.4.0...v0.5.0
