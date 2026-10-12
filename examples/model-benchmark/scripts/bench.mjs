@@ -3,6 +3,8 @@
 // through OpenRouter. One JSON line per run, appended as it finishes, so a crash keeps what was paid for.
 //
 //   node scripts/bench.mjs --category coder --models a/x,b/y --tasks tasks/coder/ --runs 3 --out results/2026-10-11.jsonl
+//   node scripts/bench.mjs ... --warm          each run is repeated at once with the same session_id, to price a warm cache
+//   node scripts/bench.mjs ... --batch         single-step, tool-less tasks go through the Batch API: about half price, within 24 h
 //   node scripts/bench.mjs ... --dry-run      prints the plan and checks the task files; needs no key
 //
 // --url http://127.0.0.1:5317 (or FLOW_TOWER_URL) posts events to the tower's own model-benchmark.tower.yaml,
@@ -12,10 +14,13 @@ import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { argv, env, exit } from 'node:process';
 import { live } from './live.mjs';
+import { BATCH_WARNING, batchEligible, runBatch } from './batch.mjs';
 import { loadTasks, taskProblems } from './tasks.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
 const dry = argv.includes('--dry-run');
+const warm = argv.includes('--warm');
+const batch = argv.includes('--batch');
 const today = new Date().toISOString().slice(0, 10);
 const category = arg('category');
 const models = (arg('models') || '').split(',').map((m) => m.trim()).filter(Boolean);
@@ -29,7 +34,7 @@ const url = arg('url', env.FLOW_TOWER_URL || '');
 const emit = live(url);
 
 if (!tasksPath || !models.length || !(runs >= 1)) {
-  console.error('usage: bench.mjs --category <c> --models a,b --tasks tasks/<c>/ --runs N --out results/<date>.jsonl [--timeout 180] [--effort low] [--url http://127.0.0.1:5317] [--dry-run]');
+  console.error('usage: bench.mjs --category <c> --models a,b --tasks tasks/<c>/ --runs N --out results/<date>.jsonl [--timeout 180] [--effort low] [--warm] [--batch] [--batch-wait 720] [--url http://127.0.0.1:5317] [--dry-run]');
   exit(2);
 }
 
@@ -46,10 +51,15 @@ for (const t of tasks) {
 }
 if (!tasks.length) { console.error(`no tasks in ${tasksPath}`); exit(2); }
 
-const calls = models.length * tasks.length * runs;
-const maxCalls = models.length * runs * tasks.reduce((s, t) => s + t.steps, 0);
-console.log(`\nplan: ${models.length} models × ${tasks.length} tasks × ${runs} runs = ${calls} runs (at most ${maxCalls} model calls, ${maxCalls * 2} with retries)`);
+// With --batch only single-step, tool-less tasks can go: the others are skipped with a clear line each.
+const batchTasks = batch ? tasks.filter(batchEligible) : tasks;
+if (batch) for (const t of tasks) if (!batchEligible(t)) console.log(`--batch skips ${t.category}/${t.id} (${t.steps} steps, tools: ${t.tools.join(',') || 'none'}): only steps: 1 without tools can be batched`);
+
+const calls = models.length * batchTasks.length * runs * (warm ? 2 : 1);
+const maxCalls = models.length * runs * (warm ? 2 : 1) * batchTasks.reduce((s, t) => s + t.steps, 0);
+console.log(`\nplan: ${models.length} models × ${batchTasks.length} tasks × ${runs} runs${warm ? ' × 2 (cold + warm)' : ''} = ${calls} runs (at most ${maxCalls} model calls, ${maxCalls * 2} with retries)`);
 console.log(`models: ${models.join(', ')}`);
+if (batch) console.log(`batch: one batch per model, ${calls / models.length} request(s) each, at about half price`);
 console.log(`order: run-major, models interleaved, so a slow hour or a provider incident hits every model alike`);
 console.log(`output: ${out}  timeout: ${timeoutMs / 1000}s + 1 retry  effort: ${effort}`);
 if (runs < 3) console.log('note: fewer than 3 runs per cell: label every result ILLUSTRATIVE');
@@ -58,7 +68,7 @@ if (dry) {
   // The dry run is part of the story too: `runner.dryrun` pulses while the task files are checked.
   // Awaited only here: exit() would otherwise kill the fire-and-forget POST before it leaves.
   const events = [
-    emit({ kind: 'agent.start', node: 'runner.dryrun', agent: 'bench --dry-run', message: `${models.length} models × ${tasks.length} tasks × ${runs} runs` }),
+    emit({ kind: 'agent.start', node: 'runner.dryrun', agent: 'bench --dry-run', message: `${models.length} models × ${batchTasks.length} tasks × ${runs} runs${warm ? ' (cold + warm)' : ''}` }),
     emit({ kind: 'agent.end', node: 'runner.dryrun', agent: 'bench --dry-run', status: 'ok', message: 'plan printed, task files checked' }),
   ];
   if (url) await Promise.all(events); // no url: nothing to wait for, the no-op resolves at once
@@ -88,7 +98,27 @@ const SYSTEM = 'You are being evaluated on a software task from a real repositor
   + 'When you have tools, call finish with your final answer; without tools, reply with the final answer only. Be concise.';
 
 // 3. One streamed call. Streaming is the only way to see the first useful token; reasoning deltas do not count.
+// Prompt caching is opt-in per request and only Claude models honour it here: cache reads cost 0.1x, writes 1.25x.
+const cacheControl = (model) => (model.startsWith('anthropic/') ? { cache_control: { type: 'ephemeral' } } : {});
+
 class CallError extends Error { constructor(msg, retry) { super(msg); this.retry = retry; } }
+
+// The step-1 body both the sync loop and --batch send, so a batch request is exactly what runOne would post.
+// `stream` is added by call() alone: the Batch API takes no streaming.
+function stepBody(model, task, session, messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: task.prompt }]) {
+  const tools = task.tools.length ? [...task.tools.map((t) => TOOL_DEFS[t]), FINISH] : undefined;
+  return {
+    model,
+    messages,
+    max_tokens: 4000, usage: { include: true }, session_id: session,
+    // OpenRouter caches Claude prompts only on request; the breakpoint trails the last cacheable block (https://openrouter.ai/docs/guides/best-practices/prompt-caching).
+    ...cacheControl(model),
+    reasoning: { effort },
+    // Every candidate gets the same data policy; an endpoint that cannot honour it is a result.
+    provider: { require_parameters: true, data_collection: 'deny' },
+    ...(tools && { tools }),
+  };
+}
 
 async function call(body) {
   const t0 = performance.now();
@@ -149,29 +179,24 @@ async function call(body) {
   return { first, ms: performance.now() - t0, content, toolCalls: toolCalls.filter(Boolean), usage, provider };
 }
 
-// 4. One run: a fresh session (cold cache at step 1, warm afterwards), capped steps, one retry per call.
-async function runOne(model, task, run) {
+// 4. One run: fresh session (cold cache at step 1, warm afterwards), capped steps, one retry per call.
+// The warm pass reuses the cold run's session_id so the provider can serve the same prefix from its cache.
+async function runOne(model, task, run, session, warm) {
   const rec = {
-    date: today, category: task.category, task: task.id, model, run, effort, ok: false,
+    date: today, category: task.category, task: task.id, model, run, warm, effort, ok: false,
     firstOutputMs: null, totalMs: 0, steps: 0, retries: 0,
     promptTokens: 0, completionTokens: 0, cachedTokens: 0, cachedFirstStep: null, cost: 0,
     providers: [], answer: null, error: null,
   };
-  const session = `bench-${model.replace(/\W+/g, '-')}-${task.id}-${run}-${Date.now()}`;
-  const tools = task.tools.length ? [...task.tools.map((t) => TOOL_DEFS[t]), FINISH] : undefined;
   const messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: task.prompt }];
+  const tools = task.tools.length ? [...task.tools.map((t) => TOOL_DEFS[t]), FINISH] : undefined;
   const t0 = performance.now();
   // The loop node lights for the whole run; `session` is the run id, and the message names the run in words.
-  emit({ kind: 'agent.start', node: 'runner.loop', model, session, message: `${task.category}/${task.id} run ${run}` });
+  emit({ kind: 'agent.start', node: 'runner.loop', model, session, message: `${task.category}/${task.id} run ${run}${warm ? ' (warm)' : ''}` });
   try {
     for (let step = 1; step <= task.steps; step++) {
-      const body = {
-        model, messages, max_tokens: 4000, usage: { include: true }, session_id: session,
-        reasoning: { effort },
-        // Every candidate gets the same data policy; an endpoint that cannot honour it is a result.
-        provider: { require_parameters: true, data_collection: 'deny' },
-        ...(tools && { tools }),
-      };
+      // The batch path sends this exact body for step 1: one shared builder keeps the two in step.
+      const body = stepBody(model, task, session, messages);
       let r;
       try { r = await call(body); } catch (e) {
         if (!e.retry) throw e;
@@ -226,17 +251,38 @@ async function runOne(model, task, run) {
 
 mkdirSync(dirname(resolve(out)), { recursive: true });
 let n = 0, spent = 0;
+// One line per run, written as it finishes: the cold run first, then (with --warm) the warm repeat on the same session.
+const write = (rec, task, run) => {
+  appendFileSync(out, `${JSON.stringify(rec)}\n`);
+  // The record is on disk: one line appended per run, as the jsonl node promises.
+  emit({ kind: 'log', node: 'runner.jsonl', model: rec.model, message: `wrote ${task.category}/${task.id} run ${run}${rec.warm ? ' (warm)' : ''}` });
+  spent += rec.cost;
+  // A batch has no per-request timing: `totalMs` is null there, so the sync column shows nothing for it.
+  const secs = rec.totalMs == null ? '-' : `${(rec.totalMs / 1000).toFixed(1)}s`;
+  const cachedPct = rec.promptTokens ? Math.round((100 * rec.cachedTokens) / rec.promptTokens) : 0;
+  console.log(`[${++n}/${calls}] ${rec.model} ${task.id} #${run}${rec.warm ? ' (warm)' : ''}${rec.batch ? ' [batch]' : ''}: ${rec.error ? `ERROR ${rec.error.slice(0, 80)}` : 'answered'}`
+    + ` · ${secs} · ${rec.steps} steps · $${rec.cost.toFixed(4)} · cache ${cachedPct}%`);
+};
+
+if (batch) {
+  // One batch per model, every eligible task × run inside it. The warning is printed once, before any request.
+  console.log(`\n${BATCH_WARNING}`);
+  const written = await runBatch({
+    key: KEY, models, tasks: batchTasks, runs, effort, date: today,
+    body: (model, task, session) => stepBody(model, task, session),
+    write, emit, log: console.log,
+    waitMinutes: Number(arg('batch-wait', 720)),
+  });
+  console.log(`\ndone: ${written} batch run(s), $${spent.toFixed(4)} in total → ${out}\nnext: node scripts/judge.mjs --in ${out} --tasks ${tasksPath}`);
+  exit(0);
+}
 for (let run = 1; run <= runs; run++) {
   for (const task of tasks) {
     for (const model of models) {
-      const rec = await runOne(model, task, run);
-      appendFileSync(out, `${JSON.stringify(rec)}\n`);
-      // The record is on disk: one line appended per run, as the jsonl node promises.
-      emit({ kind: 'log', node: 'runner.jsonl', model, message: `wrote ${task.category}/${task.id} run ${run}` });
-      spent += rec.cost;
-      const cachedPct = rec.promptTokens ? Math.round((100 * rec.cachedTokens) / rec.promptTokens) : 0;
-      console.log(`[${++n}/${calls}] ${model} ${task.id} #${run}: ${rec.error ? `ERROR ${rec.error.slice(0, 80)}` : 'answered'}`
-        + ` · ${(rec.totalMs / 1000).toFixed(1)}s · ${rec.steps} steps · $${rec.cost.toFixed(4)} · cache ${cachedPct}%`);
+      // The cold run owns the session_id; the warm repeat reuses it, so the cache is what the second run measures.
+      const session = `bench-${model.replace(/\W+/g, '-')}-${task.id}-${run}-${Date.now()}`;
+      write(await runOne(model, task, run, session, false), task, run);
+      if (warm) write(await runOne(model, task, run, session, true), task, run);
     }
   }
 }

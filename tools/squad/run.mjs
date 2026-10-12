@@ -128,6 +128,9 @@ const TOOLS = [
   fn('finish', 'End with your final report (the format your task asks for).', { report: S }, ['report']),
 ];
 
+// Prompt caching is opt-in per request and only Claude models honour it here: cache reads cost 0.1x, writes 1.25x.
+const cacheControl = (id) => (id.startsWith('anthropic/') ? { cache_control: { type: 'ephemeral' } } : {});
+
 const messages = [
   { role: 'system', content: `You are the ${role} of a dev squad working on the repo Flow Tower (TypeScript, React 19, Vite 8, vitest) at ${REPO}. You work only through the tools. English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines. Never touch secret files. When done, call finish with your report.` },
   { role: 'user', content: task },
@@ -144,6 +147,8 @@ for (let step = 0; step < maxSteps; step++) {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'X-Title': 'Flow Tower dev-squad' },
     body: JSON.stringify({ model, messages, tools: TOOLS, max_tokens: 16000, usage: { include: true }, session_id: session,
+      // OpenRouter caches Claude prompts only on request; the breakpoint trails the last cacheable block (https://openrouter.ai/docs/guides/best-practices/prompt-caching).
+      ...cacheControl(model),
       // Low effort everywhere (maintainer, 2026-10-10): quick passes, the review rounds re-check the work.
       reasoning: { effort: 'low' }, provider: { require_parameters: true, data_collection: 'deny' } }),
     signal: AbortSignal.timeout(180_000),

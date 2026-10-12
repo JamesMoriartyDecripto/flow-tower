@@ -37,7 +37,23 @@ node scripts/judge.mjs --in results/2026-10-11.jsonl --tasks tasks/reviewer/
 node scripts/report.mjs --in results/2026-10-11.judged.jsonl --scores results/2026-10-11.scores.json --out results/2026-10-11.md
 ```
 
-Use the exact model ids that `node skills/flow-tower-costs/models.mjs --tools` prints in the Flow Tower repository on the day you run. Options: `--timeout <s>` (default 180), `--effort <low|medium|high>` (default low), `--url <tower url>`. `judge.mjs` takes several `--tasks` folders when one jsonl holds several categories.
+Use the exact model ids that `node skills/flow-tower-costs/models.mjs --tools` prints in the Flow Tower repository on the day you run. Options: `--timeout <s>` (default 180), `--effort <low|medium|high>` (default low), `--url <tower url>`, and the cost modes below. `judge.mjs` takes several `--tasks` folders when one jsonl holds several categories.
+
+## Cost modes
+
+| Mode | Flag | What it does |
+|---|---|---|
+| Cold (default) | none | Each run gets a fresh `session_id`, so step 1 starts with a cold cache. |
+| Warm | `--warm` | Repeats every run at once on the same `session_id`, as separate `warm: true` lines, so `report.mjs` can price a warm cache. |
+| Batch | `--batch` | Single-step tasks only, through the [OpenRouter Batch API](https://openrouter.ai/docs/batch-quickstart): about half price. Results come back within 24 h (median minutes). |
+
+Batch details: only tasks with `steps: 1` and no tools go in; other tasks are skipped with a clear line. One batch per model holds every task × run (`custom_id` = `<task>#<run>`), polled every 30 s up to `--batch-wait <minutes>` (default 720). Results are written as run lines with `batch: true` and `firstOutputMs: null`, and `report.mjs` labels them `(batch)`. The runner deletes the batch after reading it, but OpenRouter otherwise keeps inputs and results for 30 days, so use `--batch` only on public task sets.
+
+Overnight on a server, a plain command line (no systemd unit; installing one needs the maintainer's OK):
+
+```bash
+node scripts/bench.mjs --category doc-writer --models vendor-a/model-x,vendor-b/model-y --tasks tasks/doc-writer/ --runs 3 --batch --out results/2026-10-11.jsonl
+```
 
 To watch a run on the benchmark's own tower, open it (`node bin/flow-tower.js examples/model-benchmark`) and add `--url http://127.0.0.1:5317` to `bench.mjs` and `judge.mjs`: metadata only, never a prompt, an answer, a file or the key.
 

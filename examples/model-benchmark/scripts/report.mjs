@@ -32,6 +32,7 @@ function verdict(r) {
 }
 
 const median = (xs) => { const a = xs.filter((x) => x != null).sort((p, q) => p - q); if (!a.length) return null; const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+// A batch run has no per-request timing to report: `firstOutputMs` is null, and an en dash marks that.
 const sec = (ms) => (ms == null ? '-' : (ms / 1000).toFixed(1));
 const usd = (x) => (x == null ? '-' : x < 0.01 ? `$${x.toFixed(4)}` : `$${x.toFixed(3)}`);
 const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : '-');
@@ -45,33 +46,51 @@ for (const cat of categories) {
   const rs = runs.filter((r) => r.category === cat);
   const models = [...new Set(rs.map((r) => r.model))];
   const tasks = [...new Set(rs.map((r) => r.task))];
-  const minRuns = Math.min(...models.flatMap((m) => tasks.map((t) => rs.filter((r) => r.model === m && r.task === t).length)));
+  // Warm repeats double the lines, not the runs: the "runs each" count and the ILLUSTRATIVE label stay on cold runs.
+  const minRuns = Math.min(...models.flatMap((m) => tasks.map((t) => rs.filter((r) => r.model === m && r.task === t && r.warm !== true).length)));
   const label = minRuns < 3 ? ' (ILLUSTRATIVE: fewer than 3 runs per model and task)' : '';
   lines.push(`## ${cat}${label}`, '', `${tasks.length} task${tasks.length === 1 ? '' : 's'} (${tasks.join(', ')}), ${minRuns}+ runs each.${models.length < 5 ? ` Only ${models.length} models: the goal is at least 5.` : ''}`, '');
-  lines.push('| Model | Runs | Correct | Total s, median [min-max] | First output s | Steps | $ / run | $ / correct | Cached %, warm starts | Retries | Errors | Providers |');
-  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|');
+  // --warm writes a second line per run: the cold ones keep the table's meaning, the warm ones get their own
+  // columns, so the price of a warm cache is visible without moving the cold numbers. A line without the field is cold.
+  const hasWarm = rs.some((r) => r.warm === true);
+  const head = ['Model', 'Runs', 'Correct', 'Total s, median [min-max]', 'First output s', 'Steps', '$ / run'];
+  if (hasWarm) head.push('$ / run warm');
+  head.push('$ / correct', 'Cached %, warm starts');
+  if (hasWarm) head.push('cached % warm');
+  head.push('Retries', 'Errors', 'Providers');
+  lines.push(`| ${head.join(' | ')} |`);
+  lines.push(`|${'---|'.repeat(head.length)}`);
   const rows = models.map((m) => {
     const mr = rs.filter((r) => r.model === m);
-    const v = mr.map(verdict);
+    // Cold only: the warm repeats are reported in their own two columns.
+    const cold = mr.filter((r) => r.warm !== true);
+    // Batch lines are labelled on the row; a row of only batch lines has no first-output timing at all.
+    const labeled = mr.some((r) => r.batch === true);
+    const allBatch = cold.length > 0 && cold.every((r) => r.batch === true);
+    const mrWarm = mr.filter((r) => r.warm === true);
+    const v = cold.map(verdict);
     const correct = v.filter((x) => x === true).length, pending = v.filter((x) => x === null).length;
-    const totals = mr.map((r) => r.totalMs);
-    const cost = mr.reduce((s, r) => s + (r.cost ?? 0), 0);
+    const totals = cold.map((r) => r.totalMs);
+    // A batch line has no total either: the min/max line must ignore nulls rather than read them as 0.
+    const timed = totals.filter((x) => x != null);
+    const cost = cold.reduce((s, r) => s + (r.cost ?? 0), 0);
     // Cost per correct answer counts every run, failed ones included: that is what a node pays.
     const perCorrect = correct ? cost / correct : null;
-    const prompt = mr.reduce((s, r) => s + r.promptTokens, 0), cached = mr.reduce((s, r) => s + r.cachedTokens, 0);
-    const warm = mr.filter((r) => r.cachedFirstStep > 0).length;
-    const errors = [...new Set(mr.filter((r) => r.error).map((r) => r.error.replace(/\s+/g, ' ').slice(0, 40)))];
-    return {
-      perCorrect, correct,
-      cells: [
-        `\`${m}\``, mr.length, `${correct}/${mr.length}${pending ? ` (${pending} unscored)` : ''}`,
-        `${sec(median(totals))} [${sec(Math.min(...totals))}-${sec(Math.max(...totals))}]`,
-        sec(median(mr.map((r) => r.firstOutputMs))), median(mr.map((r) => r.steps)) ?? '-',
-        usd(median(mr.map((r) => r.cost))), perCorrect == null ? 'none correct' : usd(perCorrect),
-        `${pct(cached, prompt)}, ${warm}/${mr.length} warm`, mr.reduce((s, r) => s + (r.retries ?? 0), 0),
-        errors.join('; ').replace(/\|/g, '/') || '-', [...new Set(mr.flatMap((r) => r.providers ?? []))].join(', ') || '-',
-      ],
-    };
+    const prompt = cold.reduce((s, r) => s + r.promptTokens, 0), cached = cold.reduce((s, r) => s + r.cachedTokens, 0);
+    const warmStarts = cold.filter((r) => r.cachedFirstStep > 0).length;
+    const errors = [...new Set(cold.filter((r) => r.error).map((r) => r.error.replace(/\s+/g, ' ').slice(0, 40)))];
+    const cells = [
+      `\`${m}\`${labeled ? ' (batch)' : ''}`, cold.length, `${correct}/${cold.length}${pending ? ` (${pending} unscored)` : ''}`,
+      `${sec(median(timed))} [${timed.length ? `${sec(Math.min(...timed))}-${sec(Math.max(...timed))}` : '-'}]`,
+      allBatch ? '–' : sec(median(cold.map((r) => r.firstOutputMs))), median(cold.map((r) => r.steps)) ?? '-',
+      usd(median(cold.map((r) => r.cost))),
+    ];
+    if (hasWarm) cells.push(usd(median(mrWarm.map((r) => r.cost))));
+    cells.push(perCorrect == null ? 'none correct' : usd(perCorrect), `${pct(cached, prompt)}, ${warmStarts}/${cold.length} warm`);
+    if (hasWarm) cells.push(pct(mrWarm.reduce((s, r) => s + r.cachedTokens, 0), mrWarm.reduce((s, r) => s + r.promptTokens, 0)));
+    cells.push(mr.reduce((s, r) => s + (r.retries ?? 0), 0),
+      errors.join('; ').replace(/\|/g, '/') || '-', [...new Set(mr.flatMap((r) => r.providers ?? []))].join(', ') || '-');
+    return { perCorrect, correct, cells };
   });
   // Best value first: most correct, then cheapest per correct answer.
   rows.sort((a, b) => b.correct - a.correct || (a.perCorrect ?? Infinity) - (b.perCorrect ?? Infinity));
