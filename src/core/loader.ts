@@ -13,6 +13,8 @@ export interface LoadResult {
   workspace: Workspace;
   /** Tower id -> absolute root directory. Files may only be served from inside these. */
   roots: Map<string, string>;
+  /** Tower id -> absolute tower file: where the id came from, e.g. to tell which machine shared it (#165). */
+  files: Map<string, string>;
   /** Every file the workspace depends on, for live reload. */
   watched: Set<string>;
   /**
@@ -200,6 +202,7 @@ export async function loadLibrary(entries: string[]): Promise<LoadResult> {
   const result: LoadResult = {
     workspace: { projects: [], towers: {}, loadedAt: new Date().toISOString() },
     roots: new Map(),
+    files: new Map(),
     watched: new Set(),
     referenced: new Set(),
     missing: new Set(),
@@ -214,6 +217,7 @@ export async function loadLibrary(entries: string[]): Promise<LoadResult> {
     const { tower, root, nested } = await loadTower(file, id, project, result.watched, result.referenced, result.missing);
     result.workspace.towers[id] = tower;
     result.roots.set(id, root);
+    result.files.set(id, file);
     for (const n of nested) {
       if (!projects.has(n.abs)) projects.set(n.abs, project);
       const nid = idOf(n.abs);

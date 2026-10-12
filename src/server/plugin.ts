@@ -15,6 +15,7 @@ import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
 import { userHome, warnIfInRepo } from './home.ts';
 import { libraryOrigins, minePaths } from './origins.ts';
+import { projectSources } from './sources.ts';
 import { crossSite } from './guard.ts';
 import { stopOnClose } from './lifecycle.ts';
 import { isLoopbackUrl } from '../../bin/identity.js';
@@ -55,6 +56,9 @@ const warnHistoryOnce = (server: ViteDevServer, err: unknown) => {
 export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES ?? '[]')): Plugin {
   let state: LoadResult | undefined;
   let timer: NodeJS.Timeout | undefined;
+  // The hub's library folder (#164): the first entry that is a directory. Shared towers are written there, and
+  // the sources of the projects are read against it (#165), so both use this one value.
+  const library = entries.map((e) => resolve(e)).find((p) => isDirectory(p));
   // chokidar keeps one listener per add() call even for paths it already watches: add only new ones.
   const watching = new Set<string>();
   const watch = (server: ViteDevServer, paths: string[]) => {
@@ -70,6 +74,10 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
     if (env.FLOW_TOWER_LIBRARY === '1') {
       state.workspace.origins = libraryOrigins(entries, state.workspace.projects, { checkout: PKG_ROOT, mine: minePaths(env.FLOW_TOWER_MINE) });
     }
+    // Every serve, not only a library one: a hub shows which machine each shared tower came from (#165).
+    const loaded = state;
+    const projects = loaded.workspace.projects.flatMap((id) => { const file = loaded.files.get(id); return file ? [{ id, file }] : []; });
+    loaded.workspace.sources = projectSources(projects, library);
     if (server) {
       watch(server, [...state.watched, ...existingDirs(state.missing)]);
       server.ws.send(UPDATE_EVENT, { loadedAt: state.workspace.loadedAt });
@@ -184,7 +192,6 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       server.middlewares.use('/api/hub/enroll', enrollHandler({ home: USER_HOME, hub: hubOpts.hub }));
       // Shared towers (#164): a satellite uploads its folder here, signed with its token. The first library
       // entry that is a directory is where the hub writes it; none means the route answers 503.
-      const library = entries.map((e) => resolve(e)).find((p) => isDirectory(p));
       server.middlewares.use('/api/hub/towers', sharedTowersHandler({ library, home: USER_HOME, hub: hubOpts.hub, legacy: env.FLOW_TOWER_TOKEN }));
       // OpenTelemetry: point OTEL_EXPORTER_OTLP_ENDPOINT at this server (http/json), see docs/realtime.md.
       server.middlewares.use('/v1/logs', hub.otlp('logs'));
