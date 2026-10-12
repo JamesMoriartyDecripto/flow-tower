@@ -13,63 +13,70 @@ Background, only when needed: [docs/command-center.md](../../docs/command-center
 
 ## 1. Check the machine (no questions)
 
-| Check | Command | Fine when |
-|---|---|---|
-| Node | `node --version` | 22.13 or newer |
-| Flow Tower up to date | `git -C <flow-tower checkout> fetch -q && git -C <checkout> status -sb` | not `behind`; else offer `git pull` and `npm ci` |
-| Tailscale | `tailscale status --json` | `BackendState` is `Running`; note `CurrentTailnet.Name` and `MagicDNSSuffix` |
-| Already connected? | `{{FLOW_TOWER_CLI}} config show` | a `url` and `role: satellite` mean it was connected before: say so and ask whether to keep that hub |
-
-Tailscale missing or stopped: the hub is on a tailnet, so this machine must join it (install Tailscale, `tailscale up` with the same account). Ask before installing anything.
+| Check | Command | Fine when | If not |
+|---|---|---|---|
+| Node | `node --version` | 22.13 or newer | Look for a newer Node already installed (`ls /opt/node*/bin`, nvm, Homebrew); else ask before installing Node 22 LTS. Then run every CLI command with that Node. (Too old, the CLI fails with `bad option: --experimental-strip-types`.) |
+| Flow Tower up to date | `git -C <checkout> fetch -q && git -C <checkout> status -sb` | the first line shows `...origin/<branch>` and no `behind` | `behind`: offer `git pull` and `npm ci`. No `...origin/` part: the checkout tracks nothing; compare `git -C <checkout> log -1 --format=%cd origin/main` with `HEAD` and say so. |
+| Tailscale | `tailscale status --json \| jq '{BackendState, tailnet: .CurrentTailnet.Name, suffix: .MagicDNSSuffix, login: .User[(.Self.UserID\|tostring)].LoginName}'` | `BackendState` is `Running` | Stopped or missing: this machine must join the hub's tailnet (`tailscale up` with the same account). Ask before installing anything. Keep `login`: the hub must list it. |
+| Already connected? | `{{FLOW_TOWER_CLI}} config show` | `role` is `local` and no `url` | A `url` and `role: satellite`: it was connected before. Say to which hub, and ask whether to keep it. |
+| Port free | `curl -s -m 2 http://127.0.0.1:<port>/api/sharing` | no answer (nothing listens) | Something answers: a flow-tower is already running there. Use it if its `hub` is the right one, else pick another `--port`. |
 
 ## 2. Ask what you cannot detect, one at a time
 
-1. **The hub address**, e.g. `https://hub.<tailnet>.ts.net` (the hub owner knows it). Its name should end with this machine's `MagicDNSSuffix`; if not, the two machines are on different tailnets: say so.
-2. **The machine name** only if the hostname is unclear: by default the CLI uses the hostname (`MacBook-Pro.local` → `macbook-pro`).
+1. **The hub address**, e.g. `https://hub.<tailnet>.ts.net` (the hub owner knows it). Its name should end with this machine's `suffix` from step 1; if not, the machines are on different tailnets: say so.
+2. **The machine name.** Show the default (the hostname, lower case, `.local` removed: `MacBook-Pro.local` → `macbook-pro`) and ask once whether the hub should show this machine under it. Generated names like `srv1011283` or `DESKTOP-4F2K` are worth renaming (`--machine <name>`).
 
 ## 3. Connect
 
-`{{FLOW_TOWER_CLI}} connect <hub-url>` (add `--machine <name>` if the user chose one). On a tailnet hub it gets a token by itself: the user's tailnet login must be in the hub's viewers. The token is written to the user folder's config.json and never printed.
+`{{FLOW_TOWER_CLI}} connect <hub-url> [--machine <name>]`. On a tailnet hub it gets a token by itself: the user's tailnet `login` must be in the hub's viewers. The token goes to the user folder's config.json and is never printed. The hub names this machine's events after the machine name; `--user` is optional (a label for this machine's own view only).
 
-Hubs that are not on a tailnet (a VPS behind Caddy): the hub owner runs `token add <id>` and hands the token over privately; then `connect <hub-url> --token <token>`.
+Hubs that are not on a tailnet (a VPS behind Caddy): the hub owner runs `token add <id>` and hands the token over privately; then `connect <hub-url> --token <token>`. Such a hub only takes events: towers are copied to it by hand, so skip step 4.
 
-## 4. Start the local library
+## 4. Share towers
 
-`{{FLOW_TOWER_CLI}} library --no-open [--port N]` (or restart it if it runs). The relay and the tower sync run inside this server: `connect` alone sends nothing.
+1. **Which towers.** `{{FLOW_TOWER_CLI}} library list` shows the folders already in the user's library. Empty (`no towers yet`): ask where their tower folders are, or look: `find ~ -name '*.tower.yaml' -not -path '*/node_modules/*' 2>/dev/null`. Ask which ones to share.
+2. **YAML only or with files**, per tower:
+   - **YAML only** (default): the structure the hub needs to light the nodes. No file contents leave the machine.
+   - **With files**: also the files the tower references, so people viewing the hub can open them. Only files inside the tower folder, only text types; `.env`, keys and similar are never sent.
+3. **The OK.** Say exactly what will go (tower names, YAML only or with which files, to which hub) and wait for yes.
+4. Per tower: `{{FLOW_TOWER_CLI}} share <tower folder>` (add `--files` for the second choice). It prints every file it sends and any it skipped with the reason, and adds the folder to the user's library if it was not there.
 
-## 5. Share towers
+To stop later: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub. `{{FLOW_TOWER_CLI}} share --list` shows what is shared.
 
-Ask, one at a time: **which towers** (list the user's tower folders: `{{FLOW_TOWER_CLI}} library list`), then **YAML only or with files**:
-- **YAML only** (default): the structure the hub needs to light the nodes. No file contents leave the machine.
-- **With files**: also the files the tower references, so people viewing the hub can open them. Only files inside the tower folder, only text types; `.env`, keys and similar are never sent.
+## 5. Start the local library
 
-Say exactly what will be sent and wait for the OK. Then, per tower: `{{FLOW_TOWER_CLI}} share <tower folder>` (add `--files` for the second choice). The command prints the files it sends and any it skipped, with the reason. From now on a change to that tower reaches the hub by itself (the local library re-sends it within ~15 s).
+`{{FLOW_TOWER_CLI}} library --no-open [--port N]`, and keep it running: in the background (`nohup … > ~/flow-tower.log 2>&1 &`) or in a terminal the user leaves open. If it was already running, restart it: it reads the connection at start. The relay and the tower sync run inside it: `connect` and `share` alone send no live events and keep nothing in sync. From now on a change to a shared tower reaches the hub within ~15 s.
 
-To stop: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub. `{{FLOW_TOWER_CLI}} share --list` shows what is shared.
+## 6. Live events from the agents (ask first)
 
-## 6. Live events from the agents
+Claude Code: merge the `hooks` of [`integrations/claude-code/settings.json`](../../integrations/claude-code/settings.json) into `~/.claude/settings.json` (every project) or `<project>/.claude/settings.json` (one project), adding to the existing `hooks` keys, never replacing them. Two changes on a satellite:
+- the `SessionStart` command becomes `{{FLOW_TOWER_CLI}} emit --source claude-code --token ''` (`emit` would otherwise send the hub token to the local server, which refuses it);
+- with `--port N`, change `5317` to N in every hook URL.
 
-Claude Code: merge [`integrations/claude-code/settings.json`](../../integrations/claude-code/settings.json) into the agent's settings (ask first); other agents: [docs/realtime.md](../../docs/realtime.md#sources). A hook that calls `emit` on a satellite needs `--token ''` ([why](../../docs/command-center.md#connect-to-it)).
+Other agents: [docs/realtime.md](../../docs/realtime.md#sources).
 
 ## 7. Verify
 
-- `curl -s http://127.0.0.1:<port>/api/sharing`: `state` is `online`, and each shared tower has a `syncedAt` and no `error`.
-- `{{FLOW_TOWER_CLI}} share --list`: every share is on the hub.
-- In the UI: the SAT chip says online; Settings › Sharing › "does it reach the hub?" answers ok.
+- `curl -s http://127.0.0.1:<port>/api/sharing`: `state` is `online`, and each shared tower has a `syncedAt` and no `error`. Right after the start `towers` can be empty: wait ~15 s and check again.
+- `curl -s -X POST -H 'content-type: application/json' -d '{}' http://127.0.0.1:<port>/api/sharing/test`: `state` is `online`.
+- `{{FLOW_TOWER_CLI}} share --list`: every share is listed as on the hub.
+- In the UI (optional): the top-bar chip reads `SAT → <hub host> · <time since the last send>`, green when online; Settings › Sharing › **Send a test event** › **Send test** answers `Last test: online`.
 
 ## When something fails (one fix each)
 
 | The CLI says | Fix |
 |---|---|
-| `your tailnet login is not a viewer of this hub` | The hub owner adds the user's tailnet login (`tailscale status --json` → `User`) to `viewers` in the hub's config.json. |
+| `your tailnet login is not a viewer of this hub` | The hub owner adds the user's tailnet `login` (step 1) to `viewers` in the hub's config.json. |
 | `enrolment needs a tailnet hub (tailscale serve)` | The address is not a `*.ts.net` name: use the hub's tailnet address, or get a token (`--token`). |
 | `This server is not a hub, or is too old for enrolment` | Wrong address, or the hub needs `git pull`: ask its owner. Meanwhile `--token` works. |
 | `conflict: token <name> belongs to another user` | That machine name is taken: `--machine <another-name>`. |
 | `cannot reach <url>` | Tailscale down or another tailnet (`tailscale status`), or a typo in the address. |
 | `not connected: run flow-tower connect` | Do step 3 first. |
+| `your library is empty` (step 5) | Share a tower first (step 4), or `{{FLOW_TOWER_CLI}} library add <tower folder>`. |
 | `a sender token is required` (401) on share | The token was revoked or paused on the hub: run `connect` again, or ask the hub owner. |
 | `this hub has no library folder` (503) / `could not store the shared tower` (500) | Hub side: its owner checks the library folder exists and the service may write `towers/` (kit: `ReadWritePaths`). |
 | a `400` naming a file or a limit | Fix that file, or share YAML only. |
-| the tower is shared but nothing lights | The agents' hooks are not wired (step 6), or the local library is not running (step 4). |
+| `/api/sharing` shows another `hub`, or towers you did not share | Another server answered on that port: stop it or use another `--port`. |
+| the tower is shared but nothing lights | The agents' hooks are not wired (step 6), or the local library is not running (step 5). |
 
 Report: the hub address, the machine name, the towers shared and how (YAML only or with files), and the result of step 7.
