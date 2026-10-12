@@ -14,6 +14,10 @@ Loaded on demand by [SKILL.md](SKILL.md).
 - [ ] Logs, transcripts and sample data rewritten, not redacted halfway; no real prices, contracts or invoices.
 - [ ] Numbers that are not sourced are labelled illustrative.
 - [ ] Git history of the folder is not part of the PR (copy the files into the fork; do not move a private repo's history).
+- [ ] Image metadata stripped and no real names or faces visible in screenshots.
+- [ ] Commit author email is the GitHub noreply address (`git config user.email <id>+<login>@users.noreply.github.com`).
+- [ ] No real names in commit messages, the issue or the PR body.
+- [ ] No real SaaS tenant IDs or URLs, and no timestamps or log IDs that could be matched to a real system.
 
 ## Self-contained
 
@@ -65,21 +69,34 @@ Never "Flow Tower's own towers (dogfood)": that is for towers of this repo.
 Run from a folder outside other repos. `<you>` is the user's GitHub login.
 
 ```bash
+# 1. open the issue first and wait for the maintainer's go
+gh issue create -R JamesMoriartyDecripto/flow-tower --template example.yml
+
+# 2. fork and branch
 gh repo fork JamesMoriartyDecripto/flow-tower --clone && cd flow-tower
+git remote add upstream https://github.com/JamesMoriartyDecripto/flow-tower.git
 git switch -c examples/<name>
 cp -R <dir> examples/<name>
 # add the row to examples/README.md
+# add a line under [Unreleased] → Added in CHANGELOG.md
 npm install && npm run check                 # includes tests/examples.test.ts
 node bin/flow-tower.js check-example examples/<name>
-git add examples/<name> examples/README.md
-git commit -m "examples: add <name>"
+
+# 3. commit with sign-off (DCO)
+git add examples/<name> examples/README.md CHANGELOG.md
+git commit -s -m "feat(examples): add <name>"
 git push -u origin examples/<name>
+
+# 4. PR; the body file starts from .github/pull_request_template.md
 gh pr create -R JamesMoriartyDecripto/flow-tower --head <you>:examples/<name> \
-  --title "examples: add <name>" --body-file pr-body.md
+  --title "feat(examples): add <name>" --body-file pr-body.md
+
+# 5. review fixes: new commits on the same branch, then push
+git push
 ```
 
 ## PR checklist
 
-The PR body is the repo's `.github/pull_request_template.md`: fill every section and keep the "Example tower" block.
+The PR body is the repo's `.github/pull_request_template.md`: fill every section and keep the "Example tower" block. Say that an AI agent helped.
 
-Link the issue with `Fixes #<n>`.
+Link the issue with `Fixes #<n>`. Rules: [CONTRIBUTING.md](../../CONTRIBUTING.md).
