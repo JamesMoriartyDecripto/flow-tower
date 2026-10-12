@@ -15,17 +15,21 @@ const LEVELS: [1 | 2 | 3, string][] = [
   [3, 'Full documentation — every node, nested towers'],
 ];
 
+/** The library entry: shown only when the workspace has more than one project, since one project is no library. */
+const LIBRARY_ENTRY = 'Library — every project, overview level';
+
 /** Picks the level of the document; it always covers the root project, not the sub-tower on screen. */
 export function PdfMenu() {
   const open = usePdfMenu((s) => s.open);
   const root = useStore((s) => s.stack[0]);
+  const projectCount = useStore((s) => s.workspace?.projects.length ?? 0);
   const panel = useRef<HTMLDivElement>(null);
   useDialogFocus(panel, open, '.pdf-menu-list button');
   if (!open || !root) return null;
   const close = () => usePdfMenu.getState().show(false);
-  const pick = (level: 1 | 2 | 3) => {
-    // print=1 makes the document page open the print dialog once it is ready.
-    const q = new URLSearchParams({ doc: root, level: String(level), print: '1' });
+  const pick = (level: 1 | 2 | 3 | 4) => {
+    // print=1 makes the document page open the print dialog once it is ready. The library is every project.
+    const q = new URLSearchParams(level === 4 ? { doc: 'library', level: '4', print: '1' } : { doc: root, level: String(level), print: '1' });
     // A new tab, so the 3D view stays where it is; noopener keeps the document page isolated.
     window.open(`${location.pathname}?${q}`, '_blank', 'noopener');
     close();
@@ -41,6 +45,7 @@ export function PdfMenu() {
           {LEVELS.map(([level, label]) => (
             <button key={level} className="btn" onClick={() => pick(level)}>{label}</button>
           ))}
+          {projectCount > 1 && <button className="btn" onClick={() => pick(4)}>{LIBRARY_ENTRY}</button>}
         </div>
       </div>
     </div>

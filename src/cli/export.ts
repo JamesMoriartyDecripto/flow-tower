@@ -14,6 +14,7 @@ import { argv, env, exit, on } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { checkDocument, failedChecks, type DomFacts, type WorkspaceFacts } from '../core/doc-check.ts';
 import { towerDoc } from '../core/doc.ts';
+import { libraryDoc, libraryProjects } from '../core/docLibrary.ts';
 import { loadLibrary } from '../core/loader.ts';
 import { slug } from '../app/exportSvg.ts';
 
@@ -21,7 +22,8 @@ const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PAGE_TIMEOUT_MS = 120_000;
 const INSTALL_HINT = 'install a browser: npx playwright install chromium';
 
-interface Options { target: string; level: 1 | 2 | 3; out?: string; port?: number }
+/** Level 4 is the library: it needs a directory, since one file is one tower and not a library. */
+interface Options { target: string; level: 1 | 2 | 3 | 4; out?: string; port?: number }
 
 /** The page text, asked for in one round trip so the checks see one consistent snapshot. */
 const PAGE_FACTS = `(() => {
@@ -112,12 +114,17 @@ function pageCount(bytes: Buffer): number {
   return [...bytes.toString('latin1').matchAll(/\/Type\s*\/Page[^s]/g)].length;
 }
 
-/** The workspace facts the checks compare the page with, from the same towerDoc the view prints. */
-async function workspaceFacts(target: string, towerId: string, level: 1 | 2 | 3): Promise<WorkspaceFacts> {
+/**
+ * The workspace facts the checks compare the page with, from the same document the view prints. A library
+ * (level 4) is checked project by project: each project's chapters, and the cover counts over all of them.
+ */
+async function workspaceFacts(target: string, towerId: string, level: 1 | 2 | 3 | 4): Promise<WorkspaceFacts> {
   const { workspace } = await loadLibrary([target]);
-  const doc = towerDoc(workspace, towerId, level);
+  const doc = level === 4
+    ? libraryDoc(workspace, libraryProjects(workspace))
+    : towerDoc(workspace, towerId, level);
   return {
-    towerId,
+    towerId: level === 4 ? 'library' : towerId,
     chapters: doc.chapters.map((c) => ({
       towerId: c.towerId,
       layerTitles: c.layers.map((l) => l.title),
@@ -132,15 +139,15 @@ function parseArgs(args: string[]): Options {
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     const next = () => args[++i];
-    if (a === '--level') opts.level = Number(next()) as 1 | 2 | 3;
+    if (a === '--level') opts.level = Number(next()) as Options['level'];
     else if (a === '--out') opts.out = next();
     else if (a === '--port') opts.port = Number(next());
     else if (a === '--pdf') continue;
     else if (!opts.target) opts.target = a;
     else throw new Error(`unexpected argument: ${a}`);
   }
-  if (!opts.target) throw new Error('usage: flow-tower export <tower file | dir> --pdf [--level 1|2|3] [--out <file.pdf>] [--port N]');
-  if (![1, 2, 3].includes(opts.level)) throw new Error('--level must be 1, 2 or 3');
+  if (!opts.target) throw new Error('usage: flow-tower export <tower file | dir> --pdf [--level 1|2|3|4] [--out <file.pdf>] [--port N]');
+  if (![1, 2, 3, 4].includes(opts.level)) throw new Error('--level must be 1, 2, 3 or 4');
   return opts;
 }
 
@@ -158,7 +165,9 @@ async function run(opts: Options, signal: AbortSignal): Promise<number> {
     await waitForServer(base, PAGE_TIMEOUT_MS, signal);
     const towerId = await towerIdFor(target);
     const page = await browser.newPage();
-    await page.goto(`${base}/?doc=${encodeURIComponent(towerId)}&level=${opts.level}`);
+    // A library is addressed as `doc=library`: the page builds every project, so the URL names no single tower.
+    const doc = opts.level === 4 ? 'library' : towerId;
+    await page.goto(`${base}/?doc=${encodeURIComponent(doc)}&level=${opts.level}`);
     await page.waitForSelector('html[data-doc-ready="1"], html[data-doc-error]', { timeout: PAGE_TIMEOUT_MS });
     if (signal.aborted) return 130;
     const dom = await page.evaluate(PAGE_FACTS) as DomFacts;

@@ -46,7 +46,7 @@ export interface NodeRow {
 }
 
 export interface NodeDetail {
-  /** Anchor, unique across the document: tower id + node key. */
+  /** Anchor, unique across the document: tower id + node key (plus the project prefix in a library). */
   id: string;
   ref: string;
   key: string;
@@ -121,11 +121,13 @@ export interface ControlBlock {
   subTowers: number;
 }
 
+export type DocLevel = 1 | 2 | 3 | 4;
+
 export interface TowerDoc {
   title: string;
   description?: string;
   towerId: string;
-  level: 1 | 2 | 3;
+  level: DocLevel;
   generated: {
     tags: string[];
     /** Totals over the chapters in this document. */
@@ -142,10 +144,12 @@ export interface TowerDoc {
   /** Level 2 and 3: the Error / Warning / Info counts. */
   severities?: SeverityCount[];
   sources?: string[];
+  /** Level 4 only: one level-2 document per project, in workspace order, each with its own anchors. */
+  projects?: TowerDoc[];
 }
 
 /** The printed name of each level: the cover, the control block and the running header all use it. */
-export const LEVEL_NAMES: Record<1 | 2 | 3, string> = { 1: 'Images', 2: 'Overview', 3: 'Full documentation' };
+export const LEVEL_NAMES: Record<DocLevel, string> = { 1: 'Images', 2: 'Overview', 3: 'Full documentation', 4: 'Library' };
 
 /** Lower-case, `[a-z0-9-]` only: safe in an HTML id, a fragment link and a PDF destination. */
 export function anchor(...parts: string[]): string {
@@ -155,9 +159,14 @@ export function anchor(...parts: string[]): string {
     .join('-');
 }
 
-const towerAnchor = (towerId: string) => anchor('tower', towerId);
-const layerAnchor = (towerId: string, layerId: string) => anchor('layer', towerId, layerId);
-const nodeAnchor = (towerId: string, key: string) => anchor('node', towerId, key);
+/**
+ * The project prefix goes in front of every anchor of one project's document. A library prints several
+ * projects in one file, and a sub-tower shared by two of them would otherwise define the same id twice.
+ */
+const scoped = (prefix: string, id: string) => (prefix ? `${prefix}-${id}` : id);
+const towerAnchor = (prefix: string, towerId: string) => scoped(prefix, anchor('tower', towerId));
+const layerAnchor = (prefix: string, towerId: string, layerId: string) => scoped(prefix, anchor('layer', towerId, layerId));
+const nodeAnchor = (prefix: string, towerId: string, key: string) => scoped(prefix, anchor('node', towerId, key));
 
 /** Long text is cut so the printed rows stay one line or a short paragraph. */
 function cut(s: string, max: number): string {
@@ -193,20 +202,28 @@ interface Usage {
   sources: Set<string>;
 }
 
-function chapterOf(
-  ws: Workspace, t: ResolvedTower, depths: Map<string, number>, level: 1 | 2 | 3, usage: Usage,
-): Chapter {
+/** What one chapter needs from the document: its depths, the level and the id prefix of its project. */
+interface Scope {
+  ws: Workspace;
+  depths: Map<string, number>;
+  level: 1 | 2 | 3;
+  usage: Usage;
+  prefix: string;
+}
+
+function chapterOf(t: ResolvedTower, scope: Scope): Chapter {
+  const { level, prefix, usage } = scope;
   const id = t.id;
   const byKey = new Map<string, ResolvedNode>();
   for (const l of t.layers) for (const n of l.nodes) byKey.set(n.key, n);
   const nodeRef = (key: string): NodeRef => ({
-    key, label: byKey.get(key)?.label ?? key, anchor: nodeAnchor(id, key),
+    key, label: byKey.get(key)?.label ?? key, anchor: nodeAnchor(prefix, id, key),
   });
   const allEdges: ResolvedEdge[] = [...t.layers.flatMap((l) => l.edges), ...t.links];
   for (const e of allEdges) usage.edgeKinds.add(e.kind);
 
   const layers: LayerSection[] = t.layers.map((l) => {
-    const section: LayerSection = { id: layerAnchor(id, l.id), index: l.index, title: l.title, nodes: [] };
+    const section: LayerSection = { id: layerAnchor(prefix, id, l.id), index: l.index, title: l.title, nodes: [] };
     if (level === 1) return section;
     section.description = l.description;
     section.nodes = l.nodes.map((n, pos) => {
@@ -215,7 +232,7 @@ function chapterOf(
       return {
         ref: nodeCode(l.index, pos + 1),
         key: n.key,
-        anchor: nodeAnchor(id, n.key),
+        anchor: nodeAnchor(prefix, id, n.key),
         label: n.label,
         type: n.type,
         description: firstSentence(n.description),
@@ -224,17 +241,17 @@ function chapterOf(
       };
     });
     if (level === 3) {
-      section.details = l.nodes.map((n, pos) => nodeDetail(ws, t, n, nodeCode(l.index, pos + 1), depths, allEdges, nodeRef, usage));
+      section.details = l.nodes.map((n, pos) => nodeDetail(t, n, nodeCode(l.index, pos + 1), allEdges, nodeRef, scope));
     }
     return section;
   });
 
   return {
-    id: towerAnchor(id),
+    id: towerAnchor(prefix, id),
     towerId: id,
     title: t.name,
     description: t.description,
-    depth: depths.get(id) ?? 0,
+    depth: scope.depths.get(id) ?? 0,
     layers,
     links: t.links.map((e) => ({ label: e.label, kind: e.kind, from: nodeRef(e.from), to: nodeRef(e.to) })),
     budget: t.run ? opsFields({ budget: t.run.budget, limits: t.run.limits }) : undefined,
@@ -242,14 +259,15 @@ function chapterOf(
 }
 
 function nodeDetail(
-  ws: Workspace, t: ResolvedTower, n: ResolvedNode, ref: string, depths: Map<string, number>,
-  allEdges: ResolvedEdge[], nodeRef: (key: string) => NodeRef, usage: Usage,
+  t: ResolvedTower, n: ResolvedNode, ref: string, allEdges: ResolvedEdge[],
+  nodeRef: (key: string) => NodeRef, scope: Scope,
 ): NodeDetail {
+  const { ws, depths, usage, prefix } = scope;
   const prompt = n.prompt?.source ?? n.agent?.prompt?.source;
   if (prompt) usage.sources.add(prompt);
   for (const f of n.files) usage.sources.add(f);
   return {
-    id: nodeAnchor(t.id, n.key),
+    id: nodeAnchor(prefix, t.id, n.key),
     ref,
     key: n.key,
     label: n.label,
@@ -270,7 +288,7 @@ function nodeDetail(
         id: n.tower,
         title: ws.towers[n.tower]?.name ?? n.tower,
         // Only a tower that is printed has a chapter to link to; a deeper one is named, not linked.
-        anchor: depths.has(n.tower) ? towerAnchor(n.tower) : undefined,
+        anchor: depths.has(n.tower) ? towerAnchor(prefix, n.tower) : undefined,
       }
       : undefined,
   };
@@ -297,7 +315,7 @@ function tocOf(chapters: Chapter[]): TocEntry[] {
  * anywhere else would be a dead link, so the view prints it as plain text. Level 2 has no details, so
  * its node references are cleared here. Only this fresh document is touched.
  */
-function clearDeadAnchors(doc: TowerDoc): void {
+export function clearDeadAnchors(doc: TowerDoc): void {
   const defined = new Set<string>();
   for (const c of doc.chapters) {
     defined.add(c.id);
@@ -323,18 +341,19 @@ function clearDeadAnchors(doc: TowerDoc): void {
 
 /**
  * The document of one tower. Level 1: the layer map only. Level 2: every node as a row. Level 3: a
- * detail per node, the nested towers (up to `maxDepth`), issues and the source files.
- * Same input, same output: order follows the tower, sets are sorted.
+ * detail per node, the nested towers (up to `maxDepth`), issues and the source files. `idPrefix` scopes
+ * every anchor to one project (see `scoped`). Same input, same output: order follows the tower, sets are sorted.
  */
 export function towerDoc(
-  ws: Workspace, towerId: string, level: 1 | 2 | 3, opts: { maxDepth?: number; generator?: string } = {},
+  ws: Workspace, towerId: string, level: 1 | 2 | 3, opts: { maxDepth?: number; generator?: string; idPrefix?: string } = {},
 ): TowerDoc {
   const root = ws.towers[towerId];
   if (!root) throw new Error(`unknown tower: ${towerId}`);
   const depths = includedTowers(ws, towerId, level === 3 ? (opts.maxDepth ?? 3) : 0);
   const usage: Usage = { types: new Set(), edgeKinds: new Set(), runtimes: new Map(), sources: new Set() };
+  const scope: Scope = { ws, depths, level, usage, prefix: opts.idPrefix ?? '' };
 
-  const chapters = [...depths.keys()].map((id) => chapterOf(ws, ws.towers[id], depths, level, usage));
+  const chapters = [...depths.keys()].map((id) => chapterOf(ws.towers[id], scope));
 
   // One summary feeds the cover, the control block and the summary page, so every count agrees.
   const summary = docSummary(ws, towerId, level === 3 ? (opts.maxDepth ?? 3) : 0);

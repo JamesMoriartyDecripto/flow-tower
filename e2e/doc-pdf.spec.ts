@@ -137,6 +137,27 @@ test('the document prints to PDF at each level, and the full one is larger', asy
   }
 });
 
+test('the library (level 4) prints every named project with its own cover, and no dead link', async ({ page, browserName }) => {
+  await page.goto('/?doc=library&level=4&projects=dev-squad,game-studio');
+  await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
+  await expect(page.getByText('Building the document…')).toHaveCount(0);
+  await expect(page.locator('main.doc.level-4')).toHaveCount(1);
+  // One library cover, then one project cover per named project: the wordmark appears once per cover.
+  await expect(page.locator('main .library-project .cover')).toHaveCount(2);
+  await expect(page.locator('main > .cover')).toHaveCount(1);
+  await expectNoDeadLinks(page);
+  expect(await page.locator('main a[href^="#"]').count(), 'the library has contents links').toBeGreaterThan(0);
+
+  if (browserName !== 'chromium') return;
+  test.setTimeout(120_000);
+  mkdirSync(PDF_DIR, { recursive: true });
+  await page.emulateMedia({ media: 'print' });
+  const path = `${PDF_DIR}/library-level4.pdf`;
+  await page.pdf({ path, preferCSSPageSize: true, printBackground: true, outline: true, tagged: true });
+  expect(statSync(path).size, 'the library PDF is a real document').toBeGreaterThan(10 * 1024);
+  expect(pageCount(path), 'the library PDF has more pages than one project').toBeGreaterThan(2);
+});
+
 test('the PDF button opens the menu, and Overview opens the document in a new page', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'the PDF menu is checked in Chromium only');
   // Stop the print dialog: the new page would otherwise call window.print once it is ready.

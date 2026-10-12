@@ -84,6 +84,11 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 | `src/app/sharing.ts` | Pure formatting for the satellite SAT chip and Sharing section (#91), unit-tested without a DOM |
 | `src/app/hub.ts` | Pure model of the Hub panel (#92): Now rows grouped by machine / runtime / project / starter (`AUTO` for CI), the state thresholds (● under 2 min, ◐ under 15 min, ○ silent), the `HUB n/m` pill and the Machines dots. No React, no fetch, no DOM |
 | `src/app/main.tsx` | Entry point: fonts, styles, prefs, the React root, and the dev-only `window.__flowTower` hook for E2E |
+| `src/core/doc.ts` | The PDF document as plain data (levels 1-3 of one tower; the chapters, the TOC, the anchors). Anchors are scoped by an optional project prefix, so a library can print several projects. No DOM |
+| `src/core/docLibrary.ts` | Level 4: the library document, one level-2 document per project with its anchors prefixed by the project id (#65) |
+| `src/core/doc-check.ts` | The blocking checks of `export --pdf`: the page rendered, every layer and node shown, counts match, every link has a target, no raw JSON, pages per chapter and layer. Pure |
+| `src/app/doc/` | The document view (`?doc=…&level=N`) that the PDF menu and the CLI print: `DocView.tsx` builds and owns the ready signal, `DocLibraryBody.tsx` and `DocLibrary.tsx` render level 4, the rest are the parts, details and images |
+| `src/cli/export.ts` | `flow-tower export <file | dir> --pdf [--level 1|2|3|4]`: serves the path, prints the view in headless Chromium, runs the checks, writes the PDF only when every check passes |
 | `src/app/exporter.ts`, `exportSvg.ts`, `scene/Snapshot.tsx` | Export packs (P / X): ZIP of every layer and map of the project and its sub-towers, as SVG diagrams or Full HD PNGs rasterized from them, plus the 3D snapshot (captured after post-processing) |
 | `src/app/staticData.ts`, `demo.ts` | Static demo mode (Vite mode `demo`): data from `data/`, in-browser live simulator, DEMO chip |
 | `src/app/theme.ts`, `themes.ts` | Node / edge styles and bloom colors; theme switching (shared colors mutated in place, scene remounted) |

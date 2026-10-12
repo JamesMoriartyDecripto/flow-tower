@@ -12,10 +12,10 @@ export function resolveTower(ws: Workspace, want: string): string | undefined {
   return link?.stack.at(-1) ?? (ws.towers[want] ? want : undefined);
 }
 
-/** `?level=` clamped to 1-3; anything missing or not a number is the default, 2. */
-export function clampLevel(raw: string | null): 1 | 2 | 3 {
+/** `?level=` clamped to 1-4; anything missing or not a number is the default, 2. Four is the library. */
+export function clampLevel(raw: string | null): 1 | 2 | 3 | 4 {
   if (raw === null || raw.trim() === '') return 2;
   const n = Number(raw);
   if (!Number.isFinite(n)) return 2;
-  return Math.min(3, Math.max(1, Math.round(n))) as 1 | 2 | 3;
+  return Math.min(4, Math.max(1, Math.round(n))) as 1 | 2 | 3 | 4;
 }

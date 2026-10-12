@@ -19,14 +19,15 @@ describe('document view: ?doc= resolution', () => {
 });
 
 describe('document view: ?level=', () => {
-  it('defaults to 2 and clamps to 1-3', () => {
+  it('defaults to 2 and clamps to 1-4 (4 is the library)', () => {
     expect(clampLevel(null)).toBe(2);
     expect(clampLevel('')).toBe(2);
     expect(clampLevel('abc')).toBe(2);
     expect(clampLevel('0')).toBe(1);
     expect(clampLevel('-4')).toBe(1);
     expect(clampLevel('2')).toBe(2);
-    expect(clampLevel('9')).toBe(3);
+    expect(clampLevel('4')).toBe(4);
+    expect(clampLevel('9')).toBe(4);
     expect(clampLevel('2.6')).toBe(3);
   });
 });
