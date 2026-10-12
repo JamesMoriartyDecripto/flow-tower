@@ -44,8 +44,15 @@ function printModelFit(rows: ModelFit[]) {
     console.log('    no agent or model nodes');
     return;
   }
-  const head = ['node', 'role', 'model', 'categories'];
-  const cells = rows.map((r) => [r.node, r.role, r.model ?? '-', r.categories.join(', ') || '-']);
+  const head = ['node', 'role', 'needs', 'model', 'categories'];
+  // An empty category list is a real answer for roles like orchestrator: say how to find a model instead of a bare dash.
+  const cells = rows.map((r) => [
+    r.node,
+    r.role,
+    r.needs.join(', ') || '-',
+    r.model ?? '-',
+    r.categories.join(', ') || 'none (filter by modality)',
+  ]);
   const widths = head.map((h, i) => Math.max(h.length, ...cells.map((c) => c[i].length)));
   for (const row of [head, ...cells]) {
     console.log(`    ${row.map((c, i) => c.padEnd(widths[i])).join('  ').trimEnd()}`);
@@ -57,7 +64,7 @@ function printText(t: ResolvedTower, a: TowerAudit) {
   const errors = t.issues.filter((i) => i.level === 'error');
   const counts = LEVELS.map((l) => `${a.findings.filter((f) => f.level === l).length} ${l}`).join(', ');
   const mark = errors.length ? '✗' : '✓';
-  console.log(`${mark} ${a.id} — ${a.name}: ${inv.layers} layers, ${inv.nodes} nodes, ${inv.edges.total} edges, ${inv.agents} agents (${counts})`);
+  console.log(`${mark} ${a.id} — ${a.name}: ${inv.layers} layers, ${inv.nodes} nodes, ${inv.edges.total} edges (incl. ${inv.edges.links} links), ${inv.agents} agents (${counts})`);
   // Load errors come first: they explain the exit code, and the findings below may be partial because of them.
   for (const i of errors) console.log(`    error   ${i.path ? `${i.path}: ` : ''}${i.message}`);
   for (const level of LEVELS) {

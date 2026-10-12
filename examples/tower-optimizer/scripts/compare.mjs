@@ -151,8 +151,14 @@ function main() {
   const [before, after] = files.map((f) => JSON.parse(readFileSync(f, 'utf8')));
   const result = compare(before, after);
   const report = toMarkdown(result);
-  process.stdout.write(report);
-  if (md) writeFileSync(md, report);
+  if (md) {
+    // With --md the report goes to the file; the terminal gets one summary line instead of the whole report.
+    writeFileSync(md, report);
+    const sum = (key) => result.towers.reduce((n, t) => n + t[key].length, 0);
+    console.log(`compare: wrote ${md} (fixed ${sum('fixed')}, new ${sum('new')}, open ${sum('open')})`);
+  } else {
+    process.stdout.write(report);
+  }
   exit(result.regression ? 1 : 0);
 }
 

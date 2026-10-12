@@ -1,12 +1,38 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { compare, toMarkdown } from '../examples/tower-optimizer/scripts/compare.mjs';
 import type { Snapshot } from '../examples/tower-optimizer/scripts/compare.d.mts';
+import { checkQuotes, nodeText } from '../examples/tower-optimizer/scripts/check-quotes.mjs';
 
-const snapshotScript = join(import.meta.dirname, '..', 'examples', 'tower-optimizer', 'scripts', 'snapshot.mjs');
+const scriptsDir = join(import.meta.dirname, '..', 'examples', 'tower-optimizer', 'scripts');
+const snapshotScript = join(scriptsDir, 'snapshot.mjs');
+const compareScript = join(scriptsDir, 'compare.mjs');
+const checkQuotesScript = join(scriptsDir, 'check-quotes.mjs');
+
+const quoteTower = `version: 1
+name: Demo
+layers:
+  - id: intake
+    nodes:
+      - id: request
+        type: entry
+        description: "Reads the brief"
+      - id: sources
+        type: agent
+        description: Finds the
+          sources quickly
+  - id: review
+    nodes:
+      - id: gate
+        type: decision
+        description: "Blocks on risk"
+prompts:
+  reviewer:
+    file: rubric.md
+`;
 
 const inventory = (nodes: number, budget = 0) => ({
   layers: 1,
@@ -103,6 +129,62 @@ describe('tower-optimizer compare', () => {
     const saved = JSON.parse(readFileSync(out, 'utf8'));
     expect(saved.path).toBe('my-tower');
     expect(readFileSync(out, 'utf8')).not.toContain(dir);
+  });
+
+  it('compare --md writes the file and prints one summary line', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'compare-'));
+    const b = join(dir, 'before.json');
+    const a = join(dir, 'after.json');
+    const md = join(dir, 'out.md');
+    writeFileSync(b, JSON.stringify(before));
+    writeFileSync(a, JSON.stringify(after));
+    // The fixture has a new warning, so the exit code is 1 (a regression); only the output shape matters here.
+    const run = spawnSync(process.execPath, [compareScript, b, a, '--md', md], { encoding: 'utf8' });
+    expect(run.status).toBe(1);
+    const stdout = run.stdout.trim();
+    expect(stdout.split('\n')).toHaveLength(1);
+    expect(stdout).toBe(`compare: wrote ${md} (fixed 1, new 1, open 1)`);
+    expect(readFileSync(md, 'utf8')).toContain('# Tower optimizer: before/after');
+  });
+
+  it('nodeText returns the raw block of one node inside its layer', () => {
+    expect(nodeText(quoteTower, 'intake.sources')).toContain('Finds the\n          sources quickly');
+    expect(nodeText(quoteTower, 'intake.sources')).not.toContain('Reads the brief');
+    expect(nodeText(quoteTower, 'review.gate')).toContain('Blocks on risk');
+    expect(nodeText(quoteTower, 'review.missing')).toBeNull();
+    expect(nodeText(quoteTower, 'nolayer.request')).toBeNull();
+  });
+
+  it('checkQuotes keeps a quote found in its node, whitespace-normalised, and drops the rest', () => {
+    const findings = [
+      { node: 'intake.sources', quote: 'Finds the sources quickly', rule: 'a' },
+      { node: 'intake.request', quote: 'Blocks on risk', rule: 'b' },
+      { node: 'review.gate', quote: '', rule: 'c' },
+      { node: 'intake.nope', quote: 'Reads the brief', rule: 'd' },
+      { node: 'tower', quote: 'name: Demo', rule: 'e' },
+      { node: 'tower', quote: 'not in file', rule: 'f' },
+    ];
+    const { kept, dropped } = checkQuotes(quoteTower, findings);
+    expect(kept.map((f) => f.rule)).toEqual(['a', 'e']);
+    expect(dropped.map((d) => d.reason)).toEqual([
+      'quote not found in node intake.request',
+      'empty quote',
+      'no such node: intake.nope',
+      'quote not found in the tower file',
+    ]);
+  });
+
+  it('check-quotes CLI writes the kept findings and exits 0', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'quotes-'));
+    const tower = join(dir, 'x.tower.yaml');
+    const findings = join(dir, 'findings.json');
+    const out = join(dir, 'kept.json');
+    writeFileSync(tower, quoteTower);
+    writeFileSync(findings, JSON.stringify([{ node: 'review.gate', quote: 'Blocks on risk' }, { node: 'review.gate', quote: 'Reads the brief' }]));
+    const stdout = execFileSync(process.execPath, [checkQuotesScript, tower, findings, '--out', out], { encoding: 'utf8' });
+    expect(stdout).toContain('kept 1, dropped 1');
+    expect(stdout).toContain('dropped review.gate: quote not found in node review.gate');
+    expect(JSON.parse(readFileSync(out, 'utf8'))).toEqual([{ node: 'review.gate', quote: 'Blocks on risk' }]);
   });
 
   it('renders the markdown headings for each section', () => {
