@@ -10,6 +10,8 @@ export const TS_COMMANDS = [
   // `--json` is one of this parser's own options, so it is stripped from the positionals: append it back.
   // It is read from process.argv, as validate always did, so the flag is found wherever it sits.
   { name: 'validate', script: 'validate.ts', extra: () => (process.argv.includes('--json') ? ['--json'] : []) },
+  // Same `--json` as validate: stripped from the positionals, so it is appended back.
+  { name: 'audit', script: 'audit.ts', extra: (values) => (values.json ? ['--json'] : []) },
   // `--list` is stripped from the positionals too: append it back.
   { name: 'copy', script: 'copy.ts', extra: (values) => (values.list ? ['--list'] : []) },
   // `--json` is one of this parser's own options, so it is stripped from the positionals: append it back.

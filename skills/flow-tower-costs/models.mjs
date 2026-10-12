@@ -2,9 +2,22 @@
 // List OpenRouter models with prices, to shortlist candidates per role.
 // Uses the public models endpoint: no API key needed, so nothing secret is ever read.
 // Usage: node models.mjs [regex] [--tools] [--since YYYY-MM-DD]
+//   regex            case-insensitive filter on the model id, e.g. "claude|gemini"
+//   --tools          only models that support tool calls
+//   --since DATE     only models released on or after DATE (YYYY-MM-DD)
+//   -h, --help       print this usage and exit
+// Models with a variable or zero price are listed after the priced ones.
 import { argv, exit } from 'node:process';
 
 const args = argv.slice(2);
+if (args.includes('--help') || args.includes('-h')) {
+  console.log('usage: node models.mjs [regex] [--tools] [--since YYYY-MM-DD]');
+  console.log('  regex           case-insensitive filter on the model id');
+  console.log('  --tools         only models that support tool calls');
+  console.log('  --since DATE    only models released on or after DATE (YYYY-MM-DD)');
+  console.log('  -h, --help      print this usage and exit');
+  exit(0);
+}
 const tools = args.includes('--tools');
 const sinceAt = args.indexOf('--since');
 const since = sinceAt >= 0 ? Date.parse(args[sinceAt + 1]) / 1000 : 0;
@@ -43,7 +56,15 @@ const rows = data
     ctx: m.context_length ?? '-',
     tools: (m.supported_parameters ?? []).includes('tools') ? 'yes' : 'no',
   }))
-  .sort((a, b) => (a.out ?? Infinity) - (b.out ?? Infinity));
+  // Priced models first, cheapest output first; variable (negative) and zero prices go last, since a
+  // zero would otherwise sort to the top and look like the cheapest model.
+  .sort((a, b) => priceRank(a.out) - priceRank(b.out) || (a.out ?? 0) - (b.out ?? 0));
+
+function priceRank(p) {
+  if (p == null) return 2;
+  if (p < 0 || p === 0) return 1;
+  return 0;
+}
 
 console.log(['id', 'released', 'in/M', 'out/M', 'cached-in/M', 'context', 'tools'].join('\t'));
 for (const r of rows) console.log([r.id, r.date, fmt(r.in), fmt(r.out), fmt(r.cached), r.ctx, r.tools].join('\t'));
