@@ -1,0 +1,29 @@
+# Illustrative input: a fictional incident. Times, services and people are examples.
+title: Checkout errors after a configuration push
+severity: SEV-2
+started: 2026-09-03T14:02:00Z
+detected: 2026-09-03T14:09:00Z
+mitigated: 2026-09-03T14:41:00Z
+resolved: 2026-09-03T16:20:00Z
+impact:
+  - About one checkout in five failed for 39 minutes in the EU region.
+  - Customers saw a generic error page; no payment was taken twice.
+trigger: A configuration push lowered the payment client's connection pool from 200 to 20.
+timeline:
+  - { at: 2026-09-03T14:02:00Z, event: Configuration change deployed to the EU region. }
+  - { at: 2026-09-03T14:09:00Z, event: Error-rate alert on checkout pages; on-call engineer paged. }
+  - { at: 2026-09-03T14:24:00Z, event: Payment client timeouts linked to the morning's configuration change. }
+  - { at: 2026-09-03T14:41:00Z, event: Configuration rolled back; error rate back to normal. }
+  - { at: 2026-09-03T16:20:00Z, event: Root cause confirmed; incident closed. }
+causes:
+  - The pool size field had no validation, so a typo passed review.
+  - The canary stage ran for two minutes, too short for checkout traffic to reach the new pool limit.
+actions:
+  - { id: A-01, action: Validate pool size against a minimum in the config schema, owner: Platform team, due: 2026-09-17, kind: prevent, status: done }
+  - { id: A-02, action: Extend the canary stage to 15 minutes for payment services, owner: Release team, due: 2026-09-24, kind: detect, status: open }
+  - { id: A-03, action: Alert on payment client pool saturation, owner: SRE, due: 2026-09-24, kind: detect, status: open }
+  - { id: A-04, action: Add a one-click rollback to the configuration tool, owner: Platform team, due: 2026-10-15, kind: mitigate, status: open }
+lessons:
+  well: [The error-rate alert fired within seven minutes., Rollback restored service at once.]
+  badly: [It took fifteen minutes to connect the errors to the configuration change.]
+  lucky: [The change was pushed outside the evening peak.]

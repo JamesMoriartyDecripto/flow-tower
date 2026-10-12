@@ -1,0 +1,40 @@
+# Illustrative input: a fictional web application assessment. Names, hosts and scores are examples, not a real test.
+title: Web application assessment, Orders portal
+client: Example Logistics (fictional)
+window: two weeks, grey-box
+scope:
+  - orders.example.test (web application and its REST API)
+  - auth.example.test (single sign-on)
+methodology:
+  - Automated scan, then manual verification of every reported issue
+  - Manual testing of authentication, session handling and access control
+  - Scoring with CVSS v4.0 base metrics; severity from the CVSS qualitative bands
+findings:
+  - id: V-01
+    title: Order export reachable without authorization checks
+    cvss: 8.7
+    asset: orders.example.test /api/orders/export
+    description: Any signed-in customer can download every customer's orders by changing the account parameter.
+    recommendation: Check on the server that the account in the request belongs to the session user.
+    status: open
+  - id: V-02
+    title: Session cookie without SameSite attribute
+    cvss: 5.3
+    asset: orders.example.test
+    description: The session cookie is sent on cross-site requests, which allows cross-site request forgery on state-changing forms.
+    recommendation: Set SameSite=Lax (or Strict) and keep anti-CSRF tokens on forms.
+    status: open
+  - id: V-03
+    title: Verbose error pages reveal framework versions
+    cvss: 2.1
+    asset: orders.example.test
+    description: Unhandled errors return a stack trace with framework and library versions.
+    recommendation: Return a generic error page in production and log the detail server-side.
+    status: fixed
+  - id: V-04
+    title: Password reset token valid for 7 days
+    cvss: 6.9
+    asset: auth.example.test /reset
+    description: Reset links stay valid for a week and are not invalidated after use.
+    recommendation: Expire reset tokens after 30 minutes and invalidate them on first use.
+    status: open

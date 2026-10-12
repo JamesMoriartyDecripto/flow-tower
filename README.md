@@ -106,7 +106,7 @@ Every example ships real prompt, agent, code, config and log files, so the popup
 
 ## Generate a tower from your code (any coding agent)
 
-Your coding agent reads the codebase and writes the tower. The procedure is harness-neutral: [docs/generate-a-tower.md](docs/generate-a-tower.md). Install it as an [Agent Skill](https://agentskills.io) for your agent (further skills: [flow-tower-costs](skills/flow-tower-costs/SKILL.md) uses the tower to cut model cost and latency with benchmarks on real cases, [flow-tower-my-library](skills/flow-tower-my-library/SKILL.md) keeps your own towers in one library, [flow-tower-command-center](skills/flow-tower-command-center/SKILL.md) sets up the shared hub, [flow-tower-satellite](skills/flow-tower-satellite/SKILL.md) connects a machine to it):
+Your coding agent reads the codebase and writes the tower. The procedure is harness-neutral: [docs/generate-a-tower.md](docs/generate-a-tower.md). Install it as an [Agent Skill](https://agentskills.io) for your agent (further skills: [flow-tower-costs](skills/flow-tower-costs/SKILL.md) uses the tower to cut model cost and latency with benchmarks on real cases, [flow-tower-report](skills/flow-tower-report/SKILL.md) makes professional PDF reports from your sources, [flow-tower-my-library](skills/flow-tower-my-library/SKILL.md) keeps your own towers in one library, [flow-tower-command-center](skills/flow-tower-command-center/SKILL.md) sets up the shared hub, [flow-tower-satellite](skills/flow-tower-satellite/SKILL.md) connects a machine to it):
 
 ```bash
 node bin/flow-tower.js install-skill                  # Claude Code: ~/.claude/skills
@@ -216,7 +216,7 @@ src/server/     Vite plugin: /api/workspace, /api/file (read-only, sandboxed), /
 src/app/        React + three.js app: scene/ (3D) and hud/ (overlay UI)
 src/cli/        TypeScript CLI commands (validate, library)
 schema/         generated JSON Schema
-skills/         Agent Skills: flow-tower (generates towers from a codebase), flow-tower-costs (model cost/latency), flow-tower-my-library (keep your own towers in one library), flow-tower-command-center (set up the shared hub), flow-tower-satellite (connect a machine to the hub)
+skills/         Agent Skills: flow-tower (generates towers from a codebase), flow-tower-costs (model cost/latency), flow-tower-report (PDF reports), flow-tower-my-library (keep your own towers in one library), flow-tower-command-center (set up the shared hub), flow-tower-satellite (connect a machine to the hub)
 integrations/   live-event configs for Claude Code, Agent SDK, Codex, Pi, Hermes
 examples/       starters (1–3 layers) and researched presets, indexed by pattern in examples/README.md
 scripts/        schema, stress-tower and event-simulator scripts

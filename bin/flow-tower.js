@@ -50,6 +50,12 @@ Usage
                                                         the tower's document as a PDF, from headless Chromium;
                                                         every check must pass or no file is written (needs a browser:
                                                         npx playwright install chromium)
+  flow-tower report <type> <input.yaml|json> [--source <file>]... [--drafts <drafts.json>] [--out <file.pdf>] [--html <file.html>]
+                                                        a report (security-assessment, project-status, postmortem,
+                                                        cost-review) as a PDF from headless Chromium; every blocking
+                                                        check must pass or no file is written. --html alone needs no
+                                                        browser (a PDF needs: npx playwright install chromium).
+                                                        --list prints the types and their required sections
   flow-tower guide                                      print the procedure to generate a tower from a codebase
   flow-tower install-skill [--target <t>] [--project]   install all seven skills for your coding agent
                                                         <t>: claude (default), codex, pi, hermes, cursor, agents
@@ -148,6 +154,9 @@ const { values, positionals } = parseArgs({
     pdf: { type: 'boolean', default: false },
     level: { type: 'string' },
     out: { type: 'string' },
+    // report: the document from a model-free input (src/cli/report.ts); --drafts and --html are re-appended in commands.js.
+    drafts: { type: 'string' },
+    html: { type: 'string' },
     // share / unshare (#164): --name is the hub folder's name, --files adds the referenced files, --force unshares offline.
     name: { type: 'string' },
     files: { type: 'boolean', default: false },
@@ -226,7 +235,7 @@ or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follo
   writeFileSync(join(target, 'procedure.md'), procedure().replaceAll(`](${join(pkgRoot, 'skills', 'flow-tower', 'reference.md')})`, '](reference.md)'));
 
   // Install the other skills next to flow-tower: their `../flow-tower/...` links then resolve as is.
-  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library', 'flow-tower-command-center', 'flow-tower-satellite'].map((name) => join(base, ...skills, name));
+  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library', 'flow-tower-command-center', 'flow-tower-satellite', 'flow-tower-report'].map((name) => join(base, ...skills, name));
   for (const dir of others) {
     cpSync(join(pkgRoot, 'skills', basename(dir)), dir, { recursive: true });
     for (const f of readdirSync(dir).filter((f) => f.endsWith('.md'))) {

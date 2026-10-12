@@ -1,0 +1,18 @@
+# Illustrative input: a fictional project. Names, dates and amounts are examples.
+project: Customer portal rebuild
+period: Sprint 14 (two weeks)
+overall: amber
+milestones:
+  - { name: Design system in production, due: 2026-09-15, done: true, rag: green }
+  - { name: Login and accounts on the new stack, due: 2026-10-10, done: true, rag: green }
+  - { name: Orders and invoices pages, due: 2026-11-07, rag: amber }
+  - { name: Payment provider switch, due: 2026-11-28, rag: red }
+  - { name: Old portal switched off, due: 2026-12-19, rag: amber }
+risks:
+  - { id: R-01, title: Payment provider sandbox not available until mid-November, impact: high, owner: Payments lead, mitigation: Build against the recorded API contract; book a joint test day. }
+  - { id: R-02, title: Two front-end developers on leave in December, impact: medium, owner: Delivery manager, mitigation: Move the switch-off rehearsal to the first week of December. }
+  - { id: R-03, title: Invoice PDF layout not yet approved by finance, impact: low, owner: Product owner, mitigation: Review session booked for next sprint. }
+decisions:
+  - Approve one extra sprint for the payment switch, or drop instalment payments from the first release.
+  - Confirm the date for switching off the old portal.
+budget: { planned: 180000, actual: 192500, currency: EUR }
