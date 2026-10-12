@@ -6,7 +6,8 @@ import type { Workspace } from '../src/core/types';
 
 /** The printable strings of a formatted value, so a test can look for any leaf in them. */
 function printed(v: FieldValue): string {
-  if ('text' in v) return v.text;
+  if ('text' in v) return [v.text, v.note].filter(Boolean).join(' ');
+  if ('entries' in v) return v.entries.map((e) => printed(e)).join(' ');
   if ('list' in v) return v.list.join(' ');
   return v.pairs.map(([k, x]) => `${k} ${x}`).join(' ');
 }
@@ -55,7 +56,17 @@ const chapterCount = (doc: TowerDoc) => doc.chapters.length;
 describe('formatValue', () => {
   it('reads a budget as a sentence with its description on its own line', () => {
     const v = formatValue('budget', { usd: 0.05, per: 'run', on_exceed: 'stop', description: 'Cap per run.' });
-    expect(v).toEqual({ text: '$0.05 per run · on exceed: stop\nCap per run.' });
+    expect(v).toEqual({ text: '$0.05 per run · on exceed: stop', note: 'Cap per run.' });
+  });
+
+  it('keeps the description out of the summary line, for every budget in a list', () => {
+    const v = formatValue('budget', [
+      { usd: 2, per: 'run', description: 'Whole run.' },
+      { usd: 1, per: 'day' },
+    ]);
+    expect(v).toEqual({
+      entries: [{ text: '$2 per run', note: 'Whole run.' }, { text: '$1 per day' }],
+    });
   });
 
   it('reads a decision as a choice of its candidates', () => {

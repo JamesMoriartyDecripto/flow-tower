@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Field, FieldValue } from '../../core/docFields';
+import type { Field, FieldEntry, FieldValue } from '../../core/docFields';
 
 /**
  * Tower text with `inline code` shown as <code>. Split on backticks only: no other markdown, so the
@@ -11,9 +11,22 @@ export function Text({ text }: { text: string }): ReactNode {
   return parts.map((p, i) => (i % 2 === 1 && p !== '' ? <code key={i}>{p}</code> : p));
 }
 
+/** One line of text, with its note (a budget's description) on the next line. */
+function Entry({ entry }: { entry: FieldEntry }): ReactNode {
+  return (
+    <>
+      <Text text={entry.text} />
+      {entry.note !== undefined && <><br /><Text text={entry.note} /></>}
+    </>
+  );
+}
+
 /** A field value as print: text, a list of items, or a nested mini-table of pairs. */
 export function FieldBody({ value }: { value: FieldValue }): ReactNode {
-  if ('text' in value) return <Text text={value.text} />;
+  if ('text' in value) return <Entry entry={value} />;
+  if ('entries' in value) {
+    return <ul className="plain">{value.entries.map((x, i) => <li key={i}><Entry entry={x} /></li>)}</ul>;
+  }
   if ('list' in value) {
     return <ul className="plain">{value.list.map((x, i) => <li key={i}><Text text={x} /></li>)}</ul>;
   }

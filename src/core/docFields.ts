@@ -4,7 +4,13 @@
  * pairs. Pure: no DOM. Nothing is dropped: every leaf of the input reaches the output, only re-worded.
  */
 
-export type FieldValue = { text: string } | { pairs: [string, string][] } | { list: string[] };
+/** A line of text, with an optional note that the view prints on a line of its own (a budget's description). */
+export interface FieldEntry {
+  text: string;
+  note?: string;
+}
+
+export type FieldValue = FieldEntry | { pairs: [string, string][] } | { list: string[] } | { entries: FieldEntry[] };
 
 export interface Field {
   label: string;
@@ -42,9 +48,9 @@ const isObject = (v: unknown): v is Record<string, unknown> => v !== null && typ
 
 /**
  * One budget as a line: the money and its scope first (`$0.05 per run for model`), then the other
- * facts, then the description on its own line. Every key is kept.
+ * facts. The description is a separate note, so the view prints it on its own line. Every key is kept.
  */
-function budgetText(b: Record<string, unknown>): string {
+function budgetEntry(b: Record<string, unknown>): FieldEntry {
   const used = new Set<string>(['per', 'for', 'description']);
   let money: string | undefined;
   if (b.usd !== undefined) {
@@ -62,7 +68,8 @@ function budgetText(b: Record<string, unknown>): string {
     .filter(([k, v]) => !used.has(k) && v !== undefined)
     .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${flat(v)}`);
   const line = [head, ...rest].filter(Boolean).join(' · ');
-  return b.description === undefined ? line : `${line}\n${scalar(b.description)}`;
+  // A newline inside one string would collapse in HTML: the note is a part of its own instead.
+  return b.description === undefined ? { text: line } : { text: line, note: scalar(b.description) };
 }
 
 /** A decision as `choice of: quickfix · full · needs_info · reject`; the other keys follow it. */
@@ -90,8 +97,8 @@ function pairsOf(o: Record<string, unknown>): [string, string][] {
  */
 export function formatValue(key: string, value: unknown): FieldValue {
   if (key === 'budget') {
-    if (Array.isArray(value) && value.every(isObject)) return { list: value.map(budgetText) };
-    if (isObject(value)) return { text: budgetText(value) };
+    if (Array.isArray(value) && value.every(isObject)) return { entries: value.map(budgetEntry) };
+    if (isObject(value)) return budgetEntry(value);
   }
   if (key === 'decision' && isObject(value) && (value.output !== undefined || value.candidates !== undefined)) {
     return { text: decisionText(value) };

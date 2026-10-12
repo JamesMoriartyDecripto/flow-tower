@@ -63,6 +63,21 @@ test('the document view shows every node of the root tower, with anchors and a d
   await page.screenshot({ path: 'test-results/doc-level2.png', fullPage: true });
 });
 
+test('the cover carries the wordmark, and the letterhead is fixed under print so every page repeats it', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'print media and the fixed header are checked in Chromium only');
+  await page.goto('/?doc=dev-squad&level=2');
+  await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
+  // The wordmark is real text: selectable and searchable in the PDF.
+  await expect(page.locator('main .cover .mark-word')).toHaveText('FLOW//TOWER');
+
+  await page.emulateMedia({ media: 'print' });
+  const position = await page.locator('main .letterhead').evaluate((el) => getComputedStyle(el).position);
+  expect(position, 'the letterhead repeats on every printed page').toBe('fixed');
+  await page.emulateMedia({ media: 'screen' });
+  const screenPosition = await page.locator('main .letterhead').evaluate((el) => getComputedStyle(el).position);
+  expect(screenPosition, 'on screen the letterhead is the top of the page, not fixed').not.toBe('fixed');
+});
+
 test('the full document links node names to their sheets and prints no raw JSON', async ({ page }) => {
   await page.goto('/?doc=dev-squad&level=3');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });

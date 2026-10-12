@@ -6,16 +6,19 @@
   --mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
-/* Running header and footer: the tower title and the level on the left, page / pages on the right. */
+/*
+ * Page frame: the letterhead (a fixed band in the top margin, see .letterhead) and the footer (CSS margin
+ * boxes, which are the only place a page counter works in Chrome). The top margin leaves room for the band.
+ */
 @page {
   size: A4;
-  margin: 16mm 14mm 18mm;
+  margin: 22mm 14mm 18mm;
   @bottom-left { content: var(--doc-footer, ""); font: 8.5pt var(--sans); color: var(--muted); }
   @bottom-right { content: counter(page) " / " counter(pages); font: 8.5pt var(--mono); color: var(--muted); }
 }
 
 /* Layer pages are wide: the heading and its drawing share one landscape page. */
-@page layer { size: A4 landscape; margin: 12mm 14mm 16mm; }
+@page layer { size: A4 landscape; margin: 22mm 14mm 16mm; }
 
 html, body { background: var(--paper); color: var(--ink); margin: 0; }
 
@@ -62,6 +65,32 @@ code { background: var(--zebra); border: 1px solid var(--rule); border-radius: 2
 .cover .image.map { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; margin-top: 14px; }
 .cover .image.map svg { max-height: 100%; width: auto; max-width: 100%; }
 .doc-credit { color: var(--muted); font-size: 8.5pt; margin: 10px 0 0; }
+.cover .mark-lg { margin-bottom: 18px; }
+.cover .kicker { margin-top: 2px; }
+
+/* The mark: the three-stroke icon and the FLOW//TOWER wordmark, as in the app's top bar. */
+.mark { display: inline-flex; align-items: center; gap: 0.45em; color: var(--ink); }
+.mark-icon { display: block; color: var(--accent); }
+.mark-word { font: 800 1em/1 "Orbitron", sans-serif; letter-spacing: 0.16em; white-space: nowrap; }
+.mark-word b { color: var(--accent); font-weight: 800; }
+.mark-sm { font-size: 11pt; }
+.mark-sm .mark-icon { width: 4.2mm; height: 4.2mm; }
+.mark-lg { font-size: 30pt; gap: 0.35em; }
+.mark-lg .mark-icon { width: 11mm; height: 11mm; }
+
+/*
+ * The letterhead: the mark on the left, the tower and level on the right, a hairline accent rule under.
+ * In print it is fixed, so Chrome repeats it on every page inside the top margin (22mm). On screen it is
+ * the first line of the page and is shown once.
+ */
+.letterhead {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  height: 10mm; margin: 0 0 14px; padding-bottom: 2px; border-bottom: 0.5pt solid var(--accent);
+}
+.letterhead-title { font: 600 8.5pt var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); text-align: right; }
+@media print {
+  .letterhead { position: fixed; top: 6mm; left: 14mm; right: 14mm; margin: 0; z-index: 1; }
+}
 
 /* Contents: chapters as heading rows, layers under them. One indent step per depth (14pt); on paper the
    rows flow in two columns, and a nested chapter's heading spans both so its layers start below it. */
@@ -140,4 +169,14 @@ table.pairs th { color: var(--muted); }
   .toc { break-inside: avoid; }
   a { color: inherit; }
   .doc-message a { color: var(--accent); }
+  /*
+   * The cover is a title page: no running header. The fixed letterhead repeats on every page, so the cover
+   * paints the top margin band over it. The band is absolute inside the cover, so it starts on the cover's
+   * page only, and it does not change the cover's height.
+   */
+  .cover { position: relative; }
+  .cover::before {
+    content: ""; position: absolute; top: -22mm; left: -14mm; right: -14mm; height: 22mm;
+    background: var(--paper); z-index: 2;
+  }
 }

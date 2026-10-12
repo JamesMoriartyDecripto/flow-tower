@@ -2,8 +2,22 @@ import type { Chapter, LayerSection, NodeRef, NodeRow, TocEntry, TowerDoc } from
 import type { LinkRow } from '../../core/doc';
 import { Chip } from './DocChips';
 import { FieldGrid, Text } from './DocText';
+import { Mark } from './Mark';
 
 export const LEVEL_NAMES: Record<1 | 2 | 3, string> = { 1: 'Images', 2: 'Overview', 3: 'Full documentation' };
+
+/**
+ * The header band of the document: the mark on the left, the tower and the level on the right. In print
+ * it is fixed, so Chrome repeats it on every page; on screen it is the top line of the page, shown once.
+ */
+export function Letterhead({ title, level }: { title: string; level: 1 | 2 | 3 }) {
+  return (
+    <header className="letterhead">
+      <Mark size="sm" />
+      <span className="letterhead-title">{title} · {LEVEL_NAMES[level]}</span>
+    </header>
+  );
+}
 
 /** An SVG drawing inline, not as an <img>: its text stays vector and selectable in the PDF. */
 export function Svg({ markup, className }: { markup: string; className: string }) {
@@ -27,8 +41,9 @@ export function Cover({ doc, map, version }: { doc: TowerDoc; map?: string; vers
   ];
   return (
     <section className="cover">
-      <p className="kicker">Flow Tower · {LEVEL_NAMES[doc.level]}</p>
+      <Mark size="lg" />
       <h1>{doc.title}</h1>
+      <p className="kicker">{LEVEL_NAMES[doc.level]}</p>
       {doc.description && <p className="lead"><Text text={doc.description} /></p>}
       {doc.generated.tags.length > 0 && (
         <p className="tags">{doc.generated.tags.map((t) => <span key={t} className="chip chip-tag">{t}</span>)}</p>
