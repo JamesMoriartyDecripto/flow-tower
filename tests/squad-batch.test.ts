@@ -10,8 +10,9 @@ type Call = { method: string; url: string; body?: unknown };
  * A stubbed fetch scripting create → poll → delete. `createStatus` refuses the create when not 2xx;
  * `polls` are walked in order and the last one holds. Every call is recorded for assertions.
  */
-function stubFetch({ createStatus = 200, polls = [{ status: 'completed', results: [] }] }: {
-  createStatus?: number; polls?: Record<string, unknown>[];
+// A poll entry `{ httpStatus: 503 }` answers that HTTP status with an error body and no status field.
+function stubFetch({ createStatus = 200, createBody = { error: { message: 'refused' } }, polls = [{ status: 'completed', results: [] }] }: {
+  createStatus?: number; createBody?: unknown; polls?: Record<string, unknown>[];
 }) {
   const calls: Call[] = [];
   let poll = 0;
@@ -19,12 +20,13 @@ function stubFetch({ createStatus = 200, polls = [{ status: 'completed', results
     const method = init.method ?? 'GET';
     calls.push({ method, url, body: init.body ? JSON.parse(init.body) : undefined });
     if (method === 'POST') {
-      if (createStatus >= 300) return { ok: false, status: createStatus, json: async () => ({ error: 'refused' }) };
+      if (createStatus >= 300) return { ok: false, status: createStatus, json: async () => createBody };
       return { ok: true, status: 202, json: async () => ({ id: 'batch-1', status: 'in_progress' }) };
     }
     if (method === 'DELETE') return { ok: true, status: 200, json: async () => ({}) };
     const r = polls[Math.min(poll, polls.length - 1)];
     poll++;
+    if (r.httpStatus) return { ok: false, status: r.httpStatus, json: async () => ({ error: { code: r.httpStatus } }) };
     return { ok: true, status: 200, json: async () => ({ id: 'batch-1', ...r }) };
   };
   return { calls, fetchImpl };
@@ -84,6 +86,44 @@ describe('squad batch (one review through the Batch API)', () => {
     const { calls, fetchImpl } = stubFetch({ createStatus: 401 });
     expect(await run(fetchImpl)).toEqual({ ok: false, error: 'create HTTP 401' });
     expect(calls.map((c) => c.method)).toEqual(['POST']);
+  });
+
+  it('marks a create refused for a model without a batch endpoint as noBatch, without the message', async () => {
+    const lines: string[] = [];
+    const { calls, fetchImpl } = stubFetch({
+      createStatus: 400,
+      createBody: { error: { message: "Model 'z-ai/glm-5.3-flashx' does not have a :batch endpoint.", code: 400 } },
+    });
+    const out = await run(fetchImpl, { log: (l: string) => lines.push(l) });
+    expect(out).toEqual({ ok: false, error: 'no batch endpoint', noBatch: true });
+    expect(calls.map((c) => c.method)).toEqual(['POST']);
+    expect(JSON.stringify([out, ...lines])).not.toContain('glm-5.3-flashx');
+  });
+
+  it('a 400 for another reason is not noBatch', async () => {
+    const { fetchImpl } = stubFetch({ createStatus: 400, createBody: { error: { message: 'bad request', code: 400 } } });
+    const out = await run(fetchImpl);
+    expect(out).toEqual({ ok: false, error: 'create HTTP 400' });
+    expect(out).not.toHaveProperty('noBatch');
+  });
+
+  it('three failed polls in a row give poll failed, and the batch is deleted', async () => {
+    const { calls, fetchImpl } = stubFetch({ polls: [{ httpStatus: 503 }] });
+    expect(await run(fetchImpl)).toEqual({ ok: false, error: 'poll failed' });
+    expect(calls.filter((c) => c.method === 'GET')).toHaveLength(3);
+    expect(calls.at(-1)).toMatchObject({ method: 'DELETE' });
+  });
+
+  it('one failed poll then a completed one is still ok', async () => {
+    const { fetchImpl } = stubFetch({ polls: [{ httpStatus: 503 }, { status: 'completed', results: [answer('fine')] }] });
+    expect(await run(fetchImpl)).toMatchObject({ ok: true, content: 'fine' });
+  });
+
+  it('reports the id to onCreated once the batch exists', async () => {
+    const ids: string[] = [];
+    const { fetchImpl } = stubFetch({ polls: [{ status: 'completed', results: [answer('ok')] }] });
+    await run(fetchImpl, { onCreated: (id: string) => ids.push(id) });
+    expect(ids).toEqual(['batch-1']);
   });
 
   it('times out at the deadline with a batch that never finished, and deletes it', async () => {

@@ -13,6 +13,9 @@ export const BATCH_NOTE = 'OpenRouter keeps batch inputs and results up to 30 da
 // Terminal statuses: polling stops here and the outcome is decided, whatever it is.
 const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'expired']);
 
+// A poll that fails once is often a blip (a 5xx); three in a row mean the batch cannot be followed any more.
+const MAX_BAD_POLLS = 3;
+
 const CUSTOM_ID = 'squad';
 
 // The key is only ever sent in the header; it is never put in an error or a log line.
@@ -20,14 +23,20 @@ const headers = (key) => ({ Authorization: `Bearer ${key}`, 'Content-Type': 'app
 
 const minutesSince = (start) => Number(((Date.now() - start) / 60_000).toFixed(1));
 
+// Used by run.mjs on Ctrl-C, where batchOne's finally never runs. Resolves to whether the delete was accepted.
+export const deleteBatch = (key, id, signal) =>
+  fetch(`${API_BASE}/batches/${id}`, { method: 'DELETE', headers: headers(key), signal }).then((r) => r.ok).catch(() => false);
+
 /**
  * Create a one-request batch, poll it to a terminal status (or the deadline), read the answer and delete the batch.
  * `fetchImpl`, `sleep` and `log` are seams: the tests inject a stub, a no-op sleep and a log sink.
+ * `onCreated(id)` lets the caller remember the batch while it is pending, so an interrupt can still delete it.
  * Returns `{ ok: true, content, usage }` or `{ ok: false, error }` with a short code only.
+ * A model with no batch endpoint returns `{ ok: false, error, noBatch: true }`, so the caller can fall back.
  */
 export async function batchOne({
   key, body, pollMs = 30_000, waitMinutes = 720, fetchImpl = fetch,
-  sleep = (ms) => new Promise((r) => setTimeout(r, ms)), log = () => {},
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)), log = () => {}, onCreated = () => {},
 }) {
   const start = Date.now();
   const deadline = start + waitMinutes * 60_000;
@@ -45,6 +54,12 @@ export async function batchOne({
       }),
     });
     if (!res.ok) {
+      // OpenRouter names the case in the error message. The message is only matched, never logged or returned.
+      const err = await res.json().catch(() => null);
+      if (String(err?.error?.message ?? '').includes('does not have a :batch endpoint')) {
+        log('squad batch: this model has no batch endpoint');
+        return { ok: false, error: 'no batch endpoint', noBatch: true };
+      }
       log(`squad batch: create refused (HTTP ${res.status})`);
       return { ok: false, error: `create HTTP ${res.status}` };
     }
@@ -56,13 +71,24 @@ export async function batchOne({
 
   // From here a batch exists, so every path below ends in the finally that deletes it.
   const id = created.id;
+  onCreated(id);
   try {
     let current = created;
+    let bad = 0;
     while (!TERMINAL.has(current.status) && Date.now() < deadline) {
       log(`squad batch ${id}: ${current.status} after ${minutesSince(start)} min`);
       await sleep(pollMs);
       const r = await fetchImpl(`${API_BASE}/batches/${id}`, { headers: headers(key) });
-      current = await r.json();
+      // A poll only counts when it is a 2xx with a string status; anything else is logged by code alone.
+      const next = r.ok ? await r.json().catch(() => null) : null;
+      if (typeof next?.status !== 'string') {
+        bad++;
+        log(`squad batch ${id}: poll HTTP ${r.status}`);
+        if (bad === MAX_BAD_POLLS) return { ok: false, error: 'poll failed' };
+        continue;
+      }
+      bad = 0;
+      current = next;
     }
     log(`squad batch ${id}: ${current.status} after ${minutesSince(start)} min`);
 

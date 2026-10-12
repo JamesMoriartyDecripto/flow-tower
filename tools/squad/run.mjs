@@ -10,7 +10,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { appendRun, issueOf, ledgerPath } from './ledger.mjs';
-import { BATCH_NOTE, batchOne, chatUrl } from './batch.mjs';
+import { BATCH_NOTE, batchOne, chatUrl, deleteBatch } from './batch.mjs';
 import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './oneshot.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -42,6 +42,8 @@ if ((flagOneshot || flagBatch) && !oneshotRole) {
 if (flagOneshot && flagBatch) { console.error('--oneshot and --batch are exclusive'); exit(1); }
 const relaxedBatch = !flagOneshot && !flagBatch && env.SQUAD_PACE === 'relaxed' && oneshotRole;
 const mode = flagBatch || relaxedBatch ? 'batch' : flagOneshot ? 'oneshot' : 'loop';
+// The mode that was paid for: a batch that has no endpoint for the model falls back to oneshot, and the ledger says so.
+let paidMode = mode;
 console.log(`mode: ${mode}${relaxedBatch ? ' (SQUAD_PACE=relaxed)' : ''}`);
 const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or
@@ -156,14 +158,40 @@ let cost = 0;
 let promptTokens = 0, cachedTokens = 0;
 // A failed run still cost money, so every exit writes its line; steps counts the model calls that completed.
 let recorded = false, stepsDone = 0;
-const record = (outcome, steps) => { recorded = true; appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: Number(cost.toFixed(6)), promptTokens, cachedTokens, outcome, mode }); };
+const record = (outcome, steps) => { recorded = true; appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: Number(cost.toFixed(6)), promptTokens, cachedTokens, outcome, mode: paidMode }); };
 // An unhandled throw (two failed fetches, a bad JSON body) ends the process without any explicit record: the exit
 // handler catches those. appendFileSync is synchronous, so the write completes inside the handler.
 process.on('exit', () => { if (!recorded) record('crash', stepsDone); });
 // A default-handled SIGINT or SIGTERM kills the process without emitting 'exit', so a run stopped with Ctrl-C
 // (the usual answer to a stuck model call) left no ledger line. Listening here records it; exit() then sets the code.
-process.on('SIGINT', () => { if (!recorded) record('interrupted', stepsDone); exit(130); });
-process.on('SIGTERM', () => { if (!recorded) record('interrupted', stepsDone); exit(143); });
+// A pending batch is deleted first: exit() skips batchOne's finally, and a batch is kept 30 days otherwise.
+// The DELETE is bounded to 5 s so a dead network cannot hold the interrupt forever.
+let pendingBatch;
+const onInterrupt = async (code) => {
+  if (pendingBatch) {
+    const id = pendingBatch;
+    pendingBatch = undefined;
+    const gone = await deleteBatch(env.OPENROUTER_API_KEY, id, AbortSignal.timeout(5_000));
+    console.log(gone ? `squad batch ${id}: deleted on interrupt` : `squad batch ${id}: not deleted on interrupt, delete it by hand`);
+  }
+  if (!recorded) record('interrupted', stepsDone);
+  exit(code);
+};
+process.on('SIGINT', () => { onInterrupt(130); });
+process.on('SIGTERM', () => { onInterrupt(143); });
+// One request with no tools, shared by --oneshot and by a batch that fell back. No retry on the 10 min cap:
+// one long answer, the failure is the answer.
+async function oneshotCall(body) {
+  const r = await fetch(chatUrl(), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'X-Title': 'Flow Tower dev-squad' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(ONESHOT_TIMEOUT_MS),
+  });
+  if (!r.ok) { const t = await r.text(); note(`HTTP ${r.status} ${t}`); record('http-error', 0); console.log(`HTTP ${r.status} ${t.slice(0, 400)}`); exit(1); }
+  const out = await r.json();
+  return { content: out.choices?.[0]?.message?.content, usage: out.usage ?? {} };
+}
 // One session per run: OpenRouter keeps it on the provider that holds its prompt cache (cached input: DeepSeek 0.1x, Z.ai ~0.2x).
 const session = `${role}-${Date.now()}`;
 emit('agent.start', node, `${role} on ${model}`);
@@ -171,28 +199,25 @@ note(`# ${role} ${model}\n${task}\n`);
 // One request (or one batch) with the task as the whole input: no tool loop, one step, then exit.
 if (mode !== 'loop') {
   const body = oneshotBody({ model, system: oneshotSystem(role, REPO), task, session });
-  let content, usage = {};
-  if (mode === 'oneshot') {
-    // One long answer, not a loop: no retry on the 10 min cap, the failure is the answer.
-    const r = await fetch(chatUrl(), {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'X-Title': 'Flow Tower dev-squad' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(ONESHOT_TIMEOUT_MS),
-    });
-    if (!r.ok) { const t = await r.text(); note(`HTTP ${r.status} ${t}`); record('http-error', 0); console.log(`HTTP ${r.status} ${t.slice(0, 400)}`); exit(1); }
-    const out = await r.json();
-    content = out.choices?.[0]?.message?.content;
-    usage = out.usage ?? {};
-  } else {
+  let answer;
+  if (mode === 'oneshot') answer = await oneshotCall(body);
+  else {
     // The batch is slower but about half the price; BATCH_NOTE says where the inputs stay meanwhile.
     console.log(BATCH_NOTE);
     const progress = (line) => { console.log(line); emit('log', node, line.slice(0, 120)); };
-    const res = await batchOne({ key: env.OPENROUTER_API_KEY, body, log: progress });
-    if (!res.ok) { note(`batch error ${res.error}`); record('batch-error', 0); console.log(`batch failed: ${res.error}`); exit(1); }
-    content = res.content;
-    usage = res.usage;
+    const res = await batchOne({ key: env.OPENROUTER_API_KEY, body, log: progress, onCreated: (id) => { pendingBatch = id; } });
+    pendingBatch = undefined;
+    if (res.noBatch) {
+      // Not every model has a batch endpoint: the review still runs, at full price, and the ledger says so.
+      console.log(`${model} has no batch endpoint: falling back to --oneshot (full price)`);
+      paidMode = 'oneshot';
+      answer = await oneshotCall(body);
+    } else {
+      if (!res.ok) { note(`batch error ${res.error}`); record('batch-error', 0); console.log(`batch failed: ${res.error}`); exit(1); }
+      answer = { content: res.content, usage: res.usage };
+    }
   }
+  const { content, usage } = answer;
   if (typeof content !== 'string' || content === '') { note('empty answer'); record('empty-answer', 0); console.log('empty answer'); exit(1); }
   stepsDone = 1;
   cost += usage.cost ?? 0;
@@ -201,8 +226,8 @@ if (mode !== 'loop') {
   const cached = promptTokens ? Math.round((100 * cachedTokens) / promptTokens) : 0;
   note(`\n[finish] ${content}\n\ncost $${cost.toFixed(4)}`);
   record('finish', 1);
-  emit('agent.end', node, `${role} on ${model} done ($${cost.toFixed(3)}, ${mode})`, 'ok');
-  console.log(`${content}\n\n--- ${model} · 1 step · $${cost.toFixed(4)} · cache ${cached}% of ${promptTokens} prompt tokens${mode === 'batch' ? ' (batch)' : ''} · log ${log}`);
+  emit('agent.end', node, `${role} on ${model} done ($${cost.toFixed(3)}, ${paidMode})`, 'ok');
+  console.log(`${content}\n\n--- ${model} · 1 step · $${cost.toFixed(4)} · cache ${cached}% of ${promptTokens} prompt tokens${paidMode === 'batch' ? ' (batch)' : ''} · log ${log}`);
   exit(0);
 }
 for (let step = 0; step < maxSteps; step++) {

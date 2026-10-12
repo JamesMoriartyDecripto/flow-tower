@@ -16,6 +16,8 @@ type Seen = { method: string; url: string; body: Record<string, unknown> | undef
 let server: Server;
 let base = '';
 let seen: Seen[] = [];
+// Set by one test: the batch create answers the "no batch endpoint" refusal that OpenRouter gives some models.
+let refuseBatch = false;
 
 beforeAll(async () => {
   server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -24,9 +26,12 @@ beforeAll(async () => {
     req.on('end', () => {
       const body = raw ? JSON.parse(raw) as Record<string, unknown> : undefined;
       seen.push({ method: req.method ?? '', url: req.url ?? '', body });
-      const send = (obj: unknown) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
+      const send = (obj: unknown, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
       if (req.url?.endsWith('/chat/completions')) {
         return send({ choices: [{ message: { content: ANSWER } }], usage: { cost: 0.0042, prompt_tokens: 100 } });
+      }
+      if (req.method === 'POST' && req.url?.endsWith('/batches') && refuseBatch) {
+        return send({ error: { message: "Model 'vendor-a/model-x' does not have a :batch endpoint.", code: 400 } }, 400);
       }
       if (req.method === 'POST' && req.url?.endsWith('/batches')) {
         return send({
@@ -116,6 +121,26 @@ describe('squad --oneshot and --batch', () => {
     const r = await run(['--role', 'security', '--oneshot', ...args], { SQUAD_PACE: 'relaxed' }, ledger);
     expect(r.stdout.split('\n')[0]).toBe('mode: oneshot');
     expect(seen.some((s) => s.method === 'POST' && s.url.endsWith('/batches'))).toBe(false);
+  });
+
+  it('--batch on a model with no batch endpoint falls back to oneshot, one chat request, and the ledger says oneshot', SPAWN, async () => {
+    const { ledger, args } = setup();
+    seen = [];
+    refuseBatch = true;
+    try {
+      const r = await run(['--role', 'reviewer', '--batch', ...args], {}, ledger);
+      expect(r.code).toBe(0);
+      expect(r.stdout).toContain('vendor-a/model-x has no batch endpoint: falling back to --oneshot (full price)');
+      expect(r.stdout).toContain(ANSWER);
+      expect(r.stdout).toMatch(/--- vendor-a\/model-x · 1 step · \$0\.0042 · cache/);
+      expect(r.stdout).not.toMatch(/\(batch\)/);
+      const chats = seen.filter((s) => s.url.endsWith('/chat/completions'));
+      expect(chats).toHaveLength(1);
+      const row = JSON.parse(readFileSync(ledger, 'utf8').trim().split('\n').at(-1) ?? '{}');
+      expect(row).toMatchObject({ mode: 'oneshot', outcome: 'finish', steps: 1 });
+    } finally {
+      refuseBatch = false;
+    }
   });
 
   it('the default stays the tool loop', SPAWN, async () => {
