@@ -20,7 +20,10 @@ const input = arg('in');
 const tasksPaths = argv.flatMap((a, i) => (a === '--tasks' ? [argv[i + 1]] : []));
 if (!input || !tasksPaths.length) { console.error('usage: judge.mjs --in results/<date>.jsonl --tasks tasks/<c>/ [--tasks tasks/<d>/] [--url http://127.0.0.1:5317]'); exit(2); }
 // Same tower URL rule as bench.mjs: the flag wins, the environment is the fallback, '' is a no-op.
-const emit = live(arg('url', env.FLOW_TOWER_URL || ''));
+const post = live(arg('url', env.FLOW_TOWER_URL || ''));
+// Keep every POST so the end can await them: exit() would kill any still in flight.
+const sent = [];
+const emit = (e) => { sent.push(post(e)); };
 
 const tasks = new Map(tasksPaths.flatMap(loadTasks).map((t) => [`${t.category}/${t.id}`, t]));
 const runs = readFileSync(input, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
@@ -122,6 +125,7 @@ let filled = 0;
 try { if (existsSync(scoresPath)) filled = Object.values(JSON.parse(readFileSync(scoresPath, 'utf8'))).filter((s) => s != null).length; } catch { /* a malformed sheet stays the scorer's problem */ }
 emit({ kind: 'log', node: 'judges.scores', message: `${filled} scores read from ${base}.scores.json` });
 
+await Promise.allSettled(sent);
 const pass = judged.filter((r) => r.pass === true).length, fail = judged.filter((r) => r.pass === false).length;
 console.log(`${judged.length} runs: ${pass} pass, ${fail} fail, ${judged.length - pass - fail} pending (rubric only)`);
 for (const r of judged.filter((x) => x.pass === false)) console.log(`  fail ${r.model} ${r.task} #${r.run}: ${r.detail}`);

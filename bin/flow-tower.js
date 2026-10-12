@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
 import { parseArgs } from 'node:util';
 import { senderConfig } from './config-file.js';
+import { findTsCommand, runTsCommand } from './commands.js';
+import { STARTER } from './starter.js';
 import { clipIdentity, identityDefaults } from './identity.js';
 import { EMPTY_LIBRARY, libraryEntries, warnInCheckout } from './library.js';
 
@@ -39,7 +41,7 @@ Usage
                                                         content-free events and totals in the user folder:
                                                         export prints JSONL, delete erases one user's rows
   flow-tower guide                                      print the procedure to generate a tower from a codebase
-  flow-tower install-skill [--target <t>] [--project]   install it as an Agent Skill for your coding agent
+  flow-tower install-skill [--target <t>] [--project]   install all seven skills for your coding agent
                                                         <t>: claude (default), codex, pi, hermes, cursor, agents
 
   Directories are scanned recursively for *.tower.yaml. Several projects open as a library.
@@ -66,34 +68,6 @@ Options
                  disables the user default everywhere.
       --tower    emit: only match towers whose id or name contains this (two versions in one library)
   -h, --help     Show this help`;
-
-const STARTER = `# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
-version: 1
-name: My Agent
-prompts:
-  main: { text: "You are a helpful agent. Task: {{task}}" }
-agents:
-  main: { model: claude-sonnet-5-5, prompt: main, tools: [search] }
-layers:
-  - id: flow
-    title: Agent Loop
-    nodes:
-      - { id: input, type: entry, label: User input }
-      - { id: agent, agent: main, label: Agent }
-      - { id: done, type: decision, label: Done? }
-      - { id: answer, type: output, label: Answer }
-    edges:
-      - input -> agent
-      - agent -> done
-      - "done -> agent [return]: no"
-      - "done -> answer: yes"
-  - id: tools
-    title: Tools
-    nodes:
-      - { id: search, type: tool, label: Web search }
-links:
-  - flow.agent -> tools.search [call]
-`;
 
 // Agent Skills folders (SKILL.md standard, agentskills.io), verified against each harness's docs.
 // user = under $HOME, project = under the current directory.
@@ -189,77 +163,10 @@ if (positionals[0] === 'emit') {
   process.exit(0);
 }
 
-if (positionals[0] === 'config') {
-  // The config loader is TypeScript (src/server/config.ts): run its CLI with Node's type stripping.
-  const script = join(pkgRoot, 'src', 'cli', 'config.ts');
-  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...positionals.slice(1)], { stdio: 'inherit' });
-  process.exit(r.status ?? 1);
-}
-
-if (positionals[0] === 'validate') {
-  // The core is TypeScript: run it with Node's built-in type stripping (Node >= 22.12).
-  const script = join(pkgRoot, 'src', 'cli', 'validate.ts');
-  const args = [...positionals.slice(1), ...(process.argv.includes('--json') ? ['--json'] : [])];
-  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
-  process.exit(r.status ?? 1);
-}
-
-if (positionals[0] === 'copy') {
-  // Same trick as validate: the copier is TypeScript, run it with Node's type stripping.
-  // `--list` is one of this parser's own options, so it is stripped from the positionals: append it back.
-  const script = join(pkgRoot, 'src', 'cli', 'copy.ts');
-  const args = [...positionals.slice(1), ...(values.list ? ['--list'] : [])];
-  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
-  process.exit(r.status ?? 1);
-}
-
-if (positionals[0] === 'check-example') {
-  // Same trick as validate: the checker is TypeScript, run it with Node's type stripping.
-  // `--json` is one of this parser's own options, so it is stripped from the positionals: append it back.
-  const script = join(pkgRoot, 'src', 'cli', 'check-example.ts');
-  const args = [...positionals.slice(1), ...(values.json ? ['--json'] : [])];
-  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
-  process.exit(r.status ?? 1);
-}
-
-if (positionals[0] === 'token') {
-  // Same trick as validate: the token store is TypeScript, run it with Node's type stripping.
-  const script = join(pkgRoot, 'src', 'cli', 'token.ts');
-  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...positionals.slice(1)], { stdio: 'inherit' });
-  process.exit(r.status ?? 1);
-}
-
-if (positionals[0] === 'library') {
-  // A subcommand (anything but a flag) is the add/list/remove CLI; without one, `library` serves the
-  // user's own towers. Same trick as token: the subcommand CLI is TypeScript, run with type stripping.
-  const sub = positionals[1];
-  if (sub !== undefined && !sub.startsWith('-')) {
-    const script = join(pkgRoot, 'src', 'cli', 'library.ts');
-    const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...positionals.slice(1)], { stdio: 'inherit' });
-    process.exit(r.status ?? 1);
-  }
-}
-
-if (positionals[0] === 'history') {
-  // Same trick as token: the history DB code is TypeScript, run it with Node's type stripping.
-  // `--user` is one of this parser's own options, so it is stripped from the positionals: append it back
-  // (with its exact value, the empty string included) or `history export|delete --user` would lose it.
-  const script = join(pkgRoot, 'src', 'cli', 'history.ts');
-  const args = [...positionals.slice(1), ...(values.user === undefined ? [] : ['--user', values.user])];
-  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
-  process.exit(r.status ?? 1);
-}
-
-if (positionals[0] === 'connect') {
-  // Same trick as token: the config writer is TypeScript, run it with Node's type stripping.
-  // --token/--user/--machine are this parser's own options, so they are stripped from the positionals:
-  // append each one back (its exact value, so `--user ''` survives) or connect would see no token.
-  const script = join(pkgRoot, 'src', 'cli', 'connect.ts');
-  const args = [...positionals.slice(1)];
-  for (const name of ['token', 'user', 'machine']) if (values[name] !== undefined) args.push(`--${name}`, values[name]);
-  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, ...args], { stdio: 'inherit' });
-  process.exit(r.status ?? 1);
-}
+// The TypeScript subcommands (config, validate, copy, check-example, token, history, connect, library add|list|remove)
+// are table-driven in commands.js; the options parseArgs strips are appended back there.
+const tsCommand = findTsCommand(positionals);
+if (tsCommand) process.exit(runTsCommand(pkgRoot, tsCommand, positionals, values));
 
 if (positionals[0] === 'guide') {
   console.log(procedure());
@@ -292,7 +199,7 @@ or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follo
   writeFileSync(join(target, 'procedure.md'), procedure().replaceAll(`](${join(pkgRoot, 'skills', 'flow-tower', 'reference.md')})`, '](reference.md)'));
 
   // Install the other skills next to flow-tower: their `../flow-tower/...` links then resolve as is.
-  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library'].map((name) => join(base, ...skills, name));
+  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library', 'flow-tower-command-center', 'flow-tower-satellite'].map((name) => join(base, ...skills, name));
   for (const dir of others) {
     cpSync(join(pkgRoot, 'skills', basename(dir)), dir, { recursive: true });
     for (const f of readdirSync(dir).filter((f) => f.endsWith('.md'))) {
