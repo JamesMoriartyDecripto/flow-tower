@@ -1,6 +1,6 @@
 import { EDGE_KINDS, NODE_TYPES, type EdgeKind, type NodeType } from './schema.ts';
-import type { ResolvedEdge, ResolvedNode, ResolvedTower } from './types.ts';
-import { nodeCode } from './docSummary.ts';
+import type { ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from './types.ts';
+import { nodeCode, printedTowers } from './docSummary.ts';
 
 /*
  * Chart data of one tower's chapter: plain numbers computed from the resolved tower. The drawing lives in
@@ -160,4 +160,59 @@ export function runtimesByLayer(t: ResolvedTower): LayerTable {
 /** Nodes per layer and model: the node's own model, else its agent's. */
 export function modelsByLayer(t: ResolvedTower): LayerTable {
   return layerTable(t, (n) => n.model ?? n.agent?.model);
+}
+
+export interface TowerTree {
+  id: string;
+  title: string;
+  layers: number;
+  nodes: number;
+  children: TowerTree[];
+}
+
+/**
+ * The sub-towers under a root, as the nodes name them. Only towers the document prints are listed, and each
+ * tower appears once, so a tower used twice does not repeat its branch.
+ */
+export function subTowerTree(ws: Workspace, rootId: string): TowerTree {
+  const printed = printedTowers(ws, rootId).depths;
+  const seen = new Set<string>([rootId]);
+  const build = (id: string): TowerTree => {
+    const t = ws.towers[id];
+    const children: TowerTree[] = [];
+    for (const n of nodesOf(t)) {
+      if (n.tower && printed.has(n.tower) && !seen.has(n.tower)) {
+        seen.add(n.tower);
+        children.push(build(n.tower));
+      }
+    }
+    return { id, title: t.name, layers: t.layers.length, nodes: nodesOf(t).length, children };
+  };
+  return build(rootId);
+}
+
+/** Every chart of one chapter. The tree is set only on a root chapter (depth 0): a sub-tower has no tree of its own. */
+export interface ChapterCharts {
+  matrix: LayerMatrix;
+  composition: LayerComposition[];
+  edges: { kind: EdgeKind; edges: number }[];
+  connected: ConnectedNode[];
+  coverage: ControlCoverage[];
+  runtimes: LayerTable;
+  models: LayerTable;
+  tree?: TowerTree;
+}
+
+export function chapterCharts(ws: Workspace, towerId: string, root: boolean): ChapterCharts {
+  const t = ws.towers[towerId];
+  return {
+    matrix: layerMatrix(t),
+    composition: layerComposition(t),
+    edges: edgesByKind(t),
+    connected: topConnected(t),
+    coverage: governanceCoverage(t),
+    runtimes: runtimesByLayer(t),
+    models: modelsByLayer(t),
+    tree: root ? subTowerTree(ws, towerId) : undefined,
+  };
 }

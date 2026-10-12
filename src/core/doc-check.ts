@@ -26,7 +26,12 @@ export interface DomFacts {
   chapters: string[];
   /** Every appendix entry shown on the page: its `fileKey`, and whether its text or a reason is printed. */
   appendix: { key: string; printed: boolean }[];
+  /** Per chapter (its `data-tower`): how many `[data-chart]` figures the chapter holds. */
+  charts: { towerId: string; count: number }[];
 }
+
+/** The fewest charts a chapter must print at level 2 and up: the overview's figures, not optional extras. */
+export const MIN_CHARTS = 5;
 
 /** What the workspace says the document must contain. */
 export interface WorkspaceFacts {
@@ -36,6 +41,8 @@ export interface WorkspaceFacts {
   chapters: { towerId: string; layerTitles: string[]; nodeLabels: string[] }[];
   /** The control counts the workspace implies for this level. */
   counts: { layers: number; nodes: number; subTowers: number };
+  /** The level printed. The chart check applies at 2 and up; absent means the check does not apply. */
+  level?: 1 | 2 | 3 | 4;
   /** Level 3: every file the appendix must list, as `fileKey` (tower and path). Empty below level 3. */
   files: string[];
   /** Towers the document must print: the root and every reachable tower, once each. */
@@ -125,6 +132,19 @@ export function checkDocument(dom: DomFacts, ws: WorkspaceFacts): CheckResult[] 
   });
   const raw = dom.mainText.includes('{"');
   results.push({ name: 'no raw JSON in the text', ok: !raw, detail: raw ? 'found {" in the text' : '' });
+
+  // d2. Every chapter at level 2 and up carries its overview charts: a chapter with too few is a gap a reader
+  // would take for the whole chart set missing, so each chapter is named.
+  if (ws.level !== undefined && ws.level >= 2) {
+    const short = ws.chapters
+      .map((c) => ({ towerId: c.towerId, count: dom.charts.find((x) => x.towerId === c.towerId)?.count ?? 0 }))
+      .filter((c) => c.count < MIN_CHARTS);
+    results.push({
+      name: 'every chapter has its overview charts',
+      ok: short.length === 0,
+      detail: short.length ? `${short.length} short: ${short.map((c) => `"${c.towerId}" has ${c.count}`).slice(0, MAX_LISTED).join(', ')}` : '',
+    });
+  }
 
   // e. The PDF has at least as many pages as chapters plus layers.
   const need = ws.chapters.length + layerWanted.length;

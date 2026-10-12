@@ -63,6 +63,18 @@ test('the document view shows every node of the root tower, with anchors and a d
   await page.screenshot({ path: 'test-results/doc-level2.png', fullPage: true });
 });
 
+test('the overview charts: the root chapter has the layer matrix and the sub-tower tree', async ({ page }) => {
+  await page.goto('/?doc=dev-squad&level=2');
+  await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
+  const root = page.locator('main article.chapter').first();
+  await expect(root.locator('[data-chart="matrix"]'), 'the layer-to-layer matrix').toHaveCount(1);
+  await expect(root.locator('[data-chart="tree"]'), 'the sub-tower tree').toHaveCount(1);
+  // Every chapter at level 2 holds at least the five overview charts, so none prints bare.
+  const counts = await page.locator('main article.chapter').evaluateAll((as) =>
+    as.map((a) => a.querySelectorAll('[data-chart]').length));
+  for (const n of counts) expect(n, 'charts in a chapter').toBeGreaterThanOrEqual(5);
+});
+
 test('the cover carries one wordmark, and the running header comes from the page margin under print', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'print media and the margin boxes are checked in Chromium only');
   const all = await workspace(page);

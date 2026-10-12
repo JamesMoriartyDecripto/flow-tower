@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { canonicalJson, towerDoc, type DocLevel, type TowerDoc } from '../../core/doc';
 import { libraryDoc, libraryProjects } from '../../core/docLibrary';
 import type { Workspace } from '../../core/types';
+import { chapterCharts, type ChapterCharts } from '../../core/docCharts';
 import { layoutTower, type TowerLayout } from '../layout';
+import { ChapterOverview } from './Charts';
 import { docImages, type DocImages } from './DocImages';
 import { snapshotOf, type Snapshot } from './snapshots';
 import { SnapFigure } from './SnapFigure';
@@ -19,7 +21,21 @@ import { clampLevel, resolveTower } from './resolve';
 import { APP_VERSION } from './version';
 import './doc.css';
 
-interface Built { doc: TowerDoc; images: DocImages; snaps: Record<string, Snapshot>; title: string; running: string; footer: string }
+interface Built {
+  doc: TowerDoc; images: DocImages; snaps: Record<string, Snapshot>; charts: Record<string, ChapterCharts>;
+  title: string; running: string; footer: string;
+}
+
+/**
+ * The charts of every chapter, keyed by the chapter's anchor (unique in a library, where a shared sub-tower
+ * is printed once per project). Only a level-2 and up document has an overview, so the rest is skipped.
+ */
+function chartsOf(ws: Workspace, doc: TowerDoc): Record<string, ChapterCharts> {
+  const out: Record<string, ChapterCharts> = {};
+  const chapters = doc.projects ? doc.projects.flatMap((p) => p.chapters) : doc.chapters;
+  for (const c of chapters) out[c.id] = chapterCharts(ws, c.towerId, c.depth === 0);
+  return out;
+}
 
 /**
  * The first 16 hex digits of a sha256 over the canonical JSON of the resolved tower. The same tower gives
@@ -90,6 +106,7 @@ export function DocView({ ws, towerId, level, print, projectNames }: {
         doc: { ...doc, control: { ...doc.control, fingerprint } },
         images,
         snaps,
+        charts: level >= 2 ? chartsOf(ws, doc) : {},
         title: level === 4 ? `${doc.title} — ${LEVEL_NAMES[4]}` : `${ws.towers[towerId].name} — ${LEVEL_NAMES[level]}`,
         // The running header is upper case, as the letterhead was; the footer names the classification,
         // the build and the tower, as the classification is the first thing a reader of a print looks for.
@@ -112,7 +129,7 @@ export function DocView({ ws, towerId, level, print, projectNames }: {
 }
 
 function Document({ built, level, print }: { built: Built; level: DocLevel; print: boolean }) {
-  const { doc, images, snaps } = built;
+  const { doc, images, snaps, charts } = built;
   // The cover names the version (from package.json at build time) and the tower id: no date, so the same tower prints the same file.
 
   // The appendix's file texts load after the first paint; the document is ready only once they are in place.
@@ -138,7 +155,7 @@ function Document({ built, level, print }: { built: Built; level: DocLevel; prin
   }, [built, print, filesReady]);
 
   // The library has its own body; the ready signal above still covers it, since the hook runs first.
-  if (level === 4) return <LibraryDocument doc={doc} images={images} snaps={snaps} />;
+  if (level === 4) return <LibraryDocument doc={doc} images={images} snaps={snaps} charts={charts} />;
 
   return (
     <main className={`doc level-${level}`}>
@@ -151,6 +168,7 @@ function Document({ built, level, print }: { built: Built; level: DocLevel; prin
         <article key={c.id} className="chapter" data-tower={c.towerId}>
           <ChapterHead chapter={c} />
           <SnapFigure towerTitle={c.title} layers={c.layers.length} snap={snaps[c.towerId]} />
+          {charts[c.id] && <ChapterOverview id={c.id} charts={charts[c.id]} title={c.title} />}
           {c.layers.map((l) => (
             <div key={l.id} className="layer-block">
               <LayerBlock section={l} level={level} markup={images.layers[l.id]} />

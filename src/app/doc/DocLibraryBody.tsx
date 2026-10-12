@@ -1,4 +1,6 @@
 import type { TowerDoc } from '../../core/doc';
+import type { ChapterCharts } from '../../core/docCharts';
+import { ChapterOverview } from './Charts';
 import type { DocImages } from './DocImages';
 import { ChapterHead, Cover, LayerBlock, LinkList, Toc } from './DocParts';
 import { LibraryCover } from './DocLibrary';
@@ -12,7 +14,9 @@ import { APP_VERSION } from './version';
  * document (its own cover, control table, summary and chapters). Every anchor is project-prefixed, so one
  * page holds them all. The library's control table comes first, so the totals are what the checks read.
  */
-export function LibraryDocument({ doc, images, snaps }: { doc: TowerDoc; images: DocImages; snaps: Record<string, Snapshot> }) {
+export function LibraryDocument({ doc, images, snaps, charts }: {
+  doc: TowerDoc; images: DocImages; snaps: Record<string, Snapshot>; charts: Record<string, ChapterCharts>;
+}) {
   return (
     <main className="doc level-4">
       <LibraryCover doc={doc} version={APP_VERSION} />
@@ -27,6 +31,7 @@ export function LibraryDocument({ doc, images, snaps }: { doc: TowerDoc; images:
           {p.chapters.map((c) => (
             <article key={c.id} className="chapter" data-tower={c.towerId}>
               <ChapterHead chapter={c} />
+              {charts[c.id] && <ChapterOverview id={c.id} charts={charts[c.id]} title={c.title} />}
               {c.layers.map((l) => (
                 <div key={l.id} className="layer-block">
                   <LayerBlock section={l} level={2} markup={images.layers[l.id]} />

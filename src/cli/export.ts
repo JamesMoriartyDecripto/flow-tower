@@ -49,6 +49,11 @@ const PAGE_FACTS = `(() => {
     key: el.dataset.fileKey ?? '',
     printed: el.dataset.printed === '1',
   }));
+  // Each chapter counts its own [data-chart] figures, so a chapter with none is not hidden by another's.
+  const charts = [...document.querySelectorAll('main article.chapter[data-tower]')].map((a) => ({
+    towerId: a.getAttribute('data-tower') || '',
+    count: a.querySelectorAll('[data-chart]').length,
+  }));
   return {
     docError: document.documentElement.dataset.docError,
     buildingText: document.body.innerText.includes('Building the document'),
@@ -60,6 +65,7 @@ const PAGE_FACTS = `(() => {
     control,
     chapters,
     appendix,
+    charts,
   };
 })()`;
 
@@ -148,6 +154,7 @@ async function workspaceFacts(target: string, towerId: string, level: 1 | 2 | 3 
     counts: { layers: doc.control.layers, nodes: doc.control.nodes, subTowers: doc.control.subTowers },
     files: (doc.files ?? []).map((f) => fileKey(f)),
     towers,
+    level,
   };
 }
 

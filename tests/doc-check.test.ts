@@ -16,6 +16,7 @@ function goodDom(over: Partial<DomFacts> = {}): DomFacts {
     control: { layers: 2, nodes: 2, subTowers: 0 },
     chapters: [TOWER],
     appendix: [],
+    charts: [{ towerId: TOWER, count: 6 }],
     ...over,
   };
 }
