@@ -1,0 +1,35 @@
+name: Example proposal
+description: Propose a system to add to the examples gallery
+title: "examples: "
+labels: ["example"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Open this issue first, then the pull request. The [contribute skill](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-contribute/SKILL.md) walks you through the steps.
+  - type: input
+    id: system
+    attributes:
+      label: The system the tower maps
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is it a useful model?
+  - type: input
+    id: sources
+    attributes:
+      label: Link to sources
+      description: Public pages or documents that describe the system.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I ran `flow-tower check-example` on it
+          required: true
+        - label: It holds no personal or customer data
+          required: true
+        - label: I read CONTRIBUTING.md
+          required: true
