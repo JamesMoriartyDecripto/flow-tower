@@ -223,7 +223,9 @@ table.findings td:first-child { width: 8%; }
 .chapter-head h2 { margin-top: 0; }
 /* The 3D figure: full content width, and a height cap so the heading, the figure and the description fit one portrait page. */
 .snap-figure { margin: 0 0 12px; break-inside: avoid; }
-.snap-figure img { display: block; width: 100%; height: auto; max-height: 150mm; object-fit: contain; border: .3mm solid var(--rule); background: var(--plate, #f4f6fa); }
+/* The plate is the dashboard's dark field, with the doc's rounded frame; the image is cropped to the tower, so it fills the width. */
+.snap-plate { position: relative; border-radius: 3px; background: var(--plate); padding: 6px; box-sizing: border-box; overflow: hidden; }
+.snap-figure img { display: block; width: 100%; height: auto; max-height: 150mm; object-fit: contain; }
 .snap-figure figcaption { font: 600 8.5pt var(--sans); color: var(--muted); margin-top: 4px; }
 .snap-missing { border: .3mm dashed var(--rule); padding: 10mm; text-align: center; color: var(--muted); font: 600 9pt var(--sans); }
 .layer-block { break-before: page; }
