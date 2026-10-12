@@ -55,12 +55,60 @@ function run(args: string[], env: NodeJS.ProcessEnv = {}) {
 const input = join(dir, 'assessment.yaml');
 writeFileSync(input, SECURITY);
 
+/** A project status input: the type whose sources appendix the draft cites. */
+const STATUS = `project: Flow Tower
+period: Sprint 12
+overall: amber
+milestones:
+  - name: Payment switch
+    due: 2025-10-01
+    done: false
+    rag: red
+risks:
+  - id: R-1
+    title: Payment switch load
+    impact: high
+    owner: Ana
+    mitigation: Load test before cut-over.
+`;
+const status = join(dir, 'status.yaml');
+writeFileSync(status, STATUS);
+
 describe('flow-tower report (#174)', () => {
   it('--list prints every type and exits 0', { timeout: 15_000 }, async () => {
     const r = await run(['--list']);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('security-assessment');
     expect(r.stdout).toContain('required sections: summary, scope, methodology, findings, remediation, appendix-sources');
+    expect(r.stdout).toContain('tower-documentation  Tower documentation');
+    expect(r.stdout).toContain('required sections: (checked by flow-tower export)');
+  });
+
+  it('a draft that cites a source is badged and linked to the appendix', { timeout: 15_000 }, async () => {
+    const drafts = join(dir, 'drafts-ok.json');
+    writeFileSync(drafts, JSON.stringify([{ section: 'summary', text: 'The payment switch is the main risk this period.', cites: ['S1'] }]));
+    const html = join(dir, 'drafted.html');
+    const r = await run(['project-status', status, '--drafts', drafts, '--html', html]);
+    expect(r.status).toBe(0);
+    const text = readFileSync(html, 'utf8');
+    expect(text).toContain('drafted');
+    expect(text).toContain('href="#src-S1"');
+    expect(text).toContain('[S1]');
+  });
+
+  it('a draft citing an unknown source S9 exits 1', { timeout: 15_000 }, async () => {
+    const drafts = join(dir, 'drafts-bad.json');
+    writeFileSync(drafts, JSON.stringify([{ section: 'summary', text: 'The payment switch is the main risk this period.', cites: ['S9'] }]));
+    const html = join(dir, 'bad-cite.html');
+    const r = await run(['project-status', status, '--drafts', drafts, '--html', html]);
+    expect(r.status).toBe(1);
+    expect(existsSync(html)).toBe(false);
+  });
+
+  it('tower-documentation refuses --html and --drafts with exit 2', { timeout: 15_000 }, async () => {
+    const r = await run(['tower-documentation', input, '--html', join(dir, 'td.html')]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('rendered by flow-tower export');
   });
 
   it('writes the HTML with the findings and no browser', { timeout: 15_000 }, async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkReport, failed } from '../src/report/checks.ts';
 import { renderReport } from '../src/report/html.ts';
-import type { Source } from '../src/report/model.ts';
+import type { ReportDoc, Source } from '../src/report/model.ts';
 import { getType, REPORT_TYPES } from '../src/report/types/index.ts';
 import { formatMoney, formatPercent } from '../src/report/format.ts';
 import { changePercent, varianceSeverity } from '../src/report/types/cost.ts';
@@ -10,6 +10,13 @@ import { cvssSeverity } from '../src/report/types/security.ts';
 import { variancePercent } from '../src/report/types/status.ts';
 
 const SOURCES: Source[] = [{ id: 'S1', label: 'Input file', path: 'input.yaml', sha256: 'abcdef0123456789' }];
+
+/** The builder of a document type. A delegated type (tower-documentation) has none, so asking for one is a test error. */
+function buildOf(id: string, input: unknown, sources: Source[]): ReportDoc {
+  const type = getType(id);
+  if (!type.build) throw new Error(`${id} has no builder`);
+  return type.build(input, sources);
+}
 
 const SECURITY_INPUT = {
   title: 'Q3 web assessment',
@@ -77,6 +84,12 @@ describe('report types', () => {
     expect(() => getType('nope')).toThrow(/unknown report type "nope"/);
   });
 
+  it('registers tower-documentation as delegated to the export, with no builder', () => {
+    const td = getType('tower-documentation');
+    expect(td.delegate).toBe('export');
+    expect(td.build).toBeUndefined();
+  });
+
   it.each([
     ['security-assessment', SECURITY_INPUT],
     ['project-status', STATUS_INPUT],
@@ -84,14 +97,14 @@ describe('report types', () => {
     ['cost-review', COST_INPUT],
   ])('%s builds a document that passes every blocking check', (id, input) => {
     const type = getType(id);
-    const doc = type.build(input, SOURCES);
+    const doc = buildOf(id, input, SOURCES);
     const html = renderReport(doc);
     const results = checkReport(doc, html, { sections: type.required });
     expect(failed(results)).toEqual([]);
   });
 
   it('security summary counts severities and the findings are sorted by severity then id', () => {
-    const doc = getType('security-assessment').build(SECURITY_INPUT, SOURCES);
+    const doc = buildOf('security-assessment', SECURITY_INPUT, SOURCES);
     const findings = doc.sections.find((s) => s.id === 'findings')!.blocks[0];
     expect(findings.kind === 'findings' && findings.items.map((f) => f.id)).toEqual(['F-1', 'F-2', 'F-3']);
     const bars = doc.sections.find((s) => s.id === 'summary')!.blocks[0];
@@ -116,19 +129,19 @@ describe('report types', () => {
       ...SECURITY_INPUT,
       findings: [{ id: 'F-9', title: 'X', cvss: 9.0, severity: 'low', asset: 'a', description: 'd', recommendation: 'r' }],
     };
-    expect(() => getType('security-assessment').build(bad, SOURCES)).toThrow(/F-9.*disagrees with CVSS 9 \(critical\)/);
+    expect(() => buildOf('security-assessment', bad, SOURCES)).toThrow(/F-9.*disagrees with CVSS 9 \(critical\)/);
   });
 
   it('computes budget variance as a percentage of the plan', () => {
     expect(variancePercent({ planned: 1000, actual: 1100, currency: 'EUR' })).toBe(10);
     expect(variancePercent({ planned: 800, actual: 600, currency: 'EUR' })).toBe(-25);
-    const doc = getType('project-status').build(STATUS_INPUT, SOURCES);
+    const doc = buildOf('project-status', STATUS_INPUT, SOURCES);
     const budget = doc.sections.find((s) => s.id === 'budget')!.blocks;
     expect(budget).toContainEqual({ kind: 'facts', rows: [['Variance', '10.0%']] });
   });
 
   it('shows overall as a facts row with its RAG value and milestones once, as a table', () => {
-    const doc = getType('project-status').build(STATUS_INPUT, SOURCES);
+    const doc = buildOf('project-status', STATUS_INPUT, SOURCES);
     const summary = doc.sections.find((s) => s.id === 'summary')!.blocks;
     expect(summary[0]).toEqual({
       kind: 'facts',
@@ -149,9 +162,9 @@ describe('report types', () => {
 
   it('names the field in an invalid status input', () => {
     const bad = { ...STATUS_INPUT, overall: 'purple' };
-    expect(() => getType('project-status').build(bad, SOURCES)).toThrow(/input\.overall: must be one of red, amber, green/);
+    expect(() => buildOf('project-status', bad, SOURCES)).toThrow(/input\.overall: must be one of red, amber, green/);
     const noBase = { ...STATUS_INPUT, budget: { planned: 0, actual: 5, currency: 'EUR' } };
-    expect(() => getType('project-status').build(noBase, SOURCES)).toThrow(/budget\.planned/);
+    expect(() => buildOf('project-status', noBase, SOURCES)).toThrow(/budget\.planned/);
   });
 
   it('formats ISO times as UTC to the minute', () => {
@@ -170,7 +183,7 @@ describe('report types', () => {
   });
 
   it('renders postmortem times and durations in the summary and timeline', () => {
-    const doc = getType('postmortem').build(POSTMORTEM_INPUT, SOURCES);
+    const doc = buildOf('postmortem', POSTMORTEM_INPUT, SOURCES);
     const summary = doc.sections.find((s) => s.id === 'summary')!.blocks[0];
     expect(summary).toEqual({
       kind: 'facts',
@@ -188,12 +201,12 @@ describe('report types', () => {
 
   it('rejects postmortem timestamps out of order, naming the field', () => {
     const bad = { ...POSTMORTEM_INPUT, mitigated: '2024-08-01T09:00:00Z' };
-    expect(() => getType('postmortem').build(bad, SOURCES)).toThrow(/input\.mitigated: is earlier than detected/);
+    expect(() => buildOf('postmortem', bad, SOURCES)).toThrow(/input\.mitigated: is earlier than detected/);
     const badTimeline = {
       ...POSTMORTEM_INPUT,
       timeline: [{ at: '2024-08-01T11:00:00Z', event: 'a' }, { at: '2024-08-01T10:00:00Z', event: 'b' }],
     };
-    expect(() => getType('postmortem').build(badTimeline, SOURCES)).toThrow(/timeline\[1\]\.at/);
+    expect(() => buildOf('postmortem', badTimeline, SOURCES)).toThrow(/timeline\[1\]\.at/);
   });
 
   it('computes cost change, share and variance severity', () => {
@@ -220,7 +233,7 @@ describe('report types', () => {
   });
 
   it('lists over-budget and fast-growing lines as variance findings, numbered C-01 onward', () => {
-    const doc = getType('cost-review').build(COST_INPUT, SOURCES);
+    const doc = buildOf('cost-review', COST_INPUT, SOURCES);
     const summary = doc.sections.find((s) => s.id === 'summary')!.blocks;
     expect(summary[0]).toEqual({
       kind: 'facts',
@@ -245,7 +258,7 @@ describe('report types', () => {
       ...COST_INPUT,
       lines: [{ service: 'Data Lake', owner: 'data', actual: 18420.5, budget: 15000, previous: 12000 }],
     };
-    const doc = getType('cost-review').build(big, SOURCES);
+    const doc = buildOf('cost-review', big, SOURCES);
     const bars = doc.sections.find((s) => s.id === 'summary')!.blocks[1];
     expect(bars.kind === 'bars' && bars.items[0].shown).toBe('18,420.50 EUR');
     const table = doc.sections.find((s) => s.id === 'by-service')!.blocks[0];

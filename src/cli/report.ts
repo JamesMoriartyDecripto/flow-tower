@@ -7,8 +7,10 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, extname, relative, resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { argv, exit } from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { parse as parseYaml } from 'yaml';
 import { checkReport, failed } from '../report/checks.ts';
@@ -20,6 +22,8 @@ import { REPORT_TYPES, type ReportType } from '../report/types/index.ts';
 const USAGE = 'usage: flow-tower report <type> <input.yaml|json> [--source file]... [--drafts drafts.json] [--out file.pdf] [--html file.html] [--list]';
 const INSTALL_HINT = 'install a browser: npx playwright install chromium';
 const PAGE_TIMEOUT_MS = 120_000;
+const DEFAULT_LEVEL = 2;
+const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 /** The file-name slug, as export.ts makes it: lower case, dashes for every other run of characters. */
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'report';
@@ -43,6 +47,7 @@ function parseCli(args: string[]) {
       drafts: { type: 'string' },
       out: { type: 'string' },
       html: { type: 'string' },
+      level: { type: 'string' },
       list: { type: 'boolean', default: false },
     },
   });
@@ -134,7 +139,31 @@ async function printPdf(html: string): Promise<Buffer> {
 }
 
 function printTypes(): void {
-  for (const t of REPORT_TYPES) console.log(`${t.id}  ${t.title}\n  required sections: ${t.required.join(', ')}`);
+  for (const t of REPORT_TYPES) {
+    const required = t.delegate ? '(checked by flow-tower export)' : t.required.join(', ');
+    console.log(`${t.id}  ${t.title}\n  required sections: ${required}`);
+  }
+}
+
+/**
+ * A delegated type is rendered by `flow-tower export` in the app, so this runs that same command with the same
+ * Node. The export owns the output files and its own exit code, which this passes through unchanged.
+ */
+function runExport(type: ReportType, positionals: string[], values: ReturnType<typeof parseCli>['values']): number {
+  if (values.html !== undefined || values.drafts !== undefined) {
+    console.error(`${type.id} is rendered by flow-tower export: --html and --drafts do not apply; use --out for the PDF`);
+    return 2;
+  }
+  const level = values.level ?? String(DEFAULT_LEVEL);
+  if (!/^[1-4]$/.test(level)) {
+    console.error(`--level must be 1, 2, 3 or 4 (got "${level}")`);
+    return 2;
+  }
+  const args = ['export', positionals[1], '--pdf', '--level', level];
+  if (values.out !== undefined) args.push('--out', values.out);
+  const r = spawnSync(process.execPath, [join(pkgRoot, 'bin', 'flow-tower.js'), ...args], { stdio: 'inherit' });
+  // A child killed by a signal has no status; that is a failure, never a silent success.
+  return r.status ?? 1;
 }
 
 /** Builds the document, checks it, and writes the requested files. Returns the exit code. */
@@ -142,6 +171,7 @@ async function run(type: ReportType, positionals: string[], values: ReturnType<t
   const input = resolve(positionals[1]);
   if (!existsSync(input)) { console.error(`not found: ${input}`); return 1; }
   const sources = [input, ...(values.source ?? [])].map((file, i) => sourceOf(file, `S${i + 1}`));
+  if (!type.build) throw new Error(`report type "${type.id}" has no builder`);
   const doc = type.build(readInput(input), sources);
   if (values.drafts !== undefined) {
     applyDrafts(doc, parseDrafts(JSON.parse(readFileSync(values.drafts, 'utf8')), values.drafts));
@@ -184,6 +214,10 @@ export async function main(args = argv.slice(2)): Promise<void> {
   if (positionals.length !== 2) usage('report needs a type and one input file');
   const type = REPORT_TYPES.find((t) => t.id === positionals[0]);
   if (!type) usage(`unknown report type "${positionals[0]}"; known: ${REPORT_TYPES.map((t) => t.id).join(', ')}`);
+  if (type.delegate === 'export') {
+    if (positionals.length !== 2) usage('report needs a type and one input file');
+    exit(runExport(type, positionals, values));
+  }
   try {
     exit(await run(type, positionals, values));
   } catch (err) {
