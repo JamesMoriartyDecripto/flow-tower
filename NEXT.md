@@ -10,31 +10,36 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   - the model benchmark's first full run, with live tower events (#105);
   - `--warm`, `--batch` and `cache_control` (#149);
   - the CLI split (#126).
-  
+
   Gates and e2e: [report](examples/release-auditor/reports/v0.8.0.md).
 - **Since v0.8.0 (unreleased):**
-  - contribution path (#122): community profile at 100%, every commit signed off (DCO), `dco` is a required check;
-  - squad cost per issue (#156): `node tools/squad/cost.mjs <n>`, posted on each issue when it closes.
+  - #122: contribution path, community profile at 100%, every commit signed off (DCO), `dco` is a required check;
+  - #156: squad cost per issue, `node tools/squad/cost.mjs <n>`, posted on each issue when it closes;
+  - #160: voice `live_status`;
+  - #99: dev-server memory leak fixed; the CLI loads its Vite config once and passes it inline (upstream Rolldown #10887 still open);
+  - #95 part 1: live chips name the machine, library cards list recent machines.
 - **Dev squad models** (from the benchmark and a field trial): Claude Haiku 5.5 codes, GLM 5.3 FlashX reviews, DeepSeek 4.1 Flash audits. See [tools/squad](tools/squad/README.md) and the cost skill reference § Benchmark 2026-10-11.
-- **Live:** a hub on the test server running the [command-center](examples/command-center) kit, and a laptop satellite relaying to it.
-- **Voice 2 plan:** [#129](https://github.com/JamesMoriartyDecripto/flow-tower/issues/129). Items 1 (referents) and 2 (tools) shipped.
+- **Live:** the #97 two-computer test passed: the [command-center](examples/command-center) kit as a systemd service of a dedicated user, Tailscale Serve, two satellites on two computers lighting their towers together.
+- **Voice 2 plan:** [#129](https://github.com/JamesMoriartyDecripto/flow-tower/issues/129). Items 1–3 shipped; 4–8 on hold until the maintainer asks.
 
 ## Next, in order
 
-1. #129 voice 2: `live_status` ("cosa sta succedendo?"), clarifying questions, then proactive alerts, browser VAD, push-to-talk
-2. #69 tower names as an STT prompt
-3. #143 split `docs/architecture.md` (docs-qa Q24)
-4. #137 optional runtime files (schema)
-5. #147 Blender and Unreal benchmark categories; a live `--batch` and `--warm` run (#149)
-6. #85 privacy profiles
-7. #93 admin
-8. #94 alerts
-9. #95 remote activity
-10. #86 fan-out
-11. #97 systemd, compose, Caddy and Tailscale on the real server
-12. #99 dev-server heap and port leak
-13. #5 live events with Pi (P1, needs a machine with Pi)
-14. #65
+1. #166 kit findings from the real deployment (and update the command-center tower)
+2. #164 one-step connect and tower share/unshare/sync (confirm with the maintainer: YAML-only by default, files opt-in)
+3. #165 library source badges and filter
+4. #69 tower names as an STT prompt
+5. #143 split `docs/architecture.md` (docs-qa Q24)
+6. #137 optional runtime files (schema)
+7. #147 Blender and Unreal benchmark categories; a live `--batch` and `--warm` run (#149)
+8. #85 privacy profiles
+9. #93 admin
+10. #94 alerts
+11. #95 the rest of remote activity (runtime rings, off-runtime mark, History tab, sparklines)
+12. #86 fan-out
+13. #97 the docker compose and Caddy variants (systemd and Tailscale tested)
+14. #5 live events with Pi (P1, needs a machine with Pi)
+15. #65
+16. On hold: #129 voice 2 items 4–8 (clarifying questions, proactive alerts, browser VAD, push-to-talk), until the maintainer asks
 
 ## How work is done
 
