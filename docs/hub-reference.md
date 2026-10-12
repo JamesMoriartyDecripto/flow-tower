@@ -79,15 +79,19 @@ A **satellite** is a workstation that runs its own flow-tower (its own towers, i
 forwards what it accepts to the hub. One command sets it up:
 
 ```bash
-flow-tower connect https://hub.tailnet-xyz.ts.net --token ft_laptop_<secret> --machine laptop --user alice
+flow-tower connect https://hub.tailnet-xyz.ts.net                     # tailnet hub, your login in its viewers
+flow-tower connect https://hub.example.com --token ft_laptop_<secret> --machine laptop --user alice
 ```
+
+Without `--token` the hub mints the token ([enrolment](#security-model)); a refusal (403 not a viewer or not a
+tailnet hub, 404 not a hub, 409 machine name taken) prints the reason and one fix, writes nothing and exits 1.
 
 It writes `role: "satellite"`, `url`, `token` and (when given) `machine`/`user` into
 `<FLOW_TOWER_HOME or ~/.config/flow-tower>/config.json`, keeping every other key, then checks the
 hub accepts the token (one heartbeat). Three answers, all exit 0: `connected to <url> as <sender>` (204); the token was refused
 (401) — the config is still written, and `flow-tower token add <id>` on the hub plus a second
-`connect` fixes it; the hub is unreachable — also written, since the relay will queue. Only bad
-arguments exit 1. The token is never printed by this command.
+`connect` fixes it; the hub is unreachable — also written, since the relay will queue. With `--token`,
+only bad arguments exit 1. The token is never printed by this command.
 
 **What is relayed.** Content-free events, exactly as the hub's own history would store them: time,
 user, host, runtime, project, session, kind, tool, model, node, tower, agent, parent, call, status,
@@ -176,6 +180,16 @@ Hub mode changes what the server accepts; this is the one place it is stated:
   sent it**: the id in `ft_<id>_<secret>` is the sender, and events are attributed to it. `revoke` /
   `pause` take effect on the next request, with no server restart. The legacy single `FLOW_TOWER_TOKEN`
   still works and is attributed to `default`.
+- **Enrolment (#164).** `POST /api/hub/enroll` mints a sender token only on a hub, only for a `*.ts.net` Host
+  and only for a `Tailscale-User-Login` that came from loopback and is listed in `viewers`. A tagged device
+  sends no login, so it gets nothing; a Caddy hub never forwards the route. The token id is the machine name;
+  the same login re-enrolling its machine rotates the token (a paused machine stays paused), and an id made
+  by `token add` or by another login is a 409. As with viewers, a process on the hub machine itself could send
+  the header from loopback: the hub's own machine is trusted, so keep other users off it.
+- **Shared towers (#164).** `PUT/DELETE /api/hub/towers/<name>` need a sender token and touch only
+  `towers/<sender>/` in the hub's library folder, where `<sender>` is the token id. The hub refuses `..`,
+  absolute or hidden paths, non-text types, secret-looking names (`.env*`, keys, `tokens.json`…), more than
+  200 files, 256 KB per file or 4 MB per tower, and writes through a hidden staging folder.
 - **The config `token` is a sender credential.** It is what `emit` and the satellite relay send to a hub,
   never a secret guarding this server: a revoked token pasted into `config.json` must not authenticate here.
   The server's own secrets are `FLOW_TOWER_TOKEN` and `tokens.json` (`bin/flow-tower.js`).

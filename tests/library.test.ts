@@ -60,6 +60,18 @@ describe('loadLibrary', () => {
     expect(Object.keys(workspace.towers).sort()).toEqual(['a/a.tower.yaml', 'a/towers/sub.tower.yaml', 'b/b.tower.yaml']);
     expect(workspace.towers['a/a.tower.yaml'].layers[0].nodes[0].tower).toBe('a/towers/sub.tower.yaml');
   });
+
+  it('referenced holds a node files entry, but watched does not (a docs edit must not reload)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ft-'));
+    mkdirSync(join(dir, 'docs'), { recursive: true });
+    writeFileSync(join(dir, 'docs', 'a.md'), 'hello');
+    writeFileSync(join(dir, 'main.tower.yaml'), 'name: M\nlayers:\n  - id: l\n    title: L\n    nodes:\n      - { id: n, files: [docs/a.md] }\n');
+
+    const lib = await loadLibrary([dir]);
+    const doc = join(dir, 'docs', 'a.md');
+    expect(lib.referenced.has(doc)).toBe(true);
+    expect(lib.watched.has(doc)).toBe(false);
+  });
 });
 
 /**

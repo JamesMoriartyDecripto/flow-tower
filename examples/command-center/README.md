@@ -6,14 +6,26 @@ A Flow Tower hub on your own server or VPS: the **one home of the server install
 
 ## 1. Server: Node, the repo, this folder
 
-Node >= 22.13 (`history.db` needs `node:sqlite`). Flow Tower is not on npm: run it from a checkout with its dependencies installed.
+Node >= 22.13 (`history.db` needs `node:sqlite`). Ubuntu 24.04 ships Node 20 as `/usr/bin/node`, so install the official Node 22 tarball to `/opt/node22` and leave the system Node alone. Pick any 22.x at or above 22.13 from [nodejs.org/dist/latest-v22.x](https://nodejs.org/dist/latest-v22.x/); the checksum comes from the same release's `SHASUMS256.txt`:
+
+```bash
+NODE=v22.23.3 ARCH=linux-x64      # or linux-arm64
+curl -fsSLO https://nodejs.org/dist/$NODE/node-$NODE-$ARCH.tar.xz
+curl -fsSL https://nodejs.org/dist/$NODE/SHASUMS256.txt | grep " node-$NODE-$ARCH.tar.xz\$" | sha256sum -c -
+sudo install -d /opt/node22 && sudo tar -xJf node-$NODE-$ARCH.tar.xz -C /opt/node22 --strip-components=1
+/opt/node22/bin/node --version
+```
+
+Flow Tower is not on npm: run it from a checkout with its dependencies installed.
 
 ```bash
 sudo useradd --system --create-home --home-dir /home/flowtower flowtower
 sudo -u flowtower git clone https://github.com/JamesMoriartyDecripto/flow-tower /home/flowtower/flow-tower
-sudo -u flowtower sh -c 'cd /home/flowtower/flow-tower && npm ci'
+sudo -u flowtower sh -c 'cd /home/flowtower/flow-tower && PATH=/opt/node22/bin:$PATH npm ci'
+# Vite's caches: the unit's ReadWritePaths needs both to exist (.vite-temp holds the bundled vite.config).
+sudo -u flowtower install -d /home/flowtower/flow-tower/node_modules/.vite /home/flowtower/flow-tower/node_modules/.vite-temp
 sudo cp -r command-center /srv/command-center && sudo chown -R flowtower: /srv/command-center
-alias flow-tower='sudo -u flowtower FLOW_TOWER_HOME=/home/flowtower/.config/flow-tower /usr/bin/node /home/flowtower/flow-tower/bin/flow-tower.js'
+alias flow-tower='sudo -u flowtower FLOW_TOWER_HOME=/home/flowtower/.config/flow-tower /opt/node22/bin/node /home/flowtower/flow-tower/bin/flow-tower.js'
 ```
 
 ## 2. Config and tokens
@@ -21,11 +33,12 @@ alias flow-tower='sudo -u flowtower FLOW_TOWER_HOME=/home/flowtower/.config/flow
 ```bash
 sudo -u flowtower install -d -m 700 /home/flowtower/.config/flow-tower
 sudo -u flowtower install -m 600 /srv/command-center/deploy/hub.config.json /home/flowtower/.config/flow-tower/config.json
-# allowedHosts: the proxy names in Host; viewers: tailnet logins allowed to open the UI;
+# allowedHosts: the proxy names in Host; viewers: tailnet logins allowed to open the UI and to
+# connect their machines without a token (step 5);
 # retentionDays: raw history kept, 1..21 (default 14). Keys: ConfigSchema in src/server/config.ts.
 # edit allowedHosts and viewers, then:
 flow-tower config show
-flow-tower token add laptop-1     # prints ft_laptop-1_… once; one token per machine
+flow-tower token add ci-runner    # only for senders that cannot enrol (CI, non-tailnet): prints ft_ci-runner_… once
 ```
 
 ## 3. Start the service (systemd or docker)
@@ -46,6 +59,10 @@ Tailscale (recommended: viewers are recognised by their tailnet login):
 sudo tailscale serve --bg --https=443 http://127.0.0.1:5317   # never `tailscale funnel`
 ```
 
+The first time, Serve needs a one-time admin step: the command answers "Serve is not enabled on your tailnet" with a link. Open it as a tailnet admin to enable Serve and HTTPS certificates, then run the command again.
+
+Test from **another** tailnet device (`curl -sI https://hub.example.ts.net`, or open it in a browser). A request from the server to its own tailnet name or IP can reach whatever already listens on `0.0.0.0:443` there, not Serve, so a check on the server itself proves nothing.
+
 Caddy on a public VPS (ingest only; you view through an SSH forward):
 
 ```bash
@@ -57,23 +74,29 @@ The SSH forward is for your own view only, never for other machines' events: tun
 
 ## 5. Each machine
 
+On a tailnet, with the user's tailnet login in `viewers` (step 2), two commands per machine and no token to copy:
+
 ```bash
-flow-tower connect https://hub.example.ts.net --token ft_REPLACE_ME --machine laptop-1
-flow-tower ~/towers            # the satellite relay runs inside the local server
+flow-tower connect https://hub.example.ts.net     # the hub mints this machine's token (named after the hostname, or --machine)
+flow-tower share ~/towers/my-project              # the hub gets the tower in towers/<machine>/my-project/; YAML only, --files adds referenced files
+flow-tower ~/towers                               # the local library: relays events and re-sends a shared tower when it changes
 ```
 
-`deploy/satellite.config.json` shows what `connect` writes to the machine's config.json (mode 0600, it holds the token).
+`flow-tower unshare my-project` removes it from the hub; `flow-tower share --list` shows what is shared. An agent can walk the user through it: [`skills/flow-tower-satellite`](../../skills/flow-tower-satellite/SKILL.md).
 
-Servers and CI without a local library send with `FLOW_TOWER_URL=… FLOW_TOWER_TOKEN=… flow-tower emit …`.
+Not on a tailnet (a VPS behind Caddy, CI, a tagged device): make a token on the hub (`flow-tower token add laptop-1`), then `flow-tower connect https://hub.example.com --token ft_REPLACE_ME --machine laptop-1`. `deploy/satellite.config.json` shows what `connect` writes to the machine's config.json (mode 0600, it holds the token). Caddy forwards only ingest, so `share` does not work there: copy the towers into `towers/` by hand.
 
-Then copy each machine's towers into `towers/` on the hub (see `towers/README.md`): the hub can only light up towers it has.
+Servers and CI without a local library send with `FLOW_TOWER_URL=… FLOW_TOWER_TOKEN=… flow-tower emit …`, and their towers are copied into `towers/` by hand (see `towers/README.md`): the hub can only light up towers it has.
 
 ## 6. Check
 
 ```bash
 curl -s http://127.0.0.1:5317/api/hub/satellites   # on the hub: every satellite, online or offline
+ls /srv/command-center/towers/*                    # on the hub: the towers each machine shared
 ```
+
+The service transforms the app right after it starts listening (Vite `server.warmup`): give it a minute before the first viewer opens the page. Without the warmup, the first load over the tailnet took about 45 s on a cold cache.
 
 ## Sources
 
-`bin/flow-tower.js` (usage and flags), `src/server/config.ts` (config.json keys), `src/server/hub.ts` (remote ingest and viewers), `src/server/plugin.ts` (`/api/heartbeat`, `/api/hub/satellites`, `history.db`), `src/server/relay.ts` (heartbeat, queue), `src/cli/connect.ts`, `src/cli/token.ts`, `src/server/history/db.ts` (Node 22.13), `integrations/hub/` (Caddyfile, docker-compose.yml, tailscale-serve.md).
+`bin/flow-tower.js` (usage and flags), `src/server/config.ts` (config.json keys), `src/server/hub.ts` (remote ingest and viewers), `src/server/plugin.ts` (`/api/heartbeat`, `/api/hub/satellites`, `history.db`), `src/server/relay.ts` (heartbeat, queue), `src/cli/connect.ts`, `src/cli/share.ts`, `src/server/enroll.ts`, `src/server/shared-towers.ts`, `src/cli/token.ts`, `src/server/history/db.ts` (Node 22.13), `vite.config.ts` (`server.warmup`), [Node.js release downloads](https://nodejs.org/dist/latest-v22.x/) (`SHASUMS256.txt`), [Tailscale Serve](https://tailscale.com/kb/1312/serve), `integrations/hub/` (Caddyfile, docker-compose.yml, tailscale-serve.md).

@@ -159,6 +159,13 @@ describe('hub guard: remote reading (#83)', () => {
   });
 });
 
+describe('hub guard: shared towers (#164)', () => {
+  it('lets a remote PUT /api/hub/towers/<name> through only with a sender token', () => {
+    expect(run(opts, remote('PUT', '/api/hub/towers/demo')).status).toBe(401);
+    expect(run(opts, remote('PUT', '/api/hub/towers/demo', { 'x-flow-tower-token': token })).status).toBe(200);
+  });
+});
+
 describe('hub guard: --ingest-only (#83)', () => {
   it('answers 404 on everything but ingest, remote and local alike', () => {
     expect(run(ingestOnly, local('GET', '/')).status).toBe(404);
@@ -172,6 +179,15 @@ describe('hub guard: --ingest-only (#83)', () => {
     expect(run(ingestOnly, local('POST', '/v1/logs')).status).toBe(401);
     expect(run(ingestOnly, local('POST', '/api/events', { 'x-flow-tower-token': token })).status).toBe(200);
     expect(run(ingestOnly, local('POST', '/api/events', { 'x-flow-tower-token': 'ft_dana_nope' })).status).toBe(401);
+  });
+});
+
+describe('hub guard: enrolment POST (#164)', () => {
+  it('lets a remote viewer POST /api/hub/enroll through, refuses a stranger, and --ingest-only still 404s', () => {
+    expect(run(opts, forwarded('POST', '/api/hub/enroll', { 'tailscale-user-login': 'alice@example.com' })).status).toBe(200);
+    expect(run(opts, forwarded('POST', '/api/hub/enroll', { 'tailscale-user-login': 'mallory@example.com' })).status).toBe(403);
+    expect(run(opts, remote('POST', '/api/hub/enroll', { 'tailscale-user-login': 'alice@example.com' })).status).toBe(403);
+    expect(run(ingestOnly, forwarded('POST', '/api/hub/enroll', { 'tailscale-user-login': 'alice@example.com' })).status).toBe(404);
   });
 });
 

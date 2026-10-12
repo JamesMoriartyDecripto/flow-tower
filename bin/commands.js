@@ -23,6 +23,19 @@ export const TS_COMMANDS = [
     script: 'connect.ts',
     extra: (values) => ['token', 'user', 'machine'].flatMap((name) => (values[name] === undefined ? [] : [`--${name}`, values[name]])),
   },
+  // --name with its exact value, plus --files and --list: `share --list` is a flag, not a folder.
+  {
+    name: 'share',
+    script: 'share.ts',
+    extra: (values) => [
+      ...(values.name === undefined ? [] : ['--name', values.name]),
+      ...(values.files ? ['--files'] : []),
+      ...(values.list ? ['--list'] : []),
+    ],
+  },
+  // The script is shared with `share`: --unshare tells it which command this is, since it only sees the
+  // arguments after the command word.
+  { name: 'unshare', script: 'share.ts', extra: (values) => ['--unshare', ...(values.force ? ['--force'] : [])] },
   // `library` is a TS command only with a subcommand (add/list/remove); see findTsCommand.
   { name: 'library', script: 'library.ts', extra: () => [] },
 ];
