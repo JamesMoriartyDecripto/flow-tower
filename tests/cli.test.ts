@@ -556,6 +556,15 @@ describe('cli copy (#116)', () => {
   });
 });
 
+describe('cli --version', () => {
+  it('prints the version from package.json and exits 0', () => {
+    const r = spawnSync(process.execPath, [CLI, '--version'], { encoding: 'utf8', timeout: 20_000, env: cleanEnv() });
+    expect(r.status).toBe(0);
+    const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as { version: string };
+    expect(r.stdout).toBe(`${pkg.version}\n`);
+  });
+});
+
 describe('cli guide', () => {
   it('prints the procedure with this checkout filled in', () => {
     const r = run('guide');

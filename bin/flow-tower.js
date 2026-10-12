@@ -67,7 +67,8 @@ Options
                  FLOW_TOWER_USER / FLOW_TOWER_MACHINE set to a non-empty value). FLOW_TOWER_USER=''
                  disables the user default everywhere.
       --tower    emit: only match towers whose id or name contains this (two versions in one library)
-  -h, --help     Show this help`;
+  -h, --help     Show this help
+  -v, --version  Print the version and exit`;
 
 // Agent Skills folders (SKILL.md standard, agentskills.io), verified against each harness's docs.
 // user = under $HOME, project = under the current directory.
@@ -106,6 +107,7 @@ const { values, positionals } = parseArgs({
     browser: { type: 'string' },
     'no-update-check': { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
+    version: { type: 'boolean', short: 'v', default: false },
     // Hub mode (#83): `--host` is the bind address (identity's --machine maps to host, see below).
     hub: { type: 'boolean', default: false },
     host: { type: 'string' },
@@ -137,12 +139,19 @@ const { values, positionals } = parseArgs({
   },
 });
 
+const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+// Before the help check: `--version` has no positionals, so it would otherwise print help and exit 1.
+// Read from this package's own package.json, not the cwd, so it names the checkout that is running.
+if (values.version) {
+  console.log(JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8')).version);
+  process.exit(0);
+}
+
 if (values.help || positionals.length === 0) {
   console.log(HELP);
   process.exit(values.help ? 0 : 1);
 }
-
-const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Was this flag actually on the command line? parseArgs' defaults cannot tell a flag from its default. */
 const explicit = (name) => process.argv.some((a) => a === `--${name}` || a.startsWith(`--${name}=`));
