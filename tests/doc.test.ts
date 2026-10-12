@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadLibrary } from '../src/core/loader';
-import { anchor, towerDoc, type Chapter, type TowerDoc } from '../src/core/doc';
+import { anchor, canonicalJson, classificationOf, docSummary, findingsOf, severityCounts, towerDoc, type Chapter, type TowerDoc } from '../src/core/doc';
 import { formatValue, type FieldValue } from '../src/core/docFields';
 import type { Workspace } from '../src/core/types';
 
@@ -117,6 +117,94 @@ describe('anchor', () => {
   });
 });
 
+describe('docSummary', () => {
+  it('counts every layer, node, agent and human checkpoint of the workspace', async () => {
+    const ws = await load();
+    const root = ws.towers['dev-squad.tower.yaml'];
+    const s = docSummary(ws, 'dev-squad.tower.yaml', 0);
+    const nodes = root.layers.flatMap((l) => l.nodes);
+    expect(s.layers).toBe(root.layers.length);
+    expect(s.nodes).toBe(nodes.length);
+    expect(s.agents).toBe(nodes.filter((n) => n.agent).length);
+    expect(s.humans).toBe(nodes.filter((n) => n.type === 'human' || n.ops.approval).length);
+  });
+
+  it('splits the nodes by type and by status, each summing to the node count', async () => {
+    const ws = await load();
+    const s = docSummary(ws, 'dev-squad.tower.yaml', 0);
+    expect(s.byType.reduce((n, t) => n + t.nodes, 0)).toBe(s.nodes);
+    expect(s.byStatus.reduce((n, t) => n + t.nodes, 0)).toBe(s.nodes);
+    for (const t of s.byType) expect(t.nodes).toBeGreaterThan(0);
+  });
+
+  it('lists the models in use by node count, most first, and reads a verdict from the issues', async () => {
+    const ws = await load();
+    const s = docSummary(ws, 'dev-squad.tower.yaml', 0);
+    const counts = s.models.map((m) => m.nodes);
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
+    expect(s.models.every((m) => m.model.length > 0)).toBe(true);
+    const issues = ws.towers['dev-squad.tower.yaml'].issues;
+    const errors = issues.filter((i) => i.level === 'error').length;
+    const warnings = issues.filter((i) => i.level === 'warning').length;
+    const expected = errors ? 'ERRORS' : warnings ? 'WARNINGS' : 'PASS';
+    expect(s.validation.verdict).toBe(expected);
+    expect(s.validation.errors).toBe(errors);
+    expect(s.validation.warnings).toBe(warnings);
+  });
+
+  it('counts nested towers only when the depth reaches them', async () => {
+    const ws = await load();
+    expect(docSummary(ws, 'dev-squad.tower.yaml', 0).subTowers).toBe(0);
+    expect(docSummary(ws, 'dev-squad.tower.yaml', 3).subTowers).toBe(towerDoc(ws, 'dev-squad.tower.yaml', 3).chapters.length - 1);
+  });
+});
+
+describe('classification and fingerprint inputs', () => {
+  it('defaults to Internal when no node declares a sensitivity', () => {
+    const ws = { towers: { t: { layers: [{ nodes: [{ ops: {}, tower: undefined }] }] } } } as unknown as Workspace;
+    expect(classificationOf(ws, new Map([['t', 0]]))).toBe('Internal');
+  });
+
+  it('takes the highest sensitivity declared, in upper case', () => {
+    const node = (sensitivity: string) => ({ ops: { data: { sensitivity } } });
+    const ws = { towers: { t: { layers: [{ nodes: [node('public'), node('pii'), node('internal')] }] } } } as unknown as Workspace;
+    expect(classificationOf(ws, new Map([['t', 0]]))).toBe('PII');
+  });
+
+  it('serialises the same object to the same text whatever the key order', () => {
+    expect(canonicalJson({ b: 1, a: { d: [2, { z: 1, y: 2 }], c: 'x' } })).toBe(
+      canonicalJson({ a: { c: 'x', d: [2, { y: 2, z: 1 }] }, b: 1 }),
+    );
+  });
+});
+
+describe('node refs and findings', () => {
+  it('numbers every node N-Lxx.yy by its layer and its position', async () => {
+    const ws = await load();
+    const doc = towerDoc(ws, 'dev-squad.tower.yaml', 2);
+    for (const l of doc.chapters[0].layers) {
+      l.nodes.forEach((n, i) => {
+        expect(n.ref).toBe(`N-L${String(l.index + 1).padStart(2, '0')}.${String(i + 1).padStart(2, '0')}`);
+      });
+    }
+  });
+
+  it('numbers findings V-01 onward, most severe first', () => {
+    const f = findingsOf([
+      { level: 'info', message: 'b' },
+      { level: 'error', message: 'a', path: 'x' },
+      { level: 'warning', message: 'c' },
+    ], 'T');
+    expect(f.map((x) => x.id)).toEqual(['V-01', 'V-02', 'V-03']);
+    expect(f.map((x) => x.level)).toEqual(['error', 'warning', 'info']);
+    expect(f[2].location).toBe('T');
+  });
+
+  it('counts the three severities, zero counts kept', () => {
+    expect(severityCounts([{ level: 'error', message: 'e' }]).map((s) => s.count)).toEqual([1, 0, 0]);
+  });
+});
+
 describe('towerDoc', () => {
   it('level 1 keeps the layers but no node rows', async () => {
     const ws = await load();
@@ -150,7 +238,7 @@ describe('towerDoc', () => {
 
     const anchors = anchorsOf(doc);
     for (const a of referencedAnchors(doc)) expect(anchors.has(a), `anchor ${a}`).toBe(true);
-    expect(doc.issues).toEqual(ws.towers['dev-squad.tower.yaml'].issues);
+    expect(doc.findings?.length).toBe(ws.towers['dev-squad.tower.yaml'].issues.length);
     expect(doc.sources).toEqual([...new Set(doc.sources)].sort());
   });
 

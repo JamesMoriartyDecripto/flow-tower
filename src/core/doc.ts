@@ -1,6 +1,11 @@
 import { EDGE_KINDS, NODE_TYPES, type EdgeKind, type NodeType, type OpsDef, type Status } from './schema.ts';
-import type { Issue, ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from './types.ts';
+import type { ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from './types.ts';
 import { fieldsOf, type Field } from './docFields.ts';
+import { classificationOf, docSummary, includedTowers, nodeCode, type DocSummary } from './docSummary.ts';
+import { findingsOf, severityCounts, type Finding, type SeverityCount } from './docFindings.ts';
+
+export { canonicalJson, classificationOf, docSummary, type DocSummary } from './docSummary.ts';
+export { findingsOf, severityCounts, type Finding, type SeverityCount } from './docFindings.ts';
 
 /*
  * The content of a tower's PDF document, as plain data. The HTML view, the CLI and the tests all read
@@ -28,6 +33,8 @@ export interface LinkRow {
 }
 
 export interface NodeRow {
+  /** Reference code, `N-L01.03`: the node's layer and its position in that layer. */
+  ref: string;
   key: string;
   /** Anchor of the node's detail; cleared when the document does not print that detail. */
   anchor?: string;
@@ -41,6 +48,7 @@ export interface NodeRow {
 export interface NodeDetail {
   /** Anchor, unique across the document: tower id + node key. */
   id: string;
+  ref: string;
   key: string;
   label: string;
   type: NodeType;
@@ -99,6 +107,20 @@ export interface Legend {
   runtimes: LegendItem[];
 }
 
+/** The document control table: who, what and how the file was made. No date, so the output is stable. */
+export interface ControlBlock {
+  tower: string;
+  source: string;
+  /** Set by the view: a SubtleCrypto digest is async, so the pure core leaves it empty. */
+  fingerprint?: string;
+  generator: string;
+  level: string;
+  classification: string;
+  layers: number;
+  nodes: number;
+  subTowers: number;
+}
+
 export interface TowerDoc {
   title: string;
   description?: string;
@@ -109,12 +131,21 @@ export interface TowerDoc {
     /** Totals over the chapters in this document. */
     counts: { layers: number; nodes: number; agents: number; subTowers: number };
   };
+  control: ControlBlock;
+  /** Level 2 and 3: the counts of the executive summary page. */
+  summary?: DocSummary;
   toc: TocEntry[];
   chapters: Chapter[];
   legend?: Legend;
-  issues?: Issue[];
+  /** Level 3: the validation findings as numbered rows (V-01...). */
+  findings?: Finding[];
+  /** Level 2 and 3: the Error / Warning / Info counts. */
+  severities?: SeverityCount[];
   sources?: string[];
 }
+
+/** The printed name of each level: the cover, the control block and the running header all use it. */
+export const LEVEL_NAMES: Record<1 | 2 | 3, string> = { 1: 'Images', 2: 'Overview', 3: 'Full documentation' };
 
 /** Lower-case, `[a-z0-9-]` only: safe in an HTML id, a fragment link and a PDF destination. */
 export function anchor(...parts: string[]): string {
@@ -155,24 +186,6 @@ function titleCase(s: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-/**
- * The towers to print, with their depth from the root, in discovery order (root first, then its
- * nested towers, layer by layer). A map keeps each tower once, so a cycle stops at the second visit.
- */
-function includedTowers(ws: Workspace, rootId: string, maxDepth: number): Map<string, number> {
-  const depths = new Map<string, number>([[rootId, 0]]);
-  // A Map iterator also visits the entries added while looping: this is a breadth-first walk.
-  for (const [id, depth] of depths) {
-    if (depth >= maxDepth) continue;
-    for (const layer of ws.towers[id]?.layers ?? []) {
-      for (const n of layer.nodes) {
-        if (n.tower && ws.towers[n.tower] && !depths.has(n.tower)) depths.set(n.tower, depth + 1);
-      }
-    }
-  }
-  return depths;
-}
-
 interface Usage {
   types: Set<NodeType>;
   edgeKinds: Set<EdgeKind>;
@@ -196,10 +209,11 @@ function chapterOf(
     const section: LayerSection = { id: layerAnchor(id, l.id), index: l.index, title: l.title, nodes: [] };
     if (level === 1) return section;
     section.description = l.description;
-    section.nodes = l.nodes.map((n) => {
+    section.nodes = l.nodes.map((n, pos) => {
       usage.types.add(n.type);
       if (n.runtime) usage.runtimes.set(n.runtime.id, n.runtime.label ?? n.runtime.id);
       return {
+        ref: nodeCode(l.index, pos + 1),
         key: n.key,
         anchor: nodeAnchor(id, n.key),
         label: n.label,
@@ -209,7 +223,9 @@ function chapterOf(
         status: n.status,
       };
     });
-    if (level === 3) section.details = l.nodes.map((n) => nodeDetail(ws, t, n, depths, allEdges, nodeRef, usage));
+    if (level === 3) {
+      section.details = l.nodes.map((n, pos) => nodeDetail(ws, t, n, nodeCode(l.index, pos + 1), depths, allEdges, nodeRef, usage));
+    }
     return section;
   });
 
@@ -226,7 +242,7 @@ function chapterOf(
 }
 
 function nodeDetail(
-  ws: Workspace, t: ResolvedTower, n: ResolvedNode, depths: Map<string, number>,
+  ws: Workspace, t: ResolvedTower, n: ResolvedNode, ref: string, depths: Map<string, number>,
   allEdges: ResolvedEdge[], nodeRef: (key: string) => NodeRef, usage: Usage,
 ): NodeDetail {
   const prompt = n.prompt?.source ?? n.agent?.prompt?.source;
@@ -234,6 +250,7 @@ function nodeDetail(
   for (const f of n.files) usage.sources.add(f);
   return {
     id: nodeAnchor(t.id, n.key),
+    ref,
     key: n.key,
     label: n.label,
     type: n.type,
@@ -310,7 +327,7 @@ function clearDeadAnchors(doc: TowerDoc): void {
  * Same input, same output: order follows the tower, sets are sorted.
  */
 export function towerDoc(
-  ws: Workspace, towerId: string, level: 1 | 2 | 3, opts: { maxDepth?: number } = {},
+  ws: Workspace, towerId: string, level: 1 | 2 | 3, opts: { maxDepth?: number; generator?: string } = {},
 ): TowerDoc {
   const root = ws.towers[towerId];
   if (!root) throw new Error(`unknown tower: ${towerId}`);
@@ -319,27 +336,31 @@ export function towerDoc(
 
   const chapters = [...depths.keys()].map((id) => chapterOf(ws, ws.towers[id], depths, level, usage));
 
-  let layers = 0;
-  let nodes = 0;
-  let agents = 0;
-  for (const id of depths.keys()) {
-    for (const l of ws.towers[id].layers) {
-      layers++;
-      nodes += l.nodes.length;
-      agents += l.nodes.filter((n) => n.agent).length;
-    }
-  }
-
+  // One summary feeds the cover, the control block and the summary page, so every count agrees.
+  const summary = docSummary(ws, towerId, level === 3 ? (opts.maxDepth ?? 3) : 0);
+  const { layers, nodes, agents, subTowers } = summary;
   const doc: TowerDoc = {
     title: root.name,
     description: root.description,
     towerId,
     level,
-    generated: { tags: root.tags, counts: { layers, nodes, agents, subTowers: depths.size - 1 } },
+    generated: { tags: root.tags, counts: { layers, nodes, agents, subTowers } },
+    control: {
+      tower: root.name,
+      source: towerId,
+      generator: opts.generator ?? 'Flow Tower',
+      level: LEVEL_NAMES[level],
+      classification: classificationOf(ws, depths),
+      layers,
+      nodes,
+      subTowers,
+    },
     toc: tocOf(chapters),
     chapters,
   };
   if (level >= 2) {
+    doc.summary = summary;
+    doc.severities = severityCounts(root.issues);
     doc.legend = {
       types: [...usage.types]
         .sort((a, b) => NODE_TYPES.indexOf(a) - NODE_TYPES.indexOf(b))
@@ -353,7 +374,7 @@ export function towerDoc(
     };
   }
   if (level === 3) {
-    doc.issues = root.issues.map((i) => ({ ...i }));
+    doc.findings = findingsOf(root.issues, root.name);
     doc.sources = [...usage.sources].sort();
   }
   clearDeadAnchors(doc);

@@ -1,6 +1,7 @@
 import type { EdgeRef, Legend, NodeDetail as NodeDetailData } from '../../core/doc';
 import type { Field } from '../../core/docFields';
-import type { Issue } from '../../core/types';
+import { LEVEL_LABEL, type Finding, type SeverityCount } from '../../core/docFindings';
+import type { IssueLevel } from '../../core/types';
 import { Chip } from './DocChips';
 import { FieldGrid, Text } from './DocText';
 import { linkTo } from './DocParts';
@@ -19,8 +20,9 @@ export function NodeDetail({ node: n }: { node: NodeDetailData }) {
     ...n.ops,
   ];
   return (
-    <section className="node" id={n.id}>
+    <section className={`node status-${n.status}`} id={n.id}>
       <header className="node-head">
+        <span className="ref mono">{n.ref}</span>
         <h4>{n.label}</h4>
         <Chip kind="type" value={n.type} />
         <Chip kind="status" value={n.status} />
@@ -82,16 +84,44 @@ export function LegendBlock({ legend }: { legend: Legend }) {
   );
 }
 
-export function IssuesBlock({ issues }: { issues: Issue[] }) {
+/**
+ * The validation findings: a severity count table, then one row per issue with its V-number, a chip for
+ * the severity, the location and the message. A finding is printed as the tower wrote it, never reworded.
+ */
+export function FindingsBlock({ findings, severities }: { findings: Finding[]; severities: SeverityCount[] }) {
   return (
     <section className="issues">
-      <h2>Issues</h2>
-      {issues.length === 0
-        ? <p className="muted">No issues.</p>
-        : <ul>{issues.map((i, k) => <li key={k}><strong>{i.level}</strong> <Text text={i.message} />{i.path && <> <span className="mono">{i.path}</span></>}</li>)}</ul>}
+      <h2>Validation</h2>
+      <table className="severity">
+        <thead><tr><th>Severity</th><th className="num">Count</th></tr></thead>
+        <tbody>
+          {severities.map((s) => (
+            <tr key={s.level}><td><span className={`chip ${SEVERITY_CHIP[s.level]}`}>{s.label}</span></td><td className="num">{s.count}</td></tr>
+          ))}
+        </tbody>
+      </table>
+      {findings.length === 0
+        ? <p className="muted">No findings: the tower validates without issues.</p>
+        : (
+          <table className="findings">
+            <thead><tr><th>ID</th><th>Severity</th><th>Location</th><th>Message</th></tr></thead>
+            <tbody>
+              {findings.map((f) => (
+                <tr key={f.id}>
+                  <td className="mono">{f.id}</td>
+                  <td><span className={`chip ${SEVERITY_CHIP[f.level]}`}>{LEVEL_LABEL[f.level]}</span></td>
+                  <td className="mono">{f.location}</td>
+                  <td><Text text={f.message} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
     </section>
   );
 }
+
+const SEVERITY_CHIP: Record<IssueLevel, string> = { error: 'chip-red', warning: 'chip-amber', info: 'chip-blue' };
 
 export function SourcesBlock({ sources }: { sources: string[] }) {
   return (

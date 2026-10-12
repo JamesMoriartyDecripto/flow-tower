@@ -1,10 +1,9 @@
-import type { Chapter, LayerSection, NodeRef, NodeRow, TocEntry, TowerDoc } from '../../core/doc';
-import type { LinkRow } from '../../core/doc';
+import { LEVEL_NAMES, type Chapter, type LayerSection, type LinkRow, type NodeRef, type NodeRow, type TocEntry, type TowerDoc } from '../../core/doc';
 import { Chip } from './DocChips';
 import { FieldGrid, Text } from './DocText';
 import { Mark } from './Mark';
 
-export const LEVEL_NAMES: Record<1 | 2 | 3, string> = { 1: 'Images', 2: 'Overview', 3: 'Full documentation' };
+export { LEVEL_NAMES };
 
 /**
  * The header line of the document on screen: the tower and the level. In print it is hidden, because the
@@ -41,16 +40,18 @@ export function Cover({ doc, map, version }: { doc: TowerDoc; map?: string; vers
   ];
   return (
     <section className="cover">
-      <Mark size="lg" />
-      <h1>{doc.title}</h1>
-      <p className="kicker">{LEVEL_NAMES[doc.level]}</p>
+      <header className="band corners">
+        <Mark size="lg" />
+        <h1>{doc.title}</h1>
+        <p className="kicker">{`TOWER DOCUMENTATION — ${LEVEL_NAMES[doc.level].toUpperCase()}`}</p>
+      </header>
       {doc.description && <p className="lead"><Text text={doc.description} /></p>}
       {doc.generated.tags.length > 0 && (
         <p className="tags">{doc.generated.tags.map((t) => <span key={t} className="chip chip-tag">{t}</span>)}</p>
       )}
       <div className="tiles">
         {tiles.map(([n, label]) => (
-          <div key={label} className="tile"><strong>{n}</strong><span>{label}</span></div>
+          <div key={label} className="tile corners"><strong>{n}</strong><span>{label}</span></div>
         ))}
       </div>
       <p className="meta">Level: {LEVEL_NAMES[doc.level]} · Source: <span className="mono">{doc.towerId}</span></p>
@@ -86,11 +87,12 @@ function NodeTable({ rows, caption }: { rows: NodeRow[]; caption: string }) {
     <table className="nodes">
       <caption>{caption}</caption>
       <thead>
-        <tr><th>Node</th><th>Type</th><th>Status</th><th>Runtime</th><th className="summary">Summary</th></tr>
+        <tr><th>Ref</th><th>Node</th><th>Type</th><th>Status</th><th>Runtime</th><th className="summary">Summary</th></tr>
       </thead>
       <tbody>
         {rows.map((r, i) => (
           <tr key={r.key} className={i % 2 ? 'zebra' : undefined}>
+            <td className="mono ref">{r.ref}</td>
             <td className="name">{r.anchor ? <a href={`#${r.anchor}`}>{r.label}</a> : r.label}</td>
             <td><Chip kind="type" value={r.type} /></td>
             <td><Chip kind="status" value={r.status} /></td>

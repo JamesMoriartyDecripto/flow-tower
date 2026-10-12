@@ -82,6 +82,23 @@ test('the cover carries one wordmark, and the running header comes from the page
   await expect(page.locator('main .letterhead')).toBeVisible();
 });
 
+/** The document control table's fingerprint cell: 16 lower-case hex digits, the first of a sha256. */
+async function fingerprintOf(page: Page, url: string): Promise<string> {
+  await page.goto(url);
+  await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
+  const cell = page.locator('[data-field="fingerprint"]');
+  await expect(cell).toHaveCount(1);
+  return (await cell.innerText()).trim();
+}
+
+test('the document control table shows a 16-hex fingerprint, the same on every load', async ({ page }) => {
+  const url = '/?doc=dev-squad&level=2';
+  const first = await fingerprintOf(page, url);
+  expect(first).toMatch(/^[0-9a-f]{16}$/);
+  const second = await fingerprintOf(page, url);
+  expect(second, 'the same URL loaded twice gives the same fingerprint').toBe(first);
+});
+
 test('the full document links node names to their sheets and prints no raw JSON', async ({ page }) => {
   await page.goto('/?doc=dev-squad&level=3');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
