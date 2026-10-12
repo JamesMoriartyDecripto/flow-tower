@@ -13,6 +13,7 @@ import { crossSite, isJson } from './guard.ts';
 import { isRemote } from './auth.ts';
 import { writeUserConfig } from './user-config.ts';
 import type { RelayState } from './relay.ts';
+import type { ShareSync } from './share-sync.ts';
 
 interface Relay {
   state(): RelayState;
@@ -26,6 +27,8 @@ export interface SharingOptions {
   home: string;
   /** The relay of this server, or undefined when this server is not a satellite. */
   relay?: Relay;
+  /** The shared-towers sync beside the relay (#164), when it runs: its state joins the GET answer. */
+  sync?: Pick<ShareSync, 'state'>;
   /** Hub mode as the server knows it: a remote request is refused whenever it counts as remote. */
   hub: boolean;
 }
@@ -49,7 +52,11 @@ async function readBody(req: IncomingMessage, res: ServerResponse): Promise<unkn
 }
 
 /** The state answer, shared by every route here. Never carries the token. */
-const stateOf = (relay?: Relay) => relay?.state() ?? { state: 'off' };
+const stateOf = (relay?: Relay, sync?: Pick<ShareSync, 'state'>) => {
+  if (!relay) return { state: 'off' };
+  // The towers field is only there when the sync runs: a satellite without shares still answers the relay state.
+  return sync ? { ...relay.state(), towers: sync.state() } : relay.state();
+};
 
 /** The path connect left after stripping the mount: a mount root is '' or '/', anything else is another route. */
 const isMountRoot = (url: string | undefined) => {
@@ -57,7 +64,7 @@ const isMountRoot = (url: string | undefined) => {
   return path === '' || path === '/';
 };
 
-export function sharingHandler({ home, relay, hub }: SharingOptions) {
+export function sharingHandler({ home, relay, sync, hub }: SharingOptions) {
   /**
    * A local control: another page must not reach it, a remote viewer must not either. A remote viewer's
    * page still polls the state every 5 s: its GET gets a quiet { state: 'off' } (the chip stays hidden and
@@ -77,7 +84,7 @@ export function sharingHandler({ home, relay, hub }: SharingOptions) {
   const test = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     if (!isMountRoot(req.url)) return next();
     if (!allowed(req, res)) return;
-    if (req.method !== 'POST') return send(res, 200, stateOf(relay));
+    if (req.method !== 'POST') return send(res, 200, stateOf(relay, sync));
     // A body that is not JSON is refused before it is read (a form post could otherwise reach this route).
     if (!isJson(req)) return send(res, 415, { error: 'content-type must be application/json' });
     if (!relay) return send(res, 404, { state: 'off' });
@@ -88,7 +95,7 @@ export function sharingHandler({ home, relay, hub }: SharingOptions) {
   const control = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     if (!isMountRoot(req.url)) return next();
     if (!allowed(req, res)) return;
-    if (req.method !== 'POST') return send(res, 200, stateOf(relay));
+    if (req.method !== 'POST') return send(res, 200, stateOf(relay, sync));
     if (!isJson(req)) return send(res, 415, { error: 'content-type must be application/json' });
     if (!relay) return send(res, 404, { state: 'off' });
 

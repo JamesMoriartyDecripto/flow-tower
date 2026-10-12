@@ -21,6 +21,7 @@ import { isLoopbackUrl } from '../../bin/identity.js';
 import { isRemote } from './auth.ts';
 import { createRelay } from './relay.ts';
 import { sharingHandler } from './sharing.ts';
+import { startShareSync } from './share-sync.ts';
 import { effective, loadConfig } from './config.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 import { hubViews } from './hub-views.ts';
@@ -108,6 +109,12 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
 
       // Satellite relay (#91): a local library forwards what it accepted to the hub, metadata only.
       const relay = createRelayFor(server, hubOpts, VERSION);
+      // Shared towers (#164): the sync runs beside the relay, only where the relay exists (a satellite with
+      // a url and token). A change to a shared folder reaches the hub on the next tick, with no manual step.
+      const relaySettings = effective(loadConfig().config);
+      const shareSync = relay && relaySettings.url && relaySettings.token
+        ? startShareSync({ home: USER_HOME, url: relaySettings.url, token: relaySettings.token, warn: (message) => server.config.logger.warn(message) })
+        : undefined;
       // The hub side of #91: heartbeats and accepted events keep this list fresh; the UI reads it below.
       const satellites = createSatellites();
 
@@ -124,7 +131,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       // connect() matches a mount by prefix, so /api/sharing would also receive /api/sharing/test (as
       // '/test') and answer it as a pause request. The test is mounted first, and each handler answers
       // only its own mount root (req.url '' or '/'), so neither can shadow the other.
-      const sharing = sharingHandler({ home: USER_HOME, relay, hub: hubOpts.hub });
+      const sharing = sharingHandler({ home: USER_HOME, relay, sync: shareSync, hub: hubOpts.hub });
       server.middlewares.use('/api/sharing/test', sharing.test);
       server.middlewares.use('/api/sharing', sharing.control);
 
@@ -226,6 +233,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       // reload debounce) stops with the dev server: a restart must not leave the old ones running (#91, #99).
       stopOnClose(server, [
         () => relay?.stop(),
+        () => shareSync?.stop(),
         () => { if (prune) clearInterval(prune); },
         () => clearTimeout(timer),
       ]);
