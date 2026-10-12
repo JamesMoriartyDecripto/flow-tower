@@ -148,7 +148,7 @@ function Document({ built, level, print }: { built: Built; level: DocLevel; prin
       {level >= 2 && <Toc entries={doc.toc} />}
       {level >= 2 && doc.summary && <SummaryPage summary={doc.summary} />}
       {doc.chapters.map((c) => (
-        <article key={c.id} className="chapter">
+        <article key={c.id} className="chapter" data-tower={c.towerId}>
           <ChapterHead chapter={c} />
           <SnapFigure towerTitle={c.title} layers={c.layers.length} snap={snaps[c.towerId]} />
           {c.layers.map((l) => (

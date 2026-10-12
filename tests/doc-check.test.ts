@@ -53,6 +53,17 @@ describe('checkDocument', () => {
     expect(r.detail).toContain('demo/sub.tower.yaml');
   });
 
+  it('c: passes when every printed tower id is a chapter, and names the one that is not', () => {
+    // The page reports tower ids (data-tower), so the check compares them with the workspace's tower ids.
+    const SUB = 'demo/sub.tower.yaml';
+    const ws = goodWs({ towers: [TOWER, SUB] });
+    const ok = pick(checkDocument(goodDom({ chapters: [TOWER, SUB] }), ws), 'every tower is a chapter');
+    expect(ok.ok).toBe(true);
+    const missingSub = pick(checkDocument(goodDom({ chapters: [TOWER] }), ws), 'every tower is a chapter');
+    expect(missingSub.ok).toBe(false);
+    expect(missingSub.detail).toBe(`1 missing: "${SUB}"`);
+  });
+
   it('c: fails and names a referenced file missing from the appendix', () => {
     const dom = goodDom({ appendix: [{ key: 'demo :: a.md', printed: true }] });
     const r = pick(checkDocument(dom, goodWs({ files: ['demo :: a.md', 'demo :: src/triage.ts'] })), 'every referenced file in the appendix');

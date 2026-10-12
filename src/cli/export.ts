@@ -43,7 +43,8 @@ const PAGE_FACTS = `(() => {
     if (k === 'Nodes') control.nodes = v;
     if (k === 'Sub-towers') control.subTowers = v;
   }
-  const chapters = [...document.querySelectorAll('main article.chapter h2[id]')].map((h) => h.id);
+  // The tower id each chapter prints (data-tower), not its anchor: the check compares tower ids with tower ids.
+  const chapters = [...document.querySelectorAll('main article.chapter[data-tower]')].map((a) => a.getAttribute('data-tower') || '');
   const appendix = [...document.querySelectorAll('main .file-entry')].map((el) => ({
     key: el.dataset.fileKey ?? '',
     printed: el.dataset.printed === '1',

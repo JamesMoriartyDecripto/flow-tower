@@ -25,7 +25,7 @@ export function LibraryDocument({ doc, images, snaps }: { doc: TowerDoc; images:
           <div className="control-page"><ControlTable control={p.control} /></div>
           {p.summary && <SummaryPage summary={p.summary} />}
           {p.chapters.map((c) => (
-            <article key={c.id} className="chapter">
+            <article key={c.id} className="chapter" data-tower={c.towerId}>
               <ChapterHead chapter={c} />
               {c.layers.map((l) => (
                 <div key={l.id} className="layer-block">
