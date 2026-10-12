@@ -22,9 +22,9 @@ async function stub() {
   return { url: `http://127.0.0.1:${port}`, got };
 }
 
-/** Wait until `got` holds an event (the POST is fire and forget, so the test must poll). */
-async function settle(got: unknown[]): Promise<void> {
-  for (let i = 0; i < 100 && !got.length; i++) await new Promise((r) => setTimeout(r, 20));
+/** Poll until `got` holds `n` events (the POST is fire and forget). Stops at the timeout; the caller asserts the count. */
+async function settle(got: unknown[], n = 1): Promise<void> {
+  for (let i = 0; i < 100 && got.length < n; i++) await new Promise((r) => setTimeout(r, 20));
 }
 
 describe('model-benchmark live() (#105)', () => {
@@ -55,9 +55,8 @@ describe('model-benchmark live() (#105)', () => {
     emit({ kind: 'agent.start', node: 'runner.loop', message: 'coder/parse-edge run 1' });
     emit({ kind: 'tool.end', node: 'runner.api', tool: 'chat/completions', status: 'error', message: 'HTTP 429' });
     emit({ kind: 'usage', node: 'measure.cost', tokens: 1200, cost_usd: 0.004 });
-    await settle(got);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(got.length).toBeGreaterThan(0);
+    await settle(got, 3);
+    expect(got).toHaveLength(3);
     for (const e of got) {
       expect(e).not.toHaveProperty('prompt');
       expect(e).not.toHaveProperty('answer');

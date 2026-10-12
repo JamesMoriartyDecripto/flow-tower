@@ -4,6 +4,7 @@ How to run one server that collects live events from many machines (laptops, tea
 Hub panel (H) shows, and the **one home of the config file and its precedence**. Read it to set up or debug a hub or satellite.
 Instead: copy-paste server steps in the [kit README](../examples/command-center/README.md); token rules, who
 can view and the recipes in [hub-reference.md](hub-reference.md); a single machine in [getting-started.md](getting-started.md).
+An agent can follow [`skills/flow-tower-command-center`](../skills/flow-tower-command-center/SKILL.md) (hub side) and [`skills/flow-tower-satellite`](../skills/flow-tower-satellite/SKILL.md) (sender side).
 
 **In short** (a VPS for several machines; commands in the [kit](../examples/command-center/README.md)):
 
