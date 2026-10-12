@@ -9,8 +9,9 @@ import { userHome } from '../core/secrets.ts';
  * ever holds the sha256 of the whole token. Revoked or paused tokens are refused, the plaintext never
  * touches the disk, and a borrowed token is useless after a revoke.
  */
-export interface TokenRecord { id: string; sha256: string; createdAt: number; revokedAt?: number; paused?: boolean }
-export interface TokenInfo { id: string; createdAt: number; revokedAt?: number; paused?: boolean }
+/** `login` is the tailnet login that enrolled the token (#164); hand-made tokens have none. */
+export interface TokenRecord { id: string; sha256: string; createdAt: number; revokedAt?: number; paused?: boolean; login?: string }
+export interface TokenInfo { id: string; createdAt: number; revokedAt?: number; paused?: boolean; login?: string }
 
 /** The sender id ends up in a token: a short slug, nothing that could be a path or a header trick. */
 const ID = /^[a-z0-9-]{1,32}$/;
@@ -76,32 +77,61 @@ function createTokenStore(home: string) {
     return list;
   };
   const save = (list: TokenRecord[]) => { write(list); cache = undefined; };
-  const info = ({ id, createdAt, revokedAt, paused }: TokenRecord): TokenInfo => ({ id, createdAt, ...(revokedAt === undefined ? {} : { revokedAt }), ...(paused ? { paused } : {}) });
+  const info = ({ id, createdAt, revokedAt, paused, login }: TokenRecord): TokenInfo => ({ id, createdAt, ...(revokedAt === undefined ? {} : { revokedAt }), ...(paused ? { paused } : {}), ...(login === undefined ? {} : { login }) });
+  /** One place that mints a token and its record, so `create` and `enroll` cannot drift apart. */
+  const mint = (id: string, login?: string): { token: string; record: TokenRecord } => {
+    const token = `ft_${id}_${randomBytes(32).toString('base64url')}`;
+    return { token, record: { id, sha256: sha256(token), createdAt: Date.now(), ...(login === undefined ? {} : { login }) } };
+  };
+  const active = (list: TokenRecord[], id: string) => list.find((t) => t.id === id && t.revokedAt === undefined);
 
   return {
     /** A new sender: the id must be a slug and not already active (a revoked one may be reused). */
     create(id: string): { token: string } {
       if (!ID.test(id)) throw new Error('a token id is 1-32 characters of a-z, 0-9 or -');
       const list = load();
-      if (list.some((t) => t.id === id && t.revokedAt === undefined)) throw new Error(`token ${id} already exists`);
-      const token = `ft_${id}_${randomBytes(32).toString('base64url')}`;
-      list.push({ id, sha256: sha256(token), createdAt: Date.now() });
+      if (active(list, id)) throw new Error(`token ${id} already exists`);
+      const { token, record } = mint(id);
+      list.push(record);
       save(list);
       return { token };
+    },
+    /**
+     * A tailnet viewer's machine (#164). Re-enrolling by the same login rotates the token, so a reconnect
+     * replaces the old one; any other login, or a hand-made token, is refused so nobody takes over an id.
+     * Every record with the id counts, revoked ones too: a revoked id keeps the towers its old owner shared
+     * under `towers/<id>/`, so a stranger must not inherit them. The hub owner can still free an id by hand
+     * (editing tokens.json); `token add` is not a path around this.
+     */
+    enroll(id: string, login: string): { token: string; rotated: boolean } {
+      if (!ID.test(id)) throw new Error('a token id is 1-32 characters of a-z, 0-9 or -');
+      if (typeof login !== 'string' || login.trim() === '') throw new Error('enrolment needs a non-empty tailnet login');
+      // `default` is the legacy FLOW_TOWER_TOKEN sender; no machine may take its name.
+      if (id === 'default') throw new Error('conflict: default is reserved');
+      const list = load();
+      if (list.some((t) => t.id === id && t.login !== login)) throw new Error(`conflict: token ${id} belongs to another user`);
+      const current = active(list, id);
+      const { token, record } = mint(id, login);
+      // A machine the hub owner paused stays paused: re-enrolling must not be a way around that switch.
+      if (current?.paused) record.paused = true;
+      if (current) current.revokedAt = Date.now();
+      list.push(record);
+      save(list);
+      return { token, rotated: current !== undefined };
     },
     /** The hashes stay in the file: what the Settings panel sees is metadata only. */
     list(): TokenInfo[] { return load().map(info); },
     revoke(id: string) {
       const list = load();
-      const t = list.find((x) => x.id === id);
+      const t = active(list, id);
       if (!t || t.revokedAt !== undefined) return;
       t.revokedAt = Date.now();
       save(list);
     },
     pause(id: string, paused: boolean) {
       const list = load();
-      const t = list.find((x) => x.id === id);
-      if (!t || t.revokedAt !== undefined) return;
+      const t = active(list, id);
+      if (!t) return;
       if (paused) t.paused = true; else delete t.paused;
       save(list);
     },
@@ -109,8 +139,9 @@ function createTokenStore(home: string) {
     verify(presented: unknown): { id: string } | undefined {
       const parsed = parse(presented);
       if (!parsed) return undefined;
-      const t = load().find((x) => x.id === parsed.id);
-      if (!t || t.revokedAt !== undefined || t.paused) return undefined;
+      // A rotated id keeps its revoked record in the list, so only the active one may match.
+      const t = active(load(), parsed.id);
+      if (!t || t.paused) return undefined;
       const a = Buffer.from(sha256(parsed.token), 'hex');
       const b = Buffer.from(t.sha256, 'hex');
       return a.length === b.length && timingSafeEqual(a, b) ? { id: t.id } : undefined;

@@ -26,11 +26,13 @@ if (summary.total.runs === 0) {
 
 // Cache is shown as a share of prompt tokens; with no prompt tokens there is nothing to divide by, so 0%.
 const pct = (row) => (row.promptTokens > 0 ? `${Math.round((row.cachedTokens / row.promptTokens) * 100)}%` : '0%');
+// Runs with an unknown cost are left out of the money total and said so, so the number is not taken as complete.
+const unknown = summary.total.unknownCost > 0 ? ` (${summary.total.unknownCost} with unknown cost, not counted)` : '';
 const lines = [
-  `**Squad cost for #${issue}:** $${summary.total.cost.toFixed(4)} over ${summary.total.runs} ${summary.total.runs === 1 ? 'run' : 'runs'}, ${summary.total.steps} ${summary.total.steps === 1 ? 'step' : 'steps'}.`,
+  `**Squad cost for #${issue}:** $${summary.total.cost.toFixed(4)}${unknown} over ${summary.total.runs} ${summary.total.runs === 1 ? 'run' : 'runs'}, ${summary.total.steps} ${summary.total.steps === 1 ? 'step' : 'steps'}.`,
   '',
   '| Role | Model | Runs | Steps | Cost | Cache |',
   '|---|---|---|---|---|---|',
-  ...summary.rows.map((r) => `| ${r.role} | ${r.model} | ${r.runs} | ${r.steps} | $${r.cost.toFixed(4)} | ${pct(r)} |`),
+  ...summary.rows.map((r) => `| ${r.role} | ${r.model} | ${r.runs} | ${r.steps} | $${r.cost.toFixed(4)}${r.unknownCost ? ` + ${r.unknownCost} unknown` : ''} | ${pct(r)} |`),
 ];
 console.log(lines.join('\n'));

@@ -36,6 +36,15 @@ Files: tools/squad/run.mjs
 Header rules beat a long prompt: state the language, the comment rule, the file size, and the exact
 verification command. End with `finish` and its report format, so the run has one exit.
 
+The `Files:` line is a contract, checked after the step (`files-check.mjs`): every entry must appear in the step's
+changes (tracked diff since the step started, plus new untracked files), else the step is RED with the missing paths.
+Green tests alone are not enough: on #65 a step passed its own tests with half its task missing (#176). Entries are
+comma-separated; a directory or a glob (`*` within one segment, `**` any depth) is satisfied by any changed path under or
+matching it; a trailing `+` marks a new file; `(optional)` drops the entry from the check. Only the last `Files:` line counts.
+
+Coders end their report with `Known gaps:` (or `Known gaps: none`); `steps.sh` prints them under each step, and the
+lead reads them before the next step: gaps never stop the chain.
+
 ## A step chain
 
 ```bash
@@ -43,10 +52,11 @@ git worktree add ../wt-113 -b fix/113-tools      # one worktree per task: two co
 tools/squad/steps.sh 113 tasks/113 tools "keep the squad runner in the repo"
 ```
 
-`steps.sh <issue> <dir> <write-dirs> <title>` runs `run.mjs` on every `dir/*.md` in order, one commit per step.
-`<write-dirs>` is a comma-separated list, same as `run.mjs --write` (e.g. `src,tests`). `REPO` picks the worktree
-(default: this checkout). For simple tasks, `CODER_MODEL=openai/gpt-6-luna`. It stops at the first red step: a failed
-coder run, no change at all, or a red `npm run check`. Each commit stages every changed tracked path (`git add -u`),
+`steps.sh <issue> <dir> <write-dirs> <title>` (bash) runs `run.mjs` on every `dir/*.md` in order, one commit per step.
+`<write-dirs>` is a comma-separated list, same as `run.mjs --write` (e.g. `src,tests` or `tools/squad`). `REPO` picks the worktree
+(default: this checkout); `NODE` picks the Node binary (default `node`; e.g. `NODE=/opt/node22/bin/node` where the
+system Node is older than 22). For simple tasks, `CODER_MODEL=openai/gpt-6-luna`. It stops at the first red step: a failed
+coder run, no change at all, a red `npm run check`, or a `Files:` entry the step did not touch. Each commit stages every changed tracked path (`git add -u`),
 not a fixed list, so files like `package.json` or `NEXT.md` are never left out; new files are staged inside the
 `write-dirs`, and anything untracked outside them is reported as `UNTRACKED LEFT (not committed)`. Probe files the
 coder dropped (`tmp*`, `probe`, `scratch`) are removed first. Trailers are session-specific, so pass them in
@@ -74,6 +84,47 @@ node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --
   --task tasks/113-security.md --steps 10 --repo ../wt-113
 ```
 
+## Pace: how fast versus how cheap
+
+The maintainer sets the pace; the lead picks the review mode from it. The coder always runs the tool loop: it reads,
+writes and runs `npm run check` over many steps, which no single request can do.
+
+| Pace | When | Reviewer and security | Cost | Wait |
+|---|---|---|---|---|
+| `now` (default) | the maintainer is waiting, or a security pass must read the repo | tool loop (`run.mjs`, as below) | full price, grows with each step | minutes |
+| `relaxed` | daytime, no hurry: most issues | `SQUAD_PACE=relaxed`: `--oneshot`, one direct request with the code packed | full price for one request ($0.008–0.011 on #164/#169) | a few minutes |
+| `overnight` | work left to run unattended (overnight, a weekend) | `SQUAD_PACE=overnight`: `--batch`, the same request through the OpenRouter Batch API | about half | median minutes, but the first real run sat `in_progress` for 30+ min; cap 24 h |
+
+**In a hurry, also pick faster models** (benchmark and field numbers in the [cost skill reference](../../skills/flow-tower-costs/reference.md#benchmark-2026-10-11)); the defaults stay, because speed can cost quality:
+
+| Role | Default | Faster | Use the faster one when |
+|---|---|---|---|
+| Coder | `anthropic/claude-haiku-5.5` (212 s on #126) | `CODER_MODEL=openai/gpt-6-luna` (67 s, but missed the size goal) | the task is simple and mechanical |
+| Reviewer | `z-ai/glm-5.3-flashx` | none: GLM is already the fastest that found the real issue (Gemini Flash-Lite approved it blind) | — |
+| Security | `deepseek/deepseek-v4.1-flash` (6/6) | `openai/gpt-6-luna` (5/6, 8 s) | the change does not touch auth, tokens, paths or anything a remote request reaches |
+
+Never batch in a hurry: `now` and `relaxed` never touch the Batch API.
+
+`--oneshot` and `--batch` have no tools: the task must hold the code. Build it with `pack.mjs`:
+
+```bash
+node tools/squad/pack.mjs --role security --issue 164 --files src/server/enroll.ts,src/server/shared-towers.ts > tasks/164-security.md
+SQUAD_PACE=relaxed node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node specialists.security --task tasks/164-security.md --issue 164
+```
+
+- **Not every model has a batch endpoint.** GLM 5.3 FlashX has none on OpenRouter (2026-10-12); DeepSeek 4.1 Flash does.
+  `--batch` on such a model prints `has no batch endpoint: falling back to --oneshot (full price)` and runs it as a oneshot.
+- **Pick `--oneshot` over the loop** when the diff is big: on #164 the security loop timed out three times on the 180 s
+  per-call cap as its context grew, while one request with the code embedded answered in 2.5 minutes for $0.011.
+- **A one-request review sees only what you packed.** It cannot follow a call into a file you left out, so pack every
+  file the change touches and, for security, the guards it relies on. When it finds something, verify it in the code
+  before acting: on #164 two of five security findings did not apply.
+- **Ctrl-C while a batch waits** deletes the batch before the runner exits; a failed poll is retried twice, then the run
+  fails instead of waiting out the 12 h deadline.
+- **The Batch API keeps inputs and results up to 30 days** unless deleted. The runner always deletes the batch after
+  reading it, and only this public repo's diffs go through it, never a task that holds a secret.
+- The ledger line records `mode` (`loop`, `oneshot`, `batch`), so `cost.mjs` shows what each pace cost.
+
 ## Field findings (#75)
 
 - One or two items per task: the Flash coder burned its step cap on multi-item files.
@@ -82,6 +133,18 @@ node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --
 - Let it dry-run `examples/*/scripts/*.mjs` with the key stripped, or it cannot verify a script at all.
 - Fail the chain on a coder failure: a green check on unchanged code is not a done step.
 - One commit per green step, per-path staging, never `git add -A` over the whole tree.
+
+## Field findings (#176: 60+ steps on #164, #165, #169, #65)
+
+- Green is not done: check the task's `Files:` against the diff (above), and read the coder's known gaps.
+- Big context goes oneshot: a tool loop whose context keeps growing times out; pack the code and send one request
+  (`pack.mjs` + `--oneshot`, § Pace).
+- Code passed to Playwright's `page.evaluate` runs as plain JS: a coder wrote `querySelectorAll<HTMLElement>(…)`, which
+  ran as a comparison. The coder's system prompt says so.
+- Prefix the CSS classes of a printed document (`doc-summary`, not `summary`): one bare class styled a page-breaking
+  section and a table cell, giving one table row per page.
+- The lead looks at rendered output after every UI or print step (Playwright screenshots, `pdftoppm` pages): most real
+  bugs on #65 were visible only there, never in a green check.
 
 ## Cost
 

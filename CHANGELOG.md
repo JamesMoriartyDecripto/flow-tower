@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Squad: each step's `Files:` line is checked against its changes (`tools/squad/files-check.mjs`): a listed path the step did not touch makes it RED, even with green tests. Coders end their report with `Known gaps:`, printed under each step. The coder prompt warns that `page.evaluate` code is plain JavaScript (#176).
+- Squad: a pace setting (#169). `run.mjs --oneshot` and `--batch` answer a reviewer or security task in one request with no tools; `--batch` goes through the OpenRouter Batch API (about half price, always deleted once read) and falls back to a oneshot when the model has no batch endpoint. `SQUAD_PACE` picks the review mode: `now` (tool loop, default), `relaxed` (oneshot), `overnight` (batch); the coder always runs the tool loop. `tools/squad/pack.mjs` builds such a task with the brief, the diff and the files embedded. Ledger lines record the `mode`.
+- Library: each card names its source (THIS HUB, or the device that shared it with `flow-tower share`), and a FROM row filters by device, with an online dot and the choice kept in the URL (`?source=`); voice `library_filter` takes a `source` (#165).
+- Hub: one-step connect on a tailnet. `flow-tower connect https://<hub>.ts.net` without `--token` asks the hub (`POST /api/hub/enroll`), which mints the machine's token for a tailnet login listed in `viewers` (a `*.ts.net` Host behind `tailscale serve`; never a tagged device, a missing login or a non-tailnet hub). The machine name defaults to the hostname; the same login reconnecting rotates its token, another login gets a 409 (#164).
+- Hub: tower sharing. `flow-tower share <folder> [--files]` uploads a tower to the hub, which writes it to `towers/<machine>/<name>/` in its library and reloads; YAML only by default, `--files` adds the referenced files inside the folder (text types only, never secret-looking names or symlinks out of the folder). `unshare` removes it, `share --list` shows the shares, and the local library re-sends a shared tower within ~15 s of a change (`/api/sharing` reports `towers`) (#164).
+- Skills: `flow-tower-satellite` is rewritten as a guided, one-question-at-a-time walk-through of connect and share, with one fix per known error (#164).
 - Community: `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), YAML issue forms for bug, feature and example with Discussions and private advisories as contact links, and `SUPPORT.md` (#122).
 - CLI: `flow-tower --version` prints the installed version (#122).
 - CI: a job checks the DCO sign-off on every commit of a PR, and a step runs `check-example` on the example folders a PR adds (#122).
@@ -16,12 +22,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - PDF level 4 (#65): one document for several projects, a library cover with the project count and totals, a contents list, then each project at overview level. `?doc=library&level=4[&projects=a,b]` in the app, a fourth entry in the PDF menu when the workspace has more than one project, and `flow-tower export <dir> --pdf --level 4`, which runs the checks per project. Anchors are project-prefixed, so ids stay unique.
 
 ### Changed
+- Squad: `tools/squad/steps.sh` runs on bash (no zsh needed) and takes the Node binary from `NODE` (#176).
+- Hub: a hub with `viewers` may start without any token, since enrolment mints them (#164).
+- Command-center kit: the systemd unit and docker compose let the hub write `towers/`; README step 5 is connect and share, `token add` stays for CI and non-tailnet senders (#164).
 - `CONTRIBUTING.md` covers issue first, fork workflow, Conventional Commits, DCO sign-off, review, inbound = outbound licence, AI-assisted contributions and SemVer (#122).
 - `SECURITY.md` lists supported versions, what to include in a report and the response time (#122).
 - The PR template is the only checklist and gains AI assistance and Example tower blocks (#122).
 - The `flow-tower-contribute` skill starts from an issue, adds a CHANGELOG step and sign-off, and runs four more anonymisation checks (#122).
 
 ### Fixed
+- Squad: `run.mjs --write tools/squad` kept the folder as `toolssquad` (the `/` was dropped), so the coder could not write there; write dirs keep `/`, and absolute or `..` dirs are refused (#176).
+- Hub: a remote viewer's page no longer fills the console with 403s: `GET /api/sharing` answers a remote viewer a quiet `{ state: 'off' }` (writes stay refused) (#166).
+- Hub: the dev server warms the app at start (Vite `server.warmup`), so the first page over a tailnet skips a cold cache (about 45 s before) (#166).
+- Library: a card footer with ERR, WARN, age and usage stays on one line; the usage is cut with an ellipsis (#166).
+- Command-center kit: the systemd unit runs Node 22 from `/opt/node22` (Ubuntu 24.04's `/usr/bin/node` is Node 20) and can write `node_modules/.vite-temp`, without which it failed at start; the README installs the official tarball with a SHA256 check, and covers the one-time Tailscale Serve admin step and testing from another tailnet device (#166).
 - `check-example` accepts every reserved example domain (RFC 2606, RFC 6761) (#122).
 - The server no longer grows until out of memory in long sessions: it loads its Vite config once, so edits to its own source no longer restart it in-process, which leaked the previous server each time (upstream Rolldown #10887) (#99).
 

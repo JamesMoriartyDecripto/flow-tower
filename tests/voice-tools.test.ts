@@ -169,6 +169,97 @@ describe('voice agent tools (#63)', () => {
     expect(matchingProjects(ws, {})).toEqual(ws.projects);
     expect(matchingProjects(ws, { tag: 'pizza' })).toEqual([]);
     expect(matchingProjects(ws, { tag: 'coding' })).toEqual(ws.projects);
+    // Without workspace.sources every project is 'local', so a machine filter matches nothing.
+    expect(matchingProjects(ws, { source: 'local' })).toEqual(ws.projects);
+    expect(matchingProjects(ws, { source: 'laptop' })).toEqual([]);
+  });
+
+  it('filters projects by source (#165)', async () => {
+    const { projectMatches, matchingProjects } = await import('../src/app/library');
+    const ws = useStore.getState().workspace!;
+    const tower = ws.towers[ws.projects[0]];
+    // Unset source means every source; a wanted one must equal the project's own.
+    expect(projectMatches(tower, 'x', '', undefined, [], 'laptop')).toBe(true);
+    expect(projectMatches(tower, 'x', '', undefined, [], 'laptop', 'laptop')).toBe(true);
+    expect(projectMatches(tower, 'x', '', undefined, [], 'laptop', 'local')).toBe(false);
+    expect(projectMatches(tower, 'x', '', undefined, [], 'local', 'local')).toBe(true);
+    // matchingProjects reads the source from workspace.sources; absent means every project is local.
+    const shared = { ...ws, sources: { [ws.projects[0]]: 'laptop' } };
+    expect(matchingProjects(shared, { source: 'laptop' })).toEqual([ws.projects[0]]);
+    expect(matchingProjects(shared, { source: 'local' })).toEqual(ws.projects.slice(1));
+    expect(matchingProjects(shared, {})).toEqual(ws.projects);
+  });
+
+  it('matches a spoken source case-, space- and dash-insensitively (#165)', async () => {
+    const { knownSources, sourceNamed } = await import('../src/app/library');
+    const ws = useStore.getState().workspace!;
+    const shared = { ...ws, sources: { [ws.projects[0]]: 'box-1', [ws.projects[1]]: 'mac-ana' } };
+    const known = knownSources(shared);
+    expect(known).toEqual(['local', 'box-1', 'mac-ana']);
+    expect(sourceNamed(known, 'Box-1')).toBe('box-1');
+    expect(sourceNamed(known, 'box 1')).toBe('box-1');
+    expect(sourceNamed(known, 'MAC ANA')).toBe('mac-ana');
+    // "this hub" and "local" both name the hub's own source.
+    expect(sourceNamed(known, 'this hub')).toBe('local');
+    expect(sourceNamed(known, 'Local')).toBe('local');
+    // A name that is not known matches nothing, and "box one" is not "box-1".
+    expect(sourceNamed(known, 'laptop')).toBeUndefined();
+    expect(sourceNamed(known, 'box one')).toBeUndefined();
+  });
+
+  it('treats _ and . like spaces and dashes in source names (#165)', async () => {
+    const { knownSources, sourceNamed } = await import('../src/app/library');
+    const ws = useStore.getState().workspace!;
+    const shared = { ...ws, sources: { [ws.projects[0]]: 'box-1', [ws.projects[1]]: 'mac-ana' } };
+    const known = knownSources(shared);
+    // Folders copied by hand may carry _ or . in place of the dash.
+    expect(sourceNamed(known, 'box_1')).toBe('box-1');
+    expect(sourceNamed(known, 'box.1')).toBe('box-1');
+    expect(sourceNamed(known, 'Box 1')).toBe('box-1');
+    expect(sourceNamed(known, 'mac.ana')).toBe('mac-ana');
+  });
+
+  it('prefers an exact id over a separator-normalized one (#165)', async () => {
+    const { sourceNamed } = await import('../src/app/library');
+    // Two ids differing only by separator: the exact spelling wins, the other one is still reachable.
+    const known = ['local', 'box-1', 'box_1'];
+    expect(sourceNamed(known, 'box_1')).toBe('box_1');
+    expect(sourceNamed(known, 'box-1')).toBe('box-1');
+    expect(sourceNamed(known, 'Box 1')).toBe('box-1');
+  });
+
+  it('names the hub\'s own source as "this machine" and "this server" too (#165)', async () => {
+    const { sourceNamed } = await import('../src/app/library');
+    const known = ['local', 'mac-ana'];
+    expect(sourceNamed(known, 'this machine')).toBe('local');
+    expect(sourceNamed(known, 'This Server')).toBe('local');
+    expect(sourceNamed(known, 'this hub')).toBe('local');
+  });
+
+  it('describes the source parameter with every local wording (#165)', () => {
+    const lib = TOOLS.find((t) => t.function.name === 'library_filter')!;
+    const desc = JSON.stringify(lib.function.parameters);
+    expect(desc).toContain('this machine');
+    expect(desc).toContain('this server');
+    expect(desc).toContain('this hub');
+  });
+
+  it('library_filter takes a source: refuses an unknown one and changes nothing (#165)', () => {
+    const ws = useStore.getState().workspace!;
+    const seen: unknown[] = [];
+    const onEvent = (e: Event) => seen.push((e as CustomEvent<unknown>).detail);
+    window.addEventListener('flow-tower:library-filter', onEvent);
+    // Without workspace.sources the only known source is this hub's own.
+    const bad = call('library_filter', { source: 'laptop' });
+    expect(bad.error).toMatch(/laptop/);
+    expect(bad.sources).toEqual(['local']);
+    expect(call('library_filter', { source: 'this hub' })).toMatchObject({ projects: ws.projects.length, source: 'local' });
+    return new Promise<void>((done) => setTimeout(() => {
+      window.removeEventListener('flow-tower:library-filter', onEvent);
+      // The refused call dispatched nothing; the accepted one carries the source.
+      expect(seen).toEqual([{ source: 'local' }]);
+      done();
+    }, 20));
   });
 
   it('scrolls the open file by dispatching the viewer event (#145b)', () => {

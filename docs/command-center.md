@@ -10,7 +10,8 @@ An agent can follow [`skills/flow-tower-command-center`](../skills/flow-tower-co
 
 1. Enable hub mode: `--hub`, or `"hub": true` in `config.json`.
 2. The hub listens on `127.0.0.1:5317`; put a transport in front (Tailscale or a reverse proxy).
-3. One token per machine: `flow-tower token add <id>` on the hub ([token rules](hub-reference.md#security-model)).
+3. Each machine connects: on a tailnet, `flow-tower connect https://<hub>.ts.net` mints its token (your login in `viewers`); elsewhere `flow-tower token add <id>` on the hub, then `connect --token` ([token rules](hub-reference.md#security-model)).
+4. Each machine shares its towers: `flow-tower share <tower folder>` (YAML only by default; `--files` adds the files it references). The hub stores them in `towers/<machine>/` and keeps them in sync.
 
 ## Three roles
 
@@ -35,8 +36,9 @@ tower, `deploy/` (systemd unit, docker compose, Caddyfile, `hub.config.json`, `s
 a `towers/` folder and a step-by-step README. Follow that README for the copy-paste steps; this page
 explains the parts.
 
-**Rule: the hub lights up only the towers in its library.** Put each connected machine's tower in the
-hub's `towers/` folder, or its events arrive but match no node.
+**Rule: the hub lights up only the towers in its library.** A connected machine shares each tower with
+`flow-tower share <folder>`: the hub writes it into `towers/<machine>/<name>/` of its library folder and
+reloads. Without that (or a hand-made copy in `towers/`), its events arrive but match no node.
 
 ## Set up the hub
 
@@ -54,9 +56,11 @@ Install, `config.json`, tokens and the service (systemd unit or docker compose):
 }
 ```
 
-One token per machine or person: `flow-tower token add laptop` prints it once (rules:
-[hub-reference.md § Security model](hub-reference.md#security-model)). A hub with no token refuses to start
-(`hub mode needs a token to accept any event`). The hub binds `127.0.0.1:5317` only: other machines reach
+On a tailnet, machines get their tokens by themselves: `flow-tower connect` asks the hub, which mints one for
+a user listed in `viewers` ([enrolment](hub-reference.md#security-model)). Elsewhere, one token per machine or
+person: `flow-tower token add laptop` prints it once (rules:
+[hub-reference.md § Security model](hub-reference.md#security-model)). A hub with neither a token nor `viewers`
+refuses to start (`hub mode needs a token to accept any event`). The hub binds `127.0.0.1:5317` only: other machines reach
 it through a proxy. Containers sending *to* the hub:
 [integrations/hub/docker-compose.yml](../integrations/hub/docker-compose.yml).
 
@@ -98,14 +102,29 @@ machines' traffic: their requests look local and skip the token check.
 **A satellite** (a machine with its own library):
 
 ```bash
-flow-tower connect https://hub.example.ts.net --token ft_REPLACE_ME --machine laptop --user alice
-flow-tower ~/my-project            # run your library as usual: accepted events are relayed
+flow-tower connect https://hub.example.ts.net      # tailnet hub: the hub mints this machine's token
+flow-tower share ~/my-project                      # the hub gets the tower (YAML only) and keeps it in sync
+flow-tower ~/my-project                            # run your library as usual: accepted events are relayed
 ```
 
+Without `--token`, `connect` asks the hub (`POST /api/hub/enroll`) for a token named after this machine
+(the hostname, or `--machine`). That works only on a tailnet hub (`*.ts.net`, behind `tailscale serve`) and
+only for a tailnet login in its `viewers`; the same login connecting the same machine again gets a new
+token and the old one is revoked. Other hubs: `connect <url> --token ft_… --machine laptop --user alice`.
+
 `connect` writes `role`, `url`, `token` (and machine/user) into the user folder's `config.json`, then
-sends one heartbeat: `connected to … as laptop`, or a 401 / unreachable message (the config is written
-anyway). The hub lights only towers in its own library, so register the same tower on the hub's machine
-([Your own library](getting-started.md#your-own-library)). Only metadata is relayed; while the hub is down events queue in memory
+sends one heartbeat: `connected to … as laptop`, or a 401 / unreachable message. The guided version, for an
+agent walking a user through it: [`skills/flow-tower-satellite`](../skills/flow-tower-satellite/SKILL.md).
+
+**Share towers.** `flow-tower share <folder>` uploads the folder's `*.tower.yaml` files to the hub, which
+writes them to `towers/<machine>/<name>/` in its library and reloads. `--files` also sends the files the towers
+reference (inside the folder, text types only, never `.env`, keys or similar), so viewers can open them;
+the default sends no file contents. The local library re-sends a shared tower within ~15 s of a change
+(`/api/sharing` shows each tower's `syncedAt`), and nothing while sharing is paused. `flow-tower unshare
+<name>` removes it from the hub; `share --list` shows what is shared.
+
+On the hub, each library card names its source (THIS HUB, or the device that shared it), and the FROM row filters by
+device, with a green dot for a device online now; the filter stays in the URL (`?source=<machine>`). Only metadata is relayed; while the hub is down events queue in memory
 ([what is relayed, the queue, `/api/sharing`](hub-reference.md#satellite-a-local-library-that-relays-to-the-hub)).
 
 To pause sharing, set `paused: true` in `config.json` or use Settings › Sharing › Pause; a pause empties
@@ -153,7 +172,9 @@ Precedence is **flags > environment > config file > defaults** for every key bot
 
 | Symptom | Cause and fix |
 |---|---|
-| `401 bad or missing token` | wrong, revoked or missing token: `flow-tower token add <id>` on the hub, then `connect` again |
+| `401 bad or missing token` | wrong, revoked or missing token: `connect` again (tailnet), or `flow-tower token add <id>` on the hub, then `connect --token` |
+| `your tailnet login is not a viewer of this hub` (connect) | add that login (`tailscale status --json` → `User`) to `viewers` in the hub's config.json |
+| `could not store the shared tower` (share) | the hub may not write `towers/` in its library folder: with the kit's unit, check `ReadWritePaths` |
 | `403 remote viewing is not allowed` | not through Tailscale, or the login is not in `viewers` |
 | `403 remote requests may only ingest events` | a remote client tried anything but sending events: by design |
 | `/api/sharing` says `queued` | hub unreachable: check the URL, the tailnet and the hub service |
