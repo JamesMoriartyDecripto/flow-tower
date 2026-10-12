@@ -10,6 +10,7 @@ import { LiveFeed } from './hud/LiveFeed';
 import { LiveChips } from './hud/LiveChips';
 import { Settings } from './hud/Settings';
 import { Shortcuts } from './hud/Shortcuts';
+import { PdfMenu, usePdfMenu } from './hud/PdfMenu';
 import { cycleConnection, jumpBack } from './hud/Connections';
 import { focusInspector, panelKey, panelOf } from './hud/focusNav';
 import { Tooltip } from './hud/Tooltip';
@@ -83,6 +84,7 @@ export function App() {
       <FileViewer />
       <Settings />
       <Shortcuts />
+      <PdfMenu />
       <Tooltip />
       <Library />
       <VoiceCaption />
@@ -153,6 +155,8 @@ function useKeyboard() {
       if (e.key === '?') { prefs.set({ help: !prefs.help }); return; }
       if (prefs.help) { if (e.key === 'Escape') prefs.set({ help: false }); return; }
       if (prefs.open) { if (e.key === 'Escape') prefs.set({ open: false }); return; }
+      // The PDF menu is modal too: Esc closes it, other keys wait until it is closed.
+      if (usePdfMenu.getState().open) { if (e.key === 'Escape') usePdfMenu.getState().show(false); return; }
       // The Hub panel has no modal: it takes Esc before the usual chain (file → node → layer → tower).
       if (e.key === 'Escape' && useHub.getState().open) { useHub.getState().close(); return; }
       if (e.key === ',') { e.preventDefault(); prefs.set({ open: true }); return; }
@@ -233,6 +237,8 @@ function useKeyboard() {
         void exportPng();
       } else if (key === 'x' && tower) {
         void exportSvg();
+      } else if (key === 'd' && tower) {
+        usePdfMenu.getState().show(true);
       }
     };
     window.addEventListener('keydown', onKey);
