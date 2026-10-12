@@ -4,6 +4,8 @@ import { fieldsOf, type Field } from './docFields.ts';
 import { classificationOf, docSummary, MAX_TOWERS, nodeCode, printedTowers, type DocSummary } from './docSummary.ts';
 import { findingsOf, severityCounts, type Finding, type SeverityCount } from './docFindings.ts';
 import { appendixFiles, type AppendixFile } from './docFiles.ts';
+import { layerConnections, type LayerConnections } from './docConnections.ts';
+import { nodeDetail, type DetailScope } from './docDetail.ts';
 
 export { canonicalJson, classificationOf, docSummary, type DocSummary } from './docSummary.ts';
 export { findingsOf, severityCounts, type Finding, type SeverityCount } from './docFindings.ts';
@@ -56,14 +58,22 @@ export interface NodeDetail {
   status: Status;
   description?: string;
   agent?: { name?: string; model?: string; prompt?: string };
+  /** The node's own model, else its agent's; a model node has no agent but still names its model. */
+  model?: string;
+  /** The node's own prompt source, else its agent's: a node without an agent still names its prompt. */
+  prompt?: string;
   tools: string[];
   runtime?: string;
+  /** The runtime's own facts (kind, host, provider, region, url), formatted for print. */
+  runtimeFacts: Field[];
+  /** The node's declared resources (repo, bucket...), formatted for print: one field, a list of them. */
+  resources: Field[];
   /** Operational facts, formatted for print (see docFields.ts): never raw JSON. */
   ops: Field[];
   incoming: EdgeRef[];
   outgoing: EdgeRef[];
   files: string[];
-  subTower?: { id: string; title: string; anchor?: string };
+  subTower?: { id: string; title: string; anchor?: string; layers: number; nodes: number };
 }
 
 export interface LayerSection {
@@ -73,6 +83,8 @@ export interface LayerSection {
   description?: string;
   nodes: NodeRow[];
   details?: NodeDetail[];
+  /** Levels 2-3: the fact strip and the connection table under the node table. */
+  connections?: LayerConnections;
 }
 
 export interface Chapter {
@@ -215,7 +227,7 @@ interface Scope {
 }
 
 function chapterOf(t: ResolvedTower, scope: Scope): Chapter {
-  const { level, prefix, usage } = scope;
+  const { ws, level, prefix, usage } = scope;
   const id = t.id;
   const byKey = new Map<string, ResolvedNode>();
   for (const l of t.layers) for (const n of l.nodes) byKey.set(n.key, n);
@@ -225,10 +237,11 @@ function chapterOf(t: ResolvedTower, scope: Scope): Chapter {
   const allEdges: ResolvedEdge[] = [...t.layers.flatMap((l) => l.edges), ...t.links];
   for (const e of allEdges) usage.edgeKinds.add(e.kind);
 
-  const layers: LayerSection[] = t.layers.map((l) => {
+  const layers: LayerSection[] = t.layers.map((l, pos) => {
     const section: LayerSection = { id: layerAnchor(prefix, id, l.id), index: l.index, title: l.title, nodes: [] };
     if (level === 1) return section;
     section.description = l.description;
+    section.connections = layerConnections(t, pos);
     section.nodes = l.nodes.map((n, pos) => {
       usage.types.add(n.type);
       if (n.runtime) usage.runtimes.set(n.runtime.id, n.runtime.label ?? n.runtime.id);
@@ -244,7 +257,12 @@ function chapterOf(t: ResolvedTower, scope: Scope): Chapter {
       };
     });
     if (level === 3) {
-      section.details = l.nodes.map((n, pos) => nodeDetail(t, n, nodeCode(l.index, pos + 1), allEdges, nodeRef, scope));
+      const detailScope: DetailScope = {
+        ws, depths: scope.depths,
+        anchorOf: (towerId, key) => nodeAnchor(prefix, towerId, key),
+        towerAnchorOf: (towerId) => towerAnchor(prefix, towerId),
+      };
+      section.details = l.nodes.map((n, pos) => nodeDetail(t, n, nodeCode(l.index, pos + 1), allEdges, nodeRef, detailScope));
     }
     return section;
   });
@@ -258,40 +276,6 @@ function chapterOf(t: ResolvedTower, scope: Scope): Chapter {
     layers,
     links: t.links.map((e) => ({ label: e.label, kind: e.kind, from: nodeRef(e.from), to: nodeRef(e.to) })),
     budget: t.run ? opsFields({ budget: t.run.budget, limits: t.run.limits }) : undefined,
-  };
-}
-
-function nodeDetail(
-  t: ResolvedTower, n: ResolvedNode, ref: string, allEdges: ResolvedEdge[],
-  nodeRef: (key: string) => NodeRef, scope: Scope,
-): NodeDetail {
-  const { ws, depths, prefix } = scope;
-  const prompt = n.prompt?.source ?? n.agent?.prompt?.source;
-  return {
-    id: nodeAnchor(prefix, t.id, n.key),
-    ref,
-    key: n.key,
-    label: n.label,
-    type: n.type,
-    status: n.status,
-    description: n.description ? collapse(n.description) : undefined,
-    agent: n.agent
-      ? { name: n.agent.name, model: n.model ?? n.agent.model, prompt: prompt }
-      : undefined,
-    tools: n.tools,
-    runtime: n.runtime?.label ?? n.runtime?.id,
-    ops: opsFields(n.ops),
-    incoming: allEdges.filter((e) => e.to === n.key).map((e) => ({ label: e.label, kind: e.kind, other: nodeRef(e.from) })),
-    outgoing: allEdges.filter((e) => e.from === n.key).map((e) => ({ label: e.label, kind: e.kind, other: nodeRef(e.to) })),
-    files: n.files,
-    subTower: n.tower
-      ? {
-        id: n.tower,
-        title: ws.towers[n.tower]?.name ?? n.tower,
-        // Only a tower that is printed has a chapter to link to; a deeper one is named, not linked.
-        anchor: depths.has(n.tower) ? towerAnchor(prefix, n.tower) : undefined,
-      }
-      : undefined,
   };
 }
 

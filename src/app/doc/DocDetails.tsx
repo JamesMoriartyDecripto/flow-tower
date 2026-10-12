@@ -13,9 +13,11 @@ import { linkTo } from './DocParts';
 export function NodeDetail({ node: n }: { node: NodeDetailData }) {
   const facts: Field[] = [
     ...(n.agent?.name ? [{ label: 'Agent', value: { text: n.agent.name } }] : []),
-    ...(n.agent?.model ? [{ label: 'Model', value: { text: n.agent.model } }] : []),
-    ...(n.agent?.prompt ? [{ label: 'Prompt', value: { text: n.agent.prompt } }] : []),
+    ...(n.model ? [{ label: 'Model', value: { text: n.model } }] : []),
+    ...(n.prompt ? [{ label: 'Prompt', value: { text: n.prompt } }] : []),
     ...(n.runtime ? [{ label: 'Runtime', value: { text: n.runtime } }] : []),
+    ...n.runtimeFacts,
+    ...n.resources,
     ...(n.tools.length ? [{ label: 'Tools', value: { list: n.tools } }] : []),
     ...n.ops,
   ];
@@ -26,12 +28,14 @@ export function NodeDetail({ node: n }: { node: NodeDetailData }) {
         <h4>{n.label}</h4>
         <Chip kind="type" value={n.type} />
         <Chip kind="status" value={n.status} />
+        <span className="muted degree">In {n.incoming.length} · Out {n.outgoing.length}</span>
       </header>
       {n.description && <p><Text text={n.description} /></p>}
       <FieldGrid fields={facts} />
       {n.subTower && (
         <p className="subtower">
           Sub-tower: {n.subTower.anchor ? <a href={`#${n.subTower.anchor}`}>{n.subTower.title}</a> : n.subTower.title}
+          {' '}<span className="muted">· {n.subTower.layers} layers · {n.subTower.nodes} nodes</span>
         </p>
       )}
       <div className="edge-pair">

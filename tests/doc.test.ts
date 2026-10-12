@@ -55,6 +55,37 @@ function referencedAnchors(doc: TowerDoc): string[] {
 
 const chapterCount = (doc: TowerDoc) => doc.chapters.length;
 
+/**
+ * Resolved node fields the level-3 detail does not print, each with its reason. Everything else a node
+ * carries must reach its detail: a field added to the model and forgotten in the view fails the test.
+ * `id` and `key` are the anchor and the key, shown in the detail's own fields; `layer` is the node's
+ * parent layer, named by the layer heading; `meta` is free-form source metadata the author never prints.
+ */
+const UNSHOWN_NODE_FIELDS = ['id', 'key', 'layer', 'meta'] as const;
+type UnshownField = (typeof UNSHOWN_NODE_FIELDS)[number];
+
+/**
+ * Runtime fields the node detail does not print. `id` is the key the runtime is filed under, and `label`
+ * is the name the detail already prints. `description` and `meta` are left out on purpose: the description
+ * is prose the page does not repeat, and `meta` is author metadata, not a fact about the runtime.
+ */
+const UNSHOWN_RUNTIME_FIELDS = ['id', 'label', 'description', 'meta'] as const;
+
+/**
+ * Agent fields the node detail does not print. The detail shows the agent's name, model and prompt source;
+ * the rest is configuration the document leaves to the source files (the files list names them).
+ */
+const UNSHOWN_AGENT_FIELDS = ['id', 'description', 'tools', 'harness', 'skills', 'disabledTools', 'files', 'source', 'tower', 'runtime', 'resources', 'match', 'ops', 'meta'] as const;
+type UnshownAgentField = (typeof UNSHOWN_AGENT_FIELDS)[number];
+
+/** Whitespace runs as one space, the way the view prints prose; both sides of a text check go through it. */
+const squash = (s: string): string => s.replace(/\s+/g, ' ').trim();
+
+/** A resolved value with nothing in it: nothing to print, so nothing to check. */
+const isEmpty = (v: unknown): boolean =>
+  v === undefined || v === null || (Array.isArray(v) && v.length === 0)
+  || (typeof v === 'object' && !Array.isArray(v) && Object.keys(v as object).length === 0);
+
 describe('formatValue', () => {
   it('reads a budget as a sentence with its description on its own line', () => {
     const v = formatValue('budget', { usd: 0.05, per: 'run', on_exceed: 'stop', description: 'Cap per run.' });
@@ -329,6 +360,66 @@ describe('towerDoc', () => {
       expect(['active', 'planned', 'experimental', 'deprecated']).toContain(d.status);
       for (const f of d.ops) expect(f.label.length).toBeGreaterThan(0);
     }
+  });
+
+  it.each([
+    ['dev-squad', 'dev-squad.tower.yaml'],
+    ['game-studio', 'game-studio.tower.yaml'],
+  ])('shows every non-empty field of every node of %s in its detail', async (folder, towerId) => {
+    const ws = (await loadLibrary([`examples/${folder}`])).workspace;
+    const doc = towerDoc(ws, towerId, 3);
+    const seen = new Set<string>();
+    for (const c of doc.chapters) {
+      const tower = ws.towers[c.towerId];
+      const details = c.layers.flatMap((l) => l.details ?? []);
+      const nodes = tower.layers.flatMap((l) => l.nodes);
+      expect(details.length, `${c.towerId}: one detail per node`).toBe(nodes.length);
+      details.forEach((d, i) => {
+        const n = nodes[i];
+        // Compared as words, not JSON: quotes are not escaped, and the view collapses whitespace in prose.
+        const text = squash(leaves(d).join(' '));
+        seen.add(d.key);
+        // The field names a node carries that the detail does not print, and why. Anything else must show.
+        for (const field of Object.keys(n)) {
+          if (UNSHOWN_NODE_FIELDS.includes(field as UnshownField)) continue;
+          // The runtime is checked by its own block below, which has its own exclusions.
+          if (field === 'runtime') continue;
+          const value = (n as unknown as Record<string, unknown>)[field];
+          if (isEmpty(value)) continue;
+          // A prompt prints as its source path, never its text (the detail names the file, see doc.ts).
+          if (field === 'prompt') {
+            expect(text, `${c.towerId} ${n.key}.prompt.source`).toContain((value as { source?: string }).source ?? '');
+            continue;
+          }
+          // The agent is checked field by field: its prompt is a source path, and some of its fields are not shown.
+          if (field === 'agent' && n.agent) {
+            for (const [af, av] of Object.entries(n.agent)) {
+              if (UNSHOWN_AGENT_FIELDS.includes(af as UnshownAgentField) || isEmpty(av)) continue;
+              if (af === 'prompt') {
+                expect(text, `${c.towerId} ${n.key}.agent.prompt.source`).toContain(n.agent.prompt?.source ?? '');
+                continue;
+              }
+              for (const leaf of leaves(av)) expect(text, `${c.towerId} ${n.key}.agent.${af}: ${leaf}`).toContain(leaf);
+            }
+            continue;
+          }
+          for (const leaf of leaves(value).map(squash)) {
+            expect(text, `${c.towerId} ${n.key}.${field}: ${leaf}`).toContain(leaf);
+          }
+        }
+        // The runtime is a second object: its facts must reach the detail too, not only its label.
+        if (n.runtime) {
+          for (const [field, value] of Object.entries(n.runtime)) {
+            if (UNSHOWN_RUNTIME_FIELDS.includes(field as (typeof UNSHOWN_RUNTIME_FIELDS)[number])) continue;
+            if (value === undefined || value === null) continue;
+            for (const leaf of leaves(value)) {
+              expect(text, `${c.towerId} ${n.key}.runtime.${field}: ${leaf}`).toContain(leaf);
+            }
+          }
+        }
+      });
+    }
+    expect(seen.size).toBeGreaterThan(0);
   });
 
   it('is deterministic', async () => {

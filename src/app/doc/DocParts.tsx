@@ -1,4 +1,5 @@
 import { LEVEL_NAMES, type Chapter, type LayerSection, type LinkRow, type NodeRef, type NodeRow, type TocEntry, type TowerDoc } from '../../core/doc';
+import type { ConnectionRow, LayerConnections } from '../../core/docConnections';
 import { Chip } from './DocChips';
 import { FieldGrid, Text } from './DocText';
 import { Mark } from './Mark';
@@ -106,14 +107,60 @@ function NodeTable({ rows, caption }: { rows: NodeRow[]; caption: string }) {
   );
 }
 
+/** The fact strip under a layer's node table: the counts a reader checks the table against. */
+function LayerFactStrip({ facts }: { facts: LayerConnections['facts'] }) {
+  const items: [number, string][] = [
+    [facts.nodes, 'nodes'],
+    [facts.agents, 'agents'],
+    [facts.internalEdges, 'internal edges'],
+    [facts.incoming, 'incoming'],
+    [facts.outgoing, 'outgoing'],
+    [facts.models, 'models'],
+  ];
+  return (
+    <p className="layer-facts">
+      {items.map(([n, label], i) => (
+        <span key={label}>{i > 0 && ' · '}<strong>{n}</strong> {label}</span>
+      ))}
+    </p>
+  );
+}
+
 /**
- * One layer: heading (code, title, description) and its drawing on one landscape page; the node table
- * (levels 2-3) follows on portrait pages, captioned by the layer. Details come after.
+ * The connection table of one layer: internal edges first, then the cross-layer links, in the tower's
+ * order. A row names both ends by their node code, so it reads against the node table above it.
+ */
+function ConnectionTable({ rows, caption }: { rows: ConnectionRow[]; caption: string }) {
+  return (
+    <table className="connections">
+      <caption>{caption}</caption>
+      <thead>
+        <tr><th>From</th><th>To</th><th>Kind</th><th>Label</th></tr>
+      </thead>
+      <tbody>
+        {rows.map((r, i) => (
+          <tr key={i} className={i % 2 ? 'zebra' : undefined}>
+            <td className="name"><span className="mono ref">{r.from.ref}</span> {r.from.label}</td>
+            <td className="name"><span className="mono ref">{r.to.ref}</span> {r.to.label}</td>
+            <td className="mono">{r.kind}</td>
+            <td className="muted">{r.label ? <Text text={r.label} /> : '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * One layer: heading (code, title, description) and its drawing on one landscape page; the node table,
+ * the fact strip and the connection table (levels 2-3) follow on portrait pages, captioned by the layer.
+ * Details come after.
  */
 export function LayerBlock({ section, level, markup }: {
   section: LayerSection; level: 1 | 2 | 3; markup?: string;
 }) {
   const code = layerNumber(section.index);
+  const conn = section.connections;
   return (
     <section className="layer">
       <div className="layer-page">
@@ -123,6 +170,10 @@ export function LayerBlock({ section, level, markup }: {
       </div>
       {level >= 2 && section.nodes.length > 0 && (
         <NodeTable rows={section.nodes} caption={`${code} · ${section.title} — nodes`} />
+      )}
+      {level >= 2 && conn && <LayerFactStrip facts={conn.facts} />}
+      {level >= 2 && conn && conn.rows.length > 0 && (
+        <ConnectionTable rows={conn.rows} caption={`${code} · ${section.title} — connections`} />
       )}
     </section>
   );
