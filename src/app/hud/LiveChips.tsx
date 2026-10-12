@@ -41,6 +41,8 @@ export function LiveChips() {
 function Chip({ liveKey, nodeKey, label, error }: { liveKey: string; nodeKey: string; label: string; error: boolean }) {
   const last = useLive((s) => s.nodes.get(liveKey)?.last);
   const what = last?.tool ?? (last?.kind === 'agent.start' ? 'working' : last?.kind) ?? 'inside sub-tower';
+  // Own selector on a string so the chip only re-renders when the host name changes.
+  const host = useLive((s) => s.nodes.get(liveKey)?.where?.host);
   return (
     <button
       ref={(el) => { if (el) chipEls.set(nodeKey, el); else chipEls.delete(nodeKey); }}
@@ -52,6 +54,7 @@ function Chip({ liveKey, nodeKey, label, error }: { liveKey: string; nodeKey: st
       <i>{error ? '✕' : '◆'}</i>
       <b>{label}</b>
       <span>{what}</span>
+      {host && <em>@{host}</em>}
     </button>
   );
 }
