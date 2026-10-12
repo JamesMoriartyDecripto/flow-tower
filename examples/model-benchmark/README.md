@@ -37,7 +37,9 @@ node scripts/judge.mjs --in results/2026-10-11.jsonl --tasks tasks/reviewer/
 node scripts/report.mjs --in results/2026-10-11.judged.jsonl --scores results/2026-10-11.scores.json --out results/2026-10-11.md
 ```
 
-Use the exact model ids that `node skills/flow-tower-costs/models.mjs --tools` prints in the Flow Tower repository on the day you run. Options: `--timeout <s>` (default 180), `--effort <low|medium|high>` (default low). `judge.mjs` takes several `--tasks` folders when one jsonl holds several categories.
+Use the exact model ids that `node skills/flow-tower-costs/models.mjs --tools` prints in the Flow Tower repository on the day you run. Options: `--timeout <s>` (default 180), `--effort <low|medium|high>` (default low), `--url <tower url>`. `judge.mjs` takes several `--tasks` folders when one jsonl holds several categories.
+
+To watch a run on the benchmark's own tower, open it (`node bin/flow-tower.js examples/model-benchmark`) and add `--url http://127.0.0.1:5317` to `bench.mjs` and `judge.mjs`: metadata only, never a prompt, an answer, a file or the key.
 
 ## Extend it
 
@@ -61,6 +63,7 @@ Use the exact model ids that `node skills/flow-tower-costs/models.mjs --tools` p
 
 - [`skills/flow-tower-costs`](https://github.com/JamesMoriartyDecripto/flow-tower/tree/main/skills/flow-tower-costs): the checklist, the [benchmark recipe and field results](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-costs/reference.md), and `models.mjs` for prices.
 - Field results, 2026-10-10, one run each (illustrative): the six-model voice agent test (issue #70; qwen3.8-flash had no endpoint with zdr + `require_parameters`), and the dev squad on #70 (#75 findings: glm-5.3 timed out at 1-2.5 min per step, glm-5.3-flashx found the blocking bugs for $0.02-0.085; deepseek coder 90-95% of the prompt from cache). The runner's session, effort, timeout and retry choices come from that squad runner.
+- Superseded on 2026-10-11 by the first full run and a squad field trial: see the [cost skill reference § Benchmark 2026-10-11](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-costs/reference.md#benchmark-2026-10-11).
 - [OpenRouter chat completions](https://openrouter.ai/docs/api-reference/chat-completion), [provider routing](https://openrouter.ai/docs/features/provider-routing) (`require_parameters`, `data_collection`), [prompt caching](https://openrouter.ai/docs/features/prompt-caching) and [usage accounting](https://openrouter.ai/docs/use-cases/usage-accounting).
 - [Node.js permission model](https://nodejs.org/docs/latest-v22.x/api/permissions.html), used by `judge.mjs` to run model-written code.
 

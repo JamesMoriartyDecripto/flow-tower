@@ -1,0 +1,134 @@
+{
+  "B001": {
+    "model": "inception/mercury-2.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 2
+  },
+  "B002": {
+    "model": "z-ai/glm-5.3-flashx",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 2
+  },
+  "B003": {
+    "model": "deepseek/deepseek-v4-pro",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 3
+  },
+  "B004": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 2
+  },
+  "B005": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 3
+  },
+  "B006": {
+    "model": "qwen/qwen3.7-flash",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 3
+  },
+  "B007": {
+    "model": "inception/mercury-2.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 1
+  },
+  "B008": {
+    "model": "google/gemini-3.5-flash-lite",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 2
+  },
+  "B009": {
+    "model": "deepseek/deepseek-v4-pro",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 2
+  },
+  "B010": {
+    "model": "deepseek/deepseek-v4-pro",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 1
+  },
+  "B011": {
+    "model": "inception/mercury-2.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 3
+  },
+  "B012": {
+    "model": "google/gemini-3.5-flash-lite",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 1
+  },
+  "B013": {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 2
+  },
+  "B014": {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "category": "reviewer",
+    "task": "events-204",
+    "run": 1
+  },
+  "B015": {
+    "model": "z-ai/glm-5.3-flashx",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 3
+  },
+  "B016": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 1
+  },
+  "B017": {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 1
+  },
+  "B018": {
+    "model": "z-ai/glm-5.3-flashx",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 1
+  },
+  "B019": {
+    "model": "qwen/qwen3.7-flash",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 2
+  },
+  "B020": {
+    "model": "qwen/qwen3.7-flash",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 1
+  },
+  "B021": {
+    "model": "google/gemini-3.5-flash-lite",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 3
+  },
+  "B022": {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 3
+  }
+}
