@@ -64,6 +64,8 @@ function routeName(req: IncomingMessage): { root: boolean; name?: string } | und
 
 export function sharedTowersHandler({ library, home, hub, legacy }: SharedTowersOptions) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    // A satellite or a plain local library keeps no shared towers: only a hub has this route.
+    if (!hub) return send(res, 404, { error: 'not a hub' });
     // Every route needs a presented token: a local request with no token is not a sender, so it is refused too.
     const authz = authorize(req, { legacy, home, hub });
     if (!authz.ok || !authz.sender) return send(res, 401, { error: 'a sender token is required' });

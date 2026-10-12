@@ -112,3 +112,17 @@ describe('shared towers (#164)', () => {
     expect(post.status).toBe(405);
   });
 });
+
+describe('shared towers off a hub (#164)', () => {
+  it('a server that is not a hub has no such route', async () => {
+    const plain = createServer(sharedTowersHandler({ library, home, hub: false }));
+    await new Promise<void>((r) => plain.listen(0, '127.0.0.1', r));
+    try {
+      const url = `http://127.0.0.1:${(plain.address() as AddressInfo).port}/demo`;
+      const res = await fetch(url, { method: 'PUT', headers: { 'content-type': 'application/json', 'x-flow-tower-token': boxToken }, body: JSON.stringify({ files: files() }) });
+      expect(res.status).toBe(404);
+    } finally {
+      await new Promise<void>((r) => plain.close(() => r()));
+    }
+  });
+});

@@ -8,5 +8,6 @@ export function machineId(raw: string): string {
   return short
     .replace(/[^a-z0-9-]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 32);
+    .slice(0, 32)
+    .replace(/-+$/, ''); // the cut can end on a dash
 }

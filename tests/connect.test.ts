@@ -212,5 +212,7 @@ describe('machineId (#164)', () => {
     expect(machineId('fedora_box 2')).toBe('fedora-box-2');
     expect(machineId('---')).toBe('');
     expect(machineId('a'.repeat(50))).toHaveLength(32);
+    // A cut that lands on a dash must not leave it at the end: the hub would still accept it, but it reads as a typo.
+    expect(machineId(`${'a'.repeat(31)}-bbb`)).toBe('a'.repeat(31));
   });
 });

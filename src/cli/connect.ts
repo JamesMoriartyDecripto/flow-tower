@@ -62,7 +62,8 @@ if (!parsed || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
 
 /** --machine as given, else the hostname turned into a slug the hub accepts. */
 const machine = values.machine?.trim() || machineId(hostname());
-if (!machine) {
+// Only enrolment needs a name; with --token the hub names the sender from the token id.
+if (!machine && !givenToken) {
   console.error('could not derive a machine name from this hostname: pass --machine <name>');
   exit(1);
 }
