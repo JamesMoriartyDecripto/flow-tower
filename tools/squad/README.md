@@ -50,7 +50,7 @@ coder run, no change at all, or a red `npm run check`. Each commit stages every 
 not a fixed list, so files like `package.json` or `NEXT.md` are never left out; new files are staged inside the
 `write-dirs`, and anything untracked outside them is reported as `UNTRACKED LEFT (not committed)`. Probe files the
 coder dropped (`tmp*`, `probe`, `scratch`) are removed first. Trailers are session-specific, so pass them in
-`SQUAD_TRAILERS` (one per line) or leave them out.
+`SQUAD_TRAILERS` (one per line) or leave them out. Each step commit is signed off (`git commit -s`, the DCO rule in CONTRIBUTING.md) with the git identity of whoever runs the squad.
 
 `run.mjs` needs `OPENROUTER_API_KEY`: the environment, else `~/.config/flow-tower/.env` (or `FLOW_TOWER_HOME`), else the
 git-ignored `.env` of the checkout. The key never leaves the process and is never printed. `--node specialists.coder`

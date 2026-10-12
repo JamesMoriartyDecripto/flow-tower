@@ -5,7 +5,7 @@ description: Turn the user's own Flow Tower (`*.tower.yaml`) into an anonymised,
 
 # Flow Tower: contribute a tower to the examples gallery
 
-CLI: `{{FLOW_TOWER_CLI}}` (setup: see the [flow-tower skill](../flow-tower/SKILL.md)). Rules: [CONTRIBUTING.md](../../CONTRIBUTING.md). Details, checklists and exact commands: [reference.md](reference.md).
+CLI: `{{FLOW_TOWER_CLI}}` (setup: see the [flow-tower skill](../flow-tower/SKILL.md)). Rules: [CONTRIBUTING.md](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/CONTRIBUTING.md). Details, checklists and exact commands: [reference.md](reference.md).
 
 ## Steps
 

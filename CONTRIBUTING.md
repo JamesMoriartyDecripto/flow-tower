@@ -46,6 +46,7 @@ npm run e2e        # Playwright sweep of every example tower (uses your installe
 - Push fixes as new commits on the same branch.
 - Mark a thread resolved only when it is fixed.
 - The maintainer merges. `main` is protected: no direct or force pushes.
+- Every PR needs the CI checks and a review by the maintainer (CODEOWNERS). Workflows on PRs from forks run after the maintainer approves them.
 
 ## Licence of contributions
 

@@ -87,7 +87,7 @@ git add examples/<name> examples/README.md CHANGELOG.md
 git commit -s -m "feat(examples): add <name>"
 git push -u origin examples/<name>
 
-# 4. PR; the body file starts from .github/pull_request_template.md
+# 4. PR; the body file starts from https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/.github/pull_request_template.md
 gh pr create -R JamesMoriartyDecripto/flow-tower --head <you>:examples/<name> \
   --title "feat(examples): add <name>" --body-file pr-body.md
 
@@ -97,6 +97,6 @@ git push
 
 ## PR checklist
 
-The PR body is the repo's `.github/pull_request_template.md`: fill every section and keep the "Example tower" block. Say that an AI agent helped.
+The PR body is the repo's [pull request template](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/.github/pull_request_template.md): fill every section and keep the "Example tower" block. Say that an AI agent helped.
 
-Link the issue with `Fixes #<n>`. Rules: [CONTRIBUTING.md](../../CONTRIBUTING.md).
+Link the issue with `Fixes #<n>`. Rules: [CONTRIBUTING.md](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/CONTRIBUTING.md).
