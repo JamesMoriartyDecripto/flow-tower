@@ -168,8 +168,10 @@ function Document({ built, level, print }: { built: Built; level: DocLevel; prin
       {doc.chapters.map((c) => (
         <article key={c.id} className="chapter" data-tower={c.towerId}>
           <ChapterHead chapter={c} />
-          <SnapFigure towerTitle={c.title} layers={c.layers.length} snap={snaps[c.towerId]} />
-          {charts[c.id] && <ChapterOverview id={c.id} charts={charts[c.id]} title={c.title} />}
+          {charts[c.id]
+            ? <ChapterOverview id={c.id} charts={charts[c.id]} title={c.title}
+                snap={<SnapFigure towerTitle={c.title} layers={c.layers.length} snap={snaps[c.towerId]} />} />
+            : <SnapFigure towerTitle={c.title} layers={c.layers.length} snap={snaps[c.towerId]} />}
           {c.layers.map((l) => (
             <div key={l.id} className="layer-block">
               <LayerBlock section={l} level={level} markup={images.layers[l.id]} />

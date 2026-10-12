@@ -152,14 +152,61 @@ table.frame tr:last-child th, table.frame tr:last-child td { border-bottom: 0; }
 table.models { width: auto; min-width: 60%; margin-top: 12px; }
 td.num, th.num { text-align: right; }
 
-/* Overview charts: the matrix and the composition share a page when they fit; each figure keeps together. */
-.overview { margin: 16px 0; }
-.overview h3 { margin-top: 0; }
-.chart-pair { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; break-inside: avoid; }
-.chart { margin: 12px 0; break-inside: avoid; }
-.chart svg { max-width: 100%; height: auto; }
-.chart figcaption { font-size: 8.5pt; color: var(--muted); margin-top: 4px; }
-.chart-table table { width: auto; min-width: 60%; }
+/*
+ * Overview charts. One 12-column grid with a fixed 6mm gutter; every chart is a card, and a card spans 6 or 12
+ * columns. Cards in a row stretch to the same height, so the drawing scales inside its card. Two fixed pages:
+ * page B starts a new page, unless the chapter is short (the class is set from the data, not measured), in which
+ * case its rows flow on after page A's snapshot.
+ */
+.overview { margin: 0; }
+.overview h3 { margin: 0 0 3mm; }
+.overview .page-b { break-before: page; }
+.overview-flow .page-b { break-before: auto; margin-top: 6mm; }
+.overview-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6mm; align-items: stretch; }
+.overview-grid > .span-6 { grid-column: span 6; }
+.overview-grid > .span-12 { grid-column: span 12; }
+.page-a .overview-grid { margin-top: 6mm; }
+
+/* The shared metrics of every bar chart: the label column, the track and the value column are the same width in
+   every card, so the bars start at one x. */
+:root { --bar-label-w: 34mm; --bar-h: 3.5mm; --bar-gap: 1.6mm; --bar-value-w: 12mm; }
+
+.chart-card {
+  margin: 0; min-width: 0; box-sizing: border-box; padding: 4mm;
+  border: .2mm solid var(--rule); border-radius: 2px; break-inside: avoid;
+}
+.chart-card > figcaption { display: block; margin: 0 0 3mm; }
+.chart-title {
+  display: block; font: 700 8.5pt var(--sans); font-variant: small-caps; letter-spacing: .08em;
+  color: var(--accent);
+}
+.chart-note { display: block; font-size: 8pt; color: var(--muted); margin-top: 0.5mm; }
+.chart-body { min-width: 0; }
+.chart-body svg { display: block; }
+/* The matrix is square: its viewBox is square, so the width of the card sets the cell size. */
+svg.matrix { width: 100%; height: auto; }
+.matrix-head { font-family: var(--sans); font-size: 9px; font-weight: 700; }
+
+/* Bar rows: label | track | value. The track is a hairline bar; the fill is the share of the largest. */
+.bars { list-style: none; margin: 0; padding: 0; }
+.bar-row {
+  display: grid; grid-template-columns: var(--bar-label-w) minmax(0, 1fr) var(--bar-value-w);
+  align-items: center; column-gap: 2mm; margin-bottom: var(--bar-gap);
+  font-size: 8pt; line-height: 1.2;
+}
+.bar-row:last-child { margin-bottom: 0; }
+.bar-label { text-align: right; color: var(--muted); overflow-wrap: break-word; }
+.bar-track { display: block; height: var(--bar-h); background: var(--rule); }
+.bar-fill { display: flex; height: 100%; max-width: 100%; }
+.bar-seg { display: block; height: 100%; min-width: 0; }
+.bar-seg + .bar-seg { border-left: .2mm solid #ffffff; }
+.bar-value { text-align: left; color: var(--ink); padding-left: 1.5mm; font-variant-numeric: tabular-nums; }
+
+/* Tables in a card take the card's width, with the doc's table style: zebra rows and a repeated header. */
+table.chart-table { width: 100%; margin: 0; font-size: 8.5pt; }
+table.chart-table th, table.chart-table td { overflow-wrap: break-word; white-space: normal; }
+table.chart-table th.num, table.chart-table td.num { white-space: nowrap; }
+table.chart-table tbody tr:nth-child(even) td { background: var(--zebra); }
 .chart-name { max-width: 240px; }
 ul.tree, ul.tree ul { list-style: none; margin: 0; padding-left: 18px; border-left: 1px solid var(--rule); }
 ul.tree { padding-left: 0; border-left: 0; }
@@ -225,7 +272,8 @@ table.findings td:first-child { width: 8%; }
 .snap-figure { margin: 0 0 12px; break-inside: avoid; }
 /* The plate is the dashboard's dark field, with the doc's rounded frame; the image is cropped to the tower, so it fills the width. */
 .snap-plate { position: relative; border-radius: 3px; background: var(--plate); padding: 6px; box-sizing: border-box; overflow: hidden; }
-.snap-figure img { display: block; width: 100%; height: auto; max-height: 150mm; object-fit: contain; }
+/* A fixed height and a cover crop: every chapter's 3D view takes the same space on page A. */
+.snap-figure img { display: block; width: 100%; height: 95mm; object-fit: cover; }
 .snap-figure figcaption { font: 600 8.5pt var(--sans); color: var(--muted); margin-top: 4px; }
 .snap-missing { border: .3mm dashed var(--rule); padding: 10mm; text-align: center; color: var(--muted); font: 600 9pt var(--sans); }
 .layer-block { break-before: page; }

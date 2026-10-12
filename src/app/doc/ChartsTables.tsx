@@ -1,16 +1,17 @@
 import type { ConnectedNode, LayerTable, TowerTree } from '../../core/docCharts';
+import { ChartCard } from './ChartCard';
 
 /*
  * The chart figures that are tables, not drawings: a table reads better than bars when a reader looks up
- * one node or one count. They carry the same `data-chart` marker as the SVG figures, so the document check
- * counts every chart of a chapter the same way.
+ * one node or one count. They sit in the same cards as the drawings and carry the same `data-chart` marker,
+ * so the document check counts every chart of a chapter the same way.
  */
 
-/** The most-connected nodes: ref, name, layer, and how many edges come in and go out. */
-export function ConnectedFigure({ rows }: { rows: ConnectedNode[] }) {
+/** The most-connected nodes: ref, name, layer, and how many edges come in and go out. Always full width. */
+export function ConnectedFigure({ rows, note }: { rows: ConnectedNode[]; note: string }) {
   return (
-    <figure className="chart chart-table" data-chart="connected">
-      <table>
+    <ChartCard name="connected" title="Most connected nodes" note={note} span={12}>
+      <table className="chart-table">
         <thead>
           <tr><th>Ref</th><th>Node</th><th>Layer</th><th className="num">In</th><th className="num">Out</th></tr>
         </thead>
@@ -28,8 +29,7 @@ export function ConnectedFigure({ rows }: { rows: ConnectedNode[] }) {
             : <tr><td colSpan={5} className="muted">No edge joins two nodes.</td></tr>}
         </tbody>
       </table>
-      <figcaption>Most connected nodes: the edges into and out of each, most first.</figcaption>
-    </figure>
+    </ChartCard>
   );
 }
 
@@ -37,14 +37,13 @@ export function ConnectedFigure({ rows }: { rows: ConnectedNode[] }) {
  * The sub-tower tree of a root: each tower indented under the one that uses it, with a connector line down
  * its parent and the counts beside its name. The tree is a nested list, so the indentation survives print.
  */
-export function TreeFigure({ tree }: { tree: TowerTree }) {
+export function TreeFigure({ tree, note }: { tree: TowerTree; note: string }) {
   return (
-    <figure className="chart chart-tree" data-chart="tree">
+    <ChartCard name="tree" title="Sub-tower tree" note={note} span={12}>
       <ul className="tree">
         <TreeNode node={tree} />
       </ul>
-      <figcaption>Sub-tower tree: each tower with its layers and nodes.</figcaption>
-    </figure>
+    </ChartCard>
   );
 }
 
@@ -62,12 +61,14 @@ function TreeNode({ node }: { node: TowerTree }) {
 
 /**
  * Nodes per layer against one column each (runtime or model). A zero is a dot, so an empty cell is not
- * mistaken for a missing one.
+ * mistaken for a missing one. The table takes the card's width, and its model ids wrap only at `/` and `-`.
  */
-export function LayerTableFigure({ name, table, caption }: { name: string; table: LayerTable; caption: string }) {
+export function LayerTableFigure({ name, table, title, note, span }: {
+  name: string; table: LayerTable; title: string; note: string; span: 6 | 12;
+}) {
   return (
-    <figure className="chart chart-table" data-chart={name}>
-      <table>
+    <ChartCard name={name} title={title} note={note} span={span}>
+      <table className="chart-table">
         <thead>
           <tr><th>Layer</th>{table.columns.map((c) => <th key={c} className="num">{c}</th>)}</tr>
         </thead>
@@ -83,7 +84,6 @@ export function LayerTableFigure({ name, table, caption }: { name: string; table
         </tbody>
       </table>
       {table.columns.length === 0 && <p className="legend-line">None recorded in this tower.</p>}
-      <figcaption>{caption}</figcaption>
-    </figure>
+    </ChartCard>
   );
 }

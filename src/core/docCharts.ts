@@ -203,6 +203,34 @@ export interface ChapterCharts {
   tree?: TowerTree;
 }
 
+/** A table wider than this many columns (its label column included) takes the full width of the page. */
+export const WIDE_TABLE_COLUMNS = 5;
+
+/** A half-width card cannot hold a table of more columns than this, so the card spans the whole row. */
+export function isWideTable(table: LayerTable): boolean {
+  return table.columns.length + 1 > WIDE_TABLE_COLUMNS;
+}
+
+/**
+ * The rows of page B, counted in table lines: the governance rows, the edge kinds, the most-connected nodes,
+ * the two layer tables and the tree's towers. A small tower's page B is short, so it flows onto page A.
+ */
+export const PAGE_B_FLOW_LINES = 24;
+
+function treeSize(t: TowerTree): number {
+  return 1 + t.children.reduce((n, c) => n + treeSize(c), 0);
+}
+
+export function pageBLines(c: ChapterCharts): number {
+  return CONTROLS.length + c.edges.length + c.connected.length
+    + c.runtimes.rows.length + c.models.rows.length + (c.tree ? treeSize(c.tree) : 0);
+}
+
+/** True when page B is short enough that its rows may start on page A, after the snapshot and the matrix. */
+export function pageBFlows(c: ChapterCharts): boolean {
+  return pageBLines(c) <= PAGE_B_FLOW_LINES;
+}
+
 export function chapterCharts(ws: Workspace, towerId: string, root: boolean): ChapterCharts {
   const t = ws.towers[towerId];
   return {
