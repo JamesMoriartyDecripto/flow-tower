@@ -4,7 +4,7 @@
  * browser. Metadata only: a row is built from allow-listed identity fields, so a `message`, `data`, a
  * tool argument or prompt text can never end up in it.
  */
-import type { FlowEvent } from '../core/events';
+import { splitTarget, type FlowEvent } from '../core/events';
 
 /** A row is live within two minutes: the run is lit, a longer gap means it probably just started or ended. */
 export const RUN_MS = 120_000;
@@ -13,18 +13,53 @@ export const IDLE_MS = 900_000;
 
 export type NowState = 'run' | 'idle' | 'silent';
 
+/**
+ * The last error of a group: when it happened, the node label it landed on and the tool it ran. Never the
+ * message: an error text is free text from the event, so the Now tab only names it and points at the Live feed.
+ */
+export interface NowError {
+  ts: number;
+  node?: string;
+  tool?: string;
+}
+
 /** One line of the Now tab: who runs what, where, and how recently. */
 export interface NowRow {
+  /** Stable React key: the group key the row was built from. */
+  key: string;
   machine: string;
   runtime: string;
   project: string;
   /** A person, or 'AUTO' when the event carries no user or looks like a scheduled/CI run. */
   startedBy: string;
+  /** Tower name of the latest event that had a target; else the project; else '–'. */
+  tower: string;
+  /** Label of the node the latest targeted event landed on. */
+  node?: string;
+  /** "towerId#node" of that latest target, so the UI can jump there. */
+  target?: string;
+  lastError?: NowError;
   /** Latest ts of the group, so the UI can sort and the state can be derived. */
   last: number;
   state: NowState;
   count: number;
 }
+
+/** What a "towerId#node" target shows as: the tower name and the node label, both from the library. */
+export interface TargetLabel {
+  tower: string;
+  node?: string;
+}
+/** Maps a target to its labels. Without a workspace the ids themselves are the labels. */
+export type ResolveTarget = (target: string) => TargetLabel;
+
+/** An error for the Now tab: the status the source set, or the error kind (the same rule the Live feed uses). */
+const isError = (e: FlowEvent) => e.status === 'error' || e.kind === 'error';
+
+const idLabels: ResolveTarget = (target) => {
+  const [tower, node] = splitTarget(target);
+  return { tower, node };
+};
 
 /**
  * Runtimes that act on their own: a scheduled job or CI runner has no human behind it, so naming it AUTO
@@ -39,6 +74,13 @@ const projectOf = (e: FlowEvent) => e.project ?? '–';
 const startedByOf = (e: FlowEvent) =>
   !e.user || AUTO_RE.test(e.runtime ?? '') || AUTO_RE.test(e.source ?? '') ? 'AUTO' : e.user;
 
+/** A short, stable hash of a group key (FNV-1a): unique enough per render, and it hides the text it came from. */
+const hashKey = (s: string): string => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(36);
+};
+
 /** A group is state, then recency: run first, and the more recent first within a state. */
 const stateOf = (last: number, now: number): NowState =>
   now - last < RUN_MS ? 'run' : now - last < IDLE_MS ? 'idle' : 'silent';
@@ -46,29 +88,67 @@ const stateOf = (last: number, now: number): NowState =>
 const RANK: Record<NowState, number> = { run: 0, idle: 1, silent: 2 };
 
 /**
- * One row per (machine, runtime, project, startedBy) seen among the live events: a group is a "who is
- * doing what", so several events from the same runner collapse onto one line with a count. `now` is a
- * parameter so the state thresholds can be tested with a fake clock.
+ * One row per (machine, session) seen among the live events; events with no session fall back to the old
+ * (machine, runtime, project, startedBy) key, since a session-less event cannot be told apart otherwise.
+ * A group is a "who is doing what", so its events collapse onto one line with a count. The identity
+ * fields, tower and node come from the group's latest event (the one that says where it is now), and the
+ * last error is the latest one with an error status. `now` is a parameter so the state thresholds can be
+ * tested with a fake clock; `resolve` turns a target into labels (the library names when a workspace is
+ * loaded, the raw ids otherwise).
  */
-export function nowRows(events: FlowEvent[], now: number): NowRow[] {
-  const groups = new Map<string, NowRow>();
+export function nowRows(events: FlowEvent[], now: number, resolve: ResolveTarget = idLabels): NowRow[] {
+  const groups = new Map<string, FlowEvent[]>();
   for (const e of events) {
     const machine = machineOf(e);
-    const runtime = runtimeOf(e);
-    const project = projectOf(e);
-    const startedBy = startedByOf(e);
-    // JSON of the four fields: a separator character could collide inside a project or user name.
-    const key = JSON.stringify([machine, runtime, project, startedBy]);
-    const row = groups.get(key);
-    if (row) {
-      row.count += 1;
-      row.last = Math.max(row.last, e.ts);
-    } else {
-      groups.set(key, { machine, runtime, project, startedBy, last: e.ts, state: 'silent', count: 1 });
-    }
+    // JSON of the parts: a separator character could collide inside a session, project or user name.
+    const key = e.session !== undefined
+      ? JSON.stringify([machine, 'session', e.session])
+      : JSON.stringify([machine, runtimeOf(e), projectOf(e), startedByOf(e)]);
+    const list = groups.get(key);
+    if (list) list.push(e);
+    else groups.set(key, [e]);
   }
-  const rows = [...groups.values()];
-  for (const row of rows) row.state = stateOf(row.last, now);
+  const rows: NowRow[] = [];
+  for (const [group, list] of groups) {
+    // The group key holds the session text, so the row gets a hash of it instead: a stable React key with no free text.
+    const key = hashKey(group);
+    // Latest first, ties keep the input order: the first event of the newest timestamp wins.
+    let latest = list[0];
+    let latestTarget: FlowEvent | undefined;
+    let error: FlowEvent | undefined;
+    let last = list[0].ts;
+    for (const e of list) {
+      if (e.ts > latest.ts) latest = e;
+      last = Math.max(last, e.ts);
+      if (e.targets.length && (!latestTarget || e.ts > latestTarget.ts)) latestTarget = e;
+      if (isError(e) && (!error || e.ts > error.ts)) error = e;
+    }
+    const target = latestTarget?.targets[0];
+    const labels = target !== undefined ? resolve(target) : undefined;
+    const row: NowRow = {
+      key,
+      machine: machineOf(latest),
+      runtime: runtimeOf(latest),
+      project: projectOf(latest),
+      startedBy: startedByOf(latest),
+      tower: labels?.tower || projectOf(latest) || '–',
+      node: labels?.node,
+      target,
+      last,
+      state: stateOf(last, now),
+      count: list.length,
+    };
+    if (error) {
+      const errTarget = error.targets[0];
+      // Only resolved names and the tool: the event's message stays out of the row.
+      row.lastError = {
+        ts: error.ts,
+        node: errTarget !== undefined ? resolve(errTarget).node : undefined,
+        tool: error.tool,
+      };
+    }
+    rows.push(row);
+  }
   // Run, idle, silent; newest first inside each; the key breaks a tie so the order never depends on input.
   return rows.sort((a, b) =>
     RANK[a.state] - RANK[b.state] ||
@@ -76,8 +156,12 @@ export function nowRows(events: FlowEvent[], now: number): NowRow[] {
     a.machine.localeCompare(b.machine) ||
     a.runtime.localeCompare(b.runtime) ||
     a.project.localeCompare(b.project) ||
-    a.startedBy.localeCompare(b.startedBy));
+    a.startedBy.localeCompare(b.startedBy) ||
+    a.key.localeCompare(b.key));
 }
+
+/** How many Now rows are live right now: the library header chip counts these ("● 2 working"). */
+export const workingCount = (rows: NowRow[]): number => rows.filter((r) => r.state === 'run').length;
 
 /** A coarse age, floored and unit-suffixed: "12 s", "4 m", "3 h", "41 d". A future/negative age reads "0 s". */
 export function ago(ms: number): string {

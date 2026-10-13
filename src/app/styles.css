@@ -577,7 +577,13 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .hub-row { display: grid; grid-template-columns: 1fr; gap: 3px; padding: 6px;
   font: 12.5px var(--mono); border-left: 2px solid transparent; }
 /* The flexible middle column (sender/machine) ellipsizes; the two auto columns keep their width. */
-.hub-main { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.hub-main { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+/* The Now row is a button (it jumps to its node): drop the button chrome so it reads as the text it is. */
+.hub-jump { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; font: inherit; }
+.hub-jump:disabled { cursor: default; }
+.hub-jump:focus-visible { outline: 1px solid var(--line); outline-offset: 2px; }
+.hub-where { color: var(--cyan, inherit); }
+.hub-error { color: var(--live-error); font-size: 11px; padding-left: 22px; }
 .hub-sender { font-weight: 600; color: var(--white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The right-hand cell (state · ago on Now, seen … on Machines): dim, small, never pushed out. */
 .hub-right, .hub-seen { color: var(--dim); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

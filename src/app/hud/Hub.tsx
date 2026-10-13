@@ -1,7 +1,11 @@
 import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { create } from 'zustand';
-import { ago, alertsPill, hubPill, machineState, nowRows, type AlertsView, type NowRow, type NowState } from '../hub';
+import { splitTarget } from '../../core/events';
+import type { Workspace } from '../../core/types';
+import { ago, alertsPill, hubPill, machineState, nowRows, workingCount, type AlertsView, type NowRow, type NowState, type ResolveTarget } from '../hub';
+import { towerPath } from '../graph';
 import { useLive } from '../live';
+import { findNode, useStore } from '../store';
 import { STATIC } from '../staticData';
 import { AlertsTab, readAlerts } from './HubAlerts';
 import { HubAdmin } from './HubAdmin';
@@ -143,7 +147,10 @@ export function HubPanel() {
     return () => { ac.abort(); clearInterval(t); };
   }, [open, tab]);
 
-  const rows = useMemo(() => nowRows(events, now), [events, now]);
+  const ws = useStore((s) => s.workspace);
+  // Targets are "towerId#node": with a workspace loaded they read as the tower name and node label.
+  const resolve = useMemo(() => resolveIn(ws), [ws]);
+  const rows = useMemo(() => nowRows(events, now, resolve), [events, now, resolve]);
 
   /**
    * WAI-ARIA tabs pattern on the tablist: ← → move the selection and the focus together. We handle it
@@ -183,7 +190,7 @@ export function HubPanel() {
       </nav>
       <div className="tabbody" id="hub-panel" role="tabpanel" aria-labelledby={`hub-tab-${tab}`}>
         {/* Admin controls (#93) must render here only when !me.readOnly: hidden for a viewer, never greyed out. */}
-        {tab === 'now' && <NowTab rows={rows} now={now} />}
+        {tab === 'now' && <NowTab rows={rows} now={now} ws={ws} />}
         {tab === 'machines' && <MachinesTab rows={machines} now={now} failed={failed} />}
         {tab === 'alerts' && <AlertsTab view={alerts} canAct={!!me && !me.readOnly} onChanged={() => void readAlerts(useHub.getState().setAlerts)} />}
         {tab === 'admin' && adminVisible(me) && <HubAdmin />}
@@ -198,32 +205,77 @@ export function HubPanel() {
  * and seven-character machines), so a row reads on two lines like MachinesTab: identity first, dim
  * metadata second. No header row: each value carries a `title`, which a cut column header never could.
  */
-function NowTab({ rows, now }: { rows: NowRow[]; now: number }) {
+function NowTab({ rows, now, ws }: { rows: NowRow[]; now: number; ws?: Workspace }) {
   if (!rows.length) return <p className="hub-empty">No live activity yet.</p>;
   return (
     <div className="hub-rows">
       {rows.map((r) => (
-        <div className="hub-row" key={`${r.machine}\n${r.runtime}\n${r.project}\n${r.startedBy}`}>
-          <div className="hub-main">
+        <div className="hub-row" key={r.key}>
+          {/* The row opens the tower and node the latest event landed on; the error line opens its own node. */}
+          <button className="hub-main hub-jump" disabled={!r.target} onClick={() => jumpToTarget(ws, r.target)}
+            title={r.target ? `Open ${r.tower}${r.node ? ` › ${r.node}` : ''}` : 'No node matched this activity'}>
             <span className={`hub-dot ${r.state}`} title={r.state}>{DOT[r.state]}</span>
             {/* Every cell is ellipsized by CSS, so its title carries the value the cut hides. */}
             <span className="hub-sender" title={r.machine}>{r.machine}</span>
             <span className="hub-cell" title={r.startedBy === 'AUTO' ? 'Started automatically' : r.startedBy}>
               {r.startedBy === 'AUTO' ? <span className="chip hub-auto">AUTO</span> : r.startedBy}
             </span>
+            <span className="hub-cell hub-where" title={`${r.tower}${r.node ? ` › ${r.node}` : ''}`}>
+              {r.tower}{r.node && <><span className="hub-sep" aria-hidden="true"> › </span>{r.node}</>}
+            </span>
             <span className="hub-right" title={`${r.state} · ${ago(now - r.last)}`}>{r.state} · {ago(now - r.last)}</span>
-          </div>
+          </button>
           <div className="hub-meta">
             <span className="hub-cell" title={r.runtime}>{r.runtime}</span>
             <span className="hub-sep" aria-hidden="true">·</span>
-            <span className="hub-cell" title={r.project}>{r.project}</span>
-            <span className="hub-sep" aria-hidden="true">·</span>
             <span className="hub-cell" title={`${r.count} events`}>{r.count} {r.count === 1 ? 'event' : 'events'}</span>
           </div>
+          {r.lastError && (
+            // The error no longer carries its target, so this line only names the failure; the Live feed has the details.
+            <div className="hub-error"
+              title={`Last error on ${r.lastError.node ?? r.tower} (${r.lastError.tool ?? 'unknown tool'}) — open the Live feed for details`}>
+              ✕ error · <span className="hub-cell">{r.lastError.node ?? r.lastError.tool ?? '–'}</span> · {ago(now - r.lastError.ts)}
+            </div>
+          )}
         </div>
       ))}
     </div>
   );
+}
+
+/**
+ * Labels for a "towerId#node" target from the loaded library: the tower's name and the node's label. With no
+ * workspace yet, the ids stand in, so the rows still show something.
+ */
+export function resolveIn(ws?: Workspace): ResolveTarget {
+  return (target) => {
+    const [towerId, key] = splitTarget(target);
+    const tower = ws?.towers[towerId];
+    const node = tower && findNode(tower, key);
+    return { tower: tower?.name ?? towerId, node: node?.label ?? key };
+  };
+}
+
+/**
+ * Open the tower a target names on its node. Same mechanism as the Live feed's jump: the tower on screen gets
+ * a select (and a layer focus), any other tower is opened by its path. The library overlay may hide the
+ * panel, so it is closed first by the caller's action (the Hub panel is the one the user just clicked).
+ */
+function jumpToTarget(ws: Workspace | undefined, target: string | undefined) {
+  if (!target || !ws) return;
+  const [towerId, key] = splitTarget(target);
+  const s = useStore.getState();
+  const node = findNode(ws.towers[towerId], key);
+  if (!node) return;
+  const current = s.stack[s.stack.length - 1];
+  if (towerId === current) {
+    s.select(key);
+    const tower = ws.towers[towerId];
+    if (s.focusedLayer !== undefined) s.focusLayer(tower.layers.findIndex((l) => l.id === node.layer));
+    return;
+  }
+  const path = towerPath(ws, towerId);
+  if (path) s.openPath(path, key);
 }
 
 /** Every sender the hub knows: its token row, when it was last heard from and what it queued. */
@@ -327,6 +379,35 @@ export function HubChip() {
         <span className="chip warn hub-ro" title="Remote viewer: nothing here can change the hub">READ-ONLY</span>
       )}
     </>
+  );
+}
+
+/** The Now clock for the library chip: ages and run states change without new events, so it ticks too. */
+const WORKING_MS = 5000;
+
+/**
+ * "● 2 working" in the library header: how many Now rows are running right now. Only on a hub, and hidden
+ * at zero so a quiet library stays quiet. Clicking it opens Hub › Now; the library overlay covers the panel,
+ * so it is closed first (the same reason AlertsPill takes an onOpen).
+ */
+export function WorkingChip({ onOpen }: { onOpen: () => void }) {
+  const hub = useHub((s) => !!s.me?.hub);
+  const events = useLive((s) => s.events);
+  const ws = useStore((s) => s.workspace);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!hub) return;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), WORKING_MS);
+    return () => clearInterval(t);
+  }, [hub]);
+  const resolve = useMemo(() => resolveIn(ws), [ws]);
+  const working = useMemo(() => workingCount(nowRows(events, now, resolve)), [events, now, resolve]);
+  if (!hub || !working) return null;
+  return (
+    <button className="chip clickable working-chip" onClick={onOpen} title="Working right now (H › Now)">
+      ● {working} working
+    </button>
   );
 }
 
