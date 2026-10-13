@@ -45,7 +45,7 @@ To stop later: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub; `<na
 
 ## 5. Start the local library
 
-`{{FLOW_TOWER_CLI}} library --no-open [--port N]`, and keep it running: in the background (`nohup … > ~/flow-tower.log 2>&1 & echo $! > ~/flow-tower.pid`, keeping any `FLOW_TOWER_HOME` the machine uses on the same line) or in a terminal the user leaves open. If it was already running, leave it: it picks up `connect` within 5 s, with no restart. An `ExperimentalWarning` about SQLite in the log is normal. The relay and the tower sync run inside it: `connect` and `share` alone send no live events and keep nothing in sync. From now on a change to a shared tower reaches the hub within ~15 s.
+Offer `{{FLOW_TOWER_CLI}} service install [--port N]` (ask first): it keeps the library running at login (a systemd user unit on Linux, a launchd agent on macOS) with this machine's `FLOW_TOWER_HOME`, so no event is lost; `service status` checks it, `service uninstall` removes it. On Linux without a desktop login, also `loginctl enable-linger $USER`. Without systemd or launchd: `{{FLOW_TOWER_CLI}} library --no-open [--port N]` in the background (`nohup … > ~/flow-tower.log 2>&1 &`) or a terminal left open. A running library picks up `connect` within 5 s. An `ExperimentalWarning` about SQLite in the log is normal. The relay and the tower sync run inside it: from then on a change to a shared tower reaches the hub within ~15 s. If the library is down anyway, `emit` (Codex, Pi JSON mode, SessionStart) posts straight to the hub; Claude Code's http hooks cannot, so keep the service on.
 
 ## 6. Live events from the agents (ask first)
 
