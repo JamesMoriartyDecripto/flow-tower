@@ -153,6 +153,18 @@ paused token shows ✕). The top-bar `HUB n/m` pill reads senders seen in the la
 A remote viewer gets the same panel, read-only, with a `READ-ONLY` pill. It reads `/api/hub/machines`
 and `/api/hub/me`; [security model](hub-reference.md#security-model).
 
+**Alerts** lists what the hub warns about ([hub-alerts.md](hub-alerts.md)). **Admin** appears only on the hub machine
+itself (never for a remote viewer, and its routes answer 404 to remote requests). From there you can:
+- add a sender: its token and the `flow-tower connect` line are shown **once**, so copy them then; on loopback, replace
+  `127.0.0.1` with the address other machines use;
+- pause, resume or revoke a sender (type its id to revoke);
+- manage the viewers, each sender's cadence (which sets the silent alert), monthly budgets in USD and the alert switches;
+- set the raw retention days, and delete events before a date after a preview count (the monthly totals in the
+  rollups stay, so budgets keep counting).
+
+Every change writes one line to `admin-audit.jsonl` in the user folder (0600, never a token), shown at the bottom of
+the tab. Everything there is also a field of `config.json` or a `flow-tower token` command, for scripts.
+
 ## Configuration file
 
 Hub and `emit` settings share one file: `~/.config/flow-tower/config.json` (or `$FLOW_TOWER_HOME/config.json`), JSONC. It holds the hub's `hub`, `host`, `allowedHosts`, `ingestOnly`, `viewers`, `retentionDays` and a sender's `url`, `user`, `machine`, `token`, so one machine needs no pile of environment variables. A checkout may also carry a git-ignored `flow-tower.local.json` next to `package.json` for the machine it sits on; the user's own file wins key by key. [`config.example.json`](../config.example.json) lists every key with a one-line comment.

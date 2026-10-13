@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Hub › Admin (#93), on the hub machine only: add a sender (token and connect line shown once), pause, resume, revoke by typing its id; viewers; cadence per sender; budgets; alert switches; retention days and delete-before with a preview count. Every change writes a line to `admin-audit.jsonl` (0600, never a token); remote requests get 404. The privacy profile wizard waits for #85.
 - Hub alerts (#94): an always-on machine gone silent, monthly spend at 80% / 100% of a budget (USD, per project or global), an error spike (over 3× the 7-day hourly median, at least 5), a token used from a new host. A `⚠ n` pill in the top bar and the library header opens Hub › Alerts; ack and snooze (1 h / 1 d) from the hub machine only. Rules switch off per name in `config.json` `alerts`; `budgets` are documented as USD, the history's currency.
 
 ### Added
