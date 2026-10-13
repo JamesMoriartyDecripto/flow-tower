@@ -1,6 +1,6 @@
 # Architecture: app, scene, HUD
 
-Which browser file owns what. Overview: [architecture.md](architecture.md).
+Which browser file owns what: navigation and live state (zustand stores), the three.js scene batched per layer, and the HUD panels (Inspector, library, voice, hub). Overview: [architecture.md](architecture.md).
 
 ## App state
 

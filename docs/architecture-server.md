@@ -1,6 +1,6 @@
 # Architecture: server and hub
 
-Which file of the server owns what. Overview, core and reports: [architecture.md](architecture.md); commands: [architecture-cli.md](architecture-cli.md).
+Which server file owns what: API routes, the event hub, per-sender tokens (`src/server/tokens.ts`), auth, limits, the satellite relay, the config, sharing and enrolment, history, update checks and the voice routes. Overview, core and reports: [architecture.md](architecture.md); commands: [architecture-cli.md](architecture-cli.md).
 
 | File | Open it when |
 |---|---|

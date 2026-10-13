@@ -1,6 +1,6 @@
 # Architecture: CLI
 
-Which file implements each `flow-tower` command. Overview: [architecture.md](architecture.md); the server they start: [architecture-server.md](architecture-server.md).
+Which file implements each `flow-tower` command: serve, connect, validate, copy, check-example, library, config, share, token, history, export, audit, report. Overview: [architecture.md](architecture.md); the server they start: [architecture-server.md](architecture-server.md).
 
 | File | Open it when |
 |---|---|

@@ -1,6 +1,6 @@
 # Architecture: where things live
 
-Which source file owns what (for example the per-sender tokens, the relay, the config). Read this before changing code, then open only the files for the task at hand. Tower authoring: [what-goes-where.md](what-goes-where.md); hub behaviour: [hub-reference.md](hub-reference.md).
+Which source file owns what in the core (schema, loader, resolve, live event matching), the PDF documents, the reports and the audit. Read this before changing code, then open only the files for the task at hand. Server, hub, per-sender tokens, relay and config: [architecture-server.md](architecture-server.md). Tower authoring: [what-goes-where.md](what-goes-where.md); hub behaviour: [hub-reference.md](hub-reference.md).
 
 The code map is in four files, each small enough to load whole:
 
