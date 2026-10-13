@@ -168,6 +168,39 @@ describe('Hermes', () => {
   });
 });
 
+describe('our entries are matched exactly', () => {
+  it('an http hook on a longer path is not ours', () => {
+    const text = JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:5317/api/events/extra?source=claude-code' }] }] } });
+    expect(wired('claude-code', text)).toBe(false);
+  });
+
+  it('a single-quoted emit command is recognised as ours', () => {
+    const text = JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: "'/n/node' '/x/bin/flow-tower.js' emit --source codex" }] }] } });
+    expect(wired('codex', text)).toBe(true);
+  });
+
+  it('a Hermes comment mentioning flow-tower is not wired', () => {
+    expect(wired('hermes', '# name: flow-tower\nhooks:\n  outbound: []\n')).toBe(false);
+  });
+
+  it('Hermes replacing two of ours counts one replaced and one removed', () => {
+    const twice = [
+      'hooks:',
+      '  outbound:',
+      '    - name: flow-tower',
+      '      url: http://127.0.0.1:6100/api/events?source=hermes',
+      '    - name: flow-tower',
+      '      url: http://127.0.0.1:6100/api/events?source=hermes',
+      '',
+    ].join('\n');
+    const r = mergeHermes(twice, hermesTpl, 6200);
+    expect(r.replaced).toBe(1);
+    expect(r.removed).toBe(1);
+    expect(r.added).toBe(0);
+    expect(r.text.match(/name: flow-tower/g)).toHaveLength(1);
+  });
+});
+
 describe('wiredPort', () => {
   it('wired is true for command-only Codex hooks, which carry no port', () => {
     const codex = mergeJsonHooks('codex', undefined, codexTpl, opts(5555)).text;

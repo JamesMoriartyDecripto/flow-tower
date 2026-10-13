@@ -63,7 +63,8 @@ export function mergeHermes(existing: string | undefined, template: string, port
   seq.items[first] = doc.createNode(wired);
   for (const i of extra.reverse()) seq.items.splice(i, 1);
   const out = doc.toString();
-  return { text: out, changed: out !== text, added: 1, replaced: indexes.length, removed: 0 };
+  // One of ours is replaced, and each extra copy of ours is removed: the counts say so, not the number found.
+  return { text: out, changed: out !== text, added: 0, replaced: 1, removed: extra.length };
 }
 
 export function unmergeHermes(existing: string): MergeResult {
@@ -83,6 +84,14 @@ export function unmergeHermes(existing: string): MergeResult {
 
   const out = doc.toString();
   return { text: out, changed: out !== existing, added: 0, replaced: 0, removed };
+}
+
+/** Whether the parsed config holds our outbound item. A text regex would match a comment or another key. */
+export function hermesWired(text: string): boolean {
+  const doc = parseDocument(text);
+  if (doc.errors.length > 0) return false;
+  const seq = doc.getIn(['hooks', 'outbound']);
+  return isSeq(seq) && seq.items.some((item) => isOurs(item));
 }
 
 /** Port our Hermes item points at, or undefined when it is not wired (for `hooks status`). */

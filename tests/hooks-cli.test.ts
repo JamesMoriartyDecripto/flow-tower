@@ -64,7 +64,7 @@ describe('flow-tower hooks', () => {
     // The command hook names the node binary and the CLI, both quoted.
     const command = allHooks(text).find((h) => h.command !== undefined)?.command ?? '';
     // FLOW_TOWER_HOME is set in this test's env, so the command carries it as a prefix.
-    expect(command).toMatch(/^FLOW_TOWER_HOME="[^"]+" "[^"]+" "[^"]+bin[\\/]flow-tower\.js" emit --source claude-code$/);
+    expect(command).toMatch(/^FLOW_TOWER_HOME='[^']+' '[^']+' '[^']+bin[\\/]flow-tower\.js' emit --source claude-code$/);
     expect(command).not.toContain('--token');
   });
 
@@ -173,5 +173,73 @@ describe('flow-tower hooks', () => {
     expect(r.stdout).toContain('removed the file (it held only flow-tower hooks)');
     expect(existsSync(settingsOf(box.home))).toBe(false);
     expect(existsSync(settingsOf(box.home) + '.flow-tower.bak')).toBe(true);
+  });
+
+  it('a FLOW_TOWER_HOME with shell metacharacters runs as data, not code, and comes back verbatim', async () => {
+    // The emit command is run through sh with `printenv` in place of node: if quoting failed, touch would run.
+    const { execFileSync } = await import('node:child_process');
+    const { hookCommand, shellQuote } = await import('../src/cli/hooks.ts');
+    const dir = join(root, 'inject');
+    mkdirSync(dir, { recursive: true });
+    const evil = `/tmp/x"$(touch ${join(dir, 'PWNED')})'a b`;
+    const cmd = hookCommand({
+      home: dir, cwd: dir, checkout: '/x', env: { FLOW_TOWER_HOME: evil },
+    });
+    const prefix = cmd.slice(0, cmd.indexOf(` ${shellQuote(process.execPath)} `));
+    const out = execFileSync('sh', ['-c', `${prefix} printenv FLOW_TOWER_HOME`], { encoding: 'utf8' });
+    expect(out.replace(/\n$/, '')).toBe(evil);
+    expect(existsSync(join(dir, 'PWNED'))).toBe(false);
+  });
+
+  it('a settings file that is a symlink is written through, the link stays, and the real file is backed up', TIMEOUT, async () => {
+    const box = sandbox();
+    mkdirSync(join(box.home, '.claude'));
+    const real = join(box.home, 'dotfiles', 'settings.json');
+    mkdirSync(join(box.home, 'dotfiles'));
+    writeFileSync(real, JSON.stringify({ model: 'x' }));
+    const { symlinkSync, lstatSync } = await import('node:fs');
+    symlinkSync(real, settingsOf(box.home));
+    const r = await hooks(['install', '--target', 'claude-code', '--port', '5999'], box);
+    expect(r.status).toBe(0);
+    expect(lstatSync(settingsOf(box.home)).isSymbolicLink()).toBe(true);
+    expect(allHooks(readFileSync(real, 'utf8')).length).toBeGreaterThan(0);
+    expect(existsSync(real + '.flow-tower.bak')).toBe(true);
+  });
+
+  it('install leaves a flow-tower.ts that is not ours alone and exits 1', TIMEOUT, async () => {
+    const box = sandbox();
+    const piFile = join(box.home, '.pi', 'agent', 'extensions', 'flow-tower.ts');
+    mkdirSync(join(box.home, '.pi', 'agent', 'extensions'), { recursive: true });
+    writeFileSync(piFile, '// my own extension\nexport {};\n');
+    const r = await hooks(['install', '--target', 'pi', '--port', '5999'], box);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('pi: ~/.pi/agent/extensions/flow-tower.ts exists and was not written by flow-tower: left as is');
+    expect(readFileSync(piFile, 'utf8')).toBe('// my own extension\nexport {};\n');
+  });
+
+  it('uninstall keeps a hand-edited Pi extension and deletes an untouched one', TIMEOUT, async () => {
+    const box = sandbox();
+    const piFile = join(box.home, '.pi', 'agent', 'extensions', 'flow-tower.ts');
+    mkdirSync(join(box.home, '.pi', 'agent', 'extensions'), { recursive: true });
+    await hooks(['install', '--target', 'pi', '--port', '5999'], box);
+    writeFileSync(piFile, readFileSync(piFile, 'utf8') + '// edited\n');
+    const edited = await hooks(['uninstall', '--target', 'pi'], box);
+    expect(edited.stdout).toContain('left in place (edited by hand)');
+    expect(existsSync(piFile)).toBe(true);
+    await hooks(['install', '--target', 'pi', '--port', '5999'], box);
+    const clean = await hooks(['uninstall', '--target', 'pi'], box);
+    expect(clean.stdout).toContain('removed 1 extension');
+    expect(existsSync(piFile)).toBe(false);
+  });
+
+  it('dry run and an up-to-date file print no next-step line', TIMEOUT, async () => {
+    const box = sandbox();
+    mkdirSync(join(box.home, '.codex'));
+    const dry = await hooks(['install', '--target', 'codex', '--port', '5999', '--dry-run'], box);
+    expect(dry.stdout).not.toContain('approve them once');
+    await hooks(['install', '--target', 'codex', '--port', '5999'], box);
+    const again = await hooks(['install', '--target', 'codex', '--port', '5999'], box);
+    expect(again.stdout).toContain('already up to date');
+    expect(again.stdout).not.toContain('approve them once');
   });
 });

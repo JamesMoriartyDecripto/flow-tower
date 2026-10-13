@@ -4,7 +4,7 @@
  * files and writes the result. The templates are the source of every entry, so the docs and the
  * installer cannot drift apart.
  */
-import { hermesPort, mergeHermes as mergeHermesYaml, unmergeHermes as unmergeHermesYaml } from './hooks-merge-yaml.ts';
+import { hermesPort, hermesWired, mergeHermes as mergeHermesYaml, unmergeHermes as unmergeHermesYaml } from './hooks-merge-yaml.ts';
 
 export type Harness = 'claude-code' | 'codex' | 'pi' | 'hermes';
 export type JsonHarness = 'claude-code' | 'codex';
@@ -20,8 +20,8 @@ const PI_URL_LINE = /^const URL = '[^']*';\r?$/m;
 const PI_PORT = /^const URL = 'http:\/\/127\.0\.0\.1:(\d+)\/api\/events\?source=pi';/m;
 const PI_NOTE = '// Installed by flow-tower hooks install: re-run it after changing the port.';
 // The emit command install writes: an optional FLOW_TOWER_HOME prefix, then the node binary and flow-tower.js.
-const COMMAND_PATHS = /^(?:FLOW_TOWER_HOME="[^"]*" )?"([^"]+)" "([^"]+flow-tower\.js)" emit/;
-const HERMES_NAME = /name: flow-tower\b/;
+// Paths are single-quoted (see shellQuote in hooks.ts); the double-quoted form is what older installs wrote.
+const COMMAND_PATHS = /^(?:FLOW_TOWER_HOME=(?:'(?:[^']|'\\'')*'|"[^"]*") )?(?:'((?:[^']|'\\'')+)'|"([^"]+)") (?:'((?:[^']|'\\'')+flow-tower\.js)'|"([^"]+flow-tower\.js)") emit/;
 
 function checkPort(port: number): void {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`invalid port: ${port}`);
@@ -69,7 +69,7 @@ function isOurHook(item: unknown, harness: Harness): boolean {
     } catch {
       return false;
     }
-    return LOOPBACK.has(url.hostname) && url.pathname.includes('/api/events')
+    return LOOPBACK.has(url.hostname) && url.pathname === '/api/events'
       && url.searchParams.get('source') === harness;
   }
   if (item.type === 'command' && typeof item.command === 'string') {
@@ -230,7 +230,7 @@ export function wiredPort(harness: Harness, text: string): number | undefined {
  * hooks with no port, so `wiredPort` alone would call a working install "not wired".
  */
 export function wired(harness: Harness, text: string): boolean {
-  if (harness === 'hermes') return hermesPort(text) !== undefined || HERMES_NAME.test(text);
+  if (harness === 'hermes') return hermesWired(text);
   if (harness === 'pi') return PI_PORT.test(text);
   return jsonHooks(text).some((h) => isOurHook(h, harness));
 }
@@ -245,7 +245,9 @@ export function staleCommandPath(harness: Harness, text: string, exists: (path: 
     if (!isOurHook(h, harness) || typeof h.command !== 'string') continue;
     const m = COMMAND_PATHS.exec(h.command);
     if (!m) continue;
-    for (const p of [m[1], m[2]]) if (!exists(p)) return p;
+    // Groups: node is 1 (single-quoted) or 2 (double), flow-tower.js is 3 or 4. Unescape '\'' before the check.
+    const unquote = (s: string) => s.replaceAll("'\\''", "'");
+    for (const p of [m[1] ?? m[2], m[3] ?? m[4]].map(unquote)) if (!exists(p)) return p;
   }
   return undefined;
 }

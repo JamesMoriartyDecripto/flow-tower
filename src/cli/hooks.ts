@@ -4,7 +4,9 @@
  * does the file IO, the port choice and the output. Everything that touches the home folder takes a context,
  * so tests run against a temp HOME.
  */
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -21,6 +23,7 @@ const BACKUP_SUFFIX = '.flow-tower.bak';
 // Written as the first line of the Pi extension we install: uninstall deletes the file only when it finds it,
 // so a Pi extension the user wrote by hand is never removed.
 const PI_MARK = '// Installed by flow-tower hooks install';
+const isPiOurs = (text: string): boolean => text.split('\n', 1)[0].startsWith(PI_MARK);
 const USAGE = 'usage: flow-tower hooks install|status|uninstall [--target claude-code|codex|pi|hermes|all] [--project] [--port N] [--dry-run]';
 
 const DETECT_DIR: Record<Harness, string> = { 'claude-code': '.claude', codex: '.codex', pi: '.pi', hermes: '.hermes' };
@@ -66,13 +69,21 @@ function shown(file: string, ctx: HooksContext): string {
   return `./${relative(ctx.cwd, file)}`;
 }
 
+/**
+ * POSIX single-quoting: the shell reads the value verbatim, so `$`, backticks and quotes in a path cannot run code
+ * when the hook fires. An embedded `'` becomes `'\''` (close, escaped quote, reopen).
+ */
+export function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
 /** The emit command the hooks run. Quoted paths survive spaces; FLOW_TOWER_HOME is carried so the hook reads the same folder. */
 export function hookCommand(ctx: HooksContext): string {
   const cli = join(ctx.checkout, 'bin', 'flow-tower.js');
   const home = ctx.env.FLOW_TOWER_HOME;
   // No --token here: emit must never hand the config token to another origin.
-  const prefix = home ? `FLOW_TOWER_HOME="${home}" ` : '';
-  return `${prefix}"${process.execPath}" "${cli}" emit`;
+  const prefix = home ? `FLOW_TOWER_HOME=${shellQuote(home)} ` : '';
+  return `${prefix}${shellQuote(process.execPath)} ${shellQuote(cli)} emit`;
 }
 
 /** The port the running library listens on, or undefined when no library is running. */
@@ -122,19 +133,42 @@ function mergeFor(h: Harness, existing: string | undefined, port: number, ctx: H
   return mergeJsonHooks(h, existing, template, { port, command: hookCommand(ctx) });
 }
 
-/** Writes via a temp file in the same folder, then renames: a crash leaves the old file or the new one, never half. */
+/** A symlink (dotfile managers link settings in) resolves to its real file; a missing file is its own path. */
+function realTarget(file: string): string {
+  return existsSync(file) ? realpathSync(file) : file;
+}
+
+/**
+ * Copies the real file to its backup before a change. The backup is 0600 whatever the file's mode: it may hold
+ * secrets. Returns the real path, so the caller can act on the file the link points at.
+ */
+function backupCopy(file: string): string {
+  const real = realTarget(file);
+  copyFileSync(real, real + BACKUP_SUFFIX);
+  chmodSync(real + BACKUP_SUFFIX, 0o600);
+  return real;
+}
+
+/**
+ * Writes via a temp file in the same folder, then renames: a crash leaves the old file or the new one, never half.
+ * Writes through a symlink to its target, so the link stays, and keeps the target's mode (0600 for a new file).
+ */
 function writeAtomic(file: string, text: string): void {
-  mkdirSync(dirname(file), { recursive: true });
-  const tmp = join(dirname(file), `.${basename(file)}.${process.pid}.tmp`);
-  writeFileSync(tmp, text);
-  renameSync(tmp, file);
+  const target = realTarget(file);
+  mkdirSync(dirname(target), { recursive: true });
+  const tmp = join(dirname(target), `.${basename(target)}.${process.pid}.tmp`);
+  const mode = existsSync(target) ? statSync(target).mode & 0o777 : 0o600;
+  writeFileSync(tmp, text, { mode });
+  // writeFileSync applies the mode only when it creates the file, and the umask trims it: chmod sets it exactly.
+  chmodSync(tmp, mode);
+  renameSync(tmp, target);
 }
 
 /** Copies the existing file to the backup (overwriting an older one) before the change. Returns the backup's name. */
 function backupThenWrite(file: string, existing: string | undefined, text: string): string | undefined {
   let backup: string | undefined;
   if (existing !== undefined) {
-    copyFileSync(file, file + BACKUP_SUFFIX);
+    backupCopy(file);
     backup = basename(file) + BACKUP_SUFFIX;
   }
   writeAtomic(file, text);
@@ -145,7 +179,8 @@ const noun = (h: Harness) => (h === 'pi' ? 'extension' : 'hooks');
 
 function install(targets: Harness[], o: { project: boolean; port: { port: number; line: string }; dryRun: boolean }, ctx: HooksContext): number {
   let code = 0;
-  const done: Harness[] = [];
+  // Only the harnesses actually written get a next-step line: a dry run or an up-to-date file changed nothing.
+  const wrote: Harness[] = [];
   console.log(`using ${o.port.line}`);
   for (const h of targets) {
     const file = fileFor(h, o.project, ctx);
@@ -156,18 +191,25 @@ function install(targets: Harness[], o: { project: boolean; port: { port: number
     const label = `${h}: ${shown(file, ctx)}`;
     try {
       const existing = readIfExists(file);
+      if (h === 'pi' && existing !== undefined && !isPiOurs(existing)) {
+        // A file the user wrote under the same name: overwriting it would lose their code.
+        console.error(`pi: ${shown(file, ctx)} exists and was not written by flow-tower: left as is`);
+        code = 1;
+        continue;
+      }
       const r = mergeFor(h, existing, o.port.port, ctx);
-      done.push(h);
       if (!r.changed) {
         console.log(`${label}: already up to date`);
         continue;
       }
-      const count = h === 'pi' ? 1 : r.added;
+      // Hermes counts one item whether it was added or replaced.
+      const count = h === 'pi' || h === 'hermes' ? 1 : r.added;
       if (o.dryRun) {
         console.log(`${label}: would wire ${count} ${noun(h)} on port ${o.port.port} (dry run: nothing written)`);
         continue;
       }
       const backup = backupThenWrite(file, existing, r.text);
+      wrote.push(h);
       console.log(`${label}: ${count} ${noun(h)} wired on port ${o.port.port}${backup ? ` (backup: ${backup})` : ''}`);
     } catch (err) {
       // Only the message: the merge errors are written not to echo the file's text, which may hold tokens.
@@ -175,7 +217,7 @@ function install(targets: Harness[], o: { project: boolean; port: { port: number
       code = 1;
     }
   }
-  for (const h of done) console.log(nextStep(h));
+  for (const h of wrote) console.log(nextStep(h));
   // The SDK file's URL is fixed at 5317, so the port is named only when the install wires another one.
   const portPart = o.port.port === DEFAULT_PORT ? '' : ` and set the port in its URL to ${o.port.port}`;
   console.log(`Agent SDK: copy integrations/agent-sdk/flow-tower-hooks.ts into your app${portPart}`);
@@ -206,9 +248,14 @@ function uninstall(targets: Harness[], o: { project: boolean; dryRun: boolean },
       }
       let r: MergeResult;
       if (h === 'pi') {
-        // Only our own file goes: the first line is the installer's mark, anything else is the user's.
-        const ours = existing.split('\n', 1)[0].startsWith(PI_MARK);
-        r = { text: '', changed: ours, added: 0, replaced: 0, removed: ours ? 1 : 0 };
+        // Delete only the file we would have written for its port: an edited copy is the user's now.
+        const port = wiredPort('pi', existing);
+        const ours = port !== undefined && existing === piExtension(readFileSync(join(ctx.checkout, TEMPLATE.pi), 'utf8'), port);
+        if (!ours) {
+          console.log(`${label}: ${isPiOurs(existing) ? 'left in place (edited by hand)' : 'not wired'}`);
+          continue;
+        }
+        r = { text: '', changed: true, added: 0, replaced: 0, removed: 1 };
       } else if (h === 'hermes') {
         r = unmergeHermes(existing);
       } else {
@@ -225,15 +272,13 @@ function uninstall(targets: Harness[], o: { project: boolean; dryRun: boolean },
       }
       // Pi's file is ours alone, so it is removed; the backup still keeps a copy of it.
       if (h === 'pi') {
-        copyFileSync(file, file + BACKUP_SUFFIX);
-        rmSync(file, { force: true });
+        rmSync(backupCopy(file), { force: true });
         console.log(`${label}: removed ${count} ${noun(h)} (backup: ${basename(file)}${BACKUP_SUFFIX})`);
         continue;
       }
       // A file that held only our hooks would be left as `{}`: delete it, the backup keeps the old text.
       if (r.emptied) {
-        copyFileSync(file, file + BACKUP_SUFFIX);
-        rmSync(file, { force: true });
+        rmSync(backupCopy(file), { force: true });
         console.log(`${label}: removed ${count} ${noun(h)} (backup: ${basename(file)}${BACKUP_SUFFIX}); removed the file (it held only flow-tower hooks)`);
         continue;
       }
