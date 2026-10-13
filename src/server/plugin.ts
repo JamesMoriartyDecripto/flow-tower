@@ -26,6 +26,7 @@ import { startShareSync } from './share-sync.ts';
 import { effective, loadConfig } from './config.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 import { hubViews } from './hub-views.ts';
+import { hubAlerts } from './hub-alerts.ts';
 import { enrollHandler } from './enroll.ts';
 import { sharedTowersHandler } from './shared-towers.ts';
 import { openHistory } from './history/db.ts';
@@ -187,6 +188,9 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       const hubPanel = hubViews({ satellites, home: USER_HOME, hub: hubOpts.hub });
       server.middlewares.use('/api/hub/machines', hubPanel.machines);
       server.middlewares.use('/api/hub/me', hubPanel.me);
+      // Alerts (#94): one mount for the list and the ack and snooze POSTs. The list is a viewing route; the two
+      // POSTs answer only this machine (see hub-alerts.ts). The history DB is passed in, undefined when disabled.
+      server.middlewares.use('/api/hub/alerts', hubAlerts({ satellites, home: USER_HOME, hub: hubOpts.hub, db: 'db' in opened ? opened.db : undefined }));
       // Enrolment (#164): a POST that hands a listed viewer its machine's token. No other /api/hub mount is a
       // prefix of it, so nothing else swallows it. The route itself refuses anything but a tailnet viewer.
       server.middlewares.use('/api/hub/enroll', enrollHandler({ home: USER_HOME, hub: hubOpts.hub }));
