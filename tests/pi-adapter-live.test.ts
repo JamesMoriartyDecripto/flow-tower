@@ -136,6 +136,38 @@ describe('withStreamSession', () => {
   });
 });
 
+describe('pi stream with a restarted session', () => {
+  const lines: Record<string, unknown>[] = [
+    { type: 'session', id: 'sess-A' },
+    { type: 'agent_start' },
+    { type: 'session', id: 'sess-B' },
+    { type: 'agent_start' },
+    { type: 'agent_end' },
+  ];
+  const events = feed('pi', lines) as Array<Record<string, any>>;
+
+  it('tags events before the second session line with the first id', () => {
+    expect(events[0].session).toBe('sess-A');
+    expect(events[1].session).toBe('sess-A');
+  });
+
+  it('tags events after the second session line with the second id', () => {
+    expect(events[2].session).toBe('sess-B');
+    expect(events[3].session).toBe('sess-B');
+    expect(events[4].session).toBe('sess-B');
+  });
+});
+
+describe('pi token usage without absent counts', () => {
+  it('leaves out counts the usage does not have, with no undefined keys', () => {
+    const [e] = normalize('pi', {
+      type: 'turn_end', message: { role: 'assistant', usage: { input: 10, totalTokens: 10 } },
+    }) as Array<Record<string, any>>;
+    expect(e.tokens_detail).toEqual({ input: 10 });
+    expect(Object.keys(e.tokens_detail)).toEqual(['input']);
+  });
+});
+
 describe('codex thread_id on adapter lines', () => {
   it('sets session from thread_id on a turn line', () => {
     const [e] = normalize('codex', { type: 'turn.started', thread_id: 't-9' });

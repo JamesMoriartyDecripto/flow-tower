@@ -34,11 +34,13 @@ const toolResultText = (result: unknown) => {
 
 /** Pi token counts, mapped to FlowEvent.tokens_detail names. Absent counts are left out. */
 const piTokensDetail = (usage: Raw) => {
-  const detail = {
-    input: num(usage.input), output: num(usage.output), cache_read: num(usage.cacheRead), cache_write: num(usage.cacheWrite),
-  };
-  const present = Object.values(detail).some((v) => v !== undefined);
-  return present ? detail : undefined;
+  // Built key by key so an absent count is missing from the object, not present as `undefined`.
+  const detail: Record<string, number> = {};
+  const counts: [string, number | undefined][] = [
+    ['input', num(usage.input)], ['output', num(usage.output)], ['cache_read', num(usage.cacheRead)], ['cache_write', num(usage.cacheWrite)],
+  ];
+  for (const [name, value] of counts) if (value !== undefined) detail[name] = value;
+  return Object.keys(detail).length ? detail : undefined;
 };
 
 /**
