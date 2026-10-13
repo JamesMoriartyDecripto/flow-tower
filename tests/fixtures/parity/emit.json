@@ -1,0 +1,12 @@
+[
+  { "kind": "session.start", "source": "emit", "session": "par-1" },
+  { "kind": "prompt", "source": "emit", "session": "par-1", "agent": "main", "message": "List the files, then run false" },
+  { "kind": "tool.start", "source": "emit", "session": "par-1", "agent": "main", "tool": "Bash", "call": "tu-1", "message": "ls" },
+  { "kind": "tool.end", "source": "emit", "session": "par-1", "agent": "main", "tool": "Bash", "call": "tu-1", "status": "ok", "message": "a.txt" },
+  { "kind": "tool.start", "source": "emit", "session": "par-1", "agent": "main", "tool": "Bash", "call": "tu-2", "message": "false" },
+  { "kind": "tool.end", "source": "emit", "session": "par-1", "agent": "main", "tool": "Bash", "call": "tu-2", "status": "error", "message": "exit 1" },
+  { "kind": "agent.start", "source": "emit", "session": "par-1", "agent": "reviewer", "message": "review diff" },
+  { "kind": "agent.end", "source": "emit", "session": "par-1", "agent": "reviewer", "status": "ok", "message": "review done" },
+  { "kind": "usage", "source": "emit", "session": "par-1", "agent": "main", "tokens": 2386, "cost_usd": 0.00051775 },
+  { "kind": "session.end", "source": "emit", "session": "par-1" }
+]

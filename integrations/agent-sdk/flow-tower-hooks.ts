@@ -16,6 +16,11 @@ const forward: HookCallback = async (input, toolUseID) => {
   return {}; // observe only, never block
 };
 
-const EVENTS: HookEvent[] = ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'SubagentStart', 'SubagentStop', 'Stop'];
+// SessionStart/SessionEnd are TypeScript-only callbacks here. Python exposes them only as shell hooks
+// in .claude/settings.json, which `flow-tower hooks install` writes.
+const EVENTS: HookEvent[] = [
+  'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure',
+  'SubagentStart', 'SubagentStop', 'Stop', 'Notification',
+];
 
 export const flowTowerHooks = () => Object.fromEntries(EVENTS.map((e) => [e, [{ hooks: [forward] }]]));

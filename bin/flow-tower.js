@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
 import { parseArgs } from 'node:util';
 import { senderConfig } from './config-file.js';
+import { withStreamSession } from './stream-context.js';
 import { localServerUrl, recordLocalServer } from './local-server.js';
 import { findTsCommand, runTsCommand } from './commands.js';
 import { STARTER } from './starter.js';
@@ -303,7 +304,7 @@ async function emit() {
     const { kind, source = 'custom', agent, tool, node, tower, status, message } = values;
     await post([withIdentity({ ...identity, kind, source, agent, tool, node, tower, status, message })]);
   } else if (!process.stdin.isTTY) {
-    await streamStdin((events) => post(events.map(withIdentity)));
+    await streamStdin(values.source, (events) => post(events.map(withIdentity)));
   }
 }
 
@@ -311,10 +312,12 @@ async function emit() {
  * Reads events from stdin. JSONL streams (codex exec --json, pi --mode json) are forwarded live,
  * in small batches every 250 ms; a single (possibly pretty-printed) JSON document is sent at the end.
  */
-async function streamStdin(post) {
+async function streamStdin(source, post) {
   let buffer = '';
   let mode; // 'lines' once a line parses on its own, 'whole' for a multi-line document
   let pending = [];
+  // One session memory per stream: a line from another stream must not inherit this one's session.
+  const streamState = {};
   const flush = async () => {
     if (!pending.length) return;
     const batch = pending;
@@ -332,13 +335,13 @@ async function streamStdin(post) {
       try { event = line ? JSON.parse(line) : undefined; } catch { event = null; }
       if (event === null && mode !== 'lines') { mode = 'whole'; break; }
       buffer = buffer.slice(nl + 1);
-      if (event) { mode = 'lines'; pending.push(event); }
+      if (event) { mode = 'lines'; pending.push(withStreamSession(source, event, streamState)); }
     }
   }
   clearInterval(timer);
   try {
     const tail = buffer.trim() ? JSON.parse(buffer.trim()) : [];
-    pending.push(...(Array.isArray(tail) ? tail : [tail]));
+    pending.push(...(Array.isArray(tail) ? tail : [tail]).map((e) => withStreamSession(source, e, streamState)));
   } catch { /* not JSON: ignore, never fail the caller */ }
   await flush();
 }

@@ -165,7 +165,8 @@ export function createAlertNotifier({ satellites, home, db, now = Date.now, fetc
       attempts -= 1;
       const res = await sendNotification(notify, formatMessage(alert, event, notify.format, hubName), fetch);
       if (!res.ok) continue;
-      sentAt.push(at);
+      // Stamped with the time of this send, not the tick start: a slow earlier send must not shift the window.
+      sentAt.push(now());
       changed = true;
       if (event === 'open') {
         notified[alert.id] = at;

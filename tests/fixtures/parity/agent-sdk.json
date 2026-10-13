@@ -1,0 +1,12 @@
+[
+  { "hook_event_name": "SessionStart", "session_id": "par-1", "source": "startup", "model": "claude-sonnet" },
+  { "hook_event_name": "UserPromptSubmit", "session_id": "par-1", "prompt": "List the files, then run false" },
+  { "hook_event_name": "PreToolUse", "session_id": "par-1", "tool_name": "Bash", "tool_input": { "command": "ls" }, "tool_use_id": "tu-1" },
+  { "hook_event_name": "PostToolUse", "session_id": "par-1", "tool_name": "Bash", "tool_input": { "command": "ls" }, "tool_response": { "stdout": "a.txt", "exit_code": 0 }, "tool_use_id": "tu-1" },
+  { "hook_event_name": "PreToolUse", "session_id": "par-1", "tool_name": "Bash", "tool_input": { "command": "false" }, "tool_use_id": "tu-2" },
+  { "hook_event_name": "PostToolUseFailure", "session_id": "par-1", "tool_name": "Bash", "tool_input": { "command": "false" }, "error": "Exit code 1", "tool_use_id": "tu-2" },
+  { "hook_event_name": "SubagentStart", "session_id": "par-1", "agent_id": "ag-sdk-1", "agent_type": "reviewer" },
+  { "hook_event_name": "SubagentStop", "session_id": "par-1", "agent_id": "ag-sdk-1", "agent_type": "reviewer", "last_assistant_message": "review done" },
+  { "hook_event_name": "Stop", "session_id": "par-1", "last_assistant_message": "done" },
+  { "hook_event_name": "SessionEnd", "session_id": "par-1", "reason": "other" }
+]

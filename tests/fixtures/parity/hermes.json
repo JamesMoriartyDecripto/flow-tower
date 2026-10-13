@@ -1,0 +1,11 @@
+[
+  { "hook_event_name": "on_session_start", "session_id": "par-1", "model": "hermes-large" },
+  { "hook_event_name": "pre_tool_call", "session_id": "par-1", "tool_name": "Bash", "tool_call_id": "tu-1", "args": { "command": "ls" } },
+  { "hook_event_name": "post_tool_call", "session_id": "par-1", "tool_name": "Bash", "tool_call_id": "tu-1", "status": "ok", "result": "a.txt" },
+  { "hook_event_name": "pre_tool_call", "session_id": "par-1", "tool_name": "Bash", "tool_call_id": "tu-2", "args": { "command": "false" } },
+  { "hook_event_name": "post_tool_call", "session_id": "par-1", "tool_name": "Bash", "tool_call_id": "tu-2", "status": "error", "result": "exit 1" },
+  { "hook_event_name": "subagent_start", "session_id": "par-1", "child_role": "reviewer", "child_goal": "review diff" },
+  { "hook_event_name": "subagent_stop", "session_id": "par-1", "child_role": "reviewer", "child_status": "ok", "child_summary": "review done" },
+  { "hook_event_name": "post_api_request", "session_id": "par-1", "model": "hermes-large", "usage": { "total_tokens": 2386 } },
+  { "hook_event_name": "on_session_finalize", "session_id": "par-1" }
+]

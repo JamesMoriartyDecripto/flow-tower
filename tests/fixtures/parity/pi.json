@@ -1,0 +1,12 @@
+[
+  { "type": "session", "version": 3, "id": "par-1", "timestamp": "2026-10-13T09:22:53.103Z", "cwd": "/work/parity", "session": "par-1" },
+  { "type": "agent_start", "session": "par-1" },
+  { "type": "input", "text": "List the files, then run false", "session": "par-1" },
+  { "type": "tool_execution_start", "toolCallId": "tu-1", "toolName": "bash", "args": { "command": "ls" }, "session": "par-1" },
+  { "type": "tool_execution_end", "toolCallId": "tu-1", "toolName": "bash", "result": { "content": [{ "type": "text", "text": "a.txt\n" }] }, "isError": false, "session": "par-1" },
+  { "type": "tool_execution_start", "toolCallId": "tu-2", "toolName": "bash", "args": { "command": "false" }, "session": "par-1" },
+  { "type": "tool_execution_end", "toolCallId": "tu-2", "toolName": "bash", "result": { "content": [{ "type": "text", "text": "exit status 1\n" }] }, "isError": true, "session": "par-1" },
+  { "type": "turn_end", "session": "par-1", "message": { "role": "assistant", "model": "anthropic/claude-haiku-5.5", "usage": { "input": 4, "output": 47, "cacheRead": 2335, "cacheWrite": 0, "totalTokens": 2386, "cost": { "input": 0.000003, "output": 0.0001645, "cacheRead": 0.00035025, "cacheWrite": 0, "total": 0.00051775 } } } },
+  { "type": "agent_end", "session": "par-1" },
+  { "type": "session_shutdown", "session": "par-1" }
+]
