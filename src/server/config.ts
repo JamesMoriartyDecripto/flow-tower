@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { stripJsonc } from '../../bin/config-file.js';
+import { isLoopbackUrl } from '../../bin/identity.js';
 import { userHome } from '../core/secrets.ts';
 
 /** The flow-tower package root: `<checkout>/flow-tower.local.json` sits next to package.json. */
@@ -51,6 +52,17 @@ export const ConfigSchema = z.strictObject({
     projects: z.record(z.string(), z.number()).optional(),
   }).optional().describe('USD per calendar month (history costs are USD).'),
   alerts: z.record(z.string(), z.boolean()).optional().describe('Per rule name.'),
+  alertThresholds: z.strictObject({
+    errors: z.number().int().min(1).max(1000).optional(),
+  }).optional().describe('Per rule number: errors is the count in 15 minutes that makes a machine alert (default 3).'),
+  notify: z.strictObject({
+    // https only, or http to this machine: a plain-http webhook off the box would carry the token in the clear.
+    url: z.string().refine(
+      (u) => { try { return new URL(u).protocol === 'https:' || (new URL(u).protocol === 'http:' && isLoopbackUrl(u)); } catch { return false; } },
+      'must be https://, or http:// to a loopback host',
+    ).describe('Webhook URL: https://, or http:// to a loopback host.'),
+    format: z.enum(['json', 'slack', 'telegram', 'ntfy']),
+  }).optional().describe('Where the hub posts alerts when they open and clear, even with no tab open.'),
   noticeRef: z.string().optional(),
   purpose: z.string().optional(),
   library: z.array(z.string()).optional().describe('Paths of the user\'s own towers (files or folders), outside the flow-tower checkout.'),

@@ -23,7 +23,10 @@ function timeRecord(v: unknown): Record<string, number> {
 export function readAlertState(home: string): AckState {
   try {
     const raw = JSON.parse(readFileSync(join(home, FILE), 'utf8')) as Partial<Record<keyof AckState, unknown>>;
-    return { acked: timeRecord(raw.acked), snoozed: timeRecord(raw.snoozed) };
+    const state: AckState = { acked: timeRecord(raw.acked), snoozed: timeRecord(raw.snoozed) };
+    // Kept only when the file has it: a state written before the notifier stays the same shape it was.
+    if (raw.notified !== undefined) state.notified = timeRecord(raw.notified);
+    return state;
   } catch {
     return { acked: {}, snoozed: {} };
   }

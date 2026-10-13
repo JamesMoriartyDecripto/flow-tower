@@ -6,7 +6,7 @@
  */
 import type { Cadence, Profile } from './config.ts';
 
-export const RULES = ['silent', 'budget', 'error-spike', 'new-host'] as const;
+export const RULES = ['silent', 'budget', 'error-spike', 'new-host', 'errors'] as const;
 export type Rule = (typeof RULES)[number];
 
 /** One-line titles the UI shows next to each rule's switch. */
@@ -15,6 +15,7 @@ export const RULE_TITLES: Record<Rule, string> = {
   budget: 'Monthly spend is close to or over a budget',
   'error-spike': 'Errors in the current hour are far above the usual rate',
   'new-host': 'A token was used from a host it has not used before',
+  errors: 'A machine is reporting errors',
 };
 
 export interface Alert {
@@ -43,6 +44,10 @@ export interface AlertInput {
   /** Errors per hour, oldest first: the last 7 days plus the current hour last. */
   errorsByHour: number[];
   newHosts: { sender: string; host: string; firstSeen: number }[];
+  /** Errors per sender in the last ERROR_WINDOW_MS, filled by alert-inputs.ts. Omitted means none. */
+  errorsBySender?: { sender: string; errors: number }[];
+  /** config.alertThresholds: per-rule numbers. */
+  alertThresholds?: { errors?: number };
 }
 
 export interface AckState {
@@ -50,11 +55,21 @@ export interface AckState {
   acked: Record<string, number>;
   /** Alert id to the time until which it is hidden. */
   snoozed: Record<string, number>;
+  /**
+   * Alert id to the time its open was sent to the webhook (#191). Optional: a state file written before the
+   * notifier existed has no such key, and reads back without it.
+   */
+  notified?: Record<string, number>;
 }
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
+
+/** The window the errors rule counts over: alert-inputs.ts queries exactly this span. */
+export const ERROR_WINDOW_MS = 15 * MINUTE;
+/** Errors from one machine in the window that make the rule fire, unless config.alertThresholds says otherwise. */
+const ERROR_THRESHOLD = 3;
 
 /** Three times the 5-minute recent window of machines.ts: a machine may miss a beat or two before it counts as silent. */
 const ALWAYS_ON_SILENT_MS = 15 * MINUTE;
@@ -162,11 +177,26 @@ function newHostAlerts(input: AlertInput): Alert[] {
     }));
 }
 
+function errorsAlerts(input: AlertInput): Alert[] {
+  // A machine with a few errors in 15 minutes is the early sign; the window itself is applied by the query.
+  const threshold = input.alertThresholds?.errors ?? ERROR_THRESHOLD;
+  return (input.errorsBySender ?? [])
+    .filter((s) => s.errors >= threshold)
+    .map((s) => ({
+      id: `errors:machine:${s.sender}`,
+      rule: 'errors' as const,
+      level: 'warning' as const,
+      subject: { kind: 'machine' as const, name: s.sender },
+      message: `${s.sender}: ${s.errors} errors in the last 15 min`,
+    }));
+}
+
 const RULE_FNS: Record<Rule, (input: AlertInput) => Alert[]> = {
   silent: silentAlerts,
   budget: budgetAlerts,
   'error-spike': errorSpikeAlerts,
   'new-host': newHostAlerts,
+  errors: errorsAlerts,
 };
 
 /**
@@ -203,5 +233,11 @@ export function pruneState(state: AckState, alerts: Alert[]): AckState {
   const live = new Set(alerts.map((a) => a.id));
   const keep = <T>(record: Record<string, T>): Record<string, T> =>
     Object.fromEntries(Object.entries(record).filter(([id]) => live.has(id)));
-  return { acked: keep(state.acked), snoozed: keep(state.snoozed) };
+  // `notified` is deliberately not pruned here: an alert that stopped firing still owes its clear, and the
+  // notifier (hub-alerts.ts) drops that entry itself once the clear has been sent.
+  return {
+    acked: keep(state.acked),
+    snoozed: keep(state.snoozed),
+    ...(state.notified ? { notified: state.notified } : {}),
+  };
 }

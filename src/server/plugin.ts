@@ -27,7 +27,7 @@ import { createRelaySupervisor, type RelayReading } from './relay-supervisor.ts'
 import { effective, loadConfig } from './config.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 import { hubViews } from './hub-views.ts';
-import { hubAlerts } from './hub-alerts.ts';
+import { hubAlerts, startAlertNotifier } from './hub-alerts.ts';
 import { hubAdmin } from './hub-admin.ts';
 import { enrollHandler } from './enroll.ts';
 import { relaxSharedIssues, sharedTowersHandler } from './shared-towers.ts';
@@ -206,7 +206,10 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       server.middlewares.use('/api/hub/me', hubPanel.me);
       // Alerts (#94): one mount for the list and the ack and snooze POSTs. The list is a viewing route; the two
       // POSTs answer only this machine (see hub-alerts.ts). The history DB is passed in, undefined when disabled.
-      server.middlewares.use('/api/hub/alerts', hubAlerts({ satellites, home: USER_HOME, hub: hubOpts.hub, db: 'db' in opened ? opened.db : undefined }));
+      const alertDb = 'db' in opened ? opened.db : undefined;
+      server.middlewares.use('/api/hub/alerts', hubAlerts({ satellites, home: USER_HOME, hub: hubOpts.hub, db: alertDb }));
+      // The webhook notifier (#191) runs on a hub only: it is the hub's alerts that a lead must hear about with no tab open.
+      const notifier = hubOpts.hub ? startAlertNotifier({ satellites, home: USER_HOME, db: alertDb }) : undefined;
       // Admin (#93): the panel's sender, viewer, budget, alert, retention and history controls. Every route is
       // loopback-only (see hub-admin.ts); the GET is read with the same rule. Mounted by prefix, so the one
       // handler routes each sub-path itself.
@@ -266,6 +269,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         () => supervisor.stop(),
         () => { if (prune) clearInterval(prune); },
         () => clearTimeout(timer),
+        () => notifier?.stop(),
       ]);
     },
   };

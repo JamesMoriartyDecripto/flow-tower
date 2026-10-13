@@ -4,7 +4,7 @@
  * and host names, never a prompt, a message or a user name.
  */
 import type { DatabaseSync } from 'node:sqlite';
-import type { AlertInput } from './alerts.ts';
+import { ERROR_WINDOW_MS, type AlertInput } from './alerts.ts';
 import type { Config } from './config.ts';
 import type { MachineRow } from './machines.ts';
 import { createHistory } from './history/store.ts';
@@ -25,19 +25,32 @@ export function alertInput(db: DatabaseSync | undefined, rows: MachineRow[], con
     enabled: config.alerts,
     machines: rows.map((r) => ({ id: r.sender, lastSeen: r.lastSeen, cadence: config.cadence?.[r.sender] })),
     budgets: config.budgets,
+    alertThresholds: config.alertThresholds,
     ...historyInputs(db, now),
   };
 }
 
-type HistoryInputs = Pick<AlertInput, 'monthCost' | 'errorsByHour' | 'newHosts'>;
+type HistoryInputs = Pick<AlertInput, 'monthCost' | 'errorsByHour' | 'newHosts' | 'errorsBySender'>;
 
 function historyInputs(db: DatabaseSync | undefined, now: number): HistoryInputs {
-  if (!db) return { monthCost: { global: 0, projects: {} }, errorsByHour: [], newHosts: [] };
+  if (!db) return { monthCost: { global: 0, projects: {} }, errorsByHour: [], newHosts: [], errorsBySender: [] };
   return {
     monthCost: monthCost(db, now),
     errorsByHour: errorsByHour(db, now),
     newHosts: newHosts(db, now),
+    errorsBySender: errorsBySender(db, now),
   };
+}
+
+/**
+ * Errors per sender in the last 15 minutes, for the errors rule. Only rows with a sender count: an event
+ * with no sender has no machine to name in the alert. Reads the events table, which is where status lives.
+ */
+function errorsBySender(db: DatabaseSync, now: number): NonNullable<AlertInput['errorsBySender']> {
+  const rows = db.prepare(
+    "SELECT sender, COUNT(*) AS errors FROM events WHERE status = 'error' AND sender IS NOT NULL AND ts >= ? GROUP BY sender",
+  ).all(now - ERROR_WINDOW_MS) as { sender: string; errors: number }[];
+  return rows.map((r) => ({ sender: r.sender, errors: Number(r.errors) }));
 }
 
 /**

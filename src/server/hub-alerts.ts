@@ -8,13 +8,15 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { crossSite, isJson } from './guard.ts';
 import { isRemote } from './auth.ts';
-import { evaluateAlerts, applyAcks, pruneState, RULES, RULE_TITLES, type AckState } from './alerts.ts';
+import { evaluateAlerts, applyAcks, pruneState, RULES, RULE_TITLES, type Alert, type AckState, type Rule } from './alerts.ts';
 import { alertInput } from './alert-inputs.ts';
 import { readAlertState, writeAlertState } from './alerts-state.ts';
 import { machineRows } from './machines.ts';
 import { tokenStore } from './tokens.ts';
 import { loadConfig } from './config.ts';
 import type { Satellites } from './satellites.ts';
+import { formatMessage, sendNotification, type FetchLike } from './alert-notify.ts';
+import { hostname } from 'node:os';
 
 export interface HubAlertOptions {
   satellites: Satellites;
@@ -61,19 +63,141 @@ async function readJson(req: IncomingMessage, res: ServerResponse): Promise<Reco
 /** Alert ids are `rule:kind:name`: a short printable string, nothing that could be a path or a header trick. */
 const idOk = (v: unknown): v is string => typeof v === 'string' && /^[a-z-]+:[a-z]+:[^\s]{1,200}$/.test(v);
 
-export function hubAlerts({ satellites, home, hub, db }: HubAlertOptions) {
-  /** The alerts as the page shows them: evaluated now, acks applied, stale state pruned on the way. */
-  const evaluate = (now: number) => {
-    const config = loadConfig({ home }).config;
-    const rows = machineRows(tokenStore(home).list(), satellites.list(), now);
-    // `firing` is every alert whose condition holds, snoozed or not: an ack or snooze may only target one of these.
-    const firing = evaluateAlerts(alertInput(db, rows, config, now));
-    const stored = readAlertState(home);
-    // Pruned before it is applied: an entry for an alert that no longer fires must not outlive its condition.
-    const state = pruneState(stored, firing);
-    if (JSON.stringify(state) !== JSON.stringify(stored)) writeAlertState(home, state);
-    return { config, firing, state, shown: applyAcks(firing, state, now) };
+/**
+ * The alerts as the page shows them and as the notifier sees them: evaluated now, state pruned on the way.
+ * One function for both, so the page and the webhook can never disagree about what is firing.
+ */
+export function evaluateNow({ satellites, home, db }: Pick<HubAlertOptions, 'satellites' | 'home' | 'db'>, now: number) {
+  const config = loadConfig({ home }).config;
+  const rows = machineRows(tokenStore(home).list(), satellites.list(), now);
+  // `firing` is every alert whose condition holds, snoozed or not: an ack or snooze may only target one of these.
+  const firing = evaluateAlerts(alertInput(db, rows, config, now));
+  const stored = readAlertState(home);
+  // Pruned before it is applied: an entry for an alert that no longer fires must not outlive its condition.
+  const state = pruneState(stored, firing);
+  if (JSON.stringify(state) !== JSON.stringify(stored)) writeAlertState(home, state);
+  return { config, firing, state, shown: applyAcks(firing, state, now) };
+}
+
+/** The notifier looks at the alerts once a minute: a lead learns of a breach within a minute, not on the next page load. */
+const NOTIFY_INTERVAL_MS = 60_000;
+/**
+ * At most this many webhook sends per window. A burst (a whole hub breaking at once) must not flood the
+ * receiver or get the hub's address blocked; the rest wait for a later tick.
+ */
+const NOTIFY_MAX_SENDS = 10;
+const NOTIFY_WINDOW_MS = 10 * 60_000;
+
+export interface AlertNotifierOptions extends Pick<HubAlertOptions, 'satellites' | 'home' | 'db'> {
+  now?: () => number;
+  fetch?: FetchLike;
+}
+
+/**
+ * The notifier's tick, without a timer: the tests drive it with a fake clock. Each tick evaluates the alerts
+ * the same way the GET does, then sends an open for each new firing alert and a clear for each notified
+ * alert that stopped firing. A failed send is not recorded, so the next tick tries it again.
+ */
+export function createAlertNotifier({ satellites, home, db, now = Date.now, fetch }: AlertNotifierOptions) {
+  // A clear is sent after the alert has stopped firing, so its text comes from the open that was sent.
+  const lastSent = new Map<string, Alert>();
+  // Times of recent sends, oldest first, for the rate limit.
+  const sentAt: number[] = [];
+  let running = false;
+
+  const sendAllowed = (at: number) => {
+    while (sentAt.length && sentAt[0]! <= at - NOTIFY_WINDOW_MS) sentAt.shift();
+    return sentAt.length < NOTIFY_MAX_SENDS;
   };
+
+  /**
+   * Writes the notified map into the state as it is on disk now, not as it was read at the start of the tick:
+   * an ack POST may have landed in between, and it must not be overwritten.
+   */
+  const saveNotified = (notified: Record<string, number>) => {
+    writeAlertState(home, { ...readAlertState(home), notified });
+  };
+
+  const tickOnce = async () => {
+    const at = now();
+    const { config, firing, state } = evaluateNow({ satellites, home, db }, at);
+    const notify = config.notify;
+    // No webhook configured: nothing is owed, so notified is kept empty. It is written only if it had entries.
+    if (!notify) {
+      if (state.notified && Object.keys(state.notified).length) saveNotified({});
+      return;
+    }
+
+    const notified: Record<string, number> = { ...(state.notified ?? {}) };
+    const firingIds = new Set(firing.map((a) => a.id));
+    const queue: { event: 'open' | 'clear'; alert: Alert }[] = [];
+    for (const id of Object.keys(notified)) {
+      if (!firingIds.has(id)) queue.push({ event: 'clear', alert: lastSent.get(id) ?? fallbackAlert(id) });
+    }
+    for (const alert of firing) {
+      // Acked or snoozed alerts stay quiet: the operator has already dealt with them.
+      if (state.acked[alert.id] !== undefined || (state.snoozed[alert.id] ?? 0) > at) continue;
+      if (notified[alert.id] !== undefined) continue;
+      queue.push({ event: 'open', alert });
+    }
+
+    const hubName = hostname();
+    let changed = false;
+    for (const { event, alert } of queue) {
+      if (!sendAllowed(at)) break;
+      sentAt.push(at);
+      const res = await sendNotification(notify, formatMessage(alert, event, notify.format, hubName), fetch);
+      if (!res.ok) continue;
+      changed = true;
+      if (event === 'open') {
+        notified[alert.id] = at;
+        lastSent.set(alert.id, alert);
+      } else {
+        delete notified[alert.id];
+        lastSent.delete(alert.id);
+      }
+    }
+    if (changed) saveNotified(notified);
+  };
+
+  /** One tick at a time: a slow webhook must not let a second tick send the same open twice. */
+  const tick = async (): Promise<void> => {
+    if (running) return;
+    running = true;
+    try { await tickOnce(); } finally { running = false; }
+  };
+
+  return { tick };
+}
+
+/**
+ * A clear for an alert this process never sent an open for (the hub restarted since): the id names the rule
+ * and subject, which is enough to say what cleared. The message is not stored, so the id stands in for it.
+ */
+function fallbackAlert(id: string): Alert {
+  const [rule = 'silent', kind = 'machine', ...rest] = id.split(':');
+  return {
+    id,
+    rule: rule as Rule,
+    level: 'warning',
+    subject: { kind: kind as Alert['subject']['kind'], name: rest.join(':') },
+    message: id,
+  };
+}
+
+/**
+ * Runs the notifier on a timer (#191). The timer is unref'd so it never keeps the process alive alone, and
+ * the caller stops it on close. A failing tick is swallowed here: the next one tries again.
+ */
+export function startAlertNotifier(options: AlertNotifierOptions & { intervalMs?: number }): { stop: () => void } {
+  const notifier = createAlertNotifier(options);
+  const timer = setInterval(() => { notifier.tick().catch(() => undefined); }, options.intervalMs ?? NOTIFY_INTERVAL_MS);
+  timer.unref();
+  return { stop: () => clearInterval(timer) };
+}
+
+export function hubAlerts({ satellites, home, hub, db }: HubAlertOptions) {
+  const evaluate = (now: number) => evaluateNow({ satellites, home, db }, now);
 
   const list = (req: IncomingMessage, res: ServerResponse) => {
     if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
@@ -102,7 +226,12 @@ export function hubAlerts({ satellites, home, hub, db }: HubAlertOptions) {
     // Only an alert that currently fires can be acked or snoozed: a stale or made-up id is not stored.
     const { firing, state } = evaluate(now);
     if (!firing.some((a) => a.id === body.id)) return send(res, 404, { error: 'no such alert' });
-    const next: AckState = { acked: { ...state.acked }, snoozed: { ...state.snoozed } };
+    // `notified` is carried over: a state write that dropped it would send the same open again on the next tick.
+    const next: AckState = {
+      acked: { ...state.acked },
+      snoozed: { ...state.snoozed },
+      ...(state.notified ? { notified: { ...state.notified } } : {}),
+    };
     if (sub === 'ack') {
       next.acked[body.id] = now;
     } else {

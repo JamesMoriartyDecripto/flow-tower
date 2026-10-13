@@ -192,7 +192,7 @@ describe('hub alert routes (#94)', () => {
     expect(res.status).toBe(200);
     const body = JSON.parse(res.body) as { alerts: { id: string; level: string }[]; rules: { id: string; title: string; enabled: boolean }[]; counts: { warning: number; critical: number } };
     expect(body.alerts.map((a) => a.id)).toContain('silent:machine:dana');
-    expect(body.rules.map((r) => r.id)).toEqual(['silent', 'budget', 'error-spike', 'new-host']);
+    expect(body.rules.map((r) => r.id)).toEqual(['silent', 'budget', 'error-spike', 'new-host', 'errors']);
     expect(body.rules.every((r) => r.enabled)).toBe(true);
     expect(body.counts.warning + body.counts.critical).toBe(body.alerts.length);
   });
