@@ -1,0 +1,12 @@
+[
+  { "hook_event_name": "SessionStart", "session_id": "par-1", "source": "startup", "model": "gpt-5" },
+  { "hook_event_name": "UserPromptSubmit", "session_id": "par-1", "prompt": "List the files, then run false" },
+  { "hook_event_name": "PreToolUse", "session_id": "par-1", "tool_name": "Bash", "tool_use_id": "tu-1", "tool_input": { "command": "ls" } },
+  { "hook_event_name": "PostToolUse", "session_id": "par-1", "tool_name": "Bash", "tool_use_id": "tu-1", "tool_input": { "command": "ls" }, "tool_response": { "stdout": "a.txt", "exit_code": 0 } },
+  { "hook_event_name": "PreToolUse", "session_id": "par-1", "tool_name": "Bash", "tool_use_id": "tu-2", "tool_input": { "command": "false" } },
+  { "hook_event_name": "PostToolUse", "session_id": "par-1", "tool_name": "Bash", "tool_use_id": "tu-2", "tool_input": { "command": "false" }, "tool_response": { "stderr": "", "exit_code": 1 } },
+  { "hook_event_name": "SubagentStart", "session_id": "par-1", "agent_id": "ag-1", "agent_type": "reviewer" },
+  { "hook_event_name": "SubagentStop", "session_id": "par-1", "agent_id": "ag-1", "agent_type": "reviewer", "last_assistant_message": "review done" },
+  { "hook_event_name": "Stop", "session_id": "par-1", "last_assistant_message": "done" },
+  { "hook_event_name": "SessionEnd", "session_id": "par-1", "reason": "exit" }
+]

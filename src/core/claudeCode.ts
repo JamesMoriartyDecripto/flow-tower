@@ -55,12 +55,13 @@ function injectedSummary(prompt: string): string {
   return `${tag.replace(/-/g, ' ')} (injected by Claude Code)`;
 }
 
-export function claudeCode(r: Raw): FlowEventInput[] {
+/** `source` names the harness that sent the hook: Claude Code itself, or the Agent SDK, which uses the same hooks. */
+export function claudeCode(r: Raw, source = 'claude-code'): FlowEventInput[] {
   const session = str(r.session_id) ?? '';
   const agentId = str(r.agent_id);
   const known = agentId ? subs.get(agentId) : undefined;
   const base = {
-    source: 'claude-code', session,
+    source, session,
     // Inside a subagent: its type and role. Outside: the main session (or the --agent name).
     agent: str(r.agent_type) ?? known?.type ?? (agentId ? 'subagent' : 'main'),
     role: known?.role, agent_id: agentId,

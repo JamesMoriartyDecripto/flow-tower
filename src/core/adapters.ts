@@ -207,7 +207,7 @@ const codex: Adapter = (r) => {
   return codexExec(r);
 };
 
-const ADAPTERS: Record<string, Adapter> = { 'claude-code': claudeCode, 'agent-sdk': claudeCode, pi, hermes, codex };
+const ADAPTERS: Record<string, Adapter> = { 'claude-code': claudeCode, 'agent-sdk': (r) => claudeCode(r, 'agent-sdk'), pi, hermes, codex };
 
 export const SOURCES = Object.keys(ADAPTERS);
 
