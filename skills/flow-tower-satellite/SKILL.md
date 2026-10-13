@@ -49,11 +49,7 @@ To stop later: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub; `<na
 
 ## 6. Live events from the agents (ask first)
 
-Claude Code: merge the `hooks` of [`integrations/claude-code/settings.json`](../../integrations/claude-code/settings.json) into `~/.claude/settings.json` (every project) or `<project>/.claude/settings.json` (one project), adding to the existing `hooks` keys, never replacing them. Two changes on a satellite:
-- the `SessionStart` command becomes `{{FLOW_TOWER_CLI}} emit --source claude-code --token ''`, written in full with the Node from step 1 (a bare `flow-tower` may not resolve), and with `--token ''` because `emit` would otherwise send the hub token to the local server, which refuses it;
-- with `--port N`, change `5317` to N in every hook URL. The SessionStart command needs no port: `emit` posts to the library this user folder runs, on any port.
-
-Other agents: [docs/realtime.md](../../docs/realtime.md#sources).
+`{{FLOW_TOWER_CLI}} hooks install --dry-run` shows which harnesses it found (Claude Code, Codex, Pi, Hermes) and what it would change; after the user's OK, run it without `--dry-run`. It keeps the user's own hooks, backs each changed file up, and uses the port of the library from step 5. Then tell the user the next step it prints per harness (Codex: approve with `/hooks`; Pi and Hermes: restart them). `{{FLOW_TOWER_CLI}} hooks status` checks it later. The Agent SDK and scripts: [docs/realtime.md](../../docs/realtime.md#sources).
 
 ## 7. Verify
 

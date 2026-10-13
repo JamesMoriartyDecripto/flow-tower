@@ -60,6 +60,19 @@ export const TS_COMMANDS = [
   // The script is shared with `share`: --unshare tells it which command this is, since it only sees the
   // arguments after the command word.
   { name: 'unshare', script: 'share.ts', extra: (values) => ['--unshare', ...(values.force ? ['--force'] : [])] },
+  // `--target` defaults to claude in parseArgs (install-skill's default), so it is passed only when typed:
+  // the hooks command then detects the harnesses on this machine. `--port` also has a default, so the same
+  // argv check as export applies. `--project` and `--dry-run` are booleans stripped from the positionals.
+  {
+    name: 'hooks',
+    script: 'hooks.ts',
+    extra: (values) => [
+      ...(process.argv.some((a) => a === '--target' || a.startsWith('--target=')) ? ['--target', values.target] : []),
+      ...(values.project ? ['--project'] : []),
+      ...(values['dry-run'] ? ['--dry-run'] : []),
+      ...(process.argv.some((a) => a === '--port' || a.startsWith('--port=')) ? ['--port', values.port] : []),
+    ],
+  },
   // `library` is a TS command only with a subcommand (add/list/remove); see findTsCommand.
   { name: 'library', script: 'library.ts', extra: () => [] },
 ];

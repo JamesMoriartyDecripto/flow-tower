@@ -222,5 +222,5 @@ describe('gallery', () => {
     const first = towers.map((t) => [t.id, auditTower(t), inventory(t)]);
     const second = towers.map((t) => [t.id, auditTower(t), inventory(t)]);
     expect(second).toEqual(first);
-  });
+  }, 30_000); // loads every example: past the 5 s default when the machine is busy
 });
