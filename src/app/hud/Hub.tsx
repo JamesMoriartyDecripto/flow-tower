@@ -265,13 +265,15 @@ export function resolveIn(ws?: Workspace): ResolveTarget {
 function jumpToTarget(ws: Workspace | undefined, target: string | undefined) {
   if (!target || !ws) return;
   const [towerId, key] = splitTarget(target);
+  // A tower can vanish from the library after an unshare: do nothing, the same as resolveIn's fallback.
+  const tower = ws.towers[towerId];
+  if (!tower) return;
   const s = useStore.getState();
-  const node = findNode(ws.towers[towerId], key);
+  const node = findNode(tower, key);
   if (!node) return;
   const current = s.stack[s.stack.length - 1];
   if (towerId === current) {
     s.select(key);
-    const tower = ws.towers[towerId];
     if (s.focusedLayer !== undefined) s.focusLayer(tower.layers.findIndex((l) => l.id === node.layer));
     return;
   }

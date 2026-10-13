@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -94,5 +94,15 @@ describe('CLI token changes are audited (#192-02 item 6)', () => {
     // The plaintext token is printed once and never written to the log.
     expect(secret.startsWith('ft_carol_')).toBe(true);
     expect(text).not.toContain(secret);
+  });
+
+  it('prints the token even when the audit line cannot be written', () => {
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-cli-audit-fail-'));
+    // A directory where the log file should be makes the append throw; the create must still succeed.
+    mkdirSync(join(home, 'admin-audit.jsonl'));
+    const added = token(home, ['add', 'dave']);
+    expect(added.status).toBe(0);
+    expect(added.stdout.split('\n')[0].startsWith('ft_dave_')).toBe(true);
+    expect(added.stderr).toContain('warning: could not write the audit log:');
   });
 });
