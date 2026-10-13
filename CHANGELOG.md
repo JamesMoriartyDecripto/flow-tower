@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Changed
+- The 3D figures of `flow-tower export --pdf` and `flow-tower report` use the GPU when there is one (#209): one launcher (`src/cli/browser.ts`) starts Chromium with GPU flags, reads the WebGL renderer, and falls back to software WebGL (SwiftShader) when the renderer is software, the probe times out, or the GPU launch fails; it prints which one it used. `FLOW_TOWER_GL=gpu|software` forces the choice. On a laptop with an Intel Iris Xe the dev-squad level-3 export went from 72 s to 16 s.
+- e2e: `FLOW_TOWER_E2E_GPU=1` runs the Playwright project with the GPU flags, for machines that have a GPU; CI stays in software (#209).
+
+### Fixed
+- `flow-tower export` kills its server and removes its temporary user folder even when the browser launch throws (#209).
+
 ## [0.10.0] - 2026-10-13
 
 ### Added

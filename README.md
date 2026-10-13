@@ -179,7 +179,7 @@ The PDF menu (**D**, or the PDF button) prints the document in a new tab. Four l
 | 3 Full documentation | Level 2 plus a sheet for every node, nested towers, findings and sources |
 | 4 Library | Several projects in one file: a library cover, a contents list, then each project at level 2. Shown when the workspace has more than one project; `?doc=library&level=4&projects=a,b` names the projects (all of them when omitted) |
 
-From the command line, `flow-tower export <tower file | dir> --pdf [--level 1|2|3|4] [--out file.pdf]` writes the PDF. Before writing it, the export runs blocking checks (every layer, node and sub-tower is printed, the counts match the workspace, every link has a target, no raw JSON); a failed check prints what it found and writes no file. Level 4 needs a directory and runs the same checks for each project.
+From the command line, `flow-tower export <tower file | dir> --pdf [--level 1|2|3|4] [--out file.pdf]` writes the PDF. Before writing it, the export runs blocking checks (every layer, node and sub-tower is printed, the counts match the workspace, every link has a target, no raw JSON); a failed check prints what it found and writes no file. Level 4 needs a directory and runs the same checks for each project. The 3D figures use the GPU when the browser gets one and fall back to software WebGL otherwise (it prints which: `3D: GPU (...)` or `3D: software (SwiftShader)`); `FLOW_TOWER_GL=gpu` or `FLOW_TOWER_GL=software` forces the choice.
 
 Links can open a tower, a layer or a node directly: `?tower=request` (the id, the file name without `.tower.yaml`, or the name), `&layer=security` (focuses the layer), `&node=handle.problem` (selects the node). Handy for sharing and for screenshots.
 
