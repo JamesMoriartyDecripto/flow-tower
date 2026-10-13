@@ -113,14 +113,25 @@ describe('the hub refuses a structurally broken share (#190)', () => {
   });
 });
 
+describe('structuralErrors classifies by code (#190)', () => {
+  it('keeps an error whose text mimics a missing file when it has no code', () => {
+    const issues: Issue[] = [
+      { level: 'error', message: 'file not found: a', path: 'main.a' },
+      { level: 'error', message: 'prompt file not found: x.md', path: 'prompts.p', code: 'missing-file' },
+      { level: 'error', message: 'x.md is outside the project (/p): not read', code: 'outside-project' },
+    ];
+    expect(structuralErrors(issues).map((i) => i.message)).toEqual(['file not found: a']);
+  });
+});
+
 describe('structuralErrors (#190)', () => {
   it('keeps a duplicate-id error and drops a prompt file not found one', () => {
     const issues: Issue[] = [
       { level: 'error', message: 'duplicate node id "a"', path: 'main.a' },
-      { level: 'error', message: 'prompt file not found: prompts/x.md', path: 'prompts.p1' },
-      { level: 'error', message: 'agent file not found: agents/y.md', path: 'agents.g' },
-      { level: 'error', message: 'x.md is outside the project (/p): not read' },
-      { level: 'error', message: 'x.md is a secret file or in the user folder (~/.config/flow-tower): not read' },
+      { level: 'error', message: 'prompt file not found: prompts/x.md', path: 'prompts.p1', code: 'missing-file' },
+      { level: 'error', message: 'agent file not found: agents/y.md', path: 'agents.g', code: 'missing-file' },
+      { level: 'error', message: 'x.md is outside the project (/p): not read', code: 'outside-project' },
+      { level: 'error', message: 'x.md is a secret file or in the user folder (~/.config/flow-tower): not read', code: 'secret-file' },
       { level: 'warning', message: 'duplicate node id "z"', path: 'main.z' },
     ];
     expect(structuralErrors(issues).map((i) => i.message)).toEqual(['duplicate node id "a"']);

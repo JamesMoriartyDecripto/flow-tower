@@ -168,8 +168,12 @@ export function startShareSync(opts: ShareSyncOptions): ShareSync {
       token: typeof config.token === 'string' && config.token ? config.token : opts.token,
     };
     // A new hub may hold nothing, so every remembered fingerprint is forgotten: the next upload goes out again.
+    // The accepted node keys and the removal warning belong to the old hub too: left behind, the new hub's first
+    // upload would be compared against them and report nodes as removed that it never held.
     if (hub.url !== target.url || hub.token !== target.token) {
       sent.clear();
+      accepted.clear();
+      warnedRemoval.clear();
       target = hub;
     }
     const shares = sharesOf(config);

@@ -15,7 +15,7 @@ import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
 import { userHome, warnIfInRepo } from './home.ts';
 import { libraryOrigins, minePaths } from './origins.ts';
-import { projectSharedAt, projectSources } from './sources.ts';
+import { projectSharedAt, projectSources, sharedProjectOf } from './sources.ts';
 import { crossSite } from './guard.ts';
 import { stopOnClose } from './lifecycle.ts';
 import { isLoopbackUrl } from '../../bin/identity.js';
@@ -72,7 +72,8 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
 
   const reload = async (server?: ViteDevServer) => {
     if (!entries.length) return;
-    state = await loadLibrary(entries);
+    // A shared tower reads only its own share folder, never the checkout around the library (#190).
+    state = await loadLibrary(entries, { projectOf: (file) => sharedProjectOf(file, library) });
     // A `flow-tower library` serve marks origins (#121c); any other serve (dev, demo) leaves it undefined.
     if (env.FLOW_TOWER_LIBRARY === '1') {
       state.workspace.origins = libraryOrigins(entries, state.workspace.projects, { checkout: PKG_ROOT, mine: minePaths(env.FLOW_TOWER_MINE) });

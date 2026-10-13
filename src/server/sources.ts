@@ -30,6 +30,20 @@ export function projectSources(
 }
 
 /**
+ * The folder a shared tower may read from (#190): `<library>/towers/<machine>/<name>` for a file in a share
+ * folder, and `towers/<machine>` for a file placed straight in a machine folder. Without this the loader would
+ * take the whole git checkout around the library as the project. Undefined for anything else (the default applies).
+ */
+export function sharedProjectOf(file: string, library: string | undefined): string | undefined {
+  if (library === undefined) return undefined;
+  const towers = resolve(library, 'towers');
+  const parts = relative(towers, resolve(file)).split(sep);
+  if (parts.length < 2 || parts[0] === '..' || isAbsolute(parts[0])) return undefined;
+  // A file's own name is the last part: the folder is the machine (and the share name, when there is one) above it.
+  return join(towers, ...parts.slice(0, Math.min(2, parts.length - 1)));
+}
+
+/**
  * When each shared project last changed: the mtime of its share folder `towers/<machine>/<name>/`. The hub
  * replaces that folder on every accepted sync, so the folder's mtime is the last update. Only projects under
  * a machine folder get an entry; a local tower has no share folder. Undefined when nothing is shared.
