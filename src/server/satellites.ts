@@ -13,11 +13,22 @@ export const ONLINE_MS = 180_000;
 export const NAME_MAX = 64;
 
 /** The body of POST /api/heartbeat: the counters and state word the relay publishes, nothing else. */
+/** Most shared towers a satellite may flag in one heartbeat: a bound on what the hub keeps per sender. */
+export const SHARE_FLAGS_MAX = 100;
+
+/**
+ * A shared tower's folder name as the satellite sends it. Limited to the folder-name alphabet, so the name
+ * is safe to match against `towers/<sender>/<name>/` and can never carry free text.
+ */
+const ShareNameSchema = z.string().regex(/^[a-z0-9-]{1,64}$/);
+
 export const HeartbeatSchema = z.object({
   queued: z.number().int().nonnegative(),
   dropped: z.number().int().nonnegative(),
   state: z.string().min(1),
   version: z.string().min(1).optional(),
+  /** Shared towers whose last sync failed (#190): only the name and a flag, never the error text. */
+  shares: z.array(z.object({ name: ShareNameSchema, error: z.literal(true) })).max(SHARE_FLAGS_MAX).optional(),
 });
 
 export type Heartbeat = z.infer<typeof HeartbeatSchema>;
@@ -33,6 +44,8 @@ export interface SatelliteView {
   dropped: number;
   state: string;
   version?: string;
+  /** Names of the shared towers whose last sync failed: the hub keeps the last valid copy of each. */
+  flagged?: string[];
   online: boolean;
 }
 
@@ -65,6 +78,8 @@ export function createSatellites(now: () => number = Date.now) {
       dropped: hb.dropped,
       state: hb.state,
       ...(hb.version !== undefined ? { version: hb.version } : {}),
+      // Replaced, not merged: a heartbeat without `shares` means the flags are gone, so a stale one clears itself.
+      ...(hb.shares !== undefined ? { flagged: [...new Set(hb.shares.map((s) => s.name))] } : {}),
     });
   };
 
