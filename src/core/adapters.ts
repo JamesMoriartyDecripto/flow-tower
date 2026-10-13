@@ -18,27 +18,73 @@ export const clip = (v: unknown, n = 240) => {
 /** The most telling bit of a tool input: a command, a path, a query… */
 const gist = (input: Raw) => clip(input.command ?? input.file_path ?? input.path ?? input.pattern ?? input.query ?? input.url ?? input);
 
-/** Pi coding agent: extension events (`pi.on(...)`) or `pi --mode json` stream lines, tagged with `type`. */
+/** Text of a message content field: a plain string, or the text blocks of a content array. */
+const textOf = (content: unknown): string | undefined => {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return undefined;
+  const block = content.map(obj).find((b) => b.type === 'text' && typeof b.text === 'string');
+  return block ? str(block.text) : undefined;
+};
+
+/** Tool output as Pi sends it: `{ content: [{ type: 'text', text }] }`. Show its first line, not the JSON. */
+const toolResultText = (result: unknown) => {
+  const text = textOf(obj(result).content);
+  return text !== undefined ? clip(text.split('\n')[0], 160) : clip(result, 160);
+};
+
+/** Pi token counts, mapped to FlowEvent.tokens_detail names. Absent counts are left out. */
+const piTokensDetail = (usage: Raw) => {
+  const detail = {
+    input: num(usage.input), output: num(usage.output), cache_read: num(usage.cacheRead), cache_write: num(usage.cacheWrite),
+  };
+  const present = Object.values(detail).some((v) => v !== undefined);
+  return present ? detail : undefined;
+};
+
+/**
+ * Pi coding agent: extension events (`pi.on(...)`) or `pi --mode json` stream lines, tagged with `type`.
+ * Per-turn streaming lines are dropped on purpose: a turn would otherwise flood the feed with dozens of log events.
+ */
 const pi: Adapter = (r) => {
   const base = {
     source: 'pi', session: str(r.session) ?? str(r.sessionId), agent: str(r.agent) ?? 'pi',
     tool: str(r.toolName), call: str(r.toolCallId),
   };
   switch (r.type) {
+    case 'session': return [{ ...base, kind: 'session.start', session: str(r.id) ?? base.session }];
     case 'session_start': return [{ ...base, kind: 'session.start', message: str(r.reason) }];
     case 'session_shutdown': return [{ ...base, kind: 'session.end' }];
     case 'input': return [{ ...base, kind: 'prompt', message: clip(r.text ?? r.input) }];
+    // JSON mode has no `input` event: the user's prompt is a message_start with the user role.
+    case 'message_start': {
+      const message = obj(r.message);
+      return message.role === 'user' ? [{ ...base, kind: 'prompt', message: clip(textOf(message.content)) }] : [];
+    }
     case 'agent_start': return [{ ...base, kind: 'agent.start' }];
     case 'agent_end': return [{ ...base, kind: 'agent.end', status: 'ok' }];
     case 'tool_execution_start': return [{ ...base, kind: 'tool.start', message: gist(obj(r.args ?? r.input)) }];
     case 'tool_execution_end':
-      return [{ ...base, kind: 'tool.end', status: r.isError ? 'error' : 'ok', message: clip(r.result, 160) }];
+      return [{ ...base, kind: 'tool.end', status: r.isError ? 'error' : 'ok', message: toolResultText(r.result) }];
     case 'turn_end': {
-      const usage = obj(obj(r.message).usage);
+      const message = obj(r.message);
+      const usage = obj(message.usage);
       const cost = obj(usage.cost);
-      return [{ ...base, kind: 'usage', tokens: num(usage.totalTokens) ?? num(usage.input), cost_usd: num(cost.total) }];
+      return [{
+        ...base, kind: 'usage', model: str(message.model), tokens: num(usage.totalTokens) ?? num(usage.input),
+        cost_usd: num(cost.total), tokens_detail: piTokensDetail(usage),
+      }];
     }
     case 'model_select': return [{ ...base, kind: 'log', model: str(obj(r.model).id) ?? str(r.model), message: 'model selected' }];
+    // Streaming noise: seen per turn in `pi --mode json`, carries nothing a viewer needs.
+    case 'message_update':
+    case 'message_end':
+    case 'turn_start':
+    case 'tool_execution_update':
+    case 'before_provider_request':
+    case 'after_provider_response':
+    case 'context':
+    case 'thinking_level_select':
+      return [];
     default: return [{ ...base, kind: 'log', message: str(r.type) ?? 'event' }];
   }
 };
@@ -108,7 +154,8 @@ const codexHook: Adapter = (r) => {
 
 /** `codex exec --json` stdout lines. Only `thread.started` carries the thread id, so other lines have no session. */
 const codexExec: Adapter = (r) => {
-  const base = { source: 'codex', agent: 'codex' };
+  // thread_id is present on lines added by the stream context (bin/stream-context.js); thread.started carries it too.
+  const base = { source: 'codex', agent: 'codex', session: str(r.thread_id) };
   const it = obj(r.item);
   const tool = codexTool(it);
   const failed = it.status === 'failed' || it.status === 'declined' || (num(it.exit_code) ?? 0) !== 0 || !!it.error;
