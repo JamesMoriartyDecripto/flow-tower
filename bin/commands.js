@@ -70,7 +70,7 @@ export const TS_COMMANDS = [
       ...(process.argv.some((a) => a === '--target' || a.startsWith('--target=')) ? ['--target', values.target] : []),
       ...(values.project ? ['--project'] : []),
       ...(values['dry-run'] ? ['--dry-run'] : []),
-      ...(process.argv.some((a) => a === '--port' || a.startsWith('--port=')) ? ['--port', values.port] : []),
+      ...(typedPort(process.argv) ? ['--port', values.port] : []),
     ],
   },
   // `library` is a TS command only with a subcommand (add/list/remove); see findTsCommand.

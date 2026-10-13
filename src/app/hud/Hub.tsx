@@ -7,7 +7,7 @@ import { towerPath } from '../graph';
 import { useLive } from '../live';
 import { findNode, useStore } from '../store';
 import { STATIC } from '../staticData';
-import { AlertsTab, readAlerts } from './HubAlerts';
+import { AlertsTab, readAlerts, useAlertNotices } from './HubAlerts';
 import { HubAdmin } from './HubAdmin';
 import { adminVisible } from './hubAdminModel';
 
@@ -332,6 +332,8 @@ function MachinesTab({ rows, now, failed }: { rows: Machine[]; now: number; fail
 export function HubChip() {
   const me = useHub((s) => s.me);
   const show = useHub((s) => s.show);
+  // Browser notices ride on this poll, so they arrive whenever a hub page is open, not only on the Alerts tab.
+  useAlertNotices(useHub((s) => s.alerts));
 
   useEffect(() => {
     if (STATIC) return;

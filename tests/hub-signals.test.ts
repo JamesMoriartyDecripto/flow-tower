@@ -106,3 +106,22 @@ describe('CLI token changes are audited (#192-02 item 6)', () => {
     expect(added.stderr).toContain('warning: could not write the audit log:');
   });
 });
+
+describe('HUB counter never exceeds the tokens (#192-02 item 3, paused senders)', () => {
+  const now = 1_000_000_000;
+
+  it('does not count a paused sender as online, even when it was seen a minute ago', () => {
+    // A paused token is not in the active count, so it must not be in the online count either: HUB 1/0 is wrong.
+    const rows = machineRows([
+      { id: 'p', createdAt: now - 10_000, paused: true },
+    ], [{ sender: 'p', queued: 0, dropped: 0, state: 'unknown', online: true, lastSeen: now - 60_000 } as never], now);
+    expect(rows[0].online).toBe(true);
+    expect(hubCounts(rows)).toEqual({ online: 0, tokens: 0 });
+    expect(hubPill({ hub: true, ...hubCounts(rows) })).toBe('HUB 0/0');
+  });
+
+  it('still counts a tokenless satellite seen recently as online', () => {
+    const rows = machineRows([], [{ sender: 'default', queued: 0, dropped: 0, state: 'unknown', online: true, lastSeen: now - 60_000 } as never], now);
+    expect(hubCounts(rows)).toEqual({ online: 1, tokens: 0 });
+  });
+});

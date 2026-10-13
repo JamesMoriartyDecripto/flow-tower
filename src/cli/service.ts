@@ -11,7 +11,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { localServerUrl } from '../../bin/local-server.js';
-import { shellQuote } from '../../bin/cli-name.js';
+import { cliName, shellQuote } from '../../bin/cli-name.js';
 
 const DEFAULT_PORT = 5317;
 const UNIT_NAME = 'flow-tower';
@@ -236,14 +236,14 @@ function statusLinux(ctx: ServiceContext): number {
     ctx.log(`flow-tower: running (systemd user service)`);
     return 0;
   }
-  ctx.log(`flow-tower: not running (${state}). Install it with: flow-tower service install`);
+  ctx.log(`flow-tower: not running (${state}). Install it with: ${cliName()} service install`);
   return 1;
 }
 
 function statusMac(ctx: ServiceContext): number {
   const r = ctx.run('launchctl', ['print', `gui/${ctx.uid}/${AGENT_LABEL}`]);
   if (r.status !== 0) {
-    ctx.log('flow-tower: not installed. Install it with: flow-tower service install');
+    ctx.log(`flow-tower: not installed. Install it with: ${cliName()} service install`);
     return 1;
   }
   const running = /state = running/.test(r.stdout);
@@ -284,7 +284,7 @@ export function runService(argv: string[], ctx: ServiceContext = defaultServiceC
   const linux = ctx.platform === 'linux';
   const mac = ctx.platform === 'darwin';
   if (!linux && !mac) {
-    ctx.log(`service: supported on Linux (systemd) and macOS (launchd) only. Start the library by hand: flow-tower library`);
+    ctx.log(`service: supported on Linux (systemd) and macOS (launchd) only. Start the library by hand: ${cliName()} library`);
     return 1;
   }
   if (action === 'status') return linux ? statusLinux(ctx) : statusMac(ctx);
