@@ -23,6 +23,14 @@ npm run simulate -- game-studio    # terminal 2: 3 parallel walkers replay a pla
 
 ## Sources
 
+**One command wires them all:** `flow-tower hooks install` finds Claude Code, Codex, Pi and Hermes on this machine
+and merges Flow Tower's entries into each one's config, on the port of the library running now (else `--port N`,
+else 5317). It keeps every hook of your own, backs a changed file up as `<file>.flow-tower.bak`, and a second run
+changes nothing. `--target <harness>` picks one, `--project` writes the project's config instead of your user one,
+`--dry-run` only prints. `flow-tower hooks status` shows where they are wired and whether the port matches the running
+library; `flow-tower hooks uninstall` removes only Flow Tower's entries. The table below is what it installs, for
+reading or doing it by hand.
+
 | Source | How | Ready-made config |
 |---|---|---|
 | **Claude Code** | Native `http` hooks (plus one `command` hook for SessionStart) | [`integrations/claude-code/settings.json`](../integrations/claude-code/settings.json): merge into `.claude/settings.json` |

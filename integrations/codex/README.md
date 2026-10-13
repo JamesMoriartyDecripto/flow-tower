@@ -1,6 +1,6 @@
 # Codex
 
-- **Hooks** (recommended): copy `hooks.json` to `~/.codex/hooks.json` (or a repo's `.codex/hooks.json`), then approve the hooks in Codex with `/hooks`. Repo-level hooks only run in trusted projects.
+- **Hooks** (recommended): `flow-tower hooks install --target codex` merges them for you; or copy `hooks.json` to `~/.codex/hooks.json` (or a repo's `.codex/hooks.json`), then approve the hooks in Codex with `/hooks`. Repo-level hooks only run in trusted projects.
 - **`notify`** (legacy, turn ends only): merge `config.toml` into `~/.codex/config.toml`.
 - **Tokens and cost**: the `[otel]` block in `config.toml` goes in `~/.codex/config.toml` too; Codex ignores it in a project's `.codex/config.toml`.
 - **`codex exec --json`**: `codex exec --json "…" | flow-tower emit --source codex`.

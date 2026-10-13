@@ -177,8 +177,8 @@ function install(targets: Harness[], o: { project: boolean; port: { port: number
   }
   for (const h of done) console.log(nextStep(h));
   // The SDK file's URL is fixed at 5317, so the port is named only when the install wires another one.
-  const portPart = o.port.port === DEFAULT_PORT ? '' : ` to port ${o.port.port}`;
-  console.log(`Agent SDK: copy integrations/agent-sdk/flow-tower-hooks.ts into your app and set its URL port${portPart}`);
+  const portPart = o.port.port === DEFAULT_PORT ? '' : ` and set the port in its URL to ${o.port.port}`;
+  console.log(`Agent SDK: copy integrations/agent-sdk/flow-tower-hooks.ts into your app${portPart}`);
   return code;
 }
 

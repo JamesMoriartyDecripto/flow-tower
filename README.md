@@ -135,7 +135,7 @@ node bin/flow-tower.js validate path/to/agent.tower.yaml [--json]   # also great
 npm run simulate -- game-studio        # see it without wiring anything
 ```
 
-Wire Claude Code, the Agent SDK, Codex, Pi, Hermes, your own scripts, and tokens and cost per node (OpenTelemetry): [docs/realtime.md](docs/realtime.md). Events from other machines go to a shared hub: [docs/command-center.md](docs/command-center.md).
+`flow-tower hooks install` wires Claude Code, Codex, Pi and Hermes in one step. The Agent SDK, your own scripts, and tokens and cost per node (OpenTelemetry): [docs/realtime.md](docs/realtime.md). Events from other machines go to a shared hub: [docs/command-center.md](docs/command-center.md).
 
 ## Controls
 
