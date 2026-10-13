@@ -54,6 +54,12 @@ describe('service file text', () => {
     expect(text).toContain('<key>KeepAlive</key>');
     expect(text).toContain('<string>/Users/me/Library/Logs/flow-tower.log</string>');
   });
+
+  it('restarts the launchd agent only on failure, not after a clean exit', () => {
+    const text = plistText({ node: '/opt/node', cli: '/x/flow-tower.js', port: 5317, logFile: '/tmp/ft.log' });
+    expect(text).toContain('<key>KeepAlive</key>\n  <dict>\n    <key>SuccessfulExit</key>\n    <false/>');
+    expect(text).not.toMatch(/<key>KeepAlive<\/key>\s*<true\/>/);
+  });
 });
 
 describe('service install and status', () => {

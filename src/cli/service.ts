@@ -122,8 +122,9 @@ WantedBy=default.target
 }
 
 /**
- * The launchd agent. RunAtLoad starts it at login; KeepAlive restarts it whenever it exits, the launchd
- * equivalent of Restart=on-failure. Output goes to one log file the user can read.
+ * The launchd agent. RunAtLoad starts it at login; KeepAlive with SuccessfulExit=false restarts it only when
+ * it exits with a failure, the launchd equivalent of Restart=on-failure (a bare `true` would restart it even
+ * after a clean stop). Output goes to one log file the user can read.
  */
 export function plistText({ node, cli, port, home, logFile }: { node: string; cli: string; port: number; home?: string; logFile: string }): string {
   const args = [node, ...libraryArgs(cli, port)].map((a) => `    <string>${xml(a)}</string>`).join('\n');
@@ -143,7 +144,10 @@ ${args}
 ${env}  <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
-  <true/>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
   <key>StandardOutPath</key>
   <string>${xml(logFile)}</string>
   <key>StandardErrorPath</key>
@@ -220,9 +224,13 @@ function installMac(ctx: ServiceContext, port: number): number {
   return 0;
 }
 
-function statusLinux(ctx: ServiceContext, port: number): number {
+function statusLinux(ctx: ServiceContext): number {
   const r = ctx.run('systemctl', ['--user', 'is-active', UNIT_NAME]);
-  if (r.missing) return noSystemd(ctx, port);
+  // Status only reports; it must not suggest installing, which would write a unit that cannot load here.
+  if (r.missing) {
+    ctx.log('systemd is not available here: the library is not managed as a service');
+    return 1;
+  }
   const state = r.stdout.trim() || 'unknown';
   if (state === 'active') {
     ctx.log(`flow-tower: running (systemd user service)`);
@@ -279,7 +287,7 @@ export function runService(argv: string[], ctx: ServiceContext = defaultServiceC
     ctx.log(`service: supported on Linux (systemd) and macOS (launchd) only. Start the library by hand: flow-tower library`);
     return 1;
   }
-  if (action === 'status') return linux ? statusLinux(ctx, DEFAULT_PORT) : statusMac(ctx);
+  if (action === 'status') return linux ? statusLinux(ctx) : statusMac(ctx);
   if (action === 'uninstall') return linux ? uninstallLinux(ctx) : uninstallMac(ctx);
   let port: number;
   try {

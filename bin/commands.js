@@ -33,7 +33,7 @@ export const TS_COMMANDS = [
     extra: (values) => [
       ...(values.pdf ? ['--pdf'] : []),
       ...['level', 'out'].flatMap((name) => (values[name] === undefined ? [] : [`--${name}`, values[name]])),
-      ...(process.argv.some((a) => a === '--port' || a.startsWith('--port=') || a === '-p') ? ['--port', values.port] : []),
+      ...(typedPort(process.argv) ? ['--port', values.port] : []),
     ],
   },
   // `--source` repeats, which the shared parser cannot hold (its `source` is emit's single string), so every
@@ -79,9 +79,17 @@ export const TS_COMMANDS = [
   {
     name: 'service',
     script: 'service.ts',
-    extra: (values) => (process.argv.some((a) => a === '--port' || a.startsWith('--port=')) ? ['--port', values.port] : []),
+    extra: (values) => (typedPort(process.argv) ? ['--port', values.port] : []),
   },
 ];
+
+/**
+ * True when the user typed a port on the command line (`--port N`, `--port=N` or `-p N`). parseArgs gives
+ * `port` a default, so the value alone cannot tell a typed port from the default: argv is checked instead.
+ */
+export function typedPort(argv) {
+  return argv.some((a) => a === '--port' || a.startsWith('--port=') || a === '-p');
+}
 
 /** Every `--source <file>` and `--source=<file>` on the command line, in order, as `--source <file>` pairs. */
 function sourceArgs(args) {

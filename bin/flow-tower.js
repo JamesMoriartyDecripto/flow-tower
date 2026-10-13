@@ -297,7 +297,8 @@ async function emit() {
   const sameOrigin = (a, b) => { try { return new URL(a).origin === new URL(b).origin; } catch { return false; } };
   const envToken = env.FLOW_TOWER_TOKEN?.trim();
   const configToken = cfg.config.token && cfg.config.url && sameOrigin(cfg.config.url, url) ? cfg.config.token : undefined;
-  const token = values.token ?? (envToken || undefined) ?? configToken;
+  const explicitToken = values.token ?? (envToken || undefined);
+  const token = explicitToken ?? configToken;
   if (token) headers['x-flow-tower-token'] = token;
   // Posts to one url. Resolves to true when the request was refused at the connection (ECONNREFUSED or
   // a socket error before any reply), so the caller can fall back; an HTTP answer of any status is a reply.
@@ -311,9 +312,10 @@ async function emit() {
   // fall back: they are not our code and post to the local server directly, so `service install` is the fix.
   // Only a satellite that posted to a live local relay has a hub to fall back to; posting straight to the hub has none.
   const hubFallback = cfg.role === 'satellite' && !explicit('url') && liveLocal && cfg.config.url && cfg.config.token && url !== cfg.config.url;
+  // An explicit token was given for this call, so it wins the fallback too; the config token is only the default.
+  const hubHeaders = { ...headers, 'x-flow-tower-token': explicitToken ?? cfg.config.token };
   const post = async (events) => {
     if (!(await send(url, events, headers)) || !hubFallback) return;
-    const hubHeaders = { ...headers, 'x-flow-tower-token': cfg.config.token };
     await send(cfg.config.url, events, hubHeaders);
   };
 
