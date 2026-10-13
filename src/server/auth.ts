@@ -18,7 +18,17 @@ export interface AuthOptions {
   ingestOnly?: boolean;
 }
 
-export type Auth = { ok: true; sender?: string } | { ok: false };
+/** `paused`: the presented token is valid but the hub owner paused it (#188), so the answer says so. */
+export type Auth = { ok: true; sender?: string } | { ok: false; paused?: true };
+
+/**
+ * The 401 body for a refused sender token (#188). Shared by every route so the bodies cannot drift: a paused
+ * machine is told so, and anything else gets the route's usual text plus `state: 'refused'`.
+ */
+export function refusal(authz: Auth, otherwise = 'bad or missing token'): { error: string; state: 'paused' | 'refused' } {
+  if (!authz.ok && authz.paused) return { error: 'this machine is paused on the hub', state: 'paused' };
+  return { error: otherwise, state: 'refused' };
+}
 
 /** Hub mode: a shared server must never take an unsigned event, even before any token exists. */
 export const hubMode = () => /^(1|true|yes)$/i.test(env.FLOW_TOWER_HUB ?? '');
@@ -68,8 +78,9 @@ export function authorize(req: IncomingMessage, { legacy, home, hub, ingestOnly 
     // A presented token is always checked, locally too: its id is who sent the event, and a revoked or
     // paused one (gone from verify) must fail rather than fall back to "trusted local".
     if (legacy && same(token, legacy)) return { ok: true, sender: 'default' };
-    const hit = tokenStore(home).verify(token);
-    return hit ? { ok: true, sender: hit.id } : { ok: false };
+    const hit = tokenStore(home).check(token);
+    if (hit && 'id' in hit) return { ok: true, sender: hit.id };
+    return hit ? { ok: false, paused: true } : { ok: false };
   }
   // No token: a request from this machine is trusted as before #83 (the hub's own hooks keep working),
   // unless FLOW_TOWER_TOKEN is set. Off-machine senders in hub mode always need a token, and --ingest-only

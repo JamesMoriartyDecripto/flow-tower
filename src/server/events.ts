@@ -4,7 +4,7 @@ import { FlowEventSchema, resolveRuntime, resolveTargets, splitTarget, type Flow
 import { normalize } from '../core/adapters.ts';
 import { otlpLogsToEvents } from '../core/otlp.ts';
 import type { Workspace } from '../core/types.ts';
-import { authorize, hubMode, isRemote, type AuthOptions } from './auth.ts';
+import { authorize, hubMode, isRemote, refusal, type AuthOptions } from './auth.ts';
 import { crossSite, isJson } from './guard.ts';
 import { createBucket, createDedupe, eventIdOf, inTimeWindow, type Bucket, type Dedupe } from './limits.ts';
 import { HeartbeatSchema, type Satellites } from './satellites.ts';
@@ -120,7 +120,7 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     if (!isJson(req)) return json(res, 415, { error: 'content-type must be application/json' });
     if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
     const authz = authorize(req, auth);
-    if (!authz.ok) return json(res, 401, { error: 'bad or missing token' });
+    if (!authz.ok) return json(res, 401, refusal(authz));
     // A local hook without a token is trusted (the server is never exposed that way): only a sender
     // identity or a request that reached us from off this machine gets its own rate-limit bucket.
     // The key must never be undefined for a remote/ingest-only request: fall back to the socket address,
@@ -161,7 +161,7 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     if (!isJson(req)) return json(res, 415, { error: 'content-type must be application/json' });
     if (crossSite(req)) return json(res, 403, { error: 'cross-site requests are refused' });
     const authz = authorize(req, auth);
-    if (!authz.ok) return json(res, 401, { error: 'bad or missing token' });
+    if (!authz.ok) return json(res, 401, refusal(authz));
     // Same per-sender bucket as /api/events, one token per request before the (up to 4 MB) body is read.
     const remote = auth.ingestOnly || isRemote(req, { hub: auth.hub ?? hubMode() });
     const key = authz.sender ?? (remote ? req.socket?.remoteAddress ?? 'remote' : undefined);
@@ -195,8 +195,8 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
     const authz = authorize(req, auth);
     // Hub mode names a sender: without a token there is no one to record, and the hub's own machine is
     // not a satellite. Same rule as /api/events, but a missing sender is fatal here rather than "trusted".
-    if (!authz.ok) return json(res, 401, { error: 'bad or missing token' });
-    if (!authz.sender && ((auth.hub ?? hubMode()) || auth.ingestOnly)) return json(res, 401, { error: 'bad or missing token' });
+    if (!authz.ok) return json(res, 401, refusal(authz));
+    if (!authz.sender && ((auth.hub ?? hubMode()) || auth.ingestOnly)) return json(res, 401, refusal(authz));
     // A heartbeat spends from the same per-sender bucket as /api/events: a satellite must not evade the
     // limit by beating instead of sending events.
     const remote = auth.ingestOnly || isRemote(req, { hub: auth.hub ?? hubMode() });

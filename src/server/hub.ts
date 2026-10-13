@@ -1,6 +1,6 @@
 import { statSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { authorize, hubMode, isLoopback, isRemote } from './auth.ts';
+import { authorize, hubMode, isLoopback, isRemote, refusal } from './auth.ts';
 import { configPaths, loadConfig } from './config.ts';
 import { userHome } from '../core/secrets.ts';
 
@@ -128,7 +128,7 @@ export function hubGuard(opts: HubOptions) {
       // request is treated as remote there: every ingest must carry a valid token.
       if ((opts.hub && isRemote(req, { hub: opts.hub })) || opts.ingestOnly) {
         const authz = authorize(req, { legacy: opts.legacy, home: opts.home, hub: opts.hub, ingestOnly: opts.ingestOnly });
-        if (!authz.ok) return deny(res, 401, { error: 'bad or missing token' });
+        if (!authz.ok) return deny(res, 401, refusal(authz));
       }
       return next();
     }
@@ -140,7 +140,7 @@ export function hubGuard(opts: HubOptions) {
     // passes the guard only with a valid token, whatever the method, and the route checks the sender itself.
     if (isSharedTowers(path)) {
       const authz = authorize(req, { legacy: opts.legacy, home: opts.home, hub: opts.hub });
-      if (!authz.ok || !authz.sender) return deny(res, 401, { error: 'a sender token is required' });
+      if (!authz.ok || !authz.sender) return deny(res, 401, refusal(authz, 'a sender token is required'));
       return next();
     }
     if (isViewing(req.method, path)) {
