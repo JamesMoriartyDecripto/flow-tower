@@ -80,7 +80,7 @@ const MACHINES_MS = 10_000;
 const ME_MS = 30_000;
 
 /** One dot per Now state, so the row reads at a glance like the live scene. */
-const DOT: Record<NowState, string> = { run: '●', idle: '◐', silent: '○' };
+const DOT: Record<NowState, string> = { run: '●', idle: '◐', silent: '○', ended: '○' };
 
 /**
  * One row of GET /api/hub/machines (src/server/machines.ts). Metadata only: a sender id, a shortened

@@ -148,7 +148,7 @@ layers:
         type: process
         label: /api/events
         runtime: hub
-        description: "JSON events, at most 1000 per request; answers 204 with an empty body. gzip/deflate decoded with a decompressed-size cap; unknown encodings get 415."
+        description: "JSON events, at most 1000 per request; answers 204 with an empty body. gzip/deflate decoded with a decompressed-size cap; unknown encodings get 415. A sender's event is matched only against the towers its machine shared and the hub's own (#206), so teammates never light each other's towers."
         files: [src/server/events.ts]
       - id: otlp-route
         type: process

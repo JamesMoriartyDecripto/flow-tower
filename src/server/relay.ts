@@ -171,11 +171,14 @@ export function createRelay(opts: RelayOptions) {
   /** The heartbeat body (#91): the counters and state word `state()` publishes, plus the version. */
   const heartbeatBody = () => {
     const s = state();
+    // Only the names and a flag leave: the hub shows "newer version not sent", never why it failed.
+    const failing = opts.shareErrors?.() ?? [];
     return {
       queued: s.queued,
       dropped: s.dropped,
       state: s.state,
       ...(opts.version !== undefined ? { version: opts.version } : {}),
+      ...(failing.length ? { shares: failing.map((name) => ({ name, error: true })) } : {}),
     };
   };
 

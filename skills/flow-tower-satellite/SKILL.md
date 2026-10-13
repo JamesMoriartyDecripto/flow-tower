@@ -76,6 +76,6 @@ Offer `{{FLOW_TOWER_CLI}} service install [--port N]` (ask first): it keeps the 
 | a `400` naming a file or a limit | Fix that file, or share YAML only. |
 | `share` says `<file>: <error>`, or Settings › Sharing shows `not sent` | The tower has an error: `validate` it, fix it, save; the hub keeps the last valid version meanwhile. |
 | `/api/sharing` shows another `hub`, or towers you did not share | Another server answered on that port: stop it or use another `--port`. |
-| the tower is shared but nothing lights | The agents' hooks are not wired (step 6), or the local library is not running (step 5). |
+| the tower is shared but nothing lights | The agents' hooks are not wired (step 6), or the local library is not running (step 5). If events arrive but show as `unmapped` in the Live feed, the tower's nodes do not match their names: add `match:` rules (the main agent is `agent:main` in every harness; tools by name, e.g. `tool:bash`; docs/realtime.md § Matching). |
 
 Report: the hub address, the machine name, the towers shared and how (YAML only or with files), and the result of step 7.

@@ -114,6 +114,54 @@ describe('service install and status', () => {
     expect(logs.at(-1)).toContain('not installed');
   });
 
+  it('refuses to install when a library already listens on the port, and writes nothing', () => {
+    const logs: string[] = [];
+    const { calls, run } = fakeRun();
+    const c = { ...ctx('linux', run, logs), listening: (p: number) => p === 6000 };
+    expect(runService(['install', '--port', '6000'], c)).toBe(1);
+    expect(calls).toEqual([]);
+    expect(existsSync(join(home, '.config', 'systemd'))).toBe(false);
+    expect(logs.at(-1)).toBe('a library already runs on port 6000: stop it first, or pick --port');
+  });
+
+  it('names the recorded pid when the live record holds the port', () => {
+    // The record lives in the user folder, which FLOW_TOWER_HOME points at: the test sets it to the temp home.
+    writeFileSync(join(home, 'local-server.json'), JSON.stringify({ url: 'http://127.0.0.1:6000', pid: process.pid }));
+    const logs: string[] = [];
+    const { calls, run } = fakeRun();
+    const c = { ...ctx('darwin', run, logs), env: { FLOW_TOWER_HOME: home } };
+    expect(runService(['install', '--port', '6000'], c)).toBe(1);
+    expect(calls).toEqual([]);
+    expect(logs.at(-1)).toBe(`a library already runs on port 6000 (pid ${process.pid}): stop it first, or pick --port`);
+  });
+
+  it('installs on a free port even when a library runs on another one', () => {
+    const logs: string[] = [];
+    const { run } = fakeRun();
+    const c = { ...ctx('linux', run, logs), listening: (p: number) => p === 5317 };
+    expect(runService(['install', '--port', '6000'], c)).toBe(0);
+  });
+
+  it('status tells a stopped installed unit to start, not to reinstall', () => {
+    const dir = join(home, '.config', 'systemd', 'user');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'flow-tower.service'), 'unit');
+    const logs: string[] = [];
+    const down = fakeRun({ 'systemctl --user is-active': { stdout: 'inactive\n', status: 3 } });
+    expect(runService(['status'], ctx('linux', down.run, logs))).toBe(1);
+    expect(logs.at(-1)).toBe('installed but not running: systemctl --user start flow-tower');
+  });
+
+  it('status tells a loaded but stopped launch agent to bootstrap again', () => {
+    const file = join(home, 'Library', 'LaunchAgents', 'dev.flowtower.library.plist');
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, 'plist');
+    const logs: string[] = [];
+    const idle = fakeRun({ 'launchctl print': { stdout: '\tstate = waiting\n' } });
+    expect(runService(['status'], ctx('darwin', idle.run, logs))).toBe(1);
+    expect(logs.at(-1)).toBe(`installed but not running: launchctl bootstrap gui/501 ${file}`);
+  });
+
   it('rejects a bad port before running anything', () => {
     const logs: string[] = [];
     const { calls, run } = fakeRun();

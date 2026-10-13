@@ -125,10 +125,46 @@ export function resolveRuntime(tower: ResolvedTower, event: z.output<typeof Flow
   return hit?.id;
 }
 
-/** Every "tower#node" the event lands on, across all towers of the library. */
-export function resolveTargets(ws: Workspace, event: z.output<typeof FlowEventSchema>): string[] {
+/**
+ * Tower id → the project it belongs to. A nested tower is reached from its root project through the
+ * tower references of the nodes, so the walk starts at each project and follows them. Cached per workspace
+ * object: the map is rebuilt only when the library reloads (a new object), not on every event.
+ */
+const projectByTower = new WeakMap<Workspace, Map<string, string>>();
+function projectsOf(ws: Workspace): Map<string, string> {
+  const cached = projectByTower.get(ws);
+  if (cached) return cached;
+  const out = new Map<string, string>();
+  const visit = (id: string, project: string) => {
+    if (out.has(id)) return;
+    out.set(id, project);
+    const tower = ws.towers[id];
+    for (const layer of tower?.layers ?? []) for (const node of layer.nodes) {
+      for (const ref of [node.tower, node.agent?.tower]) if (ref) visit(ref, project);
+    }
+  };
+  for (const id of ws.projects) visit(id, id);
+  projectByTower.set(ws, out);
+  return out;
+}
+
+/**
+ * Every "tower#node" the event lands on, across all towers of the library.
+ * `scope.sender` (a hub only): when the workspace has `sources`, a sender's event lights only the towers
+ * whose project came from that sender or from this hub (`local`). Each machine's towers stay its own, so
+ * one teammate's events do not light another's shared tower. Naming a tower (`event.tower`) only narrows
+ * within those allowed towers: it can never reach a teammate's tower, or the scope would be bypassable.
+ */
+export function resolveTargets(ws: Workspace, event: z.output<typeof FlowEventSchema>, scope: { sender?: string } = {}): string[] {
   const out: string[] = [];
+  const sources = ws.sources;
+  const owners = sources && scope.sender ? projectsOf(ws) : undefined;
   for (const tower of Object.values(ws.towers)) {
+    if (owners) {
+      // A tower with no recorded project belongs to this hub, like a project absent from `sources`.
+      const source = sources![owners.get(tower.id) ?? ''] ?? 'local';
+      if (source !== 'local' && source !== scope.sender) continue;
+    }
     if (event.tower && !like(tower.id, `*${event.tower}*`) && !like(tower.name, `*${event.tower}*`)) continue;
     for (const layer of tower.layers) for (const node of layer.nodes) {
       if (eventMatches(node, event)) out.push(targetKey(tower.id, node.key));

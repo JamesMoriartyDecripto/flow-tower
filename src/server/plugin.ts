@@ -133,7 +133,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       const refusals = new Set<string>();
       const supervisor = createRelaySupervisor({
         read: () => readRelayConfig(server, hubOpts, refusals),
-        build: (settings, onStateChange) => createRelay({ ...settings, version: VERSION, onStateChange }),
+        build: (settings, onStateChange, shareErrors) => createRelay({ ...settings, version: VERSION, onStateChange, shareErrors }),
         startSync: (settings) => settings.token
           ? startShareSync({ home: USER_HOME, url: settings.url, token: settings.token, warn: (message) => server.config.logger.warn(message) })
           : undefined,

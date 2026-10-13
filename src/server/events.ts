@@ -7,7 +7,7 @@ import type { Workspace } from '../core/types.ts';
 import { authorize, hubMode, isRemote, refusal, type AuthOptions } from './auth.ts';
 import { crossSite, isJson } from './guard.ts';
 import { createBucket, createDedupe, eventIdOf, inTimeWindow, type Bucket, type Dedupe } from './limits.ts';
-import { HeartbeatSchema, type Satellites } from './satellites.ts';
+import { HeartbeatSchema, keepValidShares, type Satellites } from './satellites.ts';
 import { userHome } from '../core/secrets.ts';
 
 export const EVENTS_EVENT = 'flow-tower:events';
@@ -91,9 +91,10 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
       // The kind is part of the key: tool.start and tool.end share their call id, and both are real.
       // A duplicate is dropped silently: a retrying hook is expected, not a bug to report.
       if (id && dedupe.seen(`${sender ?? ''}:${e.kind}:${id}`)) { rejected++; continue; }
-      const targets = ws ? resolveTargets(ws, e) : [];
-      // The token identity wins over the payload: a sender cannot claim to be someone else.
+      // The token identity wins over the payload: a sender cannot claim to be someone else. The scope uses
+      // the same identity, so a teammate's event lights only that teammate's towers and the hub's own (#206).
       const who = sender ? { sender, user: sender } : {};
+      const targets = ws ? resolveTargets(ws, e, { sender }) : [];
       const event = { ...e, ...who, id: ++seq, ts: e.ts ?? at, targets, runtimeRef: ws ? runtimeRefOf(ws, e, targets) : undefined };
       out.push(event);
       // An accepted event proves the satellite behind this sender is alive (#91), heartbeat or not, and
@@ -212,7 +213,7 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
       let parsed: unknown;
       try { parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
       catch { return json(res, 400, { error: 'invalid JSON' }); }
-      const hb = HeartbeatSchema.safeParse(parsed);
+      const hb = HeartbeatSchema.safeParse(keepValidShares(parsed));
       if (!hb.success) return json(res, 400, { error: 'invalid heartbeat' });
       limits.satellites?.beat(authz.sender ?? 'default', hb.data);
       res.statusCode = 204;
