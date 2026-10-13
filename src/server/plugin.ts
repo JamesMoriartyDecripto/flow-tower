@@ -27,6 +27,7 @@ import { effective, loadConfig } from './config.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 import { hubViews } from './hub-views.ts';
 import { hubAlerts } from './hub-alerts.ts';
+import { hubAdmin } from './hub-admin.ts';
 import { enrollHandler } from './enroll.ts';
 import { sharedTowersHandler } from './shared-towers.ts';
 import { openHistory } from './history/db.ts';
@@ -191,6 +192,10 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       // Alerts (#94): one mount for the list and the ack and snooze POSTs. The list is a viewing route; the two
       // POSTs answer only this machine (see hub-alerts.ts). The history DB is passed in, undefined when disabled.
       server.middlewares.use('/api/hub/alerts', hubAlerts({ satellites, home: USER_HOME, hub: hubOpts.hub, db: 'db' in opened ? opened.db : undefined }));
+      // Admin (#93): the panel's sender, viewer, budget, alert, retention and history controls. Every route is
+      // loopback-only (see hub-admin.ts); the GET is read with the same rule. Mounted by prefix, so the one
+      // handler routes each sub-path itself.
+      server.middlewares.use('/api/hub/admin', hubAdmin({ home: USER_HOME, hub: hubOpts.hub, history, hubUrl: () => hubUrlOf(server) }));
       // Enrolment (#164): a POST that hands a listed viewer its machine's token. No other /api/hub mount is a
       // prefix of it, so nothing else swallows it. The route itself refuses anything but a tailnet viewer.
       server.middlewares.use('/api/hub/enroll', enrollHandler({ home: USER_HOME, hub: hubOpts.hub }));
@@ -286,6 +291,19 @@ export function targetsSelf(url: string, server: ViteDevServer): boolean {
   // An empty port means the scheme default (80 for http, 443 for https), which can still be our port.
   const target = parsed.port !== '' ? Number(parsed.port) : parsed.protocol === 'https:' ? 443 : 80;
   return target === port;
+}
+
+/**
+ * The URL a sender should connect to, for the connect line the admin panel shows (#93). Taken from the
+ * bound port; a hub behind tailscale serve is reached by its tailnet name, which is what `url` in config
+ * carries, so that wins when it is set.
+ */
+export function hubUrlOf(server: ViteDevServer): string {
+  const configured = effective(loadConfig().config).url;
+  if (configured) return configured;
+  const addr = server.httpServer?.address();
+  const port = typeof addr === 'object' && addr ? addr.port : server.config.server.port;
+  return `http://127.0.0.1:${port}`;
 }
 
 /** Re-exported for callers that only know this module: the payload itself lives with the update check. */

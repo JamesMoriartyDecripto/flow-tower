@@ -78,6 +78,15 @@ function viewers(home: string): string[] {
 let cache: { home: string; mtime: number; list: string[] } | undefined;
 
 /**
+ * Drops the memoized viewers list. The admin routes (#93) call this after they write config.json: an mtime
+ * check can miss a second write that lands in the same timestamp, and the operator expects the next request
+ * to see the change, not the one after it.
+ */
+export function resetViewersCache(): void {
+  cache = undefined;
+}
+
+/**
  * The tailnet user behind this request, if it may view the hub (#83). Tailscale serve sets
  * tailscale-user-login for the tailnet user and connects from loopback: the header is trusted only then,
  * since on a --host bind anyone on the network could send it. Shared by the guard and the upgrade check.

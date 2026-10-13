@@ -92,6 +92,10 @@ export interface History {
   eraseUser(user: string): EraseResult;
   /** What the DB currently holds: retention window, oldest raw event, row count. */
   info(): HistoryInfo;
+  /** Raw events older than `before` (ms): the preview count, so the operator can see what a delete would take. */
+  countBefore(before: number): number;
+  /** Deletes raw events older than `before` and says how many went. Rollups are aggregates and stay as they are. */
+  deleteBefore(before: number): number;
 }
 
 export interface EraseResult {
@@ -229,5 +233,26 @@ export function createHistory(db: DatabaseSync): History {
     return { enabled: true, rawDays: retentionDays(), oldest: oldest ?? null, rows };
   };
 
-  return { write, prune, totals, eraseUser, info };
+  const countBefore = (before: number): number =>
+    (db.prepare('SELECT COUNT(*) AS n FROM events WHERE ts < ?').get(before) as { n: number }).n;
+
+  /**
+   * Only raw events go: the rollups are the content-free totals the charts read, so an operator clearing
+   * old raw rows must not lose the year of history they summarise. The count is read in the same
+   * transaction as the delete, so the number reported is the number removed.
+   */
+  const deleteBefore = (before: number): number => {
+    db.exec('BEGIN');
+    try {
+      const n = (db.prepare('SELECT COUNT(*) AS n FROM events WHERE ts < ?').get(before) as { n: number }).n;
+      db.prepare('DELETE FROM events WHERE ts < ?').run(before);
+      db.exec('COMMIT');
+      return n;
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  };
+
+  return { write, prune, totals, eraseUser, info, countBefore, deleteBefore };
 }

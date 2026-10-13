@@ -38,3 +38,5 @@ Which server file owns what: API routes, the event hub, per-sender tokens (`src/
 | `src/server/alert-inputs.ts` | Builds the rules' input from the machine rows, `config.cadence`/`budgets`/`alerts` and the history (month cost, 7-day hourly errors, new hosts); no history means zero data, not an error |
 | `src/server/alerts-state.ts` | Acks and snoozes in `alerts-state.json` (user folder, 0600, atomic write) |
 | `src/server/hub-alerts.ts` | `GET /api/hub/alerts` (a viewing route) and `POST /api/hub/alerts/ack|snooze` (loopback only, 404 to remote, cross-site check) |
+| `src/server/hub-admin.ts` | Hub › Admin routes (#93) under `/api/hub/admin/`: senders add/pause/resume/revoke, viewers, cadence, budgets, alerts, retention, history count and delete-before; every route loopback only (404 to remote), cross-site checked, one audit line per change; resets the viewers cache so the next request sees the change |
+| `src/server/admin-audit.ts` | `admin-audit.jsonl` in the user folder (0600): `appendAudit`, `readAudit` (newest first); never a token |

@@ -2,7 +2,7 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
-## Status on 2026-10-12
+## Status on 2026-10-13
 
 - **v0.9.0 released** (2026-10-13): everything below shipped together. Gates and e2e: [report](examples/release-auditor/reports/v0.9.0.md).
   - #164 one-step `connect` on a tailnet and tower `share` / `unshare` / auto-sync; #165 library sources and the FROM filter; #166 command-center kit findings;
@@ -11,6 +11,8 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   - #169 squad pace; #176 bash `steps.sh` and the `Files:` check;
   - #122 contribution path and DCO, #156 squad cost per issue, #160 voice `live_status`, #99 memory leak, #95 part 1.
 - **Not checked on the test server** (no GPU, the live hub on 5317): full `npm run e2e` with the release e2e.log, PDFs with 3D snapshots, the real tailnet test of #164/#165. All in [#181](https://github.com/JamesMoriartyDecripto/flow-tower/issues/181), to run from the laptop.
+- **After v0.9.0:** #137 optional runtime files and #143 the architecture split merged. Open, stacked: PR #185 hub alerts (#94), then PR #186 the hub Admin tab (#93, on top of #185): merge #185, retarget #186 to `main`, then merge it. Squad cost to post when they close: #94 $0.12, #93 $0.09.
+- **Squad lesson:** coders rewrite an existing test file and drop earlier tests. Task files now say "never rewrite or empty an existing test file"; give each step its own test file.
 - **Squad cost on 2026-10-12:** #164 $0.33, #165 $0.06, #169 $0.11, #65 $0.89, #176 $0.02, #173 $0.11, #174 $0.15 (post each on its issue when it closes: `node tools/squad/cost.mjs <n>`).
 - **Dev squad models** (from the benchmark and a field trial): Claude Haiku 5.5 codes, GLM 5.3 FlashX reviews, DeepSeek 4.1 Flash audits. See [tools/squad](tools/squad/README.md) and the cost skill reference § Benchmark 2026-10-11.
 - **Live:** the #97 two-computer test passed: the [command-center](examples/command-center) kit as a systemd service of a dedicated user, Tailscale Serve, two satellites on two computers lighting their towers together.
@@ -20,14 +22,13 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 1. #181 laptop checks: full e2e (commit its e2e.log), 3D PDFs, the real tailnet test of #164/#165
 2. #69 tower names as an STT prompt
-3. (done in #143) docs-qa gaps left: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)
-4. #137 optional runtime files (schema)
-5. Report studio, next types: architecture docs (arc42, C4) and research reports (IMRaD), sources already checked in docs/reports.md
-6. #147 Blender and Unreal benchmark categories
-7. #85 privacy profiles · #93 admin · #94 alerts · #95 the rest of remote activity · #86 fan-out
-8. #97 the docker compose and Caddy variants (systemd and Tailscale tested)
-9. #5 live events with Pi (P1, needs a machine with Pi)
-10. On hold: #129 voice 2 items 4–8, until the maintainer asks
+3. docs-qa gaps left after #143: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)
+4. Report studio, next types: architecture docs (arc42, C4) and research reports (IMRaD), sources already checked in docs/reports.md
+5. #147 Blender and Unreal benchmark categories
+6. #85 privacy profiles (unblocks the profile wizard of the Admin tab) · #95 the rest of remote activity · #86 fan-out
+7. #97 the docker compose and Caddy variants (systemd and Tailscale tested)
+8. #5 live events with Pi (P1, needs a machine with Pi)
+9. On hold: #129 voice 2 items 4–8, until the maintainer asks
 
 ## How work is done
 

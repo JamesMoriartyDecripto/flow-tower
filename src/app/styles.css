@@ -544,6 +544,26 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .hub .tabbody { padding: 12px 14px; }
 .hub-empty { margin: 0; color: var(--dim); }
 .hub-warn { margin: 0 0 8px; color: var(--warn); }
+
+/* Admin tab (#93): compact stacked sections; each line wraps rather than widening the right panel. */
+.admin { display: grid; gap: 14px; }
+.admin-section { display: grid; gap: 6px; }
+.admin-section h3 { margin: 0; font-size: 12px; text-transform: uppercase; color: var(--dim); }
+.admin-row { display: grid; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--line, #2a2a2a); }
+.admin-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.admin-line > span:first-child { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Fields match the top-bar search: dark fill, light text, thin border, orange focus. color-scheme makes the native date picker and select popup dark too. */
+.admin-input, .admin-select { min-width: 0; max-width: 100%; font: inherit; color: var(--white); background: var(--bg); border: 1px solid var(--line-soft); border-radius: 4px; padding: 4px 8px; color-scheme: dark; }
+.admin-input { flex: 1 1 96px; }
+.admin-input:focus, .admin-select:focus { outline: 0; border-color: var(--orange); }
+.admin-input::placeholder { color: var(--dim); opacity: 1; }
+.admin-section input[type='checkbox'] { accent-color: var(--orange); }
+.admin-note { margin: 0; font-size: 12px; }
+.admin-state.revoked { color: var(--warn); }
+.admin-box { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--warn); border-radius: 4px; }
+/* Break only between the token's own characters: the hyphen is not a break point, so the token stays whole per line. */
+.admin-token { display: block; font-family: var(--mono); white-space: pre-wrap; word-break: break-all; user-select: all; }
+.admin-audit .mono { flex: 0 0 auto; }
 .hub-rows { display: grid; gap: 2px; }
 /* Both tabs read in the same shape: identity on line 1, dim metadata on line 2. Seven columns never fit
    the right panel (see the live-hub test), so the row stacks and each field ellipsizes on its own. */

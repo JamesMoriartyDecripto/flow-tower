@@ -227,7 +227,7 @@ layers:
       - id: hub-panel
         type: output
         label: Hub panel
-        description: "The Hub panel (#92), key H: tabs Now (live rows: machine, runtime, project, started by or AUTO) and Machines (token prefix, runtime, host, last seen, state); top-bar HUB n/m (senders seen in the last 5 min / active tokens) and READ-ONLY pills for a remote viewer. Reads /api/hub/machines and /api/hub/me. an Alerts tab (#94); Usage, People and Admin tabs are still to come in #85 and #93."
+        description: "The Hub panel (#92), key H: tabs Now (live rows: machine, runtime, project, started by or AUTO) and Machines (token prefix, runtime, host, last seen, state); top-bar HUB n/m (senders seen in the last 5 min / active tokens) and READ-ONLY pills for a remote viewer. Reads /api/hub/machines and /api/hub/me. an Alerts tab (#94) and an Admin tab on the hub machine (#93); Usage and People wait for #85."
         files: [src/app/hud/Hub.tsx, src/app/hub.ts, src/server/hub-views.ts, src/server/machines.ts]
       - id: privacy
         type: guard
@@ -237,8 +237,9 @@ layers:
       - id: admin
         type: human
         label: Admin
-        status: planned
-        description: "Planned (#93), loopback only: add (token shown once), pause, revoke, rename senders; viewers; profile change wizard; retention and delete-before; monthly budgets. Every change writes an audit line; admin routes answer 404 to remote requests."
+        description: "Hub > Admin (#93), on the hub machine only: add a sender (the token and its connect line shown once), pause, resume, revoke (type the id to confirm); viewers; cadence per sender; budgets (USD/month); alert switches; raw retention days and delete-before with a preview count. Every change writes one line to admin-audit.jsonl (0600, never a token). Remote requests never reach it: the hub guard refuses remote writes and the routes answer 404. The privacy profile wizard waits for #85."
+        files: [src/app/hud/HubAdmin.tsx, src/server/hub-admin.ts, src/server/admin-audit.ts]
+        approval: { by: hub operator, actions: [approve, reject], description: "Revoke needs the sender id typed; delete-before needs a second click and confirm: true." }
       - id: alerts
         type: decision
         label: Alerts
