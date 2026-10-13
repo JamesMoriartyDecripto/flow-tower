@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Fixed
+- The 3D figures of the tower document never drew in Google Chrome (the browser, `flow-tower export --pdf` without Playwright's headless shell, and the e2e suite): Chrome stops animation frames in an off-screen or hidden iframe, so every snapshot timed out and the document never got ready. The snapshot iframe now stays on screen, inert and out of the tab order, under an opaque veil; both are hidden in print (#181).
+- e2e: the referenced-files check skips an optional file per node, so one node's optional entry no longer hides a file another node requires (#181).
+
 ## [0.10.0] - 2026-10-13
 
 ### Added

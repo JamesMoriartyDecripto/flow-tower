@@ -108,13 +108,14 @@ for (const id of ws.projects) {
 test('every referenced file is served by /api/file', async ({ request }) => {
   const failures: string[] = [];
   for (const [id, t] of Object.entries(ws.towers)) {
+    // Optionality is per node: a path is required if at least one node needs it and
+    // that node does not list it in its own missingOptional. Skipping by tower would
+    // let one node's optional declaration hide another node's hard requirement.
     const paths = new Set<string>();
     for (const n of t.layers.flatMap((l) => l.nodes)) {
-      n.files.forEach((f) => paths.add(f));
-      n.agent?.files.forEach((f) => paths.add(f));
-      n.resources.forEach((r) => r.path && paths.add(r.path));
-      // An optional file a run writes is expected to be missing until that run (#137).
-      n.missingOptional.forEach((f) => paths.delete(f));
+      const declared = [...n.files, ...(n.agent?.files ?? []), ...n.resources.flatMap((r) => (r.path ? [r.path] : []))];
+      // An optional file a run writes (#137) may not exist yet: the inspector shows "not generated yet".
+      declared.filter((p) => !n.missingOptional.includes(p)).forEach((p) => paths.add(p));
     }
     for (const path of paths) {
       const res = await request.get(`/api/file?tower=${encodeURIComponent(id)}&path=${encodeURIComponent(path)}`);
