@@ -27,6 +27,11 @@ export function FileViewer() {
     if (!file || !path) return;
     let alive = true;
     setView({ state: 'loading' });
+    // Not written yet: a fetch would answer 404, and the viewer would show that as an error.
+    if (file.missing?.includes(path)) {
+      setView({ state: 'error', message: 'not generated yet: a run writes this file' });
+      return;
+    }
     fetchFile(file.tower, path)
       .then(async ({ content, ext }) => {
         const lang = LANGS[ext] ?? 'text';

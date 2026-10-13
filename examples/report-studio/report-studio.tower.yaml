@@ -201,7 +201,12 @@ layers:
         type: output
         label: Report PDF
         description: "One PDF per report; the sample outputs of the four types are in output/."
-        files: [output/security.pdf, output/status.pdf, output/postmortem.pdf, output/cost.pdf]
+        files:
+          - output/security.pdf
+          - output/status.pdf
+          - output/postmortem.pdf
+          - output/cost.pdf
+          - { path: output/dev-squad.pdf, optional: true, description: "The tower-documentation type on dev-squad: written by the command in the README (3D snapshots, slow without a GPU), not committed." }
       - id: signoff
         type: human
         label: Sign-off

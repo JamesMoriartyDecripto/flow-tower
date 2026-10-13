@@ -26,6 +26,8 @@ export interface ResolvedAgent {
   skills: string[];
   disabledTools: string[];
   files: string[];
+  /** The `files` a run writes: missing is expected, not a warning. A subset of `files`. */
+  optionalFiles: string[];
   source?: string;
   tower?: string;
   runtime?: string;
@@ -48,6 +50,10 @@ export interface ResolvedNode {
   prompt?: ResolvedPrompt;
   tools: string[];
   files: string[];
+  /** The `files` a run writes: missing is expected, not a warning. A subset of `files`. */
+  optionalFiles: string[];
+  /** The optional files that do not exist yet, so the inspector shows "not generated yet" for them. */
+  missingOptional: string[];
   tower?: string;
   runtime?: ResolvedRuntime;
   status: Status;

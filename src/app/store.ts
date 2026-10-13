@@ -9,6 +9,8 @@ export interface OpenFile {
   tower: string;
   files: string[];
   index: number;
+  /** Optional files of this node that a run has not written yet: the viewer says so instead of fetching them. */
+  missing?: string[];
 }
 
 interface State {

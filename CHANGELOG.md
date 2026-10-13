@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- Schema: a `files` entry can be `{ path, optional: true, description }` for a file a run writes: while it is missing, `validate` and the PDF checks stay quiet and the Inspector shows it as "not generated yet". The report-studio example uses it for the tower-documentation PDF (#137).
+
 ## [0.9.0] - 2026-10-13
 
 ### Added

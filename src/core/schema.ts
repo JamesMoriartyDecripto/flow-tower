@@ -217,6 +217,13 @@ export const PromptSchema = z.strictObject({
 /** A prompt reference: registry id, or an inline prompt definition. */
 export const PromptRefSchema = z.union([z.string(), PromptSchema]);
 
+/** A file a node or agent lists: a path, or an object that can mark the file as written at runtime. */
+export const FileEntrySchema = z.union([z.string(), z.strictObject({
+  path: z.string(),
+  optional: z.boolean().optional(),
+  description: z.string().optional(),
+}).describe('A file a run writes: missing is not a warning while optional')]);
+
 export const AgentSchema = z.strictObject({
   from: z.string().optional().describe('Import a Claude Code style agent file (.md with YAML frontmatter). Explicit fields override it.'),
   name: z.string().optional(),
@@ -225,7 +232,7 @@ export const AgentSchema = z.strictObject({
   prompt: PromptRefSchema.optional(),
   tools: z.array(z.string()).optional(),
   harness: meta.optional().describe('Runtime settings: max_turns, temperature, permission_mode, budget...'),
-  files: z.array(z.string()).optional(),
+  files: z.array(FileEntrySchema).optional(),
   tower: z.string().optional().describe('Path to a nested .tower.yaml describing this agent internals.'),
   runtime: z.string().optional().describe('Reference to an entry of the `runtimes` registry.'),
   resources: z.array(ResourceSchema).optional(),
@@ -245,7 +252,7 @@ export const NodeSchema = z.strictObject({
   model: z.string().optional(),
   prompt: PromptRefSchema.optional(),
   tools: z.array(z.string()).optional(),
-  files: z.array(z.string()).optional(),
+  files: z.array(FileEntrySchema).optional(),
   tower: z.string().optional(),
   runtime: z.string().optional().describe('Reference to `runtimes`. Inherited from the agent when omitted.'),
   status: z.enum(STATUSES).optional().describe('Defaults to `active`.'),
@@ -303,6 +310,7 @@ export type ResourceDef = z.infer<typeof ResourceSchema>;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 export type PromptDef = z.infer<typeof PromptSchema>;
 export type PromptRef = z.infer<typeof PromptRefSchema>;
+export type FileEntry = z.infer<typeof FileEntrySchema>;
 export type AgentDef = z.infer<typeof AgentSchema>;
 export type NodeDef = z.infer<typeof NodeSchema>;
 export type EdgeDef = z.infer<typeof EdgeSchema>;
