@@ -156,7 +156,7 @@ GitHub Actions and Lambda: [hub-reference.md § Recipes](hub-reference.md#recipe
 ## The Hub panel (H)
 
 Press `H` on a hub to open it (in the library too, unless the filter box has the focus), or click the `● n working`
-chip next to the alerts pill in the library header. **Now** has one row per machine and session: `● machine · tower › node`, the state on
+chip next to the alerts pill in the library header. **Now** has one row per machine and session (`run` while it works, `idle` after the agent stopped, `ended` after the session ended, dropped 10 minutes later): `● machine · tower › node`, the state on
 the right (`run · 12 s`), the user (when it differs from the machine) and runtime below, and the last error as
 `✕ error · <node or tool> · <age>`. Click a row to open that tower on that node; the `✕ error` line names the node or tool that
 failed (details in the Live feed). Rows carry no event text (no message, command or tool input): the Live feed has the details on this machine.

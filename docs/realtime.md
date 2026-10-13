@@ -165,6 +165,8 @@ writer stores, so it can never contain more than the DB does.
 
 ## Matching events to nodes
 
+**The main agent is `main` in every harness** (Claude Code, the Agent SDK, Codex, Pi, Hermes without a profile): one `match: ["agent:main"]` lights the main session whatever the teammate uses; `source` still says which harness sent it.
+
 By default an event lands on:
 - **nodes whose agent matches `agent`:** compared against the node id, the label, the agent id and the agent name, ignoring case and punctuation;
 - **tool nodes whose id or label matches `tool`:** MCP tools (`mcp__github__create_pr`) also match a tool node named after the server (`github`).
@@ -180,7 +182,9 @@ For anything else, add `match:` rules to a node or an agent. Rules use `field:pa
 
 The feed marks events that matched nothing as *unmapped*, which helps when writing rules.
 
-**Every tower in the library is matched.** Two versions of the same project opened together (the one in use and a proposed v2) light up together. To keep them apart, restrict events to one tower with `tower` (matched against the tower id or name): in the event, as `?tower=v2` on the hook URL (`/api/events?source=claude-code&tower=v2`), or `emit --tower v2`. Or open each version on its own server (`--port 5318`): events go only to the server on the port the hooks or `emit --url` point at.
+**On a hub, a teammate's event only lights that teammate's towers** (the ones its machine shared, under `towers/<machine>/`) and the hub's own towers, never another teammate's shared tower (#206). An event that names a tower (`tower` below) is not scoped.
+
+**Every tower in the library is matched** otherwise. Two versions of the same project opened together (the one in use and a proposed v2) light up together. To keep them apart, restrict events to one tower with `tower` (matched against the tower id or name): in the event, as `?tower=v2` on the hook URL (`/api/events?source=claude-code&tower=v2`), or `emit --tower v2`. Or open each version on its own server (`--port 5318`): events go only to the server on the port the hooks or `emit --url` point at.
 
 ## Security
 
