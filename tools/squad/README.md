@@ -112,6 +112,8 @@ node tools/squad/pack.mjs --role security --issue 164 --files src/server/enroll.
 SQUAD_PACE=relaxed node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node specialists.security --task tasks/164-security.md --issue 164
 ```
 
+- **DeepSeek 4.1 Flash can answer empty in `--oneshot`** (2026-10-13: four of five security passes on #189-#194 returned `empty answer`). Re-run it once; if it is empty again, run the same packed task with the reviewer model and the security brief, and say so in the PR.
+- **Pack with `--base <the PR's base branch>` on a stacked PR**: against `origin/main` the diff holds the whole stack and gets cut, and the reviewer never sees the files of this PR.
 - **Not every model has a batch endpoint.** GLM 5.3 FlashX has none on OpenRouter (2026-10-12); DeepSeek 4.1 Flash does.
   `--batch` on such a model prints `has no batch endpoint: falling back to --oneshot (full price)` and runs it as a oneshot.
 - **Pick `--oneshot` over the loop** when the diff is big: on #164 the security loop timed out three times on the 180 s

@@ -12,14 +12,9 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   - #122 contribution path and DCO, #156 squad cost per issue, #160 voice `live_status`, #99 memory leak, #95 part 1.
 - **Not checked on the test server** (no GPU, the live hub on 5317): full `npm run e2e` with the release e2e.log, PDFs with 3D snapshots, the real tailnet test of #164/#165. All in [#181](https://github.com/JamesMoriartyDecripto/flow-tower/issues/181), to run from the laptop.
 - **After v0.9.0:** merged #137 optional runtime files, #143 the architecture split, #94 hub alerts, #93 the hub Admin tab.
-- **Team UX plan (2026-10-13).** A newcomer dry run (an agent followed the docs literally: a hub and two teammates on one host) found single-machine journeys smooth, team journeys rough. Goal set by the maintainer: **every journey fluid, few steps each**, and **the harness must not matter** (teammates on Claude Code, Codex, Pi, Hermes, the Agent SDK or scripts all light towers the same way). Report: kept in the session scratchpad, findings copied into the issues. Plan, one PR each, in order:
-  - #187 error and silent alerts fire, `emit` finds the local port (PR #195);
-  - #188 the satellite relay recovers by itself (no restart after connect, pause, resume, new token);
-  - #189 `flow-tower hooks install` for every harness;
-  - #190 shared towers validated before they replace the hub copy, sync state visible;
-  - #191 alerts outside the tab (browser notifications, webhook);
-  - #196 harness parity test (closes #5 with a live Pi run: Pi is an npm package, so it runs on the test server);
-  - #192 a Now view and consistent live signals; #193 docs and CLI cleanup; #194 the local library as a service.
+- **Team UX plan (2026-10-13).** A newcomer dry run (an agent followed the docs literally: a hub and two teammates on one host) found single-machine journeys smooth, team journeys rough. Goal set by the maintainer: **every journey fluid, few steps each**, and **the harness must not matter** (Claude Code, Codex, Pi, Hermes, the Agent SDK or scripts light towers the same way). Merged: #187 (PR #195), #188 (PR #197). **Open, stacked, all green; merge bottom-up, retargeting the next to `main` each time:** PR #198 (#189 `hooks install`) → #199 (#190 validated shares, sync state) → #200 (#191 alerts outside the tab) → #201 (#196 harness parity, #5 Pi live) → #202 (#192 Now view, signals) → #203 (#193 CLI hints, route without Tailscale) → #204 (#194 `service`, emit never guesses a port). Post each issue's squad cost when it closes.
+- **Next on this plan:** update the `team-hub` and `command-center` example towers with the new parts (relay supervisor, alert notifier and webhook, share validation, `hooks install`, `service install`), audit them (AUD), then re-run the newcomer dry run on the top of the stack and compare steps per journey with the first run.
+- **Live hub incident (2026-10-13):** one test event (`error`, "fallback test", host `sat188b`) reached the live hub on 5317 before #194 fixed `emit`'s default port on a satellite. Left in place; the maintainer decides whether to clean it.
 - **Squad lesson:** coders rewrite an existing test file and drop earlier tests. Task files now say "never rewrite or empty an existing test file"; give each step its own test file.
 - **Squad cost on 2026-10-12:** #164 $0.33, #165 $0.06, #169 $0.11, #65 $0.89, #176 $0.02, #173 $0.11, #174 $0.15 (post each on its issue when it closes: `node tools/squad/cost.mjs <n>`).
 - **Dev squad models** (from the benchmark and a field trial): Claude Haiku 5.5 codes, GLM 5.3 FlashX reviews, DeepSeek 4.1 Flash audits. See [tools/squad](tools/squad/README.md) and the cost skill reference § Benchmark 2026-10-11.
@@ -28,7 +23,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Next, in order
 
-1. The team UX plan above: #187 → #188 → #189 → #190 → #191 → #196 (with #5) → #192 → #193 → #194
+1. The team UX plan above: merge the stack #198 → #204, then the example towers and the second dry run
 2. #181 laptop checks: full e2e (commit its e2e.log), 3D PDFs, the real tailnet test of #164/#165, and the macOS side of #194
 3. #69 tower names as an STT prompt
 4. docs-qa gaps left after #143: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)
