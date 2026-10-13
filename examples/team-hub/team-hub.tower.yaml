@@ -227,7 +227,7 @@ layers:
       - id: hub-panel
         type: output
         label: Hub panel
-        description: "The Hub panel (#92), key H: tabs Now (live rows: machine, runtime, project, started by or AUTO) and Machines (token prefix, runtime, host, last seen, state); top-bar HUB n/m (senders seen in the last 5 min / active tokens) and READ-ONLY pills for a remote viewer. Reads /api/hub/machines and /api/hub/me. Usage, People, Alerts and Admin tabs are still to come in #85, #93 and #94."
+        description: "The Hub panel (#92), key H: tabs Now (live rows: machine, runtime, project, started by or AUTO) and Machines (token prefix, runtime, host, last seen, state); top-bar HUB n/m (senders seen in the last 5 min / active tokens) and READ-ONLY pills for a remote viewer. Reads /api/hub/machines and /api/hub/me. an Alerts tab (#94); Usage, People and Admin tabs are still to come in #85 and #93."
         files: [src/app/hud/Hub.tsx, src/app/hub.ts, src/server/hub-views.ts, src/server/machines.ts]
       - id: privacy
         type: guard
@@ -240,15 +240,17 @@ layers:
         status: planned
         description: "Planned (#93), loopback only: add (token shown once), pause, revoke, rename senders; viewers; profile change wizard; retention and delete-before; monthly budgets. Every change writes an audit line; admin routes answer 404 to remote requests."
       - id: alerts
-        type: output
+        type: decision
         label: Alerts
-        status: planned
-        description: "Planned (#94): machine silent > cadence x N, budget 80% / 100%, errors per hour > 3x the 7-day median, a token used from a new host. Ack and snooze; employees: alerts never name a person."
+        description: "Four rules (#94), evaluated on every GET /api/hub/alerts from the machine rows, the config and the history: an always-on machine silent > 15 min (scheduled > 26 h, on-demand never), monthly spend at 80% (warning) or 100% (critical) of a budget in USD, errors this hour > 3x the 7-day hourly median (at least 5), a sender's token from a host first seen in the last 24 h. Ack and snooze (1 h / 1 d) only from loopback, kept in alerts-state.json (0600); a top-bar and library pill opens Hub > Alerts. Employees: messages never name a person."
+        files: [src/server/alerts.ts, src/server/alert-inputs.ts, src/server/hub-alerts.ts, src/server/alerts-state.ts, src/app/hud/HubAlerts.tsx]
+        decision: { output: choice, candidates: [none, warning, critical], fail: open, description: "No history: the budget, spike and host rules have no data and stay quiet; the silent rule still works." }
     edges:
       - "satellite-list -> hub-panel [data]: runtime, host, last seen"
       - "privacy -> hub-panel: filtered view"
       - admin -> hub-panel
-      - alerts -> hub-panel
+      - "alerts -> hub-panel: Hub > Alerts tab, ack and snooze"
+      - "alerts -> live: pill in the top bar and the library header"
 
 links:
   - "senders.hooks -> guard.hub-guard [call]: POST /api/events"
