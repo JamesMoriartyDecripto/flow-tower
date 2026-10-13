@@ -20,6 +20,17 @@ export function structuralErrors(issues: Issue[]): Issue[] {
 }
 
 /**
+ * The same split as structuralErrors, applied to what the hub shows (#165): a YAML-only share's missing or
+ * outside files are not broken on the hub, so they become info with the machine named. Everything else keeps
+ * its level. A new array is returned; the issues passed in are left as they were.
+ */
+export function relaxSharedIssues(issues: Issue[], machine: string): Issue[] {
+  return issues.map((i): Issue => (i.level === 'error' && NOT_ON_HUB.test(i.message)
+    ? { ...i, level: 'info', message: `${i.message} (shared YAML only: the file stays on ${machine})` }
+    : i));
+}
+
+/**
  * Tower folders uploaded by a satellite (#164): the satellite sends its folder signed with its sender token,
  * and the hub writes it into its own library under towers/<sender>/<name>/, where the loader picks it up.
  * A sender can only touch the folder named by its own token; the body never names the sender.

@@ -30,7 +30,7 @@ import { hubViews } from './hub-views.ts';
 import { hubAlerts } from './hub-alerts.ts';
 import { hubAdmin } from './hub-admin.ts';
 import { enrollHandler } from './enroll.ts';
-import { sharedTowersHandler } from './shared-towers.ts';
+import { relaxSharedIssues, sharedTowersHandler } from './shared-towers.ts';
 import { openHistory } from './history/db.ts';
 import { createHistory } from './history/store.ts';
 import { historyHandler } from './history/api.ts';
@@ -82,6 +82,12 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
     const projects = loaded.workspace.projects.flatMap((id) => { const file = loaded.files.get(id); return file ? [{ id, file }] : []; });
     loaded.workspace.sources = projectSources(projects, library);
     loaded.workspace.sharedAt = projectSharedAt(projects, library);
+    // A shared tower's files stay on the machine that shared it, so the hub cannot read them: those errors
+    // are relaxed to info here. Only the project's own tower is touched; its issues get a fresh array.
+    for (const [id, machine] of Object.entries(loaded.workspace.sources ?? {})) {
+      const tower = loaded.workspace.towers[id];
+      if (machine !== 'local' && tower) tower.issues = relaxSharedIssues(tower.issues, machine);
+    }
     if (server) {
       watch(server, [...state.watched, ...existingDirs(state.missing)]);
       server.ws.send(UPDATE_EVENT, { loadedAt: state.workspace.loadedAt });
