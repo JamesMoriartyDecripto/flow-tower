@@ -147,6 +147,8 @@ test('hub chip: a read-only viewer sees the counters, a plain server shows no ch
   await page.route('**/api/hub/me', (r) => r.fulfill({ json: { hub: true, readOnly: true, online: 1, tokens: 2 } }));
   // The pill opens the senders list: answer that route too, so the screenshot shows a known table.
   await page.route('**/api/hub/machines', (r) => r.fulfill({ json: machines() }));
+  // A page that believes it is on a hub also polls the alerts pill, which a plain server answers 404.
+  await page.route('**/api/hub/alerts', (r) => r.fulfill({ json: { alerts: [], rules: [], counts: { warning: 0, critical: 0 } } }));
   await openProject(page, DEV);
   await expect(page.locator('.topbar .hub-chip')).toHaveText('HUB 1/2');
   await expect(page.locator('.topbar .hub-ro')).toHaveText('READ-ONLY');
@@ -159,7 +161,9 @@ test('hub chip: a read-only viewer sees the counters, a plain server shows no ch
 
   // Not on a hub: no HUB chip at all, rather than a pill counting zero senders. Wait for the answer, so
   // the count is checked after the pill's only poller was told `hub: false`.
+  // The plain server gets no alerts route: a page told hub: false must not poll alerts at all.
   await page.unroute('**/api/hub/me');
+  await page.unroute('**/api/hub/alerts');
   await page.route('**/api/hub/me', (r) => r.fulfill({ json: { hub: false, readOnly: false, online: 0, tokens: 0 } }));
   const answered = page.waitForResponse('**/api/hub/me');
   await page.reload();
