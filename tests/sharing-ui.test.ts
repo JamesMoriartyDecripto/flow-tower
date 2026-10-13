@@ -32,7 +32,7 @@ describe('satellite chip (#91)', () => {
   });
 
   it('maps every state to an existing chip variant', () => {
-    expect(SAT_CLASS).toEqual({ off: '', online: 'on', queued: 'warn', paused: 'dim', revoked: 'err' });
+    expect(SAT_CLASS).toEqual({ off: '', online: 'on', queued: 'warn', paused: 'dim', revoked: 'err', held: 'warn' });
   });
 
   it('explains each state in one sentence', () => {

@@ -93,7 +93,9 @@ export function SharingSection() {
         <span className="mono dim">{sharing.hub ?? '—'}</span>
       </Row>
       <Row label="Token" hint="Whether the hub accepts this machine's credential. The token itself is never shown.">
-        <span className={`chip ${sharing.state === 'revoked' ? 'err' : 'on'}`}>{sharing.state === 'revoked' ? 'refused' : 'accepted'}</span>
+        <span className={`chip ${sharing.state === 'revoked' ? 'err' : sharing.state === 'held' ? 'warn' : 'on'}`}>
+          {sharing.state === 'revoked' ? 'refused' : sharing.state === 'held' ? 'paused by the hub' : 'accepted'}
+        </span>
       </Row>
       <Row label="Last sent" hint="The last event that actually left this machine.">
         <span className="mono dim">{agoText(sharing.lastSentAt, Date.now())}</span>
