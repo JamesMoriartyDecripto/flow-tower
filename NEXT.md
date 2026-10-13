@@ -4,50 +4,30 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Status on 2026-10-12
 
-- **v0.8.0 released:**
-  - voice: scroll, the Hub panel, filters, compare (#145);
-  - command-center and satellite skills (#148);
-  - the model benchmark's first full run, with live tower events (#105);
-  - `--warm`, `--batch` and `cache_control` (#149);
-  - the CLI split (#126).
-
-  Gates and e2e: [report](examples/release-auditor/reports/v0.8.0.md).
-- **Since v0.8.0 (unreleased):**
-  - #122: contribution path, community profile at 100%, every commit signed off (DCO), `dco` is a required check;
-  - #156: squad cost per issue, `node tools/squad/cost.mjs <n>`, posted on each issue when it closes;
-  - #160: voice `live_status`;
-  - #99: dev-server memory leak fixed; the CLI loads its Vite config once and passes it inline (upstream Rolldown #10887 still open);
-  - #95 part 1: live chips name the machine, library cards list recent machines.
-- **Done on 2026-10-12, in open PRs** (all with CI green, waiting for the maintainer's merge):
-
-  | PR | Issue | What | Base |
-  |---|---|---|---|
-  | #168 | #166 | command-center kit findings: Node 22 in /opt, `.vite-temp`, Serve admin step, quiet `/api/sharing` for remote viewers, Vite warmup, one-line card footer | `main` |
-  | #170 | #164 | one-step `connect` on a tailnet (the hub mints the token for a viewer), `share` / `unshare` / auto-sync of towers (YAML only by default, `--files` opt-in), guided satellite skill tested by two fresh agents | #168 |
-  | #172 | #165 | library: source badge per card (THIS HUB or the device), FROM filter row with online dots, `?source=`, voice `source` | #170 |
-  | #171 | #169 | squad pace: `SQUAD_PACE=now` (loop, faster models, no batch) / `relaxed` (oneshot) / `overnight` (Batch API); `pack.mjs`; real batch run took ~2 h | `main` |
-  | #178 | #176 | squad runner: bash `steps.sh` (`NODE`), `Files:` check makes a step RED when a listed path is untouched, `Known gaps:` printed per step, `--write tools/squad` fix | #171 |
-  | #175 | #65 | tower documentation as PDF: levels 1-4, audit-report style, letterhead, 3D snapshot and infographics per tower, every tower and file of the project, `flow-tower export --pdf` with blocking checks; approved by the maintainer after three review rounds | `main` |
-
-  **Merge order:** #168 → #170 → #172 bottom-up (retarget the next PR to `main` before deleting a merged base branch); #171 → #178 (retarget #178 to `main` first); #175 and #177 independently. Before merging #175, run `npm run e2e` on the maintainer's machine: on the test server 12 `towers.spec` cases time out (software WebGL), the same on `main`.
-- **Squad cost on 2026-10-12:** #164 $0.33, #165 $0.06, #169 $0.11, #65 $0.89 (post each on its issue when it closes: `node tools/squad/cost.mjs <n>`).
+- **v0.9.0 released** (2026-10-13): everything below shipped together. Gates and e2e: [report](examples/release-auditor/reports/v0.9.0.md).
+  - #164 one-step `connect` on a tailnet and tower `share` / `unshare` / auto-sync; #165 library sources and the FROM filter; #166 command-center kit findings;
+  - #65 tower documentation as PDF (`flow-tower export --pdf`); #174 report studio (`flow-tower report`, five types, `examples/report-studio`);
+  - #173 tower optimizer (`flow-tower audit`, `docs/best-practices.md`, `examples/tower-optimizer`, skill `flow-tower-optimize`);
+  - #169 squad pace; #176 bash `steps.sh` and the `Files:` check;
+  - #122 contribution path and DCO, #156 squad cost per issue, #160 voice `live_status`, #99 memory leak, #95 part 1.
+- **Not checked on the test server** (no GPU, the live hub on 5317): full `npm run e2e` with the release e2e.log, PDFs with 3D snapshots, the real tailnet test of #164/#165. All in [#181](https://github.com/JamesMoriartyDecripto/flow-tower/issues/181), to run from the laptop.
+- **Squad cost on 2026-10-12:** #164 $0.33, #165 $0.06, #169 $0.11, #65 $0.89, #176 $0.02, #173 $0.11, #174 $0.15 (post each on its issue when it closes: `node tools/squad/cost.mjs <n>`).
 - **Dev squad models** (from the benchmark and a field trial): Claude Haiku 5.5 codes, GLM 5.3 FlashX reviews, DeepSeek 4.1 Flash audits. See [tools/squad](tools/squad/README.md) and the cost skill reference § Benchmark 2026-10-11.
 - **Live:** the #97 two-computer test passed: the [command-center](examples/command-center) kit as a systemd service of a dedicated user, Tailscale Serve, two satellites on two computers lighting their towers together.
 - **Voice 2 plan:** [#129](https://github.com/JamesMoriartyDecripto/flow-tower/issues/129). Items 1–3 shipped; 4–8 on hold until the maintainer asks.
 
 ## Next, in order
 
-1. Merge the PRs above (the maintainer), then a real tailnet test of #164 with the Mac and the Fedora (`connect` without a token, `share`, an edit syncing).
-2. (done in #178) #176 squad runner
-3. #69 tower names as an STT prompt
-4. #143 split `docs/architecture.md` (docs-qa Q24; it grew again with #164/#165/#65)
-5. #137 optional runtime files (schema)
-6. #173 tower optimizer (example tower + skill + best practices doc) and #174 report studio (a tower for professional reports, built on #65's lessons): ask the maintainer for their priority
-7. #147 Blender and Unreal benchmark categories
-8. #85 privacy profiles · #93 admin · #94 alerts · #95 the rest of remote activity · #86 fan-out
-9. #97 the docker compose and Caddy variants (systemd and Tailscale tested)
-10. #5 live events with Pi (P1, needs a machine with Pi)
-11. On hold: #129 voice 2 items 4–8, until the maintainer asks
+1. #181 laptop checks: full e2e (commit its e2e.log), 3D PDFs, the real tailnet test of #164/#165
+2. #69 tower names as an STT prompt
+3. #143 split `docs/architecture.md` (docs-qa Q24; it grew again with #164/#165/#65/#173/#174)
+4. #137 optional runtime files (schema)
+5. Report studio, next types: architecture docs (arc42, C4) and research reports (IMRaD), sources already checked in docs/reports.md
+6. #147 Blender and Unreal benchmark categories
+7. #85 privacy profiles · #93 admin · #94 alerts · #95 the rest of remote activity · #86 fan-out
+8. #97 the docker compose and Caddy variants (systemd and Tailscale tested)
+9. #5 live events with Pi (P1, needs a machine with Pi)
+10. On hold: #129 voice 2 items 4–8, until the maintainer asks
 
 ## How work is done
 
@@ -70,4 +50,4 @@ npm run simulate -- dev-squad      # in a 2nd terminal: fake live events, sanity
 
 ## Releasing
 
-Bump `package.json` / `package-lock.json`, move `[Unreleased]` to a dated section in `CHANGELOG.md`, run `examples/release-auditor/scripts/gates.sh` (needs `uvx` and `gitleaks` on PATH) and a plain `npm run e2e`, write `reports/vX.Y.Z.md`, merge through a PR, then tag and publish the GitHub release with the CHANGELOG section as notes.
+Bump `package.json` / `package-lock.json`, move `[Unreleased]` to a dated section in `CHANGELOG.md`, run `examples/release-auditor/scripts/gates.sh` (needs `uvx` and `gitleaks` on PATH; on the test server both are in `~/.local/bin`) and a plain `npm run e2e` (not on the test server: its 5317 is the live hub), write `reports/vX.Y.Z.md`, merge through a PR, then tag and publish the GitHub release with the CHANGELOG section as notes.

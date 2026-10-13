@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-13
+
 ### Added
 - Tower optimizer (#173): `flow-tower audit <tower> [--json]` prints an inventory, deterministic best-practice findings AUD01-AUD11 tied to nodes (loops without limits, orchestrators without a cap, irreversible actions without approval, decisions without a fallback, outputs without evals, overloaded agents, dead ends, deep nesting, unpinned models, no system budget, code without a sandbox) and the role of each model node with the OpenRouter categories to shortlist from. `docs/best-practices.md` explains each rule with sources. The `examples/tower-optimizer` tower draws the six-phase method, with a review rubric, a role table, scripts for a before/after snapshot and compare, and real reports on dev-squad. New skill `flow-tower-optimize`, installed with the others.
 - Report studio (#174): `flow-tower report <type> <input> [--source f]... [--drafts d.json] [--html f] [--out f.pdf] [--list]` makes a professional PDF from the user's sources. Types are plug-ins in `src/report/types`: `security-assessment` (severity from CVSS v4.0 bands), `project-status` (RAG), `postmortem` (SRE-book structure, computed times), `cost-review` (FinOps reporting, variance flags) and `tower-documentation` (runs `flow-tower export`). Facts come from code; drafted prose is optional, marked, cited and digit-free; blocking checks run before any file is written. `examples/report-studio` (tower, samples, PDFs, page-review checklist), `docs/reports.md` with sources, and a `flow-tower-report` skill.
@@ -351,7 +353,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.5.0...v0.6.0
