@@ -1,8 +1,10 @@
 /**
- * The wire side of the satellite relay (#91): what a forwarded event may contain. Kept apart from relay.ts
- * so the send state machine there stays readable; the allow-list rules themselves are unchanged.
+ * The wire side of the satellite relay (#91): what a forwarded event may contain, and how a request is
+ * built. Kept apart from relay.ts so the send state machine there stays readable; the allow-list rules
+ * themselves are unchanged.
  */
 import type { FlowEvent } from '../core/events.ts';
+import { MAX_BACKOFF_MS, MIN_GAP_MS, TIMEOUT_MS } from './relay-types.ts';
 
 /**
  * The wire allow-list: the metadata the hub may see, and nothing else. An allow-list (not a drop-list)
@@ -35,3 +37,34 @@ function requestIdOf(data: unknown): string | number | undefined {
   const id = (data as Record<string, unknown>).request_id;
   return typeof id === 'string' || typeof id === 'number' ? id : undefined;
 }
+
+/**
+ * One JSON POST to the hub. The token header is sent only when there is a token, so an unpaired relay
+ * never sends an empty credential. The timeout is per request: a hung hub must not hold the queue.
+ */
+export function postJson(
+  send: typeof globalThis.fetch,
+  url: string,
+  token: string | undefined,
+  body: unknown,
+): Promise<Response> {
+  return send(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(token ? { 'x-flow-tower-token': token } : {}),
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+}
+
+/** The next retry delay: 1 s, then doubling, capped at 60 s. Zero (no failure yet) starts at 1 s. */
+export const nextBackoff = (current: number) =>
+  Math.min(current ? current * 2 : MIN_GAP_MS, MAX_BACKOFF_MS);
+
+/** The hub refused us (401/403): the body decides whether it is a refused token or a hold (step 1). */
+export const isRefusal = (res: Response) => res.status === 401 || res.status === 403;
+
+/** The text kept as `lastError` for a thrown request error (network, timeout, abort). */
+export const errorMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));

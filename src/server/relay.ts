@@ -5,55 +5,10 @@
  * not the disk.
  */
 import type { FlowEvent } from '../core/events.ts';
-import { forward } from './relay-wire.ts';
+import { errorMessage, forward, isRefusal, nextBackoff, postJson } from './relay-wire.ts';
+import { HEARTBEAT_MS, MIN_GAP_MS, RECHECK_MS, type RelayCredentials, type RelayOptions, type RelayState } from './relay-types.ts';
 
-const TIMEOUT_MS = 5_000;
-/** Never more than one flush a second; a failing hub waits longer (1 s, 2 s, 4 s … max 60 s). */
-const MIN_GAP_MS = 1_000;
-const MAX_BACKOFF_MS = 60_000;
-/** How often a satellite tells the hub it is alive (#91): the hub calls it offline after three of these. */
-const HEARTBEAT_MS = 60_000;
-/** While refused or held, how often one heartbeat asks the hub whether the machine is accepted again. */
-const RECHECK_MS = 30_000;
-
-export interface RelayOptions {
-  url: string;
-  token?: string;
-  user?: string;
-  machine?: string;
-  /** The local flow-tower version, reported in the heartbeat so the hub can show it. */
-  version?: string;
-  /** Injectable for tests: the HTTP client and the clock. */
-  fetch?: typeof globalThis.fetch;
-  now?: () => number;
-  maxQueue?: number;
-  batch?: number;
-  /** Start paused (#91): the config's `paused` key, read once when the relay is created. */
-  paused?: boolean;
-  /** How long a refused or held relay waits before its next recheck. Injectable for tests. */
-  recheckMs?: number;
-  /** Called only when the state word changes. It never receives the token, only the word and the last error. */
-  onStateChange?: (state: RelayState['state'], lastError?: string) => void;
-}
-
-export interface RelayState {
-  state: 'online' | 'queued' | 'revoked' | 'held' | 'paused';
-  hub: string;
-  queued: number;
-  dropped: number;
-  /** Events thrown away by a pause (#91): they were in the queue and will never leave. Shown nowhere else. */
-  discardedOnPause: number;
-  lastSentAt?: number;
-  lastError?: string;
-  /** The last event that actually left this machine, after the content was stripped: never the token. */
-  lastPayload?: Record<string, unknown>;
-}
-
-/** New hub credentials, as the user supplies them after a refusal (step 4). The token never reaches `state()`. */
-export interface RelayCredentials {
-  url: string;
-  token?: string;
-}
+export type { RelayCredentials, RelayOptions, RelayState } from './relay-types.ts';
 
 /** The relay behind a satellite: push accepted events, inspect state, stop. Never holds the token in `state`. */
 export function createRelay(opts: RelayOptions) {
@@ -96,7 +51,6 @@ export function createRelay(opts: RelayOptions) {
   let recheckTimer: NodeJS.Timeout | undefined;
 
   const clearTimer = () => {
-    if (!timer) return;
     clearTimeout(timer);
     timer = undefined;
   };
@@ -133,42 +87,18 @@ export function createRelay(opts: RelayOptions) {
     const slice = queue.slice(0, batch);
     const gen = generation;
     try {
-      const res = await send(`${hub}/api/events`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(token ? { 'x-flow-tower-token': token } : {}),
-        },
-        body: JSON.stringify(slice),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
+      const res = await postJson(send, `${hub}/api/events`, token, slice);
       if (stale(gen)) return;
-      if (res.status === 401 || res.status === 403) {
-        // The hub refuses us: keep the events and stop sending until a recheck gets a 2xx.
-        await refused(res, gen);
-        if (stale(gen)) return;
-        scheduleRecheck();
-        return;
-      }
+      // The hub refuses us: keep the events and stop sending until a recheck gets a 2xx.
+      if (isRefusal(res)) return refusedAndRecheck(res, gen);
       if (res.ok) {
         queue.splice(0, slice.length);
-        lastSentAt = now();
         // Keep the last wire payload (content already stripped) so the UI can show what left the machine.
-        lastPayload = slice[slice.length - 1];
-        lastError = undefined;
-        backoff = 0;
-        unreachable = false;
-        // Any 2xx is authoritative: a hub that accepts the batch has accepted us, whatever the state said.
-        if (revoked || held) recovered();
+        acknowledged(slice[slice.length - 1]);
         return;
       }
-      if (res.status === 429 || res.status >= 500) {
-        // The hub is busy or broken: keep the events and try again later, backing off each time.
-        lastError = `hub answered ${res.status}`;
-        backoff = nextBackoff(backoff);
-        unreachable = true;
-        return;
-      }
+      // The hub is busy or broken: keep the events and try again later, backing off each time.
+      if (res.status === 429 || res.status >= 500) return failed(`hub answered ${res.status}`);
       // Any other 4xx means the batch itself is refused: retrying it forever would block the queue.
       queue.splice(0, slice.length);
       dropped += slice.length;
@@ -177,10 +107,35 @@ export function createRelay(opts: RelayOptions) {
       unreachable = false;
     } catch (err) {
       if (stale(gen)) return;
-      lastError = err instanceof Error ? err.message : String(err);
-      backoff = nextBackoff(backoff);
-      unreachable = true;
+      failed(errorMessage(err));
     }
+  }
+
+  /** The send failed on the hub's side or the network: keep the events, back off, and mark them waiting. */
+  const failed = (message: string) => {
+    lastError = message;
+    backoff = nextBackoff(backoff);
+    unreachable = true;
+  };
+
+  /**
+   * A 2xx for a batch or a test event. Any 2xx is authoritative: a hub that accepts the batch has accepted
+   * us, whatever the state said, so a refused or held relay recovers here.
+   */
+  const acknowledged = (payload: Record<string, unknown> | undefined) => {
+    lastSentAt = now();
+    lastPayload = payload;
+    lastError = undefined;
+    backoff = 0;
+    unreachable = false;
+    if (revoked || held) recovered();
+  };
+
+  /** A 401/403 (step 1): record the refusal, then keep the recheck ticking. Stale answers change nothing. */
+  async function refusedAndRecheck(res: Response, gen: number): Promise<void> {
+    await refused(res, gen);
+    if (stale(gen)) return;
+    scheduleRecheck();
   }
 
   /**
@@ -225,7 +180,6 @@ export function createRelay(opts: RelayOptions) {
   };
 
   const clearHbTimer = () => {
-    if (!hbTimer) return;
     clearTimeout(hbTimer);
     hbTimer = undefined;
   };
@@ -241,15 +195,7 @@ export function createRelay(opts: RelayOptions) {
     hbTimer.unref();
   };
 
-  const postHeartbeat = () => send(`${hub}/api/heartbeat`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(token ? { 'x-flow-tower-token': token } : {}),
-    },
-    body: JSON.stringify(heartbeatBody()),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
+  const postHeartbeat = () => postJson(send, `${hub}/api/heartbeat`, token, heartbeatBody());
 
   /**
    * One heartbeat. A failed beat must never throw or stop the relay: it follows the same revoked/backoff
@@ -266,26 +212,15 @@ export function createRelay(opts: RelayOptions) {
     try {
       const res = await postHeartbeat();
       if (stale(gen)) return;
-      if (res.status === 401 || res.status === 403) {
-        await refused(res, gen);
-        if (stale(gen)) return;
-        scheduleRecheck();
-        return;
-      }
+      if (isRefusal(res)) return refusedAndRecheck(res, gen);
       if (res.status === 429 || res.status >= 500) {
-        lastError = `hub answered ${res.status}`;
-        backoff = nextBackoff(backoff);
-        unreachable = true;
-        scheduleHeartbeat(backoff);
-        return;
+        failed(`hub answered ${res.status}`);
+        return scheduleHeartbeat(backoff);
       }
     } catch (err) {
       if (stale(gen)) return;
-      lastError = err instanceof Error ? err.message : String(err);
-      backoff = nextBackoff(backoff);
-      unreachable = true;
-      scheduleHeartbeat(backoff);
-      return;
+      failed(errorMessage(err));
+      return scheduleHeartbeat(backoff);
     }
     scheduleHeartbeat(HEARTBEAT_MS);
   }
@@ -293,8 +228,8 @@ export function createRelay(opts: RelayOptions) {
   // One beat right away, so the hub lists this satellite before the first event ever arrives.
   scheduleHeartbeat(0);
 
+  // clearTimeout(undefined) is a no-op, so the guard the timers used to need is gone.
   const clearRecheckTimer = () => {
-    if (!recheckTimer) return;
     clearTimeout(recheckTimer);
     recheckTimer = undefined;
   };
@@ -345,12 +280,22 @@ export function createRelay(opts: RelayOptions) {
    */
   const recovered = () => {
     generation++;
+    clearRefusal();
+    resumeSending();
+  };
+
+  /** Forget the refusal or hold and the failure streak: the relay is willing to send again. */
+  const clearRefusal = () => {
     revoked = false;
     held = false;
     backoff = 0;
     unreachable = false;
     lastError = undefined;
     clearRecheckTimer();
+  };
+
+  /** Flush and beat right away: the first push must not wait out a gap that no longer applies. */
+  const resumeSending = () => {
     scheduleHeartbeat(0);
     lastAttempt = now() - MIN_GAP_MS;
     schedule();
@@ -384,12 +329,16 @@ export function createRelay(opts: RelayOptions) {
     opts.onStateChange?.(word, word === 'online' ? undefined : lastError);
   };
 
-  const stop = () => {
-    generation++;
-    stopped = true;
+  const clearAllTimers = () => {
     clearTimer();
     clearHbTimer();
     clearRecheckTimer();
+  };
+
+  const stop = () => {
+    generation++;
+    stopped = true;
+    clearAllTimers();
   };
 
   /**
@@ -400,9 +349,7 @@ export function createRelay(opts: RelayOptions) {
   const pause = () => {
     generation++;
     paused = true;
-    clearTimer();
-    clearHbTimer();
-    clearRecheckTimer();
+    clearAllTimers();
     discardedOnPause += queue.length;
     queue.length = 0;
     report();
@@ -429,16 +376,9 @@ export function createRelay(opts: RelayOptions) {
     generation++;
     hub = creds.url.replace(/\/+$/, '');
     token = creds.token;
-    revoked = false;
-    held = false;
-    backoff = 0;
-    unreachable = false;
     // The old token's refusal no longer applies: a stale error would read as if the new token failed too.
-    lastError = undefined;
-    clearRecheckTimer();
-    lastAttempt = now() - MIN_GAP_MS;
-    scheduleHeartbeat(0);
-    schedule();
+    clearRefusal();
+    resumeSending();
     report();
   };
 
@@ -473,38 +413,18 @@ export function createRelay(opts: RelayOptions) {
     lastAttempt = now();
     const gen = generation;
     try {
-      const res = await send(`${hub}/api/events`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(token ? { 'x-flow-tower-token': token } : {}),
-        },
-        body: JSON.stringify([payload]),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
+      const res = await postJson(send, `${hub}/api/events`, token, [payload]);
       if (stale(gen)) return;
-      if (res.status === 401 || res.status === 403) {
-        await refused(res, gen);
-        if (stale(gen)) return;
-        scheduleRecheck();
-      } else if (res.ok) {
-        lastSentAt = now();
-        lastPayload = payload;
-        lastError = undefined;
-        backoff = 0;
-        unreachable = false;
-        if (revoked || held) recovered();
-      } else {
-        lastError = `hub answered ${res.status}`;
-      }
+      if (isRefusal(res)) return refusedAndRecheck(res, gen);
+      if (res.ok) return acknowledged(payload);
+      // The sharing test does not back off: the user asked once, and the answer is shown as it is.
+      lastError = `hub answered ${res.status}`;
     } catch (err) {
       if (stale(gen)) return;
-      lastError = err instanceof Error ? err.message : String(err);
+      lastError = errorMessage(err);
       unreachable = true;
     }
   }
 
   return { push, state, stop, pause, resume, sendTest, setCredentials, flush: () => attempt(), heartbeat };
 }
-
-const nextBackoff = (current: number) => Math.min(current ? current * 2 : MIN_GAP_MS, MAX_BACKOFF_MS);
