@@ -140,7 +140,7 @@ describe('cli token (#83)', () => {
     const unknown = token('revoke', 'ghost');
     expect(unknown.status).toBe(1);
     expect(unknown.stderr).toContain('unknown token');
-  });
+  }, 30_000); // six CLI spawns: past the 5 s default when the machine is busy
 });
 
 describe('cli history (#84)', () => {

@@ -201,6 +201,12 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .lib-source { font-size: 9px; padding: 1px 6px; white-space: nowrap; flex-shrink: 0; } /* a long title must not break MAC-ANA in two */
 .lib-source.local { color: var(--dim); border-color: var(--line-soft); }
 .lib-source.device { color: var(--live-run); border-color: color-mix(in srgb, var(--live-run) 50%, transparent); }
+.lib-shared { font-size: 9px; padding: 1px 6px; white-space: nowrap; flex-shrink: 0; color: var(--dim); border-color: var(--line-soft); }
+/* The dot marks a version that arrived in the last 10 minutes, in the same colour as the device badge. */
+.lib-fresh { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--live-run); margin-right: 4px; vertical-align: middle; }
+.sharing-towers { list-style: none; margin: 0; padding: 0; font: 12px/1.6 var(--mono); }
+.sharing-towers .on { color: var(--dim); }
+.sharing-towers .err { color: var(--live-error); }
 .lib-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 6px; }
 .lib-row-label { font-size: 10px; letter-spacing: .08em; margin-right: 2px; }
 .lib-online { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--live-done); margin-right: 5px; vertical-align: middle; }

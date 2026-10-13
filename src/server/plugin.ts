@@ -15,7 +15,7 @@ import { VOICE_DEFAULTS, voiceHandler } from './voice.ts';
 import { voiceStore } from './voice-memory.ts';
 import { userHome, warnIfInRepo } from './home.ts';
 import { libraryOrigins, minePaths } from './origins.ts';
-import { projectSources } from './sources.ts';
+import { projectSharedAt, projectSources } from './sources.ts';
 import { crossSite } from './guard.ts';
 import { stopOnClose } from './lifecycle.ts';
 import { isLoopbackUrl } from '../../bin/identity.js';
@@ -81,6 +81,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
     const loaded = state;
     const projects = loaded.workspace.projects.flatMap((id) => { const file = loaded.files.get(id); return file ? [{ id, file }] : []; });
     loaded.workspace.sources = projectSources(projects, library);
+    loaded.workspace.sharedAt = projectSharedAt(projects, library);
     if (server) {
       watch(server, [...state.watched, ...existingDirs(state.missing)]);
       server.ws.send(UPDATE_EVENT, { loadedAt: state.workspace.loadedAt });

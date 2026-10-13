@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ResolvedTower } from '../../core/types';
-import { hostsLabel, LIBRARY_FILTER_EVENT, projectMatches, projectStats, recentHosts, sourceChip, sourceOf, type LibraryFilter, type Stats } from '../library';
+import { hostsLabel, LIBRARY_FILTER_EVENT, projectMatches, projectStats, recentHosts, sharedLabel, sourceChip, sourceOf, type LibraryFilter, type Stats } from '../library';
 import { formatUsage, subtreeState, useLive, usageOf, type LiveState } from '../live';
 import { useDescendants } from '../liveHooks';
 import { chooseView } from '../settings';
@@ -144,6 +144,8 @@ interface CardProps {
   hosts?: string;
   /** Where the project came from (`workspace.sources`); undefined when the server sent no sources. */
   source?: string;
+  /** When the shared folder was last replaced (`workspace.sharedAt`); undefined for a local project. */
+  sharedAt?: number;
   onOpen(id: string, view?: 'tower' | 'map'): void;
 }
 
@@ -152,8 +154,9 @@ const ORIGIN_TITLE = {
   example: 'Shipped example (read-only reference; copy it before editing)',
 } as const;
 
-const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, origin, usage, hosts, source, onOpen }: CardProps) {
+const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, origin, usage, hosts, source, sharedAt, onOpen }: CardProps) {
   const src = source === undefined ? undefined : sourceChip(source);
+  const shared = source === undefined || source === 'local' ? undefined : sharedLabel(sharedAt, source, Date.now());
   const open = (v?: 'tower' | 'map') => (e: { stopPropagation(): void }) => { e.stopPropagation(); onOpen(id, v); };
   return (
     // A plain container (clickable anywhere) with one primary button: a card that is itself a button
@@ -169,6 +172,12 @@ const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current,
           {current && <span className="chip lib-current">open</span>}
           {origin && <span className={`chip lib-origin ${origin}`} title={ORIGIN_TITLE[origin]}>{origin === 'mine' ? 'MINE' : 'EXAMPLE'}</span>}
           {src && <span className={`chip lib-source ${src.cls}`} title={src.title}>{src.label}</span>}
+          {shared && (
+            <span className="chip lib-shared" title={shared.title}>
+              {shared.dot && <span className="lib-fresh" aria-label="Changed in the last 10 minutes" />}
+              {shared.text}
+            </span>
+          )}
         </h3>
         {/* Focusable so keyboard users can scroll a long description (↑ ↓ while it has the focus). */}
         <p className="dim lib-desc" tabIndex={0} aria-label={`About ${tower.name}`}>{tower.description ?? id}</p>
@@ -240,7 +249,7 @@ export function Library() {
 
   const cards = useMemo(() => (workspace?.projects ?? []).map((id) => ({
     id, tower: workspace!.towers[id], stats: projectStats(workspace!, id), origin: workspace!.origins?.[id],
-    source: workspace!.sources ? sourceOf(workspace!, id) : undefined,
+    source: workspace!.sources ? sourceOf(workspace!, id) : undefined, sharedAt: workspace!.sharedAt?.[id],
   })), [workspace]);
   // Source chips exist only when the server sent sources. An id that names no source shows all (#165).
   const hasSources = workspace?.sources !== undefined;
@@ -364,8 +373,8 @@ export function Library() {
         </div>
       )}
       <div className="lib-grid" ref={grid}>
-        {shown.map(({ id, tower, stats, origin, source }) => (
-          <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} origin={origin} usage={usage[id]} hosts={hosts[id] || undefined} source={source} onOpen={onOpen} />
+        {shown.map(({ id, tower, stats, origin, source, sharedAt }) => (
+          <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} origin={origin} usage={usage[id]} hosts={hosts[id] || undefined} source={source} sharedAt={sharedAt} onOpen={onOpen} />
         ))}
         {shown.length === 0 && <p className="mono dim">No project matches. Clear the filter or the tag.</p>}
       </div>

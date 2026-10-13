@@ -129,4 +129,9 @@ export interface Workspace {
    * Present only when at least one project was shared by a device, so a plain library shows nothing new.
    */
   sources?: Record<string, string>;
+  /**
+   * Project id → when its shared folder under `towers/<machine>/` was last replaced (ms since epoch), so the
+   * library can say when a machine sent a new version (#165). Only shared projects have an entry.
+   */
+  sharedAt?: Record<string, number>;
 }
