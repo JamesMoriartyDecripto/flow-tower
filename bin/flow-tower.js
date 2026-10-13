@@ -60,6 +60,11 @@ Usage
   flow-tower guide                                      print the procedure to generate a tower from a codebase
   flow-tower install-skill [--target <t>] [--project]   install all seven skills for your coding agent
                                                         <t>: claude (default), codex, pi, hermes, cursor, agents
+  flow-tower hooks install [--target <t>] [--project] [--port N] [--dry-run]
+                                                        wire the coding agents on this machine to send events here
+                                                        (claude-code, codex, pi, hermes, or all; no --target: every one found)
+  flow-tower hooks status | uninstall [--target <t>] [--project]
+                                                        show where the hooks are wired; remove only flow-tower's entries
 
   Directories are scanned recursively for *.tower.yaml. Several projects open as a library.
   Live events: POST JSON to http://127.0.0.1:<port>/api/events (see docs/realtime.md).
@@ -166,6 +171,8 @@ const { values, positionals } = parseArgs({
     force: { type: 'boolean', default: false },
     project: { type: 'boolean', default: false },
     target: { type: 'string', default: 'claude' },
+    // hooks (src/cli/hooks.ts): --dry-run writes nothing; --target, --project and --port are re-appended in commands.js.
+    'dry-run': { type: 'boolean', default: false },
   },
 });
 
