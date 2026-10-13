@@ -73,6 +73,10 @@ export function createRelay(opts: RelayOptions) {
   let revoked = false;
   let held = false;
   let stopped = false;
+  // Bumped by every change of credentials or run state. A request captures it before it leaves, and an answer
+  // that comes back under another value was sent with a token or a state that no longer applies: it is ignored.
+  let generation = 0;
+  const stale = (gen: number) => stopped || gen !== generation;
   let inFlight = false;
   // The running flush, so a sharing test can wait for it instead of interleaving its own POST with it.
   let inFlightPromise: Promise<void> | undefined;
@@ -127,6 +131,7 @@ export function createRelay(opts: RelayOptions) {
   async function runFlush(): Promise<void> {
     lastAttempt = now();
     const slice = queue.slice(0, batch);
+    const gen = generation;
     try {
       const res = await send(`${hub}/api/events`, {
         method: 'POST',
@@ -137,9 +142,11 @@ export function createRelay(opts: RelayOptions) {
         body: JSON.stringify(slice),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
+      if (stale(gen)) return;
       if (res.status === 401 || res.status === 403) {
         // The hub refuses us: keep the events and stop sending until a recheck gets a 2xx.
-        await refused(res);
+        await refused(res, gen);
+        if (stale(gen)) return;
         scheduleRecheck();
         return;
       }
@@ -151,6 +158,8 @@ export function createRelay(opts: RelayOptions) {
         lastError = undefined;
         backoff = 0;
         unreachable = false;
+        // Any 2xx is authoritative: a hub that accepts the batch has accepted us, whatever the state said.
+        if (revoked || held) recovered();
         return;
       }
       if (res.status === 429 || res.status >= 500) {
@@ -167,6 +176,7 @@ export function createRelay(opts: RelayOptions) {
       // The hub did answer, so waiting events are not stuck on an unreachable hub.
       unreachable = false;
     } catch (err) {
+      if (stale(gen)) return;
       lastError = err instanceof Error ? err.message : String(err);
       backoff = nextBackoff(backoff);
       unreachable = true;
@@ -178,8 +188,10 @@ export function createRelay(opts: RelayOptions) {
    * machine, which ends by itself when they resume it; anything else is a refused token. The body is read
    * best effort, so a hub that sends no JSON still gets the plain refusal, and nothing here may throw.
    */
-  async function refused(res: Response): Promise<void> {
+  async function refused(res: Response, gen: number): Promise<void> {
     const body = (await res.json().catch(() => undefined)) as { state?: unknown } | undefined;
+    // Reading the body is an await too: an answer that went stale meanwhile must not flip the state.
+    if (stale(gen)) return;
     const pausedByHub = body?.state === 'paused';
     held = pausedByHub;
     revoked = !pausedByHub;
@@ -250,10 +262,13 @@ export function createRelay(opts: RelayOptions) {
   }
 
   async function beat(): Promise<void> {
+    const gen = generation;
     try {
       const res = await postHeartbeat();
+      if (stale(gen)) return;
       if (res.status === 401 || res.status === 403) {
-        await refused(res);
+        await refused(res, gen);
+        if (stale(gen)) return;
         scheduleRecheck();
         return;
       }
@@ -265,6 +280,7 @@ export function createRelay(opts: RelayOptions) {
         return;
       }
     } catch (err) {
+      if (stale(gen)) return;
       lastError = err instanceof Error ? err.message : String(err);
       backoff = nextBackoff(backoff);
       unreachable = true;
@@ -297,14 +313,28 @@ export function createRelay(opts: RelayOptions) {
   };
 
   async function recheck(): Promise<void> {
-    if (stopped || paused || !(revoked || held)) return;
+    // A test or a flush already on the wire owns the next answer: a second request now could race it, so this
+    // tick is skipped and the next one asks again.
+    if (stopped || paused || !(revoked || held) || inFlight) {
+      scheduleRecheck();
+      return;
+    }
+    const gen = generation;
     try {
       const res = await postHeartbeat();
-      if (res.ok) recovered();
-      else if (res.status === 401 || res.status === 403) await refused(res);
+      if (stale(gen)) return;
+      if (res.ok) {
+        // recovered() bumps the generation itself, so report here instead of falling through the check below.
+        recovered();
+        report();
+        return;
+      }
+      if (res.status === 401 || res.status === 403) await refused(res, gen);
     } catch {
       // Unreachable right now: the next tick tries again, and the state keeps what the hub last said.
+      if (stale(gen)) return;
     }
+    if (stale(gen)) return;
     report();
     scheduleRecheck();
   }
@@ -314,6 +344,7 @@ export function createRelay(opts: RelayOptions) {
    * The queue was kept while refused or held, so the flush delivers what happened meanwhile.
    */
   const recovered = () => {
+    generation++;
     revoked = false;
     held = false;
     backoff = 0;
@@ -354,6 +385,7 @@ export function createRelay(opts: RelayOptions) {
   };
 
   const stop = () => {
+    generation++;
     stopped = true;
     clearTimer();
     clearHbTimer();
@@ -366,6 +398,7 @@ export function createRelay(opts: RelayOptions) {
    * before or during it leaves later, so a resume must not flush a backlog built while the user watched.
    */
   const pause = () => {
+    generation++;
     paused = true;
     clearTimer();
     clearHbTimer();
@@ -378,6 +411,7 @@ export function createRelay(opts: RelayOptions) {
   /** Resume: the heartbeats start again, and new events are queued and sent as before. */
   const resume = () => {
     if (!paused) return;
+    generation++;
     paused = false;
     lastAttempt = now() - MIN_GAP_MS;
     schedule();
@@ -391,6 +425,8 @@ export function createRelay(opts: RelayOptions) {
    * kept, and the relay flushes and beats right away instead of waiting out a recheck.
    */
   const setCredentials = (creds: RelayCredentials) => {
+    // An answer to the old token, still on the wire, must not refuse or recover the relay under the new one.
+    generation++;
     hub = creds.url.replace(/\/+$/, '');
     token = creds.token;
     revoked = false;
@@ -435,6 +471,7 @@ export function createRelay(opts: RelayOptions) {
     // carrying any local content.
     const payload = forward({ kind: 'log', source: 'flow-tower', status: 'ok' } as unknown as FlowEvent, opts);
     lastAttempt = now();
+    const gen = generation;
     try {
       const res = await send(`${hub}/api/events`, {
         method: 'POST',
@@ -445,8 +482,10 @@ export function createRelay(opts: RelayOptions) {
         body: JSON.stringify([payload]),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
+      if (stale(gen)) return;
       if (res.status === 401 || res.status === 403) {
-        await refused(res);
+        await refused(res, gen);
+        if (stale(gen)) return;
         scheduleRecheck();
       } else if (res.ok) {
         lastSentAt = now();
@@ -459,6 +498,7 @@ export function createRelay(opts: RelayOptions) {
         lastError = `hub answered ${res.status}`;
       }
     } catch (err) {
+      if (stale(gen)) return;
       lastError = err instanceof Error ? err.message : String(err);
       unreachable = true;
     }

@@ -121,8 +121,10 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       // Satellite relay (#91) and shared towers (#164): the supervisor owns both and re-reads the config every
       // few seconds, so `connect`, a new token or a role change takes effect with no restart. Every use below
       // asks it for the current relay instead of holding one, since the relay may appear or go later.
+      // Per server, not per process: a Vite restart in the same process warns about a refusal again.
+      const refusals = new Set<string>();
       const supervisor = createRelaySupervisor({
-        read: () => readRelayConfig(server, hubOpts),
+        read: () => readRelayConfig(server, hubOpts, refusals),
         build: (settings, onStateChange) => createRelay({ ...settings, version: VERSION, onStateChange }),
         startSync: (settings) => settings.token
           ? startShareSync({ home: USER_HOME, url: settings.url, token: settings.token, warn: (message) => server.config.logger.warn(message) })
@@ -266,26 +268,28 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
  * proxy, must not relay: the hub would receive its own events. A url pointing back at this same server would
  * make the relay feed itself — a loop — so it is refused too. The refusal is warned once, not every tick.
  */
-function readRelayConfig(server: ViteDevServer, hubOpts: { hub: boolean; ingestOnly: boolean }): RelayReading {
+function readRelayConfig(server: ViteDevServer, hubOpts: { hub: boolean; ingestOnly: boolean }, refusals: Set<string>): RelayReading {
   const settings = effective(loadConfig().config);
   const base = { role: settings.role, url: settings.url, token: settings.token, user: settings.user, machine: settings.machine, paused: settings.paused };
   if (settings.role !== 'satellite' || !settings.url) return { ...base, allowed: false };
   if (hubOpts.hub || hubOpts.ingestOnly || settings.hub || settings.ingestOnly) {
-    warnRefusalOnce(server, 'flow-tower: satellite relay refused: this server is a hub or ingest-only');
+    warnRefusalOnce(server, refusals, 'flow-tower: satellite relay refused: this server is a hub or ingest-only');
     return { ...base, allowed: false };
   }
   if (targetsSelf(settings.url, server)) {
-    warnRefusalOnce(server, 'flow-tower: satellite relay refused: url points at this same server (would loop)');
+    warnRefusalOnce(server, refusals, 'flow-tower: satellite relay refused: url points at this same server (would loop)');
     return { ...base, allowed: false };
   }
   return { ...base, allowed: true };
 }
 
-/** One refusal line per distinct reason: the supervisor asks every few seconds, and the log must not fill up. */
-const refusalsSeen = new Set<string>();
-function warnRefusalOnce(server: ViteDevServer, message: string) {
-  if (refusalsSeen.has(message)) return;
-  refusalsSeen.add(message);
+/**
+ * One refusal line per distinct reason: the supervisor asks every few seconds, and the log must not fill up.
+ * The set belongs to one server, so a restart (a new server object) warns again.
+ */
+function warnRefusalOnce(server: ViteDevServer, refusals: Set<string>, message: string) {
+  if (refusals.has(message)) return;
+  refusals.add(message);
   server.config.logger.warn(message);
 }
 

@@ -132,4 +132,51 @@ describe('satellite relay recovers (#188)', () => {
     expect(relay.state().lastError ?? '').not.toContain(TOKEN);
     relay.stop();
   });
+
+  it('a 401 answering after setCredentials is stale and leaves the relay online', async () => {
+    // The first flush goes out with the old token and its answer is held back until the new credentials are set.
+    let release: ((res: Response) => void) | undefined;
+    let n = 0;
+    const fetch = vi.fn((url: string | URL | Request, init?: RequestInit) => {
+      n++;
+      if (n === 1) return new Promise<Response>((resolve) => { release = resolve; });
+      void url; void init;
+      return Promise.resolve(new Response('', { status: 200 }));
+    }) as unknown as typeof globalThis.fetch;
+    const relay = relayOf(fetch);
+    relay.push([event(1)]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(release).toBeDefined();
+
+    relay.setCredentials({ url: 'http://hub.test', token: NEW_TOKEN });
+    await settle();
+    release?.(new Response(JSON.stringify({ state: 'refused' }), { status: 401 }));
+    await settle();
+    expect(relay.state().state).not.toBe('revoked');
+    expect(relay.state().lastError).toBeUndefined();
+    relay.stop();
+  });
+
+  it('a recheck answer that lands after stop() reports nothing', async () => {
+    // Refused at start, then the recheck goes out and its answer (a 200 that would recover) comes after stop().
+    let release: ((res: Response) => void) | undefined;
+    let n = 0;
+    const changes: string[] = [];
+    const fetch = vi.fn(() => {
+      n++;
+      if (n === 1) return Promise.resolve(new Response(JSON.stringify({ state: 'refused' }), { status: 401 }));
+      return new Promise<Response>((resolve) => { release = resolve; });
+    }) as unknown as typeof globalThis.fetch;
+    const relay = relayOf(fetch, { onStateChange: (s) => changes.push(s) });
+    await settle();
+    expect(changes).toEqual(['revoked']);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(release).toBeDefined();
+    relay.stop();
+    release?.(new Response('', { status: 200 }));
+    await settle();
+    expect(changes).toEqual(['revoked']);
+    expect(relay.state().state).toBe('revoked');
+  });
 });

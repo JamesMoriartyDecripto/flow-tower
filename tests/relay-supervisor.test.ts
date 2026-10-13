@@ -6,6 +6,8 @@ const TOKEN = 'ft_supervisor_secret_123';
 
 interface FakeRelay {
   setCredentials: (creds: { url: string; token?: string }) => void;
+  pause: () => void;
+  resume: () => void;
   stop: () => void;
 }
 type Spy = ReturnType<typeof vi.fn<(...args: never[]) => unknown>>;
@@ -136,5 +138,27 @@ describe('relay supervisor (#91, #164)', () => {
     vi.advanceTimersByTime(10_000);
     expect(t.build.mock.calls.length).toBe(reads);
     expect(t.built[0].relay.stop).toHaveBeenCalled();
+  });
+
+  it('a config paused flip calls pause, then resume, on the running relay', () => {
+    const t = setup(satellite());
+    // The relay built on the first tick is the one the flip must reach: give it the two methods a real relay has.
+    const relay = t.built[0].relay as unknown as { pause: Spy; resume: Spy };
+    relay.pause = vi.fn();
+    relay.resume = vi.fn();
+
+    t.set(satellite({ paused: true }));
+    vi.advanceTimersByTime(1_000);
+    expect(relay.pause).toHaveBeenCalledTimes(1);
+    expect(relay.resume).not.toHaveBeenCalled();
+    expect(t.logs).toContain('flow-tower: sharing paused');
+
+    t.set(satellite({ paused: false }));
+    vi.advanceTimersByTime(1_000);
+    expect(relay.resume).toHaveBeenCalledTimes(1);
+    expect(relay.pause.mock.invocationCallOrder[0]).toBeLessThan(relay.resume.mock.invocationCallOrder[0]);
+    expect(t.logs).toContain('flow-tower: sharing resumed');
+    expect(t.build).toHaveBeenCalledTimes(1);
+    t.supervisor.stop();
   });
 });

@@ -30,6 +30,8 @@ export interface RelayReading {
 
 interface SupervisedRelay {
   setCredentials(creds: RelayCredentials): void;
+  pause(): void;
+  resume(): void;
   stop(): void;
 }
 
@@ -79,6 +81,8 @@ export function createRelaySupervisor<R extends SupervisedRelay>(opts: RelaySupe
       return;
     }
     const settings: RelaySettings = { url, token: reading.token, user: reading.user, machine: reading.machine, paused: reading.paused };
+    // The relay as it stood before this tick: a rebuild below replaces it, and a rebuilt one is already current.
+    const before = relay;
 
     if (!relay) {
       relay = build(settings, onStateChange);
@@ -94,6 +98,18 @@ export function createRelaySupervisor<R extends SupervisedRelay>(opts: RelaySupe
       // Logged first, so the relay's own "hub online" line reads as the result of the change.
       log(`flow-tower: hub credentials changed (${url})`);
       relay.setCredentials({ url, token: settings.token });
+    }
+
+    // A relay built this tick already has the new `paused`; only an existing one needs the flip. Without this,
+    // a config edit to `paused` would never reach the running relay until a restart.
+    if (relay && relay === before && last && last.paused !== settings.paused) {
+      if (settings.paused) {
+        relay.pause();
+        log('flow-tower: sharing paused');
+      } else {
+        relay.resume();
+        log('flow-tower: sharing resumed');
+      }
     }
 
     // The sync re-reads its own config each tick, so it only needs starting, not restarting, on a change.

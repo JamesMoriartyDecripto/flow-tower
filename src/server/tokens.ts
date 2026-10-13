@@ -16,6 +16,8 @@ export interface TokenInfo { id: string; createdAt: number; revokedAt?: number; 
 /** The sender id ends up in a token: a short slug, nothing that could be a path or a header trick. */
 const ID = /^[a-z0-9-]{1,32}$/;
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+/** Compared when no active record exists, so an unknown id costs the same hash and compare as a known one. */
+const DUMMY_DIGEST = sha256('flow-tower: no active token record');
 /** "ft_<id>_<secret>", the id alone is a slug so the first two underscores split it cleanly. */
 const parse = (token: unknown): { id: string; token: string } | undefined => {
   if (typeof token !== 'string') return undefined;
@@ -93,12 +95,14 @@ function createTokenStore(home: string) {
   const check = (presented: unknown): { id: string } | { refused: 'paused' } | undefined => {
     const parsed = parse(presented);
     if (!parsed) return undefined;
-    // A rotated id keeps its revoked record in the list, so only the active one may match.
+    // A rotated id keeps its revoked record in the list, so only the active one may match. Whether or not
+    // an active record exists, the same work runs (one hash, one compare): an unknown id must not answer
+    // faster than a known one, or response time would tell a prober which ids exist.
     const t = active(load(), parsed.id);
-    if (!t) return undefined;
     const a = Buffer.from(sha256(parsed.token), 'hex');
-    const b = Buffer.from(t.sha256, 'hex');
-    if (!(a.length === b.length && timingSafeEqual(a, b))) return undefined;
+    const b = Buffer.from(t?.sha256 ?? DUMMY_DIGEST, 'hex');
+    const same = a.length === b.length && timingSafeEqual(a, b);
+    if (!t || !same) return undefined;
     return t.paused ? { refused: 'paused' } : { id: t.id };
   };
 
