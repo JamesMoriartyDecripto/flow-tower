@@ -69,6 +69,13 @@ test('accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)', async ({ pa
   const hud = await new AxeBuilder({ page }).exclude('canvas').withTags(['wcag2a', 'wcag2aa']).analyze();
   await page.keyboard.press(',');
   await expect(page.locator('.settings')).toBeVisible();
+  // Wait for the overlay's fade and the panel's zoom-in; axe measures contrast at partial opacity otherwise.
+  // Infinite animations (HUD pulses) are skipped so they cannot hang the wait.
+  await page.locator('.settings').evaluate(async (el) => {
+    const root = el.closest('.overlay') ?? el;
+    const finite = root.getAnimations({ subtree: true }).filter((a) => a.effect?.getComputedTiming().iterations !== Infinity);
+    await Promise.all(finite.map((a) => a.finished));
+  });
   const settings = await new AxeBuilder({ page }).include('.settings').withTags(['wcag2a', 'wcag2aa']).analyze();
   const summary = [
     ...library.violations.map((v) => ({ ...v, where: 'library' })),
