@@ -8,6 +8,7 @@ import { useStore } from '../store';
 import { RUNTIME_ICON } from '../theme';
 import { MicButton } from './Voice';
 import { AlertsPill, useHub, WorkingChip } from './Hub';
+import { libraryHint, type LibraryHintKind } from '../libraryHint';
 
 /** "5 min ago", "3 h ago", "2 d ago", or a date. */
 function ago(iso?: string) {
@@ -293,7 +294,10 @@ export function Library() {
     openProject(id);
     if (v) chooseView(v);
   }, [openProject]);
+  // Read before the early return: hooks must not follow it. origins is filled only by a library serve.
+  const hubOn = useHub((s) => !!s.me?.hub);
   if (!library || !workspace) return null;
+  const hintKind: LibraryHintKind = workspace.origins ? 'library' : hubOn ? 'hub' : 'plain';
 
   const shown = cards
     .filter((c) => projectMatches(c.tower, c.id, filter, tag, c.stats.models, c.source ?? 'local', activeSource))
@@ -310,7 +314,7 @@ export function Library() {
         <div>
           <div className="title">Tower library</div>
           <h1>
-            {cards.length} projects <span className="dim">· {total.toLocaleString()} nodes</span>
+            {cards.length} {cards.length === 1 ? 'project' : 'projects'} <span className="dim">· {total.toLocaleString()} nodes</span>
             {liveNow > 0 && <span className="lib-livecount"> · {liveNow} live</span>}
           </h1>
         </div>
@@ -379,7 +383,7 @@ export function Library() {
         ))}
         {shown.length === 0 && <p className="mono dim">No project matches. Clear the filter or the tag.</p>}
       </div>
-      <p className="lib-hint mono dim">↑↓←→ move · Enter open · T / M open as tower / map · / filter · Esc back · add projects: flow-tower &lt;dir&gt; scans every *.tower.yaml</p>
+      <p className="lib-hint mono dim">↑↓←→ move · Enter open · T / M open as tower / map · / filter · Esc back · {libraryHint(hintKind)}</p>
     </div>
   );
 }

@@ -121,6 +121,9 @@ function procedure() {
   const docs = join(pkgRoot, 'docs');
   return readFileSync(join(docs, 'generate-a-tower.md'), 'utf8')
     .replaceAll('<flow-tower>/', `${pkgRoot}/`)
+    // Once the path is filled in, "where `<flow-tower>` is the absolute path" would read as a
+    // placeholder to fill again: say which checkout the commands use instead.
+    .replace(/Commands below are written as `node [^`]*`, where `[^`]*` is the absolute path of a flow-tower checkout\./, 'Commands below use this checkout: node <path>/bin/flow-tower.js.')
     .replace(/\]\((?!https?:|#|\/)([^)\s]+)\)/g, (_, rel) => `](${resolve(docs, rel)})`);
 }
 
