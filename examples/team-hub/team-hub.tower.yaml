@@ -6,7 +6,9 @@ description: >-
   The team hub of Flow Tower itself (#59): many machines send hook and OpenTelemetry events to one
   flow-tower server, which authenticates them, normalizes them to one identity cascade, stores them in
   SQLite with rollups and serves the live tower and history. Satellites (#91) forward metadata-only
-  events and heartbeats to the hub. Dashed nodes are planned (#85, #93, #94).
+  events and heartbeats to the hub, and shared towers (#164) are validated before they replace the hub's copy.
+  Teammates may use any harness: Claude Code, Codex, Pi, Hermes, the Agent SDK or scripts (#196). The dashed
+  node is planned (#85).
   Paths are relative to the repository root, so every node opens the real file.
 root: ../..
 
@@ -29,8 +31,8 @@ layers:
         type: entry
         label: Hook emit
         runtime: laptop
-        description: "Claude Code / Codex hooks call `flow-tower emit` with identity flags (--user, --machine, --project)."
-        files: [bin/flow-tower.js, integrations/claude-code/settings.json, integrations/codex/hooks.json]
+        description: "Claude Code, Codex, Pi and Hermes, wired in one step by `flow-tower hooks install` (#189): it merges the entries of integrations/ into each harness's config on the port of the running library, keeping the user's own hooks (backup, atomic write, POSIX-quoted command). HTTP hooks post to the local library; command hooks run `flow-tower emit`."
+        files: [bin/flow-tower.js, src/cli/hooks.ts, src/cli/hooks-merge.ts, src/cli/hooks-merge-yaml.ts, integrations/claude-code/settings.json, integrations/codex/hooks.json, integrations/pi/flow-tower.ts, integrations/hermes/config.yaml, integrations/agent-sdk/flow-tower-hooks.ts]
       - id: identity-cli
         type: process
         label: Sender identity
@@ -43,6 +45,30 @@ layers:
         runtime: laptop
         description: "Reads url, user, machine and token from the config file so hooks need no flags."
         files: [bin/config-file.js]
+      - id: local-server
+        type: memory
+        label: Local port file
+        runtime: laptop
+        description: "local-server.json (#187): the running library records its url and pid; emit and simulate post there with no --url. On a satellite with no live record, emit posts straight to the hub, never to a default port (#194). A JSONL stream keeps Pi's session and Codex's thread id on every line (#196)."
+        files: [bin/local-server.js, bin/stream-context.js]
+      - id: service-cli
+        type: tool
+        label: service CLI
+        runtime: laptop
+        description: "flow-tower service install|status|uninstall (#194): a systemd user unit or a launchd agent keeps the library running at login, so hooks always find it."
+        files: [src/cli/service.ts]
+      - id: supervisor
+        type: process
+        label: Relay supervisor
+        runtime: laptop
+        description: "Re-reads config.json every 5 s (#188): connect builds the relay and the share sync, a new token goes to the running relay with its queue kept, paused applies, a role change stops both. One log line per change, never the token."
+        files: [src/server/relay-supervisor.ts]
+      - id: share-sync
+        type: process
+        label: Share sync
+        runtime: laptop
+        description: "Every 15 s re-sends a shared folder whose fingerprint changed (#164); a tower with an error is not sent (#190), a removed node is flagged, and the state (synced, not sent: reason) shows in Settings > Sharing and on the SAT chip."
+        files: [src/server/share-sync.ts, src/server/share-client.ts, src/cli/share.ts]
       - id: otel
         type: entry
         label: OTel collector
@@ -52,24 +78,29 @@ layers:
         type: process
         label: Satellite relay
         runtime: laptop
-        description: "Metadata only (#91): prompt text, commands, tool output, message and data are dropped, request_id is kept as event_id for dedupe. Queue bounded at 5000 (oldest dropped first); a failed hub backs off 1 -> 2 -> 4 s up to 60 s; a 401/403 revokes the token and stops sending; one heartbeat every 60 s (a hub calls the satellite offline after three missed beats)."
-        files: [src/server/relay.ts]
+        description: "Metadata only (#91): prompt text, commands, tool output, message and data are dropped, request_id is kept as event_id for dedupe. Queue bounded at 5000 (oldest dropped first); a failed hub backs off 1 -> 2 -> 4 s up to 60 s; a 401/403 stops sending but keeps the queue, as revoked or held (paused by the hub), and a heartbeat asks again every 30 s (#188); stale answers from old credentials are ignored. One heartbeat every 60 s (offline after three missed beats)."
+        files: [src/server/relay.ts, src/server/relay-wire.ts, src/server/relay-types.ts]
       - id: connect-cli
         type: tool
         label: connect CLI
-        description: "flow-tower connect <hub-url> --token: writes url, token, role and identity to the user folder's config.json (mode 0600, token never printed), then sends one heartbeat so a bad token shows up at once."
+        description: "flow-tower connect <hub-url> [--token]: writes url, token, role and identity to the user folder's config.json (mode 0600, token never printed), sends one heartbeat so a bad token shows up at once, then points to hooks install and, with no library running, service install. A running library picks it up in 5 s."
         files: [src/cli/connect.ts]
       - id: sharing
         type: output
         label: /api/sharing
-        description: "GET /api/sharing: the relay's own state (online / queued / revoked, queue depth, dropped, last error); a local server answers { state: 'off' }. Cross-site requests are refused and the token is never included."
+        description: "GET /api/sharing: the relay's state (online / queued / revoked / held / paused, queue depth, dropped, last error) and each shared tower's sync state; a local server answers { state: 'off' }. Cross-site requests are refused and the token is never included."
         files: [src/server/plugin.ts]
     edges:
       - "config-file -> hooks [data]: url, user, token"
       - "identity-cli -> hooks [call]: user, machine"
-      - "config-file -> relay [data]: url, token"
-      - "connect-cli -> relay [data]: config.json"
+      - "config-file -> supervisor [data]: url, token, paused"
+      - "connect-cli -> config-file [data]: config.json"
+      - "local-server -> hooks [data]: local port"
+      - "service-cli -> supervisor: keeps the library running"
+      - "supervisor -> relay [call]: build, new credentials"
+      - "supervisor -> share-sync [call]: start, stop"
       - "relay -> sharing [data]: state"
+      - "share-sync -> sharing [data]: towers"
 
   - id: guard
     title: Guard
@@ -85,7 +116,7 @@ layers:
         type: guard
         label: authorize
         runtime: hub
-        description: "A presented token is always verified. No token passes only for a local request with no legacy secret set."
+        description: "A presented token is always verified. No token passes only for a local request with no legacy secret set. A valid but paused token is told apart (401 with state: paused, #188); an unknown id costs the same hash work, so timing reveals nothing."
         files: [src/server/auth.ts]
       - id: tokens
         type: memory
@@ -101,8 +132,8 @@ layers:
       - id: exposure
         type: tool
         label: Exposure recipes
-        description: "Ways to reach the hub: Tailscale serve + ACL, Caddy, docker-compose, GitHub Actions sender, Lambda."
-        files: [integrations/hub/tailscale-serve.md, integrations/hub/acl.hujson, integrations/hub/Caddyfile, integrations/hub/docker-compose.yml, integrations/hub/github-actions.yml, integrations/hub/lambda.md]
+        description: "Ways to reach the hub: Tailscale serve + ACL, Caddy in front of a full hub for a team without Tailscale (Caddyfile.hub, #193), Caddy ingest-only, docker-compose, GitHub Actions sender, Lambda."
+        files: [integrations/hub/tailscale-serve.md, integrations/hub/acl.hujson, integrations/hub/Caddyfile, integrations/hub/Caddyfile.hub, integrations/hub/docker-compose.yml, integrations/hub/github-actions.yml, integrations/hub/lambda.md]
     edges:
       - "exposure -> hub-guard: remote traffic"
       - "hub-guard -> authorize [call]: ingest route"
@@ -141,13 +172,20 @@ layers:
         type: process
         label: Adapters
         runtime: hub
-        description: "Map Claude Code, Codex and other payloads to tower events."
-        files: [src/core/adapters.ts, src/core/claudeCode.ts]
+        description: "Map Claude Code, the Agent SDK, Codex, Pi and Hermes payloads to one event shape. tests/harness-parity.test.ts replays one session per harness and checks they light the same node; what a harness cannot send is declared there (#196)."
+        files: [src/core/adapters.ts, src/core/claudeCode.ts, tests/harness-parity.test.ts]
+      - id: shared-towers
+        type: guard
+        label: Shared towers
+        runtime: hub
+        description: "PUT /api/hub/towers/<name> (#164, #190): the upload is staged, loaded with its project pinned to the share folder, refused with 422 on a structural error (the last valid copy stays), then swapped in atomically, one writer per share. YAML-only towers show their missing files as info."
+        files: [src/server/shared-towers.ts, src/server/share-rules.ts, src/server/sources.ts]
     edges:
       - "events -> limits [call]: admit?"
       - "otlp-route -> limits [call]: admit?"
       - "heartbeat -> limits [call]: beat"
       - "limits -> adapters: accepted events"
+      - "shared-towers -> adapters: library reload"
 
   - id: identity
     title: Identity
@@ -227,7 +265,7 @@ layers:
       - id: hub-panel
         type: output
         label: Hub panel
-        description: "The Hub panel (#92), key H: tabs Now (live rows: machine, runtime, project, started by or AUTO) and Machines (token prefix, runtime, host, last seen, state); top-bar HUB n/m (senders seen in the last 5 min / active tokens) and READ-ONLY pills for a remote viewer. Reads /api/hub/machines and /api/hub/me. an Alerts tab (#94) and an Admin tab on the hub machine (#93); Usage and People wait for #85."
+        description: "The Hub panel (#92), key H in a tower, or the `n working` chip in the library: Now has one row per machine and session with tower > node, state and the last error, never event text (#192); Machines lists senders; Alerts (#94) and, on the hub machine, Admin (#93). Top bar: YAML n ERR for validation, LIVE n ERR for live errors, HUB n/m (active senders seen / active tokens), READ-ONLY for a remote viewer. Usage and People wait for #85."
         files: [src/app/hud/Hub.tsx, src/app/hub.ts, src/server/hub-views.ts, src/server/machines.ts]
       - id: privacy
         type: guard
@@ -237,27 +275,36 @@ layers:
       - id: admin
         type: human
         label: Admin
-        description: "Hub > Admin (#93), on the hub machine only: add a sender (the token and its connect line shown once), pause, resume, revoke (type the id to confirm); viewers; cadence per sender; budgets (USD/month); alert switches; raw retention days and delete-before with a preview count. Every change writes one line to admin-audit.jsonl (0600, never a token). Remote requests never reach it: the hub guard refuses remote writes and the routes answer 404. The privacy profile wizard waits for #85."
+        description: "Hub > Admin (#93), on the hub machine only: add a sender (the token and its connect line shown once), pause, resume, revoke (type the id to confirm); viewers; cadence per sender; budgets (USD/month); alert switches; raw retention days and delete-before with a preview count. Every change writes one line to admin-audit.jsonl (0600, never a token), CLI token changes too (#192). Notifications (#191): the webhook url (shown masked) and a test alert. Remote requests never reach it: the hub guard refuses remote writes and the routes answer 404. The privacy profile wizard waits for #85."
         files: [src/app/hud/HubAdmin.tsx, src/server/hub-admin.ts, src/server/admin-audit.ts]
         approval: { by: hub operator, actions: [approve, reject], description: "Revoke needs the sender id typed; delete-before needs a second click and confirm: true." }
       - id: alerts
         type: decision
         label: Alerts
-        description: "Four rules (#94), evaluated on every GET /api/hub/alerts from the machine rows, the config and the history: an always-on machine silent > 15 min (scheduled > 26 h, on-demand never), monthly spend at 80% (warning) or 100% (critical) of a budget in USD, errors this hour > 3x the 7-day hourly median (at least 5), a sender's token from a host first seen in the last 24 h. Ack and snooze (1 h / 1 d) only from loopback, kept in alerts-state.json (0600); a top-bar and library pill opens Hub > Alerts. Employees: messages never name a person."
+        description: "Five rules (#94, #191), evaluated on every GET /api/hub/alerts and every minute by the notifier from the machine rows, the config and the history: an always-on machine silent > 15 min (scheduled > 26 h, on-demand never), monthly spend at 80% (warning) or 100% (critical) of a budget in USD, errors this hour > 3x the 7-day hourly median (at least 5), a sender's token from a host first seen in the last 24 h, a machine with 3 errors in 15 min. Ack and snooze (1 h / 1 d) only from loopback, kept in alerts-state.json (0600); a top-bar and library pill opens Hub > Alerts. Employees: messages never name a person."
         files: [src/server/alerts.ts, src/server/alert-inputs.ts, src/server/hub-alerts.ts, src/server/alerts-state.ts, src/app/hud/HubAlerts.tsx]
-        decision: { output: choice, candidates: [none, warning, critical], fail: open, description: "No history: the budget, spike and host rules have no data and stay quiet; the silent rule still works." }
+        decision: { output: choice, candidates: [none, warning, critical], fail: open, description: "No history: the budget, spike, host and errors rules have no data and stay quiet; the silent rule still works." }
+      - id: notify
+        type: output
+        label: Alert webhook
+        runtime: hub
+        description: "Each new alert and its clearing, once, to an optional webhook (#191): ntfy, Slack, Telegram or JSON; only the alert text; acked or snoozed alerts are not sent; at most 10 per 10 min; redirects refused; the url never logged. Browser notifications from an open hub tab too."
+        files: [src/server/alert-notify.ts, src/app/hud/HubAdminNotify.tsx]
     edges:
       - "satellite-list -> hub-panel [data]: runtime, host, last seen"
       - "privacy -> hub-panel: filtered view"
       - admin -> hub-panel
       - "alerts -> hub-panel: Hub > Alerts tab, ack and snooze"
       - "alerts -> live: pill in the top bar and the library header"
+      - "alerts -> notify [call]: open, clear"
 
 links:
   - "senders.hooks -> guard.hub-guard [call]: POST /api/events"
   - "senders.otel -> guard.hub-guard [call]: POST /v1/logs"
   - { from: senders.relay, to: guard.hub-guard, kind: call, label: /api/events, protocol: http }
   - { from: senders.relay, to: guard.hub-guard, kind: call, label: /api/heartbeat, protocol: http }
+  - { from: senders.share-sync, to: guard.hub-guard, kind: call, label: PUT /api/hub/towers, protocol: http }
+  - "guard.authorize -> ingest.shared-towers: sender token"
   - "guard.authorize -> ingest.events: authorized"
   - "guard.authorize -> ingest.otlp-route: authorized"
   - "guard.authorize -> ingest.heartbeat: authorized"

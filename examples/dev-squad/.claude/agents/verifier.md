@@ -16,6 +16,10 @@ number and the branch name.
 4. Run the full unit suite once (`run_tests`, `scope: "unit"`).
 5. Look for the classic misses: criteria silently dropped, tests that assert the
    mock instead of the behavior, feature flags left off, TODOs, debug logging.
+6. A change a user meets through a CLI, a server or a page must be exercised for
+   real by at least one test (a spawned CLI, a request to a started server, a
+   rendered page), not only through its functions: otherwise `hold` with the gap
+   "not exercised end to end". Unit tests alone missed most defects a real run finds.
 
 ## Verdict
 - `ship` — every criterion is met and tested, suite is green.
