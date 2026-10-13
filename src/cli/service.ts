@@ -5,19 +5,23 @@
  * touch the real home, systemd or launchd. Everything that touches the home folder takes a context.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, userInfo } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { readObject } from '../../bin/config-file.js';
 import { localServerFile, localServerUrl } from '../../bin/local-server.js';
 import { cliName, shellQuote } from '../../bin/cli-name.js';
+import { libraryEntries } from '../../bin/library.js';
+import { AGENT_LABEL, plistText, unitText } from './service-files.ts';
+
+// The text builders live in service-files.ts; they are re-exported here so callers keep one import path.
+export { systemdWord, xml, unitText, plistText } from './service-files.ts';
 
 const DEFAULT_PORT = 5317;
 const UNIT_NAME = 'flow-tower';
 const UNIT_FILE = `${UNIT_NAME}.service`;
-const AGENT_LABEL = 'dev.flowtower.library';
 const USAGE = 'usage: flow-tower service install|status|uninstall [--port N]';
 
 export interface RunResult { status: number | null; stdout: string; stderr: string; missing: boolean }
@@ -50,12 +54,91 @@ s.on('connect', () => { s.destroy(); process.exit(0); });
 s.on('error', () => process.exit(1));
 setTimeout(() => process.exit(1), 1000).unref();`;
 
+/** The filesystem calls the trust checks make. Injected so tests run on fakes; the defaults are the real fs. */
+export interface NodeFs {
+  real: (path: string) => string;
+  stat: (path: string) => { mode: number; uid: number };
+  lstat: (path: string) => { isSymbolicLink: () => boolean };
+  readlink: (path: string) => string;
+  uid: number;
+}
+
+/**
+ * True when `dir` is safe to hold the node that ExecStart names: absolute, not reached through a symlink, and
+ * the directory and every ancestor up to / belong to root or to `uid` and are not writable by group or others.
+ * systemd resolves the name again at every start, so anyone who can write one of these could swap the binary.
+ */
+export function trustedDir(dir: string, fs: Pick<NodeFs, 'real' | 'stat' | 'uid'>): boolean {
+  if (!isAbsolute(dir)) return false;
+  try {
+    if (fs.real(dir) !== dir) return false;
+    for (let d = dir; ; d = dirname(d)) {
+      const st = fs.stat(d);
+      // 0o022 is the group- and other-write bit.
+      if ((st.uid !== 0 && st.uid !== fs.uid) || (st.mode & 0o022)) return false;
+      if (d === '/') return true;
+    }
+  } catch {
+    return false;
+  }
+}
+
+const MAX_HOPS = 16;
+
+/**
+ * True when `<dir>/node` reaches the same file as `target`, checking each link's directory on the way. A link
+ * hop through an untrusted directory lets someone re-point the name after install, so the walk stops there.
+ */
+function nodeLinkReaches(dir: string, target: string, fs: NodeFs): boolean {
+  let hop = join(dir, 'node');
+  try {
+    for (let hops = 0; ; hops++) {
+      if (!trustedDir(dirname(hop), fs)) return false;
+      if (!fs.lstat(hop).isSymbolicLink()) return fs.real(hop) === target;
+      if (hops === MAX_HOPS) return false;
+      const next = fs.readlink(hop);
+      // A relative link target is relative to the directory holding the link, not to the cwd.
+      hop = isAbsolute(next) ? next : resolve(dirname(hop), next);
+    }
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The node command to write into a unit: a PATH name for execPath when one points at the same file (Fedora's
+ * /usr/bin/node links to the versioned binary), else execPath itself. The versioned name (node-24) goes away on
+ * the next major upgrade; the plain name follows the upgrade.
+ *
+ * The name is written verbatim into ExecStart and systemd resolves it again at every start, so only trusted
+ * directories count (see trustedDir), and every link hop of `<dir>/node` must sit in a trusted directory too.
+ */
+export function stableNode(execPath: string, pathVar: string | undefined, opts: Partial<NodeFs> = {}): string {
+  const fs: NodeFs = {
+    real: opts.real ?? realpathSync,
+    stat: opts.stat ?? statSync,
+    lstat: opts.lstat ?? lstatSync,
+    readlink: opts.readlink ?? readlinkSync,
+    uid: opts.uid ?? (process.getuid?.() ?? -1),
+  };
+  let target: string;
+  try {
+    target = fs.real(execPath);
+  } catch {
+    return execPath;
+  }
+  for (const dir of (pathVar ?? '').split(delimiter)) {
+    if (trustedDir(dir, fs) && nodeLinkReaches(dir, target, fs)) return join(dir, 'node');
+  }
+  return execPath;
+}
+
 export function defaultServiceContext(): ServiceContext {
   return {
     home: homedir(),
     env: process.env,
     checkout: resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'),
-    node: process.execPath,
+    node: stableNode(process.execPath, process.env.PATH),
     platform: process.platform,
     uid: process.getuid?.() ?? 0,
     user: userInfo().username,
@@ -90,84 +173,6 @@ export function choosePort(typed: string | undefined, ctx: ServiceContext): numb
     } catch { /* a broken record: fall through to the default */ }
   }
   return DEFAULT_PORT;
-}
-
-/**
- * One word for a systemd ExecStart or Environment= line (systemd.syntax): a value with spaces, quotes or
- * backslashes is double-quoted, with `\` and `"` escaped inside. `$` and `%` are doubled in every case, or
- * systemd would expand them as environment variables and unit specifiers.
- */
-export function systemdWord(value: string): string {
-  const escaped = value.replaceAll('%', '%%').replaceAll('$', '$$$$').replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-  return /[\s"\\]/.test(value) ? `"${escaped}"` : escaped;
-}
-
-/** XML text for a plist: the five predefined entities, so a `&` or `<` in a path stays data. */
-export function xml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;');
-}
-
-/** The library's argv after the Node binary and the CLI script: the same command the hooks rely on. */
-function libraryArgs(cli: string, port: number): string[] {
-  return [cli, 'library', '--no-open', '--port', String(port)];
-}
-
-/** The systemd user unit. Restart=on-failure brings the library back after a crash, not after a clean stop. */
-export function unitText({ node, cli, port, home }: { node: string; cli: string; port: number; home?: string }): string {
-  const exec = [node, ...libraryArgs(cli, port)].map(systemdWord).join(' ');
-  const env = home ? `Environment=${systemdWord(`FLOW_TOWER_HOME=${home}`)}\n` : '';
-  return `[Unit]
-Description=flow-tower library
-After=network.target
-
-[Service]
-ExecStart=${exec}
-${env}Restart=on-failure
-
-[Install]
-WantedBy=default.target
-`;
-}
-
-/**
- * The launchd agent. RunAtLoad starts it at login; KeepAlive with SuccessfulExit=false restarts it only when
- * it exits with a failure, the launchd equivalent of Restart=on-failure (a bare `true` would restart it even
- * after a clean stop). Output goes to one log file the user can read.
- */
-export function plistText({ node, cli, port, home, logFile }: { node: string; cli: string; port: number; home?: string; logFile: string }): string {
-  const args = [node, ...libraryArgs(cli, port)].map((a) => `    <string>${xml(a)}</string>`).join('\n');
-  const env = home
-    ? `  <key>EnvironmentVariables</key>\n  <dict>\n    <key>FLOW_TOWER_HOME</key>\n    <string>${xml(home)}</string>\n  </dict>\n`
-    : '';
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>${AGENT_LABEL}</string>
-  <key>ProgramArguments</key>
-  <array>
-${args}
-  </array>
-${env}  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <dict>
-    <key>SuccessfulExit</key>
-    <false/>
-  </dict>
-  <key>StandardOutPath</key>
-  <string>${xml(logFile)}</string>
-  <key>StandardErrorPath</key>
-  <string>${xml(logFile)}</string>
-</dict>
-</plist>
-`;
 }
 
 function unitPath(ctx: ServiceContext): string {
@@ -235,9 +240,16 @@ function recordPort(url: string): number | undefined {
 function installLinux(ctx: ServiceContext, port: number): number {
   // Probe first: without systemctl there is nothing to load a unit file, so nothing is written.
   if (ctx.run('systemctl', ['--version']).missing) return noSystemd(ctx, port);
+  let text: string;
+  try {
+    text = unitText(serviceInputs(ctx, port));
+  } catch (err) {
+    ctx.log(`cannot write the service file: ${(err as Error).message}`);
+    return 1;
+  }
   const file = unitPath(ctx);
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, unitText(serviceInputs(ctx, port)), { mode: 0o644 });
+  writeFileSync(file, text, { mode: 0o644 });
   ctx.run('systemctl', ['--user', 'daemon-reload']);
   const enable = ctx.run('systemctl', ['--user', 'enable', '--now', UNIT_NAME]);
   if (enable.status !== 0) {
@@ -245,16 +257,33 @@ function installLinux(ctx: ServiceContext, port: number): number {
     return 1;
   }
   ctx.log(`installed ${file}\nthe library runs on port ${port} and restarts after a crash`);
-  // A machine without a desktop login stops user services at logout unless lingering is on.
-  ctx.log(`no desktop login here? keep it running after logout: loginctl enable-linger ${ctx.user}`);
+  // A machine without a desktop login stops user services at logout unless lingering is on. A graphical session
+  // keeps them running anyway, so the hint would only be noise there.
+  const session = ctx.env.XDG_SESSION_TYPE;
+  if (session !== 'x11' && session !== 'wayland') {
+    ctx.log(`no desktop login here? keep it running after logout: loginctl enable-linger ${ctx.user}`);
+  }
+  // An empty library makes `library` exit at once, so systemd gives up after a few restarts: say how to fix it now.
+  // Gone entries go to ctx.log too, so the user sees which paths to drop before the hint to add one.
+  const { mine } = libraryEntries({ env: { FLOW_TOWER_HOME: userFolder(ctx) }, checkout: ctx.checkout, warn: ctx.log });
+  if (mine.length === 0) {
+    ctx.log(`your library is empty, so the service cannot start yet: ${cliName()} library add <path>, then: systemctl --user restart ${UNIT_NAME}`);
+  }
   return 0;
 }
 
 function installMac(ctx: ServiceContext, port: number): number {
+  let text: string;
+  try {
+    text = plistText({ ...serviceInputs(ctx, port), logFile: logPath(ctx) });
+  } catch (err) {
+    ctx.log(`cannot write the service file: ${(err as Error).message}`);
+    return 1;
+  }
   const file = plistPath(ctx);
   mkdirSync(dirname(file), { recursive: true });
   mkdirSync(dirname(logPath(ctx)), { recursive: true });
-  writeFileSync(file, plistText({ ...serviceInputs(ctx, port), logFile: logPath(ctx) }), { mode: 0o644 });
+  writeFileSync(file, text, { mode: 0o644 });
   const domain = `gui/${ctx.uid}`;
   // A reinstall replaces a loaded agent: bootout first. It fails when nothing is loaded yet, which is fine.
   ctx.run('launchctl', ['bootout', `${domain}/${AGENT_LABEL}`]);
@@ -281,6 +310,11 @@ function statusLinux(ctx: ServiceContext): number {
   }
   // A unit file that exists but is not active is installed and stopped: the fix is to start it, not reinstall.
   if (existsSync(unitPath(ctx))) {
+    // A failed unit gave up after its restarts (a crash loop): starting it again fails the same way, so point at the journal.
+    if (state === 'failed') {
+      ctx.log(`installed but not running (failed): journalctl --user -u ${UNIT_NAME}`);
+      return 1;
+    }
     ctx.log(`installed but not running: systemctl --user start ${UNIT_NAME}`);
     return 1;
   }
@@ -309,6 +343,8 @@ function uninstallLinux(ctx: ServiceContext): number {
   ctx.run('systemctl', ['--user', 'disable', '--now', UNIT_NAME]);
   rmSync(unitPath(ctx), { force: true });
   ctx.run('systemctl', ['--user', 'daemon-reload']);
+  // A unit that ended failed stays listed as not-found failed until its state is reset; the reset is harmless when it was clean.
+  ctx.run('systemctl', ['--user', 'reset-failed', UNIT_NAME]);
   ctx.log(`removed ${unitPath(ctx)}`);
   return 0;
 }
