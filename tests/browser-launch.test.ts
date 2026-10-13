@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GPU_ARGS,
   SOFTWARE_ARGS,
+  cleanRenderer,
   glMode,
   isSoftwareRenderer,
   launchBrowser,
@@ -208,5 +209,40 @@ describe('launchBrowser', () => {
     const browser = await launchBrowser({ webgl: true, launch, mode: 'auto', probeTimeoutMs: 5, log: () => {} });
     expect(browser).not.toBeNull();
     expect(Date.now() - started).toBeLessThan(5_000);
+  });
+});
+
+describe('cleanRenderer', () => {
+  it('leaves a normal renderer string as it is', () => {
+    expect(cleanRenderer(IRIS)).toBe(IRIS);
+  });
+  it('turns a newline into a space so the log line stays one line', () => {
+    expect(cleanRenderer('Intel\nFAKE LOG: injected')).toBe('Intel FAKE LOG: injected');
+    expect(cleanRenderer('a\r\nb')).toBe('a b');
+  });
+  it('strips an ANSI escape so the terminal is not driven', () => {
+    const cleaned = cleanRenderer('\x1b[31mRed GPU\x1b[0m');
+    expect(cleaned).not.toContain('\x1b');
+    expect(cleaned).toBe('[31mRed GPU [0m');
+  });
+  it('strips DEL and other control characters', () => {
+    expect(cleanRenderer('a\x00b\x7fc')).toBe('a b c');
+  });
+  it('collapses runs of whitespace and trims the ends', () => {
+    expect(cleanRenderer('  Intel    Iris \t Xe  ')).toBe('Intel Iris Xe');
+  });
+  it('caps a long string at 120 characters', () => {
+    const cleaned = cleanRenderer('x'.repeat(500));
+    expect(cleaned).toHaveLength(120);
+  });
+  it('is empty for an empty or all-control input', () => {
+    expect(cleanRenderer('')).toBe('');
+    expect(cleanRenderer('\n\t\x1b')).toBe('');
+  });
+  it('the launcher logs the cleaned renderer, not the raw one', async () => {
+    const f = fakeLaunch('Intel\nFAKE LOG');
+    const log: string[] = [];
+    await launchBrowser({ webgl: true, launch: f.launch, mode: 'auto', log: (l) => log.push(l) });
+    expect(log).toEqual(['3D: GPU (Intel FAKE LOG)']);
   });
 });

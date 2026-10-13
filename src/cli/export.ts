@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { argv, env, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
+import type { Browser } from '@playwright/test';
 import { checkDocument, coverage, failedChecks, type DomFacts, type WorkspaceFacts } from '../core/doc-check.ts';
 import { towerDoc } from '../core/doc.ts';
 import { fileKey } from '../core/docFiles.ts';
@@ -168,15 +169,18 @@ async function run(opts: Options, signal: AbortSignal): Promise<number> {
   const port = opts.port ?? await freePort();
   const base = `http://127.0.0.1:${port}`;
   const server = startServer(target, port, home);
-  const { chromium } = await import('@playwright/test');
-  // The 3D figures need WebGL; the shared launcher picks GPU or software from FLOW_TOWER_GL, as the report does.
-  const browser = await launchBrowser({
-    webgl: true,
-    launch: (options) => chromium.launch(options),
-    mode: glMode(env.FLOW_TOWER_GL),
-    log: (line) => console.log(line),
-  });
+  // Declared before the try so the finally can close it; the launch itself sits inside the try, so a throw
+  // there still stops the server and removes the temp home.
+  let browser: Browser | null = null;
   try {
+    const { chromium } = await import('@playwright/test');
+    // The 3D figures need WebGL; the shared launcher picks GPU or software from FLOW_TOWER_GL, as the report does.
+    browser = await launchBrowser({
+      webgl: true,
+      launch: (options) => chromium.launch(options),
+      mode: glMode(env.FLOW_TOWER_GL),
+      log: (line) => console.log(line),
+    });
     if (!browser) { console.error(INSTALL_HINT); return 1; }
     await waitForServer(base, PAGE_TIMEOUT_MS, signal);
     const towerId = await towerIdFor(target);

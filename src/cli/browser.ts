@@ -46,6 +46,18 @@ export function isSoftwareRenderer(renderer: string | null): boolean {
   return /swiftshader|llvmpipe/i.test(renderer);
 }
 
+/**
+ * The driver's renderer string made safe to print: control characters (a newline would split the log line, an
+ * ESC would drive the terminal) become spaces, whitespace is collapsed, and the result is capped at 120 characters.
+ */
+export function cleanRenderer(text: string): string {
+  return text
+    .replace(/[\x00-\x1f\x7f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
+}
+
 /** FLOW_TOWER_GL forces a mode; anything else (unset, empty, a typo) leaves the choice to the probe. */
 export function glMode(value: string | undefined): GlMode {
   if (value === 'gpu' || value === 'software') return value;
@@ -130,7 +142,7 @@ export async function launchBrowser<B extends BrowserLike>({ webgl, launch, mode
     renderer = null;
   }
   if (!isSoftwareRenderer(renderer)) {
-    log(`3D: GPU (${renderer})`);
+    log(`3D: GPU (${cleanRenderer(renderer ?? '')})`);
     return gpu;
   }
   // Start the software browser before closing the GPU one, so a failed software launch still leaves a browser.
