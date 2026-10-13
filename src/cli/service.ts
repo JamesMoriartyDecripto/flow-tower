@@ -14,11 +14,14 @@ import { readObject } from '../../bin/config-file.js';
 import { localServerFile, localServerUrl } from '../../bin/local-server.js';
 import { cliName, shellQuote } from '../../bin/cli-name.js';
 import { libraryEntries } from '../../bin/library.js';
+import { AGENT_LABEL, plistText, unitText } from './service-files.ts';
+
+// The text builders live in service-files.ts; they are re-exported here so callers keep one import path.
+export { systemdWord, xml, unitText, plistText } from './service-files.ts';
 
 const DEFAULT_PORT = 5317;
 const UNIT_NAME = 'flow-tower';
 const UNIT_FILE = `${UNIT_NAME}.service`;
-const AGENT_LABEL = 'dev.flowtower.library';
 const USAGE = 'usage: flow-tower service install|status|uninstall [--port N]';
 
 export interface RunResult { status: number | null; stdout: string; stderr: string; missing: boolean }
@@ -128,86 +131,6 @@ export function choosePort(typed: string | undefined, ctx: ServiceContext): numb
     } catch { /* a broken record: fall through to the default */ }
   }
   return DEFAULT_PORT;
-}
-
-/**
- * One word for a systemd ExecStart or Environment= line (systemd.syntax): a value with spaces, quotes or
- * backslashes is double-quoted, with `\` and `"` escaped inside. `$` and `%` are doubled in every case, or
- * systemd would expand them as environment variables and unit specifiers.
- */
-export function systemdWord(value: string): string {
-  const escaped = value.replaceAll('%', '%%').replaceAll('$', '$$$$').replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-  return /[\s"\\]/.test(value) ? `"${escaped}"` : escaped;
-}
-
-/** XML text for a plist: the five predefined entities, so a `&` or `<` in a path stays data. */
-export function xml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;');
-}
-
-/** The library's argv after the Node binary and the CLI script: the same command the hooks rely on. */
-function libraryArgs(cli: string, port: number): string[] {
-  return [cli, 'library', '--no-open', '--port', String(port)];
-}
-
-/** The systemd user unit. Restart=on-failure brings the library back after a crash, not after a clean stop. */
-export function unitText({ node, cli, port, home }: { node: string; cli: string; port: number; home?: string }): string {
-  const exec = [node, ...libraryArgs(cli, port)].map(systemdWord).join(' ');
-  const env = home ? `Environment=${systemdWord(`FLOW_TOWER_HOME=${home}`)}\n` : '';
-  return `[Unit]
-Description=flow-tower library
-After=network.target
-
-[Service]
-ExecStart=${exec}
-${env}Restart=on-failure
-# The library exits 143 (SIGTERM) or 130 (SIGINT) on purpose when stopped; systemd must read those as a clean stop, not a failure.
-SuccessExitStatus=130 143
-
-[Install]
-WantedBy=default.target
-`;
-}
-
-/**
- * The launchd agent. RunAtLoad starts it at login; KeepAlive with SuccessfulExit=false restarts it only when
- * it exits with a failure, the launchd equivalent of Restart=on-failure (a bare `true` would restart it even
- * after a clean stop). Output goes to one log file the user can read.
- */
-export function plistText({ node, cli, port, home, logFile }: { node: string; cli: string; port: number; home?: string; logFile: string }): string {
-  const args = [node, ...libraryArgs(cli, port)].map((a) => `    <string>${xml(a)}</string>`).join('\n');
-  const env = home
-    ? `  <key>EnvironmentVariables</key>\n  <dict>\n    <key>FLOW_TOWER_HOME</key>\n    <string>${xml(home)}</string>\n  </dict>\n`
-    : '';
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>${AGENT_LABEL}</string>
-  <key>ProgramArguments</key>
-  <array>
-${args}
-  </array>
-${env}  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <dict>
-    <key>SuccessfulExit</key>
-    <false/>
-  </dict>
-  <key>StandardOutPath</key>
-  <string>${xml(logFile)}</string>
-  <key>StandardErrorPath</key>
-  <string>${xml(logFile)}</string>
-</dict>
-</plist>
-`;
 }
 
 function unitPath(ctx: ServiceContext): string {
