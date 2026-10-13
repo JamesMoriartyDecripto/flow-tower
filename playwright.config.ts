@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { env } from 'node:process';
+import { GPU_ARGS } from './src/cli/browser';
 
 /**
  * E2E sweep over every example tower (e2e/). Reuses a running `npm run dev` on 5317, else starts one.
@@ -25,7 +26,19 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   // Installed Google Chrome: Playwright's bundled Chromium no longer supports macOS 13, and CI runners ship Chrome.
-  projects: [{ name: 'chrome', use: { ...devices['Desktop Chrome'], channel: 'chrome', viewport: { width: 1440, height: 900 } } }],
+  // GPU rendering is opt-in (FLOW_TOWER_E2E_GPU=1): without a GPU, these flags can leave no WebGL, and CI runners
+  // have none. Unset keeps the default software renderer. GPU_ARGS comes from src/cli/browser.ts, the single source.
+  projects: [
+    {
+      name: 'chrome',
+      use: {
+        ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        viewport: { width: 1440, height: 900 },
+        ...(env.FLOW_TOWER_E2E_GPU === '1' ? { launchOptions: { args: GPU_ARGS } } : {}),
+      },
+    },
+  ],
   webServer: {
     command: 'node bin/flow-tower.js examples --no-open --port 5317',
     url: 'http://127.0.0.1:5317/api/workspace',
