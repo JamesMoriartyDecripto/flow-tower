@@ -9,7 +9,10 @@ import { z } from 'zod';
 import { crossSite, isJson } from './guard.ts';
 import { isRemote } from './auth.ts';
 import { tokenStore } from './tokens.ts';
-import { loadConfig, CADENCES } from './config.ts';
+import { loadConfig, CADENCES, ConfigSchema } from './config.ts';
+import { formatMessage, sendNotification, type FetchLike, type NotifyConfig } from './alert-notify.ts';
+import type { Alert } from './alerts.ts';
+import { hostname } from 'node:os';
 import { readUserConfig, writeUserConfig } from './user-config.ts';
 import { appendAudit, readAudit } from './admin-audit.ts';
 import { resetViewersCache } from './hub.ts';
@@ -25,6 +28,8 @@ export interface HubAdminOptions {
   history?: History;
   /** The base URL a sender uses to reach this hub, for the connect line. */
   hubUrl: () => string;
+  /** The sender for the test alert; the tests pass a fake, the server leaves it to the global fetch. */
+  fetch?: FetchLike;
 }
 
 /** A few bytes per request: a sender id, a viewer list, a budget map. A bigger body is refused. */
@@ -65,6 +70,24 @@ const AlertsBody = z.strictObject({ rule: z.partialRecord(z.enum(RULES), z.boole
 const RetentionBody = z.strictObject({ retentionDays: z.number().int().min(1).max(21) });
 const BeforeBody = z.strictObject({ before: z.number().int().nonnegative(), confirm: z.literal(true) });
 const CountQuery = z.object({ before: z.coerce.number().int().nonnegative() });
+/** The same schema config.json is checked against, so a URL the file would refuse is refused here too. */
+const NotifyBody = ConfigSchema.shape.notify.unwrap();
+const ThresholdsBody = z.strictObject({ errors: z.number().int().min(1).max(1000) });
+
+/** The webhook as the panel may see it: whether it is set, its format, and the host only. The url's path can hold a token. */
+const notifyView = (notify: NotifyConfig | undefined) => {
+  if (!notify) return { set: false };
+  return { set: true, format: notify.format, host: new URL(notify.url).host };
+};
+
+/** The test alert the panel sends: fixed text, so the receiver sees nothing the operator did not type here. */
+const testAlert: Alert = {
+  id: 'test:machine:flow-tower',
+  rule: 'silent',
+  level: 'warning',
+  subject: { kind: 'hub', name: 'hub' },
+  message: 'Test from Flow Tower hub',
+};
 
 /** A token-free view of the senders, for the panel: the hashes never leave the token store. */
 const senderView = (home: string) => {
@@ -79,7 +102,7 @@ const senderView = (home: string) => {
   }));
 };
 
-export function hubAdmin({ home, hub, history, hubUrl }: HubAdminOptions) {
+export function hubAdmin({ home, hub, history, hubUrl, fetch: fetchFn }: HubAdminOptions) {
   /** Shared guards for every mutating route: 404 first (remote), then 403 (cross-site), then the method. */
   const guard = (req: IncomingMessage, res: ServerResponse, method: string): boolean => {
     if (isRemote(req, { hub })) { send(res, 404, { error: 'not found' }); return false; }
@@ -115,6 +138,8 @@ export function hubAdmin({ home, hub, history, hubUrl }: HubAdminOptions) {
       budgets: cfg.budgets ?? {},
       alerts: cfg.alerts ?? {},
       retentionDays: cfg.retentionDays ?? 14,
+      notify: notifyView(cfg.notify),
+      alertThresholds: cfg.alertThresholds ?? {},
       audit: readAudit(home),
     });
   };
@@ -239,6 +264,52 @@ export function hubAdmin({ home, hub, history, hubUrl }: HubAdminOptions) {
     send(res, 200, { deleted });
   };
 
+  const putNotify = async (req: IncomingMessage, res: ServerResponse) => {
+    if (!guard(req, res, 'PUT')) return;
+    if (!isJson(req)) return send(res, 415, { error: 'body must be application/json' });
+    const body = await readBody(req, res, NotifyBody);
+    if (!body) return;
+    writeConfig({ notify: body });
+    appendAudit(home, { action: 'notify.set', target: 'hub', detail: { format: body.format, host: new URL(body.url).host } });
+    send(res, 204);
+  };
+
+  const deleteNotify = (req: IncomingMessage, res: ServerResponse) => {
+    if (!guard(req, res, 'DELETE')) return;
+    const current = readUserConfig(home).notify;
+    // Only a webhook that is actually there is removed: the audit line must not claim a change that did not happen.
+    if (current !== undefined) {
+      writeConfig({ notify: undefined });
+      const host = (() => { try { return new URL(String((current as { url?: unknown }).url)).host; } catch { return undefined; } })();
+      appendAudit(home, { action: 'notify.remove', target: 'hub', detail: { format: (current as { format?: unknown }).format, host } });
+    }
+    send(res, 204);
+  };
+
+  /** Sends one fixed test alert through the same sender the notifier uses. Answers ok and status only: never the url. */
+  const postNotifyTest = async (req: IncomingMessage, res: ServerResponse) => {
+    if (!guard(req, res, 'POST')) return;
+    if (!isJson(req)) return send(res, 415, { error: 'body must be application/json' });
+    const raw = await readJson(req, res);
+    if (res.writableEnded || raw === undefined) return;
+    const notify = loadConfig({ home }).config.notify;
+    if (!notify) return send(res, 409, { error: 'no webhook is set' });
+    const result = await sendNotification(notify, formatMessage(testAlert, 'open', notify.format, hostname()), fetchFn);
+    appendAudit(home, { action: 'notify.test', target: 'hub', detail: { format: notify.format, host: new URL(notify.url).host, ok: result.ok } });
+    send(res, 200, result.status === undefined ? { ok: result.ok } : { ok: result.ok, status: result.status });
+  };
+
+  const putThresholds = async (req: IncomingMessage, res: ServerResponse) => {
+    if (!guard(req, res, 'PUT')) return;
+    if (!isJson(req)) return send(res, 415, { error: 'body must be application/json' });
+    const body = await readBody(req, res, ThresholdsBody);
+    if (!body) return;
+    const current = (readUserConfig(home).alertThresholds ?? {}) as Record<string, unknown>;
+    writeConfig({ alertThresholds: { ...current, ...body } });
+    appendAudit(home, { action: 'thresholds.set', target: 'errors', detail: { errors: body.errors } });
+    send(res, 204);
+  };
+
   return async (req: IncomingMessage, res: ServerResponse) => {
     if (!hub) return send(res, 404, { error: 'not a hub' });
     const url = new URL(req.url ?? '', 'http://local');
@@ -254,6 +325,9 @@ export function hubAdmin({ home, hub, history, hubUrl }: HubAdminOptions) {
     if (path === '/retention') return putRetention(req, res);
     if (path === '/history/count') return countHistory(req, res);
     if (path === '/history/delete-before') return deleteBefore(req, res);
+    if (path === '/notify') return req.method === 'DELETE' ? deleteNotify(req, res) : putNotify(req, res);
+    if (path === '/notify/test') return postNotifyTest(req, res);
+    if (path === '/thresholds') return putThresholds(req, res);
     return send(res, 404, { error: 'not found' });
   };
 }

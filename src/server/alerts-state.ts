@@ -21,12 +21,30 @@ function timeRecord(v: unknown): Record<string, number> {
 }
 
 export function readAlertState(home: string): AckState {
+  let raw: Partial<Record<keyof AckState, unknown>>;
   try {
-    const raw = JSON.parse(readFileSync(join(home, FILE), 'utf8')) as Partial<Record<keyof AckState, unknown>>;
-    return { acked: timeRecord(raw.acked), snoozed: timeRecord(raw.snoozed) };
+    const parsed = JSON.parse(readFileSync(join(home, FILE), 'utf8')) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return { acked: {}, snoozed: {} };
+    raw = parsed as Partial<Record<keyof AckState, unknown>>;
   } catch {
     return { acked: {}, snoozed: {} };
   }
+  // Each key is read on its own: a bad `notified` must not discard the acks and snoozes next to it.
+  const state: AckState = { acked: timeRecord(raw.acked), snoozed: timeRecord(raw.snoozed) };
+  // Kept only when the file has it: a state written before the notifier stays the same shape it was.
+  if (raw.notified !== undefined) state.notified = timeRecord(raw.notified);
+  return state;
+}
+
+/**
+ * Read-modify-write in one synchronous step: the file is read again right before it is written, so a write
+ * from another path (the ticker, an ack POST) that landed since the caller last read it is kept, not lost.
+ * No await in here, so no other code in this process can interleave between the read and the write.
+ */
+export function updateAlertState(home: string, change: (current: AckState) => AckState): AckState {
+  const next = change(readAlertState(home));
+  writeAlertState(home, next);
+  return next;
 }
 
 export function writeAlertState(home: string, state: AckState): void {

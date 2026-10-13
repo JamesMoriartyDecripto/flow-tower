@@ -20,19 +20,24 @@ export interface AdminView {
   budgets: { global?: number; projects?: Record<string, number> };
   alerts: Record<string, boolean>;
   retentionDays: number;
+  /** The webhook as the server shows it: set or not, its format and host. Never the url. */
+  notify: { set: boolean; format?: NotifyFormat; host?: string };
+  alertThresholds: { errors?: number };
   audit: AuditLine[];
 }
 
+export type NotifyFormat = 'json' | 'slack' | 'telegram' | 'ntfy';
+
 export type CallResult<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
 
-export type Run = (method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) => Promise<CallResult>;
+export type Run = (method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => Promise<CallResult>;
 
 /**
  * One request to the admin routes. A failure carries the server's own message (`{ error }`) so the panel
  * can show it inline; a network failure gets a plain sentence. Nothing here logs the body, because a
  * sender add answers a token in it.
  */
-export async function callAdmin<T = unknown>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<CallResult<T>> {
+export async function callAdmin<T = unknown>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<CallResult<T>> {
   try {
     const res = await fetch(`/api/hub/admin${path}`, {
       method,

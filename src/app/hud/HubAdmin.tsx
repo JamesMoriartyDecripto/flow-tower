@@ -6,9 +6,11 @@ import {
   type BudgetRow, type Cadence,
 } from './hubAdminModel';
 import { RULE_LABEL } from './HubAlerts';
+import { NotifySection } from './HubAdminNotify';
 
 /** The alert rules the server knows (src/server/alerts.ts RULES). The browser keeps its own copy: the server module is Node only. */
-const RULES = ['silent', 'budget', 'error-spike', 'new-host'];
+// Same order as RULES in src/server/alerts.ts: the switches list every rule the server evaluates.
+const RULES = ['silent', 'budget', 'error-spike', 'new-host', 'errors'];
 
 /** What the add-sender box shows once: the token and the connect line. Held only while the box is open. */
 interface Shown { id: string; token: string; configLine: string }
@@ -31,7 +33,7 @@ export function HubAdmin() {
   useEffect(() => { void load(); }, [load]);
 
   /** One change: post it, show a refusal, then refetch so the panel always shows what the server stored. */
-  const change = useCallback(async (method: 'POST' | 'PUT', path: string, body?: unknown): Promise<CallResult> => {
+  const change = useCallback(async (method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<CallResult> => {
     const r = await callAdmin(method, path, body);
     setError(r.ok ? undefined : r.error);
     await load();
@@ -48,12 +50,13 @@ export function HubAdmin() {
       <BudgetsSection budgets={view.budgets} change={change} />
       <AlertsSection alerts={view.alerts} change={change} />
       <RetentionSection days={view.retentionDays} change={change} />
+      <NotifySection notify={view.notify} thresholds={view.alertThresholds} change={change} />
       <AuditSection audit={view.audit} />
     </div>
   );
 }
 
-type Change = (method: 'POST' | 'PUT', path: string, body?: unknown) => Promise<CallResult>;
+type Change = (method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => Promise<CallResult>;
 
 /** Senders: list, cadence, pause/resume, revoke (typed confirmation), and add (token shown once). */
 function SendersSection({ senders, cadence, change }: { senders: AdminSender[]; cadence: AdminView['cadence']; change: Change }) {

@@ -298,6 +298,13 @@ export function HubChip() {
     return () => { ac.abort(); clearInterval(t); };
   }, []);
 
+  // A browser notice click opens the Alerts tab (HubAlerts.tsx dispatches this event; no import cycle).
+  useEffect(() => {
+    const open = (e: Event) => useHub.getState().show((e as CustomEvent<Tab>).detail);
+    window.addEventListener('flow-tower:hub-open', open);
+    return () => window.removeEventListener('flow-tower:hub-open', open);
+  }, []);
+
   // Alerts are a hub read too: poll them on the machines cadence, and only once this page is a hub.
   const onHub = !!me?.hub;
   useEffect(() => {
