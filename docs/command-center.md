@@ -78,7 +78,9 @@ Only tailnet logins listed in `viewers` may view the UI; everyone else may only 
 ACLs and tags: [integrations/hub/tailscale-serve.md](../integrations/hub/tailscale-serve.md),
 [acl.hujson](../integrations/hub/acl.hujson).
 
-**Caddy with TLS on a public VPS.** For senders that cannot join a tailnet (Lambda, some CI). Senders
+**Caddy with TLS, a team without Tailscale.** [`integrations/hub/Caddyfile.hub`](../integrations/hub/Caddyfile.hub) forwards what a sender needs (events, heartbeat, OTLP, shared towers) to a full hub: teammates `connect --token` and `share` as on a tailnet; only the owner views, over SSH (below). Steps: [kit README § 5](../examples/command-center/README.md).
+
+**Caddy with TLS on a public VPS, senders only.** For senders that cannot join a tailnet (Lambda, some CI). Senders
 need a token on every request. Remote viewing does **not** work through Caddy: a forwarded request
 without a tailnet identity gets `403`. Two ways:
 
