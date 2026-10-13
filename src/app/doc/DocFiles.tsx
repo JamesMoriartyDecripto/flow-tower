@@ -10,6 +10,9 @@ import { afterPaint } from './afterPaint';
  */
 export type FileText = { kind: 'text'; content: string } | { kind: 'skipped'; reason: string };
 
+/** Shown for an optional file a run has not written yet (the same wording as the inspector). */
+export const NOT_GENERATED = 'not generated yet';
+
 /**
  * Loads one file through the same route the viewer uses, so the printed text follows the same rules: a
  * secret file, a file in the user's folder or a path outside the tower root is refused by the server, and
@@ -37,7 +40,8 @@ export function FilesAppendix({ files, onReady }: { files: AppendixFile[]; onRea
     (async () => {
       const out: Record<string, FileText> = {};
       for (const f of files) {
-        out[fileKey(f)] = await loadText(f);
+        // A file a run has not written yet has nothing to fetch: its line says so instead of a 404 error.
+        out[fileKey(f)] = f.notGenerated ? { kind: 'skipped', reason: NOT_GENERATED } : await loadText(f);
         if (!live) return;
       }
       if (live) {
@@ -61,7 +65,9 @@ export function FilesAppendix({ files, onReady }: { files: AppendixFile[]; onRea
             <h3 className="mono">{f.path}</h3>
             <p className="muted">Tower: {f.tower} · Used by: {f.refs.join('; ')}</p>
             {!t && <p className="muted">Loading…</p>}
-            {t?.kind === 'skipped' && <p className="file-skipped">Not printed: {t.reason}</p>}
+            {t?.kind === 'skipped' && (t.reason === NOT_GENERATED
+              ? <p className="muted">{NOT_GENERATED[0].toUpperCase() + NOT_GENERATED.slice(1)}: a run writes this file.</p>
+              : <p className="file-skipped">Not printed: {t.reason}</p>)}
             {t?.kind === 'text' && <FileBlock content={t.content} />}
           </article>
         );

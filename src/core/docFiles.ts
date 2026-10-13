@@ -13,6 +13,8 @@ export interface AppendixFile {
   path: string;
   /** `Tower name · N-L01.03` for each node that uses the file, in tower order, once each. */
   refs: string[];
+  /** An optional file a run writes that does not exist yet: listed as "not generated yet", not an error. */
+  notGenerated?: boolean;
 }
 
 /** The key the view and the completeness check use for one file: a tower and a path, joined without a newline. */
@@ -46,6 +48,7 @@ export function appendixFiles(ws: Workspace, depths: Map<string, number>): Appen
           const key = fileKey({ tower: towerId, path });
           const entry = byKey.get(key) ?? { tower: towerId, path, refs: [] };
           if (!entry.refs.includes(ref)) entry.refs.push(ref);
+          if (n.missingOptional.includes(path)) entry.notGenerated = true;
           byKey.set(key, entry);
         }
       });

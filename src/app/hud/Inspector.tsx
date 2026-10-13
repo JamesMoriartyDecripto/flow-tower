@@ -190,15 +190,21 @@ function Tools({ node, tower }: { node: ResolvedNode; tower: ResolvedTower }) {
 }
 
 function Files({ node, tower }: { node: ResolvedNode; tower: string }) {
-  const { files, resources } = node;
+  const { files, resources, missingOptional } = node;
   const local = resources.filter((r) => r.path);
-  const open = (list: string[], i: number) => useStore.getState().openFile({ tower, files: list, index: i });
+  const open = (list: string[], i: number) => useStore.getState().openFile({ tower, files: list, index: i, missing: missingOptional });
   return (
     <>
       {files.length > 0 && (
         <Section title="Related files">
           <div className="filelist">
-            {files.map((f, i) => (
+            {files.map((f, i) => missingOptional.includes(f) ? (
+              // Optional and not written yet: nothing to open, and no error either.
+              <span key={f} className="dim" title="A run writes this file; it does not exist yet">
+                <span className="ext">{(f.split('.').pop() ?? '').toUpperCase().slice(0, 4)}</span>
+                {f} <span className="dim">· not generated yet</span>
+              </span>
+            ) : (
               <button key={f} onClick={() => open(files, i)} title={`Open ${f}`}>
                 <span className="ext">{(f.split('.').pop() ?? '').toUpperCase().slice(0, 4)}</span>
                 {f}
