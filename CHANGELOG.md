@@ -8,12 +8,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Added
 - Hub › Admin (#93), on the hub machine only: add a sender (token and connect line shown once), pause, resume, revoke by typing its id; viewers; cadence per sender; budgets; alert switches; retention days and delete-before with a preview count. Every change writes a line to `admin-audit.jsonl` (0600, never a token); remote requests get 404. The privacy profile wizard waits for #85.
 - Hub alerts (#94): an always-on machine gone silent, monthly spend at 80% / 100% of a budget (USD, per project or global), an error spike (over 3× the 7-day hourly median, at least 5), a token used from a new host. A `⚠ n` pill in the top bar and the library header opens Hub › Alerts; ack and snooze (1 h / 1 d) from the hub machine only. Rules switch off per name in `config.json` `alerts`; `budgets` are documented as USD, the history's currency.
-
-### Added
 - Schema: a `files` entry can be `{ path, optional: true, description }` for a file a run writes: while it is missing, `validate` and the PDF checks stay quiet and the Inspector shows it as "not generated yet". The report-studio example uses it for the tower-documentation PDF (#137).
 
 ### Changed
 - Docs: `docs/architecture.md` is split into four maps that each load whole: core, documents and reports (`architecture.md`), server and hub, CLI, app. docs-qa Q24 (which file owns the per-sender tokens) passes again, 3/3; the docs-qa report is refreshed: 28/31 (#143).
+
+### Fixed
+- Hub alerts could not see hook errors (#187): history dropped every `tool.end` as a replay of its `tool.start` (same call id), and `kind: error` events were stored without an error status, so the error spike never fired. Both now count.
+- Hub › Admin showed `always-on` for a sender with no cadence, while the alerts treat it as `on-demand`; it now shows what applies, and a new sender starts as `on-demand` (#187).
+- `emit` and `npm run simulate` post to the server the user folder runs, on whatever port, instead of 5317 when no `--url` is given: a satellite's SessionStart hook could reach another server on 5317 (#187). The `copy` hint no longer prints a 5317 URL.
 
 ## [0.9.0] - 2026-10-13
 

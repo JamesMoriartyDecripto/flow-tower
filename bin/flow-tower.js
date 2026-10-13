@@ -468,7 +468,9 @@ try {
 // A wildcard bind is reached on loopback; IPv6 literals need brackets in a URL.
 const recordHost = bindHost === '0.0.0.0' || bindHost === '::' ? '127.0.0.1' : bindHost.includes(':') ? `[${bindHost}]` : bindHost;
 const localUrl = `http://${recordHost}:${values.port}`;
-writeLocalServer({ url: localUrl, pid: process.pid });
+// The first live server keeps the record: a second one in the same user folder would otherwise take it over,
+// then clear it on exit and leave emit with no record while the first still runs.
+if (!localServerUrl({ env })) writeLocalServer({ url: localUrl, pid: process.pid });
 // Clearing on exit keeps the record from naming a dead port; the signal handlers only add the clear, then exit
 // with the conventional code (Node's default for these signals, which a handler would otherwise replace).
 process.on('exit', () => clearLocalServer({ pid: process.pid }));
