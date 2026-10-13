@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { type AdminView, type CallResult, type NotifyFormat } from './hubAdminApi';
 // The test route sends a body-less POST; the empty object keeps the JSON content type check satisfied.
 import { maskedHost, notifyUrlValid, thresholdValid } from './hubAdminModel';
@@ -23,6 +23,12 @@ export function NotifySection({ notify, thresholds, change }: {
   const [badErrors, setBadErrors] = useState(false);
   const [testResult, setTestResult] = useState<string>();
   const [errors, setErrors] = useState(String(thresholds.errors ?? 3));
+  // The typed value wins over a refresh while the user is editing it; a save hands the field back to the view.
+  const [errorsDirty, setErrorsDirty] = useState(false);
+  // The view arrives after mount and again after every save: follow it unless the user is typing.
+  useEffect(() => {
+    if (!errorsDirty) setErrors(String(thresholds.errors ?? 3));
+  }, [thresholds.errors, errorsDirty]);
 
   const save = async () => {
     const ok = notifyUrlValid(url);
@@ -46,7 +52,8 @@ export function NotifySection({ notify, thresholds, change }: {
     const n = Number(errors);
     setBadErrors(!thresholdValid(n));
     if (!thresholdValid(n)) return;
-    await change('PUT', '/thresholds', { errors: n });
+    const r = await change('PUT', '/thresholds', { errors: n });
+    if (r.ok) setErrorsDirty(false);
   };
 
   return (
@@ -73,7 +80,7 @@ export function NotifySection({ notify, thresholds, change }: {
       {bad && <p className="hub-warn">The webhook must be https://, or http:// to this machine</p>}
       <div className="admin-line">
         <span>Errors per machine (15 min)</span>
-        <input className="admin-input" type="number" min={1} max={1000} aria-label="Errors threshold" value={errors} onChange={(e) => setErrors(e.target.value)} />
+        <input className="admin-input" type="number" min={1} max={1000} aria-label="Errors threshold" value={errors} onChange={(e) => { setErrors(e.target.value); setErrorsDirty(true); }} />
         <button className="btn" onClick={() => void saveErrors()}>Save</button>
       </div>
       {badErrors && <p className="hub-warn">A number from 1 to 1000</p>}

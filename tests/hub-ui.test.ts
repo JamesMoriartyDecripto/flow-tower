@@ -74,11 +74,12 @@ describe('Now rows (#92)', () => {
     const secret = 'rm -rf /home/dana/private';
     const event = ev({
       host: 'h', source: 's', project: 'p', user: 'dana',
-      message: secret, tool: 'Bash', data: { command: secret }, agent: secret,
+      message: secret, tool: 'Bash', data: { command: secret }, agent: secret, status: 'error',
     }, NOW);
     const row = nowRows([event], NOW)[0];
     // The row is only what the spec allows: enumerating the keys proves nothing leaked.
-    expect(Object.keys(row).sort()).toEqual(['count', 'last', 'machine', 'project', 'runtime', 'startedBy', 'state']);
+    // Allowed set: the identity fields, counts, the resolved names (tower, node) and the error's ts/node/tool.
+    expect(Object.keys(row).sort()).toEqual(['count', 'key', 'last', 'lastError', 'machine', 'node', 'project', 'runtime', 'startedBy', 'state', 'target', 'tower']);
     expect(JSON.stringify(row)).not.toContain(secret);
   });
 });

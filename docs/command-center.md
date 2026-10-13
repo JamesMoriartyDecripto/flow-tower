@@ -151,10 +151,16 @@ GitHub Actions and Lambda: [hub-reference.md § Recipes](hub-reference.md#recipe
 
 ## The Hub panel (H)
 
-Press `H` on a hub to open it. **Now** lists who runs what right now (machine, runtime, project,
-starter — `AUTO` for CI); **Machines** lists every sender the hub trusts (token prefix, runtime, host,
+Press `H` in a tower on a hub to open it; in the library (where `H` types into the filter) click the `● n working`
+chip next to the alerts pill. **Now** has one row per machine and session: `● machine · tower › node`, the state on
+the right (`run · 12 s`), the user (when it differs from the machine) and runtime below, and the last error as
+`✕ error · <node or tool> · <age>`. Click a row to open that tower on that node, the error line for the node that
+failed. Rows carry no event text (no message, command or tool input): the Live feed has the details on this machine.
+**Machines** lists every sender the hub trusts (token prefix, runtime, host,
 last seen, state). The dot follows the clock: ● under 2 min, ◐ under 15 min, ○ silent (a revoked or
-paused token shows ✕). The top-bar `HUB n/m` pill reads senders seen in the last 5 min / active tokens.
+paused token shows ✕). The top-bar `HUB n/m` pill reads active senders seen in the last 5 min / active tokens (a revoked one counts in neither).
+In a tower, `YAML n ERR` / `YAML n WARN` are the validation of the tower file; a red `LIVE n ERR` counts the live
+error events of the tower on screen and opens the Live feed, where a failed tool shows ✕.
 A remote viewer gets the same panel, read-only, with a `READ-ONLY` pill. It reads `/api/hub/machines`
 and `/api/hub/me`; [security model](hub-reference.md#security-model).
 

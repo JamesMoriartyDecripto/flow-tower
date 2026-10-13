@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { EDGE_KINDS, NODE_TYPES } from '../../core/schema';
 import { search as rank } from '../graph';
-import { useLive } from '../live';
+import { errorCount } from '../hub';
+import { towerScope, useLive } from '../live';
 import { chooseView, usePrefs } from '../settings';
 import { useDemo } from '../demo';
 import { exportPng, exportSvg, useExport } from '../exporter';
 import { budgetsText, limitsText } from '../ops';
 import { STATIC } from '../staticData';
-import { useCurrentTowerLive } from '../liveHooks';
+import { useCurrentTowerLive, useDescendants } from '../liveHooks';
 import { useStore, useTower } from '../store';
 import { EDGE_STYLE, NODE_STYLE, RUNTIME_ICON } from '../theme';
 import { MicButton } from './Voice';
@@ -47,6 +48,10 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
   const issues = tower?.issues ?? [];
   const errors = issues.filter((i) => i.level === 'error').length;
   const warnings = issues.filter((i) => i.level === 'warning').length;
+  // The LIVE error chip counts what the feed shows for this tower: the same scope as the Tower filter.
+  const liveEvents = useLive((s) => s.events);
+  const desc = useDescendants();
+  const liveErrors = useMemo(() => (tower ? errorCount(towerScope(liveEvents, tower.id, desc)) : 0), [liveEvents, tower, desc]);
 
   const jump = () => {
     const hit = rank(tower?.layers.flatMap((l) => l.nodes) ?? [], search)[0];
@@ -85,10 +90,15 @@ export function TopBar({ onIssues }: { onIssues(): void }) {
         />
         <kbd>/</kbd>
       </label>
-      <button className="issues-btn" onClick={onIssues} title="Validation issues">
-        <span className={`chip ${errors ? 'err' : ''}`}>{errors} ERR</span>
-        <span className={`chip ${warnings ? 'warn' : ''}`}>{warnings} WARN</span>
+      {/* Labelled as validation: a bare "0 ERR" next to live agent errors read as "nothing failed". */}
+      <button className="issues-btn" onClick={onIssues} title="Validation of the tower file">
+        <span className={`chip ${errors ? 'err' : ''}`}>YAML {errors} ERR</span>
+        <span className={`chip ${warnings ? 'warn' : ''}`}>YAML {warnings} WARN</span>
       </button>
+      {liveErrors > 0 && (
+        <button className="chip err clickable" onClick={() => useLive.getState().toggleFeed(true)}
+          title="Agents failed on this tower: open the live feed">LIVE {liveErrors} ERR</button>
+      )}
       <DemoChip />
       <UpdateChip />
       <MicButton />

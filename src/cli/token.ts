@@ -5,21 +5,43 @@
  * ~/.config/flow-tower, never the checkout.
  */
 import { argv, exit } from 'node:process';
+import { userHome } from '../core/secrets.ts';
+import { appendAudit } from '../server/admin-audit.ts';
 import { tokenStore } from '../server/tokens.ts';
 
 const USAGE = 'usage: flow-tower token add <id> | list | revoke <id> | pause <id> | resume <id>';
 
 const [cmd, id] = argv.slice(2);
-const store = tokenStore();
+// One folder for the store and the audit log, so a CLI change lands in the same history as the Admin tab's.
+const home = userHome();
+const store = tokenStore(home);
 const known = (x: string) => store.list().some((t) => t.id === x);
+/**
+ * The Admin tab's route: a line per change, the CLI marked, and never a token. It only warns on failure:
+ * the change already happened, and a read-only or full disk must not hide a token that was just created.
+ */
+const audit = (action: string, target: string) => {
+  try {
+    appendAudit(home, { action, target, detail: { via: 'cli' } });
+  } catch (err) {
+    console.error(`warning: could not write the audit log: ${err instanceof Error ? err.message : String(err)}`);
+  }
+};
 
 switch (cmd) {
   case 'add': {
     if (!id) { console.error(USAGE); exit(2); }
+    // A paused sender still exists, so refuse it too; a revoked id may be reused (rotation keeps working).
+    if (store.list().some((t) => t.id === id && t.revokedAt === undefined)) {
+      console.error(`a sender named ${id} exists: revoke it first, or pick another id`);
+      exit(1);
+    }
     const { token } = store.create(id);
+    // Print first: the token exists now, so the user must see it even if the audit line cannot be written.
     // The plaintext is printed once and never stored: say so, or the user will look for it again.
     console.log(token);
     console.log('this token is shown once: it is kept only as a sha256, so a lost token cannot be recovered — store it now');
+    audit('sender.add', id);
     break;
   }
   case 'list': {
@@ -37,6 +59,7 @@ switch (cmd) {
     // The store treats an unknown id as a no-op; the shell wants to know the id was wrong, so check here.
     if (!id || !known(id)) { console.error(`unknown token "${id ?? ''}"`); exit(1); }
     if (cmd === 'revoke') store.revoke(id); else store.pause(id, cmd === 'pause');
+    audit(`sender.${cmd}`, id);
     console.log(`${id}: ${cmd === 'revoke' ? 'revoked' : cmd === 'pause' ? 'paused' : 'resumed'}`);
     break;
   }

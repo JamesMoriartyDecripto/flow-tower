@@ -451,6 +451,11 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 /* Release audit (v0.1.0): layout edge cases, focus visibility, reduced motion */
 /* Issues and the live feed share the right edge: keep the issues list above the feed. */
 .hud:has(.livefeed) .issues { max-height: calc(54 * var(--vh) - 160px); }
+/* Hub panel and Live feed both sit on the right edge: with the Hub open the feed moves left of it (the
+   Inspector's `shifted` slot, 448px), so neither covers the other. Above 760px only, where the feed is wide. */
+@media (min-width: 761px) {
+  .hud:has(.hub) .livefeed { right: 448px; }
+}
 /* Half-screen windows: the shifted feed would cover the Layers panel and the legend; stack it on the right. */
 @media (max-width: 760px) {
   .livefeed.shifted { right: 14px; }
@@ -577,10 +582,23 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .hub-row { display: grid; grid-template-columns: 1fr; gap: 3px; padding: 6px;
   font: 12.5px var(--mono); border-left: 2px solid transparent; }
 /* The flexible middle column (sender/machine) ellipsizes; the two auto columns keep their width. */
-.hub-main { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.hub-main { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+/* The Now row is a button (it jumps to its node): drop the button chrome so it reads as the text it is. */
+/* `all: unset` drops the button's display, so the cells would run together with no gap: the flex row is
+   restored here, with the same gap MachinesTab rows use. Cells shrink (min-width: 0) and ellipsize. */
+.hub-jump { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; cursor: pointer; width: 100%; font: inherit; }
+.hub-jump > * { min-width: 0; }
+.hub-jump > .hub-dot { flex: none; width: 14px; }
+/* The tower › node cell takes the free middle and is the one that ellipsizes; the machine keeps its width. */
+.hub-jump > .hub-where { flex: 1 1 auto; }
+.hub-jump:disabled { cursor: default; }
+.hub-jump:focus-visible { outline: 1px solid var(--line); outline-offset: 2px; }
+.hub-where { color: var(--cyan, inherit); }
+.hub-error { color: var(--live-error); font-size: 11px; padding-left: 22px; }
 .hub-sender { font-weight: 600; color: var(--white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The right-hand cell (state · ago on Now, seen … on Machines): dim, small, never pushed out. */
-.hub-right, .hub-seen { color: var(--dim); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* flex: none keeps the state readable on the right: it is never the cell that gets cut. */
+.hub-right, .hub-seen { flex: none; color: var(--dim); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Line 2 dim and smaller, indented under the sender (14px dot + 8px gap). min-width:0 lets a long field
    ellipsize inside its own cell instead of pushing the next one out of the panel. */
 .hub-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
