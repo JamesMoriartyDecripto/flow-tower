@@ -253,6 +253,8 @@ table.findings td:first-child { width: 8%; }
 }
 .letterhead-title { font: 600 8.5pt var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); text-align: right; }
 @media print { .letterhead { display: none; } }
+/* A print taken while a snapshot capture is in flight must not show the capture frame or its veil. */
+@media print { .snap-capture { display: none !important; } }
 
 /* Contents: chapters as heading rows, layers under them. One indent step per depth (14pt); on paper the
    rows flow in two columns, and a nested chapter's heading spans both so its layers start below it. */
