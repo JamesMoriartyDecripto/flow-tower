@@ -21,7 +21,8 @@ export interface BrowserLike {
   close(): Promise<void>;
 }
 export interface LaunchOptions { args?: string[]; channel?: string }
-export type LaunchFn = (options: LaunchOptions) => Promise<BrowserLike>;
+/** The launch function; generic so callers get back their own browser type (Playwright's, with page methods). */
+export type LaunchFn<B extends BrowserLike = BrowserLike> = (options: LaunchOptions) => Promise<B>;
 
 /**
  * Reads the renderer string with the debug extension. Without a WebGL2 context the answer is null; without the
@@ -49,7 +50,7 @@ export function glMode(value: string | undefined): GlMode {
 }
 
 /** The bundled Chromium first, then the installed Chrome, as the other CLI launchers do. Null when neither starts. */
-async function tryLaunch(launch: LaunchFn, args?: string[]): Promise<BrowserLike | null> {
+async function tryLaunch<B extends BrowserLike>(launch: LaunchFn<B>, args?: string[]): Promise<B | null> {
   const base: LaunchOptions = args ? { args } : {};
   try {
     return await launch(base);
@@ -77,12 +78,12 @@ async function probeRenderer(browser: BrowserLike): Promise<string | null> {
  * A browser for rendering. Without `webgl` no GPU flags are needed. With it, `software` and `gpu` force a mode,
  * and `auto` keeps the GPU browser only when its renderer is real hardware. Returns null when no browser starts.
  */
-export async function launchBrowser({ webgl, launch, mode = 'auto', log }: {
+export async function launchBrowser<B extends BrowserLike>({ webgl, launch, mode = 'auto', log }: {
   webgl: boolean;
-  launch: LaunchFn;
+  launch: LaunchFn<B>;
   mode?: GlMode;
   log: (line: string) => void;
-}): Promise<BrowserLike | null> {
+}): Promise<B | null> {
   if (!webgl) return tryLaunch(launch);
   if (mode === 'software') {
     const browser = await tryLaunch(launch, SOFTWARE_ARGS);
