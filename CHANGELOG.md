@@ -23,6 +23,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Docs: `docs/architecture.md` is split into four maps that each load whole: core, documents and reports (`architecture.md`), server and hub, CLI, app. docs-qa Q24 (which file owns the per-sender tokens) passes again, 3/3; the docs-qa report is refreshed: 28/31 (#143).
 
 ### Fixed
+- The 3D figures of the tower document never drew in Google Chrome (the browser, `flow-tower export --pdf` without Playwright's headless shell, and the e2e suite): Chrome stops animation frames in an off-screen or hidden iframe, so every snapshot timed out and the document never got ready. The snapshot iframe now stays on screen under an opaque veil (#181).
+- e2e: the voice hub spec mocks `/api/hub/alerts` too (a plain server answers 404), and the referenced-files check skips optional files a run has not written yet (#181).
 - Hub alerts could not see hook errors (#187): history dropped every `tool.end` as a replay of its `tool.start` (same call id), and `kind: error` events were stored without an error status, so the error spike never fired. Both now count.
 - Hub › Admin showed `always-on` for a sender with no cadence, while the alerts treat it as `on-demand`; it now shows what applies, and a new sender starts as `on-demand` (#187).
 - `emit` and `npm run simulate` post to the server the user folder runs, on whatever port, instead of 5317 when no `--url` is given: a satellite's SessionStart hook could reach another server on 5317 (#187). The `copy` hint no longer prints a 5317 URL.

@@ -2,9 +2,9 @@ import { isSnapMessage, type SnapMessage } from '../snapMessage';
 import { cropToContent } from './cropToContent';
 
 /**
- * The 3D figures of the document. Each one is a snapshot page (`?snap=1`) of the app in a hidden same-origin
- * iframe. WebGL contexts are scarce, so the captures run strictly one at a time, in a queue, and a failed one
- * becomes a reason string, never a missing figure. A failed or timed-out attempt is retried in a fresh iframe,
+ * The 3D figures of the document. Each one is a snapshot page (`?snap=1`) of the app in a same-origin
+ * iframe under an opaque veil. WebGL contexts are scarce, so the captures run strictly one at a time, in a
+ * queue, and a failed one becomes a reason string, never a missing figure. A failed or timed-out attempt is retried in a fresh iframe,
  * so one bad load does not leave a placeholder in the printed document.
  */
 
@@ -60,7 +60,12 @@ function capture(towerId: string): Promise<Captured> {
       // Eco quality: no post-processing, so software WebGL stays cheap. The fixed size keeps the PNGs consistent.
       src: `/?tower=${encodeURIComponent(towerId)}&view=tower&quality=eco&snap=1`,
     });
-    Object.assign(frame.style, { position: 'fixed', left: '-10000px', top: '0', width: '1600px', height: '1000px', border: '0', visibility: 'hidden' });
+    // Chrome stops animation frames in an iframe it thinks is not seen (off screen, `visibility: hidden`,
+    // `opacity: 0`), so the scene would never draw and every capture timed out (#181). The frame stays on
+    // screen under an opaque veil instead: Chrome does not track occlusion, so it keeps rendering.
+    Object.assign(frame.style, { position: 'fixed', left: '0', top: '0', width: '1600px', height: '1000px', border: '0', zIndex: '-2', pointerEvents: 'none' });
+    const veil = document.createElement('div');
+    Object.assign(veil.style, { position: 'fixed', inset: '0', zIndex: '-1', background: 'var(--paper, #fff)', pointerEvents: 'none' });
     let settled = false;
     const finish = (result: Captured) => {
       if (settled) return;
@@ -68,6 +73,7 @@ function capture(towerId: string): Promise<Captured> {
       window.removeEventListener('message', onMessage);
       clearTimeout(timer);
       frame.remove();
+      veil.remove();
       resolve(result);
     };
     const onMessage = (e: MessageEvent) => {
@@ -80,6 +86,6 @@ function capture(towerId: string): Promise<Captured> {
     // A page that never posts (a crash before the scene, a stale build) must not hold the queue forever.
     const timer = setTimeout(() => finish({ error: 'the snapshot page did not answer' }), TIMEOUT_MS);
     window.addEventListener('message', onMessage);
-    document.body.append(frame);
+    document.body.append(frame, veil);
   });
 }

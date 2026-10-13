@@ -115,6 +115,8 @@ test('every referenced file is served by /api/file', async ({ request }) => {
       n.resources.forEach((r) => r.path && paths.add(r.path));
     }
     for (const path of paths) {
+      // An optional file a run writes (#137) may not exist yet: the inspector shows "not generated yet".
+      if (t.layers.some((l) => l.nodes.some((n) => n.missingOptional.includes(path)))) continue;
       const res = await request.get(`/api/file?tower=${encodeURIComponent(id)}&path=${encodeURIComponent(path)}`);
       // 415 = binary (images, recordings): served as a link, not previewed.
       if (![200, 415].includes(res.status())) failures.push(`${res.status()} ${id} ${path}`);
