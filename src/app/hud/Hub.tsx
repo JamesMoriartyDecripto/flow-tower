@@ -314,13 +314,14 @@ export function HubChip() {
  * so the pill must be there too). Renders nothing when no alert is open. Its pulse only moves the glow
  * (box-shadow), never the size or a transform, so Playwright sees the button as stable and clickable.
  */
-export function AlertsPill() {
+export function AlertsPill({ onOpen }: { onOpen?: () => void } = {}) {
   const firing = alertsPill(useHub((s) => s.alerts));
   const show = useHub((s) => s.show);
   if (!firing) return null;
   return (
+    // The library overlay covers the Hub panel, so its pill passes onOpen to close the library first.
     <button className={`chip clickable alerts-pill ${firing.level}`} data-alerts={firing.count}
-      onClick={() => show('alerts')} title={`${firing.count} unacked alert${firing.count === 1 ? '' : 's'} (H › Alerts)`}>
+      onClick={onOpen ?? (() => show('alerts'))} title={`${firing.count} unacked alert${firing.count === 1 ? '' : 's'} (H › Alerts)`}>
       ⚠ {firing.count}
     </button>
   );
