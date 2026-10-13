@@ -296,22 +296,32 @@ export function HubChip() {
   }, [onHub]);
 
   const pill = hubPill(me);
-  const firing = alertsPill(useHub((s) => s.alerts));
   if (!pill) return null;
   return (
     <>
       <button className="chip clickable hub-chip" onClick={() => show('machines')}
         title="Senders seen in the last 5 min / active tokens (H)">{pill}</button>
-      {/* Only unacked alerts count; the pulse is CSS, so reduced-motion turns it off in styles.css. */}
-      {firing && (
-        <button className={`chip clickable alerts-pill ${firing.level}`} data-alerts={firing.count}
-          onClick={() => show('alerts')} title={`${firing.count} unacked alert${firing.count === 1 ? '' : 's'} (H › Alerts)`}>
-          ⚠ {firing.count}
-        </button>
-      )}
+      <AlertsPill />
       {me?.readOnly && (
         <span className="chip warn hub-ro" title="Remote viewer: nothing here can change the hub">READ-ONLY</span>
       )}
     </>
+  );
+}
+
+/**
+ * The unacked-alerts pill, shared by the top bar and the library header (the library hides the top bar,
+ * so the pill must be there too). Renders nothing when no alert is open. Its pulse only moves the glow
+ * (box-shadow), never the size or a transform, so Playwright sees the button as stable and clickable.
+ */
+export function AlertsPill() {
+  const firing = alertsPill(useHub((s) => s.alerts));
+  const show = useHub((s) => s.show);
+  if (!firing) return null;
+  return (
+    <button className={`chip clickable alerts-pill ${firing.level}`} data-alerts={firing.count}
+      onClick={() => show('alerts')} title={`${firing.count} unacked alert${firing.count === 1 ? '' : 's'} (H › Alerts)`}>
+      ⚠ {firing.count}
+    </button>
   );
 }

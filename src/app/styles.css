@@ -574,11 +574,23 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .hub-row.alert.acked { opacity: .55; }
 .hub-row.alert:focus-visible { outline-offset: -2px; }
 .alert-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-/* The pill pulses while it asks for attention; the global prefers-reduced-motion rule above cuts it to one instant frame. */
-.alerts-pill { color: var(--amber); border-color: rgba(255, 209, 102, .5); }
-.alerts-pill.critical { color: var(--live-error); border-color: color-mix(in srgb, var(--live-error) 60%, transparent); }
+/* Same strength as the ERR/WARN chips when non-zero: amber for warnings, red for any critical. */
+.alerts-pill { color: var(--amber); border-color: var(--amber); }
+.alerts-pill.critical { color: var(--live-error); border-color: var(--live-error); }
+/* The pulse animates only the glow (box-shadow): no transform, no size change, no opacity dip, so the
+   pill stays readable and Playwright sees it as stable. Reduced motion turns it off in the global rule. */
 .alerts-pill { animation: alert-pulse 2s ease-in-out infinite; }
-@keyframes alert-pulse { 50% { opacity: .45; } }
+.alerts-pill.critical { animation-name: alert-pulse-critical; }
+@keyframes alert-pulse { 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 35%, transparent); } }
+@keyframes alert-pulse-critical { 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--live-error) 45%, transparent); } }
+/* Row header: chip, rule title, then the subject at the end. min-width:0 lets each child shrink inside the panel. */
+.alert-head { display: flex; align-items: center; gap: 8px; min-width: 0; font: 12.5px var(--mono); }
+.alert-head .alert-level { flex: none; }
+.alert-rule { flex: none; font-weight: 600; color: var(--white); white-space: nowrap; }
+.alert-subject { flex: 1 1 auto; min-width: 0; text-align: right; color: var(--dim); }
+/* Messages wrap rather than run past the panel edge. */
+.alert-message { min-width: 0; padding-left: 2px; font-size: 11px; color: var(--dim);
+  overflow-wrap: break-word; word-break: break-word; }
 .hub-live { display: flex; align-items: center; gap: 5px; }
 .hub-foot { padding: 8px 18px; border-top: 1px solid var(--line-soft); font: 11px var(--mono); color: var(--dim); }
 

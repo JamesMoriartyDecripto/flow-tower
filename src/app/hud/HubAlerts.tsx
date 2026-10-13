@@ -33,6 +33,17 @@ async function act(path: 'ack' | 'snooze', id: string, extra?: { for: '1h' | '1d
 const LEVEL_LABEL: Record<HubAlert['level'], string> = { warning: 'WARN', critical: 'CRIT' };
 
 /**
+ * Short human titles for the rule ids the server sends (src/server/alerts.ts RULES). The row shows this
+ * instead of the raw id; an unknown id (a newer server) falls back to the id so nothing is hidden.
+ */
+const RULE_LABEL: Record<string, string> = {
+  silent: 'Machine silent',
+  budget: 'Budget',
+  'error-spike': 'Error spike',
+  'new-host': 'New host',
+};
+
+/**
  * The Alerts tab. Remote viewers get the list only: the buttons and the A key are not rendered for
  * them, rather than greyed out, because the hub refuses those requests from a remote viewer anyway.
  */
@@ -72,15 +83,14 @@ export function AlertsTab({ view, canAct, onChanged }: {
             tabIndex={canAct ? 0 : undefined}
             aria-label={`${LEVEL_LABEL[a.level]} ${a.subject.name}: ${a.message}${a.acked ? ' (acked)' : ''}`}
             onKeyDown={(e) => onRowKey(e, a)}>
-            <div className="hub-main">
+            {/* Flex, not the grid: the level chip keeps its width and the title takes the rest, so they never overlap. */}
+            <div className="alert-head">
               <span className={`chip alert-level ${a.level}`}>{LEVEL_LABEL[a.level]}</span>
-              <span className="hub-sender" title={a.rule}>{a.rule}</span>
-              <span className="hub-cell" title={a.subject.name}>{a.subject.name}</span>
+              <span className="alert-rule" title={a.rule}>{RULE_LABEL[a.rule] ?? a.rule}</span>
               {a.acked && <span className="hub-right">acked</span>}
+              <span className="alert-subject hub-cell" title={a.subject.name}>{a.subject.name}</span>
             </div>
-            <div className="hub-meta">
-              <span className="hub-cell" title={a.message}>{a.message}</span>
-            </div>
+            <div className="alert-message" title={a.message}>{a.message}</div>
             {canAct && (
               <div className="alert-actions">
                 {!a.acked && <button className="btn" onClick={() => void run('ack', a.id)}>Ack</button>}

@@ -7,6 +7,7 @@ import { chooseView } from '../settings';
 import { useStore } from '../store';
 import { RUNTIME_ICON } from '../theme';
 import { MicButton } from './Voice';
+import { AlertsPill } from './Hub';
 
 /** "5 min ago", "3 h ago", "2 d ago", or a date. */
 function ago(iso?: string) {
@@ -305,6 +306,7 @@ export function Library() {
           </h1>
         </div>
         <MicButton />
+        <AlertsPill />
         <label className="search" title="Filter by name, description, tag or model">
           <span className="dim">⌕</span>
           <input
