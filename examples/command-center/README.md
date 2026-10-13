@@ -38,7 +38,8 @@ sudo -u flowtower install -m 600 /srv/command-center/deploy/hub.config.json /hom
 # retentionDays: raw history kept, 1..21 (default 14). Keys: ConfigSchema in src/server/config.ts.
 # edit allowedHosts and viewers, then:
 flow-tower config show
-flow-tower token add ci-runner    # only for senders that cannot enrol (CI, non-tailnet): prints ft_ci-runner_… once
+flow-tower token add ci-runner    # senders that cannot enrol (CI, non-tailnet): prints ft_ci-runner_… once
+# Without Tailscale (viewers: []), create at least one token now: a hub with neither a token nor viewers refuses to start.
 ```
 
 ## 3. Start the service (systemd or docker)
@@ -63,7 +64,13 @@ The first time, Serve needs a one-time admin step: the command answers "Serve is
 
 Test from **another** tailnet device (`curl -sI https://hub.example.ts.net`, or open it in a browser). A request from the server to its own tailnet name or IP can reach whatever already listens on `0.0.0.0:443` there, not Serve, so a check on the server itself proves nothing.
 
-Caddy on a public VPS (ingest only; you view through an SSH forward):
+Caddy for a team without Tailscale (teammates connect with a token and `share`; you view through an SSH forward). Install Caddy from your distribution, point your domain's DNS at the server, set `allowedHosts` to that domain and `url` to `https://<domain>` in config.json, then:
+
+```bash
+sudo caddy run --config /srv/command-center/deploy/Caddyfile.hub
+```
+
+Caddy for senders only (CI, Lambda: ingest only, no `share`; you view through an SSH forward):
 
 ```bash
 sudo caddy run --config /srv/command-center/deploy/Caddyfile

@@ -609,7 +609,7 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .hub-dot { text-align: center; }
 .hub-dot.run, .hub-dot.active { color: var(--live-run); }
 .hub-dot.idle { color: var(--amber); }
-.hub-dot.silent, .hub-dot.never { color: var(--dim); }
+.hub-dot.silent, .hub-dot.ended, .hub-dot.never { color: var(--dim); }
 .hub-dot.paused { color: var(--warn); }
 .hub-dot.revoked { color: var(--live-error); }
 .hub-auto { padding: 0 5px; font-size: 9px; }

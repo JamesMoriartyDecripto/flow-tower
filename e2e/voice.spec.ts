@@ -214,7 +214,7 @@ test('voice: the new fixed phrases scroll, filter and open the hub, all on the p
   // The page is on a hub, so the Hub commands have something to open; the Machines tab is a read route.
   await page.route('**/api/hub/me', (r) => r.fulfill({ json: { hub: true, readOnly: false, online: 1, tokens: 1 } }));
   await page.route('**/api/hub/machines', (r) => r.fulfill({ json: [] }));
-  // In hub mode the alert pill polls this too; the real server is not a hub, so it would answer 404.
+  // In hub mode the alert pill polls this route (#94); the test server is not a hub, so it would 404.
   await page.route('**/api/hub/alerts', (r) => r.fulfill({ json: { alerts: [], rules: [], counts: { warning: 0, critical: 0 } } }));
   // A file long enough that the viewer's code pane must overflow, or a page step has nowhere to go.
   const long = 'src/pipeline.ts';

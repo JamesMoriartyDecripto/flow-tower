@@ -37,7 +37,8 @@ interface SupervisedRelay {
 
 export interface RelaySupervisorOptions<R extends SupervisedRelay> {
   read: () => RelayReading;
-  build: (settings: RelaySettings, onStateChange: (state: RelayState['state'], lastError?: string) => void) => R;
+  /** `shareErrors` names the shares whose last sync failed; the relay reads it on each heartbeat. */
+  build: (settings: RelaySettings, onStateChange: (state: RelayState['state'], lastError?: string) => void, shareErrors: () => string[]) => R;
   /** Undefined when the sync cannot run yet (no token); the next tick asks again. */
   startSync: (settings: RelaySettings) => ShareSync | undefined;
   log: (message: string) => void;
@@ -63,6 +64,10 @@ export function createRelaySupervisor<R extends SupervisedRelay>(opts: RelaySupe
     log(`flow-tower: hub ${state}${lastError ? `: ${lastError}` : ''}`);
   };
 
+  // Read at each heartbeat, not at build: the sync may start after the relay, and it may stop or go away.
+  const shareErrors = (): string[] =>
+    sync ? sync.state().filter((s) => s.error !== undefined).map((s) => s.name) : [];
+
   const stopAll = (reason: string) => {
     if (!relay && !sync) return;
     relay?.stop();
@@ -85,13 +90,13 @@ export function createRelaySupervisor<R extends SupervisedRelay>(opts: RelaySupe
     const before = relay;
 
     if (!relay) {
-      relay = build(settings, onStateChange);
+      relay = build(settings, onStateChange, shareErrors);
       log(`flow-tower: connected to ${url} as ${settings.machine ?? 'this machine'}`);
     } else if (last && (last.user !== settings.user || last.machine !== settings.machine)) {
       // The identity is part of what the hub records per event, so a new one needs a new relay. The queue
       // of the old relay is dropped with it: events not yet sent under the old name are lost, by design.
       relay.stop();
-      relay = build(settings, onStateChange);
+      relay = build(settings, onStateChange, shareErrors);
       log(`flow-tower: connected to ${url} as ${settings.machine ?? 'this machine'} (queued events from the old name were dropped)`);
     } else if (last && (last.url !== settings.url || last.token !== settings.token)) {
       // Credentials only: the queue is kept and the relay flushes right away. The token is never logged.

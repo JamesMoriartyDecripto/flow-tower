@@ -102,6 +102,16 @@ describe('harness parity: one session, every adapter', () => {
   });
 });
 
+describe('harness parity: the main session is agent main everywhere', () => {
+  // One tower rule (`agent:main`) must light the main agent whatever the harness, so every main-session event says `main`.
+  it.each(HARNESSES)('%s: main-session events carry agent main', (h) => {
+    // Subagent events (the reviewer) keep their own name; only the main session's prompt and tool events are checked.
+    const mains = run(h).filter((e) => e.kind === 'prompt' || e.kind === 'tool.start' || e.kind === 'tool.end');
+    expect(mains.length).toBeGreaterThan(0);
+    for (const e of mains) expect(e.agent, `${h} ${e.kind}`).toBe('main');
+  });
+});
+
 describe('harness parity: the shell call matches one node', async () => {
   // The recommended rule: one tool node per tool name, matched case- and punctuation-insensitively.
   const def = TowerSchema.parse({

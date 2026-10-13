@@ -29,6 +29,11 @@ export interface RelayOptions {
   paused?: boolean;
   /** How long a refused or held relay waits before its next recheck. Injectable for tests. */
   recheckMs?: number;
+  /**
+   * Names of the shared towers whose last sync failed (#190). Read on every heartbeat, so the hub learns of a
+   * refused version without the share name ever carrying the error text, which can quote file content.
+   */
+  shareErrors?: () => string[];
   /** Called only when the state word changes. It never receives the token, only the word and the last error. */
   onStateChange?: (state: RelayState['state'], lastError?: string) => void;
 }

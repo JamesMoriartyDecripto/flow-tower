@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ResolvedTower } from '../../core/types';
-import { hostsLabel, LIBRARY_FILTER_EVENT, projectMatches, projectStats, recentHosts, sharedLabel, sourceChip, sourceOf, type LibraryFilter, type Stats } from '../library';
+import { hostsLabel, LIBRARY_FILTER_EVENT, projectMatches, projectStats, recentHosts, sharedLabel, shareNameOf, sourceChip, sourceOf, unsentLabel, type LibraryFilter, type Stats } from '../library';
 import { formatUsage, subtreeState, useLive, usageOf, type LiveState } from '../live';
 import { useDescendants } from '../liveHooks';
 import { chooseView } from '../settings';
@@ -87,10 +87,13 @@ function useProjectsHosts(projects: string[], active: boolean) {
   return hosts;
 }
 
-/** Which machines the hub lists as online (#91), refreshed every 30 s while the library is open. Errors leave no dot. */
+/**
+ * Which machines the hub lists as online (#91), and which of their shared towers they flagged as unsent (#190),
+ * refreshed every 30 s while the library is open. Errors leave no dot and no flag.
+ */
 const SATELLITES_MS = 30_000;
-function useOnlineMachines(active: boolean) {
-  const [online, setOnline] = useState<Set<string>>(() => new Set());
+function useMachines(active: boolean) {
+  const [state, setState] = useState<{ online: Set<string>; flags: Record<string, string[]> }>(() => ({ online: new Set(), flags: {} }));
   useEffect(() => {
     if (!active) return;
     const ac = new AbortController();
@@ -98,18 +101,21 @@ function useOnlineMachines(active: boolean) {
       try {
         const res = await fetch('/api/hub/satellites', { signal: ac.signal });
         if (!res.ok) throw new Error(String(res.status));
-        const rows = (await res.json()) as { sender: string; online: boolean }[];
-        setOnline(new Set(rows.filter((r) => r.online).map((r) => r.sender)));
+        const rows = (await res.json()) as { sender: string; online: boolean; flagged?: string[] }[];
+        setState({
+          online: new Set(rows.filter((r) => r.online).map((r) => r.sender)),
+          flags: Object.fromEntries(rows.filter((r) => r.flagged?.length).map((r) => [r.sender, r.flagged!])),
+        });
       } catch {
         // Not a hub, or the hub is down: no dot, and nothing to report.
-        if (!ac.signal.aborted) setOnline(new Set());
+        if (!ac.signal.aborted) setState({ online: new Set(), flags: {} });
       }
     };
     void read();
     const t = setInterval(() => void read(), SATELLITES_MS);
     return () => { ac.abort(); clearInterval(t); };
   }, [active]);
-  return online;
+  return state;
 }
 
 /** The source the URL names (`?source=<id>`), read once on load so a shared link opens the same view. */
@@ -147,6 +153,8 @@ interface CardProps {
   source?: string;
   /** When the shared folder was last replaced (`workspace.sharedAt`); undefined for a local project. */
   sharedAt?: number;
+  /** The sender flagged this share's newer version as unsent (#190); undefined when it did not. */
+  unsent?: { text: string; title: string };
   onOpen(id: string, view?: 'tower' | 'map'): void;
 }
 
@@ -155,7 +163,7 @@ const ORIGIN_TITLE = {
   example: 'Shipped example (read-only reference; copy it before editing)',
 } as const;
 
-const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, origin, usage, hosts, source, sharedAt, onOpen }: CardProps) {
+const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current, view, origin, usage, hosts, source, sharedAt, unsent, onOpen }: CardProps) {
   const src = source === undefined ? undefined : sourceChip(source);
   const shared = source === undefined || source === 'local' ? undefined : sharedLabel(sharedAt, source, Date.now());
   const open = (v?: 'tower' | 'map') => (e: { stopPropagation(): void }) => { e.stopPropagation(); onOpen(id, v); };
@@ -179,6 +187,7 @@ const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current,
               {shared.text}
             </span>
           )}
+          {unsent && <span className="chip lib-unsent" title={unsent.title}>{unsent.text}</span>}
         </h3>
         {/* Focusable so keyboard users can scroll a long description (↑ ↓ while it has the focus). */}
         <p className="dim lib-desc" tabIndex={0} aria-label={`About ${tower.name}`}>{tower.description ?? id}</p>
@@ -271,7 +280,7 @@ export function Library() {
     for (const c of cards) if (c.source) count.set(c.source, (count.get(c.source) ?? 0) + 1);
     return count;
   }, [cards]);
-  const online = useOnlineMachines(library && hasSources);
+  const { online, flags } = useMachines(library && hasSources);
   // Most shared tags first: with many projects the full list is a wall of chips, so show the top ones
   // and expand on demand. The filter box matches every tag anyway.
   const tags = useMemo(() => {
@@ -324,8 +333,8 @@ export function Library() {
         <AlertsPill onOpen={() => { showLibrary(false); useHub.getState().show('alerts'); }} />
         <label className="search" title="Filter by name, description, tag or model">
           <span className="dim">⌕</span>
+          {/* No autoFocus: on first load H must reach the scene's keys, not type into this box. / focuses it. */}
           <input
-            autoFocus
             value={filter}
             placeholder="Filter projects"
             onChange={(e) => setFilter(e.target.value)}
@@ -379,7 +388,7 @@ export function Library() {
       )}
       <div className="lib-grid" ref={grid}>
         {shown.map(({ id, tower, stats, origin, source, sharedAt }) => (
-          <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} origin={origin} usage={usage[id]} hosts={hosts[id] || undefined} source={source} sharedAt={sharedAt} onOpen={onOpen} />
+          <ProjectCard key={id} id={id} tower={tower} stats={stats} live={live[id] ?? 'idle'} current={stack[0] === id} view={view} origin={origin} usage={usage[id]} hosts={hosts[id] || undefined} source={source} sharedAt={sharedAt} unsent={unsentLabel(source, shareNameOf(id), flags)} onOpen={onOpen} />
         ))}
         {shown.length === 0 && <p className="mono dim">No project matches. Clear the filter or the tag.</p>}
       </div>

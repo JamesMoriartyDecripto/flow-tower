@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nowRows, showUser, workingCount, type ResolveTarget } from '../src/app/hub';
+import { ENDED_MS, nowRows, showUser, workingCount, type ResolveTarget } from '../src/app/hub';
 import type { FlowEvent } from '../src/core/events';
 
 const NOW = 1_000_000_000_000;
@@ -107,6 +107,52 @@ describe('workingCount', () => {
 
   it('is zero for no rows', () => {
     expect(workingCount([])).toBe(0);
+  });
+});
+
+describe('nowRows: the state follows the session', () => {
+  it('is idle after agent.end even while the clock says run', () => {
+    const [row] = nowRows([
+      ev({ ts: NOW - 5000, session: 's', kind: 'tool.end' }),
+      ev({ ts: NOW - 1000, session: 's', kind: 'agent.end' }),
+    ], NOW);
+    expect(row.state).toBe('idle');
+  });
+
+  it('is ended after session.end and keeps its last-seen time', () => {
+    const [row] = nowRows([
+      ev({ ts: NOW - 60_000, session: 's', kind: 'agent.end' }),
+      ev({ ts: NOW - 30_000, session: 's', kind: 'session.end' }),
+    ], NOW);
+    expect(row.state).toBe('ended');
+    expect(row.last).toBe(NOW - 30_000);
+  });
+
+  it('drops an ended row older than ten minutes', () => {
+    const rows = nowRows([
+      ev({ ts: NOW - ENDED_MS - 1, session: 'old', kind: 'session.end' }),
+      ev({ ts: NOW - ENDED_MS + 1, session: 'recent', kind: 'session.end' }),
+    ], NOW);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].state).toBe('ended');
+  });
+
+  it('lets a new event after session.end revive the row by the clock', () => {
+    const [row] = nowRows([
+      ev({ ts: NOW - 60_000, session: 's', kind: 'session.end' }),
+      ev({ ts: NOW - 1000, session: 's', kind: 'prompt' }),
+    ], NOW);
+    expect(row.state).toBe('run');
+  });
+
+  it('sorts run, idle, silent, then ended', () => {
+    const rows = nowRows([
+      ev({ ts: NOW - 1000, session: 'ended', kind: 'session.end' }),
+      ev({ ts: NOW - 20 * 60_000, session: 'silent' }),
+      ev({ ts: NOW - 2000, session: 'idle', kind: 'agent.end' }),
+      ev({ ts: NOW - 3000, session: 'run' }),
+    ], NOW);
+    expect(rows.map((r) => r.state)).toEqual(['run', 'idle', 'silent', 'ended']);
   });
 });
 

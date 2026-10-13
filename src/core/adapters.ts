@@ -49,7 +49,8 @@ const piTokensDetail = (usage: Raw) => {
  */
 const pi: Adapter = (r) => {
   const base = {
-    source: 'pi', session: str(r.session) ?? str(r.sessionId), agent: str(r.agent) ?? 'pi',
+    // The main session is `main` on every harness, so one tower rule (`agent:main`) lights it whatever sent it.
+    source: 'pi', session: str(r.session) ?? str(r.sessionId), agent: str(r.agent) ?? 'main',
     tool: str(r.toolName), call: str(r.toolCallId),
   };
   switch (r.type) {
@@ -95,7 +96,8 @@ const pi: Adapter = (r) => {
 const hermes: Adapter = (r) => {
   const x = { ...obj(r.extra), ...r };
   const base = {
-    source: 'hermes', session: str(x.session_id), agent: str(x.child_role) ?? str(x.profile),
+    // No profile or role named: this is the main session, so it reads as `main` like every other harness.
+    source: 'hermes', session: str(x.session_id), agent: str(x.child_role) ?? str(x.profile) ?? 'main',
     parent: str(x.parent_session_id), tool: str(x.tool_name), call: str(x.tool_call_id), duration_ms: num(x.duration_ms),
   };
   switch (x.hook_event_name ?? x.event) {
@@ -130,7 +132,7 @@ const codexTool = (it: Raw) => {
 /** OpenAI Codex hooks (command stdin, Claude Code-like shape). */
 const codexHook: Adapter = (r) => {
   const base = {
-    source: 'codex', session: str(r.session_id), agent: str(r.agent_type) ?? str(r.agent_id) ?? 'codex',
+    source: 'codex', session: str(r.session_id), agent: str(r.agent_type) ?? str(r.agent_id) ?? 'main',
     tool: str(r.tool_name), call: str(r.tool_use_id), model: str(r.model),
   };
   switch (r.hook_event_name) {
@@ -157,7 +159,7 @@ const codexHook: Adapter = (r) => {
 /** `codex exec --json` stdout lines. Only `thread.started` carries the thread id, so other lines have no session. */
 const codexExec: Adapter = (r) => {
   // thread_id is present on lines added by the stream context (bin/stream-context.js); thread.started carries it too.
-  const base = { source: 'codex', agent: 'codex', session: str(r.thread_id) };
+  const base = { source: 'codex', agent: 'main', session: str(r.thread_id) };
   const it = obj(r.item);
   const tool = codexTool(it);
   const failed = it.status === 'failed' || it.status === 'declined' || (num(it.exit_code) ?? 0) !== 0 || !!it.error;
@@ -204,7 +206,7 @@ const codexExec: Adapter = (r) => {
 const codex: Adapter = (r) => {
   if ('hook_event_name' in r) return codexHook(r);
   if (r.type === 'agent-turn-complete') {
-    return [{ source: 'codex', kind: 'agent.end', agent: 'codex', session: str(r['thread-id']), status: 'ok', message: clip(r['last-assistant-message'], 160) }];
+    return [{ source: 'codex', kind: 'agent.end', agent: 'main', session: str(r['thread-id']), status: 'ok', message: clip(r['last-assistant-message'], 160) }];
   }
   return codexExec(r);
 };

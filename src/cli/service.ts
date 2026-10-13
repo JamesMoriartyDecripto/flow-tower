@@ -5,12 +5,13 @@
  * touch the real home, systemd or launchd. Everything that touches the home folder takes a context.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, userInfo } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { localServerUrl } from '../../bin/local-server.js';
+import { readObject } from '../../bin/config-file.js';
+import { localServerFile, localServerUrl } from '../../bin/local-server.js';
 import { cliName, shellQuote } from '../../bin/cli-name.js';
 
 const DEFAULT_PORT = 5317;
@@ -35,8 +36,19 @@ export interface ServiceContext {
   uid: number;
   user: string;
   run: Run;
+  /**
+   * Whether something accepts a TCP connection on 127.0.0.1:port. Synchronous, because runService is. Absent in
+   * tests, so they never touch a real port; the real context probes in a short child process.
+   */
+  listening?: (port: number) => boolean;
   log: (line: string) => void;
 }
+
+/** A child Node that connects to 127.0.0.1:<port> and exits 0 on success, 1 on refusal or after one second. */
+const PROBE_SCRIPT = `const s = require('node:net').connect(Number(process.argv[1]), '127.0.0.1');
+s.on('connect', () => { s.destroy(); process.exit(0); });
+s.on('error', () => process.exit(1));
+setTimeout(() => process.exit(1), 1000).unref();`;
 
 export function defaultServiceContext(): ServiceContext {
   return {
@@ -51,6 +63,7 @@ export function defaultServiceContext(): ServiceContext {
       const r = spawnSync(cmd, args, { encoding: 'utf8' });
       return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '', missing: (r.error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT' };
     },
+    listening: (port) => spawnSync(process.execPath, ['-e', PROBE_SCRIPT, String(port)], { timeout: 3000 }).status === 0,
     log: (line) => console.log(line),
   };
 }
@@ -189,6 +202,36 @@ function noSystemd(ctx: ServiceContext, port: number): number {
   return 1;
 }
 
+/**
+ * True when a library already answers on this port: its live record names it, or a TCP connect to 127.0.0.1
+ * succeeds (a server that did not write a record, or one run by hand). The record alone would miss the latter.
+ */
+function occupied(ctx: ServiceContext, port: number): boolean {
+  const record = localServerUrl({ env: ctx.env, home: userFolder(ctx) });
+  if (record && recordPort(record) === port) return true;
+  return ctx.listening?.(port) ?? false;
+}
+
+/** The pid of the live record when it names this port; undefined otherwise. Only the pid is read, never a token. */
+function recordedPid(ctx: ServiceContext, port: number): number | undefined {
+  const file = localServerFile(userFolder(ctx));
+  if (!existsSync(file)) return undefined;
+  const record = readObject(file);
+  if (typeof record.pid !== 'number' || !Number.isInteger(record.pid)) return undefined;
+  if (typeof record.url !== 'string') return undefined;
+  return recordPort(record.url) === port ? record.pid : undefined;
+}
+
+/** The port of a recorded url, or undefined when it does not parse (a broken record names no port). */
+function recordPort(url: string): number | undefined {
+  try {
+    const port = Number(new URL(url).port);
+    return port || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function installLinux(ctx: ServiceContext, port: number): number {
   // Probe first: without systemctl there is nothing to load a unit file, so nothing is written.
   if (ctx.run('systemctl', ['--version']).missing) return noSystemd(ctx, port);
@@ -236,6 +279,11 @@ function statusLinux(ctx: ServiceContext): number {
     ctx.log(`flow-tower: running (systemd user service)`);
     return 0;
   }
+  // A unit file that exists but is not active is installed and stopped: the fix is to start it, not reinstall.
+  if (existsSync(unitPath(ctx))) {
+    ctx.log(`installed but not running: systemctl --user start ${UNIT_NAME}`);
+    return 1;
+  }
   ctx.log(`flow-tower: not running (${state}). Install it with: ${cliName()} service install`);
   return 1;
 }
@@ -247,8 +295,13 @@ function statusMac(ctx: ServiceContext): number {
     return 1;
   }
   const running = /state = running/.test(r.stdout);
-  ctx.log(running ? 'flow-tower: running (launchd agent)' : 'flow-tower: loaded but not running');
-  return running ? 0 : 1;
+  if (running) {
+    ctx.log('flow-tower: running (launchd agent)');
+    return 0;
+  }
+  // The plist exists and launchd knows the agent, but it is not running: bootstrap loads it again.
+  ctx.log(`installed but not running: launchctl bootstrap gui/${ctx.uid} ${plistPath(ctx)}`);
+  return 1;
 }
 
 function uninstallLinux(ctx: ServiceContext): number {
@@ -295,6 +348,12 @@ export function runService(argv: string[], ctx: ServiceContext = defaultServiceC
   } catch (err) {
     ctx.log((err as Error).message);
     return 2;
+  }
+  // Checked before anything is written: a unit that cannot bind its port would only fail later, out of sight.
+  if (occupied(ctx, port)) {
+    const pid = recordedPid(ctx, port);
+    ctx.log(`a library already runs on port ${port}${pid === undefined ? '' : ` (pid ${pid})`}: stop it first, or pick --port`);
+    return 1;
   }
   return linux ? installLinux(ctx, port) : installMac(ctx, port);
 }

@@ -120,6 +120,28 @@ export function sharedLabel(sharedAt: number | undefined, machine: string, now: 
   return { text, title: `${machine} shared a new version ${agoText(sharedAt, now)}`, dot: now - sharedAt < FRESH_SHARE_MS };
 }
 
+/**
+ * The share folder name a project id ends with (`box-1/demo` names share `demo`). A project of a machine is a
+ * share folder under `towers/<machine>/`; the last segment of its id is the folder name the hub stores it under.
+ */
+export function shareNameOf(id: string): string {
+  return id.split('/').pop() ?? id;
+}
+
+/**
+ * The amber note for a shared project whose newer version its sender could not send (#190). The card names a
+ * project by its sender (`source`) and its share folder name (the project id's last segment), so a flag on that
+ * name from that sender is the same share. Local projects (no sender) never carry it. The title says the hub
+ * keeps the last valid copy, so the shown version is not mistaken for the latest one.
+ */
+export function unsentLabel(source: string | undefined, shareName: string, flags: Record<string, string[]>): { text: string; title: string } | undefined {
+  if (!source || source === 'local' || !flags[source]?.includes(shareName)) return undefined;
+  return {
+    text: 'newer version not sent',
+    title: 'The teammate has a newer version with an error; the hub keeps the last valid one',
+  };
+}
+
 /** A card lists the machines that sent events for its project within this window: the hub's idle threshold. */
 export const RECENT_HOSTS_MS = IDLE_MS;
 /** Up to this many machine names on a card; the rest become a "+N". */
