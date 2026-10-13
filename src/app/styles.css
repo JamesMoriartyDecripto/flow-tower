@@ -451,6 +451,11 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 /* Release audit (v0.1.0): layout edge cases, focus visibility, reduced motion */
 /* Issues and the live feed share the right edge: keep the issues list above the feed. */
 .hud:has(.livefeed) .issues { max-height: calc(54 * var(--vh) - 160px); }
+/* Hub panel and Live feed both sit on the right edge: with the Hub open the feed moves left of it (the
+   Inspector's `shifted` slot, 448px), so neither covers the other. Above 760px only, where the feed is wide. */
+@media (min-width: 761px) {
+  .hud:has(.hub) .livefeed { right: 448px; }
+}
 /* Half-screen windows: the shifted feed would cover the Layers panel and the legend; stack it on the right. */
 @media (max-width: 760px) {
   .livefeed.shifted { right: 14px; }

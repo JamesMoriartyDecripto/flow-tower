@@ -169,6 +169,13 @@ function useKeyboard() {
       if (s.library) {
         if (e.key === 'Escape' && s.stack.length) s.showLibrary(false);
         else if ((e.key === 'v' || e.key === 'V') && !e.repeat && !STATIC) useVoice.getState().toggle(); // held V must not flip the mic on and off
+        // H opens the Hub panel from the library too. The filter box never gets here (it returns above while
+        // focused), so an H typed there still types. The library covers the panel, so it closes first.
+        else if (e.key.toLowerCase() === 'h' && !STATIC) {
+          e.preventDefault();
+          if (s.stack.length) s.showLibrary(false);
+          useHub.getState().toggle();
+        }
         else libraryKey(e);
         return;
       }

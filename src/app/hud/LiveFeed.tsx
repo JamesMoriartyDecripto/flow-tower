@@ -1,14 +1,10 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import { splitTarget, type FlowEvent } from '../../core/events';
 import { towerPath } from '../graph';
+import { glyph } from '../hub';
 import { formatUsage, useLive, usageOf, declaredRuntime, towerScope } from '../live';
 import { useDescendants } from '../liveHooks';
 import { findNode, useStore, useTower } from '../store';
-
-const ICON: Record<string, string> = {
-  'session.start': '▶', 'session.end': '■', prompt: '❯', 'agent.start': '◆', 'agent.end': '◇',
-  'tool.start': '⚙', 'tool.end': '✓', error: '✕', log: '·', usage: '$',
-};
 
 type Filter = 'all' | 'run' | 'error';
 
@@ -114,7 +110,7 @@ const FeedRow = memo(function FeedRow({ e, label, away, mapped, onJump }: {
   return (
     <button className={`feed-row ${tone(e)} ${mapped ? '' : 'unmapped'}`} onClick={() => onJump(e)} title={mapped ? 'Select the node this event landed on' : 'No node matched this event: add a match: rule (docs/realtime.md)'}>
       <span className="t">{time(e.ts)}</span>
-      <span className="k" title={e.kind}>{ICON[e.kind] ?? '·'}</span>
+      <span className="k" title={e.kind}>{glyph(e)}</span>
       <span className="who">
         {[e.agent, e.tool].filter(Boolean).join(' → ') || label || e.source}
         {away && <em> ↗ {away}</em>}

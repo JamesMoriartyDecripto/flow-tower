@@ -56,6 +56,23 @@ export type ResolveTarget = (target: string) => TargetLabel;
 /** An error for the Now tab: the status the source set, or the error kind (the same rule the Live feed uses). */
 const isError = (e: FlowEvent) => e.status === 'error' || e.kind === 'error';
 
+/**
+ * How many of these events failed: the top-bar LIVE chip counts the error events of the tower on screen.
+ * The caller passes the already-scoped list, so this stays a pure count with the same rule as the feed.
+ */
+export const errorCount = (events: FlowEvent[]): number => events.filter(isError).length;
+
+const ICON: Record<string, string> = {
+  'session.start': '▶', 'session.end': '■', prompt: '❯', 'agent.start': '◆', 'agent.end': '◇',
+  'tool.start': '⚙', 'tool.end': '✓', error: '✕', log: '·', usage: '$',
+};
+
+/**
+ * The mark at the start of a feed row. An error wins over the kind: a tool.end with status 'error' is ✕,
+ * because a ✓ there would tell the reader a failed tool succeeded.
+ */
+export const glyph = (e: FlowEvent): string => (isError(e) ? '✕' : ICON[e.kind] ?? '·');
+
 const idLabels: ResolveTarget = (target) => {
   const [tower, node] = splitTarget(target);
   return { tower, node };
