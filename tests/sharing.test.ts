@@ -73,7 +73,7 @@ function connectLike(stack: Mount[], req: IncomingMessage, res: ServerResponse):
 /** The handler behind a real server, mounted the way plugin.ts mounts it, so shadowing is exercised too. */
 async function start(hub: string, home: string, over: { hub?: boolean } = {}) {
   const relay = createRelay({ url: hub, token: 'ft_test_secret' });
-  const sharing = sharingHandler({ home, relay, hub: over.hub ?? false });
+  const sharing = sharingHandler({ home, relay: () => relay, sync: () => undefined, hub: over.hub ?? false });
   const server = createServer((req: IncomingMessage, res: ServerResponse) => connectLike([['/api/sharing/test', sharing.test], ['/api/sharing', sharing.control]], req, res));
   servers.push(server);
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -141,7 +141,7 @@ describe('sharing controls on a satellite (#91)', () => {
 
   it('answers 404 { state: off } when there is no relay', { timeout: 5_000 }, async () => {
     const home = tempHome();
-    const sharing = sharingHandler({ home, relay: undefined, hub: false });
+    const sharing = sharingHandler({ home, relay: () => undefined, sync: () => undefined, hub: false });
     const server = createServer((req: IncomingMessage, res: ServerResponse) => connectLike([['/api/sharing/test', sharing.test], ['/api/sharing', sharing.control]], req, res));
     servers.push(server);
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));

@@ -101,16 +101,19 @@ output never leave the machine (`role`, the Task/Agent description, can hold a p
 is dropped too), and a `request_id` survives only as an opaque correlation id.
 
 **While the hub is down.** The queue is bounded at **5000** events, oldest dropped first, and lives
-in memory: a long outage costs a counter, not the disk. A **revoked** (or paused) token stops the
-sending entirely — the events stay queued and the state says `revoked` until someone fixes the token
-— so a returned laptop cannot keep feeding a hub that no longer trusts it.
+in memory: a long outage costs a counter, not the disk. A refused token stops the sending
+entirely, so a returned laptop cannot keep feeding a hub that no longer trusts it: the state says `revoked`,
+or `held` when the hub owner paused this machine (the hub answers 401 with `state: "paused"`). The events
+stay queued, a heartbeat asks again every 30 s (and Send test asks now), and the first accepted answer
+delivers the queue. `connect` with a new token takes effect within 5 s: the library re-reads `config.json`,
+keeps the queue and needs no restart (#188).
 
 **Pausing.** `paused: true` in `config.json`, or Settings › Sharing › Pause, stops the relay now and after a
 restart, and empties the queue: nothing waits to leave later. The SAT chip in the top bar shows the state.
 
 **Reading it.** `GET /api/sharing` on the satellite answers its relay state
 (`online`; `queued`: the hub is unreachable, events wait in a queue of at most 5000, oldest dropped
-first; `revoked`; plus hub url, queued/dropped counters, last error) and never the token;
+first; `revoked`; `held`: paused by the hub owner; `paused`: paused here; plus hub url, queued/dropped counters, last error) and never the token;
 a server that is not a satellite answers `{ "state": "off" }`. On the hub, each satellite posts
 `POST /api/heartbeat` (counters and state word, authenticated like `/api/events`) and every accepted
 event counts as a sign of life; `GET /api/hub/satellites` lists them, calling one offline after three

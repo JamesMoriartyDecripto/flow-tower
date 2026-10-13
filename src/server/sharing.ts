@@ -25,10 +25,13 @@ interface Relay {
 export interface SharingOptions {
   /** The user folder holding config.json. */
   home: string;
-  /** The relay of this server, or undefined when this server is not a satellite. */
-  relay?: Relay;
+  /**
+   * The relay of this server, read on every request: the supervisor builds it later when the user connects,
+   * so a value captured at start would stay undefined. Undefined when this server is not a satellite.
+   */
+  relay: () => Relay | undefined;
   /** The shared-towers sync beside the relay (#164), when it runs: its state joins the GET answer. */
-  sync?: Pick<ShareSync, 'state'>;
+  sync: () => Pick<ShareSync, 'state'> | undefined;
   /** Hub mode as the server knows it: a remote request is refused whenever it counts as remote. */
   hub: boolean;
 }
@@ -84,28 +87,31 @@ export function sharingHandler({ home, relay, sync, hub }: SharingOptions) {
   const test = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     if (!isMountRoot(req.url)) return next();
     if (!allowed(req, res)) return;
-    if (req.method !== 'POST') return send(res, 200, stateOf(relay, sync));
+    if (req.method !== 'POST') return send(res, 200, stateOf(relay(), sync()));
     // A body that is not JSON is refused before it is read (a form post could otherwise reach this route).
     if (!isJson(req)) return send(res, 415, { error: 'content-type must be application/json' });
-    if (!relay) return send(res, 404, { state: 'off' });
-    return send(res, 200, await relay.sendTest());
+    const current = relay();
+    if (!current) return send(res, 404, { state: 'off' });
+    return send(res, 200, await current.sendTest());
   };
 
   /** POST /api/sharing: the pause switch. Answers only the mount root, never a shadowed subpath. */
   const control = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     if (!isMountRoot(req.url)) return next();
     if (!allowed(req, res)) return;
-    if (req.method !== 'POST') return send(res, 200, stateOf(relay, sync));
+    if (req.method !== 'POST') return send(res, 200, stateOf(relay(), sync()));
     if (!isJson(req)) return send(res, 415, { error: 'content-type must be application/json' });
-    if (!relay) return send(res, 404, { state: 'off' });
+    if (!relay()) return send(res, 404, { state: 'off' });
 
     const body = (await readBody(req, res)) as { paused?: unknown } | undefined;
     if (res.writableEnded) return; // 413 was already sent for an oversize body
     if (typeof body?.paused !== 'boolean') return send(res, 400, { error: 'expected { paused: boolean }' });
     // Persist first: the choice must survive a restart even if the relay object were ever recreated.
     try { writeUserConfig(home, { paused: body.paused }); } catch { /* an unwritable home still pauses now */ }
-    if (body.paused) relay.pause(); else relay.resume();
-    return send(res, 200, relay.state());
+    const current = relay();
+    if (!current) return send(res, 404, { state: 'off' });
+    if (body.paused) current.pause(); else current.resume();
+    return send(res, 200, current.state());
   };
 
   return { control, test };

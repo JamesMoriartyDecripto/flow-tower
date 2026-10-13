@@ -16,6 +16,8 @@ export interface TokenInfo { id: string; createdAt: number; revokedAt?: number; 
 /** The sender id ends up in a token: a short slug, nothing that could be a path or a header trick. */
 const ID = /^[a-z0-9-]{1,32}$/;
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+/** Compared when no active record exists, so an unknown id costs the same hash and compare as a known one. */
+const DUMMY_DIGEST = sha256('flow-tower: no active token record');
 /** "ft_<id>_<secret>", the id alone is a slug so the first two underscores split it cleanly. */
 const parse = (token: unknown): { id: string; token: string } | undefined => {
   if (typeof token !== 'string') return undefined;
@@ -85,6 +87,25 @@ function createTokenStore(home: string) {
   };
   const active = (list: TokenRecord[], id: string) => list.find((t) => t.id === id && t.revokedAt === undefined);
 
+  /**
+   * The id comes from the token, but the hash is checked against the stored one: a guessed id gets nowhere.
+   * `refused: 'paused'` is answered only after the hash matched the active record: a wrong secret must not
+   * learn that an id exists or is paused (#188), so it gets the same `undefined` as an unknown token.
+   */
+  const check = (presented: unknown): { id: string } | { refused: 'paused' } | undefined => {
+    const parsed = parse(presented);
+    if (!parsed) return undefined;
+    // A rotated id keeps its revoked record in the list, so only the active one may match. Whether or not
+    // an active record exists, the same work runs (one hash, one compare): an unknown id must not answer
+    // faster than a known one, or response time would tell a prober which ids exist.
+    const t = active(load(), parsed.id);
+    const a = Buffer.from(sha256(parsed.token), 'hex');
+    const b = Buffer.from(t?.sha256 ?? DUMMY_DIGEST, 'hex');
+    const same = a.length === b.length && timingSafeEqual(a, b);
+    if (!t || !same) return undefined;
+    return t.paused ? { refused: 'paused' } : { id: t.id };
+  };
+
   return {
     /** A new sender: the id must be a slug and not already active (a revoked one may be reused). */
     create(id: string): { token: string } {
@@ -135,16 +156,12 @@ function createTokenStore(home: string) {
       if (paused) t.paused = true; else delete t.paused;
       save(list);
     },
-    /** The id comes from the token, but the hash is checked against the stored one: a guessed id gets nowhere. */
+    /** The hub's answer: `check` tells a paused token apart, but only `verify` passes it. */
+    check,
+    /** Only an active, unpaused token verifies (the contract every caller relies on). */
     verify(presented: unknown): { id: string } | undefined {
-      const parsed = parse(presented);
-      if (!parsed) return undefined;
-      // A rotated id keeps its revoked record in the list, so only the active one may match.
-      const t = active(load(), parsed.id);
-      if (!t || t.paused) return undefined;
-      const a = Buffer.from(sha256(parsed.token), 'hex');
-      const b = Buffer.from(t.sha256, 'hex');
-      return a.length === b.length && timingSafeEqual(a, b) ? { id: t.id } : undefined;
+      const hit = check(presented);
+      return hit && 'id' in hit ? hit : undefined;
     },
   };
 }

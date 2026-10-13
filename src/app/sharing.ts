@@ -5,7 +5,7 @@
 
 /** The relay state a satellite reports on GET /api/sharing (#91). 'off' = this server is not a satellite. */
 export interface SharingState {
-  state: 'off' | 'online' | 'queued' | 'revoked' | 'paused';
+  state: 'off' | 'online' | 'queued' | 'revoked' | 'held' | 'paused';
   hub?: string;
   queued?: number;
   dropped?: number;
@@ -42,6 +42,7 @@ export function satText(s: SharingState, now: number): string {
   if (s.state === 'queued') return `${base} · ${s.queued ?? 0} queued`;
   if (s.state === 'paused') return `${base} · paused`;
   if (s.state === 'revoked') return `${base} · token refused`;
+  if (s.state === 'held') return `${base} · paused by the hub`;
   return base;
 }
 
@@ -58,7 +59,7 @@ export function queueText(s: SharingState): string {
 
 /** Reuse the existing chip variants: only the state word changes, never a new colour. */
 export const SAT_CLASS: Record<SharingState['state'], string> = {
-  off: '', online: 'on', queued: 'warn', paused: 'dim', revoked: 'err',
+  off: '', online: 'on', queued: 'warn', held: 'warn', paused: 'dim', revoked: 'err',
 };
 
 /** One sentence explaining the state on hover. */
@@ -66,6 +67,7 @@ export function satTitle(s: SharingState): string {
   const host = hubHost(s.hub);
   if (s.state === 'queued') return `Sharing with ${host}: the hub is unreachable, ${s.queued ?? 0} event(s) wait in the queue. Click for the sharing settings.`;
   if (s.state === 'paused') return `Sharing is paused: nothing leaves this machine for ${host} until you resume it. Click for the sharing settings.`;
+  if (s.state === 'held') return `Sharing waits: ${host} paused this machine. It resumes by itself when the hub owner resumes it.`;
   if (s.state === 'revoked') return `Sharing stopped: ${host} refused this machine's token, so no event is sent. Click for the sharing settings.`;
   return `Sharing with ${host}: this machine's metadata reaches the hub. Click for the sharing settings.`;
 }

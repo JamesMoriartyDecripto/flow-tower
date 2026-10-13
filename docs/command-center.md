@@ -190,7 +190,8 @@ Precedence is **flags > environment > config file > defaults** for every key bot
 | `403 remote viewing is not allowed` | not through Tailscale, or the login is not in `viewers` |
 | `403 remote requests may only ingest events` | a remote client tried anything but sending events: by design |
 | `/api/sharing` says `queued` | hub unreachable: check the URL, the tailnet and the hub service |
-| `/api/sharing` says `revoked` | the hub refused the token; sending stops until a new token and `connect` |
+| `/api/sharing` says `revoked` | the hub refused the token: events wait in the queue; `connect` with a new token, and the running library picks it up with no restart |
+| `/api/sharing` says `held` | the hub owner paused this machine: events wait and leave by themselves within 30 s of a resume |
 | port already in use | the server exits with this message; another server runs there: `--port 5318`, or stop it |
 | a setting is ignored | see [precedence](#configuration-file); an empty env var counts as unset |
 | `allowedHosts` refused | it requires hub mode (`"hub": true` or `--hub`) |

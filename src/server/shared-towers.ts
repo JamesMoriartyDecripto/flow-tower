@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync }
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { authorize } from './auth.ts';
+import { authorize, refusal } from './auth.ts';
 import { crossSite, isJson } from './guard.ts';
 import { checkFiles, shareName } from './share-rules.ts';
 
@@ -68,7 +68,7 @@ export function sharedTowersHandler({ library, home, hub, legacy }: SharedTowers
     if (!hub) return send(res, 404, { error: 'not a hub' });
     // Every route needs a presented token: a local request with no token is not a sender, so it is refused too.
     const authz = authorize(req, { legacy, home, hub });
-    if (!authz.ok || !authz.sender) return send(res, 401, { error: 'a sender token is required' });
+    if (!authz.ok || !authz.sender) return send(res, 401, refusal(authz, 'a sender token is required'));
     if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
     if (library === undefined) return send(res, 503, { error: 'this hub has no library folder' });
 
