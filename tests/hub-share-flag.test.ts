@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { unsentLabel, shareNameOf } from '../src/app/library.ts';
-import { createSatellites, HeartbeatSchema, SHARE_FLAGS_MAX } from '../src/server/satellites.ts';
+import { createSatellites, HeartbeatSchema, keepValidShares, SHARE_FLAGS_MAX } from '../src/server/satellites.ts';
 import { createRelay } from '../src/server/relay.ts';
 
 const TOKEN = 'ft_dana_fake-test-secret';
@@ -80,6 +80,28 @@ describe('the hub registry keeps the flags per sender (#190)', () => {
   it('refuses an entry whose error is not the literal true', () => {
     expect(HeartbeatSchema.safeParse({ ...base, shares: [{ name: 'demo', error: 'boom' }] }).success).toBe(false);
     expect(HeartbeatSchema.safeParse({ ...base, shares: [{ name: 'demo' }] }).success).toBe(false);
+  });
+});
+
+describe('a bad share entry does not drop the heartbeat (#190)', () => {
+  const base = { queued: 3, dropped: 0, state: 'online' };
+
+  it('keeps the valid flags and drops the invalid ones, so the heartbeat still parses', () => {
+    const body = { ...base, shares: [{ name: 'Bad Name', error: true }, { name: 'demo', error: true }, { name: 'x', error: 'boom' }] };
+    const parsed = HeartbeatSchema.safeParse(keepValidShares(body));
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.shares).toEqual([{ name: 'demo', error: true }]);
+    expect(parsed.success && parsed.data.queued).toBe(3);
+  });
+
+  it('caps the flags at the maximum, keeping the first valid ones', () => {
+    const shares = Array.from({ length: SHARE_FLAGS_MAX + 5 }, (_, i) => ({ name: `s${i}`, error: true }));
+    const parsed = HeartbeatSchema.safeParse(keepValidShares({ ...base, shares }));
+    expect(parsed.success && parsed.data.shares?.length).toBe(SHARE_FLAGS_MAX);
+  });
+
+  it('leaves a body without shares untouched', () => {
+    expect(keepValidShares(base)).toBe(base);
   });
 });
 

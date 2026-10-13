@@ -152,12 +152,13 @@ function projectsOf(ws: Workspace): Map<string, string> {
  * Every "tower#node" the event lands on, across all towers of the library.
  * `scope.sender` (a hub only): when the workspace has `sources`, a sender's event lights only the towers
  * whose project came from that sender or from this hub (`local`). Each machine's towers stay its own, so
- * one teammate's events do not light another's shared tower. An event that names a tower is not scoped.
+ * one teammate's events do not light another's shared tower. Naming a tower (`event.tower`) only narrows
+ * within those allowed towers: it can never reach a teammate's tower, or the scope would be bypassable.
  */
 export function resolveTargets(ws: Workspace, event: z.output<typeof FlowEventSchema>, scope: { sender?: string } = {}): string[] {
   const out: string[] = [];
   const sources = ws.sources;
-  const owners = sources && scope.sender && !event.tower ? projectsOf(ws) : undefined;
+  const owners = sources && scope.sender ? projectsOf(ws) : undefined;
   for (const tower of Object.values(ws.towers)) {
     if (owners) {
       // A tower with no recorded project belongs to this hub, like a project absent from `sources`.

@@ -21,6 +21,7 @@ export const SHARE_FLAGS_MAX = 100;
  * is safe to match against `towers/<sender>/<name>/` and can never carry free text.
  */
 const ShareNameSchema = z.string().regex(/^[a-z0-9-]{1,64}$/);
+const ShareFlagSchema = z.object({ name: ShareNameSchema, error: z.literal(true) });
 
 export const HeartbeatSchema = z.object({
   queued: z.number().int().nonnegative(),
@@ -28,10 +29,24 @@ export const HeartbeatSchema = z.object({
   state: z.string().min(1),
   version: z.string().min(1).optional(),
   /** Shared towers whose last sync failed (#190): only the name and a flag, never the error text. */
-  shares: z.array(z.object({ name: ShareNameSchema, error: z.literal(true) })).max(SHARE_FLAGS_MAX).optional(),
+  shares: z.array(ShareFlagSchema).max(SHARE_FLAGS_MAX).optional(),
 });
 
 export type Heartbeat = z.infer<typeof HeartbeatSchema>;
+
+/**
+ * Keeps the valid share flags of a raw heartbeat body and drops the rest, so one bad entry (or too many)
+ * never costs the whole heartbeat its counters. Run it before HeartbeatSchema. A flag is metadata only:
+ * losing a bad one just means that share is not flagged, which the next heartbeat corrects.
+ */
+export function keepValidShares(body: unknown): unknown {
+  if (typeof body !== 'object' || body === null || !('shares' in body)) return body;
+  const raw = (body as { shares: unknown }).shares;
+  const shares = Array.isArray(raw)
+    ? raw.filter((s) => ShareFlagSchema.safeParse(s).success).slice(0, SHARE_FLAGS_MAX)
+    : [];
+  return { ...body, shares };
+}
 
 export interface SatelliteView {
   sender: string;

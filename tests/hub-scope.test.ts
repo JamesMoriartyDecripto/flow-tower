@@ -77,9 +77,14 @@ describe('resolveTargets scoped to a sender on a hub', () => {
     expect(towersOf(resolveTargets(hubWorkspace(true), bash, { sender: 'b' }))).toEqual(['pb', 'ph']);
   });
 
-  it('lets an event that names a tower reach that tower, even another machine\'s', () => {
+  it('lights nothing of another machine\'s tower, even when the event names it', () => {
     const named = FlowEventSchema.parse({ kind: 'tool.start', tool: 'bash', tower: 'pb' });
-    expect(towersOf(resolveTargets(hubWorkspace(true), named, { sender: 'a' }))).toEqual(['pb']);
+    expect(resolveTargets(hubWorkspace(true), named, { sender: 'a' })).toEqual([]);
+  });
+
+  it('narrows within the sender\'s own towers when the event names one', () => {
+    const named = FlowEventSchema.parse({ kind: 'tool.start', tool: 'bash', tower: 'ph' });
+    expect(towersOf(resolveTargets(hubWorkspace(true), named, { sender: 'a' }))).toEqual(['ph']);
   });
 
   it('changes nothing without sources (a plain or satellite server)', () => {
