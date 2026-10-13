@@ -13,6 +13,7 @@ import { parseArgs } from 'node:util';
 import { readObject } from '../../bin/config-file.js';
 import { localServerFile, localServerUrl } from '../../bin/local-server.js';
 import { cliName, shellQuote } from '../../bin/cli-name.js';
+import { libraryEntries } from '../../bin/library.js';
 
 const DEFAULT_PORT = 5317;
 const UNIT_NAME = 'flow-tower';
@@ -249,6 +250,11 @@ function installLinux(ctx: ServiceContext, port: number): number {
   ctx.log(`installed ${file}\nthe library runs on port ${port} and restarts after a crash`);
   // A machine without a desktop login stops user services at logout unless lingering is on.
   ctx.log(`no desktop login here? keep it running after logout: loginctl enable-linger ${ctx.user}`);
+  // An empty library makes `library` exit at once, so systemd gives up after a few restarts: say how to fix it now.
+  const { mine } = libraryEntries({ env: { FLOW_TOWER_HOME: userFolder(ctx) }, checkout: ctx.checkout, warn: () => {} });
+  if (mine.length === 0) {
+    ctx.log(`your library is empty, so the service cannot start yet: ${cliName()} library add <path>, then: systemctl --user restart ${UNIT_NAME}`);
+  }
   return 0;
 }
 
@@ -283,6 +289,11 @@ function statusLinux(ctx: ServiceContext): number {
   }
   // A unit file that exists but is not active is installed and stopped: the fix is to start it, not reinstall.
   if (existsSync(unitPath(ctx))) {
+    // A failed unit gave up after its restarts (a crash loop): starting it again fails the same way, so point at the journal.
+    if (state === 'failed') {
+      ctx.log(`installed but not running (failed): journalctl --user -u ${UNIT_NAME}`);
+      return 1;
+    }
     ctx.log(`installed but not running: systemctl --user start ${UNIT_NAME}`);
     return 1;
   }

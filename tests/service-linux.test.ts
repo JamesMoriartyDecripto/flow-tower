@@ -51,3 +51,57 @@ describe('service uninstall on Linux', () => {
     expect(existsSync(join(dir, 'flow-tower.service'))).toBe(false);
   });
 });
+
+/** A fake runner that answers `systemctl --user is-active` with `state` and everything else with success. */
+function activeRun(state: string): ServiceContext['run'] {
+  return (cmd, args) => {
+    const isActive = cmd === 'systemctl' && args.includes('is-active');
+    return { status: isActive && state !== 'active' ? 3 : 0, stdout: isActive ? `${state}\n` : '', stderr: '', missing: false };
+  };
+}
+
+function writeUnit() {
+  const dir = join(home, '.config', 'systemd', 'user');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'flow-tower.service'), 'ours');
+}
+
+describe('service status on Linux with an installed unit', () => {
+  it('says the journal is the place to look when the unit is failed', () => {
+    writeUnit();
+    const logs: string[] = [];
+    expect(runService(['status'], ctx(activeRun('failed'), logs))).toBe(1);
+    expect(logs).toEqual(['installed but not running (failed): journalctl --user -u flow-tower']);
+  });
+
+  it('keeps the start hint for an inactive unit', () => {
+    writeUnit();
+    const logs: string[] = [];
+    expect(runService(['status'], ctx(activeRun('inactive'), logs))).toBe(1);
+    expect(logs).toEqual(['installed but not running: systemctl --user start flow-tower']);
+  });
+});
+
+describe('service install on Linux with the library', () => {
+  it('warns when the user folder library is empty', () => {
+    const logs: string[] = [];
+    const { run } = fakeRun();
+    expect(runService(['install', '--port', '5399'], ctx(run, logs))).toBe(0);
+    expect(logs.some((l) => l.startsWith('your library is empty, so the service cannot start yet: '))).toBe(true);
+    expect(logs.join('\n')).toContain('systemctl --user restart flow-tower');
+  });
+
+  it('does not warn when the user folder has a library entry', () => {
+    const entry = mkdtempSync(join(tmpdir(), 'ft-service-entry-'));
+    try {
+      mkdirSync(join(home, '.config', 'flow-tower'), { recursive: true });
+      writeFileSync(join(home, '.config', 'flow-tower', 'config.json'), JSON.stringify({ library: [entry] }));
+      const logs: string[] = [];
+      const { run } = fakeRun();
+      expect(runService(['install', '--port', '5399'], ctx(run, logs))).toBe(0);
+      expect(logs.join('\n')).not.toContain('your library is empty');
+    } finally {
+      rmSync(entry, { recursive: true, force: true });
+    }
+  });
+});
