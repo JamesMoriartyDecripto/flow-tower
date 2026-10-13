@@ -8,6 +8,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Added
 - Schema: a `files` entry can be `{ path, optional: true, description }` for a file a run writes: while it is missing, `validate` and the PDF checks stay quiet and the Inspector shows it as "not generated yet". The report-studio example uses it for the tower-documentation PDF (#137).
 
+### Changed
+- Docs: `docs/architecture.md` is split into four maps that each load whole: core, documents and reports (`architecture.md`), server and hub, CLI, app. docs-qa Q24 (which file owns the per-sender tokens) passes again, 3/3; the docs-qa report is refreshed: 28/31 (#143).
+
 ## [0.9.0] - 2026-10-13
 
 ### Added

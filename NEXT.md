@@ -20,7 +20,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 1. #181 laptop checks: full e2e (commit its e2e.log), 3D PDFs, the real tailnet test of #164/#165
 2. #69 tower names as an STT prompt
-3. #143 split `docs/architecture.md` (docs-qa Q24; it grew again with #164/#165/#65/#173/#174)
+3. (done in #143) docs-qa gaps left: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)
 4. #137 optional runtime files (schema)
 5. Report studio, next types: architecture docs (arc42, C4) and research reports (IMRaD), sources already checked in docs/reports.md
 6. #147 Blender and Unreal benchmark categories

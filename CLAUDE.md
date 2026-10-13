@@ -6,7 +6,7 @@
 
 | Task | Read |
 |---|---|
-| Change code | [docs/architecture.md](docs/architecture.md): which file owns what, then only those files |
+| Change code | [docs/architecture.md](docs/architecture.md): data flow, core, documents and reports; then the part you touch: [server and hub](docs/architecture-server.md), [CLI](docs/architecture-cli.md), [app, scene, HUD](docs/architecture-app.md); then only those files |
 | Change the YAML schema | [docs/schema.md](docs/schema.md) + `src/core/schema.ts` |
 | Write or fix a tower | [docs/what-goes-where.md](docs/what-goes-where.md) (layers, nodes, edges, nested towers); [examples/README.md](examples/README.md): copy the closest example; [docs/generate-a-tower.md](docs/generate-a-tower.md) for codebases |
 | Live events / integrations | [docs/realtime.md](docs/realtime.md), `src/core/adapters.ts`, `integrations/` |

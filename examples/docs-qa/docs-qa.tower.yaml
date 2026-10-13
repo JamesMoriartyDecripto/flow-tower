@@ -67,7 +67,7 @@ layers:
     description: The routing table, then only the picked docs
     nodes:
       - { id: table, type: memory, label: Routing table, files: [CLAUDE.md], description: "CLAUDE.md's routing table: task -> doc." }
-      - { id: headers, type: memory, label: Doc headers, files: [docs/getting-started.md, docs/what-goes-where.md, docs/schema.md, docs/generate-a-tower.md, docs/architecture.md], description: "Each doc opens with what it covers, when to read it and where to go instead." }
+      - { id: headers, type: memory, label: Doc headers, files: [docs/getting-started.md, docs/what-goes-where.md, docs/schema.md, docs/generate-a-tower.md, docs/architecture.md, docs/architecture-server.md, docs/architecture-cli.md, docs/architecture-app.md], description: "Each doc opens with what it covers, when to read it and where to go instead." }
       - { id: live-docs, type: memory, label: Live + voice docs, files: [docs/realtime.md, docs/voice.md] }
       - { id: hub-docs, type: memory, label: Hub docs, files: [docs/command-center.md, docs/hub-reference.md, examples/command-center/README.md, examples/team-hub/README.md] }
       - { id: other-docs, type: memory, label: Skills and process, files: [skills/flow-tower-costs/SKILL.md, examples/dev-squad/README.md, NEXT.md, README.md] }
