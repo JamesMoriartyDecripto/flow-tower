@@ -91,9 +91,10 @@ export function createEventHub(getWorkspace: () => Workspace | undefined, broadc
       // The kind is part of the key: tool.start and tool.end share their call id, and both are real.
       // A duplicate is dropped silently: a retrying hook is expected, not a bug to report.
       if (id && dedupe.seen(`${sender ?? ''}:${e.kind}:${id}`)) { rejected++; continue; }
-      const targets = ws ? resolveTargets(ws, e) : [];
-      // The token identity wins over the payload: a sender cannot claim to be someone else.
+      // The token identity wins over the payload: a sender cannot claim to be someone else. The scope uses
+      // the same identity, so a teammate's event lights only that teammate's towers and the hub's own (#206).
       const who = sender ? { sender, user: sender } : {};
+      const targets = ws ? resolveTargets(ws, e, { sender }) : [];
       const event = { ...e, ...who, id: ++seq, ts: e.ts ?? at, targets, runtimeRef: ws ? runtimeRefOf(ws, e, targets) : undefined };
       out.push(event);
       // An accepted event proves the satellite behind this sender is alive (#91), heartbeat or not, and

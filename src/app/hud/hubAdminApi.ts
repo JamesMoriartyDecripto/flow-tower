@@ -38,11 +38,14 @@ export type Run = (method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body
  * sender add answers a token in it.
  */
 export async function callAdmin<T = unknown>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<CallResult<T>> {
+  // A mutating request always carries a JSON body: the server answers 415 to a POST with no Content-Type
+  // (pause and resume send none), so a body-less change gets `{}`. GET stays bodyless.
+  const payload = body === undefined && method !== 'GET' ? {} : body;
   try {
     const res = await fetch(`/api/hub/admin${path}`, {
       method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: payload === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: payload === undefined ? undefined : JSON.stringify(payload),
     });
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };

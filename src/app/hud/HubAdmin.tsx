@@ -104,7 +104,8 @@ function SendersSection({ senders, cadence, change }: { senders: AdminSender[]; 
       {senders.map((s) => {
         const st = senderState(s);
         return (
-          <div className="admin-row" key={s.id}>
+          // A revoked id can be added again: the id alone repeats, the creation time tells the two rows apart.
+          <div className="admin-row" key={`${s.id}-${s.createdAt}`}>
             <div className="admin-line">
               <span className="hub-sender" title={s.id}>{s.id}</span>
               <span className={`chip admin-state ${st}`}>{st}</span>
