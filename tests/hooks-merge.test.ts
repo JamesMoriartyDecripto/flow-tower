@@ -6,6 +6,7 @@ import {
   piExtension,
   unmergeHermes,
   unmergeJsonHooks,
+  wired,
   wiredPort,
 } from '../src/cli/hooks-merge.ts';
 
@@ -168,6 +169,18 @@ describe('Hermes', () => {
 });
 
 describe('wiredPort', () => {
+  it('wired is true for command-only Codex hooks, which carry no port', () => {
+    const codex = mergeJsonHooks('codex', undefined, codexTpl, opts(5555)).text;
+    expect(wired('codex', codex)).toBe(true);
+    expect(wiredPort('codex', codex)).toBeUndefined();
+    expect(wired('codex', '{}')).toBe(false);
+    expect(wired('claude-code', codex)).toBe(false);
+    expect(wired('pi', piExtension(piTpl, 5556))).toBe(true);
+    expect(wired('pi', 'const x = 1;')).toBe(false);
+    expect(wired('hermes', mergeHermes(undefined, hermesTpl, 5557).text)).toBe(true);
+    expect(wired('hermes', 'hooks: {}')).toBe(false);
+  });
+
   it('is undefined when not wired', () => {
     expect(wiredPort('claude-code', '{}')).toBeUndefined();
     expect(wiredPort('codex', '')).toBeUndefined();

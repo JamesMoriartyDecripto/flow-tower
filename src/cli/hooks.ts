@@ -11,7 +11,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { localServerUrl } from '../../bin/local-server.js';
 import {
-  type Harness, type MergeResult, mergeHermes, mergeJsonHooks, piExtension, unmergeHermes, unmergeJsonHooks, wiredPort,
+  type Harness, type MergeResult, mergeHermes, mergeJsonHooks, piExtension, staleCommandPath, unmergeHermes, unmergeJsonHooks,
+  wired, wiredPort,
 } from './hooks-merge.ts';
 
 const HARNESSES: Harness[] = ['claude-code', 'codex', 'pi', 'hermes'];
@@ -175,7 +176,9 @@ function install(targets: Harness[], o: { project: boolean; port: { port: number
     }
   }
   for (const h of done) console.log(nextStep(h));
-  console.log(`Agent SDK: copy integrations/agent-sdk/flow-tower-hooks.ts into your app (it posts to ${o.port.line.replace(/ \(.*/, '')})`);
+  // The SDK file's URL is fixed at 5317, so the port is named only when the install wires another one.
+  const portPart = o.port.port === DEFAULT_PORT ? '' : ` to port ${o.port.port}`;
+  console.log(`Agent SDK: copy integrations/agent-sdk/flow-tower-hooks.ts into your app and set its URL port${portPart}`);
   return code;
 }
 
@@ -227,6 +230,13 @@ function uninstall(targets: Harness[], o: { project: boolean; dryRun: boolean },
         console.log(`${label}: removed ${count} ${noun(h)} (backup: ${basename(file)}${BACKUP_SUFFIX})`);
         continue;
       }
+      // A file that held only our hooks would be left as `{}`: delete it, the backup keeps the old text.
+      if (r.emptied) {
+        copyFileSync(file, file + BACKUP_SUFFIX);
+        rmSync(file, { force: true });
+        console.log(`${label}: removed ${count} ${noun(h)} (backup: ${basename(file)}${BACKUP_SUFFIX}); removed the file (it held only flow-tower hooks)`);
+        continue;
+      }
       const backup = backupThenWrite(file, existing, r.text);
       console.log(`${label}: removed ${count} ${noun(h)}${backup ? ` (backup: ${backup})` : ''}`);
     } catch (err) {
@@ -247,16 +257,25 @@ function status(ctx: HooksContext): number {
         continue;
       }
       const label = `${h}: ${shown(file, ctx)}`;
-      const port = wiredPort(h, readIfExists(file) ?? '');
-      if (port === undefined) {
+      const text = readIfExists(file) ?? '';
+      if (!wired(h, text)) {
         console.log(`${label}: not wired`);
         continue;
       }
-      let note: string;
-      if (running === undefined) note = '(no library running)';
-      else if (running === port) note = '(matches the running library)';
-      else note = `(the running library is on port ${running}: run flow-tower hooks install)`;
-      console.log(`${label}: wired on port ${port} ${note}`);
+      const port = wiredPort(h, text);
+      if (port === undefined) {
+        // Command hooks carry no port: emit finds whichever library runs now.
+        const state = running === undefined ? 'no library running now' : `library running on port ${running}`;
+        console.log(`${label}: wired (emit finds the running library) (${state})`);
+      } else {
+        let note: string;
+        if (running === undefined) note = '(no library running)';
+        else if (running === port) note = '(matches the running library)';
+        else note = `(the running library is on port ${running}: run flow-tower hooks install)`;
+        console.log(`${label}: wired on port ${port} ${note}`);
+      }
+      const stale = staleCommandPath(h, text, existsSync);
+      if (stale !== undefined) console.log(`${label}: node not found at ${stale}: run flow-tower hooks install again`);
     }
   }
   return 0;

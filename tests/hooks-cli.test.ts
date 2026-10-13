@@ -139,4 +139,39 @@ describe('flow-tower hooks', () => {
     expect(r.stderr).toContain('not valid JSON');
     expect(readFileSync(settingsOf(box.home), 'utf8')).toBe(broken);
   });
+
+  it('codex status after install says wired, not not-wired, though its command hooks carry no port', TIMEOUT, async () => {
+    const box = sandbox();
+    mkdirSync(join(box.home, '.codex'));
+    await hooks(['install', '--target', 'codex', '--port', '5999'], box);
+    const r = await hooks(['status'], box);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('codex: ~/.codex/hooks.json: wired (emit finds the running library)');
+    expect(r.stdout).not.toMatch(/codex: ~\/\.codex\/hooks\.json: not wired/);
+  });
+
+  it('status reports a node path that no longer exists', TIMEOUT, async () => {
+    const box = sandbox();
+    mkdirSync(join(box.home, '.codex'));
+    await hooks(['install', '--target', 'codex', '--port', '5999'], box);
+    const file = join(box.home, '.codex', 'hooks.json');
+    // Simulate a node upgrade: point the pinned node path at a binary that is gone.
+    const gone = join(root, 'gone-node-v0.0.0', 'bin', 'node');
+    const text = readFileSync(file, 'utf8').split(process.execPath).join(gone);
+    writeFileSync(file, text);
+    const r = await hooks(['status'], box);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(`node not found at ${gone}: run flow-tower hooks install again`);
+  });
+
+  it('uninstall deletes a settings file that held only our hooks, and keeps the backup', TIMEOUT, async () => {
+    const box = sandbox();
+    mkdirSync(join(box.home, '.claude'));
+    await hooks(['install', '--target', 'claude-code', '--port', '5999'], box);
+    const r = await hooks(['uninstall', '--target', 'claude-code'], box);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('removed the file (it held only flow-tower hooks)');
+    expect(existsSync(settingsOf(box.home))).toBe(false);
+    expect(existsSync(settingsOf(box.home) + '.flow-tower.bak')).toBe(true);
+  });
 });

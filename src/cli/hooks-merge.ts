@@ -10,7 +10,8 @@ export type Harness = 'claude-code' | 'codex' | 'pi' | 'hermes';
 export type JsonHarness = 'claude-code' | 'codex';
 /** command: the full emit command prefix, e.g. '"/opt/node22/bin/node" "/x/bin/flow-tower.js" emit'. */
 export interface WireOptions { port: number; command: string }
-export interface MergeResult { text: string; changed: boolean; added: number; replaced: number; removed: number }
+/** emptied: a removal left the settings object with no keys, so the caller deletes the file rather than write `{}`. */
+export interface MergeResult { text: string; changed: boolean; added: number; replaced: number; removed: number; emptied?: boolean }
 
 type Json = Record<string, unknown>;
 
@@ -18,6 +19,9 @@ const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
 const PI_URL_LINE = /^const URL = '[^']*';\r?$/m;
 const PI_PORT = /^const URL = 'http:\/\/127\.0\.0\.1:(\d+)\/api\/events\?source=pi';/m;
 const PI_NOTE = '// Installed by flow-tower hooks install: re-run it after changing the port.';
+// The emit command install writes: an optional FLOW_TOWER_HOME prefix, then the node binary and flow-tower.js.
+const COMMAND_PATHS = /^(?:FLOW_TOWER_HOME="[^"]*" )?"([^"]+)" "([^"]+flow-tower\.js)" emit/;
+const HERMES_NAME = /name: flow-tower\b/;
 
 function checkPort(port: number): void {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`invalid port: ${port}`);
@@ -166,7 +170,8 @@ export function unmergeJsonHooks(harness: JsonHarness, existing: string): MergeR
   // Nothing of ours found: hand the user's file back byte for byte, not reformatted.
   if (removed === 0) return { text: existing, changed: false, added: 0, replaced: 0, removed: 0 };
   const text = serialize(root);
-  return { text, changed: text !== existing, added: 0, replaced: 0, removed };
+  const emptied = Object.keys(root).length === 0;
+  return { text, changed: text !== existing, added: 0, replaced: 0, removed, emptied };
 }
 
 export function piExtension(template: string, port: number): string {
@@ -185,36 +190,62 @@ export function unmergeHermes(existing: string): MergeResult {
   return unmergeHermesYaml(existing);
 }
 
-/** The port our entries point at (for `hooks status`), or undefined when not wired. */
+/** Every hook object in a JSON settings file, groups flattened. Empty when the text is not a usable settings object. */
+function jsonHooks(text: string): Json[] {
+  let hooks: Json;
+  try {
+    hooks = hooksOf(parseSettings(text));
+  } catch {
+    return [];
+  }
+  const out: Json[] = [];
+  for (const groups of Object.values(hooks)) {
+    if (!Array.isArray(groups)) continue;
+    for (const group of groups) {
+      if (!isObject(group) || !Array.isArray(group.hooks)) continue;
+      for (const h of group.hooks) if (isObject(h)) out.push(h);
+    }
+  }
+  return out;
+}
+
+/** The port our entries point at (for `hooks status`), or undefined when not wired or only command hooks are ours. */
 export function wiredPort(harness: Harness, text: string): number | undefined {
   if (harness === 'hermes') return hermesPort(text);
   if (harness === 'pi') {
     const m = PI_PORT.exec(text);
     return m ? Number(m[1]) : undefined;
   }
-  let root: Json;
-  try {
-    root = parseSettings(text);
-  } catch {
-    return undefined;
-  }
-  let hooks: Json;
-  try {
-    hooks = hooksOf(root);
-  } catch {
-    return undefined;
-  }
-  for (const groups of Object.values(hooks)) {
-    if (!Array.isArray(groups)) continue;
-    for (const group of groups) {
-      if (!isObject(group) || !Array.isArray(group.hooks)) continue;
-      for (const h of group.hooks) {
-        if (isOurHook(h, harness) && isObject(h) && typeof h.url === 'string') {
-          const port = portOf(h.url);
-          if (port !== undefined) return port;
-        }
-      }
+  for (const h of jsonHooks(text)) {
+    if (isOurHook(h, harness) && typeof h.url === 'string') {
+      const port = portOf(h.url);
+      if (port !== undefined) return port;
     }
+  }
+  return undefined;
+}
+
+/**
+ * Whether any of our entries is present at all, url-based or command-based. Codex's entries are command
+ * hooks with no port, so `wiredPort` alone would call a working install "not wired".
+ */
+export function wired(harness: Harness, text: string): boolean {
+  if (harness === 'hermes') return hermesPort(text) !== undefined || HERMES_NAME.test(text);
+  if (harness === 'pi') return PI_PORT.test(text);
+  return jsonHooks(text).some((h) => isOurHook(h, harness));
+}
+
+/**
+ * The first node binary or flow-tower.js that a wired command hook names and that `exists` says is gone.
+ * The emit command pins the node path of the install (process.execPath), so an upgraded node leaves it stale.
+ */
+export function staleCommandPath(harness: Harness, text: string, exists: (path: string) => boolean): string | undefined {
+  if (harness === 'pi' || harness === 'hermes') return undefined;
+  for (const h of jsonHooks(text)) {
+    if (!isOurHook(h, harness) || typeof h.command !== 'string') continue;
+    const m = COMMAND_PATHS.exec(h.command);
+    if (!m) continue;
+    for (const p of [m[1], m[2]]) if (!exists(p)) return p;
   }
   return undefined;
 }

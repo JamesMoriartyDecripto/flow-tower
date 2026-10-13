@@ -126,6 +126,7 @@ try {
   if (res.status === 204) {
     const rotated = enrolled?.rotated ? ' (the previous token of this machine was revoked)' : '';
     console.log(`connected to ${url} as ${sender}${rotated}`);
+    console.log('next: flow-tower hooks install   (wires Claude Code, Codex, Pi, Hermes on this machine)');
   } else if (res.status === 401 || res.status === 403) {
     // The config is written anyway: the relay queues events and stops sending, so nothing is lost by hand.
     console.error(`the hub refused this token (${res.status}): ${written}, but the relay will not send until it is fixed.
