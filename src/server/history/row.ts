@@ -67,6 +67,9 @@ export function toRow(e: FlowEvent, now: number): Row | undefined {
   // `tokens` total is the last resort, recorded as input.
   const d = e.tokens_detail ?? flatDetail(e.data);
   const id = eventIdOf(e);
+  // An error event with no status would otherwise be invisible to the error rollups, which count only
+  // status === 'error'. An explicit status from the source is kept as is.
+  const status = str(e.status) ?? (e.kind === 'error' ? 'error' : null);
   return {
     ts,
     sender: str(e.sender),
@@ -86,8 +89,9 @@ export function toRow(e: FlowEvent, now: number): Row | undefined {
     cost_usd_micros: Math.round((num(e.cost_usd) ?? 0) * 1_000_000),
     estimated: e.estimated ? 1 : 0,
     duration_ms: num(e.duration_ms),
-    status: str(e.status),
+    status,
     auto: 0, // no source marks an event automatic yet; the column is here for the read side.
-    event_key: id === undefined ? null : `${e.sender ?? ''}:${id}`,
+    // The kind is in the key too: a tool.start and its tool.end share one call id, and both must be stored.
+    event_key: id === undefined ? null : `${e.sender ?? ''}:${e.kind}:${id}`,
   };
 }

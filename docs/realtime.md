@@ -68,6 +68,9 @@ flow-tower emit --kind agent.start --agent nightly-report -m "building report"
 flow-tower emit --kind error --node build.package -m "exit 1"
 ```
 
+Without `--url`, `emit` posts to the server this user folder started (any port: the running server records it in
+`local-server.json`), else to `http://127.0.0.1:5317`. `npm run simulate` does the same.
+
 `emit` always exits 0 and gives up after 1.5 s, so it never breaks the thing it observes.
 
 ## Tokens and cost (OpenTelemetry)

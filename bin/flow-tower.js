@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
 import { parseArgs } from 'node:util';
 import { senderConfig } from './config-file.js';
+import { localServerUrl, recordLocalServer } from './local-server.js';
 import { findTsCommand, runTsCommand } from './commands.js';
 import { STARTER } from './starter.js';
 import { clipIdentity, identityDefaults } from './identity.js';
@@ -77,7 +78,8 @@ Options
                  Reaching the server through a proxy means hub mode: requires --hub
       --no-update-check  Do not ask GitHub once a day whether a newer release exists
                  (also FLOW_TOWER_NO_UPDATE_CHECK=1; always off in CI)
-      --url      emit: server URL (default http://127.0.0.1:5317); a second server runs on another --port
+      --url      emit: server URL (default: the local server this user folder started, else http://127.0.0.1:5317);
+                 a second server runs on another --port
                  user and machine are added by default only for a loopback URL (127.0.0.1, ::1, localhost):
                  to any other host they are sent only when given explicitly (--user/--machine, or
                  FLOW_TOWER_USER / FLOW_TOWER_MACHINE set to a non-empty value). FLOW_TOWER_USER=''
@@ -130,7 +132,8 @@ const { values, positionals } = parseArgs({
     'ingest-only': { type: 'boolean', default: false },
     'allowed-host': { type: 'string', multiple: true },
     // emit
-    url: { type: 'string', default: 'http://127.0.0.1:5317' },
+    // No default here: emit picks the local server this user folder started (#187), else 5317 (see emit).
+    url: { type: 'string' },
     source: { type: 'string' },
     kind: { type: 'string' },
     agent: { type: 'string' },
@@ -258,10 +261,13 @@ async function emit() {
     env, checkout: pkgRoot,
     flags: { url: explicit('url') ? values.url : undefined, user: values.user, machine: values.machine, token: values.token },
   });
+  // An explicit --url always wins. Otherwise the server this user folder started (#187) is the local default,
+  // so a server on another port needs no flag; the fixed 5317 is only the fallback when no live server is recorded.
   // A satellite (#91) posts to the LOCAL relay, not to the config url (which names the hub): the local
   // server carries the hub token itself, so posting the config token there would only earn a 401 and lose
-  // the event. `--url` still picks another local server; anything else keeps the config url, flags win.
-  const url = cfg.role === 'satellite' ? values.url : cfg.url ?? values.url;
+  // the event. Anything else keeps the config url, flags win.
+  const localDefault = localServerUrl({ env }) ?? 'http://127.0.0.1:5317';
+  const url = explicit('url') ? values.url : cfg.role === 'satellite' ? localDefault : cfg.url ?? localDefault;
 
   const params = new URLSearchParams(Object.entries({ source: values.source, tower: values.tower }).filter(([, v]) => v));
   const query = params.size ? `?${params}` : '';
@@ -459,6 +465,8 @@ try {
   }
   throw err;
 }
+// Record where this server listens (#187), so emit and simulate in this user folder find it without --url.
+recordLocalServer({ env, bindHost, port: values.port });
 // Show the URL in the banner too: with strictPort it is always the port the user asked for.
 console.log(`\n  FLOW//TOWER  http://${bindHost}:${values.port}  ${entries.join('  ')}${hub ? '  [hub]' : ''}${ingestOnly ? '  [ingest-only]' : ''}\n`);
 server.printUrls();

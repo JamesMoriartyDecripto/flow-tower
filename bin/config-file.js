@@ -61,7 +61,8 @@ export const stripJsonc = (text) => dropTrailingCommas(stripComments(text));
 const SENDER_KEYS = ['url', 'user', 'machine', 'token'];
 const unset = (v) => v === undefined || v.trim() === '';
 
-function readObject(path) {
+/** A JSON object read from a file; a missing, broken or non-object file reads as {}. Shared with local-server.js. */
+export function readObject(path) {
   try {
     const parsed = JSON.parse(stripJsonc(readFileSync(path, 'utf8')));
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};

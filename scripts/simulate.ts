@@ -1,29 +1,34 @@
 /**
  * Simulates a live agentic run against a running flow-tower, for demos and load tests.
  *   node --experimental-strip-types scripts/simulate.ts [project-substring] [--walkers 3] [--speed 1] [--url http://127.0.0.1:5317]
+ * Without --url it posts to the local server this user folder recorded (its port, once `serve` runs), else 5317.
  * Agent nodes send Claude Code hook payloads (exercising the adapter); other nodes send explicit events.
  */
 import { parseArgs } from 'node:util';
 import { sampleApiRequest } from '../src/core/otlp.ts';
 import type { ResolvedNode, ResolvedTower, Workspace } from '../src/core/types.ts';
+// Plain JS, shared with emit: the port a running `serve` recorded in the user folder (#187).
+import { localServerUrl } from '../bin/local-server.js';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     walkers: { type: 'string', default: '3' },
     speed: { type: 'string', default: '1' },
-    url: { type: 'string', default: 'http://127.0.0.1:5317' },
+    url: { type: 'string' },
   },
 });
+// An explicit --url wins; otherwise the local server this user folder started, else the default port.
+const url = values.url ?? localServerUrl({ env: process.env }) ?? 'http://127.0.0.1:5317';
 const speed = Number(values.speed);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms / speed));
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 const FALLBACK_TOOLS = ['Read', 'Grep', 'Edit', 'Bash', 'WebSearch'];
 
 async function post(body: unknown, source?: string) {
-  await fetch(`${values.url}/api/events${source ? `?source=${source}` : ''}`, {
+  await fetch(`${url}/api/events${source ? `?source=${source}` : ''}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
-  }).catch(() => console.error('flow-tower not reachable at', values.url));
+  }).catch(() => console.error('flow-tower not reachable at', url));
 }
 
 async function runAgent(node: ResolvedNode, session: string) {
@@ -43,7 +48,7 @@ async function runAgent(node: ResolvedNode, session: string) {
   }
   await hook({ hook_event_name: 'PostToolUse', tool_name: 'Agent', tool_input: { subagent_type: agent } });
   // Tokens and cost arrive through OpenTelemetry, as with Claude Code telemetry enabled.
-  await fetch(`${values.url}/v1/logs`, {
+  await fetch(`${url}/v1/logs`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(sampleApiRequest(agent, node.model, session)),
   }).catch(() => undefined);
 }
@@ -71,7 +76,7 @@ async function walker(tower: ResolvedTower, nodes: Map<string, ResolvedNode>, ou
   }
 }
 
-const ws = (await (await fetch(`${values.url}/api/workspace`)).json()) as Workspace;
+const ws = (await (await fetch(`${url}/api/workspace`)).json()) as Workspace;
 const id = ws.projects.find((p) => p.includes(positionals[0] ?? '')) ?? ws.projects[0];
 const tower = ws.towers[id];
 const nodes = new Map(tower.layers.flatMap((l) => l.nodes.map((n) => [n.key, n] as const)));

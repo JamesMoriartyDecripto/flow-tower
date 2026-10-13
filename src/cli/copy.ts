@@ -166,6 +166,6 @@ if (validation?.towers) {
 console.log(`next steps${inside ? '' : `
   add it:      flow-tower library add ${dest}`}
   open it:     flow-tower ${dest}
-  try it live: npm run simulate -- ${project ?? '<tower file>'} --url http://127.0.0.1:5317   (from ${pkgRoot})
+  try it live: npm run simulate -- ${project ?? '<tower file>'}   (from ${pkgRoot})
   adapt root: and files: to where the files live in your copy`);
 exit(0);

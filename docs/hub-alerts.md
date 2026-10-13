@@ -12,6 +12,9 @@ for a critical one) and listed in **Hub › Alerts** (`H`, then the Alerts tab):
 | Error spike | errors in the current hour are over 3× the hourly median of the last 7 days, and at least 5 | warning |
 | New host | a sender's token is used from a host first seen in the last 24 h, while it had used another host before | warning |
 
+A sender with no cadence counts as `on-demand`, as Hub › Admin shows it: a laptop that sleeps at night raises no alert. Set
+`always-on` for a server or a machine that should never go quiet, `scheduled` for a nightly job.
+
 Set them in `config.json` in the user folder:
 
 ```jsonc
