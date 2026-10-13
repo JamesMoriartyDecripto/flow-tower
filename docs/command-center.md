@@ -128,8 +128,8 @@ the default sends no file contents. The local library re-sends a shared tower wi
 not sent: the hub keeps the last valid version, and the teammate sees `1 tower not sent` on the SAT chip and the
 reason in Settings › Sharing › Shared towers (#190), which also warns when a sync removed nodes that events may still
 name. The hub refuses a structurally broken upload too (422). On the hub, a shared card says `updated <time> ago`,
-with a dot for a change in the last 10 minutes; a YAML-only tower's missing prompt and node files show as info, not
-errors. `share --files` also carries `.github/`, `.claude/agents|skills|commands/`, `.agents/` and `.codex/prompts/`. `flow-tower unshare
+with a dot for a change in the last 10 minutes; files a share does not carry (a missing prompt or node file, a path outside the share folder) show as info, not
+errors, on every shared tower. `share --files` also carries `.github/`, `.claude/agents|skills|commands/`, `.agents/` and `.codex/prompts/`. `flow-tower unshare
 <name>` removes it from the hub; `share --list` shows what is shared.
 
 On the hub, each library card names its source (THIS HUB, or the device that shared it), and the FROM row filters by
@@ -155,14 +155,14 @@ GitHub Actions and Lambda: [hub-reference.md § Recipes](hub-reference.md#recipe
 
 ## The Hub panel (H)
 
-Press `H` in a tower on a hub to open it; in the library (where `H` types into the filter) click the `● n working`
-chip next to the alerts pill. **Now** has one row per machine and session: `● machine · tower › node`, the state on
+Press `H` on a hub to open it (in the library too, unless the filter box has the focus), or click the `● n working`
+chip next to the alerts pill in the library header. **Now** has one row per machine and session: `● machine · tower › node`, the state on
 the right (`run · 12 s`), the user (when it differs from the machine) and runtime below, and the last error as
-`✕ error · <node or tool> · <age>`. Click a row to open that tower on that node, the error line for the node that
-failed. Rows carry no event text (no message, command or tool input): the Live feed has the details on this machine.
+`✕ error · <node or tool> · <age>`. Click a row to open that tower on that node; the `✕ error` line names the node or tool that
+failed (details in the Live feed). Rows carry no event text (no message, command or tool input): the Live feed has the details on this machine.
 **Machines** lists every sender the hub trusts (token prefix, runtime, host,
 last seen, state). The dot follows the clock: ● under 2 min, ◐ under 15 min, ○ silent (a revoked or
-paused token shows ✕). The top-bar `HUB n/m` pill reads active senders seen in the last 5 min / active tokens (a revoked one counts in neither).
+paused token shows ✕). The top-bar `HUB n/m` pill reads active senders seen in the last 5 min / active tokens (a revoked or paused one counts in neither).
 In a tower, `YAML n ERR` / `YAML n WARN` are the validation of the tower file; a red `LIVE n ERR` counts the live
 error events of the tower on screen and opens the Live feed, where a failed tool shows ✕.
 A remote viewer gets the same panel, read-only, with a `READ-ONLY` pill. It reads `/api/hub/machines`

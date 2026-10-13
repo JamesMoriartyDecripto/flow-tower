@@ -30,7 +30,7 @@ Background, only when needed: [docs/command-center.md](../../docs/command-center
 
 `{{FLOW_TOWER_CLI}} connect <hub-url> [--machine <name>]`. On a tailnet hub it gets a token by itself: the user's tailnet `login` must be in the hub's viewers. The token goes to the user folder's config.json and is never printed. The hub names this machine's events after the machine name; `--user` is optional (a label for this machine's own view only).
 
-Hubs that are not on a tailnet (a VPS behind Caddy): the hub owner runs `token add <id>` and hands the token over privately; then `connect <hub-url> --token <token>`. Such a hub only takes events: towers are copied to it by hand, so skip step 4.
+Hubs that are not on a tailnet: the hub owner runs `token add <id>` and hands the token over privately; then `connect <hub-url> --token <token>`. Behind the kit's `Caddyfile.hub`, `share` works as on a tailnet. Only behind the ingest-only `Caddyfile` (CI, Lambda) are towers copied to the hub by hand: skip step 4 there.
 
 ## 4. Share towers
 

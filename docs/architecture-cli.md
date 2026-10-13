@@ -5,9 +5,10 @@ Which file implements each `flow-tower` command: serve, connect, validate, copy,
 | File | Open it when |
 |---|---|
 | `scripts/build-demo.ts` | Static demo for GitHub Pages: freezes the workspace and referenced files into `data/`, then builds the app in `demo` mode |
-| `bin/flow-tower.js` | CLI commands: serve, init, connect, validate, copy, check-example, library, emit, guide, install-skill (all five skills) |
+| `bin/flow-tower.js` | CLI commands: serve, init, connect, validate, copy, check-example, library, emit, guide, install-skill (every skill under skills/) |
 | `bin/config-file.js` | Plain-JS JSONC reader for `emit` (#90): starting a second Node with type stripping to load `src/server/config.ts` tripled its time (0.14 s to 0.41 s), and `emit` runs on every hook call, so the config is read here. Drops comments (newlines kept) and trailing commas; `src/server/config.ts` imports its `stripJsonc`, so both read the same JSONC. |
 | `bin/local-server.js` | `local-server.json` in the user folder (#187): a running server records its url and pid (the first live one keeps it, cleared on exit), and `emit` and `simulate` post to it when no `--url` is given, so a server on another port needs no flag. Never falls back to 5317 by itself |
+| `bin/cli-name.js` | Hints that work without `npm link` (#193): `cliName()` is `flow-tower` when that command on PATH resolves to this checkout, else `node <checkout>/bin/flow-tower.js`; `shellQuote` / `shellPath` (POSIX single quotes, shared with `hooks`); `OTHER_MACHINE_CLI` for hints aimed at another machine |
 | `bin/stream-context.js` | `emit` reading a JSONL stream (#196): carries Pi's `session` id and Codex's `thread_id` from the first line to the later lines that lack one |
 | `src/cli/validate.ts` | `validate --json` output |
 | `src/cli/copy.ts` | `flow-tower copy --list` and `copy <example> [dest]` (#116): copies an example with its folder, refuses to overwrite, validates the copy, warns on dogfood towers (`root: ../..`), prints next steps |

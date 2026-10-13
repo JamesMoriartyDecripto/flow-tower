@@ -26,7 +26,7 @@ npm run simulate -- game-studio    # terminal 2: 3 parallel walkers replay a pla
 **One command wires them all:** `flow-tower hooks install` finds Claude Code, Codex, Pi and Hermes on this machine
 and merges Flow Tower's entries into each one's config, on the port of the library running now (else `--port N`,
 else 5317). It keeps every hook of your own, backs a changed file up as `<file>.flow-tower.bak`, and a second run
-changes nothing. `--target <harness>` picks one, `--project` writes the project's config instead of your user one,
+changes nothing. `--target <harness>` picks one, `--project` writes the project's config instead of your user one (Hermes has no project config: skipped),
 `--dry-run` only prints. `flow-tower hooks status` shows where they are wired and whether the port matches the running
 library; `flow-tower hooks uninstall` removes only Flow Tower's entries. The table below is what it installs, for
 reading or doing it by hand.
@@ -41,13 +41,13 @@ reading or doing it by hand.
 | Shell hooks, cron jobs, CI, your own loops | `flow-tower emit` or plain HTTP | see below |
 
 Notes:
-- **Claude Code:** the SessionStart hook is a `command` hook that runs `flow-tower emit`: put the CLI on your `PATH` with `npm link` in your checkout (never `npx flow-tower`: the name is not published on npm, so npx would fetch whatever package claims it). Without it only the session start is missed.
+- **Claude Code:** the SessionStart hook is a `command` hook that runs `flow-tower emit`. `flow-tower hooks install` writes the full `node …/bin/flow-tower.js` path, so it needs no `npm link`; by hand, put the CLI on your `PATH` with `npm link` in your checkout (never `npx flow-tower`: the name is not published on npm, so npx would fetch whatever package claims it). Without it only the session start is missed.
 - **Claude Code:** the endpoint answers `204` with an empty body, because Claude Code reads a JSON response body as a hook decision. If the server is down, the hook fails open: the session runs normally and Claude Code only prints a non-blocking "hook failed: ECONNREFUSED" line (checked with a real session).
 - **Claude Code subagents:** an `Agent` (formerly `Task`) call starts the subagent and `SubagentStop` ends it. Background subagents (the default) return from the call at once (`status: async_launched`), so their node stays lit until they really stop. Every event a subagent produces carries its **`role`**: the `description` of the `Agent` call that launched it. Several subagents of the same type (`general-purpose`) therefore map to different nodes with `match: ["role:*security*"]`. Resuming one with `SendMessage` starts it again.
 - **Claude Code main session:** its events have `agent: main` (`match: ["agent:main"]`). Turns that Claude Code injects (a background subagent reporting back, scheduled tasks, messages from other sessions) arrive through `UserPromptSubmit` but become `log` events with a short summary, not user prompts.
 - **Pi:** `pi --mode json "…" | flow-tower emit --source pi` also works for one-off runs: `emit` carries the session id of Pi's first `session` line to every later line, and drops the streaming chunks. Checked with a real Pi 0.73.1 run (extension and JSON mode): session, prompt, tool pairs with errors, model, tokens and cost per turn.
 - **Codex:** approve the hooks once with `/hooks`; hooks in a repo's `.codex/` only run in trusted projects. Hosted tools (web search) do not fire hooks. Tool names match across sources (`Bash`, `apply_patch`, `mcp__<server>__<tool>`); failures are inferred from the tool response (non-zero `exit_code`, `isError`), since hooks carry no status and no tokens.
-- **Codex one-off runs:** `codex exec --json "…" | flow-tower emit --source codex` adds token usage per turn (input + output) and `spawn_agent`/`close_agent` subagents. Only the `thread.started` line carries the thread id, so other lines have no session.
+- **Codex one-off runs:** `codex exec --json "…" | flow-tower emit --source codex` adds token usage per turn (input + output) and `spawn_agent`/`close_agent` subagents. `emit` carries the `thread_id` of the `thread.started` line to every later line, so the whole run is one session.
 - **Codex `notify`:** the legacy hook passes its JSON as the last argument, not stdin, and only reports turn ends. Use it where hooks are unavailable, not together with them.
 - **Hermes:** keep it observe-only, with no `fail_closed`. Otherwise a stopped flow-tower would block Hermes' tools.
 
