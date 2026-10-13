@@ -34,7 +34,7 @@ describe('adapters', () => {
 
   it('maps Pi and Hermes events', () => {
     expect(normalize('pi', { type: 'tool_execution_end', toolName: 'bash', toolCallId: 'c', isError: true }))
-      .toEqual([expect.objectContaining({ kind: 'tool.end', status: 'error', tool: 'bash', agent: 'pi' })]);
+      .toEqual([expect.objectContaining({ kind: 'tool.end', status: 'error', tool: 'bash', agent: 'main' })]);
     expect(normalize('hermes', { hook_event_name: 'subagent_start', extra: { child_role: 'researcher', child_goal: 'find docs' } }))
       .toEqual([expect.objectContaining({ kind: 'agent.start', agent: 'researcher', message: 'find docs' })]);
   });
@@ -42,7 +42,7 @@ describe('adapters', () => {
   it('maps Codex hooks', () => {
     const common = { session_id: '0199a213-81c0-7800-8aa1-bbab2a035a53', transcript_path: '/home/u/.codex/sessions/rollout.jsonl', cwd: '/repo', model: 'gpt-5-codex', turn_id: '1' };
     expect(normalize('codex', { ...common, hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'call_1', tool_input: { command: 'npm test' } }))
-      .toEqual([{ kind: 'tool.start', source: 'codex', session: common.session_id, agent: 'codex', tool: 'Bash', call: 'call_1', model: 'gpt-5-codex', message: 'npm test' }]);
+      .toEqual([{ kind: 'tool.start', source: 'codex', session: common.session_id, agent: 'main', tool: 'Bash', call: 'call_1', model: 'gpt-5-codex', message: 'npm test' }]);
     expect(normalize('codex', {
       ...common, hook_event_name: 'PostToolUse', tool_name: 'mcp__github__create_pull_request', tool_use_id: 'call_2',
       tool_input: { title: 'Fix login' }, tool_response: { content: [{ type: 'text', text: 'not found' }], isError: true },
@@ -71,7 +71,7 @@ describe('adapters', () => {
     expect(normalize('codex', {
       type: 'agent-turn-complete', 'thread-id': 'b5f6c1c2', 'turn-id': '12345', cwd: '/repo', client: 'codex-tui',
       'input-messages': ['Rename `foo` to `bar`'], 'last-assistant-message': 'Rename complete.',
-    })).toEqual([{ kind: 'agent.end', source: 'codex', agent: 'codex', session: 'b5f6c1c2', status: 'ok', message: 'Rename complete.' }]);
+    })).toEqual([{ kind: 'agent.end', source: 'codex', agent: 'main', session: 'b5f6c1c2', status: 'ok', message: 'Rename complete.' }]);
   });
 
   it('accepts the identity/tokens fields and stays permissive', () => {

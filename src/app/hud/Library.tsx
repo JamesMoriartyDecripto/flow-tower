@@ -324,8 +324,8 @@ export function Library() {
         <AlertsPill onOpen={() => { showLibrary(false); useHub.getState().show('alerts'); }} />
         <label className="search" title="Filter by name, description, tag or model">
           <span className="dim">⌕</span>
+          {/* No autoFocus: on first load H must reach the scene's keys, not type into this box. / focuses it. */}
           <input
-            autoFocus
             value={filter}
             placeholder="Filter projects"
             onChange={(e) => setFilter(e.target.value)}

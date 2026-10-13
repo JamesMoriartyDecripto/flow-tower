@@ -10,8 +10,11 @@ import { splitTarget, type FlowEvent } from '../core/events';
 export const RUN_MS = 120_000;
 /** Idle up to fifteen minutes: past that the row is silent (the machine spoke, but long ago). */
 export const IDLE_MS = 900_000;
+/** An ended session stays listed for ten minutes after its end, then the row is dropped. */
+export const ENDED_MS = 600_000;
 
-export type NowState = 'run' | 'idle' | 'silent';
+/** `ended`: the session's last event is session.end. It stays listed for a while, then is dropped. */
+export type NowState = 'run' | 'idle' | 'silent' | 'ended';
 
 /**
  * The last error of a group: when it happened, the node label it landed on and the tool it ran. Never the
@@ -105,11 +108,18 @@ const hashKey = (s: string): string => {
   return (h >>> 0).toString(36);
 };
 
-/** A group is state, then recency: run first, and the more recent first within a state. */
-const stateOf = (last: number, now: number): NowState =>
-  now - last < RUN_MS ? 'run' : now - last < IDLE_MS ? 'idle' : 'silent';
+/**
+ * The state follows the session's last event first: a session.end is ended, an agent.end is idle (the agent
+ * stopped and waits for the user) whatever the clock says. Only otherwise does the clock decide, so a row
+ * never reads "run" after its agent has stopped.
+ */
+const stateOf = (last: number, now: number, lastKind: string): NowState => {
+  if (lastKind === 'session.end') return 'ended';
+  if (lastKind === 'agent.end') return 'idle';
+  return now - last < RUN_MS ? 'run' : now - last < IDLE_MS ? 'idle' : 'silent';
+};
 
-const RANK: Record<NowState, number> = { run: 0, idle: 1, silent: 2 };
+const RANK: Record<NowState, number> = { run: 0, idle: 1, silent: 2, ended: 3 };
 
 /**
  * One row per (machine, session) seen among the live events; events with no session fall back to the old
@@ -147,6 +157,9 @@ export function nowRows(events: FlowEvent[], now: number, resolve: ResolveTarget
       if (e.targets.length && (!latestTarget || e.ts > latestTarget.ts)) latestTarget = e;
       if (isError(e) && (!error || e.ts > error.ts)) error = e;
     }
+    const state = stateOf(last, now, latest.kind);
+    // An ended session is history: once it is older than the window, the row goes entirely.
+    if (state === 'ended' && now - last > ENDED_MS) continue;
     const target = latestTarget?.targets[0];
     const labels = target !== undefined ? resolve(target) : undefined;
     const row: NowRow = {
@@ -159,7 +172,7 @@ export function nowRows(events: FlowEvent[], now: number, resolve: ResolveTarget
       node: labels?.node,
       target,
       last,
-      state: stateOf(last, now),
+      state,
       count: list.length,
     };
     if (error) {
@@ -173,7 +186,7 @@ export function nowRows(events: FlowEvent[], now: number, resolve: ResolveTarget
     }
     rows.push(row);
   }
-  // Run, idle, silent; newest first inside each; the key breaks a tie so the order never depends on input.
+  // Run, idle, silent, ended; newest first inside each; the key breaks a tie so the order never depends on input.
   return rows.sort((a, b) =>
     RANK[a.state] - RANK[b.state] ||
     b.last - a.last ||
