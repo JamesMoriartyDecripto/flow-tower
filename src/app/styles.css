@@ -130,6 +130,9 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .prompt mark { background: color-mix(in srgb, var(--orange) 20%, transparent); color: var(--amber); padding: 0 2px; }
 .filelist button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: 1px solid var(--line-soft); margin-bottom: 6px; font: 13px var(--mono); text-align: left; }
 .filelist button:hover { border-color: var(--orange); background: color-mix(in srgb, var(--orange) 8%, transparent); }
+/* Not written yet: same box as the other rows, but dimmed and inert, so it reads as status rather than an action. */
+.filelist button.missing, .filelist button:disabled { opacity: 0.55; cursor: default; }
+.filelist button.missing:hover, .filelist button:disabled:hover { border-color: var(--line-soft); background: none; }
 .filelist .ext { font: 600 9px var(--display); color: var(--bg); background: var(--orange); padding: 3px 5px; min-width: 38px; text-align: center; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .enter { margin: 0 18px 16px; }

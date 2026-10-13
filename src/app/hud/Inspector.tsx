@@ -199,11 +199,12 @@ function Files({ node, tower }: { node: ResolvedNode; tower: string }) {
         <Section title="Related files">
           <div className="filelist">
             {files.map((f, i) => missingOptional.includes(f) ? (
-              // Optional and not written yet: nothing to open, and no error either.
-              <span key={f} className="dim" title="A run writes this file; it does not exist yet">
+              // Optional and not written yet: nothing to open, and no error either. Rendered as a disabled
+              // row (same element as the others) so it keeps the box and badge spacing instead of bare text.
+              <button key={f} className="missing" disabled title="A run writes this file; it does not exist yet">
                 <span className="ext">{(f.split('.').pop() ?? '').toUpperCase().slice(0, 4)}</span>
                 {f} <span className="dim">· not generated yet</span>
-              </span>
+              </button>
             ) : (
               <button key={f} onClick={() => open(files, i)} title={`Open ${f}`}>
                 <span className="ext">{(f.split('.').pop() ?? '').toUpperCase().slice(0, 4)}</span>
