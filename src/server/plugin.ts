@@ -127,7 +127,8 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         startSync: (settings) => settings.token
           ? startShareSync({ home: USER_HOME, url: settings.url, token: settings.token, warn: (message) => server.config.logger.warn(message) })
           : undefined,
-        log: (message) => server.config.logger.info(message),
+        // warn, not info: the CLI runs Vite at logLevel 'warn', and the user must see a connect or a refusal.
+        log: (message) => server.config.logger.warn(message),
       });
       // The hub side of #91: heartbeats and accepted events keep this list fresh; the UI reads it below.
       const satellites = createSatellites();

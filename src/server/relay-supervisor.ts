@@ -91,8 +91,9 @@ export function createRelaySupervisor<R extends SupervisedRelay>(opts: RelaySupe
       log(`flow-tower: connected to ${url} as ${settings.machine ?? 'this machine'} (queued events from the old name were dropped)`);
     } else if (last && (last.url !== settings.url || last.token !== settings.token)) {
       // Credentials only: the queue is kept and the relay flushes right away. The token is never logged.
-      relay.setCredentials({ url, token: settings.token });
+      // Logged first, so the relay's own "hub online" line reads as the result of the change.
       log(`flow-tower: hub credentials changed (${url})`);
+      relay.setCredentials({ url, token: settings.token });
     }
 
     // The sync re-reads its own config each tick, so it only needs starting, not restarting, on a change.

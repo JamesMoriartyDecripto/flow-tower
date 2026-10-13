@@ -349,7 +349,8 @@ export function createRelay(opts: RelayOptions) {
     const word = stateWord();
     if (word === reported) return;
     reported = word;
-    opts.onStateChange?.(word, lastError);
+    // An online relay has no error to report, even if the last failure's text is still kept for the UI.
+    opts.onStateChange?.(word, word === 'online' ? undefined : lastError);
   };
 
   const stop = () => {
@@ -396,6 +397,8 @@ export function createRelay(opts: RelayOptions) {
     held = false;
     backoff = 0;
     unreachable = false;
+    // The old token's refusal no longer applies: a stale error would read as if the new token failed too.
+    lastError = undefined;
     clearRecheckTimer();
     lastAttempt = now() - MIN_GAP_MS;
     scheduleHeartbeat(0);
