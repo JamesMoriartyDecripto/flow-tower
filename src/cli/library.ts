@@ -85,16 +85,31 @@ function storedLibrary(config: Record<string, unknown>): string[] {
 const same = (a: string, b: string) => a === b || realOrSelf(a) === realOrSelf(b);
 
 /**
+ * True when one of the two paths holds the other: a listed folder that holds the new tower, or a new folder
+ * that holds a listed tower. Either way the loader would read the same tower twice. Real paths, as `same`.
+ */
+const coversSameTower = (listed: string, abs: string) => {
+  const a = realOrSelf(listed);
+  const b = realOrSelf(abs);
+  return within(a, b) || within(b, a);
+};
+
+/**
  * Adds one tower to the library in the user folder's config. Shared by `library add` and `share` (#164), so
  * both refuse and deduplicate the same way. The config is re-read right before the write: another command
  * may have written meanwhile, and the write must build on what is on disk now.
  */
-export function addToLibrary(home: string, abs: string): { added: boolean; reason?: string; warning?: string } {
+export function addToLibrary(home: string, abs: string): { added: boolean; reason?: string; warning?: string; via?: string } {
   const check = checkPath(abs, { checkout: PKG_ROOT, home });
   if (!check.ok) return { added: false, reason: check.reason };
   const library = storedLibrary(readUserConfig(home));
   // Write only when the list grew: an add that changed nothing must not rewrite the user's file.
   if (library.some((p) => same(p, abs))) return { added: false };
+  // A tower already reached through a listed folder, or a folder already holding a listed tower, would be
+  // loaded twice: refuse it and name the entry that already covers it.
+  const covered = library.find((p) => coversSameTower(p, abs));
+  // Not a refusal: the tower is already there, so the caller says so and carries on (exit 0).
+  if (covered !== undefined) return { added: false, via: covered };
   writeUserConfig(home, { library: [...library, abs] });
   return { added: true, warning: check.warning };
 }
@@ -114,7 +129,7 @@ export function run(args: string[]): number {
         const abs = resolve(arg);
         const r = addToLibrary(home, abs);
         if (r.reason !== undefined) { console.log(`refused: ${r.reason}`); refused = true; continue; }
-        if (!r.added) { console.log(`already in: ${abs}`); continue; }
+        if (!r.added) { console.log(`already in: ${abs}${r.via ? ` (via ${r.via})` : ''}`); continue; }
         console.log(`added: ${abs}`);
         if (r.warning) console.log(`  warning: ${r.warning}`);
       }

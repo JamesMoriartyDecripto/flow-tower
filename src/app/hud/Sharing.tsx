@@ -122,7 +122,13 @@ export function SharingSection() {
           <ul className="sharing-towers">
             {sharing.towers.map((t) => {
               const line = towerLine(t, Date.now());
-              return <li key={t.name} className={`mono ${line.tone}`} title={line.title}>{line.text}</li>;
+              // A removed-node warning sits on its own line in amber: the tower is on the hub, but events may not map.
+              return (
+                <li key={t.name} className={`mono ${line.tone}`} title={line.title}>
+                  {line.text}
+                  {t.warning && <div className="sharing-warn">{t.warning}</div>}
+                </li>
+              );
             })}
           </ul>
         </>

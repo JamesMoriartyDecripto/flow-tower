@@ -100,6 +100,7 @@ async function share(dir: string | undefined) {
   const lib = addToLibrary(home, absDir);
   if (lib.reason !== undefined) console.log(`not added to your library: ${lib.reason}`);
   else if (lib.added) console.log(`added to your library: ${absDir}`);
+  else if (lib.via) console.log(`already in your library (via ${lib.via})`);
   if (lib.warning) console.log(`  warning: ${lib.warning}`);
 
   const sender = tokenId(token) ?? 'this-machine';

@@ -13,7 +13,7 @@ export interface SharingState {
   lastError?: string;
   lastPayload?: Record<string, unknown>;
   /** The shared towers and when each last synced (#164), present when the sync loop runs. */
-  towers?: { name: string; syncedAt?: number; error?: string }[];
+  towers?: { name: string; syncedAt?: number; error?: string; warning?: string }[];
 }
 
 export const SHARING_OFF: SharingState = { state: 'off' };

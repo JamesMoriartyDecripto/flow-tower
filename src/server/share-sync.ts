@@ -6,9 +6,11 @@
  *
  * A folder that disappeared is an error for that share, never an automatic unshare: the user decides that.
  */
+import { parse as parseYaml } from 'yaml';
 import { readUserConfig } from './user-config.ts';
 import { ShareSchema, type Share } from './config.ts';
-import { collectTower, fingerprint, uploadTower, type CollectResult } from './share-client.ts';
+import { collectTower, fingerprint, uploadTower, type CollectResult, type SharedFile } from './share-client.ts';
+import { isTowerFile } from './share-rules.ts';
 
 export interface ShareSyncOptions {
   /** The user folder holding config.json. */
@@ -26,6 +28,41 @@ export interface TowerSyncState {
   name: string;
   syncedAt?: number;
   error?: string;
+  /** Set when the last accepted upload dropped nodes: events that name them will show as unmapped. */
+  warning?: string;
+}
+
+/** How many removed node keys the warning names before it says `and N more`: a long list helps nobody. */
+const WARN_KEYS_CAP = 5;
+
+/**
+ * The `layer.node` keys of every tower file in `files`. A file that does not parse contributes nothing: the
+ * loader already refused such a folder before it got here, so this only has to be tolerant, not strict.
+ * Keys carry no file name: a node moved from one tower file to another is not a removed node.
+ */
+function nodeKeysOf(files: SharedFile[]): Set<string> {
+  const keys = new Set<string>();
+  for (const f of files) {
+    if (!isTowerFile(f.path)) continue;
+    let doc: unknown;
+    try { doc = parseYaml(f.content); } catch { continue; }
+    const layers = (doc as { layers?: unknown } | null)?.layers;
+    if (!Array.isArray(layers)) continue;
+    for (const layer of layers as { id?: unknown; nodes?: unknown }[]) {
+      if (typeof layer?.id !== 'string' || !Array.isArray(layer.nodes)) continue;
+      for (const node of layer.nodes as { id?: unknown }[]) {
+        if (typeof node?.id === 'string') keys.add(`${layer.id}.${node.id}`);
+      }
+    }
+  }
+  return keys;
+}
+
+/** The warning text for removed keys, e.g. `removed nodes: a.b, c.d (...)`. */
+function removedText(removed: string[]): string {
+  const shown = removed.slice(0, WARN_KEYS_CAP).join(', ');
+  const more = removed.length > WARN_KEYS_CAP ? ` and ${removed.length - WARN_KEYS_CAP} more` : '';
+  return `removed nodes: ${shown}${more} (events naming them will show as unmapped)`;
 }
 
 export interface ShareSync {
@@ -60,6 +97,11 @@ export function startShareSync(opts: ShareSyncOptions): ShareSync {
   let status = new Map<string, TowerSyncState>();
   // The last error message warned per share name: one line per distinct error, not one per tick.
   const warned = new Map<string, string>();
+  // The node keys the hub last accepted, per share name. Empty until the first accepted upload, so the first
+  // upload after a start never reports removals.
+  const accepted = new Map<string, Set<string>>();
+  // The removal text logged per share name: the log gets one line per distinct removal, not one per tick.
+  const warnedRemoval = new Map<string, string>();
   let running: Promise<void> | undefined;
   let stopped = false;
 
@@ -71,9 +113,14 @@ export function startShareSync(opts: ShareSyncOptions): ShareSync {
 
   /** One share: collect, compare, upload. Any failure is recorded and retried by a later tick. */
   const syncOne = async (share: Share, previous: TowerSyncState | undefined, hub: { url: string; token: string }) => {
+    // A failed or unchanged sync is not an upload that removes nothing, so the warning from the last one stands.
+    const carried = {
+      ...(previous?.syncedAt !== undefined ? { syncedAt: previous.syncedAt } : {}),
+      ...(previous?.warning !== undefined ? { warning: previous.warning } : {}),
+    };
     const fail = (message: string): TowerSyncState => {
       warnOnce(share.name, message);
-      return { name: share.name, ...(previous?.syncedAt !== undefined ? { syncedAt: previous.syncedAt } : {}), error: message };
+      return { name: share.name, ...carried, error: message };
     };
     let collected: CollectResult;
     try {
@@ -90,11 +137,25 @@ export function startShareSync(opts: ShareSyncOptions): ShareSync {
       if (!r.ok) return fail(r.error);
       sent.set(share.name, fp);
       warned.delete(share.name);
-      return { name: share.name, syncedAt: Date.now() };
+      // Compare against the set the hub accepted before this upload, then remember this one.
+      const nodes = nodeKeysOf(collected.files);
+      const prior = accepted.get(share.name);
+      accepted.set(share.name, nodes);
+      const removed = prior ? [...prior].filter((k) => !nodes.has(k)) : [];
+      if (removed.length === 0) {
+        warnedRemoval.delete(share.name);
+        return { name: share.name, syncedAt: Date.now() };
+      }
+      const text = removedText(removed);
+      if (warnedRemoval.get(share.name) !== text) {
+        warnedRemoval.set(share.name, text);
+        warn(`flow-tower: share "${share.name}" ${text}`);
+      }
+      return { name: share.name, syncedAt: Date.now(), warning: text };
     }
     // Nothing changed: the hub already holds this version, so the last sync time stands.
     warned.delete(share.name);
-    return { name: share.name, ...(previous?.syncedAt !== undefined ? { syncedAt: previous.syncedAt } : {}) };
+    return { name: share.name, ...carried };
   };
 
   async function tick(): Promise<void> {
@@ -117,6 +178,8 @@ export function startShareSync(opts: ShareSyncOptions): ShareSync {
     const names = new Set(shares.map((s) => s.name));
     for (const name of [...sent.keys()]) if (!names.has(name)) sent.delete(name);
     for (const name of [...warned.keys()]) if (!names.has(name)) warned.delete(name);
+    for (const name of [...accepted.keys()]) if (!names.has(name)) accepted.delete(name);
+    for (const name of [...warnedRemoval.keys()]) if (!names.has(name)) warnedRemoval.delete(name);
     for (const share of shares) {
       next.set(share.name, await syncOne(share, status.get(share.name), hub));
     }
