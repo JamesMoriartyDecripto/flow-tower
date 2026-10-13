@@ -114,6 +114,8 @@ Without `--token`, `connect` asks the hub (`POST /api/hub/enroll`) for a token n
 only for a tailnet login in its `viewers`; the same login connecting the same machine again gets a new
 token and the old one is revoked. Other hubs: `connect <url> --token ft_… --machine laptop --user alice`.
 
+Keep the local library running with `flow-tower service install` (systemd user unit or launchd agent; `service status`, `service uninstall`): hooks post to it, and Claude Code's http hooks lose events while it is down. `emit` on a satellite posts to the running library, or straight to the hub when none runs, never to a default port.
+
 `connect` writes `role`, `url`, `token` (and machine/user) into the user folder's `config.json`, then
 sends one heartbeat: `connected to … as laptop`, or a 401 / unreachable message. The guided version, for an
 agent walking a user through it: [`skills/flow-tower-satellite`](../skills/flow-tower-satellite/SKILL.md).
