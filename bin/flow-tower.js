@@ -88,7 +88,8 @@ Options
                  Reaching the server through a proxy means hub mode: requires --hub
       --no-update-check  Do not ask GitHub once a day whether a newer release exists
                  (also FLOW_TOWER_NO_UPDATE_CHECK=1; always off in CI)
-      --url      emit: server URL (default: the local server this user folder started, else http://127.0.0.1:5317);
+      --url      emit: server URL (default: the local server this user folder started, else http://127.0.0.1:5317;
+                 a satellite with no live local server posts to its hub url instead, never to 5317);
                  a second server runs on another --port
                  user and machine are added by default only for a loopback URL (127.0.0.1, ::1, localhost):
                  to any other host they are sent only when given explicitly (--user/--machine, or
@@ -278,11 +279,15 @@ async function emit() {
   });
   // An explicit --url always wins. Otherwise the server this user folder started (#187) is the local default,
   // so a server on another port needs no flag; the fixed 5317 is only the fallback when no live server is recorded.
-  // A satellite (#91) posts to the LOCAL relay, not to the config url (which names the hub): the local
-  // server carries the hub token itself, so posting the config token there would only earn a 401 and lose
-  // the event. Anything else keeps the config url, flags win.
-  const localDefault = localServerUrl({ env }) ?? 'http://127.0.0.1:5317';
-  const url = explicit('url') ? values.url : cfg.role === 'satellite' ? localDefault : cfg.url ?? localDefault;
+  // A satellite (#91) posts to the LOCAL relay when one is recorded as live, and otherwise straight to the hub
+  // the config names: with no live record, 5317 may be another server's port, so it is never a satellite's target.
+  // The local relay carries the hub token itself, so the config token is not sent there (it would only earn a 401).
+  const liveLocal = localServerUrl({ env });
+  const url = explicit('url') ? values.url
+    : cfg.role === 'satellite' ? liveLocal ?? cfg.config.url
+      : cfg.url ?? liveLocal ?? 'http://127.0.0.1:5317';
+  // A satellite with neither a live relay nor a hub url has nowhere correct to post: post nothing, never guess.
+  if (!url) return;
 
   const params = new URLSearchParams(Object.entries({ source: values.source, tower: values.tower }).filter(([, v]) => v));
   const query = params.size ? `?${params}` : '';
@@ -304,7 +309,8 @@ async function emit() {
   // it stopped), the event would be lost. Fall back once to the hub the config names, with the config token
   // (same origin as that url, so the token rule holds). HTTP hooks of Claude Code, Codex and the rest cannot
   // fall back: they are not our code and post to the local server directly, so `service install` is the fix.
-  const hubFallback = cfg.role === 'satellite' && !explicit('url') && cfg.config.url && cfg.config.token && url !== cfg.config.url;
+  // Only a satellite that posted to a live local relay has a hub to fall back to; posting straight to the hub has none.
+  const hubFallback = cfg.role === 'satellite' && !explicit('url') && liveLocal && cfg.config.url && cfg.config.token && url !== cfg.config.url;
   const post = async (events) => {
     if (!(await send(url, events, headers)) || !hubFallback) return;
     const hubHeaders = { ...headers, 'x-flow-tower-token': cfg.config.token };

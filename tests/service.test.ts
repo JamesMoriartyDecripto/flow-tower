@@ -169,4 +169,21 @@ describe('emit hub fallback', () => {
     expect(out).toBe('');
     expect(hits).toEqual([{ token: TOKEN, path: '/api/events' }]);
   });
+
+  it('a satellite with no live local record posts once to its hub with the token, never to 5317', async () => {
+    // No local-server.json: the library is not running, so the only correct target is the config hub.
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ role: 'satellite', url: hubUrl, token: TOKEN, machine: 'laptop' }));
+
+    const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, FLOW_TOWER_HOME: home };
+    const child = spawn(process.execPath, [join(CHECKOUT, 'bin', 'flow-tower.js'), 'emit', '--kind', 'turn'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    child.stdout.on('data', (c) => { out += c; });
+    child.stderr.on('data', (c) => { out += c; });
+    const exit = await new Promise<number | null>((r) => child.on('close', r));
+
+    expect(exit).toBe(0);
+    expect(out).not.toContain(TOKEN);
+    // Exactly one POST, to the hub: the 5317 default never received one from this satellite.
+    expect(hits).toEqual([{ token: TOKEN, path: '/api/events' }]);
+  });
 });
