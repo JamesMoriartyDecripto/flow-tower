@@ -99,7 +99,7 @@ passes when the answer contains it (case-insensitive), and `a / b` means either 
 - facts: queued | 5000
 
 ## Q24. Which file owns the per-sender tokens in the code?
-- docs: docs/architecture.md
+- docs: docs/architecture-server.md, docs/architecture.md
 - facts: src/server/tokens.ts
 
 ## Q25. How do I start from an example tower?

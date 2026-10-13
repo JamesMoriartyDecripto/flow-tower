@@ -43,7 +43,8 @@ export function resolveKey() {
 export const DOCS = [
   'docs/getting-started.md', 'docs/what-goes-where.md', 'docs/schema.md', 'docs/generate-a-tower.md',
   'docs/realtime.md', 'docs/command-center.md', 'docs/hub-reference.md', 'docs/voice.md',
-  'docs/architecture.md', 'examples/command-center/README.md', 'examples/team-hub/README.md',
+  'docs/architecture.md', 'docs/architecture-server.md', 'docs/architecture-cli.md', 'docs/architecture-app.md',
+  'docs/best-practices.md', 'docs/reports.md', 'examples/command-center/README.md', 'examples/team-hub/README.md',
   'examples/dev-squad/README.md', 'skills/flow-tower-costs/SKILL.md',
   'skills/flow-tower-use-example/SKILL.md', 'skills/flow-tower-contribute/SKILL.md', 'NEXT.md', 'README.md',
 ];
