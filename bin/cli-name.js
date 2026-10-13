@@ -16,9 +16,20 @@ const CHECKOUT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const OTHER_MACHINE_SUFFIX = ' (or node <their checkout>/bin/flow-tower.js)';
 export const OTHER_MACHINE_CLI = `flow-tower${OTHER_MACHINE_SUFFIX}`;
 
-/** A path as one shell word: quoted when it has a space, so the hint can be pasted as it is. */
+/**
+ * POSIX single-quoting: the shell reads the value verbatim, so `$`, backticks and quotes in a path cannot run code
+ * when the hint is pasted. An embedded `'` becomes `'\''` (close, escaped quote, reopen).
+ */
+export function shellQuote(value) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+/**
+ * A path as one shell word. Only characters outside the safe set get quoted: a plain path stays readable in
+ * the hint, and a path with a space, `"`, `$` or `'` still pastes as the same single word.
+ */
 export function shellPath(path) {
-  return /\s/.test(path) ? `"${path}"` : path;
+  return /^[A-Za-z0-9_@%+=:,./-]+$/.test(path) ? path : shellQuote(path);
 }
 
 /**

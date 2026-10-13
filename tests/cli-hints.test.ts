@@ -46,7 +46,7 @@ describe('cliName (#193)', () => {
   });
 
   it('quotes a checkout path that has a space', () => {
-    expect(shellPath('/a b/bin/flow-tower.js')).toBe('"/a b/bin/flow-tower.js"');
+    expect(shellPath('/a b/bin/flow-tower.js')).toBe("'/a b/bin/flow-tower.js'");
     expect(shellPath('/ab/flow-tower.js')).toBe('/ab/flow-tower.js');
   });
 
@@ -116,5 +116,19 @@ describe('copy --list marks dogfood towers (#193)', () => {
     const line = list().stdout.split('\n').find((l) => l.startsWith('dev-squad '));
     expect(line).toBeDefined();
     expect(line).not.toContain('needs adapting');
+  });
+});
+
+describe('shellPath round-trips through the shell (#193)', () => {
+  it('a checkout path with a space, a double quote, a dollar sign and a single quote pastes as one word', () => {
+    const odd = "/srv/my dir/a\"b$HOME/it's";
+    // Pasting the hint runs it through sh; the printed word must come back byte for byte, not expanded.
+    const r = spawnSync('sh', ['-c', `printf %s ${shellPath(odd)}`], { encoding: 'utf8' });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe(odd);
+  });
+
+  it('leaves a plain path unquoted', () => {
+    expect(shellPath('/home/me/flow-tower/bin/flow-tower.js')).toBe('/home/me/flow-tower/bin/flow-tower.js');
   });
 });
