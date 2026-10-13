@@ -45,7 +45,7 @@ To stop later: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub; `<na
 
 ## 5. Start the local library
 
-`{{FLOW_TOWER_CLI}} library --no-open [--port N]`, and keep it running: in the background (`nohup … > ~/flow-tower.log 2>&1 & echo $! > ~/flow-tower.pid`, keeping any `FLOW_TOWER_HOME` the machine uses on the same line) or in a terminal the user leaves open. If it was already running, restart it (`kill $(cat ~/flow-tower.pid)`, or `pkill -f 'flow-tower.js library'`; never a pattern your own command line contains): it reads the connection at start. An `ExperimentalWarning` about SQLite in the log is normal. The relay and the tower sync run inside it: `connect` and `share` alone send no live events and keep nothing in sync. From now on a change to a shared tower reaches the hub within ~15 s.
+`{{FLOW_TOWER_CLI}} library --no-open [--port N]`, and keep it running: in the background (`nohup … > ~/flow-tower.log 2>&1 & echo $! > ~/flow-tower.pid`, keeping any `FLOW_TOWER_HOME` the machine uses on the same line) or in a terminal the user leaves open. If it was already running, leave it: it picks up `connect` within 5 s, with no restart. An `ExperimentalWarning` about SQLite in the log is normal. The relay and the tower sync run inside it: `connect` and `share` alone send no live events and keep nothing in sync. From now on a change to a shared tower reaches the hub within ~15 s.
 
 ## 6. Live events from the agents (ask first)
 
@@ -74,7 +74,8 @@ Other agents: [docs/realtime.md](../../docs/realtime.md#sources).
 | `cannot reach <url>` | Tailscale down or another tailnet (`tailscale status`), or a typo in the address. |
 | `not connected: run flow-tower connect` | Do step 3 first. |
 | `your library is empty` (step 5) | Share a tower first (step 4), or `{{FLOW_TOWER_CLI}} library add <tower folder>`. |
-| `a sender token is required` (401) on share | The token was revoked or paused on the hub: run `connect` again, or ask the hub owner. |
+| `a sender token is required` (401) on share | The token was revoked on the hub: run `connect` again, or ask the hub owner. |
+| `/api/sharing` says `held`, or the CLI says `this machine is paused on the hub` | The hub owner paused this machine: nothing to do here, it resumes by itself when they resume it. |
 | `this hub has no library folder` (503) / `could not store the shared tower` (500) | Hub side: its owner checks the library folder exists and the service may write `towers/` (kit: `ReadWritePaths`). |
 | a `400` naming a file or a limit | Fix that file, or share YAML only. |
 | `/api/sharing` shows another `hub`, or towers you did not share | Another server answered on that port: stop it or use another `--port`. |
