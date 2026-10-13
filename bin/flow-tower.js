@@ -67,6 +67,9 @@ Usage
                                                         (claude-code, codex, pi, hermes, or all; no --target: every one found)
   flow-tower hooks status | uninstall [--target <t>] [--project]
                                                         show where the hooks are wired; remove only flow-tower's entries
+  flow-tower service install | status | uninstall [--port N]
+                                                        run the library as a user service (systemd on Linux, launchd on
+                                                        macOS) so hooks always reach it and no event is lost
 
   Directories are scanned recursively for *.tower.yaml. Several projects open as a library.
   Live events: POST JSON to http://127.0.0.1:<port>/api/events (see docs/realtime.md).
@@ -291,9 +294,22 @@ async function emit() {
   const configToken = cfg.config.token && cfg.config.url && sameOrigin(cfg.config.url, url) ? cfg.config.token : undefined;
   const token = values.token ?? (envToken || undefined) ?? configToken;
   if (token) headers['x-flow-tower-token'] = token;
-  const post = (events) => fetch(`${url}/api/events${query}`, {
-    method: 'POST', headers, body: JSON.stringify(events), signal: AbortSignal.timeout(1500),
-  }).catch(() => {});
+  // Posts to one url. Resolves to true when the request was refused at the connection (ECONNREFUSED or
+  // a socket error before any reply), so the caller can fall back; an HTTP answer of any status is a reply.
+  // Only ECONNREFUSED counts: a timeout or a DNS failure may mean the event did arrive, so it is not re-sent.
+  const send = (target, events, sendHeaders) => fetch(`${target}/api/events${query}`, {
+    method: 'POST', headers: sendHeaders, body: JSON.stringify(events), signal: AbortSignal.timeout(1500),
+  }).then(() => false, (err) => err?.cause?.code === 'ECONNREFUSED');
+  // A satellite's local server is the relay: when nothing listens there (the library was never started, or
+  // it stopped), the event would be lost. Fall back once to the hub the config names, with the config token
+  // (same origin as that url, so the token rule holds). HTTP hooks of Claude Code, Codex and the rest cannot
+  // fall back: they are not our code and post to the local server directly, so `service install` is the fix.
+  const hubFallback = cfg.role === 'satellite' && !explicit('url') && cfg.config.url && cfg.config.token && url !== cfg.config.url;
+  const post = async (events) => {
+    if (!(await send(url, events, headers)) || !hubFallback) return;
+    const hubHeaders = { ...headers, 'x-flow-tower-token': cfg.config.token };
+    await send(cfg.config.url, events, hubHeaders);
+  };
 
   // Defaults so identity is never empty on a loopback target; a payload or an explicit flag always wins (#82).
   // The config's user/machine are explicit (like a flag), so the loopback rule only guards the os fallback.

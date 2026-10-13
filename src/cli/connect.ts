@@ -18,6 +18,7 @@ import { userHome } from '../core/secrets.ts';
 import { writeUserConfig } from '../server/user-config.ts';
 import { machineId } from './machine-id.ts';
 import { cliName, OTHER_MACHINE_CLI } from '../../bin/cli-name.js';
+import { localServerUrl } from '../../bin/local-server.js';
 
 // Read once, the way bin/flow-tower.js and plugin.ts do: the heartbeat names the version the relay sends.
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -128,6 +129,10 @@ try {
     const rotated = enrolled?.rotated ? ' (the previous token of this machine was revoked)' : '';
     console.log(`connected to ${url} as ${sender}${rotated}`);
     console.log(`next: ${cliName()} hooks install   (wires Claude Code, Codex, Pi, Hermes on this machine)`);
+    // Without a running library the hooks have nowhere local to post: say how to keep one running.
+    if (!localServerUrl({ env: process.env, home: userHome() })) {
+      console.log(`next: ${cliName()} service install   (keeps your library running, so no event is lost)`);
+    }
   } else if (res.status === 401 || res.status === 403) {
     // The config is written anyway: the relay queues events and stops sending, so nothing is lost by hand.
     console.error(`the hub refused this token (${res.status}): ${written}, but the relay will not send until it is fixed.

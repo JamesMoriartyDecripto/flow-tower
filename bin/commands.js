@@ -75,6 +75,12 @@ export const TS_COMMANDS = [
   },
   // `library` is a TS command only with a subcommand (add/list/remove); see findTsCommand.
   { name: 'library', script: 'library.ts', extra: () => [] },
+  // `--port` has a default in parseArgs, so it is passed only when typed: the service then takes the recorded port.
+  {
+    name: 'service',
+    script: 'service.ts',
+    extra: (values) => (process.argv.some((a) => a === '--port' || a.startsWith('--port=')) ? ['--port', values.port] : []),
+  },
 ];
 
 /** Every `--source <file>` and `--source=<file>` on the command line, in order, as `--source <file>` pairs. */
