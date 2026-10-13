@@ -55,6 +55,7 @@ export const RULE_LABEL: Record<string, string> = {
   budget: 'Budget',
   'error-spike': 'Error spike',
   'new-host': 'New host',
+  errors: 'Errors',
 };
 
 /**

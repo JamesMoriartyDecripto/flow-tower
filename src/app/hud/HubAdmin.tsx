@@ -9,7 +9,8 @@ import { RULE_LABEL } from './HubAlerts';
 import { NotifySection } from './HubAdminNotify';
 
 /** The alert rules the server knows (src/server/alerts.ts RULES). The browser keeps its own copy: the server module is Node only. */
-const RULES = ['silent', 'budget', 'error-spike', 'new-host'];
+// Same order as RULES in src/server/alerts.ts: the switches list every rule the server evaluates.
+const RULES = ['silent', 'budget', 'error-spike', 'new-host', 'errors'];
 
 /** What the add-sender box shows once: the token and the connect line. Held only while the box is open. */
 interface Shown { id: string; token: string; configLine: string }
