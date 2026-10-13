@@ -12,11 +12,13 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { argv, env, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
+import type { Browser } from '@playwright/test';
 import { checkDocument, coverage, failedChecks, type DomFacts, type WorkspaceFacts } from '../core/doc-check.ts';
 import { towerDoc } from '../core/doc.ts';
 import { fileKey } from '../core/docFiles.ts';
 import { libraryDoc, libraryProjects } from '../core/docLibrary.ts';
 import { loadLibrary } from '../core/loader.ts';
+import { glMode, launchBrowser } from './browser.ts';
 
 /** The file-name slug; the app's own copy lives in exportSvg.ts, which Node cannot load here (extensionless imports). */
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'tower';
@@ -104,22 +106,6 @@ function startServer(target: string, port: number, home: string): ChildProcess {
   });
 }
 
-/** Launches Chromium; if the bundled one is missing, the installed Chrome. Null when neither starts. */
-async function launchBrowser() {
-  const { chromium } = await import('@playwright/test');
-  // Software WebGL (SwiftShader): the 3D figures render on servers without a GPU, where the default GL is missing.
-  const args = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
-  try {
-    return await chromium.launch({ args });
-  } catch {
-    try {
-      return await chromium.launch({ channel: 'chrome', args });
-    } catch {
-      return null;
-    }
-  }
-}
-
 /** The tower the document prints: the first project, which is the root tower the server lists first. */
 async function towerIdFor(target: string): Promise<string> {
   const { workspace } = await loadLibrary([target]);
@@ -183,8 +169,18 @@ async function run(opts: Options, signal: AbortSignal): Promise<number> {
   const port = opts.port ?? await freePort();
   const base = `http://127.0.0.1:${port}`;
   const server = startServer(target, port, home);
-  const browser = await launchBrowser();
+  // Declared before the try so the finally can close it; the launch itself sits inside the try, so a throw
+  // there still stops the server and removes the temp home.
+  let browser: Browser | null = null;
   try {
+    const { chromium } = await import('@playwright/test');
+    // The 3D figures need WebGL; the shared launcher picks GPU or software from FLOW_TOWER_GL, as the report does.
+    browser = await launchBrowser({
+      webgl: true,
+      launch: (options) => chromium.launch(options),
+      mode: glMode(env.FLOW_TOWER_GL),
+      log: (line) => console.log(line),
+    });
     if (!browser) { console.error(INSTALL_HINT); return 1; }
     await waitForServer(base, PAGE_TIMEOUT_MS, signal);
     const towerId = await towerIdFor(target);

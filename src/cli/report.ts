@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
-import { argv, exit } from 'node:process';
+import { argv, env, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { parse as parseYaml } from 'yaml';
@@ -18,6 +18,7 @@ import { renderReport } from '../report/html.ts';
 import type { ReportDoc, Section, Source } from '../report/model.ts';
 import { asObject, optStringList, reqString } from '../report/types/input.ts';
 import { REPORT_TYPES, type ReportType } from '../report/types/index.ts';
+import { glMode, launchBrowser } from './browser.ts';
 
 const USAGE = 'usage: flow-tower report <type> <input.yaml|json> [--source file]... [--drafts drafts.json] [--out file.pdf] [--html file.html] [--list]';
 const INSTALL_HINT = 'install a browser: npx playwright install chromium';
@@ -107,26 +108,19 @@ function applyDrafts(doc: ReportDoc, drafts: Draft[]): void {
   });
 }
 
-/** Chromium prints the page. The bundled build first, then the installed Chrome; null when neither starts. */
-async function launchBrowser() {
-  const { chromium } = await import('@playwright/test');
-  try {
-    return await chromium.launch();
-  } catch {
-    try {
-      return await chromium.launch({ channel: 'chrome' });
-    } catch {
-      return null;
-    }
-  }
-}
-
 /**
  * The PDF bytes of a rendered report. `setContent` loads the page as is; the ready flag is the renderer's own
  * marker, so a page that did not finish is not printed half-made.
  */
-async function printPdf(html: string): Promise<Buffer> {
-  const browser = await launchBrowser();
+async function printPdf(html: string, webgl: boolean): Promise<Buffer> {
+  const { chromium } = await import('@playwright/test');
+  // WebGL is requested only for a page with a 3D figure: most reports print without it, so no GPU flags are used.
+  const browser = await launchBrowser({
+    webgl,
+    launch: (options) => chromium.launch(options),
+    mode: glMode(env.FLOW_TOWER_GL),
+    log: (line) => console.log(line),
+  });
   if (!browser) throw new Error(INSTALL_HINT);
   try {
     const page = await browser.newPage();
@@ -189,7 +183,9 @@ async function run(type: ReportType, positionals: string[], values: ReturnType<t
 
   // With --html alone the PDF is skipped, so a browser is needed only when a PDF is asked for.
   const pdfPath = values.out ?? (values.html === undefined ? `${slug(doc.title)}.pdf` : undefined);
-  const pdf = pdfPath === undefined ? undefined : await printPdf(html);
+  // The tower documentation carries 3D figures; no other report type does. (It is delegated to export, so today
+  // this is always false here; the check keeps the rule in one place if a 3D report type is added.)
+  const pdf = pdfPath === undefined ? undefined : await printPdf(html, type.id === 'tower-documentation');
   if (pdf !== undefined && (pdf.length === 0 || pdf.subarray(0, 4).toString('latin1') !== '%PDF')) {
     console.error('report refused: the printed file is not a PDF; no file written');
     return 1;

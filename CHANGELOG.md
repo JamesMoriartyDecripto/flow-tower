@@ -5,7 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Changed
+- The 3D figures of `flow-tower export --pdf` and `flow-tower report` use the GPU when there is one (#209): one launcher (`src/cli/browser.ts`) starts Chromium with GPU flags, reads the WebGL renderer, and falls back to software WebGL (SwiftShader) when the renderer is software, the probe times out, or the GPU launch fails; it prints which one it used. `FLOW_TOWER_GL=gpu|software` forces the choice. On a laptop with an Intel Iris Xe the dev-squad level-3 export went from 72 s to 16 s.
+- e2e: `FLOW_TOWER_E2E_GPU=1` runs the Playwright project with the GPU flags, for machines that have a GPU; CI stays in software (#209).
+
 ### Fixed
+- `flow-tower export` kills its server and removes its temporary user folder even when the browser launch throws (#209).
 - `flow-tower service` on a real systemd desktop (#194, found in #181): a `systemctl --user stop` no longer leaves the unit `failed` (the server's 130/143 exits are declared as success); `service uninstall` also clears a failed state, so no `not-found failed` unit stays listed; `service status` on a failed unit points to `journalctl --user -u flow-tower`; `service install` says when the library is empty (the service cannot start) and names entries gone from disk.
 - The unit's `ExecStart` names the `node` on PATH that is the running binary (`/usr/bin/node`), not the versioned file it resolves to (`/usr/bin/node-24`), so a Node major upgrade does not break the service; only absolute PATH directories that group and others cannot write are trusted. The `loginctl enable-linger` hint is shown only outside a graphical session (#194).
 - The 3D figures of the tower document never drew in Google Chrome (the browser, `flow-tower export --pdf` without Playwright's headless shell, and the e2e suite): Chrome stops animation frames in an off-screen or hidden iframe, so every snapshot timed out and the document never got ready. The snapshot iframe now stays on screen, inert and out of the tab order, under an opaque veil; both are hidden in print (#181).
