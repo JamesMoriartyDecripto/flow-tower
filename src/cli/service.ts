@@ -128,6 +128,8 @@ After=network.target
 [Service]
 ExecStart=${exec}
 ${env}Restart=on-failure
+# The library exits 143 (SIGTERM) or 130 (SIGINT) on purpose when stopped; systemd must read those as a clean stop, not a failure.
+SuccessExitStatus=130 143
 
 [Install]
 WantedBy=default.target
@@ -309,6 +311,8 @@ function uninstallLinux(ctx: ServiceContext): number {
   ctx.run('systemctl', ['--user', 'disable', '--now', UNIT_NAME]);
   rmSync(unitPath(ctx), { force: true });
   ctx.run('systemctl', ['--user', 'daemon-reload']);
+  // A unit that ended failed stays listed as not-found failed until its state is reset; the reset is harmless when it was clean.
+  ctx.run('systemctl', ['--user', 'reset-failed', UNIT_NAME]);
   ctx.log(`removed ${unitPath(ctx)}`);
   return 0;
 }
