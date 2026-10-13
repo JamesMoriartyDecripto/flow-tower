@@ -96,6 +96,38 @@ export function hubPill(me?: { hub: boolean; online: number; tokens: number }): 
   return `HUB ${me.online}/${me.tokens}`;
 }
 
+/**
+ * One alert as GET /api/hub/alerts shapes it (src/server/alerts.ts). Metadata only: the rule id, the
+ * subject's name and the one-line message the rule wrote, never prompt text.
+ */
+export interface HubAlert {
+  id: string;
+  rule: string;
+  level: 'warning' | 'critical';
+  subject: { kind: string; name: string };
+  message: string;
+  acked?: boolean;
+}
+
+/** The whole /api/hub/alerts answer: the firing alerts and every rule with whether it is enabled. */
+export interface AlertsView {
+  alerts: HubAlert[];
+  rules: { id: string; title: string; enabled: boolean }[];
+}
+
+/**
+ * The alert pill: unacked alerts only (an acked one has been seen, so it no longer asks for attention),
+ * and its colour follows the worst of them. Undefined means hidden, which is the zero case.
+ */
+export function alertsPill(view?: AlertsView): { count: number; level: 'warning' | 'critical' } | undefined {
+  const open = view?.alerts.filter((a) => !a.acked) ?? [];
+  if (!open.length) return undefined;
+  return { count: open.length, level: open.some((a) => a.level === 'critical') ? 'critical' : 'warning' };
+}
+
+/** How many rules are switched on: the Alerts tab says so when nothing fires, so the quiet state still reads as checked. */
+export const activeRules = (view?: AlertsView): number => view?.rules.filter((r) => r.enabled).length ?? 0;
+
 export type MachineDot = '●' | '◐' | '○' | '✕';
 
 /**
