@@ -203,7 +203,7 @@ function Files({ node, tower }: { node: ResolvedNode; tower: string }) {
               // row (same element as the others) so it keeps the box and badge spacing instead of bare text.
               <button key={f} className="missing" disabled title="A run writes this file; it does not exist yet">
                 <span className="ext">{(f.split('.').pop() ?? '').toUpperCase().slice(0, 4)}</span>
-                {f} <span className="dim">· not generated yet</span>
+                <span className="name">{f}</span><span className="note dim">· not generated yet</span>
               </button>
             ) : (
               <button key={f} onClick={() => open(files, i)} title={`Open ${f}`}>

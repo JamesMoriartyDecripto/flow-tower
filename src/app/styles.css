@@ -133,6 +133,10 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 /* Not written yet: same box as the other rows, but dimmed and inert, so it reads as status rather than an action. */
 .filelist button.missing, .filelist button:disabled { opacity: 0.55; cursor: default; }
 .filelist button.missing:hover, .filelist button:disabled:hover { border-color: var(--line-soft); background: none; }
+/* The name and the note are separate flex items. Only the name may shrink (ellipsis); the note keeps its
+   full width and stays on the same line as the name, so neither can wrap into a second row. */
+.filelist .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
+.filelist .note { flex: none; white-space: nowrap; overflow-wrap: normal; color: var(--muted); }
 .filelist .ext { font: 600 9px var(--display); color: var(--bg); background: var(--orange); padding: 3px 5px; min-width: 38px; text-align: center; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .enter { margin: 0 18px 16px; }
