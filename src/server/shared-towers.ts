@@ -25,7 +25,8 @@ export function structuralErrors(issues: Issue[]): Issue[] {
  * its level. A new array is returned; the issues passed in are left as they were.
  */
 export function relaxSharedIssues(issues: Issue[], machine: string): Issue[] {
-  return issues.map((i): Issue => (i.level === 'error' && NOT_ON_HUB.test(i.message)
+  // Warnings too: a node's `files` entry missing on the hub is the same YAML-only case, not a problem to flag.
+  return issues.map((i): Issue => ((i.level === 'error' || i.level === 'warning') && NOT_ON_HUB.test(i.message)
     ? { ...i, level: 'info', message: `${i.message} (shared YAML only: the file stays on ${machine})` }
     : i));
 }

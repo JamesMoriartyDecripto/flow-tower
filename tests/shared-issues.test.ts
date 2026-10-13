@@ -27,12 +27,17 @@ describe('relaxSharedIssues', () => {
     expect(relaxSharedIssues(issues, 'box-1')).toEqual(issues);
   });
 
-  it('leaves warnings and info untouched', () => {
+  it('relaxes a missing-file warning too, and leaves other warnings and info untouched', () => {
     const issues: Issue[] = [
       { level: 'warning', message: 'file not found: x.md' },
+      { level: 'warning', message: 'loop without a limit' },
       { level: 'info', message: 'node has no connections' },
     ];
-    expect(relaxSharedIssues(issues, 'box-1')).toEqual(issues);
+    expect(relaxSharedIssues(issues, 'box-1')).toEqual([
+      { level: 'info', message: 'file not found: x.md (shared YAML only: the file stays on box-1)' },
+      issues[1],
+      issues[2],
+    ]);
   });
 
   it('does not mutate the input issues', () => {
