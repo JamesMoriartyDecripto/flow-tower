@@ -2,9 +2,22 @@ import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync }
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { loadLibrary } from '../core/loader.ts';
+import type { Issue } from '../core/types.ts';
 import { authorize, refusal } from './auth.ts';
 import { crossSite, isJson } from './guard.ts';
 import { checkFiles, shareName } from './share-rules.ts';
+
+/**
+ * The errors that stop a share from replacing the hub's copy. A YAML-only share does not carry the prompt or
+ * agent files the tower names, nor the folders outside the project or the secret files, so the hub reports
+ * those as errors it cannot judge: they are expected here and must not refuse the share. Anything else (a
+ * duplicate id, a bad edge, a YAML syntax error) is structural and does refuse it.
+ */
+const NOT_ON_HUB = /file not found|is outside the project|is a secret file/;
+export function structuralErrors(issues: Issue[]): Issue[] {
+  return issues.filter((i) => i.level === 'error' && !NOT_ON_HUB.test(i.message));
+}
 
 /**
  * Tower folders uploaded by a satellite (#164): the satellite sends its folder signed with its sender token,
@@ -113,6 +126,14 @@ export function sharedTowersHandler({ library, home, hub, legacy }: SharedTowers
         writeFileSync(dest, f.content);
         bytes += Buffer.byteLength(f.content);
       }
+      // Judged before the rename: a broken share must leave the last good copy on the hub, not replace it.
+      const lib = await loadLibrary([staging]);
+      const broken = [...Object.entries(lib.workspace.towers)]
+        .flatMap(([id, t]) => structuralErrors(t.issues).map((i) => ({ file: fileOf(lib, staging, id), message: i.message })));
+      if (broken.length > 0) {
+        rmSync(staging, { recursive: true, force: true });
+        return send(res, 422, { error: `the tower has errors: ${broken[0].file}: ${broken[0].message}`, state: 'invalid' });
+      }
       mkdirSync(own, { recursive: true });
       rmSync(target, { recursive: true, force: true });
       renameSync(staging, target);
@@ -122,6 +143,12 @@ export function sharedTowersHandler({ library, home, hub, legacy }: SharedTowers
       return send(res, 500, { error: 'could not store the shared tower' });
     }
   };
+}
+
+/** The tower file of tower `id` relative to `root`, for a message the user can act on. */
+function fileOf(lib: { files: Map<string, string> }, root: string, id: string): string {
+  const abs = lib.files.get(id);
+  return abs ? relative(root, abs).split(sep).join('/') : id;
 }
 
 /** The shared folders of one sender, sorted; an empty list when the sender has none yet. */
