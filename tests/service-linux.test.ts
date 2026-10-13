@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type RunResult, runService, type ServiceContext, stableNode, unitText } from '../src/cli/service.ts';
+import { type RunResult, runService, type ServiceContext, stableNode, systemdWord, unitText, xml } from '../src/cli/service.ts';
 
 const CHECKOUT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -130,25 +130,45 @@ function fakeReal(links: Record<string, string>) {
 }
 
 /** A fake stat: every directory is a root-owned 0o755 directory, so only the injected `real` decides. */
-const trustedStat = (): { mode: number } => ({ mode: 0o40755 });
+const trustedStat = (): { mode: number; uid: number } => ({ mode: 0o40755, uid: 0 });
+
+/**
+ * The filesystem for the older stableNode tests: directories resolve to themselves, no `node` is a link (the
+ * binaries in `links` are resolved by `real`), so no test reads the real disk.
+ */
+function linkFs(real: (path: string) => string, stat: (path: string) => { mode: number; uid: number }) {
+  return {
+    real: (path: string): string => {
+      try {
+        return real(path);
+      } catch {
+        return path;
+      }
+    },
+    stat,
+    lstat: () => ({ isSymbolicLink: () => false }),
+    readlink: (): string => { throw new Error('no links here'); },
+    uid: 0,
+  };
+}
 
 describe('stableNode', () => {
   const real = fakeReal({ '/usr/bin/node': '/usr/bin/node-24', '/usr/bin/node-24': '/usr/bin/node-24' });
 
   it('names the PATH link that resolves to the same binary as execPath', () => {
-    expect(stableNode('/usr/bin/node-24', '/usr/local/bin:/usr/bin', real, trustedStat)).toBe('/usr/bin/node');
+    expect(stableNode('/usr/bin/node-24', '/usr/local/bin:/usr/bin', linkFs(real, trustedStat))).toBe('/usr/bin/node');
   });
 
   it('keeps execPath when no PATH directory links to it', () => {
-    expect(stableNode('/usr/bin/node-24', '/opt/bin:/usr/local/bin', real, trustedStat)).toBe('/usr/bin/node-24');
+    expect(stableNode('/usr/bin/node-24', '/opt/bin:/usr/local/bin', linkFs(real, trustedStat))).toBe('/usr/bin/node-24');
   });
 
   it('keeps execPath when PATH is undefined', () => {
-    expect(stableNode('/usr/bin/node-24', undefined, real, trustedStat)).toBe('/usr/bin/node-24');
+    expect(stableNode('/usr/bin/node-24', undefined, linkFs(real, trustedStat))).toBe('/usr/bin/node-24');
   });
 
   it('keeps execPath when it cannot be resolved', () => {
-    expect(stableNode('/gone/node', '/usr/bin', real, trustedStat)).toBe('/gone/node');
+    expect(stableNode('/gone/node', '/usr/bin', linkFs(real, trustedStat))).toBe('/gone/node');
   });
 });
 
@@ -157,31 +177,136 @@ describe('stableNode trust checks', () => {
   const real = fakeReal({ '/usr/bin/node': '/usr/bin/node-24', '/usr/bin/node-24': '/usr/bin/node-24', 'node_modules/.bin/node': '/usr/bin/node-24', './node': '/usr/bin/node-24' });
 
   it('skips a relative PATH entry, so ExecStart never becomes relative', () => {
-    expect(stableNode('/usr/bin/node-24', '.:node_modules/.bin:/usr/bin', real, trustedStat)).toBe('/usr/bin/node');
-    expect(stableNode('/usr/bin/node-24', '.:node_modules/.bin', real, trustedStat)).toBe('/usr/bin/node-24');
+    expect(stableNode('/usr/bin/node-24', '.:node_modules/.bin:/usr/bin', linkFs(real, trustedStat))).toBe('/usr/bin/node');
+    expect(stableNode('/usr/bin/node-24', '.:node_modules/.bin', linkFs(real, trustedStat))).toBe('/usr/bin/node-24');
   });
 
   it('skips a directory writable by group', () => {
-    const stat = (dir: string) => ({ mode: dir === '/opt/bin' ? 0o40775 : 0o40755 });
+    const stat = (dir: string) => ({ mode: dir === '/opt/bin' ? 0o40775 : 0o40755, uid: 0 });
     const linked = fakeReal({ '/usr/bin/node-24': '/usr/bin/node-24', '/opt/bin/node': '/usr/bin/node-24', '/usr/bin/node': '/usr/bin/node-24' });
-    expect(stableNode('/usr/bin/node-24', '/opt/bin:/usr/bin', linked, stat)).toBe('/usr/bin/node');
+    expect(stableNode('/usr/bin/node-24', '/opt/bin:/usr/bin', linkFs(linked, stat))).toBe('/usr/bin/node');
   });
 
   it('skips a directory writable by others, even when it is the only match', () => {
-    const stat = () => ({ mode: 0o40777 });
-    expect(stableNode('/usr/bin/node-24', '/usr/bin', real, stat)).toBe('/usr/bin/node-24');
+    const stat = () => ({ mode: 0o40777, uid: 0 });
+    expect(stableNode('/usr/bin/node-24', '/usr/bin', linkFs(real, stat))).toBe('/usr/bin/node-24');
   });
 
   it('skips a directory that cannot be stat-ed', () => {
     const stat = (dir: string) => {
       if (dir === '/usr/bin') throw new Error(`ENOENT: ${dir}`);
-      return { mode: 0o40755 };
+      return { mode: 0o40755, uid: 0 };
     };
     const linked = fakeReal({ '/usr/bin/node-24': '/usr/bin/node-24', '/usr/local/bin/node': '/usr/bin/node-24', '/usr/bin/node': '/usr/bin/node-24' });
-    expect(stableNode('/usr/bin/node-24', '/usr/bin:/usr/local/bin', linked, stat)).toBe('/usr/local/bin/node');
+    expect(stableNode('/usr/bin/node-24', '/usr/bin:/usr/local/bin', linkFs(linked, stat))).toBe('/usr/local/bin/node');
   });
 
   it('accepts a root-owned 0o40755 directory', () => {
-    expect(stableNode('/usr/bin/node-24', '/usr/bin', real, () => ({ mode: 0o40755 }))).toBe('/usr/bin/node');
+    expect(stableNode('/usr/bin/node-24', '/usr/bin', linkFs(real, () => ({ mode: 0o40755, uid: 0 })))).toBe('/usr/bin/node');
+  });
+});
+
+interface FakeEntry { mode: number; uid?: number; link?: string }
+
+/**
+ * A fake filesystem for the trust walk: `entries` maps each path to its mode, owner and link target. Anything
+ * missing throws, as the real calls do. Owners default to root; `uid` is the user running the install.
+ */
+function fakeFs(entries: Record<string, FakeEntry>, uid = 1000) {
+  const get = (path: string): FakeEntry => {
+    if (!(path in entries)) throw new Error(`ENOENT: ${path}`);
+    return entries[path];
+  };
+  return {
+    uid,
+    stat: (path: string) => ({ mode: get(path).mode, uid: get(path).uid ?? 0 }),
+    lstat: (path: string) => ({ isSymbolicLink: () => get(path).link !== undefined }),
+    readlink: (path: string) => get(path).link ?? '',
+    real: (path: string): string => {
+      const entry = get(path);
+      return entry.link === undefined ? path : fakeRealPath(entry.link, path);
+    },
+  };
+  function fakeRealPath(link: string, from: string): string {
+    const abs = link.startsWith('/') ? link : `${from.slice(0, from.lastIndexOf('/'))}/${link}`;
+    return get(abs).link === undefined ? abs : fakeRealPath(get(abs).link as string, abs);
+  }
+}
+
+/** Root-owned system directories and the versioned binary, shared by the trust tests below. */
+const systemTree: Record<string, FakeEntry> = {
+  '/': { mode: 0o40755 },
+  '/usr': { mode: 0o40755 },
+  '/usr/bin': { mode: 0o40755 },
+  '/usr/bin/node-24': { mode: 0o100755 },
+  '/usr/bin/node': { mode: 0o120777, link: 'node-24' },
+};
+
+describe('stableNode path trust', () => {
+  it('skips a PATH entry that is itself a symlink', () => {
+    const fs = fakeFs({ ...systemTree, '/opt': { mode: 0o40755 }, '/opt/link': { mode: 0o120777, link: '/usr/bin' } });
+    expect(stableNode('/usr/bin/node-24', '/opt/link', fs)).toBe('/usr/bin/node-24');
+  });
+
+  it('skips a PATH entry under an ancestor writable by others', () => {
+    const fs = fakeFs({ ...systemTree, '/opt': { mode: 0o40777 }, '/opt/bin': { mode: 0o40755 }, '/opt/bin/node': { mode: 0o120777, link: '/usr/bin/node-24' } });
+    expect(stableNode('/usr/bin/node-24', '/opt/bin:/usr/bin', fs)).toBe('/usr/bin/node');
+  });
+
+  it('skips a PATH entry under an ancestor owned by another uid', () => {
+    const fs = fakeFs({ ...systemTree, '/opt': { mode: 0o40755, uid: 1234 }, '/opt/bin': { mode: 0o40755 }, '/opt/bin/node': { mode: 0o120777, link: '/usr/bin/node-24' } });
+    expect(stableNode('/usr/bin/node-24', '/opt/bin:/usr/bin', fs)).toBe('/usr/bin/node');
+  });
+
+  it('skips a node link whose hop passes through a world-writable directory', () => {
+    const fs = fakeFs({
+      ...systemTree,
+      '/opt': { mode: 0o40755 },
+      '/opt/bin': { mode: 0o40755 },
+      '/opt/bin/node': { mode: 0o120777, link: '/srv/w/node' },
+      '/srv': { mode: 0o40755 },
+      '/srv/w': { mode: 0o40777 },
+      '/srv/w/node': { mode: 0o120777, link: '/usr/bin/node-24' },
+    }, 0);
+    expect(stableNode('/usr/bin/node-24', '/opt/bin', fs)).toBe('/usr/bin/node-24');
+  });
+
+  it('resolves a relative link hop against the directory holding the link', () => {
+    const fs = fakeFs({
+      ...systemTree,
+      '/opt': { mode: 0o40755 },
+      '/opt/bin': { mode: 0o40755 },
+      '/opt/bin/node': { mode: 0o120777, link: '../../usr/bin/node-24' },
+    }, 0);
+    expect(stableNode('/usr/bin/node-24', '/opt/bin', fs)).toBe('/opt/bin/node');
+  });
+
+  it('keeps the Fedora pin: /usr/bin/node links to the versioned binary in root-owned dirs', () => {
+    expect(stableNode('/usr/bin/node-24', '/usr/bin', fakeFs(systemTree, 0))).toBe('/usr/bin/node');
+  });
+});
+
+describe('control characters in unit and plist values', () => {
+  it('systemdWord throws on a newline', () => {
+    expect(() => systemdWord('a\nb')).toThrow(/control character/);
+  });
+
+  it('systemdWord throws on a carriage return and DEL', () => {
+    expect(() => systemdWord('a\rb')).toThrow(/control character/);
+    expect(() => systemdWord('a\x7fb')).toThrow(/control character/);
+  });
+
+  it('xml throws on a carriage return', () => {
+    expect(() => xml('a\rb')).toThrow(/control character/);
+  });
+
+  it('install with a FLOW_TOWER_HOME holding a newline returns 1 and writes no unit', () => {
+    const logs: string[] = [];
+    const { calls, run } = fakeRun();
+    const code = runService(['install', '--port', '5399'], { ...ctx(run, logs), env: { FLOW_TOWER_HOME: 'a\nb' } });
+    expect(code).toBe(1);
+    expect(logs.some((l) => l.startsWith('cannot write the service file: '))).toBe(true);
+    expect(calls).toEqual(['systemctl --version']);
+    expect(existsSync(join(home, '.config', 'systemd', 'user', 'flow-tower.service'))).toBe(false);
   });
 });

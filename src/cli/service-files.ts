@@ -8,17 +8,29 @@
 export const AGENT_LABEL = 'dev.flowtower.library';
 
 /**
+ * Throws when a value holds a control character. A newline or carriage return would end the line it sits on
+ * in the unit file (or split a plist value), so the value is refused rather than written with the break in it.
+ */
+function refuseControl(value: string): void {
+  if (/[\x00-\x1f\x7f]/.test(value)) {
+    throw new Error('value contains a control character (newline, carriage return, tab or similar); remove it from the path or the port');
+  }
+}
+
+/**
  * One word for a systemd ExecStart or Environment= line (systemd.syntax): a value with spaces, quotes or
  * backslashes is double-quoted, with `\` and `"` escaped inside. `$` and `%` are doubled in every case, or
  * systemd would expand them as environment variables and unit specifiers.
  */
 export function systemdWord(value: string): string {
+  refuseControl(value);
   const escaped = value.replaceAll('%', '%%').replaceAll('$', '$$$$').replaceAll('\\', '\\\\').replaceAll('"', '\\"');
   return /[\s"\\]/.test(value) ? `"${escaped}"` : escaped;
 }
 
 /** XML text for a plist: the five predefined entities, so a `&` or `<` in a path stays data. */
 export function xml(value: string): string {
+  refuseControl(value);
   return value
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')

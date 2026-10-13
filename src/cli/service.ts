@@ -5,7 +5,7 @@
  * touch the real home, systemd or launchd. Everything that touches the home folder takes a context.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, userInfo } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -54,39 +54,81 @@ s.on('connect', () => { s.destroy(); process.exit(0); });
 s.on('error', () => process.exit(1));
 setTimeout(() => process.exit(1), 1000).unref();`;
 
+/** The filesystem calls the trust checks make. Injected so tests run on fakes; the defaults are the real fs. */
+export interface NodeFs {
+  real: (path: string) => string;
+  stat: (path: string) => { mode: number; uid: number };
+  lstat: (path: string) => { isSymbolicLink: () => boolean };
+  readlink: (path: string) => string;
+  uid: number;
+}
+
+/**
+ * True when `dir` is safe to hold the node that ExecStart names: absolute, not reached through a symlink, and
+ * the directory and every ancestor up to / belong to root or to `uid` and are not writable by group or others.
+ * systemd resolves the name again at every start, so anyone who can write one of these could swap the binary.
+ */
+export function trustedDir(dir: string, fs: Pick<NodeFs, 'real' | 'stat' | 'uid'>): boolean {
+  if (!isAbsolute(dir)) return false;
+  try {
+    if (fs.real(dir) !== dir) return false;
+    for (let d = dir; ; d = dirname(d)) {
+      const st = fs.stat(d);
+      // 0o022 is the group- and other-write bit.
+      if ((st.uid !== 0 && st.uid !== fs.uid) || (st.mode & 0o022)) return false;
+      if (d === '/') return true;
+    }
+  } catch {
+    return false;
+  }
+}
+
+const MAX_HOPS = 16;
+
+/**
+ * True when `<dir>/node` reaches the same file as `target`, checking each link's directory on the way. A link
+ * hop through an untrusted directory lets someone re-point the name after install, so the walk stops there.
+ */
+function nodeLinkReaches(dir: string, target: string, fs: NodeFs): boolean {
+  let hop = join(dir, 'node');
+  try {
+    for (let hops = 0; ; hops++) {
+      if (!trustedDir(dirname(hop), fs)) return false;
+      if (!fs.lstat(hop).isSymbolicLink()) return fs.real(hop) === target;
+      if (hops === MAX_HOPS) return false;
+      const next = fs.readlink(hop);
+      // A relative link target is relative to the directory holding the link, not to the cwd.
+      hop = isAbsolute(next) ? next : resolve(dirname(hop), next);
+    }
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The node command to write into a unit: a PATH name for execPath when one points at the same file (Fedora's
  * /usr/bin/node links to the versioned binary), else execPath itself. The versioned name (node-24) goes away on
- * the next major upgrade; the plain name follows the upgrade. `real` resolves links and is injected for tests.
+ * the next major upgrade; the plain name follows the upgrade.
  *
  * The name is written verbatim into ExecStart and systemd resolves it again at every start, so only trusted
- * directories count: a relative PATH entry would make ExecStart relative, and a directory that group or others
- * can write to would let someone swap its `node` after install. `stat` is injected for tests too.
+ * directories count (see trustedDir), and every link hop of `<dir>/node` must sit in a trusted directory too.
  */
-export function stableNode(
-  execPath: string,
-  pathVar: string | undefined,
-  real: (path: string) => string = realpathSync,
-  stat: (path: string) => { mode: number } = statSync,
-): string {
+export function stableNode(execPath: string, pathVar: string | undefined, opts: Partial<NodeFs> = {}): string {
+  const fs: NodeFs = {
+    real: opts.real ?? realpathSync,
+    stat: opts.stat ?? statSync,
+    lstat: opts.lstat ?? lstatSync,
+    readlink: opts.readlink ?? readlinkSync,
+    uid: opts.uid ?? (process.getuid?.() ?? -1),
+  };
   let target: string;
   try {
-    target = real(execPath);
+    target = fs.real(execPath);
   } catch {
     return execPath;
   }
   for (const dir of (pathVar ?? '').split(delimiter)) {
-    if (!dir || !isAbsolute(dir)) continue;
-    try {
-      // 0o022 is the group- and other-write bit: a directory open to other users is not a place to pin a node.
-      if (stat(dir).mode & 0o022) continue;
-    } catch {
-      continue;
-    }
-    const candidate = join(dir, 'node');
-    try {
-      if (real(candidate) === target) return candidate;
-    } catch { /* no node in this directory: keep looking */ }
+    if (trustedDir(dir, fs) && nodeLinkReaches(dir, target, fs)) return join(dir, 'node');
   }
   return execPath;
 }
@@ -198,9 +240,16 @@ function recordPort(url: string): number | undefined {
 function installLinux(ctx: ServiceContext, port: number): number {
   // Probe first: without systemctl there is nothing to load a unit file, so nothing is written.
   if (ctx.run('systemctl', ['--version']).missing) return noSystemd(ctx, port);
+  let text: string;
+  try {
+    text = unitText(serviceInputs(ctx, port));
+  } catch (err) {
+    ctx.log(`cannot write the service file: ${(err as Error).message}`);
+    return 1;
+  }
   const file = unitPath(ctx);
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, unitText(serviceInputs(ctx, port)), { mode: 0o644 });
+  writeFileSync(file, text, { mode: 0o644 });
   ctx.run('systemctl', ['--user', 'daemon-reload']);
   const enable = ctx.run('systemctl', ['--user', 'enable', '--now', UNIT_NAME]);
   if (enable.status !== 0) {
@@ -224,10 +273,17 @@ function installLinux(ctx: ServiceContext, port: number): number {
 }
 
 function installMac(ctx: ServiceContext, port: number): number {
+  let text: string;
+  try {
+    text = plistText({ ...serviceInputs(ctx, port), logFile: logPath(ctx) });
+  } catch (err) {
+    ctx.log(`cannot write the service file: ${(err as Error).message}`);
+    return 1;
+  }
   const file = plistPath(ctx);
   mkdirSync(dirname(file), { recursive: true });
   mkdirSync(dirname(logPath(ctx)), { recursive: true });
-  writeFileSync(file, plistText({ ...serviceInputs(ctx, port), logFile: logPath(ctx) }), { mode: 0o644 });
+  writeFileSync(file, text, { mode: 0o644 });
   const domain = `gui/${ctx.uid}`;
   // A reinstall replaces a loaded agent: bootout first. It fails when nothing is loaded yet, which is fine.
   ctx.run('launchctl', ['bootout', `${domain}/${AGENT_LABEL}`]);
