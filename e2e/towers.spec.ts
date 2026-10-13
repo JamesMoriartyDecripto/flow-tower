@@ -113,6 +113,8 @@ test('every referenced file is served by /api/file', async ({ request }) => {
       n.files.forEach((f) => paths.add(f));
       n.agent?.files.forEach((f) => paths.add(f));
       n.resources.forEach((r) => r.path && paths.add(r.path));
+      // An optional file a run writes is expected to be missing until that run (#137).
+      n.missingOptional.forEach((f) => paths.delete(f));
     }
     for (const path of paths) {
       const res = await request.get(`/api/file?tower=${encodeURIComponent(id)}&path=${encodeURIComponent(path)}`);
