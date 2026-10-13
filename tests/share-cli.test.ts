@@ -141,7 +141,7 @@ describe('flow-tower share (#164)', () => {
     rmSync(configPath, { force: true });
     const r = await run(['share', towerFolder()]);
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('not connected: run flow-tower connect <hub-url> first');
+    expect(r.stderr).toMatch(/not connected: run (flow-tower|node \S+bin\/flow-tower\.js) connect <hub-url> first/);
   });
 
   it('exits 1 on a 400 from the hub and records no share', { timeout: 30_000 }, async () => {

@@ -12,6 +12,7 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { localServerUrl } from '../../bin/local-server.js';
+import { cliName, shellQuote } from '../../bin/cli-name.js';
 import {
   type Harness, type MergeResult, mergeHermes, mergeJsonHooks, piExtension, staleCommandPath, unmergeHermes, unmergeJsonHooks,
   wired, wiredPort,
@@ -69,13 +70,8 @@ function shown(file: string, ctx: HooksContext): string {
   return `./${relative(ctx.cwd, file)}`;
 }
 
-/**
- * POSIX single-quoting: the shell reads the value verbatim, so `$`, backticks and quotes in a path cannot run code
- * when the hook fires. An embedded `'` becomes `'\''` (close, escaped quote, reopen).
- */
-export function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
+// shellQuote lives in bin/cli-name.js so the printed hints and the hook commands share one implementation.
+export { shellQuote };
 
 /** The emit command the hooks run. Quoted paths survive spaces; FLOW_TOWER_HOME is carried so the hook reads the same folder. */
 export function hookCommand(ctx: HooksContext): string {
@@ -316,11 +312,11 @@ function status(ctx: HooksContext): number {
         let note: string;
         if (running === undefined) note = '(no library running)';
         else if (running === port) note = '(matches the running library)';
-        else note = `(the running library is on port ${running}: run flow-tower hooks install)`;
+        else note = `(the running library is on port ${running}: run ${cliName()} hooks install)`;
         console.log(`${label}: wired on port ${port} ${note}`);
       }
       const stale = staleCommandPath(h, text, existsSync);
-      if (stale !== undefined) console.log(`${label}: node not found at ${stale}: run flow-tower hooks install again`);
+      if (stale !== undefined) console.log(`${label}: node not found at ${stale}: run ${cliName()} hooks install again`);
     }
   }
   return 0;

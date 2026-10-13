@@ -533,7 +533,8 @@ describe('cli copy (#116)', () => {
       const r = copy('starters/rag-bot', dest);
       expect(r.status).toBe(0);
       expect(r.stdout).toContain(`${dest} is inside the flow-tower checkout`);
-      expect(r.stdout).toContain('flow-tower library add <path>');
+      // The hint names the command this machine runs: bare when it is on PATH, else the node form.
+      expect(r.stdout).toMatch(/(flow-tower|node \S+bin\/flow-tower\.js) library add <path>/);
     } finally {
       rmSync(dest, { recursive: true, force: true });
     }
@@ -545,8 +546,8 @@ describe('cli copy (#116)', () => {
     expect(r.status).toBe(0);
     // The hint is a step, so it sits in the block, not between `copied …` and `validation: …` (#121).
     const steps = r.stdout.slice(r.stdout.indexOf('next steps'));
-    expect(steps).toContain(`  add it:      flow-tower library add ${dest}\n`);
-    expect(steps.split('\n')[1]).toContain('flow-tower library add');
+    expect(steps).toMatch(new RegExp(`  add it:      (flow-tower|node \\S+bin/flow-tower\\.js) library add ${dest.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`));
+    expect(steps.split('\n')[1]).toContain('library add');
   });
 
   it('warns that a root: ../.. example points at the flow-tower repo', () => {

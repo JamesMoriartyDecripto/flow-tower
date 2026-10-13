@@ -6,7 +6,7 @@
 
 <sub>Full video (27 s, higher quality): [docs/demo.mp4](docs/demo.mp4). Recorded with the live simulator running.</sub>
 
-**[Try the live demo →](https://jamesmoriartydecripto.github.io/flow-tower/)** All 30 example projects in your browser, with simulated live events. Nothing to install. Press `?` for the keyboard shortcuts.
+**[Try the live demo →](https://jamesmoriartydecripto.github.io/flow-tower/)** Every example project in your browser, with simulated live events. Nothing to install. Press `?` for the keyboard shortcuts.
 
 - **One YAML file per system.** It is easy to write and review, and it lives in the same repo as the agent.
 - **Tower of layers.** Stack layers like intake, orchestration, specialists, tools, guardrails, memory and models. Cross-layer links show who calls whom.
@@ -40,7 +40,8 @@ cd flow-tower && npm install
 
 1. **Copy one tower and use it.** Copy an example folder into your project and open it:
    `cp -R examples/starters/single-agent ~/my-project/tower && node bin/flow-tower.js ~/my-project/tower`.
-   `npm run dev` opens the whole examples gallery.
+   `npm run dev` opens the whole examples gallery (`npm run dev -- --port 5318` when 5317 is taken).
+   The CLI is `node bin/flow-tower.js`; `npm link` makes it a plain `flow-tower` command (the CLI's hints print whichever works on your machine).
 2. **Your own towers**, from scratch or generated from your code: [docs/getting-started.md](docs/getting-started.md).
 3. **A command center** on a VPS or server that your machines report to: [docs/command-center.md](docs/command-center.md).
 

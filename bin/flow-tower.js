@@ -12,6 +12,7 @@ import { localServerUrl, recordLocalServer } from './local-server.js';
 import { findTsCommand, runTsCommand } from './commands.js';
 import { STARTER } from './starter.js';
 import { clipIdentity, identityDefaults } from './identity.js';
+import { cliName } from './cli-name.js';
 import { EMPTY_LIBRARY, libraryEntries, warnInCheckout } from './library.js';
 import { serveConfig } from './vite-config.js';
 
@@ -22,7 +23,7 @@ Usage
   flow-tower serve [...] [--hub] [--host <addr>] [--allowed-host <name>] [--ingest-only]
   flow-tower init [file.tower.yaml]
   flow-tower emit --source <claude-code|codex|pi|hermes> [--tower t] < payload.json  (hooks; JSONL streams live)
-  flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [-m text]
+  flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [--status ok|error] [-m text]
                      [--user u] [--machine m] [--runtime r] [--session s] [--project-name p]
   flow-tower validate <file.tower.yaml | dir>... [--json]
   flow-tower copy <example> [dest] | --list          copy an examples/ tower into a new folder (default ./<name>) and validate it
@@ -48,7 +49,7 @@ Usage
   flow-tower history export [--user <u>] | delete --user <u> | info
                                                         content-free events and totals in the user folder:
                                                         export prints JSONL, delete erases one user's rows
-  flow-tower export <file.tower.yaml | dir> --pdf [--level 1|2|3] [--out <file.pdf>] [--port N]
+  flow-tower export <file.tower.yaml | dir> --pdf [--level 1|2|3|4] [--out <file.pdf>] [--port N]
                                                         the tower's document as a PDF, from headless Chromium;
                                                         every check must pass or no file is written (needs a browser:
                                                         npx playwright install chromium)
@@ -59,7 +60,7 @@ Usage
                                                         browser (a PDF needs: npx playwright install chromium).
                                                         --list prints the types and their required sections
   flow-tower guide                                      print the procedure to generate a tower from a codebase
-  flow-tower install-skill [--target <t>] [--project]   install all seven skills for your coding agent
+  flow-tower install-skill [--target <t>] [--project]   install the skills for your coding agent
                                                         <t>: claude (default), codex, pi, hermes, cursor, agents
   flow-tower hooks install [--target <t>] [--project] [--port N] [--dry-run]
                                                         wire the coding agents on this machine to send events here
@@ -120,6 +121,9 @@ function procedure() {
   const docs = join(pkgRoot, 'docs');
   return readFileSync(join(docs, 'generate-a-tower.md'), 'utf8')
     .replaceAll('<flow-tower>/', `${pkgRoot}/`)
+    // Once the path is filled in, "where `<flow-tower>` is the absolute path" would read as a
+    // placeholder to fill again: say which checkout the commands use instead.
+    .replace(/Commands below are written as `node [^`]*`, where `[^`]*` is the absolute path of a flow-tower checkout\./, 'Commands below use this checkout: node <path>/bin/flow-tower.js.')
     .replace(/\]\((?!https?:|#|\/)([^)\s]+)\)/g, (_, rel) => `](${resolve(docs, rel)})`);
 }
 
@@ -353,7 +357,7 @@ if (positionals[0] === 'init') {
     process.exit(1);
   }
   writeFileSync(target, STARTER);
-  console.log(`created ${target}\nnext: flow-tower ${positionals[1] ?? 'agent.tower.yaml'}`);
+  console.log(`created ${target}\nnext: ${cliName()} ${positionals[1] ?? 'agent.tower.yaml'}`);
   process.exit(0);
 }
 
@@ -402,7 +406,7 @@ const bindHost = cfg.host ?? values.host ?? '127.0.0.1';
 
 if (!hub && !isLoopbackHost(bindHost)) {
   console.error(`refusing to bind ${bindHost} without --hub: only loopback may run unguarded.
-To serve a shared hub, run: flow-tower <files> --hub --host ${bindHost}`);
+To serve a shared hub, run: ${cliName()} <files> --hub --host ${bindHost}`);
   process.exit(1);
 }
 // An allowed host is only reachable through a proxy (Tailscale serve, Caddy): that is a hub, not a local server.
@@ -421,7 +425,7 @@ const token = env.FLOW_TOWER_TOKEN;
 const canEnrol = hub && !ingestOnly && (cfg.viewers ?? []).length > 0;
 if ((hub || ingestOnly) && !token && !canEnrol && !hasActiveToken()) {
   console.error(`${hub ? 'hub mode' : '--ingest-only'} needs a token to accept any event.
-create one: flow-tower token add <id>\nThen send it as x-flow-tower-token (or FLOW_TOWER_TOKEN for a shared secret).`);
+create one: ${cliName()} token add <id>\nThen send it as x-flow-tower-token (or FLOW_TOWER_TOKEN for a shared secret).`);
   process.exit(1);
 }
 
@@ -430,6 +434,12 @@ function hasActiveToken() {
   const script = join(pkgRoot, 'src', 'cli', 'token.ts');
   const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', script, 'list'], { encoding: 'utf8' });
   return /\bactive\b/.test(r.stdout ?? '');
+}
+
+// The kit's example domains left in the settings (#193): named once at start, so a copied config is not served as is.
+const placeholders = cfg.placeholders ?? [];
+if (placeholders.length) {
+  console.error(`warning: config.json still has the kit's placeholder ${placeholders.join(', ')}: set your own or remove it`);
 }
 
 // The vite plugin reads its entries (and the update-check opt-out) from the environment of this process.

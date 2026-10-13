@@ -17,6 +17,7 @@ import { parseArgs } from 'node:util';
 import { userHome } from '../core/secrets.ts';
 import { writeUserConfig } from '../server/user-config.ts';
 import { machineId } from './machine-id.ts';
+import { cliName, OTHER_MACHINE_CLI } from '../../bin/cli-name.js';
 
 // Read once, the way bin/flow-tower.js and plugin.ts do: the heartbeat names the version the relay sends.
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -126,11 +127,11 @@ try {
   if (res.status === 204) {
     const rotated = enrolled?.rotated ? ' (the previous token of this machine was revoked)' : '';
     console.log(`connected to ${url} as ${sender}${rotated}`);
-    console.log('next: flow-tower hooks install   (wires Claude Code, Codex, Pi, Hermes on this machine)');
+    console.log(`next: ${cliName()} hooks install   (wires Claude Code, Codex, Pi, Hermes on this machine)`);
   } else if (res.status === 401 || res.status === 403) {
     // The config is written anyway: the relay queues events and stops sending, so nothing is lost by hand.
     console.error(`the hub refused this token (${res.status}): ${written}, but the relay will not send until it is fixed.
-Get a working token on the hub machine (flow-tower token add <id>) and run connect again.`);
+Get a working token on the hub machine (${OTHER_MACHINE_CLI} token add <id>) and run connect again.`);
   } else {
     console.error(`the hub answered ${res.status}: ${written}. The relay will keep trying.`);
   }

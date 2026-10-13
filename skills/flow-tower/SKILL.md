@@ -7,7 +7,7 @@ description: Map an AI agent or multi-agent system into a Flow Tower (`*.tower.y
 
 Turn an agentic codebase into a correct, validated `*.tower.yaml`. Be **true to the code**: a smaller, accurate tower beats a big, invented one.
 
-CLI: `{{FLOW_TOWER_CLI}}`. If this still shows a placeholder, use `flow-tower` if it is on PATH, otherwise ask the user for their flow-tower checkout and run `node <path>/bin/flow-tower.js` (setup: `git clone https://github.com/JamesMoriartyDecripto/flow-tower.git && cd flow-tower && npm install`, Node >= 22.12).
+CLI: `{{FLOW_TOWER_CLI}}`. If this still shows a placeholder, use `flow-tower` if it is on PATH, otherwise ask the user for their flow-tower checkout and run `node <path>/bin/flow-tower.js` (setup: `git clone https://github.com/JamesMoriartyDecripto/flow-tower.git && cd flow-tower && npm install`, Node >= 22.13).
 
 **Read and follow [the full procedure](../../docs/generate-a-tower.md)** before starting. Load the rest only when needed: [reference.md](reference.md) for the schema cheat sheet, layer playbook and per-framework signals; the flow-tower repo's `examples/README.md` to copy the closest example; `docs/schema.md` for every field.
 

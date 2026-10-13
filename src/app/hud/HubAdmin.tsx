@@ -12,6 +12,9 @@ import { NotifySection } from './HubAdminNotify';
 // Same order as RULES in src/server/alerts.ts: the switches list every rule the server evaluates.
 const RULES = ['silent', 'budget', 'error-spike', 'new-host', 'errors'];
 
+// Same text as OTHER_MACHINE_SUFFIX in bin/cli-name.js: the app cannot import from bin/, so keep the two in step.
+const OTHER_MACHINE_HINT = ' (or node <their checkout>/bin/flow-tower.js)';
+
 /** What the add-sender box shows once: the token and the connect line. Held only while the box is open. */
 interface Shown { id: string; token: string; configLine: string }
 
@@ -141,7 +144,8 @@ function SendersSection({ senders, cadence, change }: { senders: AdminSender[]; 
         <div className="admin-box">
           <p className="hub-warn">Shown once: copy it now</p>
           <code className="admin-token">{shown.token}</code>
-          <code className="admin-token">{shown.configLine}</code>
+          {/* The other machine's hint: flow-tower works there only when it is on PATH, else its checkout's CLI runs the same line. */}
+          <code className="admin-token">{shown.configLine}{OTHER_MACHINE_HINT} …</code>
           {/* A loopback URL works only on this machine; the note says what to put in its place. */}
           {loopback && <p className="hub-empty admin-note">Replace 127.0.0.1 with the address other machines use for this hub (its tailnet name)</p>}
           <div className="admin-line">

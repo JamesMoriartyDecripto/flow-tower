@@ -1,0 +1,23 @@
+# A full hub behind Caddy, for a team without Tailscale (a VPS, an office server). Teammates connect with a token,
+# send events and share their towers; nobody views the UI through Caddy (a remote viewer needs a tailnet identity):
+# the owner views over SSH (`ssh -N -L 5317:127.0.0.1:5317 you@hub.example.com`, then http://127.0.0.1:5317).
+#
+#   flow-tower ~/command-center/towers --hub            # binds 127.0.0.1:5317; "allowedHosts": ["hub.example.com"]
+#   flow-tower token add alice-laptop                    # one per machine; it prints the connect line
+#   caddy run --config integrations/hub/Caddyfile.hub
+#
+# Not tested on the Flow Tower test server (no Caddy there); the routes are the ones the hub guard lets a remote
+# sender reach with a token (src/server/hub.ts: ingest, heartbeat, OTLP, shared towers).
+hub.example.com {
+	@sender {
+		path /api/events /api/heartbeat /v1/* /api/hub/towers /api/hub/towers/*
+	}
+	handle @sender {
+		reverse_proxy 127.0.0.1:5317
+	}
+
+	# The UI and every read route stay private: view them over SSH.
+	handle {
+		respond 404
+	}
+}
