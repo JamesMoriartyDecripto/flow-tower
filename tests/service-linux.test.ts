@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type RunResult, runService, type ServiceContext, unitText } from '../src/cli/service.ts';
+import { type RunResult, runService, type ServiceContext, stableNode, unitText } from '../src/cli/service.ts';
 
 const CHECKOUT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -103,5 +103,48 @@ describe('service install on Linux with the library', () => {
     } finally {
       rmSync(entry, { recursive: true, force: true });
     }
+  });
+
+  it('omits the linger hint in a wayland session', () => {
+    const logs: string[] = [];
+    const { run } = fakeRun();
+    expect(runService(['install', '--port', '5399'], { ...ctx(run, logs), env: { XDG_SESSION_TYPE: 'wayland' } })).toBe(0);
+    expect(logs.join('\n')).not.toContain('enable-linger');
+  });
+
+  it('keeps the linger hint in a tty session', () => {
+    const logs: string[] = [];
+    const { run } = fakeRun();
+    expect(runService(['install', '--port', '5399'], { ...ctx(run, logs), env: { XDG_SESSION_TYPE: 'tty' } })).toBe(0);
+    expect(logs.join('\n')).toContain('loginctl enable-linger mimir');
+  });
+});
+
+/** A fake realpath: maps known links to their targets and throws for anything unknown, as realpathSync does. */
+function fakeReal(links: Record<string, string>) {
+  return (path: string): string => {
+    if (path in links) return links[path];
+    if (Object.values(links).includes(path)) return path;
+    throw new Error(`ENOENT: ${path}`);
+  };
+}
+
+describe('stableNode', () => {
+  const real = fakeReal({ '/usr/bin/node': '/usr/bin/node-24', '/usr/bin/node-24': '/usr/bin/node-24' });
+
+  it('names the PATH link that resolves to the same binary as execPath', () => {
+    expect(stableNode('/usr/bin/node-24', '/usr/local/bin:/usr/bin', real)).toBe('/usr/bin/node');
+  });
+
+  it('keeps execPath when no PATH directory links to it', () => {
+    expect(stableNode('/usr/bin/node-24', '/opt/bin:/usr/local/bin', real)).toBe('/usr/bin/node-24');
+  });
+
+  it('keeps execPath when PATH is undefined', () => {
+    expect(stableNode('/usr/bin/node-24', undefined, real)).toBe('/usr/bin/node-24');
+  });
+
+  it('keeps execPath when it cannot be resolved', () => {
+    expect(stableNode('/gone/node', '/usr/bin', real)).toBe('/gone/node');
   });
 });

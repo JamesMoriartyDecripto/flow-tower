@@ -5,9 +5,9 @@
  * touch the real home, systemd or launchd. Everything that touches the home folder takes a context.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, userInfo } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { readObject } from '../../bin/config-file.js';
@@ -51,12 +51,34 @@ s.on('connect', () => { s.destroy(); process.exit(0); });
 s.on('error', () => process.exit(1));
 setTimeout(() => process.exit(1), 1000).unref();`;
 
+/**
+ * The node command to write into a unit: a PATH name for execPath when one points at the same file (Fedora's
+ * /usr/bin/node links to the versioned binary), else execPath itself. The versioned name (node-24) goes away on
+ * the next major upgrade; the plain name follows the upgrade. `real` resolves links and is injected for tests.
+ */
+export function stableNode(execPath: string, pathVar: string | undefined, real: (path: string) => string = realpathSync): string {
+  let target: string;
+  try {
+    target = real(execPath);
+  } catch {
+    return execPath;
+  }
+  for (const dir of (pathVar ?? '').split(delimiter)) {
+    if (!dir) continue;
+    const candidate = join(dir, 'node');
+    try {
+      if (real(candidate) === target) return candidate;
+    } catch { /* no node in this directory: keep looking */ }
+  }
+  return execPath;
+}
+
 export function defaultServiceContext(): ServiceContext {
   return {
     home: homedir(),
     env: process.env,
     checkout: resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'),
-    node: process.execPath,
+    node: stableNode(process.execPath, process.env.PATH),
     platform: process.platform,
     uid: process.getuid?.() ?? 0,
     user: userInfo().username,
@@ -248,8 +270,12 @@ function installLinux(ctx: ServiceContext, port: number): number {
     return 1;
   }
   ctx.log(`installed ${file}\nthe library runs on port ${port} and restarts after a crash`);
-  // A machine without a desktop login stops user services at logout unless lingering is on.
-  ctx.log(`no desktop login here? keep it running after logout: loginctl enable-linger ${ctx.user}`);
+  // A machine without a desktop login stops user services at logout unless lingering is on. A graphical session
+  // keeps them running anyway, so the hint would only be noise there.
+  const session = ctx.env.XDG_SESSION_TYPE;
+  if (session !== 'x11' && session !== 'wayland') {
+    ctx.log(`no desktop login here? keep it running after logout: loginctl enable-linger ${ctx.user}`);
+  }
   // An empty library makes `library` exit at once, so systemd gives up after a few restarts: say how to fix it now.
   const { mine } = libraryEntries({ env: { FLOW_TOWER_HOME: userFolder(ctx) }, checkout: ctx.checkout, warn: () => {} });
   if (mine.length === 0) {
