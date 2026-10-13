@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { STATIC } from '../staticData';
-import { agoText, queueText, SAT_CLASS, satText, satTitle, SHARING_OFF, type SharingState } from '../sharing';
+import { agoText, queueText, satClass, satText, satTitle, SHARING_OFF, towerLine, type SharingState } from '../sharing';
 import { usePrefs } from '../settings';
 import { Row, Toggle } from './Settings';
 
@@ -52,7 +52,7 @@ export function SatChip() {
   const sharing = useSharing((s) => s.sharing);
   if (sharing.state === 'off') return null;
   return (
-    <button className={`chip clickable sat-chip ${SAT_CLASS[sharing.state]}`} onClick={openSharingSettings} title={satTitle(sharing)}>
+    <button className={`chip clickable sat-chip ${satClass(sharing)}`} onClick={openSharingSettings} title={satTitle(sharing)}>
       {satText(sharing, Date.now())}
     </button>
   );
@@ -115,6 +115,24 @@ export function SharingSection() {
       <Row label="Send a test event" hint={test ?? "One minimal event, flushed now, so the hub's answer is immediate."}>
         <button className="btn" onClick={runTest} disabled={busy} title="Send one minimal event to the hub and show what it answered">{busy ? 'Sending…' : 'Send test'}</button>
       </Row>
+      {sharing.towers && sharing.towers.length > 0 && (
+        <>
+          <h3>Shared towers</h3>
+          {/* One line per tower: the time it last reached the hub, or the error that kept it from there. */}
+          <ul className="sharing-towers">
+            {sharing.towers.map((t) => {
+              const line = towerLine(t, Date.now());
+              // A removed-node warning sits on its own line in amber: the tower is on the hub, but events may not map.
+              return (
+                <li key={t.name} className={`mono ${line.tone}`} title={line.title}>
+                  {line.text}
+                  {t.warning && <div className="sharing-warn">{t.warning}</div>}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
       {sharing.lastPayload && (
         <>
           <h3>Last payload</h3>

@@ -2,6 +2,7 @@ import type { ResolvedTower, Workspace } from '../core/types';
 import { splitTarget } from '../core/events';
 import type { NodeLive } from './live';
 import { IDLE_MS } from './hub';
+import { agoText } from './sharing';
 
 /**
  * The project gallery's own logic, kept free of React: the panel renders it and the voice agent's
@@ -104,6 +105,19 @@ export function sourceNamed(known: string[], spoken: unknown): string | undefine
 export function sourceChip(source: string): { label: string; title: string; cls: 'local' | 'device' } {
   if (source === 'local') return { label: 'THIS HUB', title: "Part of this server's own library", cls: 'local' };
   return { label: source.toUpperCase(), title: `Shared by ${source} with flow-tower share`, cls: 'device' };
+}
+
+/** A machine's new version counts as fresh for this long: the card shows a dot until then. */
+export const FRESH_SHARE_MS = 10 * 60_000;
+
+/**
+ * The "updated …" label of a shared project, from `workspace.sharedAt`. Undefined for a local project (no
+ * entry). `dot` marks a version that arrived in the last 10 minutes; a time in the future counts as fresh.
+ */
+export function sharedLabel(sharedAt: number | undefined, machine: string, now: number): { text: string; title: string; dot: boolean } | undefined {
+  if (sharedAt === undefined) return undefined;
+  const text = `updated ${agoText(sharedAt, now)}`;
+  return { text, title: `${machine} shared a new version ${agoText(sharedAt, now)}`, dot: now - sharedAt < FRESH_SHARE_MS };
 }
 
 /** A card lists the machines that sent events for its project within this window: the hub's idle threshold. */

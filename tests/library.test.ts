@@ -173,6 +173,8 @@ describe('checkPath (#121)', () => {
 describe('flow-tower library (#121)', () => {
   const home = mkdtempSync(join(tmpdir(), 'flow-tower-library-home-'));
   const project = mkdtempSync(join(tmpdir(), 'flow-tower-library-project-'));
+  // A second folder: a tower inside `project` is already covered by it once `project` is listed (#190).
+  const elsewhere = mkdtempSync(join(tmpdir(), 'flow-tower-library-elsewhere-'));
   afterAll(() => { rmSync(home, { recursive: true, force: true }); rmSync(project, { recursive: true, force: true }); });
 
   const library = (...args: string[]) =>
@@ -213,7 +215,7 @@ describe('flow-tower library (#121)', () => {
 
   it('lists each entry and marks a missing one', { timeout: 20_000 }, () => {
     // Added while it exists (checkPath refuses a missing path), then deleted: list must flag it.
-    const gone = join(project, 'gone.tower.yaml');
+    const gone = join(elsewhere, 'gone.tower.yaml');
     writeFileSync(gone, tower('Gone'));
     expect(library('add', gone).status).toBe(0);
     rmSync(gone);
@@ -225,7 +227,7 @@ describe('flow-tower library (#121)', () => {
 
   it('removes by resolved path or by the stored string', { timeout: 20_000 }, () => {
     // A redundant path segment still resolves to the same entry.
-    const remove = library('remove', join(project, '.', 'gone.tower.yaml'));
+    const remove = library('remove', join(elsewhere, '.', 'gone.tower.yaml'));
     expect(remove.status).toBe(0);
     expect(remove.stdout).toContain('removed:');
     expect(stored()).toEqual([project]);

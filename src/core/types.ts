@@ -95,6 +95,11 @@ export interface Issue {
   level: IssueLevel;
   message: string;
   path?: string;
+  /**
+   * Set on the issues that are about a file the tower points to, so callers tell them apart by code and never by
+   * the text (a node named "file not found" must not look like a missing file, #190). Undefined for everything else.
+   */
+  code?: 'missing-file' | 'outside-project' | 'secret-file';
 }
 
 export interface ResolvedTower {
@@ -129,4 +134,9 @@ export interface Workspace {
    * Present only when at least one project was shared by a device, so a plain library shows nothing new.
    */
   sources?: Record<string, string>;
+  /**
+   * Project id → when its shared folder under `towers/<machine>/` was last replaced (ms since epoch), so the
+   * library can say when a machine sent a new version (#165). Only shared projects have an entry.
+   */
+  sharedAt?: Record<string, number>;
 }

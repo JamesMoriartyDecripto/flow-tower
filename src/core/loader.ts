@@ -184,19 +184,28 @@ export function towerIds(entries: string[], files: string[]): (file: string) => 
   };
 }
 
+export interface LoadOptions {
+  /**
+   * The project of one tower file, when the default (the git checkout around it) is wrong: a shared tower must
+   * not read the hub's library or another sender's folder (#190). Undefined keeps the default.
+   */
+  projectOf?: (file: string) => string | undefined;
+}
+
 /**
  * Loads every tower found in `entries` plus the nested towers they reference.
  * Towers referenced by another tower are nested; the others become library projects.
  * Never throws on bad input: problems are reported as issues on the tower.
  */
-export async function loadLibrary(entries: string[]): Promise<LoadResult> {
+export async function loadLibrary(entries: string[], opts: LoadOptions = {}): Promise<LoadResult> {
   const files = findTowerFiles(entries);
   // Each tower file belongs to the project of the entry it was found through; nested towers inherit it.
+  // An explicit project for a file wins over the entry's, so a shared folder never sees the checkout around it.
   const projects = new Map<string, string>();
   for (const entry of entries) {
     if (!existsSync(resolve(entry))) continue;
     const project = projectOf(entry);
-    for (const f of findTowerFiles([entry])) if (!projects.has(f)) projects.set(f, project);
+    for (const f of findTowerFiles([entry])) if (!projects.has(f)) projects.set(f, opts.projectOf?.(f) ?? project);
   }
   const idOf = towerIds(entries, files);
   const result: LoadResult = {
@@ -213,13 +222,13 @@ export async function loadLibrary(entries: string[]): Promise<LoadResult> {
     const file = queue.shift()!;
     const id = idOf(file);
     if (result.workspace.towers[id]) continue;
-    const project = projects.get(file) ?? projectOf(file);
+    const project = projects.get(file) ?? opts.projectOf?.(file) ?? projectOf(file);
     const { tower, root, nested } = await loadTower(file, id, project, result.watched, result.referenced, result.missing);
     result.workspace.towers[id] = tower;
     result.roots.set(id, root);
     result.files.set(id, file);
     for (const n of nested) {
-      if (!projects.has(n.abs)) projects.set(n.abs, project);
+      if (!projects.has(n.abs)) projects.set(n.abs, opts.projectOf?.(n.abs) ?? project);
       const nid = idOf(n.abs);
       if (nid !== id) nestedIds.add(nid);
       queue.push(n.abs);
@@ -263,8 +272,8 @@ async function loadTower(
     tower: { id, name: id, tags: [], runtimes: {}, layers: [], links: [], issues } as ResolvedTower, root, nested: [],
   });
 
-  const outside = (path: string) => issues.push({ level: 'error', message: `${path} is outside the project (${project}): not read` });
-  const secret = (path: string) => issues.push({ level: 'error', message: `${path} is a secret file or in the user folder (~/.config/flow-tower): not read` });
+  const outside = (path: string) => issues.push({ level: 'error', message: `${path} is outside the project (${project}): not read`, code: 'outside-project' });
+  const secret = (path: string) => issues.push({ level: 'error', message: `${path} is a secret file or in the user folder (~/.config/flow-tower): not read`, code: 'secret-file' });
   // The tower file itself, through symlinks: a repository could ship `x.tower.yaml -> ~/.config/flow-tower/
   // voice-journal.jsonl`, and YAML errors quote the lines they fail on.
   const real = await realpath(file).catch(() => undefined);
@@ -273,7 +282,7 @@ async function loadTower(
 
   let raw: string;
   try { raw = await readFile(file, 'utf8'); } catch {
-    issues.push({ level: 'error', message: `tower file not found: ${file}` });
+    issues.push({ level: 'error', message: `tower file not found: ${file}`, code: 'missing-file' });
     return empty(dirname(file));
   }
 
@@ -353,7 +362,7 @@ export async function buildTower(
   };
   for (const [aid, a] of Object.entries(agents)) {
     runtimeOf(a.runtime, `agents.${aid}`);
-    for (const r of a.resources) if (r.path && !exists(r.path)) issues.push({ level: 'warning', message: `resource not found: ${r.path}`, path: `agents.${aid}` });
+    for (const r of a.resources) if (r.path && !exists(r.path)) issues.push({ level: 'warning', message: `resource not found: ${r.path}`, path: `agents.${aid}`, code: 'missing-file' });
   }
 
   const layers: ResolvedLayer[] = [];
@@ -385,10 +394,10 @@ export async function buildTower(
         if (!r.optional && !own.has(r.path)) continue;
         if (exists(r.path, own.has(r.path) ? where : undefined)) continue;
         if (r.optional) missingOptional.push(r.path);
-        else issues.push({ level: 'warning', message: `file not found: ${r.path}`, path: where });
+        else issues.push({ level: 'warning', message: `file not found: ${r.path}`, path: where, code: 'missing-file' });
       }
       const resources = [...(agent?.resources ?? []), ...(n.resources ?? [])];
-      for (const r of n.resources ?? []) if (r.path && !exists(r.path)) issues.push({ level: 'warning', message: `resource not found: ${r.path}`, path: where });
+      for (const r of n.resources ?? []) if (r.path && !exists(r.path)) issues.push({ level: 'warning', message: `resource not found: ${r.path}`, path: where, code: 'missing-file' });
 
       const label = n.label ?? agent?.name ?? n.id;
       const max = n.tower ?? agent?.tower ? MAX_LABEL_NESTED : MAX_LABEL;

@@ -87,10 +87,23 @@ export async function collectTower(dir: string, opts: { withFiles: boolean }): P
   // Every tower was a symlink out of the folder: nothing to share, the same error as a folder with no tower.
   if (files.length === 0) return { error: `no *.tower.yaml in ${dir}` };
 
+  // The loader is the one judge of a tower: a folder with an error would replace the hub's good copy with a
+  // broken one, so it is refused here. Loaded once: the referenced files below come from the same load.
+  const lib = await loadLibrary([root]);
+  const failures: { file: string; message: string }[] = [];
+  for (const [id, tower] of Object.entries(lib.workspace.towers)) {
+    const abs = lib.files.get(id);
+    const file = abs ? insideRelative(root, abs) ?? basename(abs) : id;
+    for (const issue of tower.issues) if (issue.level === 'error') failures.push({ file, message: issue.message });
+  }
+  if (failures.length > 0) {
+    const more = failures.length > 1 ? ` (and ${failures.length - 1} more)` : '';
+    return { error: `${failures[0].file}: ${failures[0].message}${more}` };
+  }
+
   if (opts.withFiles) {
     // The loader follows every reference the towers make: node `files`, resources, prompt files, nested towers.
     // `referenced` holds all of them, including a node's `files` that are only checked and never read.
-    const lib = await loadLibrary([root]);
     for (const abs of [...lib.referenced].sort()) {
       const rel = insideRelative(root, abs);
       if (rel === undefined) { skipped.push({ path: abs, reason: 'outside the tower folder' }); continue; }

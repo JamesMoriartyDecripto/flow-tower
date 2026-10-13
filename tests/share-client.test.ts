@@ -42,10 +42,10 @@ const TOWER_WITH_DOC = [
 describe('collectTower', () => {
   it('YAML only: sends the tower files and nothing else beside them', async () => {
     const dir = folder('demo');
-    write(join(dir, 'demo.tower.yaml'), 'name: demo\nlayers: []\n');
+    write(join(dir, 'demo.tower.yaml'), 'name: demo\nlayers:\n  - id: main\n    title: Main\n    nodes:\n      - { id: start, type: entry, label: Start }\n');
     write(join(dir, 'notes.md'), '# private notes');
     const r = await collectTower(dir, { withFiles: false });
-    expect(r).toEqual({ files: [{ path: 'demo.tower.yaml', content: 'name: demo\nlayers: []\n' }], skipped: [] });
+    expect(r).toEqual({ files: [{ path: 'demo.tower.yaml', content: 'name: demo\nlayers:\n  - id: main\n    title: Main\n    nodes:\n      - { id: start, type: entry, label: Start }\n' }], skipped: [] });
   });
 
   it('with files: adds the referenced file that the tower reads', async () => {
@@ -81,7 +81,7 @@ describe('collectTower', () => {
 
   it('YAML only: a node files entry is not sent', async () => {
     const dir = folder('demo');
-    write(join(dir, 'demo.tower.yaml'), TOWER_WITH_DOC.replace('    file: docs/a.md', '    file: docs/a.md\n    files: [docs/a.md]'));
+    write(join(dir, 'demo.tower.yaml'), TOWER_WITH_DOC.replace('agent: intake }', 'agent: intake, files: [docs/a.md] }'));
     write(join(dir, 'docs/a.md'), 'hello');
     const r = await collectTower(dir, { withFiles: false });
     expect('error' in r).toBe(false);
@@ -153,7 +153,7 @@ describe('collectTower', () => {
   const canDeny = process.platform !== 'win32' && process.getuid?.() !== 0;
   it.skipIf(!canDeny)('a tower file that cannot be read is an error, not a throw', async () => {
     const dir = folder('demo');
-    write(join(dir, 'demo.tower.yaml'), 'name: demo\nlayers: []\n');
+    write(join(dir, 'demo.tower.yaml'), 'name: demo\nlayers:\n  - id: main\n    title: Main\n    nodes:\n      - { id: start, type: entry, label: Start }\n');
     const locked = join(dir, 'locked.tower.yaml');
     write(locked, 'name: locked\n');
     chmodSync(locked, 0o000);

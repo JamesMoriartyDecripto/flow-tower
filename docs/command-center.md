@@ -120,7 +120,12 @@ agent walking a user through it: [`skills/flow-tower-satellite`](../skills/flow-
 writes them to `towers/<machine>/<name>/` in its library and reloads. `--files` also sends the files the towers
 reference (inside the folder, text types only, never `.env`, keys or similar), so viewers can open them;
 the default sends no file contents. The local library re-sends a shared tower within ~15 s of a change
-(`/api/sharing` shows each tower's `syncedAt`), and nothing while sharing is paused. `flow-tower unshare
+(`/api/sharing` shows each tower's `syncedAt`), and nothing while sharing is paused. A tower with an error is
+not sent: the hub keeps the last valid version, and the teammate sees `1 tower not sent` on the SAT chip and the
+reason in Settings › Sharing › Shared towers (#190), which also warns when a sync removed nodes that events may still
+name. The hub refuses a structurally broken upload too (422). On the hub, a shared card says `updated <time> ago`,
+with a dot for a change in the last 10 minutes; a YAML-only tower's missing prompt and node files show as info, not
+errors. `share --files` also carries `.github/`, `.claude/agents|skills|commands/`, `.agents/` and `.codex/prompts/`. `flow-tower unshare
 <name>` removes it from the hub; `share --list` shows what is shared.
 
 On the hub, each library card names its source (THIS HUB, or the device that shared it), and the FROM row filters by

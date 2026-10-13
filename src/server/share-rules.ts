@@ -10,6 +10,11 @@ export const MAX_TOTAL_BYTES = 4 * 1024 * 1024;
 
 const SHARE_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
+// A hidden folder is refused unless the path starts with one of these agent folders: the towers reference them
+// (a workflow in .github/, a sub-agent in .claude/agents/), so `share --files` must carry them. Only the first
+// segment may be hidden, which keeps .git, .env, .ssh, .staging and .claude/settings.local.json out.
+const HIDDEN_PREFIXES = ['.github/', '.claude/agents/', '.claude/skills/', '.claude/commands/', '.agents/', '.codex/prompts/'];
+const HIDDEN_SEGMENT = /^\.[A-Za-z0-9_][A-Za-z0-9._-]*$/;
 const MAX_PATH_CHARS = 200;
 const MAX_SEGMENTS = 8;
 const TOWER_FILE = /\.tower\.ya?ml$/;
@@ -60,10 +65,12 @@ export function checkPath(p: string): string | undefined {
   if (/^[A-Za-z]:/.test(p)) return 'path must not carry a drive letter';
   const segments = p.split('/');
   if (segments.length > MAX_SEGMENTS) return `path must have at most ${MAX_SEGMENTS} segments`;
-  for (const seg of segments) {
-    // The segment pattern also rejects `.`, `..` and hidden folders, so a
-    // share can never escape its folder or land in a skipped `.staging` dir.
-    if (!SEGMENT.test(seg)) return `invalid path segment: ${JSON.stringify(seg)}`;
+  const agentFolder = HIDDEN_PREFIXES.some((prefix) => p.startsWith(prefix));
+  for (const [i, seg] of segments.entries()) {
+    // The segment pattern also rejects `.` and `..`, so a share can never escape its folder. A hidden
+    // folder passes only as the first segment of an agent folder above.
+    const hiddenOk = i === 0 && agentFolder && HIDDEN_SEGMENT.test(seg);
+    if (!hiddenOk && !SEGMENT.test(seg)) return `invalid path segment: ${JSON.stringify(seg)}`;
   }
   if (!allowedFile(p)) return `file type or name not allowed: ${p}`;
   return undefined;

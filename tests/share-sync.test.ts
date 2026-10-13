@@ -49,7 +49,7 @@ async function stubHub() {
 function setup(url: string, extra: Record<string, unknown> = {}, shares = [{ dir: '', name: 'alpha', files: false }]) {
   const home = mkdtempSync(join(root, 'home-'));
   const dir = mkdtempSync(join(root, 'tower-'));
-  writeFileSync(join(dir, 'alpha.tower.yaml'), 'name: alpha\nlayers: []\n');
+  writeFileSync(join(dir, 'alpha.tower.yaml'), 'name: alpha\nlayers:\n  - id: main\n    title: Main\n    nodes:\n      - { id: start, type: entry, label: Start }\n');
   const config = { role: 'satellite', url, token: TOKEN, ...extra, shares: shares.map((s) => ({ ...s, dir: s.dir || dir })) };
   writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
   return { home, dir, configPath: join(home, 'config.json') };
@@ -84,7 +84,7 @@ describe('shared towers sync (#164)', () => {
     const sync = start(home, url);
     await sync.syncNow();
 
-    writeFileSync(join(dir, 'alpha.tower.yaml'), 'name: alpha\nlayers: [changed]\n');
+    writeFileSync(join(dir, 'alpha.tower.yaml'), 'name: alpha changed\nlayers:\n  - id: main\n    title: Main\n    nodes:\n      - { id: start, type: entry, label: Start }\n');
     await sync.syncNow();
     expect(hub.puts).toHaveLength(2);
   });
@@ -172,7 +172,7 @@ describe('shared towers sync (#164)', () => {
     // `flow-tower connect` wrote a new token while the server runs: the next upload must carry it.
     const ROTATED = 'ft_laptop_rotatedvalue';
     writeFileSync(configPath, JSON.stringify({ role: 'satellite', url, token: ROTATED, shares: [{ dir, name: 'alpha', files: false }] }));
-    writeFileSync(join(dir, 'alpha.tower.yaml'), 'name: alpha\nlayers: [rotated]\n');
+    writeFileSync(join(dir, 'alpha.tower.yaml'), 'name: alpha rotated\nlayers:\n  - id: main\n    title: Main\n    nodes:\n      - { id: start, type: entry, label: Start }\n');
     await sync.syncNow();
     expect(hub.puts).toHaveLength(2);
     expect(hub.puts[1].token).toBe(ROTATED);

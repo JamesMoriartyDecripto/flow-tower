@@ -25,7 +25,7 @@ beforeAll(async () => {
 });
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
-const TOWER = 'name: demo\nlayers: []\n';
+const TOWER = 'name: demo\nlayers:\n  - id: main\n    title: Main\n    nodes:\n      - { id: start, type: entry, label: Start }\n';
 const files = (extra: { path: string; content: string }[] = []) => [{ path: 'demo.tower.yaml', content: TOWER }, ...extra];
 
 const put = (name: string, body: unknown, token = boxToken, type = 'application/json') =>

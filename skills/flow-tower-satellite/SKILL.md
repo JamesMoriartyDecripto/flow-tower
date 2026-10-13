@@ -74,6 +74,7 @@ To stop later: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub; `<na
 | `/api/sharing` says `held`, or the CLI says `this machine is paused on the hub` | The hub owner paused this machine: nothing to do here, it resumes by itself when they resume it. |
 | `this hub has no library folder` (503) / `could not store the shared tower` (500) | Hub side: its owner checks the library folder exists and the service may write `towers/` (kit: `ReadWritePaths`). |
 | a `400` naming a file or a limit | Fix that file, or share YAML only. |
+| `share` says `<file>: <error>`, or Settings › Sharing shows `not sent` | The tower has an error: `validate` it, fix it, save; the hub keeps the last valid version meanwhile. |
 | `/api/sharing` shows another `hub`, or towers you did not share | Another server answered on that port: stop it or use another `--port`. |
 | the tower is shared but nothing lights | The agents' hooks are not wired (step 6), or the local library is not running (step 5). |
 

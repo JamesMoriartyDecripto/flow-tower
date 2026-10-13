@@ -63,7 +63,7 @@ export async function resolvePromptDef(
   let text = def.text ?? '';
   if (def.file) {
     const content = await fs.read(def.file);
-    if (content === undefined) issues.push({ level: 'error', message: `prompt file not found: ${def.file}`, path: where });
+    if (content === undefined) issues.push({ level: 'error', message: `prompt file not found: ${def.file}`, path: where, code: 'missing-file' });
     text = content ?? '';
   }
   return {
@@ -97,7 +97,7 @@ export async function resolveAgent(
   if (def.from) {
     const md = await fs.read(def.from);
     if (md === undefined) {
-      issues.push({ level: 'error', message: `agent file not found: ${def.from}`, path: where });
+      issues.push({ level: 'error', message: `agent file not found: ${def.from}`, path: where, code: 'missing-file' });
     } else {
       const { fields, body } = parseAgentMarkdown(md);
       imported = fields;

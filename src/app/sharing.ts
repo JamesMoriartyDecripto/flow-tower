@@ -13,7 +13,7 @@ export interface SharingState {
   lastError?: string;
   lastPayload?: Record<string, unknown>;
   /** The shared towers and when each last synced (#164), present when the sync loop runs. */
-  towers?: { name: string; syncedAt?: number; error?: string }[];
+  towers?: { name: string; syncedAt?: number; error?: string; warning?: string }[];
 }
 
 export const SHARING_OFF: SharingState = { state: 'off' };
@@ -36,14 +36,38 @@ export function agoText(at: number | undefined, now: number): string {
   return new Date(at).toLocaleDateString();
 }
 
+/** The shared towers the hub did not accept on the last sync, in the order the sync lists them. */
+export function unsentTowers(s: SharingState): { name: string; error: string }[] {
+  return (s.towers ?? []).flatMap((t) => (t.error ? [{ name: t.name, error: t.error }] : []));
+}
+
+/**
+ * One line per shared tower of the Settings section. A tower with an error reads as not sent, with the full
+ * error in the title (the line itself may be cut short by the layout); otherwise it shows when it last synced.
+ */
+export function towerLine(t: { name: string; syncedAt?: number; error?: string }, now: number): { text: string; tone: 'on' | 'err'; title: string } {
+  if (t.error) return { text: `${t.name} · not sent: ${t.error}`, tone: 'err', title: t.error };
+  return { text: `${t.name} · on the hub · ${agoText(t.syncedAt, now)}`, tone: 'on', title: `${t.name} is on the hub` };
+}
+
+/** The chip suffix for failed shares: the count names how many towers are waiting, not which ones. */
+export function unsentSuffix(s: SharingState): string {
+  const n = unsentTowers(s).length;
+  if (n === 0) return '';
+  return n === 1 ? ' · 1 tower not sent' : ` · ${n} towers not sent`;
+}
+
 /** The chip label: hub and last send, plus the state word that matters right now. */
 export function satText(s: SharingState, now: number): string {
   const base = `SAT → ${hubHost(s.hub)} · ${agoText(s.lastSentAt, now)}`;
-  if (s.state === 'queued') return `${base} · ${s.queued ?? 0} queued`;
-  if (s.state === 'paused') return `${base} · paused`;
-  if (s.state === 'revoked') return `${base} · token refused`;
-  if (s.state === 'held') return `${base} · paused by the hub`;
-  return base;
+  const withState = (() => {
+    if (s.state === 'queued') return `${base} · ${s.queued ?? 0} queued`;
+    if (s.state === 'paused') return `${base} · paused`;
+    if (s.state === 'revoked') return `${base} · token refused`;
+    if (s.state === 'held') return `${base} · paused by the hub`;
+    return base;
+  })();
+  return `${withState}${unsentSuffix(s)}`;
 }
 
 /**
@@ -62,9 +86,26 @@ export const SAT_CLASS: Record<SharingState['state'], string> = {
   off: '', online: 'on', queued: 'warn', held: 'warn', paused: 'dim', revoked: 'err',
 };
 
-/** One sentence explaining the state on hover. */
+/**
+ * The chip class. A failed tower share turns an otherwise healthy chip to warn, but never hides a worse
+ * state: revoked, paused and held keep their own colour.
+ */
+export function satClass(s: SharingState): string {
+  if (s.state === 'online' && unsentTowers(s).length > 0) return 'warn';
+  return SAT_CLASS[s.state];
+}
+
+/** One sentence explaining the state on hover; a failed share adds the names and the first error. */
 export function satTitle(s: SharingState): string {
   const host = hubHost(s.hub);
+  const base = satBaseTitle(s, host);
+  const unsent = unsentTowers(s);
+  if (unsent.length === 0) return base;
+  const names = unsent.map((t) => t.name).join(', ');
+  return `${base} Not sent: ${names}. First error: ${unsent[0].error}`;
+}
+
+function satBaseTitle(s: SharingState, host: string): string {
   if (s.state === 'queued') return `Sharing with ${host}: the hub is unreachable, ${s.queued ?? 0} event(s) wait in the queue. Click for the sharing settings.`;
   if (s.state === 'paused') return `Sharing is paused: nothing leaves this machine for ${host} until you resume it. Click for the sharing settings.`;
   if (s.state === 'held') return `Sharing waits: ${host} paused this machine. It resumes by itself when the hub owner resumes it.`;
