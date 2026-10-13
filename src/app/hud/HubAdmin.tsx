@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { callAdmin, type AdminSender, type AdminView, type CallResult } from './hubAdminApi';
 import {
   CADENCE_OPTIONS, addBudgetRow, addViewer, auditRows, budgetBody, confirmDeleteLabel, dayToMs, removeBudgetRow,
-  connectUrl, isLoopbackUrl, removeViewer, retentionValid, revokeEnabled, ruleOn, senderIdValid, senderState, shortToken,
+  DEFAULT_CADENCE, cadenceOf, connectUrl, isLoopbackUrl, removeViewer, retentionValid, revokeEnabled, ruleOn, senderIdValid, senderState, shortToken,
   type BudgetRow, type Cadence,
 } from './hubAdminModel';
 import { RULE_LABEL } from './HubAlerts';
@@ -59,7 +59,7 @@ type Change = (method: 'POST' | 'PUT', path: string, body?: unknown) => Promise<
 function SendersSection({ senders, cadence, change }: { senders: AdminSender[]; cadence: AdminView['cadence']; change: Change }) {
   const [adding, setAdding] = useState(false);
   const [newId, setNewId] = useState('');
-  const [newCadence, setNewCadence] = useState<Cadence>('always-on');
+  const [newCadence, setNewCadence] = useState<Cadence>(DEFAULT_CADENCE);
   const [shown, setShown] = useState<Shown>();
   const [lastAdded, setLastAdded] = useState<string>();
   const [revoking, setRevoking] = useState<string>();
@@ -106,7 +106,7 @@ function SendersSection({ senders, cadence, change }: { senders: AdminSender[]; 
             </div>
             <div className="admin-line">
               {/* PUT /cadence replaces the whole map, so the change carries every sender's cadence, not just this one. */}
-              <select className="admin-select" aria-label={`Cadence for ${s.id}`} value={s.cadence ?? 'always-on'} disabled={st === 'revoked'}
+              <select className="admin-select" aria-label={`Cadence for ${s.id}`} value={cadenceOf(s)} disabled={st === 'revoked'}
                 onChange={(e) => void change('PUT', '/cadence', { cadence: { ...cadence, [s.id]: e.target.value } })}>
                 {CADENCE_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>

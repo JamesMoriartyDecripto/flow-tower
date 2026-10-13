@@ -7,6 +7,12 @@
 export const CADENCE_OPTIONS = ['always-on', 'on-demand', 'scheduled'] as const;
 export type Cadence = (typeof CADENCE_OPTIONS)[number];
 
+/** What the server applies to a sender with no cadence (src/server/alerts.ts): never silent-alerted. */
+export const DEFAULT_CADENCE: Cadence = 'on-demand';
+
+/** The cadence the server actually uses for this sender, so the UI never shows a different one. */
+export const cadenceOf = (sender: { cadence?: Cadence }): Cadence => sender.cadence ?? DEFAULT_CADENCE;
+
 /** Same shape the server accepts (src/server/hub-admin.ts ID): a sender id is 1-32 of a-z, 0-9 or -. */
 const SENDER_ID = /^[a-z0-9-]{1,32}$/;
 
