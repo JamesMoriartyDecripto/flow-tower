@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Fixed
+- `flow-tower service` on a real systemd desktop (#194, found in #181): a `systemctl --user stop` no longer leaves the unit `failed` (the server's 130/143 exits are declared as success); `service uninstall` also clears a failed state, so no `not-found failed` unit stays listed; `service status` on a failed unit points to `journalctl --user -u flow-tower`; `service install` says when the library is empty (the service cannot start) and names entries gone from disk.
+- The unit's `ExecStart` names the `node` on PATH that is the running binary (`/usr/bin/node`), not the versioned file it resolves to (`/usr/bin/node-24`), so a Node major upgrade does not break the service; only absolute PATH directories that group and others cannot write are trusted. The `loginctl enable-linger` hint is shown only outside a graphical session (#194).
+
 ## [0.10.0] - 2026-10-13
 
 ### Added
