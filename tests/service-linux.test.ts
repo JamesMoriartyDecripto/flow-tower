@@ -129,22 +129,59 @@ function fakeReal(links: Record<string, string>) {
   };
 }
 
+/** A fake stat: every directory is a root-owned 0o755 directory, so only the injected `real` decides. */
+const trustedStat = (): { mode: number } => ({ mode: 0o40755 });
+
 describe('stableNode', () => {
   const real = fakeReal({ '/usr/bin/node': '/usr/bin/node-24', '/usr/bin/node-24': '/usr/bin/node-24' });
 
   it('names the PATH link that resolves to the same binary as execPath', () => {
-    expect(stableNode('/usr/bin/node-24', '/usr/local/bin:/usr/bin', real)).toBe('/usr/bin/node');
+    expect(stableNode('/usr/bin/node-24', '/usr/local/bin:/usr/bin', real, trustedStat)).toBe('/usr/bin/node');
   });
 
   it('keeps execPath when no PATH directory links to it', () => {
-    expect(stableNode('/usr/bin/node-24', '/opt/bin:/usr/local/bin', real)).toBe('/usr/bin/node-24');
+    expect(stableNode('/usr/bin/node-24', '/opt/bin:/usr/local/bin', real, trustedStat)).toBe('/usr/bin/node-24');
   });
 
   it('keeps execPath when PATH is undefined', () => {
-    expect(stableNode('/usr/bin/node-24', undefined, real)).toBe('/usr/bin/node-24');
+    expect(stableNode('/usr/bin/node-24', undefined, real, trustedStat)).toBe('/usr/bin/node-24');
   });
 
   it('keeps execPath when it cannot be resolved', () => {
-    expect(stableNode('/gone/node', '/usr/bin', real)).toBe('/gone/node');
+    expect(stableNode('/gone/node', '/usr/bin', real, trustedStat)).toBe('/gone/node');
+  });
+});
+
+describe('stableNode trust checks', () => {
+  // Both the versioned binary and a link to it sit under the PATH directories the tests vary.
+  const real = fakeReal({ '/usr/bin/node': '/usr/bin/node-24', '/usr/bin/node-24': '/usr/bin/node-24', 'node_modules/.bin/node': '/usr/bin/node-24', './node': '/usr/bin/node-24' });
+
+  it('skips a relative PATH entry, so ExecStart never becomes relative', () => {
+    expect(stableNode('/usr/bin/node-24', '.:node_modules/.bin:/usr/bin', real, trustedStat)).toBe('/usr/bin/node');
+    expect(stableNode('/usr/bin/node-24', '.:node_modules/.bin', real, trustedStat)).toBe('/usr/bin/node-24');
+  });
+
+  it('skips a directory writable by group', () => {
+    const stat = (dir: string) => ({ mode: dir === '/opt/bin' ? 0o40775 : 0o40755 });
+    const linked = fakeReal({ '/usr/bin/node-24': '/usr/bin/node-24', '/opt/bin/node': '/usr/bin/node-24', '/usr/bin/node': '/usr/bin/node-24' });
+    expect(stableNode('/usr/bin/node-24', '/opt/bin:/usr/bin', linked, stat)).toBe('/usr/bin/node');
+  });
+
+  it('skips a directory writable by others, even when it is the only match', () => {
+    const stat = () => ({ mode: 0o40777 });
+    expect(stableNode('/usr/bin/node-24', '/usr/bin', real, stat)).toBe('/usr/bin/node-24');
+  });
+
+  it('skips a directory that cannot be stat-ed', () => {
+    const stat = (dir: string) => {
+      if (dir === '/usr/bin') throw new Error(`ENOENT: ${dir}`);
+      return { mode: 0o40755 };
+    };
+    const linked = fakeReal({ '/usr/bin/node-24': '/usr/bin/node-24', '/usr/local/bin/node': '/usr/bin/node-24', '/usr/bin/node': '/usr/bin/node-24' });
+    expect(stableNode('/usr/bin/node-24', '/usr/bin:/usr/local/bin', linked, stat)).toBe('/usr/local/bin/node');
+  });
+
+  it('accepts a root-owned 0o40755 directory', () => {
+    expect(stableNode('/usr/bin/node-24', '/usr/bin', real, () => ({ mode: 0o40755 }))).toBe('/usr/bin/node');
   });
 });

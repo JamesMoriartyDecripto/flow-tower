@@ -5,9 +5,9 @@
  * touch the real home, systemd or launchd. Everything that touches the home folder takes a context.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, userInfo } from 'node:os';
-import { delimiter, dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { readObject } from '../../bin/config-file.js';
@@ -55,8 +55,17 @@ setTimeout(() => process.exit(1), 1000).unref();`;
  * The node command to write into a unit: a PATH name for execPath when one points at the same file (Fedora's
  * /usr/bin/node links to the versioned binary), else execPath itself. The versioned name (node-24) goes away on
  * the next major upgrade; the plain name follows the upgrade. `real` resolves links and is injected for tests.
+ *
+ * The name is written verbatim into ExecStart and systemd resolves it again at every start, so only trusted
+ * directories count: a relative PATH entry would make ExecStart relative, and a directory that group or others
+ * can write to would let someone swap its `node` after install. `stat` is injected for tests too.
  */
-export function stableNode(execPath: string, pathVar: string | undefined, real: (path: string) => string = realpathSync): string {
+export function stableNode(
+  execPath: string,
+  pathVar: string | undefined,
+  real: (path: string) => string = realpathSync,
+  stat: (path: string) => { mode: number } = statSync,
+): string {
   let target: string;
   try {
     target = real(execPath);
@@ -64,7 +73,13 @@ export function stableNode(execPath: string, pathVar: string | undefined, real: 
     return execPath;
   }
   for (const dir of (pathVar ?? '').split(delimiter)) {
-    if (!dir) continue;
+    if (!dir || !isAbsolute(dir)) continue;
+    try {
+      // 0o022 is the group- and other-write bit: a directory open to other users is not a place to pin a node.
+      if (stat(dir).mode & 0o022) continue;
+    } catch {
+      continue;
+    }
     const candidate = join(dir, 'node');
     try {
       if (real(candidate) === target) return candidate;
@@ -277,7 +292,8 @@ function installLinux(ctx: ServiceContext, port: number): number {
     ctx.log(`no desktop login here? keep it running after logout: loginctl enable-linger ${ctx.user}`);
   }
   // An empty library makes `library` exit at once, so systemd gives up after a few restarts: say how to fix it now.
-  const { mine } = libraryEntries({ env: { FLOW_TOWER_HOME: userFolder(ctx) }, checkout: ctx.checkout, warn: () => {} });
+  // Gone entries go to ctx.log too, so the user sees which paths to drop before the hint to add one.
+  const { mine } = libraryEntries({ env: { FLOW_TOWER_HOME: userFolder(ctx) }, checkout: ctx.checkout, warn: ctx.log });
   if (mine.length === 0) {
     ctx.log(`your library is empty, so the service cannot start yet: ${cliName()} library add <path>, then: systemctl --user restart ${UNIT_NAME}`);
   }
