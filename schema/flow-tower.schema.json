@@ -386,7 +386,30 @@
           "files": {
             "type": "array",
             "items": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "optional": {
+                      "type": "boolean"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A file a run writes: missing is not a warning while optional"
+                }
+              ]
             }
           },
           "tower": {
@@ -1276,7 +1299,30 @@
                 "files": {
                   "type": "array",
                   "items": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "optional": {
+                            "type": "boolean"
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path"
+                        ],
+                        "additionalProperties": false,
+                        "description": "A file a run writes: missing is not a warning while optional"
+                      }
+                    ]
                   }
                 },
                 "tower": {

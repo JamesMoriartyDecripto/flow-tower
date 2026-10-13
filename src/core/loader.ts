@@ -6,7 +6,7 @@ import type { z } from 'zod';
 import { TowerSchema, type TowerDef } from './schema.ts';
 import { parseEdge } from './edges.ts';
 import { isForbidden, isForbiddenSync, realOrSelf, userHome, within } from './secrets.ts';
-import { pickOps, resolveAgent, resolvePromptDef, resolvePromptRef, type FileReader } from './resolve.ts';
+import { fileRefs, mergeFileRefs, pickOps, resolveAgent, resolvePromptDef, resolvePromptRef, type FileReader } from './resolve.ts';
 import type { Issue, ResolvedAgent, ResolvedEdge, ResolvedLayer, ResolvedPrompt, ResolvedTower, Workspace } from './types.ts';
 
 export interface LoadResult {
@@ -371,8 +371,22 @@ export async function buildTower(
       keys.add(where);
       const agent = n.agent ? agents[n.agent] : undefined;
       if (n.agent && !agent) issues.push({ level: 'error', message: `unknown agent "${n.agent}"`, path: where });
-      const files = [...new Set([...(agent?.files ?? []), ...(n.files ?? [])])];
-      for (const f of n.files ?? []) if (!exists(f, where)) issues.push({ level: 'warning', message: `file not found: ${f}`, path: where });
+      // The agent's files come first, then the node's; a path listed twice keeps one entry (see mergeFileRefs).
+      const agentRefs = (agent?.files ?? []).map((path) => ({ path, optional: agent!.optionalFiles.includes(path) }));
+      const refs = mergeFileRefs([...agentRefs, ...fileRefs(n.files)]);
+      const files = refs.map((r) => r.path);
+      const optionalFiles = refs.filter((r) => r.optional).map((r) => r.path);
+      // Only the node's own entries are checked for a warning, as before; an optional one that is missing is
+      // expected (a run writes it), so it gets no warning and the inspector says "not generated yet" instead.
+      const own = new Set(fileRefs(n.files).map((r) => r.path));
+      const missingOptional: string[] = [];
+      for (const r of refs) {
+        // An agent's required file is not checked here, as before: only the node's own entries and optional ones.
+        if (!r.optional && !own.has(r.path)) continue;
+        if (exists(r.path, own.has(r.path) ? where : undefined)) continue;
+        if (r.optional) missingOptional.push(r.path);
+        else issues.push({ level: 'warning', message: `file not found: ${r.path}`, path: where });
+      }
       const resources = [...(agent?.resources ?? []), ...(n.resources ?? [])];
       for (const r of n.resources ?? []) if (r.path && !exists(r.path)) issues.push({ level: 'warning', message: `resource not found: ${r.path}`, path: where });
 
@@ -390,6 +404,8 @@ export async function buildTower(
         prompt: (await resolvePromptRef(n.prompt, prompts, fs, issues, where)) ?? agent?.prompt,
         tools: n.tools ?? agent?.tools ?? [],
         files,
+        optionalFiles,
+        missingOptional,
         tower: n.tower ?? agent?.tower,
         runtime: n.runtime ? runtimeOf(n.runtime, where) : agent?.runtime ? runtimes[agent.runtime] : undefined,
         status: n.status ?? 'active',

@@ -188,7 +188,15 @@ layers:
 | `model`, `prompt`, `tools`, `files`, `tower`, `meta` | Override or set directly. |
 | `trigger`, `approval`, `budget`, `limits`, `fanout`, `data`, `evals`, `version`, `rollout`, `sla`, `credentials`, `sandbox` | See [Operations](#operations). Inherited from the agent. |
 
-Every path in `files` opens in the file viewer. Missing files are reported as warnings.
+Every path in `files` opens in the file viewer. Missing files are reported as warnings, except a file a run writes,
+listed as an object with `optional: true`: until it exists the Inspector shows it as "not generated yet", and neither
+`validate` nor the PDF checks complain.
+
+```yaml
+files:
+  - src/report.ts
+  - { path: reports/latest.md, optional: true, description: "Written by the nightly run" }
+```
 
 ## Edge
 

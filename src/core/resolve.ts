@@ -1,10 +1,36 @@
 import { parse as parseYaml } from 'yaml';
-import { OPS_KEYS, type AgentDef, type OpsDef, type PromptDef, type PromptRef } from './schema.ts';
+import { OPS_KEYS, type AgentDef, type FileEntry, type OpsDef, type PromptDef, type PromptRef } from './schema.ts';
 import type { Issue, ResolvedAgent, ResolvedPrompt } from './types.ts';
 
 /** Minimal file access so resolution stays testable without touching disk. */
 export interface FileReader {
   read(path: string): Promise<string | undefined>;
+}
+
+/** One file a node or agent lists, and whether a run writes it (so a missing file is expected). */
+export interface FileRef {
+  path: string;
+  optional: boolean;
+}
+
+/** The `files` entries as written: a path, or an object that may mark the file optional. */
+export function fileRefs(list: FileEntry[] | undefined): FileRef[] {
+  return (list ?? []).map((e) => typeof e === 'string'
+    ? { path: e, optional: false }
+    : { path: e.path, optional: e.optional ?? false });
+}
+
+/**
+ * One entry per path, in first-seen order. A path listed twice is optional only when every listing is:
+ * one required listing still means the file must exist.
+ */
+export function mergeFileRefs(list: FileRef[]): FileRef[] {
+  const byPath = new Map<string, FileRef>();
+  for (const r of list) {
+    const prev = byPath.get(r.path);
+    byPath.set(r.path, prev ? { path: r.path, optional: prev.optional && r.optional } : r);
+  }
+  return [...byPath.values()];
 }
 
 const VAR = /\{\{\s*([\w.-]+)\s*\}\}/g;
@@ -82,6 +108,8 @@ export async function resolveAgent(
   const { name, description, model, tools, skills, ...rest } = imported;
   // Frontmatter is free YAML: `name: 2025` is a number. Everything downstream expects strings.
   const text = (v: unknown) => (v === undefined || v === null ? undefined : String(v));
+  // The agent file itself is always required: a missing one is already an error (see `from` above).
+  const refs = mergeFileRefs([...(def.from ? [{ path: def.from, optional: false }] : []), ...fileRefs(def.files)]);
   return {
     id,
     name: def.name ?? text(name) ?? id,
@@ -92,7 +120,8 @@ export async function resolveAgent(
     harness: def.harness ?? {},
     skills: def.skills ?? toList(skills),
     disabledTools: def.disabled_tools ?? [],
-    files: [...(def.from ? [def.from] : []), ...(def.files ?? [])],
+    files: refs.map((r) => r.path),
+    optionalFiles: refs.filter((r) => r.optional).map((r) => r.path),
     source: def.from,
     tower: def.tower,
     runtime: def.runtime,
