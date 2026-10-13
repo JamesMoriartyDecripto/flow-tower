@@ -1,8 +1,5 @@
 export function stripJsonc(text: string): string;
-export function localServerFile(home: string): string;
-export function writeLocalServer(options: { home?: string; url: string; pid: number }): void;
-export function clearLocalServer(options: { home?: string; pid: number }): void;
-export function localServerUrl(options?: { env?: Record<string, string | undefined>; home?: string }): string | undefined;
+export function readObject(path: string): Record<string, unknown>;
 export function libraryPaths(options: { env: Record<string, string | undefined>; home?: string }): string[];
 export function senderConfig(options: {
   env: Record<string, string | undefined>;

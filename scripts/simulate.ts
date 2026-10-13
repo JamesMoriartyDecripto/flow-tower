@@ -8,7 +8,7 @@ import { parseArgs } from 'node:util';
 import { sampleApiRequest } from '../src/core/otlp.ts';
 import type { ResolvedNode, ResolvedTower, Workspace } from '../src/core/types.ts';
 // Plain JS, shared with emit: the port a running `serve` recorded in the user folder (#187).
-import { localServerUrl } from '../bin/config-file.js';
+import { localServerUrl } from '../bin/local-server.js';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,

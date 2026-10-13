@@ -6,7 +6,8 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
 import { parseArgs } from 'node:util';
-import { clearLocalServer, localServerUrl, senderConfig, writeLocalServer } from './config-file.js';
+import { senderConfig } from './config-file.js';
+import { localServerUrl, recordLocalServer } from './local-server.js';
 import { findTsCommand, runTsCommand } from './commands.js';
 import { STARTER } from './starter.js';
 import { clipIdentity, identityDefaults } from './identity.js';
@@ -465,18 +466,7 @@ try {
   throw err;
 }
 // Record where this server listens (#187), so emit and simulate in this user folder find it without --url.
-// A wildcard bind is reached on loopback; IPv6 literals need brackets in a URL.
-const recordHost = bindHost === '0.0.0.0' || bindHost === '::' ? '127.0.0.1' : bindHost.includes(':') ? `[${bindHost}]` : bindHost;
-const localUrl = `http://${recordHost}:${values.port}`;
-// The first live server keeps the record: a second one in the same user folder would otherwise take it over,
-// then clear it on exit and leave emit with no record while the first still runs.
-if (!localServerUrl({ env })) writeLocalServer({ url: localUrl, pid: process.pid });
-// Clearing on exit keeps the record from naming a dead port; the signal handlers only add the clear, then exit
-// with the conventional code (Node's default for these signals, which a handler would otherwise replace).
-process.on('exit', () => clearLocalServer({ pid: process.pid }));
-for (const [sig, code] of [['SIGINT', 130], ['SIGTERM', 143]]) {
-  process.once(sig, () => { clearLocalServer({ pid: process.pid }); process.exit(code); });
-}
+recordLocalServer({ env, bindHost, port: values.port });
 // Show the URL in the banner too: with strictPort it is always the port the user asked for.
 console.log(`\n  FLOW//TOWER  http://${bindHost}:${values.port}  ${entries.join('  ')}${hub ? '  [hub]' : ''}${ingestOnly ? '  [ingest-only]' : ''}\n`);
 server.printUrls();

@@ -3,7 +3,7 @@
  * second Node with type stripping to load src/server/config.ts tripled its time (0.14 s to 0.41 s).
  * src/server/config.ts imports `stripJsonc` from here, so both read the same JSONC.
  */
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -61,7 +61,8 @@ export const stripJsonc = (text) => dropTrailingCommas(stripComments(text));
 const SENDER_KEYS = ['url', 'user', 'machine', 'token'];
 const unset = (v) => v === undefined || v.trim() === '';
 
-function readObject(path) {
+/** A JSON object read from a file; a missing, broken or non-object file reads as {}. Shared with local-server.js. */
+export function readObject(path) {
   try {
     const parsed = JSON.parse(stripJsonc(readFileSync(path, 'utf8')));
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
@@ -76,49 +77,6 @@ function readObject(path) {
 export function libraryPaths({ env, home = env.FLOW_TOWER_HOME || join(homedir(), '.config', 'flow-tower') }) {
   const value = readObject(join(home, 'config.json')).library;
   return Array.isArray(value) ? value.filter((p) => typeof p === 'string' && p.trim()) : [];
-}
-
-/**
- * Where a running `serve` listens (#187): it writes this file into the user folder so `emit` and `simulate`
- * find its port without a --url. Plain JS for the same reason as the rest of this file.
- */
-export const localServerFile = (home) => join(home, 'local-server.json');
-
-const userHome = (env) => env.FLOW_TOWER_HOME || join(homedir(), '.config', 'flow-tower');
-
-/** Records the url of a server this process runs. Never throws: without the file, emit uses the default port. */
-export function writeLocalServer({ home = userHome(process.env), url, pid }) {
-  try {
-    mkdirSync(home, { recursive: true });
-    // The file names a local port and a pid, nothing secret, but it is still the user's own: owner only.
-    writeFileSync(localServerFile(home), JSON.stringify({ url, pid, startedAt: new Date().toISOString() }), { mode: 0o600 });
-  } catch { /* read-only home: emit falls back to the default url */ }
-}
-
-/**
- * Removes the record only when it is still this process's: a second server may have written its own
- * since. Never throws.
- */
-export function clearLocalServer({ home = userHome(process.env), pid }) {
-  try {
-    if (readObject(localServerFile(home)).pid === pid) rmSync(localServerFile(home), { force: true });
-  } catch { /* nothing to clear */ }
-}
-
-/**
- * The url of a local server this user folder recorded, when its pid is still alive. A stale file (the
- * server was killed without cleanup) reads as undefined, so emit falls back to the default.
- */
-export function localServerUrl({ env = process.env, home = userHome(env) } = {}) {
-  const record = readObject(localServerFile(home));
-  if (typeof record.url !== 'string' || !record.url.trim() || !Number.isInteger(record.pid)) return undefined;
-  try {
-    process.kill(record.pid, 0);
-  } catch (err) {
-    // EPERM: the process exists but belongs to someone else, so it is alive for our purposes.
-    if (err?.code !== 'EPERM') return undefined;
-  }
-  return record.url.trim();
 }
 
 /**

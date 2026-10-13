@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { clearLocalServer, localServerFile, localServerUrl, writeLocalServer } from '../bin/config-file.js';
+import { clearLocalServer, localServerFile, localServerUrl, writeLocalServer } from '../bin/local-server.js';
 import { cleanEnv } from './fixtures/clean-env';
 
 /**
