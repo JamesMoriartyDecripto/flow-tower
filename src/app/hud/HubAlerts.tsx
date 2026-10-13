@@ -1,5 +1,6 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { activeRules, type AlertsView, type HubAlert } from '../hub';
+import { newAlerts, readNotifyOptIn, writeNotifyOptIn, type NoticeAlert } from './hubAlertsModel';
 
 /**
  * Reads GET /api/hub/alerts and hands the answer to `set`. A failed read leaves the old view in place
@@ -33,6 +34,19 @@ async function act(path: 'ack' | 'snooze', id: string, extra?: { for: '1h' | '1d
 const LEVEL_LABEL: Record<HubAlert['level'], string> = { warning: 'WARN', critical: 'CRIT' };
 
 /**
+ * One browser notice for an alert. Clicking it focuses this window and opens Hub › Alerts; the tag is the
+ * alert id, so a re-notice for the same alert replaces the old one instead of stacking up.
+ */
+function showNotice(a: NoticeAlert) {
+  const n = new Notification('Flow Tower hub', { body: a.message, tag: a.id });
+  n.onclick = () => {
+    window.focus();
+    window.dispatchEvent(new CustomEvent('flow-tower:hub-open', { detail: 'alerts' }));
+    n.close();
+  };
+}
+
+/**
  * Short human titles for the rule ids the server sends (src/server/alerts.ts RULES). The row shows this
  * instead of the raw id; an unknown id (a newer server) falls back to the id so nothing is hidden.
  */
@@ -53,10 +67,48 @@ export function AlertsTab({ view, canAct, onChanged }: {
   onChanged: () => void;
 }) {
   const [failed, setFailed] = useState(false);
+  const [notify, setNotify] = useState(() => readNotifyOptIn());
+  const [denied, setDenied] = useState(() => typeof Notification !== 'undefined' && Notification.permission === 'denied');
+
+  // The previous poll's alerts, for the diff; undefined until the first poll, so the first one stays silent.
+  const previous = useRef<NoticeAlert[] | undefined>(undefined);
+  useEffect(() => {
+    if (!view) return;
+    const current = view.alerts;
+    if (notify && typeof Notification !== 'undefined') {
+      for (const a of newAlerts(previous.current, current)) showNotice(a);
+    }
+    previous.current = current;
+  }, [view, notify]);
+
+  const toggle = async (on: boolean) => {
+    setNotify(on);
+    writeNotifyOptIn(on);
+    // Permission is asked once, on the first switch-on; a page that never opts in never sees the prompt.
+    if (on && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      try { await Notification.requestPermission(); } catch { /* the notice simply stays off */ }
+    }
+    setDenied(typeof Notification !== 'undefined' && Notification.permission === 'denied');
+  };
+
+  const switchRow = (
+    <label className="admin-line notify-switch">
+      {typeof Notification !== 'undefined' && (
+        <input type="checkbox" checked={notify} onChange={(e) => void toggle(e.target.checked)} />
+      )}
+      <span>Notify me in this browser</span>
+    </label>
+  );
 
   if (!view) return <p className="hub-empty">Alerts unavailable</p>;
   if (!view.alerts.length) {
-    return <p className="hub-empty">No alerts. {activeRules(view)} rules active.</p>;
+    return (
+      <>
+        {switchRow}
+        {denied && notify && <p className="hub-empty">Notifications are blocked for this site</p>}
+        <p className="hub-empty">No alerts. {activeRules(view)} rules active.</p>
+      </>
+    );
   }
 
   // Each action refreshes the view afterwards, so the row moves to its acked state or leaves the list.
@@ -76,6 +128,8 @@ export function AlertsTab({ view, canAct, onChanged }: {
 
   return (
     <>
+      {switchRow}
+      {denied && notify && <p className="hub-empty">Notifications are blocked for this site</p>}
       {failed && <p className="hub-warn">The hub did not store that change</p>}
       <div className="hub-rows alerts" role="list">
         {view.alerts.map((a) => (

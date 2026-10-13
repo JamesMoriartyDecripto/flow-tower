@@ -135,5 +135,24 @@ export function auditRows(entries: { ts: number; action: string; target: string 
   return entries.slice(0, limit).map((e) => ({ time: new Date(e.ts).toLocaleString(), action: e.action, target: e.target }));
 }
 
+/**
+ * The webhook as the panel shows it: scheme and host, then an ellipsis. The path of a webhook often holds
+ * the token, so it is never shown, not even partly.
+ */
+export const maskedHost = (host: string): string => `${host}/…`;
+
+/** The errors threshold field: a whole number from 1 to 1000, the same range the config schema enforces. */
+export const thresholdValid = (n: number): boolean => Number.isInteger(n) && n >= 1 && n <= 1000;
+
+/** The webhook url field: https://, or http:// to this machine; anything else is refused before it is sent. */
+export function notifyUrlValid(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' || (u.protocol === 'http:' && isLoopbackUrl(url));
+  } catch {
+    return false;
+  }
+}
+
 /** An alert rule is on unless the config says `false`: the server treats a missing key as on too. */
 export const ruleOn = (alerts: Record<string, boolean | undefined>, rule: string): boolean => alerts[rule] !== false;
