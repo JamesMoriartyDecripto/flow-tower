@@ -161,6 +161,10 @@ Lambda has no loopback and its own filesystem is read-only, so pick one:
   Tunnel), with `x-flow-tower-token` on every request. Direct is simplest but exposes an ingest endpoint to
   the internet, so a token is mandatory (the hub rate-limits ingest itself).
 
+## Alerts
+
+Machine silent, budget, error spike, new host: rules, config and ack/snooze in [hub-alerts.md](hub-alerts.md).
+
 ## Security model
 
 Hub mode changes what the server accepts; this is the one place it is stated:

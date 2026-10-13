@@ -49,7 +49,7 @@ export const ConfigSchema = z.strictObject({
   budgets: z.strictObject({
     global: z.number().optional(),
     projects: z.record(z.string(), z.number()).optional(),
-  }).optional().describe('EUR per month.'),
+  }).optional().describe('USD per calendar month (history costs are USD).'),
   alerts: z.record(z.string(), z.boolean()).optional().describe('Per rule name.'),
   noticeRef: z.string().optional(),
   purpose: z.string().optional(),

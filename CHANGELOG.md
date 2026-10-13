@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Hub alerts (#94): an always-on machine gone silent, monthly spend at 80% / 100% of a budget (USD, per project or global), an error spike (over 3× the 7-day hourly median, at least 5), a token used from a new host. A `⚠ n` pill in the top bar and the library header opens Hub › Alerts; ack and snooze (1 h / 1 d) from the hub machine only. Rules switch off per name in `config.json` `alerts`; `budgets` are documented as USD, the history's currency.
+
+### Added
 - Schema: a `files` entry can be `{ path, optional: true, description }` for a file a run writes: while it is missing, `validate` and the PDF checks stay quiet and the Inspector shows it as "not generated yet". The report-studio example uses it for the tower-documentation PDF (#137).
 
 ### Changed

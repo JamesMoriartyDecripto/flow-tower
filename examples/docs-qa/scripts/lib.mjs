@@ -42,7 +42,7 @@ export function resolveKey() {
 // Docs the router may pick. The CLAUDE.md table routes most of them; the rest are where the table points.
 export const DOCS = [
   'docs/getting-started.md', 'docs/what-goes-where.md', 'docs/schema.md', 'docs/generate-a-tower.md',
-  'docs/realtime.md', 'docs/command-center.md', 'docs/hub-reference.md', 'docs/voice.md',
+  'docs/realtime.md', 'docs/command-center.md', 'docs/hub-reference.md', 'docs/hub-alerts.md', 'docs/voice.md',
   'docs/architecture.md', 'docs/architecture-server.md', 'docs/architecture-cli.md', 'docs/architecture-app.md',
   'docs/best-practices.md', 'docs/reports.md', 'examples/command-center/README.md', 'examples/team-hub/README.md',
   'examples/dev-squad/README.md', 'skills/flow-tower-costs/SKILL.md',

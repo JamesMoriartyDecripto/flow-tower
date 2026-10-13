@@ -61,6 +61,7 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 | `hud/Updates.tsx` | Settings › Updates (#141): the installed version and the last check from `/api/version`, `Check for updates` (the forced check, throttled) and the copyable local update command; the top-bar `↑ vX.Y.Z` chip re-reads on a forced check through `VERSION_EVENT` |
 | `hud/Sharing.tsx` | The SAT chip (polls `/api/sharing`) and Settings › Sharing: pause and the "does it reach the hub?" test |
 | `hud/Hub.tsx` | The Hub panel (#92): `H` opens it in the Inspector's place, tabs Now and Machines (`[ ]`, ← →), the top-bar `HUB n/m` chip (polls `/api/hub/me`) and its `READ-ONLY` pill for a remote viewer |
+| `hud/HubAlerts.tsx` | The Alerts tab and the `⚠ n` pill (#94): level chips, rule labels, Ack / Snooze 1h / 1d and `A` from loopback only; the library header has the same pill, which closes the library and opens the tab |
 | `hud/dialog.ts` | Modal focus for HUD dialogs: move focus in, trap Tab, restore on close |
 | `hud/FileViewer.tsx` | File popup with syntax highlighting (shiki), focus restored on close |
 | `hud/MarkdownView.tsx` | Formatted Markdown: no raw HTML, links to the node's files, math in `$$…$$` (KaTeX) |

@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { create } from 'zustand';
-import { ago, hubPill, machineState, nowRows, type NowRow, type NowState } from '../hub';
+import { ago, alertsPill, hubPill, machineState, nowRows, type AlertsView, type NowRow, type NowState } from '../hub';
 import { useLive } from '../live';
 import { STATIC } from '../staticData';
+import { AlertsTab, readAlerts } from './HubAlerts';
 
-type Tab = 'now' | 'machines';
+type Tab = 'now' | 'machines' | 'alerts';
 
 /**
  * The Hub panel takes the Inspector's place, so the keyboard handler in App.tsx and the panel itself
@@ -23,9 +24,12 @@ interface HubStore {
   /** Move to the other tab, wrapping: [ ] while it is open, ← → while it has the focus. */
   step(d: 1 | -1): void;
   setMe(me: HubMe | undefined): void;
+  /** GET /api/hub/alerts, polled by the top-bar pill in hub mode: `undefined` means not loaded or lost. */
+  alerts?: AlertsView;
+  setAlerts(alerts: AlertsView | undefined): void;
 }
 
-const TABS: Tab[] = ['now', 'machines'];
+const TABS: Tab[] = ['now', 'machines', 'alerts'];
 
 /**
  * One /api/hub/me answer (src/server/hub-views.ts): whether this page is on a hub, whether it is a
@@ -47,6 +51,8 @@ export const useHub = create<HubStore>()((set, get) => ({
   show: (tab) => set({ open: true, tab }),
   step: (d) => set({ tab: TABS[(TABS.indexOf(get().tab) + d + TABS.length) % TABS.length] }),
   setMe: (me) => set({ me }),
+  alerts: undefined,
+  setAlerts: (alerts) => set({ alerts }),
 }));
 
 /** The Now clock: ages and states are relative, so they must be recomputed while the panel is open. */
@@ -82,6 +88,7 @@ export function HubPanel() {
   const close = useHub((s) => s.close);
   const step = useHub((s) => s.step);
   const me = useHub((s) => s.me);
+  const alerts = useHub((s) => s.alerts);
   const events = useLive((s) => s.events);
   const [now, setNow] = useState(() => Date.now());
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -163,7 +170,9 @@ export function HubPanel() {
       </nav>
       <div className="tabbody" id="hub-panel" role="tabpanel" aria-labelledby={`hub-tab-${tab}`}>
         {/* Admin controls (#93) must render here only when !me.readOnly: hidden for a viewer, never greyed out. */}
-        {tab === 'now' ? <NowTab rows={rows} now={now} /> : <MachinesTab rows={machines} now={now} failed={failed} />}
+        {tab === 'now' && <NowTab rows={rows} now={now} />}
+        {tab === 'machines' && <MachinesTab rows={machines} now={now} failed={failed} />}
+        {tab === 'alerts' && <AlertsTab view={alerts} canAct={!!me && !me.readOnly} onChanged={() => void readAlerts(useHub.getState().setAlerts)} />}
       </div>
       <footer className="hub-foot">Metadata only: no prompt text ever leaves a machine.</footer>
     </aside>
@@ -275,15 +284,45 @@ export function HubChip() {
     return () => { ac.abort(); clearInterval(t); };
   }, []);
 
+  // Alerts are a hub read too: poll them on the machines cadence, and only once this page is a hub.
+  const onHub = !!me?.hub;
+  useEffect(() => {
+    if (STATIC || !onHub) return;
+    const ac = new AbortController();
+    const read = () => void readAlerts(useHub.getState().setAlerts, ac.signal);
+    read();
+    const t = setInterval(read, MACHINES_MS);
+    return () => { ac.abort(); clearInterval(t); };
+  }, [onHub]);
+
   const pill = hubPill(me);
   if (!pill) return null;
   return (
     <>
       <button className="chip clickable hub-chip" onClick={() => show('machines')}
         title="Senders seen in the last 5 min / active tokens (H)">{pill}</button>
+      <AlertsPill />
       {me?.readOnly && (
         <span className="chip warn hub-ro" title="Remote viewer: nothing here can change the hub">READ-ONLY</span>
       )}
     </>
+  );
+}
+
+/**
+ * The unacked-alerts pill, shared by the top bar and the library header (the library hides the top bar,
+ * so the pill must be there too). Renders nothing when no alert is open. Its pulse only moves the glow
+ * (box-shadow), never the size or a transform, so Playwright sees the button as stable and clickable.
+ */
+export function AlertsPill({ onOpen }: { onOpen?: () => void } = {}) {
+  const firing = alertsPill(useHub((s) => s.alerts));
+  const show = useHub((s) => s.show);
+  if (!firing) return null;
+  return (
+    // The library overlay covers the Hub panel, so its pill passes onOpen to close the library first.
+    <button className={`chip clickable alerts-pill ${firing.level}`} data-alerts={firing.count}
+      onClick={onOpen ?? (() => show('alerts'))} title={`${firing.count} unacked alert${firing.count === 1 ? '' : 's'} (H › Alerts)`}>
+      ⚠ {firing.count}
+    </button>
   );
 }
