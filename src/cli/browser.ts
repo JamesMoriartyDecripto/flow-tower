@@ -9,6 +9,9 @@ export const GPU_ARGS = ['--enable-gpu', '--use-angle=gl', '--ignore-gpu-blockli
 /** The software WebGL flags: they work on a server with no GPU. */
 export const SOFTWARE_ARGS = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
 
+/** How long the renderer probe may take before auto mode treats the renderer as software. */
+export const PROBE_TIMEOUT_MS = 10_000;
+
 export type GlMode = 'auto' | 'gpu' | 'software';
 
 /** The slice of Playwright's Browser and Page this module uses; the real objects satisfy it. */
@@ -75,14 +78,31 @@ async function probeRenderer(browser: BrowserLike): Promise<string | null> {
 }
 
 /**
+ * The probe, raced against a timer. A wedged GPU page would otherwise hang the CLI forever. A timeout gives null,
+ * which the caller treats as software. The timer is cleared on every path so it never keeps the process alive.
+ */
+async function probeWithTimeout(browser: BrowserLike, timeoutMs: number): Promise<string | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), timeoutMs);
+  });
+  try {
+    return await Promise.race([probeRenderer(browser), timedOut]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * A browser for rendering. Without `webgl` no GPU flags are needed. With it, `software` and `gpu` force a mode,
  * and `auto` keeps the GPU browser only when its renderer is real hardware. Returns null when no browser starts.
  */
-export async function launchBrowser<B extends BrowserLike>({ webgl, launch, mode = 'auto', log }: {
+export async function launchBrowser<B extends BrowserLike>({ webgl, launch, mode = 'auto', log, probeTimeoutMs = PROBE_TIMEOUT_MS }: {
   webgl: boolean;
   launch: LaunchFn<B>;
   mode?: GlMode;
   log: (line: string) => void;
+  probeTimeoutMs?: number;
 }): Promise<B | null> {
   if (!webgl) return tryLaunch(launch);
   if (mode === 'software') {
@@ -96,10 +116,15 @@ export async function launchBrowser<B extends BrowserLike>({ webgl, launch, mode
     return browser;
   }
   const gpu = await tryLaunch(launch, GPU_ARGS);
-  if (!gpu) return null;
+  if (!gpu) {
+    // Some CI boxes abort Chromium on the GPU flags; the software flags still give a working browser there.
+    const software = await tryLaunch(launch, SOFTWARE_ARGS);
+    if (software) log('3D: software (SwiftShader)');
+    return software;
+  }
   let renderer: string | null;
   try {
-    renderer = await probeRenderer(gpu);
+    renderer = await probeWithTimeout(gpu, probeTimeoutMs);
   } catch {
     // A probe that throws means the GPU browser is not usable for WebGL: fall back rather than fail the export.
     renderer = null;
@@ -108,8 +133,13 @@ export async function launchBrowser<B extends BrowserLike>({ webgl, launch, mode
     log(`3D: GPU (${renderer})`);
     return gpu;
   }
-  await gpu.close().catch(() => {});
+  // Start the software browser before closing the GPU one, so a failed software launch still leaves a browser.
   const software = await tryLaunch(launch, SOFTWARE_ARGS);
-  if (software) log('3D: software (SwiftShader)');
-  return software;
+  if (software) {
+    await gpu.close().catch(() => {});
+    log('3D: software (SwiftShader)');
+    return software;
+  }
+  log('3D: software launch failed; keeping the GPU browser, 3D may render in software');
+  return gpu;
 }

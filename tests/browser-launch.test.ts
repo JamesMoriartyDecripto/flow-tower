@@ -154,6 +154,59 @@ describe('launchBrowser', () => {
     const f = fakeLaunch(IRIS, { failAll: true });
     const browser = await launchBrowser({ webgl: true, launch: f.launch, mode: 'auto', log: () => {} });
     expect(browser).toBeNull();
-    expect(f.calls.length).toBe(2);
+    expect(f.calls.length).toBe(4);
+  });
+
+  it('a probe that never resolves falls back after the timeout and closes the GPU browser', async () => {
+    const f = fakeLaunch(IRIS);
+    // The GPU browser's page never answers, so only the timer can end the probe.
+    const launch = async (options: LaunchOptions): Promise<BrowserLike> => {
+      if (options.args !== GPU_ARGS) return f.launch(options);
+      const b = await f.launch(options);
+      return { newPage: () => new Promise<PageLike>(() => {}), close: () => b.close() };
+    };
+    const log: string[] = [];
+    const browser = await launchBrowser({ webgl: true, launch, mode: 'auto', probeTimeoutMs: 20, log: (l) => log.push(l) });
+    expect(browser).toBe(f.browsers[1].browser);
+    expect(f.browsers[0].closed).toBe(true);
+    expect(log).toEqual(['3D: software (SwiftShader)']);
+  });
+
+  it('GPU launch null then software ok returns the software browser', async () => {
+    const f = fakeLaunch(IRIS, { failFirst: 2 });
+    const log: string[] = [];
+    const browser = await launchBrowser({ webgl: true, launch: f.launch, mode: 'auto', log: (l) => log.push(l) });
+    expect(browser).not.toBeNull();
+    expect(f.calls).toEqual([
+      { args: GPU_ARGS },
+      { args: GPU_ARGS, channel: 'chrome' },
+      { args: SOFTWARE_ARGS },
+    ]);
+    expect(log).toEqual(['3D: software (SwiftShader)']);
+  });
+
+  it('software launch null after a software probe keeps the GPU browser open', async () => {
+    const f = fakeLaunch(SWIFTSHADER, { failFirst: 0 });
+    const origLaunch = f.launch;
+    const launch = async (options: LaunchOptions): Promise<BrowserLike> => {
+      if (options.args === SOFTWARE_ARGS) throw new Error('no software');
+      return origLaunch(options);
+    };
+    const log: string[] = [];
+    const browser = await launchBrowser({ webgl: true, launch, mode: 'auto', log: (l) => log.push(l) });
+    expect(browser).toBe(f.browsers[0].browser);
+    expect(f.browsers[0].closed).toBe(false);
+    expect(log.at(-1)).toMatch(/keeping the GPU browser/);
+  });
+
+  it('a timed-out probe does not keep the process waiting on its timer', async () => {
+    const launch = async (): Promise<BrowserLike> => ({
+      newPage: () => new Promise<PageLike>(() => {}),
+      close: async () => {},
+    });
+    const started = Date.now();
+    const browser = await launchBrowser({ webgl: true, launch, mode: 'auto', probeTimeoutMs: 5, log: () => {} });
+    expect(browser).not.toBeNull();
+    expect(Date.now() - started).toBeLessThan(5_000);
   });
 });
