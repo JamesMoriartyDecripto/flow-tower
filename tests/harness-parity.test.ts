@@ -85,7 +85,6 @@ const LIMITS: Partial<Record<Harness, Partial<Record<Check, string>>>> = {
     'usage cost': 'post_api_request reports total_tokens only',
   },
   'agent-sdk': {
-    'session bounds': 'integrations/agent-sdk subscribes to no SessionStart/SessionEnd hook',
     'usage tokens': 'the SDK hook list has no usage event; tokens are not in the hook payload',
     'usage cost': 'the SDK hook list has no usage event; cost is not in the hook payload',
   },
