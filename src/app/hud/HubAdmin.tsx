@@ -141,7 +141,8 @@ function SendersSection({ senders, cadence, change }: { senders: AdminSender[]; 
         <div className="admin-box">
           <p className="hub-warn">Shown once: copy it now</p>
           <code className="admin-token">{shown.token}</code>
-          <code className="admin-token">{shown.configLine}</code>
+          {/* The other machine's hint: flow-tower works there only when it is on PATH, else its checkout's CLI runs the same line. */}
+          <code className="admin-token">{shown.configLine} (or node &lt;their checkout&gt;/bin/flow-tower.js …)</code>
           {/* A loopback URL works only on this machine; the note says what to put in its place. */}
           {loopback && <p className="hub-empty admin-note">Replace 127.0.0.1 with the address other machines use for this hub (its tailnet name)</p>}
           <div className="admin-line">

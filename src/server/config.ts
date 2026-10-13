@@ -174,6 +174,25 @@ export interface ConfigFlags {
   token?: string;
 }
 
+/**
+ * The kit's example domains (RFC 2606 names, as in check-example). A config still naming one was copied
+ * from the kit and not set up by its owner, so the server says so at start.
+ */
+const KIT_DOMAINS = ['example.com', 'example.ts.net'];
+
+/**
+ * The entries of allowedHosts and viewers that still hold a kit domain, as written. A viewer is a login
+ * (alice@example.com), so only the part after the "@" is judged. Pure: the caller decides how to warn.
+ */
+export function placeholderHosts({ allowedHosts = [], viewers = [] }: { allowedHosts?: string[]; viewers?: string[] }): string[] {
+  const isKit = (entry: string) => {
+    const host = (entry.trim().toLowerCase().split('@').pop() ?? '');
+    // Suffix match on a dot boundary: notexample.com is the user's own name, not a placeholder.
+    return KIT_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
+  };
+  return [...new Set([...allowedHosts, ...viewers].map((e) => e.trim()).filter((e) => e && isKit(e)))];
+}
+
 /** Flags, the environment and the config resolved into one value: what the rest of the server reads. */
 export interface EffectiveSettings {
   hub: boolean;

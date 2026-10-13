@@ -7,7 +7,13 @@
 import { argv, exit } from 'node:process';
 import { userHome } from '../core/secrets.ts';
 import { appendAudit } from '../server/admin-audit.ts';
+import { loadConfig } from '../server/config.ts';
 import { tokenStore } from '../server/tokens.ts';
+import { isLoopbackUrl } from '../../bin/identity.js';
+import { OTHER_MACHINE_CLI } from '../../bin/cli-name.js';
+
+// The port `serve` listens on by default: the config has no port key, so the printed url uses this one.
+const DEFAULT_PORT = 5317;
 
 const USAGE = 'usage: flow-tower token add <id> | list | revoke <id> | pause <id> | resume <id>';
 
@@ -41,6 +47,12 @@ switch (cmd) {
     // The plaintext is printed once and never stored: say so, or the user will look for it again.
     console.log(token);
     console.log('this token is shown once: it is kept only as a sha256, so a lost token cannot be recovered — store it now');
+    // The line the teammate runs on their machine, as the Admin tab shows it. The url is the config's when set
+    // (a tailnet or proxy name), else this server's loopback address, which only this machine can reach.
+    const cfg = loadConfig({ home }).config;
+    const hubUrl = cfg.url ?? `http://127.0.0.1:${DEFAULT_PORT}`;
+    console.log(`on the other machine: ${OTHER_MACHINE_CLI} connect ${hubUrl} --token ${token} --machine ${id}`);
+    if (isLoopbackUrl(hubUrl)) console.log('replace 127.0.0.1 with the address other machines use for this hub (its tailnet name)');
     audit('sender.add', id);
     break;
   }

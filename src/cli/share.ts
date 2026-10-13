@@ -17,6 +17,7 @@ import { asShare, withShare, withoutShare } from '../server/share-entries.ts';
 import { collectTower, listShared, removeTower, shareName, uploadTower } from '../server/share-client.ts';
 import { shareName as validShareName } from '../server/share-rules.ts';
 import { readUserConfig, writeUserConfig } from '../server/user-config.ts';
+import { cliName } from '../../bin/cli-name.js';
 
 const USAGE = 'usage: flow-tower share <dir> [--files] [--name <name>]\n'
   + '       flow-tower share --list\n'
@@ -74,7 +75,7 @@ function tokenId(t: string): string | undefined {
 
 async function share(dir: string | undefined) {
   if (!dir) fail(USAGE);
-  if (!hub || !token) fail('not connected: run flow-tower connect <hub-url> first');
+  if (!hub || !token) fail(`not connected: run ${cliName()} connect <hub-url> first`);
 
   const absDir = resolve(dir);
   const name = values.name ?? shareName(absDir);
@@ -130,7 +131,7 @@ async function unshare(target: string | undefined) {
 
   const r = hub && token
     ? await removeTower(hub, token, match.name)
-    : { ok: false as const, status: 0, error: 'not connected: run flow-tower connect <hub-url> first' };
+    : { ok: false as const, status: 0, error: `not connected: run ${cliName()} connect <hub-url> first` };
   // A 404 means the hub holds nothing under that name, which is what unshare wants: drop the entry.
   const gone = !r.ok && r.status === 404;
   if (!r.ok && !gone && r.status !== 0) fail(`the hub refused the unshare: ${r.error}\n${match.name} stays in config.`);

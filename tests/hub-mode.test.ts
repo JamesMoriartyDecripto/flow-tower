@@ -213,7 +213,8 @@ describe('cli hub flags (#83)', () => {
   it('refuses hub mode with no token at all, pointing at token add', () => {
     const r = run('--hub');
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('flow-tower token add');
+    // The hint names this checkout's CLI: bare on PATH, else the node form (#193).
+    expect(r.stderr).toMatch(/(flow-tower|node \S+bin\/flow-tower\.js) token add/);
   });
 });
 

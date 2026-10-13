@@ -163,6 +163,8 @@ export function hubAdmin({ home, hub, history, hubUrl, fetch: fetchFn }: HubAdmi
     }
     appendAudit(home, { action: 'sender.add', target: body.id, ...(body.cadence ? { detail: { cadence: body.cadence } } : {}) });
     // The token is answered once, here, and never written anywhere: the audit line above names only the id.
+    // The configLine stays the bare command (it is what Copy copies); the panel adds the other-machine hint to the
+    // text it shows, so the copied command still runs as it is on a machine with flow-tower on PATH.
     send(res, 200, { token, configLine: `flow-tower connect ${hubUrl()} --token ${token} --machine ${body.id}` });
   };
 

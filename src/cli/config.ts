@@ -10,7 +10,7 @@
 import { existsSync } from 'node:fs';
 import { exit, env } from 'node:process';
 import { parseArgs } from 'node:util';
-import { configPaths, effective, loadConfig, type ConfigFlags, type EffectiveSettings } from '../server/config.ts';
+import { configPaths, effective, loadConfig, placeholderHosts, type ConfigFlags, type EffectiveSettings } from '../server/config.ts';
 
 const USAGE = 'usage: flow-tower config path | show';
 
@@ -85,7 +85,8 @@ switch (positionals[0]) {
     const [checkoutFile, ownFile, hubFile] = configPaths();
     console.log(`user:     ${ownFile}${existsSync(ownFile) ? '' : '  (missing: create it here)'}`);
     console.log(`checkout: ${checkoutFile}${existsSync(checkoutFile) ? '' : '  (missing)'}`);
-    console.log(`hub.json: ${hubFile}${existsSync(hubFile) ? '  (deprecated: move its keys into config.json)' : '  (missing)'}`);
+    // hub.json is deprecated: a line for it only when it exists, so a clean setup is not told about a file it never had.
+    if (existsSync(hubFile)) console.log(`hub.json: ${hubFile}  (deprecated: move its keys into config.json)`);
     for (const w of loaded.warnings) console.error(`warning: ${w}`);
     break;
   }
@@ -100,7 +101,9 @@ switch (positionals[0]) {
   }
   case 'json': {
     // The internal contract bin/flow-tower.js reads: the whole effective config, token always redacted.
-    console.log(JSON.stringify({ ...eff, token: redact(eff.token) }));
+    // placeholders: the kit's example domains still in the settings, so bin/ can warn at serve start.
+    const placeholders = placeholderHosts({ allowedHosts: eff.allowedHosts, viewers: eff.viewers });
+    console.log(JSON.stringify({ ...eff, token: redact(eff.token), placeholders }));
     break;
   }
   default:

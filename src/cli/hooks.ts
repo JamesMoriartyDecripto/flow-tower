@@ -12,6 +12,7 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { localServerUrl } from '../../bin/local-server.js';
+import { cliName } from '../../bin/cli-name.js';
 import {
   type Harness, type MergeResult, mergeHermes, mergeJsonHooks, piExtension, staleCommandPath, unmergeHermes, unmergeJsonHooks,
   wired, wiredPort,
@@ -316,11 +317,11 @@ function status(ctx: HooksContext): number {
         let note: string;
         if (running === undefined) note = '(no library running)';
         else if (running === port) note = '(matches the running library)';
-        else note = `(the running library is on port ${running}: run flow-tower hooks install)`;
+        else note = `(the running library is on port ${running}: run ${cliName()} hooks install)`;
         console.log(`${label}: wired on port ${port} ${note}`);
       }
       const stale = staleCommandPath(h, text, existsSync);
-      if (stale !== undefined) console.log(`${label}: node not found at ${stale}: run flow-tower hooks install again`);
+      if (stale !== undefined) console.log(`${label}: node not found at ${stale}: run ${cliName()} hooks install again`);
     }
   }
   return 0;

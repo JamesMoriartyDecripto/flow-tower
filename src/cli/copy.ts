@@ -11,6 +11,7 @@ import { exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { parseDocument } from 'yaml';
+import { cliName } from '../../bin/cli-name.js';
 
 const USAGE = 'usage: flow-tower copy <example> [dest] | --list';
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -87,6 +88,13 @@ function ignoredFiles(files: string[]): Set<string> {
   return new Set((r.stdout ?? '').split('\0').filter(Boolean).map((p) => resolve(pkgRoot, p)));
 }
 
+/**
+ * A dogfood tower points at this repo with root: ../..: those paths break the moment it is copied.
+ * Shared by `copy` and `copy --list`, so the mark and the warning never disagree.
+ */
+const DOGFOOD_ROOT = /^root:\s*\.\.\/\.\.\s*$/m;
+const isDogfood = (main: string | undefined) => (main ? DOGFOOD_ROOT.test(readFileSync(main, 'utf8')) : false);
+
 /** The main tower YAML of a copied example: the *.tower.yaml directly in its folder. */
 function mainTower(dir: string): string | undefined {
   const main = readdirSync(dir).filter((f) => f.endsWith('.tower.yaml')).sort()[0];
@@ -96,7 +104,10 @@ function mainTower(dir: string): string | undefined {
 const { values, positionals } = parseArgs({ strict: false, allowPositionals: true, options: { list: { type: 'boolean', default: false } } });
 
 if (values.list) {
-  for (const e of examples()) console.log(`${e.path} — ${e.name}`);
+  // Dogfood towers break once copied, so they are listed last with a mark; the rest keep their order.
+  const rows = examples().map((e) => ({ e, dogfood: isDogfood(mainTower(e.dir)) }));
+  rows.sort((a, b) => Number(a.dogfood) - Number(b.dogfood));
+  for (const { e, dogfood } of rows) console.log(`${e.path} — ${e.name}${dogfood ? '  (needs adapting: points at this repo)' : ''}`);
   exit(0);
 }
 
@@ -107,7 +118,7 @@ if (!example) {
 }
 const src = resolve(EXAMPLES, example);
 if (!within(EXAMPLES, src) || !existsSync(src) || !statSync(src).isDirectory()) {
-  console.error(`unknown example "${example}". flow-tower copy --list names every example.`);
+  console.error(`unknown example "${example}". ${cliName()} copy --list names every example.`);
   exit(1);
 }
 const dest = resolve(destArg ?? basename(example));
@@ -134,7 +145,7 @@ for (const rel of listFiles(src)) {
 
 const main = mainTower(src);
 // A dogfood tower points at this repo with root: ../..: those paths break the moment it is copied.
-const dogfood = main ? /^root:\s*\.\.\/\.\.\s*$/m.test(readFileSync(main, 'utf8')) : false;
+const dogfood = isDogfood(main);
 // `npm run simulate` matches its argument against project ids, which are tower file paths: the display
 // name would silently fall back to the first tower, so hand it the file name without the extension.
 const project = main ? basename(main, '.tower.yaml') : undefined;
@@ -152,7 +163,7 @@ const destReal = realpathSync(dest);
 // real step and drops into the `next steps` block below (#121).
 const inside = within(realpathSync(pkgRoot), destReal);
 if (inside) {
-  console.log(`note: ${dest} is inside the flow-tower checkout, so it could end up in a commit. Move it to your own project, then flow-tower library add <path>.`);
+  console.log(`note: ${dest} is inside the flow-tower checkout, so it could end up in a commit. Move it to your own project, then ${cliName()} library add <path>.`);
 }
 if (dogfood) console.log(`warning: this example sets root: ../.., so its paths point at the flow-tower checkout, not at your copy.\n         Fix root: and every files:/prompt path before opening it.`);
 if (validation?.towers) {
@@ -161,11 +172,12 @@ if (validation?.towers) {
   console.log(`validation: ${validation.towers.length} tower(s), ${count('error')} error(s), ${count('warning')} warning(s)`);
   for (const i of issues.filter((x) => x.level !== 'info')) console.log(`  ${i.level}: ${i.message}`);
 } else {
-  console.log(`validation: could not run (flow-tower validate ${dest} --json failed)`);
+  console.log(`validation: could not run (${cliName()} validate ${dest} --json failed)`);
 }
+const cli = cliName();
 console.log(`next steps${inside ? '' : `
-  add it:      flow-tower library add ${dest}`}
-  open it:     flow-tower ${dest}
+  add it:      ${cli} library add ${dest}`}
+  open it:     ${cli} ${dest}
   try it live: npm run simulate -- ${project ?? '<tower file>'}   (from ${pkgRoot})
   adapt root: and files: to where the files live in your copy`);
 exit(0);
