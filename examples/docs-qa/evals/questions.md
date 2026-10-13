@@ -129,3 +129,7 @@ passes when the answer contains it (case-insensitive), and `a / b` means either 
 ## Q31. How do I show only the agent nodes by voice, and then everything again?
 - docs: docs/voice.md
 - facts: mostra solo gli agenti | mostra tutto
+
+## Q32. How do I stop the hub alerting when a token is used from a new host, and who can snooze an alert?
+- docs: docs/hub-alerts.md
+- facts: "new-host": false | loopback
