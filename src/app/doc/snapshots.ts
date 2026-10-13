@@ -64,8 +64,16 @@ function capture(towerId: string): Promise<Captured> {
     // `opacity: 0`), so the scene would never draw and every capture timed out (#181). The frame stays on
     // screen under an opaque veil instead: Chrome does not track occlusion, so it keeps rendering.
     Object.assign(frame.style, { position: 'fixed', left: '0', top: '0', width: '1600px', height: '1000px', border: '0', zIndex: '-2', pointerEvents: 'none' });
+    // Out of reach while mounted: no keyboard focus, no assistive-tech exposure. The capture is not content
+    // the reader can interact with, and `inert` also keeps focus from landing in it.
+    frame.tabIndex = -1;
+    frame.inert = true;
+    frame.setAttribute('aria-hidden', 'true');
+    frame.classList.add('snap-capture');
     const veil = document.createElement('div');
     Object.assign(veil.style, { position: 'fixed', inset: '0', zIndex: '-1', background: 'var(--paper, #fff)', pointerEvents: 'none' });
+    veil.setAttribute('aria-hidden', 'true');
+    veil.classList.add('snap-capture');
     let settled = false;
     const finish = (result: Captured) => {
       if (settled) return;
