@@ -4,8 +4,10 @@ import { ago, alertsPill, hubPill, machineState, nowRows, type AlertsView, type 
 import { useLive } from '../live';
 import { STATIC } from '../staticData';
 import { AlertsTab, readAlerts } from './HubAlerts';
+import { HubAdmin } from './HubAdmin';
+import { adminVisible } from './hubAdminModel';
 
-type Tab = 'now' | 'machines' | 'alerts';
+type Tab = 'now' | 'machines' | 'alerts' | 'admin';
 
 /**
  * The Hub panel takes the Inspector's place, so the keyboard handler in App.tsx and the panel itself
@@ -29,7 +31,13 @@ interface HubStore {
   setAlerts(alerts: AlertsView | undefined): void;
 }
 
-const TABS: Tab[] = ['now', 'machines', 'alerts'];
+const TABS: Tab[] = ['now', 'machines', 'alerts', 'admin'];
+
+/**
+ * The tabs this page may show: Admin only for a hub that is not a remote viewer (#93). Step and the tab
+ * bar both read this, so [ ] never lands on a tab the bar does not draw.
+ */
+export const visibleTabs = (me?: HubMe): Tab[] => (adminVisible(me) ? TABS : TABS.filter((t) => t !== 'admin'));
 
 /**
  * One /api/hub/me answer (src/server/hub-views.ts): whether this page is on a hub, whether it is a
@@ -49,7 +57,12 @@ export const useHub = create<HubStore>()((set, get) => ({
   toggle: () => set({ open: !get().open }),
   close: () => set({ open: false }),
   show: (tab) => set({ open: true, tab }),
-  step: (d) => set({ tab: TABS[(TABS.indexOf(get().tab) + d + TABS.length) % TABS.length] }),
+  step: (d) => {
+    const tabs = visibleTabs(get().me);
+    const i = tabs.indexOf(get().tab);
+    // A tab that just got hidden (me changed to a viewer) is not in the list: start from the first tab.
+    set({ tab: tabs[(i < 0 ? 0 : i + d + tabs.length) % tabs.length] });
+  },
   setMe: (me) => set({ me }),
   alerts: undefined,
   setAlerts: (alerts) => set({ alerts }),
@@ -160,7 +173,7 @@ export function HubPanel() {
         <div className="mono dim hub-hint">[ ] tab · Esc close</div>
       </header>
       <nav className="tabs" role="tablist" aria-label="Hub views" onKeyDown={tabKey}>
-        {TABS.map((id) => (
+        {visibleTabs(me).map((id) => (
           <button key={id} id={`hub-tab-${id}`} role="tab" aria-selected={tab === id} aria-controls="hub-panel"
             tabIndex={tab === id ? 0 : -1}
             className={tab === id ? 'on' : ''} onClick={() => show(id)}>
@@ -173,6 +186,7 @@ export function HubPanel() {
         {tab === 'now' && <NowTab rows={rows} now={now} />}
         {tab === 'machines' && <MachinesTab rows={machines} now={now} failed={failed} />}
         {tab === 'alerts' && <AlertsTab view={alerts} canAct={!!me && !me.readOnly} onChanged={() => void readAlerts(useHub.getState().setAlerts)} />}
+        {tab === 'admin' && adminVisible(me) && <HubAdmin />}
       </div>
       <footer className="hub-foot">Metadata only: no prompt text ever leaves a machine.</footer>
     </aside>

@@ -36,7 +36,7 @@ const LEVEL_LABEL: Record<HubAlert['level'], string> = { warning: 'WARN', critic
  * Short human titles for the rule ids the server sends (src/server/alerts.ts RULES). The row shows this
  * instead of the raw id; an unknown id (a newer server) falls back to the id so nothing is hidden.
  */
-const RULE_LABEL: Record<string, string> = {
+export const RULE_LABEL: Record<string, string> = {
   silent: 'Machine silent',
   budget: 'Budget',
   'error-spike': 'Error spike',
