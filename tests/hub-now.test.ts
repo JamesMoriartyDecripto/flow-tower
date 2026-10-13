@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nowRows, workingCount, type ResolveTarget } from '../src/app/hub';
+import { nowRows, showUser, workingCount, type ResolveTarget } from '../src/app/hub';
 import type { FlowEvent } from '../src/core/events';
 
 const NOW = 1_000_000_000_000;
@@ -107,5 +107,16 @@ describe('workingCount', () => {
 
   it('is zero for no rows', () => {
     expect(workingCount([])).toBe(0);
+  });
+});
+
+describe('showUser', () => {
+  it('shows the user only when it differs from the machine', () => {
+    expect(showUser({ machine: 'alice-laptop', startedBy: 'alice' })).toBe(true);
+    expect(showUser({ machine: 'bob', startedBy: 'bob' })).toBe(false);
+  });
+
+  it('shows nothing for an automatic run', () => {
+    expect(showUser({ machine: 'ci-box', startedBy: 'AUTO' })).toBe(false);
   });
 });

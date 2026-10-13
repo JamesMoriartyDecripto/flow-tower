@@ -45,6 +45,13 @@ export interface NowRow {
   count: number;
 }
 
+/**
+ * Line 2 names the user only when they differ from the machine: on a shared box "alice" under
+ * "alice-laptop" is news, but "bob" under "bob" would just repeat line 1. No user (AUTO) shows nothing.
+ */
+export const showUser = (row: Pick<NowRow, 'machine' | 'startedBy'>): boolean =>
+  row.startedBy !== 'AUTO' && row.startedBy !== row.machine;
+
 /** What a "towerId#node" target shows as: the tower name and the node label, both from the library. */
 export interface TargetLabel {
   tower: string;

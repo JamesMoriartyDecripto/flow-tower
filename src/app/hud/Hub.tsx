@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'reac
 import { create } from 'zustand';
 import { splitTarget } from '../../core/events';
 import type { Workspace } from '../../core/types';
-import { ago, alertsPill, hubPill, machineState, nowRows, workingCount, type AlertsView, type NowRow, type NowState, type ResolveTarget } from '../hub';
+import { ago, alertsPill, hubPill, machineState, nowRows, showUser, workingCount, type AlertsView, type NowRow, type NowState, type ResolveTarget } from '../hub';
 import { towerPath } from '../graph';
 import { useLive } from '../live';
 import { findNode, useStore } from '../store';
@@ -217,15 +217,16 @@ function NowTab({ rows, now, ws }: { rows: NowRow[]; now: number; ws?: Workspace
             <span className={`hub-dot ${r.state}`} title={r.state}>{DOT[r.state]}</span>
             {/* Every cell is ellipsized by CSS, so its title carries the value the cut hides. */}
             <span className="hub-sender" title={r.machine}>{r.machine}</span>
-            <span className="hub-cell" title={r.startedBy === 'AUTO' ? 'Started automatically' : r.startedBy}>
-              {r.startedBy === 'AUTO' ? <span className="chip hub-auto">AUTO</span> : r.startedBy}
-            </span>
             <span className="hub-cell hub-where" title={`${r.tower}${r.node ? ` › ${r.node}` : ''}`}>
               {r.tower}{r.node && <><span className="hub-sep" aria-hidden="true"> › </span>{r.node}</>}
             </span>
             <span className="hub-right" title={`${r.state} · ${ago(now - r.last)}`}>{r.state} · {ago(now - r.last)}</span>
           </button>
           <div className="hub-meta">
+            {/* The user moves to line 2 and only when it adds news: the machine name already says who it is. */}
+            {showUser(r) && <span className="hub-cell" title={r.startedBy}>{r.startedBy}</span>}
+            {!showUser(r) && r.startedBy === 'AUTO' && <span className="chip hub-auto" title="Started automatically">AUTO</span>}
+            {(showUser(r) || r.startedBy === 'AUTO') && <span className="hub-sep" aria-hidden="true">·</span>}
             <span className="hub-cell" title={r.runtime}>{r.runtime}</span>
             <span className="hub-sep" aria-hidden="true">·</span>
             <span className="hub-cell" title={`${r.count} events`}>{r.count} {r.count === 1 ? 'event' : 'events'}</span>
