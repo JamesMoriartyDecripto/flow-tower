@@ -23,6 +23,7 @@ import { isRemote } from './auth.ts';
 import { createRelay } from './relay.ts';
 import { sharingHandler } from './sharing.ts';
 import { startShareSync } from './share-sync.ts';
+import { createRelaySupervisor, type RelayReading } from './relay-supervisor.ts';
 import { effective, loadConfig } from './config.ts';
 import { allowUpgrade, hubGuard, hubOptionsFromEnv } from './hub.ts';
 import { hubViews } from './hub-views.ts';
@@ -117,14 +118,17 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         });
       }
 
-      // Satellite relay (#91): a local library forwards what it accepted to the hub, metadata only.
-      const relay = createRelayFor(server, hubOpts, VERSION);
-      // Shared towers (#164): the sync runs beside the relay, only where the relay exists (a satellite with
-      // a url and token). A change to a shared folder reaches the hub on the next tick, with no manual step.
-      const relaySettings = effective(loadConfig().config);
-      const shareSync = relay && relaySettings.url && relaySettings.token
-        ? startShareSync({ home: USER_HOME, url: relaySettings.url, token: relaySettings.token, warn: (message) => server.config.logger.warn(message) })
-        : undefined;
+      // Satellite relay (#91) and shared towers (#164): the supervisor owns both and re-reads the config every
+      // few seconds, so `connect`, a new token or a role change takes effect with no restart. Every use below
+      // asks it for the current relay instead of holding one, since the relay may appear or go later.
+      const supervisor = createRelaySupervisor({
+        read: () => readRelayConfig(server, hubOpts),
+        build: (settings, onStateChange) => createRelay({ ...settings, version: VERSION, onStateChange }),
+        startSync: (settings) => settings.token
+          ? startShareSync({ home: USER_HOME, url: settings.url, token: settings.token, warn: (message) => server.config.logger.warn(message) })
+          : undefined,
+        log: (message) => server.config.logger.info(message),
+      });
       // The hub side of #91: heartbeats and accepted events keep this list fresh; the UI reads it below.
       const satellites = createSatellites();
 
@@ -141,7 +145,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       // connect() matches a mount by prefix, so /api/sharing would also receive /api/sharing/test (as
       // '/test') and answer it as a pause request. The test is mounted first, and each handler answers
       // only its own mount root (req.url '' or '/'), so neither can shadow the other.
-      const sharing = sharingHandler({ home: USER_HOME, relay, sync: shareSync, hub: hubOpts.hub });
+      const sharing = sharingHandler({ home: USER_HOME, relay: () => supervisor.current(), sync: () => supervisor.sync(), hub: hubOpts.hub });
       server.middlewares.use('/api/sharing/test', sharing.test);
       server.middlewares.use('/api/sharing', sharing.control);
 
@@ -167,7 +171,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         // try/catch for the same reason: a dead hub must never cost us a local event.
         { onAccepted: (events) => {
           try { history?.write(events); } catch (err) { warnHistoryOnce(server, err); }
-          try { relay?.push(events); } catch { /* the relay must never break ingest or history */ }
+          try { supervisor.current()?.push(events); } catch { /* the relay must never break ingest or history */ }
         }, satellites, warn: (message) => server.config.logger.warn(message) },
       );
       // History reads (#84 phase 4): a viewing route like /api/workspace, so hub mode's remote-viewer
@@ -248,8 +252,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       // Everything this plugin started with a timer (the relay's flush/heartbeat, the history prune, the
       // reload debounce) stops with the dev server: a restart must not leave the old ones running (#91, #99).
       stopOnClose(server, [
-        () => relay?.stop(),
-        () => shareSync?.stop(),
+        () => supervisor.stop(),
         () => { if (prune) clearInterval(prune); },
         () => clearTimeout(timer),
       ]);
@@ -258,22 +261,31 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
 }
 
 /**
- * The satellite relay of this server, if any (#91). A server that is itself a hub, or ingest-only behind a
- * proxy, must not relay: the hub would receive its own events. A url pointing back at this same server
- * would make the relay feed itself — a loop — so it is refused too.
+ * What the relay supervisor reads on each tick (#91). A server that is itself a hub, or ingest-only behind a
+ * proxy, must not relay: the hub would receive its own events. A url pointing back at this same server would
+ * make the relay feed itself — a loop — so it is refused too. The refusal is warned once, not every tick.
  */
-function createRelayFor(server: ViteDevServer, hubOpts: { hub: boolean; ingestOnly: boolean }, version: string) {
+function readRelayConfig(server: ViteDevServer, hubOpts: { hub: boolean; ingestOnly: boolean }): RelayReading {
   const settings = effective(loadConfig().config);
-  if (settings.role !== 'satellite' || !settings.url) return undefined;
+  const base = { role: settings.role, url: settings.url, token: settings.token, user: settings.user, machine: settings.machine, paused: settings.paused };
+  if (settings.role !== 'satellite' || !settings.url) return { ...base, allowed: false };
   if (hubOpts.hub || hubOpts.ingestOnly || settings.hub || settings.ingestOnly) {
-    server.config.logger.warn('flow-tower: satellite relay refused: this server is a hub or ingest-only');
-    return undefined;
+    warnRefusalOnce(server, 'flow-tower: satellite relay refused: this server is a hub or ingest-only');
+    return { ...base, allowed: false };
   }
   if (targetsSelf(settings.url, server)) {
-    server.config.logger.warn('flow-tower: satellite relay refused: url points at this same server (would loop)');
-    return undefined;
+    warnRefusalOnce(server, 'flow-tower: satellite relay refused: url points at this same server (would loop)');
+    return { ...base, allowed: false };
   }
-  return createRelay({ url: settings.url, token: settings.token, user: settings.user, machine: settings.machine, version, paused: settings.paused });
+  return { ...base, allowed: true };
+}
+
+/** One refusal line per distinct reason: the supervisor asks every few seconds, and the log must not fill up. */
+const refusalsSeen = new Set<string>();
+function warnRefusalOnce(server: ViteDevServer, message: string) {
+  if (refusalsSeen.has(message)) return;
+  refusalsSeen.add(message);
+  server.config.logger.warn(message);
 }
 
 /**
