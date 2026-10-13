@@ -22,7 +22,7 @@ export interface SendResult {
 }
 
 /** The fetch the sender uses; a test passes a fake, the notifier passes the global one. */
-export type FetchLike = (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string; signal: AbortSignal }) => Promise<{ status: number }>;
+export type FetchLike = (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string; redirect: 'error'; signal: AbortSignal }) => Promise<{ status: number }>;
 
 /** A webhook that has not answered in this long is given up on: a hung hook must not stall the ticker. */
 export const NOTIFY_TIMEOUT_MS = 5_000;
@@ -65,14 +65,21 @@ export function formatMessage(alert: Alert, event: NotifyEvent, format: NotifyFo
  */
 export async function sendNotification(notify: NotifyConfig, payload: Payload, fetchFn: FetchLike = globalThis.fetch as FetchLike): Promise<SendResult> {
   try {
+    // redirect: 'error' so a webhook cannot bounce the POST to another host or scheme (SSRF).
     const res = await fetchFn(notify.url, {
       method: 'POST',
       headers: payload.headers,
       body: payload.body,
+      redirect: 'error',
       signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
     });
+    // A 3xx that came back anyway is refused the same way, whatever the fetch did with it.
+    if (res.status >= 300 && res.status < 400) return { ok: false, error: 'redirect refused' };
     return res.status >= 200 && res.status < 300 ? { ok: true, status: res.status } : { ok: false, status: res.status, error: `http ${res.status}` };
   } catch (err) {
+    // fetch reports a refused redirect as a TypeError whose cause names it; only that cause is read.
+    const cause = err instanceof Error ? (err as { cause?: unknown }).cause : undefined;
+    if (cause instanceof Error && /redirect/i.test(cause.message)) return { ok: false, error: 'redirect refused' };
     // The error object may quote the url (fetch does so in some messages): only its name is kept.
     const name = err instanceof Error ? err.name : 'error';
     return { ok: false, error: name === 'TimeoutError' || name === 'AbortError' ? 'timeout' : 'request failed' };

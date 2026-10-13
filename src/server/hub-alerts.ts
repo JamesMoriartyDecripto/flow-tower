@@ -8,9 +8,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { crossSite, isJson } from './guard.ts';
 import { isRemote } from './auth.ts';
-import { evaluateAlerts, applyAcks, pruneState, RULES, RULE_TITLES, type Alert, type AckState, type Rule } from './alerts.ts';
+import { evaluateAlerts, applyAcks, pruneState, RULES, RULE_TITLES, type Alert, type Rule } from './alerts.ts';
 import { alertInput } from './alert-inputs.ts';
-import { readAlertState, writeAlertState } from './alerts-state.ts';
+import { readAlertState, updateAlertState } from './alerts-state.ts';
 import { machineRows } from './machines.ts';
 import { tokenStore } from './tokens.ts';
 import { loadConfig } from './config.ts';
@@ -75,9 +75,15 @@ export function evaluateNow({ satellites, home, db }: Pick<HubAlertOptions, 'sat
   const stored = readAlertState(home);
   // Pruned before it is applied: an entry for an alert that no longer fires must not outlive its condition.
   const state = pruneState(stored, firing);
-  if (JSON.stringify(state) !== JSON.stringify(stored)) writeAlertState(home, state);
+  // Only the acks and snoozes are pruned here; `notified` is taken from disk again so the ticker's write survives.
+  if (JSON.stringify(state) !== JSON.stringify(stored)) {
+    updateAlertState(home, (cur) => ({ ...cur, acked: state.acked, snoozed: state.snoozed }));
+  }
   return { config, firing, state, shown: applyAcks(firing, state, now) };
 }
+
+/** A notified entry whose alert has not fired for this long is dropped, so the map cannot grow without bound. */
+const NOTIFIED_TTL_MS = 24 * 60 * 60_000;
 
 /** The notifier looks at the alerts once a minute: a lead learns of a breach within a minute, not on the next page load. */
 const NOTIFY_INTERVAL_MS = 60_000;
@@ -105,17 +111,18 @@ export function createAlertNotifier({ satellites, home, db, now = Date.now, fetc
   const sentAt: number[] = [];
   let running = false;
 
-  const sendAllowed = (at: number) => {
+  /** Successful sends still inside the window; old ones are dropped on the way. */
+  const sendsInWindow = (at: number) => {
     while (sentAt.length && sentAt[0]! <= at - NOTIFY_WINDOW_MS) sentAt.shift();
-    return sentAt.length < NOTIFY_MAX_SENDS;
+    return sentAt.length;
   };
 
   /**
    * Writes the notified map into the state as it is on disk now, not as it was read at the start of the tick:
-   * an ack POST may have landed in between, and it must not be overwritten.
+   * an ack POST may have landed in between, and it must not be overwritten. Only `notified` is set here.
    */
   const saveNotified = (notified: Record<string, number>) => {
-    writeAlertState(home, { ...readAlertState(home), notified });
+    updateAlertState(home, (cur) => ({ ...cur, notified }));
   };
 
   const tickOnce = async () => {
@@ -130,9 +137,17 @@ export function createAlertNotifier({ satellites, home, db, now = Date.now, fetc
 
     const notified: Record<string, number> = { ...(state.notified ?? {}) };
     const firingIds = new Set(firing.map((a) => a.id));
+    let changed = false;
+    // The value is the last time the alert was seen firing, so an entry that keeps firing is never old.
+    for (const alert of firing) {
+      if (notified[alert.id] !== undefined && notified[alert.id] !== at) { notified[alert.id] = at; changed = true; }
+    }
     const queue: { event: 'open' | 'clear'; alert: Alert }[] = [];
     for (const id of Object.keys(notified)) {
-      if (!firingIds.has(id)) queue.push({ event: 'clear', alert: lastSent.get(id) ?? fallbackAlert(id) });
+      if (firingIds.has(id)) continue;
+      // Not seen firing for a day: the clear is given up on, so a clear that keeps failing cannot grow the map forever.
+      if (at - notified[id]! > NOTIFIED_TTL_MS) { delete notified[id]; lastSent.delete(id); changed = true; continue; }
+      queue.push({ event: 'clear', alert: lastSent.get(id) ?? fallbackAlert(id) });
     }
     for (const alert of firing) {
       // Acked or snoozed alerts stay quiet: the operator has already dealt with them.
@@ -141,13 +156,16 @@ export function createAlertNotifier({ satellites, home, db, now = Date.now, fetc
       queue.push({ event: 'open', alert });
     }
 
+    // Only a successful send counts against the window; a dead webhook must not starve healthy sends. Its
+    // failures still stop at the budget left at the start of this tick, so one tick cannot hammer it.
+    let attempts = NOTIFY_MAX_SENDS - sendsInWindow(at);
     const hubName = hostname();
-    let changed = false;
     for (const { event, alert } of queue) {
-      if (!sendAllowed(at)) break;
-      sentAt.push(at);
+      if (attempts <= 0) break;
+      attempts -= 1;
       const res = await sendNotification(notify, formatMessage(alert, event, notify.format, hubName), fetch);
       if (!res.ok) continue;
+      sentAt.push(at);
       changed = true;
       if (event === 'open') {
         notified[alert.id] = at;
@@ -224,22 +242,18 @@ export function hubAlerts({ satellites, home, hub, db }: HubAlertOptions) {
     if (!idOk(body.id)) return send(res, 400, { error: 'id must be an alert id' });
     const now = Date.now();
     // Only an alert that currently fires can be acked or snoozed: a stale or made-up id is not stored.
-    const { firing, state } = evaluate(now);
+    const { firing } = evaluate(now);
     if (!firing.some((a) => a.id === body.id)) return send(res, 404, { error: 'no such alert' });
-    // `notified` is carried over: a state write that dropped it would send the same open again on the next tick.
-    const next: AckState = {
-      acked: { ...state.acked },
-      snoozed: { ...state.snoozed },
-      ...(state.notified ? { notified: { ...state.notified } } : {}),
-    };
+    const id = body.id;
+    // Re-read inside the write: the ticker may have set `notified` since evaluate() read the file. This request
+    // changes only its own ack or snooze, so whatever else is on disk now is kept as it is.
     if (sub === 'ack') {
-      next.acked[body.id] = now;
-    } else {
-      const span = typeof body.for === 'string' ? SNOOZE[body.for] : undefined;
-      if (span === undefined) return send(res, 400, { error: 'for must be 1h or 1d' });
-      next.snoozed[body.id] = now + span;
+      updateAlertState(home, (cur) => ({ ...cur, acked: { ...cur.acked, [id]: now } }));
+      return send(res, 204);
     }
-    writeAlertState(home, next);
+    const span = typeof body.for === 'string' ? SNOOZE[body.for] : undefined;
+    if (span === undefined) return send(res, 400, { error: 'for must be 1h or 1d' });
+    updateAlertState(home, (cur) => ({ ...cur, snoozed: { ...cur.snoozed, [id]: now + span } }));
     send(res, 204);
   };
 

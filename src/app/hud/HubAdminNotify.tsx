@@ -19,6 +19,8 @@ export function NotifySection({ notify, thresholds, change }: {
   const [url, setUrl] = useState('');
   const [format, setFormat] = useState<NotifyFormat>('ntfy');
   const [bad, setBad] = useState(false);
+  // Its own flag: the threshold field must not show the webhook's error text, nor clear it.
+  const [badErrors, setBadErrors] = useState(false);
   const [testResult, setTestResult] = useState<string>();
   const [errors, setErrors] = useState(String(thresholds.errors ?? 3));
 
@@ -42,7 +44,8 @@ export function NotifySection({ notify, thresholds, change }: {
 
   const saveErrors = async () => {
     const n = Number(errors);
-    if (!thresholdValid(n)) return setBad(true);
+    setBadErrors(!thresholdValid(n));
+    if (!thresholdValid(n)) return;
     await change('PUT', '/thresholds', { errors: n });
   };
 
@@ -73,6 +76,7 @@ export function NotifySection({ notify, thresholds, change }: {
         <input className="admin-input" type="number" min={1} max={1000} aria-label="Errors threshold" value={errors} onChange={(e) => setErrors(e.target.value)} />
         <button className="btn" onClick={() => void saveErrors()}>Save</button>
       </div>
+      {badErrors && <p className="hub-warn">A number from 1 to 1000</p>}
     </section>
   );
 }

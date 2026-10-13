@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Alert } from '../src/server/alerts';
 import { formatMessage, sendNotification, type FetchLike } from '../src/server/alert-notify';
 import { createAlertNotifier } from '../src/server/hub-alerts';
-import { readAlertState, writeAlertState } from '../src/server/alerts-state';
+import { readAlertState, updateAlertState, writeAlertState } from '../src/server/alerts-state';
 import { openHistory } from '../src/server/history/db';
 import type { Satellites } from '../src/server/satellites';
 
@@ -216,5 +216,117 @@ describe('notifier: the rate limit', () => {
     await n.tick();
     expect(sends).toBe(12);
     expect(readAlertState(home).notified).toEqual({});
+  });
+});
+
+describe('notifier: review fixes (#191)', () => {
+  let receiver: Server;
+  let receiverHits: number;
+  let receiverPort: number;
+
+  beforeEach(async () => {
+    receiverHits = 0;
+    receiver = createServer((_req, res) => { receiverHits += 1; res.statusCode = 204; res.end(); });
+    await new Promise<void>((r) => receiver.listen(0, '127.0.0.1', () => r()));
+    receiverPort = (receiver.address() as { port: number }).port;
+  });
+
+  afterEach(async () => {
+    await new Promise<void>((r) => receiver.close(() => r()));
+  });
+
+  it('a 302 from the webhook is refused and the redirect target is never requested', async () => {
+    // A real redirector on loopback: if fetch followed the 302, the second server would see a hit.
+    const bounce = createServer((_req, res) => {
+      res.statusCode = 302;
+      res.setHeader('Location', `http://127.0.0.1:${receiverPort}/elsewhere`);
+      res.end();
+    });
+    await new Promise<void>((r) => bounce.listen(0, '127.0.0.1', () => r()));
+    try {
+      const port = (bounce.address() as { port: number }).port;
+      const res = await sendNotification({ url: `http://127.0.0.1:${port}/hook`, format: 'json' }, formatMessage(alert, 'open', 'json'));
+      expect(res).toEqual({ ok: false, error: 'redirect refused' });
+      expect(receiverHits).toBe(0);
+    } finally {
+      await new Promise<void>((r) => bounce.close(() => r()));
+    }
+  });
+
+  it('an ack written between two ticks does not cause a second open', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-notify-ack-'));
+    const db = (await openHistory(join(mkdtempSync(join(tmpdir(), 'flow-tower-notify-ackdb-')), 'history.db')));
+    if (!('db' in db)) throw new Error('node:sqlite is needed for these tests');
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ notify: { url: 'https://hooks.example.test/x', format: 'json' } }), { mode: 0o600 });
+    const clock = { t: Date.UTC(2025, 5, 10, 12, 0, 0) };
+    for (let i = 0; i < 4; i += 1) {
+      db.db.prepare('INSERT INTO events (ts, sender, status, event_key) VALUES (?, ?, ?, ?)').run(clock.t - MINUTE, 'dana', 'error', `ack${i}`);
+    }
+    let sends = 0;
+    const n = createAlertNotifier({
+      satellites: NO_SATELLITES, home, db: db.db, now: () => clock.t,
+      fetch: async () => { sends += 1; return { status: 204 }; },
+    });
+    await n.tick();
+    expect(sends).toBe(1);
+    // The ack route writes the acked entry; it must keep the ticker's `notified` entry intact.
+    updateAlertState(home, (cur) => ({ ...cur, acked: { ...cur.acked, 'errors:machine:dana': clock.t } }));
+    clock.t += MINUTE;
+    await n.tick();
+    expect(sends).toBe(1);
+    // The entry is still firing, so its time is the last tick that saw it, not the first send.
+    expect(readAlertState(home).notified).toEqual({ 'errors:machine:dana': clock.t });
+    db.db.close();
+  });
+
+  it('a notified entry not seen firing for 24 h is pruned, even when its clear keeps failing', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-notify-prune-'));
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ notify: { url: 'https://hooks.example.test/x', format: 'json' } }), { mode: 0o600 });
+    const clock = Date.UTC(2025, 5, 10, 12, 0, 0);
+    writeAlertState(home, {
+      acked: {}, snoozed: {},
+      notified: { 'errors:machine:old': clock - 25 * 60 * MINUTE, 'errors:machine:recent': clock - 23 * 60 * MINUTE },
+    });
+    let sends = 0;
+    const n = createAlertNotifier({
+      satellites: NO_SATELLITES, home, db: undefined, now: () => clock,
+      fetch: async () => { sends += 1; return { status: 500 }; },
+    });
+    await n.tick();
+    // The old entry is dropped without another send; the recent one still owes its clear, which failed.
+    expect(readAlertState(home).notified).toEqual({ 'errors:machine:recent': clock - 23 * 60 * MINUTE });
+    expect(sends).toBe(1);
+  });
+
+  it('a failing webhook does not consume the rate budget for healthy sends', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-notify-budget-'));
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ notify: { url: 'https://hooks.example.test/x', format: 'ntfy' } }), { mode: 0o600 });
+    let clock = Date.UTC(2025, 5, 10, 12, 0, 0);
+    const ids = Array.from({ length: 12 }, (_, i) => `errors:machine:b${i}`);
+    writeAlertState(home, { acked: {}, snoozed: {}, notified: Object.fromEntries(ids.map((id) => [id, clock - 1])) });
+    let fail = true;
+    let accepted = 0;
+    const n = createAlertNotifier({
+      satellites: NO_SATELLITES, home, db: undefined, now: () => clock,
+      fetch: async () => { if (fail) return { status: 500 }; accepted += 1; return { status: 200 }; },
+    });
+    await n.tick();
+    expect(accepted).toBe(0);
+    // Ten failures in the first tick must not count against the window: the webhook recovers and the budget is whole.
+    fail = false;
+    clock += 1;
+    await n.tick();
+    expect(accepted).toBe(10);
+  });
+
+  it('a corrupt notified keeps the acks and snoozes next to it', () => {
+    const home = mkdtempSync(join(tmpdir(), 'flow-tower-notify-corrupt-'));
+    for (const bad of ['null', '[]', '"text"']) {
+      writeFileSync(join(home, 'alerts-state.json'), `{"acked":{"a:b:c":5},"snoozed":{"d:e:f":9},"notified":${bad}}`);
+      const state = readAlertState(home);
+      expect(state.acked).toEqual({ 'a:b:c': 5 });
+      expect(state.snoozed).toEqual({ 'd:e:f': 9 });
+      expect(state.notified).toEqual({});
+    }
   });
 });

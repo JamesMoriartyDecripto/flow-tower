@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { hubAdmin } from '../src/server/hub-admin';
 import { readAudit } from '../src/server/admin-audit';
 import { readUserConfig } from '../src/server/user-config';
+import { isLoopbackUrl, notifyUrlValid } from '../src/app/hud/hubAdminModel';
 
 /**
  * Notifications in Hub › Admin (#191), on loopback http servers only (port 0). The test webhook is a local
@@ -156,5 +157,24 @@ describe('thresholds route (#191)', () => {
     expect(readUserConfig(home).alertThresholds).toEqual({ errors: 5 });
     expect((await call(port, 'PUT', '/api/hub/admin/thresholds', { errors: 0 })).status).toBe(400);
     expect((await call(port, 'PUT', '/api/hub/admin/thresholds', { errors: 1001 })).status).toBe(400);
+  });
+});
+
+describe('webhook url check in the admin model (#191)', () => {
+  it('treats the loopback hosts as loopback and nothing else', () => {
+    expect(isLoopbackUrl('http://127.0.0.1:8080/x')).toBe(true);
+    expect(isLoopbackUrl('http://localhost/x')).toBe(true);
+    expect(isLoopbackUrl('http://[::1]/x')).toBe(true);
+    expect(isLoopbackUrl('http://10.0.0.1/x')).toBe(false);
+    expect(isLoopbackUrl('not a url')).toBe(false);
+  });
+
+  it('accepts http only to loopback, and any https', () => {
+    expect(notifyUrlValid('http://127.0.0.1')).toBe(true);
+    expect(notifyUrlValid('http://localhost')).toBe(true);
+    expect(notifyUrlValid('http://[::1]')).toBe(true);
+    expect(notifyUrlValid('http://10.0.0.1')).toBe(false);
+    expect(notifyUrlValid('https://x')).toBe(true);
+    expect(notifyUrlValid('ftp://x')).toBe(false);
   });
 });
