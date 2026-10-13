@@ -45,11 +45,27 @@ Notes:
 - **Claude Code:** the endpoint answers `204` with an empty body, because Claude Code reads a JSON response body as a hook decision. If the server is down, the hook fails open: the session runs normally and Claude Code only prints a non-blocking "hook failed: ECONNREFUSED" line (checked with a real session).
 - **Claude Code subagents:** an `Agent` (formerly `Task`) call starts the subagent and `SubagentStop` ends it. Background subagents (the default) return from the call at once (`status: async_launched`), so their node stays lit until they really stop. Every event a subagent produces carries its **`role`**: the `description` of the `Agent` call that launched it. Several subagents of the same type (`general-purpose`) therefore map to different nodes with `match: ["role:*security*"]`. Resuming one with `SendMessage` starts it again.
 - **Claude Code main session:** its events have `agent: main` (`match: ["agent:main"]`). Turns that Claude Code injects (a background subagent reporting back, scheduled tasks, messages from other sessions) arrive through `UserPromptSubmit` but become `log` events with a short summary, not user prompts.
-- **Pi:** `pi --mode json "…" | flow-tower emit --source pi` also works for one-off runs.
+- **Pi:** `pi --mode json "…" | flow-tower emit --source pi` also works for one-off runs: `emit` carries the session id of Pi's first `session` line to every later line, and drops the streaming chunks. Checked with a real Pi 0.73.1 run (extension and JSON mode): session, prompt, tool pairs with errors, model, tokens and cost per turn.
 - **Codex:** approve the hooks once with `/hooks`; hooks in a repo's `.codex/` only run in trusted projects. Hosted tools (web search) do not fire hooks. Tool names match across sources (`Bash`, `apply_patch`, `mcp__<server>__<tool>`); failures are inferred from the tool response (non-zero `exit_code`, `isError`), since hooks carry no status and no tokens.
 - **Codex one-off runs:** `codex exec --json "…" | flow-tower emit --source codex` adds token usage per turn (input + output) and `spawn_agent`/`close_agent` subagents. Only the `thread.started` line carries the thread id, so other lines have no session.
 - **Codex `notify`:** the legacy hook passes its JSON as the last argument, not stdin, and only reports turn ends. Use it where hooks are unavailable, not together with them.
 - **Hermes:** keep it observe-only, with no `fail_closed`. Otherwise a stopped flow-tower would block Hermes' tools.
+
+## Same tower, any harness
+
+Teammates on one hub may use different harnesses: the same work must light the same nodes. `tests/harness-parity.test.ts`
+replays one small session (prompt, a tool that succeeds, one that fails, a subagent, usage) in each harness's real
+payload shape and checks the normalised events; a tool rule such as `match: ["tool:bash"]` lands every harness's shell
+call on one node. What a harness cannot send is declared there, with the reason:
+
+| Harness | Session, prompt, tool pairs, errors | Subagents | Tokens | Cost |
+|---|---|---|---|---|
+| Claude Code (hooks) | yes | yes (`role`) | via OpenTelemetry | via OpenTelemetry |
+| Agent SDK (TypeScript hooks) | yes | yes | no hook carries them | no |
+| Codex (hooks) | yes | yes | `codex exec --json` or OpenTelemetry | OpenTelemetry |
+| Pi (extension or `--mode json`) | yes | no subagent events | yes, per turn | yes |
+| Hermes (webhooks) | session and tools; no prompt event | yes | yes | no |
+| `emit` / plain HTTP | what you send | what you send | what you send | what you send |
 
 ## Any other agent
 
