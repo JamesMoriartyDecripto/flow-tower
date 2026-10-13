@@ -65,8 +65,10 @@ Usage
   flow-tower hooks install [--target <t>] [--project] [--port N] [--dry-run]
                                                         wire the coding agents on this machine to send events here
                                                         (claude-code, codex, pi, hermes, or all; no --target: every one found)
-  flow-tower hooks status | uninstall [--target <t>] [--project]
-                                                        show where the hooks are wired; remove only flow-tower's entries
+  flow-tower hooks status
+                                                        show where the hooks are wired, every harness, user and project level
+  flow-tower hooks uninstall [--target <t>] [--project] [--dry-run]
+                                                        remove only flow-tower's entries
   flow-tower service install | status | uninstall [--port N]
                                                         run the library as a user service (systemd on Linux, launchd on
                                                         macOS) so hooks always reach it and no event is lost

@@ -74,17 +74,18 @@ The SSH forward is for your own view only, never for other machines' events: tun
 
 ## 5. Each machine
 
-On a tailnet, with the user's tailnet login in `viewers` (step 2), two commands per machine and no token to copy:
+On a tailnet, with the user's tailnet login in `viewers` (step 2), four commands per machine and no token to copy. Any harness works (Claude Code, Codex, Pi, Hermes). Without `npm link`, the CLI prints the `node <checkout>/bin/flow-tower.js` form to use:
 
 ```bash
 flow-tower connect https://hub.example.ts.net     # the hub mints this machine's token (named after the hostname, or --machine)
+flow-tower hooks install                          # wires every harness found on this machine to the local library
+flow-tower service install                        # keeps the local library running at login (systemd user unit or launchd)
 flow-tower share ~/towers/my-project              # the hub gets the tower in towers/<machine>/my-project/; YAML only, --files adds referenced files
-flow-tower ~/towers                               # the local library: relays events and re-sends a shared tower when it changes
 ```
 
 `flow-tower unshare my-project` removes it from the hub; `flow-tower share --list` shows what is shared. An agent can walk the user through it: [`skills/flow-tower-satellite`](../../skills/flow-tower-satellite/SKILL.md).
 
-**A team without Tailscale** (a VPS or an office server): run the hub as above, put [`integrations/hub/Caddyfile.hub`](../../integrations/hub/Caddyfile.hub) in front (TLS for your domain; it forwards events, heartbeats, OTLP and shared towers, nothing else), and set `allowedHosts` to your domain and `viewers` to `[]` (remove the kit's `example` placeholders: the hub warns about them at start). Per machine: `flow-tower token add laptop-1` on the hub prints the line to run on the laptop, `flow-tower connect https://hub.example.com --token ft_… --machine laptop-1`; then `share` works as on a tailnet. The owner views the hub over SSH (`ssh -N -L 5317:127.0.0.1:5317 you@hub.example.com`); other people cannot view it without Tailscale. `deploy/satellite.config.json` shows what `connect` writes (mode 0600, it holds the token). The ingest-only [`Caddyfile`](../../integrations/hub/Caddyfile) is for senders only (Lambda, CI): no `share` there.
+**A team without Tailscale** (a VPS or an office server): run the hub as above, put [`deploy/Caddyfile.hub`](deploy/Caddyfile.hub) in front (TLS for your domain; it forwards events, heartbeats, OTLP and shared towers, nothing else), and set `allowedHosts` to your domain and `viewers` to `[]` (remove the kit's `example` placeholders: the hub warns about them at start). Per machine: `flow-tower token add laptop-1` on the hub prints the connect line to run on the laptop (it reads `http://127.0.0.1:5317` until you set `url` in the hub's config.json: use `https://hub.example.com`); then `share` works as on a tailnet. The owner views the hub over SSH (`ssh -N -L 5317:127.0.0.1:5317 you@hub.example.com`); other people cannot view it without Tailscale. `deploy/satellite.config.json` shows what `connect` writes (mode 0600, it holds the token). The ingest-only [`Caddyfile`](../../integrations/hub/Caddyfile) is for senders only (Lambda, CI): no `share` there.
 
 Servers and CI without a local library send with `FLOW_TOWER_URL=… FLOW_TOWER_TOKEN=… flow-tower emit …`, and their towers are copied into `towers/` by hand (see `towers/README.md`): the hub can only light up towers it has.
 

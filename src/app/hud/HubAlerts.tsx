@@ -3,6 +3,25 @@ import { activeRules, type AlertsView, type HubAlert } from '../hub';
 import { newAlerts, readNotifyOptIn, writeNotifyOptIn, type NoticeAlert } from './hubAlertsModel';
 
 /**
+ * Shows browser notices for alerts that are new since the previous poll. It runs in the component that
+ * polls the alerts (HubChip), not in the Alerts tab, so a notice still comes when the Hub panel is closed.
+ * The opt-in is read on each poll, so a switch flipped on the Alerts tab applies from the next poll.
+ */
+export function useAlertNotices(view: AlertsView | undefined): void {
+  // The previous poll's alerts, for the diff; undefined until the first poll, so the first one stays silent.
+  // It is updated on every poll, even with notices off, so switching them on never replays old alerts.
+  const previous = useRef<NoticeAlert[] | undefined>(undefined);
+  useEffect(() => {
+    if (!view) return;
+    const current = view.alerts;
+    if (readNotifyOptIn() && typeof Notification !== 'undefined') {
+      for (const a of newAlerts(previous.current, current)) showNotice(a);
+    }
+    previous.current = current;
+  }, [view]);
+}
+
+/**
  * Reads GET /api/hub/alerts and hands the answer to `set`. A failed read leaves the old view in place
  * on purpose: a blip must not make a firing alert vanish from the pill. The store owns the state, so
  * this file needs no store import (Hub.tsx imports this one, and a cycle would be fragile).
@@ -70,17 +89,6 @@ export function AlertsTab({ view, canAct, onChanged }: {
   const [failed, setFailed] = useState(false);
   const [notify, setNotify] = useState(() => readNotifyOptIn());
   const [denied, setDenied] = useState(() => typeof Notification !== 'undefined' && Notification.permission === 'denied');
-
-  // The previous poll's alerts, for the diff; undefined until the first poll, so the first one stays silent.
-  const previous = useRef<NoticeAlert[] | undefined>(undefined);
-  useEffect(() => {
-    if (!view) return;
-    const current = view.alerts;
-    if (notify && typeof Notification !== 'undefined') {
-      for (const a of newAlerts(previous.current, current)) showNotice(a);
-    }
-    previous.current = current;
-  }, [view, notify]);
 
   const toggle = async (on: boolean) => {
     setNotify(on);

@@ -166,7 +166,7 @@ Lambda has no loopback and its own filesystem is read-only, so pick one:
 
 ## Alerts
 
-Machine silent, budget, error spike, new host: rules, config and ack/snooze in [hub-alerts.md](hub-alerts.md).
+Machine silent, budget, error spike, new host, errors (3 from a machine in 15 min), and the alert webhook and browser notifications: rules, config, notifications and ack/snooze in [hub-alerts.md](hub-alerts.md).
 
 ## Security model
 

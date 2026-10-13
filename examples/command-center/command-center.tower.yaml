@@ -20,7 +20,7 @@ layers:
         type: entry
         label: Laptop satellite
         runtime: laptop
-        description: "`flow-tower connect https://hub.example.ts.net` (the hub mints this machine's token: the user's tailnet login is in viewers), then `flow-tower share <tower folder>` per tower (YAML only by default, --files adds referenced files). Its own library (flow-tower ~/towers) relays event metadata, queues up to 5000 while the hub is unreachable, beats every interval and re-sends a shared tower within ~15 s of a change."
+        description: "Four steps, any harness (Claude Code, Codex, Pi, Hermes): `flow-tower connect https://hub.example.ts.net` (the hub mints the token for a tailnet login in viewers; elsewhere `--token`), `flow-tower hooks install` (wires every harness found), `flow-tower service install` (keeps the library running at login), then `flow-tower share <tower folder>` per tower. The library relays event metadata, queues up to 5000 while the hub is unreachable or the token is paused, recovers by itself after a new token, and re-sends a valid tower within ~15 s of a change; a broken one is not sent and the SAT chip says why."
         files: [deploy/satellite.config.json]
         resources:
           - { kind: config, label: Satellite config.json, path: deploy/satellite.config.json }
@@ -58,10 +58,19 @@ layers:
         type: guard
         label: Caddy (public)
         runtime: hub-vps
-        description: "A public VPS without a tailnet. Caddy gets TLS for hub.example.com and forwards only /api/events, /api/heartbeat and /v1/*; every request needs a sender token. No viewing goes through it."
+        description: "Senders only (Lambda, CI): Caddy gets TLS for hub.example.com and forwards only /api/events, /api/heartbeat and /v1/*; every request needs a sender token. No viewing and no share go through it."
         files: [deploy/Caddyfile]
         resources:
           - { kind: config, label: Caddyfile, path: deploy/Caddyfile }
+        status: experimental
+      - id: caddy-team
+        type: guard
+        label: Caddy (team)
+        runtime: hub-vps
+        description: "A team without Tailscale: Caddy in front of the full hub forwards what a sender needs (events, heartbeat, OTLP, /api/hub/towers), so teammates connect with a token and share as on a tailnet. The owner views over SSH; nobody else views."
+        files: [deploy/Caddyfile.hub]
+        resources:
+          - { kind: config, label: Caddyfile.hub, path: deploy/Caddyfile.hub }
         status: experimental
     edges: []
 
@@ -97,14 +106,21 @@ layers:
         type: guard
         label: tokens.json
         runtime: hub-vps
-        description: "One token per sender: `flow-tower token add <id>` prints ft_<id>_<secret> once and stores only its sha256. `revoke`, `pause`, `resume` per id."
+        description: "One token per sender: `flow-tower token add <id>` prints ft_<id>_<secret> once with the connect line for that machine, stores only its sha256, and refuses an id in use. `revoke`, `pause`, `resume` per id, or from Hub > Admin; every change goes to admin-audit.jsonl. A paused machine keeps its events queued and resumes by itself."
         data: { sensitivity: secret }
+        approval: { by: hub operator, actions: [approve, reject], description: "Only the hub machine changes tokens (CLI or Hub > Admin, loopback only); a revoke in Admin needs the id typed to confirm." }
       - id: history
         type: memory
         label: history.db
         runtime: hub-vps
         description: Content-free events and totals in SQLite (node:sqlite, Node >= 22.13). Raw rows are kept retentionDays.
         data: { sensitivity: internal, retention: 14d }
+      - id: notify
+        type: output
+        label: Alert webhook
+        runtime: hub-vps
+        description: "The hub checks its alerts every minute, page open or not: a silent always-on machine, a budget, an error spike, 3 errors from one machine in 15 min, a new host. Each new alert and its clearing go once to the webhook set in Hub > Admin > Notifications (ntfy, Slack, Telegram or JSON); only the alert text leaves the hub."
+        files: [deploy/hub.config.json]
       - id: health
         type: hook
         label: Health checks
@@ -117,6 +133,7 @@ layers:
       - "service -> history [data]: write"
       - "config -> service [data]: settings"
       - "service -> health: status"
+      - "service -> notify [call]: alerts"
 
   - id: library
     title: Hub Library
@@ -126,13 +143,13 @@ layers:
         type: memory
         label: towers/
         runtime: hub-vps
-        description: "towers/<machine>/<name>/, written by the hub when a satellite shares a tower (PUT /api/hub/towers, signed by its token; staged, then renamed in) and removed when it unshares. Text files only, at most 200 files and 4 MB per tower. Events match a tower by name or id. Senders without a library (CI) still copy theirs here by hand."
+        description: "towers/<machine>/<name>/, written by the hub when a satellite shares a tower (PUT /api/hub/towers, signed by its token; staged, checked, then swapped in: a broken upload is refused and the last valid copy stays) and removed when it unshares. A shared tower reads only inside its own folder. Text files only, at most 200 files and 4 MB per tower. Events match a tower by name or id. Senders without a library (CI) still copy theirs here by hand."
         files: [towers/README.md]
       - id: matcher
         type: process
         label: Event matching
         runtime: hub-vps
-        description: Each event lights the node its match rules or agent/tool names point to, in the tower it names.
+        description: "Each event lights the node its match rules or agent/tool names point to, in the tower it names. The harness does not matter: one rule such as `match: [tool:bash]` lands the shell calls of Claude Code, Codex, Pi and Hermes on the same node."
       - id: self
         type: output
         label: This tower
@@ -169,6 +186,8 @@ links:
   - "machines.agent-host -> transport.caddy [data]: emit (public)"
   - "transport.ts-serve -> hub.ingest: 127.0.0.1:5317"
   - "transport.caddy -> hub.ingest: 127.0.0.1:5317"
+  - "transport.caddy-team -> hub.ingest: 127.0.0.1:5317"
+  - "hub.notify -> viewers.owner-tailnet: phone or chat"
   - "hub.service -> library.matcher: live events"
   - "library.matcher -> viewers.owner-tailnet: lit towers"
   - "transport.ts-serve -> viewers.owner-tailnet [return]: UI, user login"

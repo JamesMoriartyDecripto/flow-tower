@@ -14,7 +14,7 @@ Which browser file owns what: navigation and live state (zustand stores), the th
 | `src/app/ops.ts` | Operational markers and inspector rows |
 | `src/app/api.ts` | Fetching the workspace and refetching on server push |
 | `src/app/sharing.ts` | Pure formatting for the satellite SAT chip and Sharing section (#91), unit-tested without a DOM |
-| `src/app/hub.ts` | Pure model of the Hub panel (#92): Now rows grouped by machine / runtime / project / starter (`AUTO` for CI), the state thresholds (● under 2 min, ◐ under 15 min, ○ silent), the `HUB n/m` pill and the Machines dots. No React, no fetch, no DOM |
+| `src/app/hub.ts` | Pure model of the Hub panel (#92): Now rows per machine and session with tower › node and the last error, never event text (#192; machine / runtime / project / starter without a session, `AUTO` for CI), `workingCount`, the live `errorCount` and the feed `glyph`, the state thresholds (● under 2 min, ◐ under 15 min, ○ silent), the `HUB n/m` pill and the Machines dots. No React, no fetch, no DOM |
 | `src/app/main.tsx` | Entry point: fonts, styles, prefs, the React root, and the dev-only `window.__flowTower` hook for E2E |
 | `src/app/staticData.ts`, `demo.ts` | Static demo mode (Vite mode `demo`): data from `data/`, in-browser live simulator, DEMO chip |
 | `src/app/theme.ts`, `themes.ts` | Node / edge styles and bloom colors; theme switching (shared colors mutated in place, scene remounted) |
@@ -52,17 +52,18 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 
 | File | Open it when |
 |---|---|
-| `hud/Chrome.tsx` | Top bar, Layers panel (with sub-towers list), legend, bottom controls |
+| `hud/Chrome.tsx` | Top bar (validation chips `YAML n ERR/WARN`, the live `LIVE n ERR` chip, #192), Layers panel (with sub-towers list), legend, bottom controls |
 | `hud/Inspector.tsx`, `Connections.tsx`, `OpsInfo.tsx` | Node panel: overview, connections, operations / data / evals, prompt, tools, files |
 | `hud/NodeList.tsx` | Right panel while no node is selected: the nodes of the focused layer in flow order |
 | `hud/Library.tsx` | Project gallery |
+| `src/app/libraryHint.ts` | The library footer's "add towers" hint for a plain serve, a library serve or a hub (#193) |
 | `hud/LiveFeed.tsx`, `LiveChips.tsx` | Live feed and chips |
 | `hud/Settings.tsx`, `Shortcuts.tsx` | Settings page, keyboard overlay |
 | `hud/Updates.tsx` | Settings › Updates (#141): the installed version and the last check from `/api/version`, `Check for updates` (the forced check, throttled) and the copyable local update command; the top-bar `↑ vX.Y.Z` chip re-reads on a forced check through `VERSION_EVENT` |
 | `hud/Sharing.tsx` | The SAT chip (polls `/api/sharing`) and Settings › Sharing: pause and the "does it reach the hub?" test |
-| `hud/Hub.tsx` | The Hub panel (#92): `H` opens it in the Inspector's place, tabs Now and Machines (`[ ]`, ← →), the top-bar `HUB n/m` chip (polls `/api/hub/me`) and its `READ-ONLY` pill for a remote viewer |
-| `hud/HubAlerts.tsx` | The Alerts tab and the `⚠ n` pill (#94): level chips, rule labels, Ack / Snooze 1h / 1d and `A` from loopback only; the library header has the same pill, which closes the library and opens the tab |
-| `hud/HubAdmin.tsx`, `hubAdminApi.ts`, `hubAdminModel.ts` | The Admin tab (#93), only when not read-only: senders (token box shown once, revoke by typing the id), viewers, budgets, alert switches, retention and delete-before with a preview, the audit log |
+| `hud/Hub.tsx` | The Hub panel (#92): `H` opens it in the Inspector's place, tabs Now, Machines, Alerts and Admin (`[ ]`, ← →), the top-bar `HUB n/m` chip (polls `/api/hub/me`) and its `READ-ONLY` pill for a remote viewer, the library's `● n working` chip |
+| `hud/HubAlerts.tsx`, `hubAlertsModel.ts` | The Alerts tab and the `⚠ n` pill (#94); the pill's poll also raises browser notifications for new alerts when the viewer opted in (#191: `newAlerts`, the opt-in in localStorage): level chips, rule labels, Ack / Snooze 1h / 1d and `A` from loopback only; the library header has the same pill, which closes the library and opens the tab |
+| `hud/HubAdmin.tsx`, `hubAdminApi.ts`, `hubAdminModel.ts`, `HubAdminNotify.tsx` | The Admin tab (#93), only when not read-only: senders (token box shown once, revoke by typing the id), viewers, budgets, alert switches, retention and delete-before with a preview, the audit log; Notifications (#191): the webhook (url masked), a test alert, the errors threshold |
 | `hud/dialog.ts` | Modal focus for HUD dialogs: move focus in, trap Tab, restore on close |
 | `hud/FileViewer.tsx` | File popup with syntax highlighting (shiki), focus restored on close |
 | `hud/MarkdownView.tsx` | Formatted Markdown: no raw HTML, links to the node's files, math in `$$…$$` (KaTeX) |

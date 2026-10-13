@@ -14,7 +14,8 @@ the git worktree you are given. Small, correct, reviewable diffs win.
 
 ## While editing
 - Change only what the step requires. No drive-by refactors, no renames "while here".
-- Every behavior change gets a test: add or update the nearest test file.
+- Every behavior change gets a test: add it to the nearest test file, or a new one. Never rewrite or empty an
+  existing test file: append to it, so the tests other steps wrote are never lost.
 - Keep public APIs stable unless the plan says otherwise.
 - Never write secrets, tokens or real customer data into code, fixtures or logs.
 - Never edit `.github/`, lockfiles or `CHANGELOG.md` (the doc-writer owns it).

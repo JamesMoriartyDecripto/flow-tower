@@ -81,11 +81,12 @@ export function machineRows(tokens: TokenInfo[], sats: SatelliteView[], now: num
 /**
  * The HUB panel's counters: how many senders are online, out of how many active tokens exist. A revoked
  * token can still have a recent lastSeen, so the online side skips revoked rows too, or "HUB 3/2" happens.
+ * A paused token is counted out of `tokens` too, so it must be out of `online` as well, for the same reason.
  * Tokenless satellites (state unknown) still count as online: they are real senders, just unauthenticated.
  */
 export function hubCounts(rows: MachineRow[]): { online: number; tokens: number } {
   return {
-    online: rows.filter((r) => r.online && r.state !== 'revoked').length,
+    online: rows.filter((r) => r.online && r.state !== 'revoked' && r.state !== 'paused').length,
     tokens: rows.filter((r) => r.state === 'active').length,
   };
 }

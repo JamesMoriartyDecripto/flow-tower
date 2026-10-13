@@ -9,6 +9,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { argv, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { cliName } from '../../bin/cli-name.js';
 import { realOrSelf, userHome, within } from '../core/secrets.ts';
 import { readUserConfig, writeUserConfig } from '../server/user-config.ts';
 
@@ -136,7 +137,7 @@ export function run(args: string[]): number {
       return refused ? 1 : 0;
     }
     case 'list': {
-      if (!library.length) { console.log('no towers yet: add one with "flow-tower library add <path>"'); return 0; }
+      if (!library.length) { console.log(`no towers yet: add one with "${cliName()} library add <path>"`); return 0; }
       for (const p of library) console.log(existsSync(p) ? p : `${p}  missing`);
       return 0;
     }

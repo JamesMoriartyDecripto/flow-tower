@@ -82,3 +82,11 @@ src/              pipeline, hooks, tools, memory
 memory/           learned patterns and run journal
 towers/           nested towers for the coder and researcher
 ```
+
+## Sources
+
+- [Claude Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview) and [hooks](https://code.claude.com/docs/en/agent-sdk/hooks): `query()`, subagents in `options.agents`, hook callbacks.
+- [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) (Anthropic, 2024): the routing, prompt chaining, parallelization, orchestrator-workers and evaluator-optimizer patterns named in the table above.
+- [OpenRouter models API](https://openrouter.ai/api/v1/models): the prices in the mixed-models table (2026-10-10).
+- Field numbers: issue #70 of the flow-tower repository; the model choice: the 2026-10-11 benchmark in `skills/flow-tower-costs/reference.md`.
+- The rules in `.claude/agents/coder.md` (never rewrite an existing test file) and `verifier.md` (hold a change no test exercises end to end), and the empty-grader rule of the review loop, come from the flow-tower squad's own runs on 2026-10-13 (issues #187-#196).

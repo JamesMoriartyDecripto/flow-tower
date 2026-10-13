@@ -308,9 +308,9 @@ layers:
         resources:
           - { kind: log, label: "Review loop log", path: "logs/review-loop.log" }
         label: Parallel review
-        description: Promise.all over two fresh query() sessions. Neither evaluator sees the other.
+        description: "Promise.all over two fresh query() sessions. Neither evaluator sees the other. An empty or unparsable grader answer throws (lastJson): it is never read as a pass."
         prompt: review-round
-        files: [src/loop/review-loop.ts, prompts/review-round.md]
+        files: [src/loop/review-loop.ts, src/run-agent.ts, prompts/review-round.md]
       - id: reviewer
         agent: reviewer
         label: Reviewer
@@ -341,7 +341,7 @@ layers:
       - id: verifier
         agent: verifier
         label: Fresh verifier
-        description: "Only the issue and the branch. Ships when its verdict is ship, the suite is green and every criterion is met: checked in code, whatever the model says."
+        description: "Only the issue and the branch. Ships when its verdict is ship, the suite is green and every criterion is met: checked in code, whatever the model says. Holds a user-facing change that no test exercises end to end (a spawned CLI, a started server, a rendered page)."
       - id: approval
         runtime: github
         resources:
