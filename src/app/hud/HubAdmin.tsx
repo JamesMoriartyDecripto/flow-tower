@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { callAdmin, type AdminSender, type AdminView, type CallResult } from './hubAdminApi';
 import {
   CADENCE_OPTIONS, addBudgetRow, addViewer, auditRows, budgetBody, confirmDeleteLabel, dayToMs, removeBudgetRow,
-  removeViewer, retentionValid, revokeEnabled, ruleOn, senderIdValid, senderState, shortToken, type BudgetRow, type Cadence,
+  connectUrl, isLoopbackUrl, removeViewer, retentionValid, revokeEnabled, ruleOn, senderIdValid, senderState, shortToken,
+  type BudgetRow, type Cadence,
 } from './hubAdminModel';
 import { RULE_LABEL } from './HubAlerts';
 
@@ -77,6 +78,8 @@ function SendersSection({ senders, cadence, change }: { senders: AdminSender[]; 
     }
   };
 
+  const loopback = shown !== undefined && isLoopbackUrl(connectUrl(shown.configLine) ?? '');
+
   const closeShown = () => {
     setShown(undefined);
   };
@@ -118,7 +121,9 @@ function SendersSection({ senders, cadence, change }: { senders: AdminSender[]; 
             </div>
             {revoking === s.id && (
               <div className="admin-line">
-                <input className="admin-input" aria-label={`Type ${s.id} to revoke`} placeholder={s.id} value={typed}
+                <span>Confirm revoke</span>
+                {/* The placeholder names the text to type: a bare id would read as a value already entered. */}
+                <input className="admin-input" aria-label={`Type ${s.id} to revoke`} placeholder={`type "${s.id}" to confirm`} value={typed}
                   onChange={(e) => setTyped(e.target.value)} />
                 <button className="btn" disabled={!revokeEnabled(typed, s.id)} onClick={() => void revoke(s.id)}>Revoke</button>
                 <button className="btn" onClick={() => setRevoking(undefined)}>Cancel</button>
@@ -134,8 +139,10 @@ function SendersSection({ senders, cadence, change }: { senders: AdminSender[]; 
           <p className="hub-warn">Shown once: copy it now</p>
           <code className="admin-token">{shown.token}</code>
           <code className="admin-token">{shown.configLine}</code>
+          {/* A loopback URL works only on this machine; the note says what to put in its place. */}
+          {loopback && <p className="hub-empty admin-note">Replace 127.0.0.1 with the address other machines use for this hub (its tailnet name)</p>}
           <div className="admin-line">
-            <button className="btn" onClick={() => void navigator.clipboard?.writeText(shown.token)}>Copy</button>
+            <button className="btn" onClick={() => void navigator.clipboard?.writeText(shown.configLine)}>Copy</button>
             <button className="btn" onClick={closeShown}>Close</button>
           </div>
         </div>

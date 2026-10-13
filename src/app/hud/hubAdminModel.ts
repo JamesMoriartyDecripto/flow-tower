@@ -28,6 +28,26 @@ export const revokeEnabled = (typed: string, id: string): boolean => id !== '' &
  */
 export const shortToken = (id: string): string => `ft_${id}…`;
 
+/**
+ * True when the URL points at this machine only. Another machine cannot reach such an address, so the
+ * connect line needs a warning. A URL that does not parse is not treated as loopback.
+ */
+export function isLoopbackUrl(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return false;
+  }
+  // URL keeps the brackets around an IPv6 literal; `localhost` covers the name, 127.x.x.x the whole IPv4 loopback block.
+  return host === 'localhost' || host === '[::1]' || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+
+/** The server URL inside a connect line (`flow-tower connect <url> --token ...`), or undefined if none. */
+export function connectUrl(configLine: string): string | undefined {
+  return /^flow-tower connect (\S+)/.exec(configLine)?.[1];
+}
+
 /** A budget field: empty means "not set", a non-negative number is a limit, anything else is refused. */
 export function parseUsd(text: string): number | null | undefined {
   const t = text.trim();
