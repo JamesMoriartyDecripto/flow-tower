@@ -362,13 +362,22 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .set-control .seg button.on { background: var(--orange); color: var(--bg); }
 
 /* HUD tooltip */
-.hud-tip { position: fixed; z-index: 10; transform: translateX(-50%); max-width: 300px; padding: 6px 10px; pointer-events: none;
+/* Placed by left/top from Tooltip.tsx (no translate): the JS measures the tip, so it can fit the window. */
+.hud-tip { position: fixed; z-index: 10; max-width: 300px; padding: 6px 10px; pointer-events: none;
   font: 500 12.5px/1.35 var(--ui); color: var(--white); background: color-mix(in srgb, var(--bg) 94%, transparent);
   border: 1px solid var(--line); box-shadow: 0 0 12px color-mix(in srgb, var(--orange) 25%, transparent); animation: fade .12s; }
-.hud-tip.above { transform: translate(-50%, -100%); }
-.hud-tip::before { content: ''; position: absolute; left: 50%; top: -4px; width: 7px; height: 7px; background: inherit;
-  border-left: 1px solid var(--line); border-top: 1px solid var(--line); transform: translateX(-50%) rotate(45deg); }
-.hud-tip.above::before { top: auto; bottom: -4px; transform: translateX(-50%) rotate(225deg); }
+.hud-tip.long { max-width: 420px; }
+/* A tip taller than the window is cut here and faded out at the bottom: it cannot scroll (pointer-events: none). */
+.hud-tip.capped { max-height: calc(100 * var(--vh) - 16px); overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent); }
+.hud-tip::before { content: ''; position: absolute; width: 7px; height: 7px; background: inherit; }
+/* The arrow sits on the edge that faces the anchor, at --arrow (set from JS) along that edge. */
+.hud-tip.below::before, .hud-tip.above::before { left: var(--arrow); transform: translateX(-50%) rotate(45deg); }
+.hud-tip.below::before { top: -4px; border-left: 1px solid var(--line); border-top: 1px solid var(--line); }
+.hud-tip.above::before { bottom: -4px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.hud-tip.left::before, .hud-tip.right::before { top: var(--arrow); transform: translateY(-50%) rotate(45deg); }
+.hud-tip.left::before { right: -4px; border-right: 1px solid var(--line); border-top: 1px solid var(--line); }
+.hud-tip.right::before { left: -4px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .set-group { border-left: 2px solid var(--line); padding-left: 12px; margin: 6px 0 14px; }
 .set-group .set-row:first-child .set-label { color: var(--orange); }
 .set-control input[type=range]:disabled { opacity: .35; }
