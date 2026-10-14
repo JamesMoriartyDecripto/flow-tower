@@ -110,7 +110,8 @@ describe('cli token (#83)', () => {
   const token = (...args: string[]) =>
     spawnSync(process.execPath, [CLI, 'token', ...args], { encoding: 'utf8', timeout: 20_000, env: cleanEnv({ FLOW_TOWER_HOME: home }) });
 
-  it('adds a token, prints it once with the hash warning, then never again', () => {
+  // Several CLI starts in a row can pass vitest's 5 s default when the suite runs in parallel.
+  it('adds a token, prints it once with the hash warning, then never again', { timeout: 30_000 }, () => {
     const added = token('add', 'alice');
     expect(added.status).toBe(0);
     const [secret] = added.stdout.split('\n');
@@ -167,7 +168,7 @@ describe('cli history (#84)', () => {
     return true;
   };
 
-  it('exports one JSONL line per row, filtered by --user, without any content', async () => {
+  it('exports one JSONL line per row, filtered by --user, without any content', { timeout: 30_000 }, async () => {
     if (!(await seed())) return; // no node:sqlite on this Node: the feature is off, nothing to export
     const all = history('export');
     expect(all.status).toBe(0);
@@ -180,7 +181,7 @@ describe('cli history (#84)', () => {
     expect(Object.keys(row).sort()).toEqual([...COLUMNS].sort());
   });
 
-  it('deletes only that user rows from events and both rollups, then says how many went', async () => {
+  it('deletes only that user rows from events and both rollups, then says how many went', { timeout: 30_000 }, async () => {
     if (!(await seed())) return;
     const del = history('delete', '--user', 'alice');
     expect(del.status).toBe(0);
@@ -209,7 +210,7 @@ describe('cli history (#84)', () => {
     expect(r.stderr).toContain('usage: flow-tower history');
   });
 
-  it("deletes the no-user rows with --user '', old NULL rows included", async () => {
+  it("deletes the no-user rows with --user '', old NULL rows included", { timeout: 30_000 }, async () => {
     if (!(await seed())) return;
     const opened = await openHistory(path);
     if ('disabled' in opened) return;
@@ -246,7 +247,7 @@ describe('cli serve guards (#83)', () => {
       env: cleanEnv({ FLOW_TOWER_HOME: home, FLOW_TOWER_TOKEN: '', FLOW_TOWER_ALLOWED_HOSTS: '' }),
     });
 
-  it('refuses --allowed-host without --hub', () => {
+  it('refuses --allowed-host without --hub', { timeout: 30_000 }, () => {
     const r = serve('--allowed-host', 'hub.tailnet-xyz.ts.net', '--no-open');
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('reachable through a proxy');

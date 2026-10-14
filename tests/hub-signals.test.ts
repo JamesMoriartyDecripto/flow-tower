@@ -62,7 +62,8 @@ describe('HUB counter (#192-02 item 3)', () => {
 });
 
 describe('duplicate token ids (#192-02 item 4)', () => {
-  it('refuses an active or paused id with the exact message, and allows a revoked one', () => {
+  // Several CLI starts in a row can pass vitest's 5 s default when the suite runs in parallel.
+  it('refuses an active or paused id with the exact message, and allows a revoked one', { timeout: 30_000 }, () => {
     const home = mkdtempSync(join(tmpdir(), 'flow-tower-dup-'));
     expect(token(home, ['add', 'alice']).status).toBe(0);
     const again = token(home, ['add', 'alice']);
@@ -78,7 +79,7 @@ describe('duplicate token ids (#192-02 item 4)', () => {
 });
 
 describe('CLI token changes are audited (#192-02 item 6)', () => {
-  it('appends one line per change with via cli and no token text', () => {
+  it('appends one line per change with via cli and no token text', { timeout: 30_000 }, () => {
     const home = mkdtempSync(join(tmpdir(), 'flow-tower-cli-audit-'));
     const added = token(home, ['add', 'carol']);
     const secret = added.stdout.split('\n')[0];
