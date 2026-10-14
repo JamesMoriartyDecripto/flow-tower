@@ -106,6 +106,8 @@ node bin/flow-tower.js validate path/to/my-agent.tower.yaml --json
 
 The open tower reloads when you save the YAML or any file it references.
 
+Without a GPU (software WebGL, such as a VM) the 3D view starts in eco quality; pick another quality in Settings to override it.
+
 ## 3. Generate one from a codebase
 
 Let your coding agent read the code and write the tower: `node bin/flow-tower.js install-skill`
