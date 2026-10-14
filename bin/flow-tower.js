@@ -12,7 +12,7 @@ import { localServerUrl, recordLocalServer } from './local-server.js';
 import { findTsCommand, runTsCommand } from './commands.js';
 import { STARTER } from './starter.js';
 import { clipIdentity, identityDefaults } from './identity.js';
-import { cliName } from './cli-name.js';
+import { cliName, shellPath } from './cli-name.js';
 import { EMPTY_LIBRARY, libraryEntries, warnInCheckout } from './library.js';
 import { serveConfig } from './vite-config.js';
 
@@ -129,7 +129,7 @@ function procedure() {
     .replaceAll('<flow-tower>/', `${pkgRoot}/`)
     // Once the path is filled in, "where `<flow-tower>` is the absolute path" would read as a
     // placeholder to fill again: say which checkout the commands use instead.
-    .replace(/Commands below are written as `node [^`]*`, where `[^`]*` is the absolute path of a flow-tower checkout\./, 'Commands below use this checkout: node <path>/bin/flow-tower.js.')
+    .replace(/Commands below are written as `node [^`]*`, where `[^`]*` is the absolute path of a flow-tower checkout\./, () => `Commands below use this checkout: node ${shellPath(join(pkgRoot, 'bin', 'flow-tower.js'))}.`)
     .replace(/\]\((?!https?:|#|\/)([^)\s]+)\)/g, (_, rel) => `](${resolve(docs, rel)})`);
 }
 
