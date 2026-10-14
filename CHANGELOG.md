@@ -17,6 +17,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - e2e: the referenced-files check skips an optional file per node, so one node's optional entry no longer hides a file another node requires (#181).
 - Library: long project names on the cards are no longer cut to one line with an ellipsis (#211): they wrap, up to 3 lines, and the chips stay on the first line. At 1440 px four example names were cut ("Sales Pipeline: prospect to invoice", "A2A Purchasing Concierge", …); now none is, at any width from 390 to 1920 px.
 - Hub budget alerts below one cent show their amounts with 4 decimals instead of "$0.00 of $0.00" (#211).
+- The hub's test alert is sent with rule `test` instead of `silent`, so a webhook receiver can tell it from a real alert (#211).
 
 ## [0.10.0] - 2026-10-13
 

@@ -10,8 +10,7 @@ import { crossSite, isJson } from './guard.ts';
 import { isRemote } from './auth.ts';
 import { tokenStore } from './tokens.ts';
 import { loadConfig, CADENCES, ConfigSchema } from './config.ts';
-import { formatMessage, sendNotification, type FetchLike, type NotifyConfig } from './alert-notify.ts';
-import type { Alert } from './alerts.ts';
+import { formatMessage, sendNotification, type FetchLike, type NotifyAlert, type NotifyConfig } from './alert-notify.ts';
 import { hostname } from 'node:os';
 import { readUserConfig, writeUserConfig } from './user-config.ts';
 import { appendAudit, readAudit } from './admin-audit.ts';
@@ -81,9 +80,10 @@ const notifyView = (notify: NotifyConfig | undefined) => {
 };
 
 /** The test alert the panel sends: fixed text, so the receiver sees nothing the operator did not type here. */
-const testAlert: Alert = {
-  id: 'test:machine:flow-tower',
-  rule: 'silent',
+// The rule is `test`, not `silent`: a json receiver would otherwise file this as a real silent-machine alert.
+const testAlert: NotifyAlert = {
+  id: 'test:hub:hub',
+  rule: 'test',
   level: 'warning',
   subject: { kind: 'hub', name: 'hub' },
   message: 'Test from Flow Tower hub',
