@@ -25,7 +25,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - The server no longer prints Node 22's `ExperimentalWarning` about SQLite when it opens the history DB; every other warning still shows (#211).
 - docs/getting-started.md writes the `copy` and `library` commands as `node $FT/bin/flow-tower.js …` like the rest of the page, so they work without `npm link` (#211).
 - Hub › Machines shows one row for a sender id that was revoked and added again, instead of two rows with the same data (#211).
-- Without a GPU (software WebGL such as SwiftShader) the 3D view starts in eco quality: post-processing drew a dark rectangle over part of the tower there, and it is the slowest path anyway; a quality set in the URL or in Settings still wins (#211).
+- Without a GPU (software WebGL such as SwiftShader) the 3D view starts in eco quality: post-processing drew a dark rectangle over part of the tower there, and it is the slowest path anyway; a quality set in the URL or in Settings still wins (#211). The automatic pick is not saved as a preference, so a browser that gets a GPU later starts in balanced again.
 - `npm run simulate` prints where it sends (the URL and why: `--url`, the running library, or the default port) and says so instead of a stack trace when nothing answers there (#211).
 
 ## [0.10.0] - 2026-10-13

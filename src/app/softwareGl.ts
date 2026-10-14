@@ -1,8 +1,18 @@
+import type { Quality } from './store';
+
 /** Renderer strings of software WebGL implementations (no GPU, or a blocklisted one). */
 const SOFTWARE = /swiftshader|llvmpipe|softpipe|microsoft basic render driver|software/i;
 
 export function isSoftwareRenderer(renderer: string): boolean {
   return SOFTWARE.test(renderer);
+}
+
+/**
+ * The quality to write to the saved preferences. An automatic pick (software renderer) is left out so
+ * a browser that gets a GPU later detects it again instead of staying on the eco pick.
+ */
+export function qualityToSave(chosen: boolean, quality: Quality): Quality | undefined {
+  return chosen ? quality : undefined;
 }
 
 /**
