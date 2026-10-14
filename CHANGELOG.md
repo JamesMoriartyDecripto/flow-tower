@@ -24,6 +24,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `flow-tower guide` (and the skill's procedure.md) names the real checkout command instead of a literal `node <path>/bin/flow-tower.js` (#211).
 - The server no longer prints Node 22's `ExperimentalWarning` about SQLite when it opens the history DB; every other warning still shows (#211).
 - docs/getting-started.md writes the `copy` and `library` commands as `node $FT/bin/flow-tower.js …` like the rest of the page, so they work without `npm link` (#211).
+- Hub › Machines shows one row for a sender id that was revoked and added again, instead of two rows with the same data (#211).
 
 ## [0.10.0] - 2026-10-13
 

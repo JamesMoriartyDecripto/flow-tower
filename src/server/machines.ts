@@ -37,10 +37,35 @@ const newest = (...at: (number | undefined)[]) => {
 };
 
 /**
- * One row per token, plus one per satellite sender that has no token: a sender known only from events
- * (the legacy 'default' included) is real, just unauthenticated, so it shows as `unknown` with no token.
+ * One record per sender id. Rotation (`token add` on a revoked id) leaves the old revoked record behind
+ * while the machine is one, so keep the usable record (active or paused); when every record is revoked,
+ * keep the newest, so the row shows the latest revocation rather than a stale one.
  */
-export function machineRows(tokens: TokenInfo[], sats: SatelliteView[], now: number): MachineRow[] {
+const onePerSender = (tokens: TokenInfo[]): TokenInfo[] => {
+  const kept = new Map<string, TokenInfo>();
+  for (const t of tokens) {
+    const prev = kept.get(t.id);
+    if (prev === undefined) {
+      kept.set(t.id, t);
+      continue;
+    }
+    const prevLive = prev.revokedAt === undefined;
+    const live = t.revokedAt === undefined;
+    if (live !== prevLive) {
+      if (live) kept.set(t.id, t);
+    } else if (t.createdAt > prev.createdAt) {
+      kept.set(t.id, t);
+    }
+  }
+  return [...kept.values()];
+};
+
+/**
+ * One row per sender id that has a token, plus one per satellite sender that has no token: a sender known
+ * only from events (the legacy 'default' included) is real, just unauthenticated, so it shows as `unknown` with no token.
+ */
+export function machineRows(allTokens: TokenInfo[], sats: SatelliteView[], now: number): MachineRow[] {
+  const tokens = onePerSender(allTokens);
   const bySender = new Map(sats.map((s) => [s.sender, s]));
   const rows: MachineRow[] = tokens.map((t) => {
     const sat = bySender.get(t.id);
