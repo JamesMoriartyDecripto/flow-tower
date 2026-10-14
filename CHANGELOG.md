@@ -15,6 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - The unit's `ExecStart` names the `node` on PATH that is the running binary (`/usr/bin/node`), not the versioned file it resolves to (`/usr/bin/node-24`), so a Node major upgrade does not break the service; only absolute PATH directories that group and others cannot write are trusted. The `loginctl enable-linger` hint is shown only outside a graphical session (#194).
 - The 3D figures of the tower document never drew in Google Chrome (the browser, `flow-tower export --pdf` without Playwright's headless shell, and the e2e suite): Chrome stops animation frames in an off-screen or hidden iframe, so every snapshot timed out and the document never got ready. The snapshot iframe now stays on screen, inert and out of the tab order, under an opaque veil; both are hidden in print (#181).
 - e2e: the referenced-files check skips an optional file per node, so one node's optional entry no longer hides a file another node requires (#181).
+- Library: long project names on the cards are no longer cut to one line with an ellipsis (#211): they wrap, up to 3 lines, and the chips stay on the first line. At 1440 px four example names were cut ("Sales Pipeline: prospect to invoice", "A2A Purchasing Concierge", …); now none is, at any width from 390 to 1920 px.
 
 ## [0.10.0] - 2026-10-13
 
