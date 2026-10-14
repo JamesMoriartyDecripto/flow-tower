@@ -22,6 +22,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `flow-tower token add` and the Admin tab say "replace 127.0.0.1" only when no `url` is configured: a hub that sets a loopback `url` on purpose (one host) no longer gets the tailnet hint (#211).
 - `flow-tower connect` suggests `hooks install` only when no harness is wired on this machine; otherwise it names the wired ones and points to `hooks status` (#211).
 - `flow-tower guide` (and the skill's procedure.md) names the real checkout command instead of a literal `node <path>/bin/flow-tower.js` (#211).
+- The server no longer prints Node 22's `ExperimentalWarning` about SQLite when it opens the history DB; every other warning still shows (#211).
 
 ## [0.10.0] - 2026-10-13
 
