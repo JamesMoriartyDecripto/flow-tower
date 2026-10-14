@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect, state, test } from './fixtures.ts';
 
 /**
- * Library card titles (#211a): a project name wraps on word boundaries, capped at 3 lines, instead of being
+ * Library card titles (#211a): a project name wraps, breaking inside a word only when that word alone is too wide, capped at 3 lines, instead of being
  * cut to one line with an ellipsis. These cases pin that no name is clipped at the common widths, and that a
  * long name really takes more than one line rather than being squeezed into one.
  */

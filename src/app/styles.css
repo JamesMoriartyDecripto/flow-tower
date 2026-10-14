@@ -190,7 +190,7 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .lib-card h3 { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 4px; font: 700 20px var(--ui); letter-spacing: .03em; }
 .lib-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lib-main { all: unset; display: block; flex: 1 1 auto; min-width: 0; overflow: hidden; cursor: pointer; }
-/* Long names were cut on one line; they now wrap on word boundaries, capped at 3 lines. */
+/* Long names were cut on one line; they now wrap (inside a word only when it alone is too wide), capped at 3 lines. */
 .lib-main .lib-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
 .lib-card h3 > :not(.lib-main) { flex: none; }
 .lib-main:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
