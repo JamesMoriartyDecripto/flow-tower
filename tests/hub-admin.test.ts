@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, existsSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, existsSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer, request, type Server } from 'node:http';
@@ -75,6 +75,16 @@ describe('hub admin: loopback routes (#93)', () => {
     expect(lineCount()).toBe(before + 1);
     expect(readFileSync(join(home, 'admin-audit.jsonl'), 'utf8')).not.toContain(token);
     expect(tokenStore(home).verify(token)).toEqual({ id: 'laptop' });
+  });
+
+  it('says urlConfigured false when config.json names no url, and true when it does', async () => {
+    const port = await serve();
+    const none = await call(port, 'POST', '/api/hub/admin/senders', { id: 'nourl' });
+    expect((none.body as { urlConfigured: boolean }).urlConfigured).toBe(false);
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ url: 'http://127.0.0.1:5317' }), { mode: 0o600 });
+    const set = await call(port, 'POST', '/api/hub/admin/senders', { id: 'withurl' });
+    rmSync(join(home, 'config.json'), { force: true });
+    expect((set.body as { urlConfigured: boolean }).urlConfigured).toBe(true);
   });
 
   it('refuses a duplicate sender id (409)', async () => {

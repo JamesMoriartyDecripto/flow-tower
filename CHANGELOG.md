@@ -19,6 +19,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Hub budget alerts below one cent show their amounts with 4 decimals instead of "$0.00 of $0.00" (#211).
 - The hub's test alert is sent with rule `test` instead of `silent`, so a webhook receiver can tell it from a real alert (#211).
 - `flow-tower share` names a new share after the tower's `name:` (as a slug) when the folder holds one tower file, so towers kept in folders called `tower` no longer all share as `tower`; `--name` still wins and existing shares keep their name (#211).
+- `flow-tower token add` and the Admin tab say "replace 127.0.0.1" only when no `url` is configured: a hub that sets a loopback `url` on purpose (one host) no longer gets the tailnet hint (#211).
 
 ## [0.10.0] - 2026-10-13
 
