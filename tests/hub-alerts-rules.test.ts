@@ -58,6 +58,11 @@ describe('budget rule', () => {
     expect(budget(85.5)[0]!.message).toBe('invoicing at 85% of its monthly budget ($85.50 of $100.00)');
   });
 
+  it('words sub-cent amounts with 4 decimals instead of "$0.00 of $0.00"', () => {
+    const alerts = evaluateAlerts(base({ budgets: { projects: { invoicing: 0.004 } }, monthCost: { global: 0, projects: { invoicing: 0.0034 } } }));
+    expect(alerts[0]!.message).toBe('invoicing at 85% of its monthly budget ($0.0034 of $0.0040)');
+  });
+
   it('applies the global budget as its own subject', () => {
     const alerts = evaluateAlerts(base({ budgets: { global: 50 }, monthCost: { global: 60, projects: {} } }));
     expect(alerts).toEqual([expect.objectContaining({ id: 'budget:global:hub', level: 'critical' })]);
