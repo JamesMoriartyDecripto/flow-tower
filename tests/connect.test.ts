@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { mergeJsonHooks } from '../src/cli/hooks-merge.ts';
 import { cleanEnv } from './fixtures/clean-env';
 
 /**
@@ -202,6 +203,34 @@ describe('flow-tower connect (#91)', () => {
     expect(r.stderr).toContain('--machine');
     expect(existsSync(join(other, 'config.json'))).toBe(false);
     rmSync(other, { recursive: true, force: true });
+  });
+});
+
+describe('flow-tower connect next step (#211)', () => {
+  // The settings file is written by the same merge the installer uses, so this test follows the real format.
+  const claudeTemplate = readFileSync(join(import.meta.dirname, '..', 'integrations', 'claude-code', 'settings.json'), 'utf8');
+
+  it('suggests hooks install when no harness is wired on this machine', { timeout: 15_000 }, async () => {
+    const userHomeDir = mkdtempSync(join(tmpdir(), 'flow-tower-connect-nohooks-'));
+    const hub = await stubHub(204);
+    const r = await connect([hub.url, '--token', 'ft_laptop_secretvalue'], { HOME: userHomeDir });
+    rmSync(userHomeDir, { recursive: true, force: true });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('hooks install');
+    expect(r.stdout).not.toContain('already wired');
+  });
+
+  it('names the wired harness instead of suggesting hooks install', { timeout: 15_000 }, async () => {
+    const userHomeDir = mkdtempSync(join(tmpdir(), 'flow-tower-connect-wired-'));
+    mkdirSync(join(userHomeDir, '.claude'));
+    const merged = mergeJsonHooks('claude-code', undefined, claudeTemplate, { port: 5317, command: 'flow-tower emit' });
+    writeFileSync(join(userHomeDir, '.claude', 'settings.json'), merged.text);
+    const hub = await stubHub(204);
+    const r = await connect([hub.url, '--token', 'ft_laptop_secretvalue'], { HOME: userHomeDir });
+    rmSync(userHomeDir, { recursive: true, force: true });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('already wired for claude-code');
+    expect(r.stdout).not.toMatch(/next: .*hooks install/);
   });
 });
 
