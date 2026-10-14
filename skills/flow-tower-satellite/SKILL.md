@@ -41,7 +41,7 @@ Hubs that are not on a tailnet: the hub owner runs `token add <id>` and hands th
 3. **The OK.** Say exactly what will go (tower names, YAML only or with which files, to which hub) and wait for yes.
 4. Per tower: `{{FLOW_TOWER_CLI}} share <tower folder>` (add `--files` for the second choice). It prints every file it sends and any it skipped with the reason, and adds the folder to the user's library if it was not there.
 
-To stop later: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub; `<name>` is what `share --list` shows (the folder name, not the YAML `name:`).
+To stop later: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub; `<name>` is what `share --list` shows (the tower's `name:` as a slug when the folder holds one tower file, else the folder name; `--name` sets it).
 
 ## 5. Start the local library
 

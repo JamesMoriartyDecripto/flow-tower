@@ -14,7 +14,7 @@ import { userHome } from '../core/secrets.ts';
 import type { Share } from '../server/config.ts';
 import { addToLibrary } from './library.ts';
 import { asShare, withShare, withoutShare } from '../server/share-entries.ts';
-import { collectTower, listShared, removeTower, shareName, uploadTower } from '../server/share-client.ts';
+import { collectTower, listShared, removeTower, shareName, towerShareName, uploadTower } from '../server/share-client.ts';
 import { shareName as validShareName } from '../server/share-rules.ts';
 import { readUserConfig, writeUserConfig } from '../server/user-config.ts';
 import { cliName } from '../../bin/cli-name.js';
@@ -78,7 +78,7 @@ async function share(dir: string | undefined) {
   if (!hub || !token) fail(`not connected: run ${cliName()} connect <hub-url> first`);
 
   const absDir = resolve(dir);
-  const name = values.name ?? shareName(absDir);
+  const name = values.name ?? towerShareName(absDir) ?? shareName(absDir);
   if (!validShareName(name)) fail(`not a share name: "${name}" (a-z, 0-9 and dashes, up to 64 characters)`);
 
   const collected = await collectTower(absDir, { withFiles: values.files });
