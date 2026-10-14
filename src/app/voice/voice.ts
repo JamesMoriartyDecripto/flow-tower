@@ -7,6 +7,7 @@ import { openMic, type Mic } from './mic';
 import { ackLanguage, armAck, warmAck } from './ack';
 import { firstAnswerAudio, firstAudio, converse, forget, isEcho, isSpeaking, newReply, onPlaybackBlocked, say, stopSpeaking, wantsAgent } from './agent';
 import { clearAgentSearch } from './tools';
+import { voiceUnavailable } from './unavailable';
 import { bargeIn, keepClip, playedDuring, type Recorded } from './duplex';
 import { isHallucination } from './noise';
 import { applyAliases, interrupted, judgeLast, loadMemory, notesForAgent, record, reviewIfDue } from './journal';
@@ -151,12 +152,13 @@ async function start() {
   tailHinted = false;
   clearTimeout(hideError);
   set({ status: 'starting', error: undefined, did: undefined, heard: undefined });
-  const config = await fetch('/api/voice').then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined) as { cloud: boolean; agent?: string } | undefined;
+  const res = await fetch('/api/voice').catch(() => undefined);
+  const config = (res?.ok ? await res.json().catch(() => undefined) : undefined) as { cloud: boolean; agent?: string } | undefined;
   if (mine !== session) return; // stopped while asking
   set({ cloud: config?.cloud, agent: !!config?.agent });
   // What the user accepted from past reviews: aliases for the parser, notes for the agent.
   void loadMemory().then((m) => m && set({ suggestions: m.memory.pending.length || undefined }));
-  if (!config) return fail('Voice commands need the local flow-tower server, which this page cannot reach.');
+  if (!config) return fail(voiceUnavailable(res?.status));
   if (!config.cloud) return fail('Voice commands need OPENROUTER_API_KEY in ~/.config/flow-tower/.env (or the git-ignored .env in the flow-tower folder), then a restart.');
   try {
     const opened = await openMic({
