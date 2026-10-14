@@ -25,7 +25,7 @@ node $FT/bin/flow-tower.js validate ~/my-project/tower        # 0 errors, 0 warn
 node $FT/bin/flow-tower.js ~/my-project/tower                 # opens it in the browser
 ```
 
-Or `flow-tower copy <example> [dest]` (`copy --list` lists them): it copies the folder, validates it and prints the next steps; the [use-example skill](../skills/flow-tower-use-example/SKILL.md) walks an agent through it.
+Or `node $FT/bin/flow-tower.js copy <example> [dest]` (`copy --list` lists them): it copies the folder, validates it and prints the next steps; the [use-example skill](../skills/flow-tower-use-example/SKILL.md) walks an agent through it.
 
 Optional: `npm link` inside the clone puts `flow-tower` on your `PATH` (it is the package's `bin`), so
 `flow-tower ~/my-project/tower` works from anywhere. Claude Code's SessionStart hook needs it.
@@ -127,10 +127,12 @@ Your towers live in your own projects, never inside the flow-tower checkout or u
 server warns, `copy` warns). Keep their paths in one list, `library` in your user folder's `config.json`:
 
 ```bash
-flow-tower library add ~/my-project/tower   # a *.tower.yaml or a folder
-flow-tower library list                     # `remove <path>` drops one
-flow-tower library                          # serve your towers: MINE badges; --with-examples adds EXAMPLE ones
+node $FT/bin/flow-tower.js library add ~/my-project/tower   # a *.tower.yaml or a folder
+node $FT/bin/flow-tower.js library list                     # `remove <path>` drops one
+node $FT/bin/flow-tower.js library                          # serve your towers: MINE badges; --with-examples adds EXAMPLE ones
 ```
+
+With `npm link` (above), `flow-tower library …` is the same command.
 
 Contributing a tower back goes through the [contribute skill](../skills/flow-tower-contribute/SKILL.md).
 
