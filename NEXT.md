@@ -2,7 +2,7 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
-## Status on 2026-10-13
+## Status on 2026-10-15
 
 - **v0.10.0 released** (2026-10-13), the team-UX release. Gates and e2e: [report](examples/release-auditor/reports/v0.10.0.md).
   - Hub admin and alerts: #93 the Admin tab, #94 alert rules, #191 the alert webhook and the `errors` rule;
@@ -12,7 +12,9 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 - **#181 laptop checks on Fedora (2026-10-13, Intel Iris Xe):** the full e2e is green, **89/89 in 16.9 min** with `FLOW_TOWER_E2E_GPU=1 npm run e2e -- --workers=2` (e2e.log in #217). On the way: #207 the 3D figures of the document never drew in Google Chrome (Chrome throttles an unseen iframe; it now stays on screen under a veil), #214 the GPU for export, report and e2e (closes #209; export 72 s → 16 s), #215 four `service` defects on a real `systemctl --user`, #216 a flaky axe test. 3D PDFs, the report-studio outline and the new example towers checked. **Still open in #181:** the real tailnet with the v0.10.0 team journeys and the macOS side of #194 (need the Mac); Caddy with a certificate and real ntfy / Slack / Telegram.
 - **On hold by the maintainer:** [#208](https://github.com/JamesMoriartyDecripto/flow-tower/issues/208) troika fetches glyphs (`→ ≥ ✕ ·`) from jsdelivr at runtime, so offline the label specs fail; diagnosis and options are on the issue, to pick up only when an offline use hits it.
 - **e2e anywhere:** headless Chrome renders WebGL in software even with a GPU; on a machine with one use `FLOW_TOWER_E2E_GPU=1`. On the test server (no GPU): 73/89 on a scratch port, the large towers time out in software.
-- **Open from the second dry run:** [#211](https://github.com/JamesMoriartyDecripto/flow-tower/issues/211), 12 low findings (simulate target, truncated card titles, sub-cent budgets, test alert rule name, share named `tower`, …).
+- **#211 closed (2026-10-15):** the 12 low findings of the second dry run, in #219 (library card titles wrap) and #221; with #220 (explicit timeouts for CLI-spawning tests, which timed out under load on the laptop), #222 (a remote hub view hides the MIC and says why) and #223 (the HUD tooltip measures itself and stays inside the window). Under software WebGL the post-processing drew a dark rectangle: without a GPU the app now starts in eco (not saved as a preference). Targeted e2e 38/38 with the GPU; **the full e2e was stopped by the system for low memory at 35/93 (0 failures) and still needs a full run** (`--workers=1` on the 7.4 GB laptop).
+- **Voice on the command center (maintainer's choice, 2026-10-15):** a hub keeps refusing voice to remote viewers (it runs on and bills the hub's machine); use voice in your own Flow Tower with the tower open locally. Researched alternatives (voice through the viewer's local server: Chrome 142+ / Firefox 151+ local network permission; the hub's key for viewers: OWASP LLM10 limits) are in #222.
+- **Command center:** pulled to `fbe0594` on 2026-10-14; #220-#223 change `src/server/` (alerts, hub-admin, machines, history), so the next pull needs `systemctl restart flow-tower`. The checkout belongs to `flowtower`: the maintainer pulls as root (`ssh decripto-root`).
 - **Live hub leftovers (2026-10-13):** one test event (`error`, "fallback test", host `sat188b`) sits in the live hub's history; the hub runs as user `flowtower`, so removing it needs that user (the row and its hourly and daily rollups, with the service stopped). The maintainer agreed to clean it if not needed. A revoked test token `sat188b` is still listed in the lead's own `~/.config/flow-tower/tokens.json` (harmless; `token` has no remove command).
 - **Squad lesson:** coders rewrite an existing test file and drop earlier tests. Task files now say "never rewrite or empty an existing test file"; give each step its own test file.
 - **Squad notes from #181:** OpenRouter can answer 504 or 429 in the middle of a coder step: discard the partial changes and rerun the step. A task that rewords an existing message breaks the test that asserts it: quote the existing text in the task. Worktrees with a symlinked `node_modules` make Vite answer 403 for fonts outside the root, so run e2e checks from the main checkout (detached HEAD) on a scratch port, never against the maintainer's server on 5317.
@@ -24,7 +26,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 ## Next, in order
 
 1. #181 what needs the Mac: a real tailnet with the v0.10.0 team journeys, the macOS side of #194 (launchd)
-2. #211 low findings of the second dry run
+2. A full e2e run on main (`FLOW_TOWER_E2E_GPU=1 npm run e2e -- --workers=1` on the laptop), then pull and restart the command center
 3. #69 tower names as an STT prompt
 4. docs-qa gaps left after #143: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)
 5. Report studio, next types: architecture docs (arc42, C4) and research reports (IMRaD), sources already checked in docs/reports.md
