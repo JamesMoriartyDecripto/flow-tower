@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-15
+
 ### Changed
 - The 3D figures of `flow-tower export --pdf` and `flow-tower report` use the GPU when there is one (#209): one launcher (`src/cli/browser.ts`) starts Chromium with GPU flags, reads the WebGL renderer, and falls back to software WebGL (SwiftShader) when the renderer is software, the probe times out, or the GPU launch fails; it prints which one it used. `FLOW_TOWER_GL=gpu|software` forces the choice. On a laptop with an Intel Iris Xe the dev-squad level-3 export went from 72 s to 16 s.
 - e2e: `FLOW_TOWER_E2E_GPU=1` runs the Playwright project with the GPU flags, for machines that have a GPU; CI stays in software (#209).
@@ -405,7 +407,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.7.0...v0.8.0
