@@ -1,0 +1,27 @@
+# Verification log, sample run (fictional client). Timezone: Europe/Rome.
+# Memo: samples/memo-lumen-grid-2026-10.md. Tax period: 2026. Sample data only.
+2026-10-15T09:12:04+02:00 INFO  run start memo=memo-lumen-grid-2026-10 period=2026 client=client-lumen-grid
+2026-10-15T09:12:04+02:00 INFO  scripts/check_citations.mjs --memo draft-01.json --sources sources.json
+2026-10-15T09:12:05+02:00 INFO  claim C1 source=src-l199-2025 span="iperammortamento" quote check: pass
+2026-10-15T09:12:05+02:00 INFO  claim C2 source=src-dl38-2026 span="maggiorazione del 180 per cento" quote check: pass
+2026-10-15T09:12:05+02:00 WARN  claim C3 source=src-cpb-circ-8e span="adesione entro il 2 novembre 2026" quote check: FAIL cited_text not found verbatim in source
+2026-10-15T09:12:05+02:00 INFO  claim C4 source=src-super-ded-fo span="20 per cento" quote check: pass
+2026-10-15T09:12:06+02:00 INFO  claim C5 source=src-bonus-giovani-inps span="500 euro" quote check: pass
+2026-10-15T09:12:06+02:00 INFO  quote check summary: passed=4 failed=1 retry=1
+2026-10-15T09:12:06+02:00 INFO  drafter retry 1 for C3 with the same sources only (no new source added)
+2026-10-15T09:12:41+02:00 INFO  check_citations.mjs --memo draft-02.json: C3 quote check: pass (whitespace-normalized match)
+2026-10-15T09:12:41+02:00 INFO  quote check summary: passed=5 failed=0 retry=1
+2026-10-15T09:12:42+02:00 INFO  scripts/check_in_force.mjs --memo draft-02.json --library records.json --registry source-registry.json
+2026-10-15T09:12:42+02:00 WARN  claim C6 citation=art. 51 DPR 917/1986 period=2026: flag "DPR 917/1986 replaced by the testi unici from 2027-01-01: map to the new article"
+2026-10-15T09:12:42+02:00 INFO  claim C6 action: kept on the old article for period 2026; the 2027 article is unmapped (concordance tables not published); reviewer note added
+2026-10-15T09:12:43+02:00 INFO  in-force summary: flagged=1 (renumbering, FY2027 note)
+2026-10-15T09:12:44+02:00 INFO  support check (different model from drafter), per claim:
+2026-10-15T09:12:44+02:00 INFO    C1 iperammortamento rule ........ supported
+2026-10-15T09:12:44+02:00 INFO    C2 brackets +180/+100/+50 ....... supported (brackets annual vs cumulative: not stated, see open points)
+2026-10-15T09:12:44+02:00 INFO    C3 CPB adhesion 2/11/2026 ....... supported (after retry 1)
+2026-10-15T09:12:44+02:00 INFO    C4 super-deduction 20% .......... supported
+2026-10-15T09:12:44+02:00 INFO    C5 bonus giovani EUR 500 ........ partial (secondary source says DL 62/2026 repealed DL 60/2024; quote covers the amount only)
+2026-10-15T09:12:44+02:00 INFO    C6 art. 51 renumbering .......... partial (2026 text ok; 2027 article not verified)
+2026-10-15T09:12:44+02:00 WARN  C7 Smart&Start Italia: not_supported (version not verified; legal article not in the sources); not in the memo
+2026-10-15T09:12:45+02:00 INFO  gate_hint: retry (not all claims supported: C5, C6 partial); retry budget used, memo kept as draft with C5 and C6 in Punti aperti
+2026-10-15T09:12:45+02:00 INFO  run end status=draft_for_professional_review verdict=pass_with_open_points

@@ -1,0 +1,13 @@
+# Audit log, append-only. One JSON object per line. Timezone: Europe/Rome. Fictional sample run.
+# Personal data is never written here: client, contact and identifiers are redacted placeholders.
+{"ts":"2026-10-15T09:12:04+02:00","event":"run_start","run_id":"RUN-2026-10-15-0001","memo":"memo-lumen-grid-2026-10","client":"[NAME_1]","period":"2026","operator":"[OPERATOR_1]"}
+{"ts":"2026-10-15T09:12:04+02:00","event":"prompt_hash","role":"drafter","prompt":"prompts/drafter.md","sha256":"[HASH_DRAFTER_v1]"}
+{"ts":"2026-10-15T09:12:04+02:00","event":"prompt_hash","role":"support","prompt":"prompts/support.md","sha256":"[HASH_SUPPORT_v1]","model_family":"different_from_drafter"}
+{"ts":"2026-10-15T09:12:05+02:00","event":"sources_retrieved","run_id":"RUN-2026-10-15-0001","source_ids":["src-l199-2025","src-dl38-2026","src-cpb-circ-8e","src-super-ded-fo","src-bonus-giovani-inps","src-rs-l160-2019","src-smartstart-invitalia"]}
+{"ts":"2026-10-15T09:12:05+02:00","event":"quote_check","run_id":"RUN-2026-10-15-0001","attempt":1,"passed":4,"failed":1,"failed_claims":["C3"],"reason":"cited_text not found verbatim in source"}
+{"ts":"2026-10-15T09:12:06+02:00","event":"retry","run_id":"RUN-2026-10-15-0001","attempt":2,"claims":["C3"],"sources_added":0}
+{"ts":"2026-10-15T09:12:41+02:00","event":"quote_check","run_id":"RUN-2026-10-15-0001","attempt":2,"passed":5,"failed":0}
+{"ts":"2026-10-15T09:12:42+02:00","event":"in_force_check","run_id":"RUN-2026-10-15-0001","period":"2026","flagged":1,"flags":[{"claim":"C6","issue":"DPR 917/1986 replaced by testo unico from 2027-01-01; article map empty"}]}
+{"ts":"2026-10-15T09:12:44+02:00","event":"support_check","run_id":"RUN-2026-10-15-0001","verdicts":{"C1":"supported","C2":"supported","C3":"supported","C4":"supported","C5":"partial","C6":"partial"},"gate_hint":"retry"}
+{"ts":"2026-10-15T09:12:44+02:00","event":"not_supported","run_id":"RUN-2026-10-15-0001","claim":"C7","reason":"version not verified","action":"removed from memo"}
+{"ts":"2026-10-15T09:12:45+02:00","event":"run_end","run_id":"RUN-2026-10-15-0001","status":"draft_for_professional_review","approver":"[APPROVER_PLACEHOLDER]","approved":false}
