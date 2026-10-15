@@ -10,8 +10,7 @@ import { crossSite, isJson } from './guard.ts';
 import { isRemote } from './auth.ts';
 import { tokenStore } from './tokens.ts';
 import { loadConfig, CADENCES, ConfigSchema } from './config.ts';
-import { formatMessage, sendNotification, type FetchLike, type NotifyConfig } from './alert-notify.ts';
-import type { Alert } from './alerts.ts';
+import { formatMessage, sendNotification, type FetchLike, type NotifyAlert, type NotifyConfig } from './alert-notify.ts';
 import { hostname } from 'node:os';
 import { readUserConfig, writeUserConfig } from './user-config.ts';
 import { appendAudit, readAudit } from './admin-audit.ts';
@@ -81,9 +80,10 @@ const notifyView = (notify: NotifyConfig | undefined) => {
 };
 
 /** The test alert the panel sends: fixed text, so the receiver sees nothing the operator did not type here. */
-const testAlert: Alert = {
-  id: 'test:machine:flow-tower',
-  rule: 'silent',
+// The rule is `test`, not `silent`: a json receiver would otherwise file this as a real silent-machine alert.
+const testAlert: NotifyAlert = {
+  id: 'test:hub:hub',
+  rule: 'test',
   level: 'warning',
   subject: { kind: 'hub', name: 'hub' },
   message: 'Test from Flow Tower hub',
@@ -165,7 +165,10 @@ export function hubAdmin({ home, hub, history, hubUrl, fetch: fetchFn }: HubAdmi
     // The token is answered once, here, and never written anywhere: the audit line above names only the id.
     // The configLine stays the bare command (it is what Copy copies); the panel adds the other-machine hint to the
     // text it shows, so the copied command still runs as it is on a machine with flow-tower on PATH.
-    send(res, 200, { token, configLine: `flow-tower connect ${hubUrl()} --token ${token} --machine ${body.id}` });
+    // urlConfigured tells the panel whether the url is the operator's choice: a loopback url only needs the
+    // tailnet hint when nobody set one. Read from the same home config the CLI reads, so both agree.
+    const urlConfigured = loadConfig({ home }).config.url !== undefined;
+    send(res, 200, { token, configLine: `flow-tower connect ${hubUrl()} --token ${token} --machine ${body.id}`, urlConfigured });
   };
 
   /** pause, resume and revoke share one shape: an id in the path, the token store does the change. */

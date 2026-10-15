@@ -9,6 +9,7 @@ import { sampleApiRequest } from '../src/core/otlp.ts';
 import type { ResolvedNode, ResolvedTower, Workspace } from '../src/core/types.ts';
 // Plain JS, shared with emit: the port a running `serve` recorded in the user folder (#187).
 import { localServerUrl } from '../bin/local-server.js';
+import { simulateTarget } from './simulate-target.ts';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -19,7 +20,7 @@ const { values, positionals } = parseArgs({
   },
 });
 // An explicit --url wins; otherwise the local server this user folder started, else the default port.
-const url = values.url ?? localServerUrl({ env: process.env }) ?? 'http://127.0.0.1:5317';
+const { url, from } = simulateTarget(values.url, localServerUrl({ env: process.env }));
 const speed = Number(values.speed);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms / speed));
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
@@ -76,12 +77,20 @@ async function walker(tower: ResolvedTower, nodes: Map<string, ResolvedNode>, ou
   }
 }
 
-const ws = (await (await fetch(`${url}/api/workspace`)).json()) as Workspace;
+// A refused connection or an error status here is the usual "wrong port" case: say where we looked, not a stack trace.
+const ws = await fetch(`${url}/api/workspace`).then(
+  async (res) => (res.ok ? ((await res.json()) as Workspace) : undefined),
+  () => undefined,
+);
+if (!ws) {
+  console.error(`flow-tower not reachable at ${url} (${from}): start it with npm run dev, or pass --url`);
+  process.exit(1);
+}
 const id = ws.projects.find((p) => p.includes(positionals[0] ?? '')) ?? ws.projects[0];
 const tower = ws.towers[id];
 const nodes = new Map(tower.layers.flatMap((l) => l.nodes.map((n) => [n.key, n] as const)));
 const out = new Map<string, string[]>();
 for (const e of [...tower.layers.flatMap((l) => l.edges), ...tower.links]) out.set(e.from, [...(out.get(e.from) ?? []), e.to]);
 
-console.log(`simulating ${tower.name} (${nodes.size} nodes) with ${values.walkers} walkers — Ctrl+C to stop`);
+console.log(`simulating ${tower.name} (${nodes.size} nodes) with ${values.walkers} walkers → ${url} (${from}) — Ctrl+C to stop`);
 await Promise.all(Array.from({ length: Number(values.walkers) }, (_, i) => sleep(i * 700).then(() => walker(tower, nodes, out, i))));

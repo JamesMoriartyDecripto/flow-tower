@@ -82,7 +82,9 @@ const SPIKE_FLOOR = 5;
 const HISTORY_HOURS = 7 * 24;
 const NEW_HOST_MS = DAY;
 
-const usd = (n: number) => `$${n.toFixed(2)}`;
+// Sub-cent amounts get 4 decimals: at 2 a 0.004 budget reads "$0.00", which hides what the alert is about.
+// Same rule as the live cost in src/app/live.ts.
+const usd = (n: number) => `$${n > 0 && n < 0.01 ? n.toFixed(4) : n.toFixed(2)}`;
 const hours = (ms: number) => `${Math.floor(ms / HOUR)} h`;
 
 function median(values: number[]): number {

@@ -81,6 +81,14 @@ describe('token add prints a connect line (#193)', () => {
     expect(r.stdout).not.toContain('replace 127.0.0.1');
     rmSync(join(home, 'config.json'), { force: true });
   });
+
+  it('keeps a loopback url the config names on purpose, without the tailnet hint', () => {
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ url: 'http://127.0.0.1:5317' }), { mode: 0o600 });
+    const r = run('add', 'lab');
+    expect(r.stdout).toContain('connect http://127.0.0.1:5317 --token');
+    expect(r.stdout).not.toContain('replace 127.0.0.1');
+    rmSync(join(home, 'config.json'), { force: true });
+  });
 });
 
 describe('placeholderHosts (#193)', () => {
