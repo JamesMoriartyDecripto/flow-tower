@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { collectTower, fingerprint, listShared, removeTower, shareName, uploadTower } from '../src/server/share-client';
+import { collectTower, fingerprint, listShared, removeTower, shareName, towerShareName, uploadTower } from '../src/server/share-client';
 
 /**
  * The satellite side of sharing (#164). Collection runs on real temp folders; the HTTP helpers run against a
@@ -194,6 +194,27 @@ describe('shareName', () => {
     const name = shareName(`/x/${'a'.repeat(63)}-b`);
     expect(name.length).toBeLessThanOrEqual(64);
     expect(name.endsWith('-')).toBe(false);
+  });
+});
+
+describe('towerShareName (#211)', () => {
+  it('slugs the name of the only tower file in the folder', () => {
+    const dir = folder('demo');
+    write(join(dir, 'demo.tower.yaml'), 'name: My Tower!\n');
+    expect(towerShareName(dir)).toBe('my-tower');
+  });
+
+  it('is undefined when the folder holds two tower files', () => {
+    const dir = folder('demo');
+    write(join(dir, 'a.tower.yaml'), 'name: One\n');
+    write(join(dir, 'b.tower.yaml'), 'name: Two\n');
+    expect(towerShareName(dir)).toBeUndefined();
+  });
+
+  it('is undefined when the tower has no name', () => {
+    const dir = folder('demo');
+    write(join(dir, 'demo.tower.yaml'), 'layers: []\n');
+    expect(towerShareName(dir)).toBeUndefined();
   });
 });
 

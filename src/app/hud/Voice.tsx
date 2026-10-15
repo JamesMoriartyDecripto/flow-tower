@@ -1,6 +1,7 @@
 import { STATIC } from '../staticData';
 import { useVoice } from '../voice/voice';
 import { usePrefs } from '../settings';
+import { useHub } from './Hub';
 
 const STATUS = {
   off: 'Voice commands (V)',
@@ -13,7 +14,9 @@ const STATUS = {
 /** Mic toggle, in the top bar and in the library header. The static demo has no server, so no voice. */
 export function MicButton() {
   const { status, toggle } = useVoice();
-  if (STATIC) return null;
+  // A remote viewer of a hub is refused voice by the hub: no button for it. V still reaches start(), which says why.
+  const remote = useHub((s) => s.me?.readOnly);
+  if (STATIC || remote) return null;
   return (
     <button className={`btn mic ${status}`} onClick={toggle} aria-pressed={status !== 'off'} title={STATUS[status]}>
       <i />MIC

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { NODE_TYPES, type NodeType } from '../core/schema';
 import type { ResolvedNode, ResolvedTower, Workspace } from '../core/types';
 import { deepLink } from './graph';
+import { isSoftwareRenderer, webglRenderer } from './softwareGl';
 
 export type Quality = 'eco' | 'balanced' | 'high';
 
@@ -68,7 +69,11 @@ interface State {
 
 function initialQuality(): Quality {
   const q = new URLSearchParams(location.search).get('quality');
-  return q === 'low' ? 'eco' : q === 'eco' || q === 'high' || q === 'balanced' ? q : 'balanced';
+  if (q === 'low' || q === 'eco') return 'eco';
+  if (q === 'high' || q === 'balanced') return q;
+  // Software WebGL: post-processing draws a dark rectangle over the tower there (#211) and is the slowest path.
+  const renderer = webglRenderer();
+  return renderer !== undefined && isSoftwareRenderer(renderer) ? 'eco' : 'balanced';
 }
 
 let leaveTimer: ReturnType<typeof setTimeout> | undefined;

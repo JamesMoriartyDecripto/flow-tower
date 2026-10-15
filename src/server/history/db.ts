@@ -19,15 +19,36 @@ function ownerOnly(path: string, mode: number) {
 }
 
 /**
+ * True only for Node's "SQLite is an experimental feature" notice: an ExperimentalWarning (the `type`
+ * argument, or the name of an Error warning) whose message mentions SQLite. Anything else is not ours to hide.
+ */
+export function isSqliteExperimentalWarning(warning: unknown, type?: unknown): boolean {
+  const kind = type ?? (warning instanceof Error ? warning.name : undefined);
+  const message = warning instanceof Error ? warning.message : warning;
+  return kind === 'ExperimentalWarning' && typeof message === 'string' && message.includes('SQLite');
+}
+
+/**
  * Opens (creating it if needed) the history DB at `path`. WAL so the server can write while the UI reads,
  * and NORMAL is safe enough for telemetry. migrates on open, so every caller sees the current schema.
  */
 export async function openHistory(path: string): Promise<HistoryOpen> {
   let sqlite: typeof import('node:sqlite');
+  // Node 22 flags node:sqlite with an ExperimentalWarning that users read as a failure; Node 24 no longer
+  // prints it. Only this one notice is dropped, only while the module loads, and the original is always restored.
+  const emitWarning = process.emitWarning;
+  process.emitWarning = function (this: unknown, ...args: unknown[]) {
+    const [warning, second] = args;
+    const type = typeof second === 'object' && second !== null ? (second as { type?: unknown }).type : second;
+    if (isSqliteExperimentalWarning(warning, type)) return;
+    return (emitWarning as (...a: unknown[]) => void).apply(this, args);
+  } as typeof process.emitWarning;
   try {
     sqlite = await import('node:sqlite');
   } catch {
     return { disabled: DISABLED_MESSAGE };
+  } finally {
+    process.emitWarning = emitWarning;
   }
   if (typeof sqlite.DatabaseSync !== 'function') return { disabled: DISABLED_MESSAGE };
   // 0700 only on a folder we create: one the user chose is left as it is (src/server/tokens.ts does the same).

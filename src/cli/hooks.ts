@@ -322,6 +322,18 @@ function status(ctx: HooksContext): number {
   return 0;
 }
 
+/**
+ * The harnesses whose user-level file already carries a working wiring of ours. A command hook whose node or
+ * flow-tower.js is gone is not counted: it does not run, so `connect` must still suggest `hooks install`.
+ */
+export function wiredHarnesses(ctx: HooksContext = defaultContext()): Harness[] {
+  return HARNESSES.filter((h) => {
+    const file = fileFor(h, false, ctx);
+    const text = file ? readIfExists(file) ?? '' : '';
+    return wired(h, text) && staleCommandPath(h, text, existsSync) === undefined;
+  });
+}
+
 /** The targets for install: --target, else every harness whose folder exists. */
 function pickTargets(target: string | undefined, ctx: HooksContext): Harness[] | string {
   if (target === undefined) {

@@ -37,7 +37,8 @@ The hub checks the rules every minute, with or without a page open, and sends ea
 to an optional webhook (`notify` in `config.json`, or Hub › Admin › Notifications, which also has **Send a test
 alert**). Formats: `ntfy` (plain text, `Title` and `Priority` headers: high for a critical alert), `slack` and
 `telegram` (JSON `{ text }`; for Telegram paste `https://api.telegram.org/bot<token>/sendMessage?chat_id=<id>`), or
-`json` (`{ event: open|clear, alert: { id, rule, level, subject, message }, hub }`). Only the alert's text leaves the
+`json` (`{ event: open|clear, alert: { id, rule, level, subject, message }, hub }`). The test alert from **Send a test
+alert** carries `rule: "test"`, so a receiver can tell it from a real alert. Only the alert's text leaves the
 hub, never event content. The url must be `https://` (or `http://` to this machine). The same Admin section sets `alertThresholds.errors`.
 An acked or snoozed alert is not sent; at most 10 messages go out per 10 minutes. The url
 often holds a secret: the Admin tab shows only its host, and the audit log and the server log never contain it.

@@ -23,7 +23,8 @@ describe('flow-tower guide', () => {
   const out = spawnSync(process.execPath, [bin, 'guide'], { encoding: 'utf8' }).stdout;
 
   it('states the checkout path after substitution', () => {
-    expect(out).toContain('Commands below use this checkout: node <path>/bin/flow-tower.js.');
+    expect(out).toContain(`Commands below use this checkout: node ${bin}.`);
+    expect(out).not.toContain('<path>');
   });
 
   it('drops the sentence that asks the reader to fill in the placeholder', () => {

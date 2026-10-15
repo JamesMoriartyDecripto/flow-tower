@@ -72,3 +72,31 @@ describe('machine rows (#92)', () => {
     expect(rows[0].token).not.toMatch(/^ft_[a-z0-9-]+_[A-Za-z0-9_-]{8,}$/);
   });
 });
+
+describe('machine rows after a token rotation (#211)', () => {
+  it('shows one row for a revoked id that was added again: the active record wins', () => {
+    const rows = machineRows(
+      [token('alice', { revokedAt: now - 5_000 }), token('alice')],
+      [sat('alice', { lastEventAt: now })],
+      now,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ sender: 'alice', state: 'active', online: true });
+  });
+
+  it('keeps the newer record when every record of an id is revoked', () => {
+    const rows = machineRows(
+      [token('bob', { revokedAt: now - 9_000, createdAt: now - 20_000 }), token('bob', { revokedAt: now - 1_000, createdAt: now - 8_000 })],
+      [],
+      now,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ sender: 'bob', state: 'revoked' });
+    expect(rows[0].token).toBe('ft_bob…');
+  });
+
+  it('leaves an unrelated revoked id as one revoked row', () => {
+    const rows = machineRows([token('carol', { revokedAt: now - 1_000 })], [], now);
+    expect(rows).toEqual([{ sender: 'carol', token: 'ft_carol…', state: 'revoked', online: false }]);
+  });
+});

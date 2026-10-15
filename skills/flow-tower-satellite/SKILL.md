@@ -41,11 +41,11 @@ Hubs that are not on a tailnet: the hub owner runs `token add <id>` and hands th
 3. **The OK.** Say exactly what will go (tower names, YAML only or with which files, to which hub) and wait for yes.
 4. Per tower: `{{FLOW_TOWER_CLI}} share <tower folder>` (add `--files` for the second choice). It prints every file it sends and any it skipped with the reason, and adds the folder to the user's library if it was not there.
 
-To stop later: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub; `<name>` is what `share --list` shows (the folder name, not the YAML `name:`).
+To stop later: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub; `<name>` is what `share --list` shows (the tower's `name:` as a slug when the folder holds one tower file, else the folder name; `--name` sets it).
 
 ## 5. Start the local library
 
-Offer `{{FLOW_TOWER_CLI}} service install [--port N]` (ask first): it keeps the library running at login (a systemd user unit on Linux, a launchd agent on macOS) with this machine's `FLOW_TOWER_HOME`, so no event is lost; `service status` checks it, `service uninstall` removes it. On Linux without a desktop login, also `loginctl enable-linger $USER`. Without systemd or launchd: `{{FLOW_TOWER_CLI}} library --no-open [--port N]` in the background (`nohup … > ~/flow-tower.log 2>&1 &`) or a terminal left open. A running library picks up `connect` within 5 s. An `ExperimentalWarning` about SQLite in the log is normal. The relay and the tower sync run inside it: from then on a change to a shared tower reaches the hub within ~15 s. If the library is down anyway, `emit` (Codex, Pi JSON mode, SessionStart) posts straight to the hub; Claude Code's http hooks cannot, so keep the service on.
+Offer `{{FLOW_TOWER_CLI}} service install [--port N]` (ask first): it keeps the library running at login (a systemd user unit on Linux, a launchd agent on macOS) with this machine's `FLOW_TOWER_HOME`, so no event is lost; `service status` checks it, `service uninstall` removes it. On Linux without a desktop login, also `loginctl enable-linger $USER`. Without systemd or launchd: `{{FLOW_TOWER_CLI}} library --no-open [--port N]` in the background (`nohup … > ~/flow-tower.log 2>&1 &`) or a terminal left open. A running library picks up `connect` within 5 s. Older Flow Tower versions on Node 22 printed an `ExperimentalWarning` about SQLite: it is harmless. The relay and the tower sync run inside it: from then on a change to a shared tower reaches the hub within ~15 s. If the library is down anyway, `emit` (Codex, Pi JSON mode, SessionStart) posts straight to the hub; Claude Code's http hooks cannot, so keep the service on.
 
 ## 6. Live events from the agents (ask first)
 

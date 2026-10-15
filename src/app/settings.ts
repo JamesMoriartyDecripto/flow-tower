@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { useLive } from './live';
 import { useStore, type Quality } from './store';
 import { applyTheme, themeById } from './themes';
+import { qualityToSave } from './softwareGl';
 import type { FlowLook } from './scene/Particles';
 
 export type DefaultView = 'tower' | 'map' | 'auto';
@@ -83,6 +84,12 @@ function load(): Saved {
 
 const saved = load();
 
+/**
+ * Whether the quality was chosen (saved, set in the URL, or changed by the user) rather than picked
+ * automatically for the renderer. Only a chosen quality is saved.
+ */
+let qualityChosen = false;
+
 export const usePrefs = create<Prefs>()((set, get) => ({
   theme: saved.theme ?? 'mark',
   bloom: saved.bloom ?? 1,
@@ -133,6 +140,8 @@ export const viewFor = (pref: DefaultView, layers: number) => (pref === 'auto' ?
 export function initPrefs() {
   const url = new URLSearchParams(location.search);
   applyTheme(themeById(usePrefs.getState().theme));
+  qualityChosen = url.has('quality') || !!saved.quality;
+  // Runs before the subscription below, so restoring the saved quality is not counted as a change.
   useStore.getState().set({
     ...(saved.quality && !url.has('quality') ? { quality: saved.quality } : {}),
     ...(saved.animations !== undefined ? { animations: saved.animations } : {}),
@@ -150,7 +159,7 @@ export function initPrefs() {
     const live = useLive.getState();
     const data: Saved = {
       theme: p.theme, bloom: p.bloom, plateOpacity: p.plateOpacity, flowNodes: p.flowNodes, flowLayers: p.flowLayers, show: p.show, chips: p.chips, hints: p.hints, viewerWrap: p.viewerWrap, markdownSource: p.markdownSource, defaultView: p.defaultView, voiceLanguage: p.voiceLanguage, voiceReplies: p.voiceReplies, voiceJournal: p.voiceJournal, voiceBargeIn: p.voiceBargeIn, voiceSensitivity: p.voiceSensitivity, uiScale: p.uiScale, textFont: p.textFont, titleFont: p.titleFont,
-      quality: ui.quality, animations: ui.animations, particles: ui.particles, explode: ui.explode,
+      quality: qualityToSave(qualityChosen, ui.quality), animations: ui.animations, particles: ui.particles, explode: ui.explode,
       spotlight: live.spotlight, follow: live.follow,
     };
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* not persisted */ }
@@ -162,6 +171,8 @@ export function initPrefs() {
   });
   usePrefs.subscribe(save);
   useStore.subscribe((s, prev) => {
+    // The user picked a quality (HUD, Settings or voice): from now on it is saved as their choice.
+    if (s.quality !== prev.quality) qualityChosen = true;
     if (s.quality !== prev.quality || s.animations !== prev.animations || s.particles !== prev.particles || s.explode !== prev.explode) save();
   });
   useLive.subscribe((s, prev) => { if (s.spotlight !== prev.spotlight || s.follow !== prev.follow) save(); });

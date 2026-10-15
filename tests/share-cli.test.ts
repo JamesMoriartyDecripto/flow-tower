@@ -5,7 +5,6 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { shareName } from '../src/server/share-client.ts';
 import { withShare, withoutShare } from '../src/server/share-entries.ts';
 import { cleanEnv } from './fixtures/clean-env';
 
@@ -118,7 +117,7 @@ describe('flow-tower share (#164)', () => {
     expect(sent).toEqual(['alpha.tower.yaml']);
     expect(r.stdout).toContain('YAML only');
     expect(r.stdout).toContain('it appears on the hub as towers/laptop/');
-    expect(configOf().shares).toEqual([{ dir, name: shareName(dir), files: false }]);
+    expect(configOf().shares).toEqual([{ dir, name: 'alpha', files: false }]);
     expect(r.stdout).not.toContain(TOKEN);
     expect(r.stderr).not.toContain(TOKEN);
   });
