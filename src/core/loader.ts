@@ -31,6 +31,10 @@ export interface LoadResult {
 const MAX_LABEL = 18;
 /** Nodes that open a nested tower lose room to the tower badge. */
 const MAX_LABEL_NESTED = 13;
+/** Read in the tooltip, the node list, the inspector and the document: longer text belongs in the node's files or notes. */
+const MAX_NODE_DESCRIPTION = 400;
+/** Read as the layer's subtitle and in the document: a sentence or two says why the layer exists. */
+const MAX_LAYER_DESCRIPTION = 300;
 
 const QUOTE = 'Hint: quote the value ("...") when it contains ": ", or a comma inside a one-line map.';
 /** YAML errors that almost always come from an unquoted ": " in a value. */
@@ -373,6 +377,7 @@ export async function buildTower(
     if (layerIds.has(l.id)) issues.push({ level: 'error', message: `duplicate layer id "${l.id}"`, path: `layers.${index}` });
     layerIds.add(l.id);
     const layer: ResolvedLayer = { id: l.id, index, title: l.title, description: l.description, nodes: [], edges: [] };
+    if (l.description && l.description.length > MAX_LAYER_DESCRIPTION) issues.push({ level: 'warning', message: `layer description has ${l.description.length} characters, over ${MAX_LAYER_DESCRIPTION}: say why the layer exists in a sentence or two`, path: `layers.${index}` });
 
     for (const n of l.nodes) {
       const where = `${l.id}.${n.id}`;
@@ -402,6 +407,7 @@ export async function buildTower(
       const label = n.label ?? agent?.name ?? n.id;
       const max = n.tower ?? agent?.tower ? MAX_LABEL_NESTED : MAX_LABEL;
       if (label.length > max) issues.push({ level: 'warning', message: `label "${label}" has ${label.length} characters, the card shows ${max}${max === MAX_LABEL_NESTED ? ' (the nested-tower badge takes the rest)' : ''}: shorten it and move details to description`, path: where });
+      if (n.description && n.description.length > MAX_NODE_DESCRIPTION) issues.push({ level: 'warning', message: `description has ${n.description.length} characters, over ${MAX_NODE_DESCRIPTION}: lead with one sentence that says what the node does, and move details to its files or notes`, path: where });
 
       layer.nodes.push({
         id: n.id, key: where, layer: l.id,

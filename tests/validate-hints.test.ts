@@ -56,6 +56,32 @@ describe('validate messages point at the fix (#56)', () => {
   });
 });
 
+describe('description length limits', () => {
+  it('warns about a node description over 400 characters, not one at 400', async () => {
+    const long = 'x'.repeat(401);
+    const exact = 'x'.repeat(400);
+    const issues = await issuesOf([
+      '    nodes:',
+      `      - { id: a, description: ${long} }`,
+      `      - { id: b, description: ${exact} }`,
+      '',
+    ].join('\n'));
+    const hits = issues.filter((i) => i.includes('description has'));
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatch(/^warning l\.a: description has 401 characters, over 400/);
+  });
+
+  it('warns about a layer description over 300 characters, not one at 300', async () => {
+    // A layer needs at least one node, or the schema error hides the length check.
+    const issues = await issuesOf(`    description: ${'y'.repeat(301)}\n    nodes: [{ id: a }]\n`);
+    expect(issues.filter((i) => i.includes('layer description'))).toEqual([
+      expect.stringMatching(/^warning layers\.0: layer description has 301 characters, over 300/),
+    ]);
+    const atLimit = await issuesOf(`    description: ${'y'.repeat(300)}\n    nodes: [{ id: a }]\n`);
+    expect(atLimit.filter((i) => i.includes('layer description'))).toEqual([]);
+  });
+});
+
 describe('schema error paths', () => {
   it('use layer and node ids, not indexes', async () => {
     const issues = await issuesOf('    nodes:\n      - { id: gate, approval: { by: lead, note: x } }\n  - id: second\n    title: S\n    nodes: [{ id: b, colour: red }]\n    edges: [{ form: a }]\n');

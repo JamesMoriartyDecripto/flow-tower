@@ -78,7 +78,7 @@ layers:
         type: process
         label: Satellite relay
         runtime: laptop
-        description: "Metadata only (#91): prompt text, commands, tool output, message and data are dropped, request_id is kept as event_id for dedupe. Queue bounded at 5000 (oldest dropped first); a failed hub backs off 1 -> 2 -> 4 s up to 60 s; a 401/403 stops sending but keeps the queue, as revoked or held (paused by the hub), and a heartbeat asks again every 30 s (#188); stale answers from old credentials are ignored. One heartbeat every 60 s (offline after three missed beats)."
+        description: "Sends this machine's events to the hub, metadata only (#91): prompt text, commands, tool output and message data are dropped. The queue holds 5000 (oldest dropped first) and a failed hub is retried with backoff up to 60 s. A 401/403 pauses sending but keeps the queue; a heartbeat rechecks every 30 s (#188)."
         files: [src/server/relay.ts, src/server/relay-wire.ts, src/server/relay-types.ts]
       - id: connect-cli
         type: tool
@@ -238,7 +238,7 @@ layers:
         type: memory
         label: config.json
         runtime: hub
-        description: "config.json in the user folder, plus a git-ignored flow-tower.local.json per checkout. Precedence: flags > non-empty env > config; an empty environment variable counts as unset. Migrates the old hub.json. The config token is the sender's credential (flow-tower emit, satellite relay), never the server's own secret: the server's is FLOW_TOWER_TOKEN (one shared legacy secret, sender \"default\") or the per-sender tokens from the token store."
+        description: "config.json in the user folder, plus a git-ignored flow-tower.local.json per checkout. Precedence: flags > non-empty env > config. The config token is the sender's credential (emit, satellite relay), never the server's secret: FLOW_TOWER_TOKEN or a per-sender token."
         files: [src/server/config.ts]
       - id: config-cli
         type: tool
@@ -265,7 +265,7 @@ layers:
       - id: hub-panel
         type: output
         label: Hub panel
-        description: "The Hub panel (#92), key H in a tower, or the `n working` chip in the library: Now has one row per machine and session with tower > node, state and the last error, never event text (#192); Machines lists senders; Alerts (#94) and, on the hub machine, Admin (#93). Top bar: YAML n ERR for validation, LIVE n ERR for live errors, HUB n/m (active senders seen / active tokens), READ-ONLY for a remote viewer. Usage and People wait for #85."
+        description: "The Hub panel (#92), key H in a tower or the `n working` chip in the library. Now shows one row per machine and session with its state and last error, never event text (#192). Machines, Alerts (#94) and, on the hub machine, Admin (#93) follow. Usage and People wait for #85."
         files: [src/app/hud/Hub.tsx, src/app/hub.ts, src/server/hub-views.ts, src/server/machines.ts]
       - id: privacy
         type: guard
@@ -275,13 +275,13 @@ layers:
       - id: admin
         type: human
         label: Admin
-        description: "Hub > Admin (#93), on the hub machine only: add a sender (the token and its connect line shown once), pause, resume, revoke (type the id to confirm); viewers; cadence per sender; budgets (USD/month); alert switches; raw retention days and delete-before with a preview count. Every change writes one line to admin-audit.jsonl (0600, never a token), CLI token changes too (#192). Notifications (#191): the webhook url (shown masked) and a test alert. Remote requests never reach it: the hub guard refuses remote writes and the routes answer 404. The privacy profile wizard waits for #85."
+        description: "Hub > Admin (#93), hub machine only: add, pause, resume and revoke senders, edit viewers, budgets, alert switches and retention. Every change, CLI included, writes one line to admin-audit.jsonl (0600, never a token). Remote requests never reach it. The privacy profile wizard waits for #85."
         files: [src/app/hud/HubAdmin.tsx, src/server/hub-admin.ts, src/server/admin-audit.ts]
         approval: { by: hub operator, actions: [approve, reject], description: "Revoke needs the sender id typed; delete-before needs a second click and confirm: true." }
       - id: alerts
         type: decision
         label: Alerts
-        description: "Five rules (#94, #191), evaluated on every GET /api/hub/alerts and every minute by the notifier from the machine rows, the config and the history: an always-on machine silent > 15 min (scheduled > 26 h, on-demand never), monthly spend at 80% (warning) or 100% (critical) of a budget in USD, errors this hour > 3x the 7-day hourly median (at least 5), a sender's token from a host first seen in the last 24 h, a machine with 3 errors in 15 min. Ack and snooze (1 h / 1 d) only from loopback, kept in alerts-state.json (0600); a top-bar and library pill opens Hub > Alerts. Employees: messages never name a person."
+        description: "Five rules (#94, #191), checked each minute: an always-on machine silent over 15 min, monthly spend at 80% (warning) or 100% (critical) of a USD budget, errors this hour over 3x the 7-day median, a token from a newly seen host, and 3 errors in 15 min from one machine. Ack and snooze work from loopback only. Messages never name a person."
         files: [src/server/alerts.ts, src/server/alert-inputs.ts, src/server/hub-alerts.ts, src/server/alerts-state.ts, src/app/hud/HubAlerts.tsx]
         decision: { output: choice, candidates: [none, warning, critical], fail: open, description: "No history: the budget, spike, host and errors rules have no data and stay quiet; the silent rule still works." }
       - id: notify

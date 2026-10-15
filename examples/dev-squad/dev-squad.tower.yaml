@@ -298,10 +298,7 @@ layers:
     description: >-
       Evaluator-optimizer, max 3 rounds. Reviewer and security auditor grade in parallel
       in fresh sessions; a fresh-context verifier and a human close the loop.
-      With no deadline a round can be cheaper: a grader whose input is the whole diff answers in one
-      turn, which a provider batch API takes at about half price (results within 24 h). The graders here
-      read the repo with tools, so this sample keeps them synchronous; the repo's own squad batches its
-      reviews in unattended runs (tools/squad, SQUAD_PACE=overnight).
+      Batch APIs could halve review cost, but graders that read the repo with tools stay synchronous here.
     nodes:
       - id: fanout
         runtime: vps
@@ -623,7 +620,7 @@ layers:
           - { kind: doc, label: "Model list + prices", url: "https://openrouter.ai/api/v1/models" }
         type: tool
         label: OpenRouter
-        description: "src/openrouter-agent.ts: an OpenAI-style tool loop over /chat/completions with usage (cost per call), require_parameters and data_collection deny. Read tools for all, edit/write/delete in src/ tests/ e2e/ for the coder only (delete_file so a probe file is removed, not emptied; probe/scratch names refused on write), a command whitelist, a secret-path deny list, a step cap; every tool call is a live event."
+        description: "An OpenAI-style tool loop over /chat/completions that reports cost per call and only uses providers that do not collect data. Read tools for every model; write and delete tools in src/, tests/ and e2e/ for the coder only. Command whitelist, secret-path deny list and a step cap."
         files: [src/openrouter-agent.ts, src/config.ts]
       - id: haiku_openrouter
         runtime: openrouter
