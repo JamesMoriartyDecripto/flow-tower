@@ -1,0 +1,184 @@
+# Commercialista AI: deadline calendar, tax year 2026 (solar-year company unless noted).
+# Research date 2026-10-15. Source: research/levers-2026.md section 4 unless noted.
+# Weekend rule: a deadline on Saturday or a holiday moves to the next working day.
+# The sweep (cron 07:00 Europe/Rome) reads this file: check the date and the source before every memo.
+# Confidence is mapped from the notes: H = high, M = medium.
+# Dates taken from sites-it.md (sections 4 and 6) are marked there, in the source column.
+
+deadlines:
+  - id: f24_monthly_16
+    date: "16th of each month"
+    what: "F24: withholdings, monthly VAT, INPS contributions (16/8 deferred to 20/8)"
+    who: "employers, VAT subjects, withholding agents"
+    source: "D.Lgs. 241/1997 art. 18; DPR 100/1998"
+    confidence: high
+
+  - id: intrastat_monthly_25
+    date: "25th of each month"
+    what: "Intrastat lists (monthly filers)"
+    who: "monthly Intrastat filers"
+    source: "DL 331/1993 art. 50"
+    confidence: medium
+
+  - id: cu_2026_03_16
+    date: "2026-03-16"
+    what: "Certificazione Unica 2026 to employees and Agenzia; VAT annual balance (or deferral)"
+    who: "withholding agents, employers"
+    source: "DPR 542/1999; DPR 322/1998 art. 4; sites-it.md section 6 (CU: 16/3, 30/4, 31/10)"
+    confidence: high
+
+  - id: iva_annual_2026_04_30
+    date: "2026-04-30"
+    what: "Dichiarazione IVA 2026 (FY2025); window 1/2 - 30/4/2026"
+    who: "VAT subjects"
+    source: "DPR 322/1998 art. 8"
+    confidence: high
+
+  - id: approve_financial_statements_2026_04_30
+    date: "2026-04-30"
+    what: "Approval of 2025 financial statements (120 days); 29/6/2026 if the by-laws allow 180 days; filing at the Registro Imprese within 30 days"
+    who: "SRL, SPA"
+    source: "c.c. art. 2364 (spa), 2478-bis (srl); c.c. art. 2435 (filing)"
+    confidence: high
+
+  - id: lipe_q1_2026
+    date: "2026-06-01"
+    what: "LIPE Q1 2026 (31/5 is Sunday)"
+    who: "VAT subjects filing LIPE"
+    source: "DL 78/2010 art. 21-bis"
+    confidence: high
+
+  - id: ires_irap_balance_2026
+    date: "2026-06-30"
+    what: "IRES and IRAP balance FY2025 and 1st advance FY2026 (non-ISA companies); diritto camerale"
+    who: "IRES and IRAP subjects not in ISA"
+    source: "DPR 435/2001 art. 17"
+    confidence: high
+
+  - id: isa_payment_2026_07_20
+    date: "2026-07-20"
+    what: "Same payments for ISA subjects (revenue up to EUR 5,164,569), forfettari and transparent partners, without surcharge; 20/8/2026 with +0.80%"
+    who: "ISA subjects, forfettari, transparent partners"
+    source: "DL 89/2026 art. 6; sites-it.md section 7 (edotto 20/7 for ISA and forfettari)"
+    confidence: medium
+
+  - id: rottamazione_quinquies_2026_07_31
+    date: "2026-07-31"
+    what: "Rottamazione-quinquies 1st or single instalment"
+    who: "debtors in rottamazione-quinquies (window closed)"
+    source: "L. 199/2025 c. 82-101"
+    confidence: high
+
+  - id: lipe_q2_2026
+    date: "2026-09-30"
+    what: "LIPE Q2 2026; rottamazione-quinquies 2nd instalment; assegnazione agevolata deadline for the act and 60% payment (window closed)"
+    who: "VAT subjects; rottamazione debtors; assegnazione beneficiaries"
+    source: "DL 78/2010 art. 21-bis; L. 199/2025 c. 82-101 and c. 35-41"
+    confidence: high
+    notes: "Older guidance gives 16/9 for LIPE Q2; Agenzia and FiscoOggi give 30/9 (medium-high)."
+
+  - id: cpb_adhesion_2026
+    date: "2026-11-02"
+    what: "CPB 2026-2027 adhesion, with Redditi 2026 or the CPB form with the cover page only. 31/10 is a Saturday"
+    who: "business and professional income subjects that applied ISA for 2025 (not forfettari)"
+    source: "circ. AdE 8/E of 6/10/2026; D.Lgs. 148/2026 art. 28-29; DL 38/2026 art. 7-7-bis"
+    confidence: high
+
+  - id: redditi_sc_2026
+    date: "2026-11-02"
+    what: "Redditi SC 2026 and IRAP 2026 (FY2025); Modello 770 (31/10 is a Saturday); last date for IRES premiale FY2025 investments"
+    who: "SRL, SPA and other IRES subjects"
+    source: "DPR 322/1998 art. 2; circ. 8/E/2026; sites-it.md section 6 (770: 31/10 deadline, moved to next working day)"
+    confidence: high
+
+  - id: modello_770_2026_11_02
+    date: "2026-11-02"
+    what: "Modello 770/2026 (withholding agents); 31/10 is a Saturday"
+    who: "employers and withholding agents"
+    source: "AdE Modello 770/2026 (sites-it.md section 6: scadenza 31/10/2026)"
+    confidence: high
+
+  - id: iva_quarterly_q3_2026_11_16
+    date: "2026-11-16"
+    what: "IVA quarterly settlement Q3 (15/11 is a Sunday)"
+    who: "quarterly VAT filers"
+    source: "DPR 542/1999"
+    confidence: medium
+
+  - id: ires_second_advance_2026_11_30
+    date: "2026-11-30"
+    what: "2nd or single advance IRES and IRAP FY2026; LIPE Q3; rottamazione-quinquies 3rd instalment; assegnazione agevolata 40%; estromissione 1st instalment"
+    who: "IRES and IRAP subjects; rottamazione and assegnazione debtors"
+    source: "DPR 435/2001; L. 199/2025 c. 35-41, 82-101"
+    confidence: high
+
+  - id: rivalutazione_partecipazioni_2026_11_30
+    date: "2026-11-30"
+    what: "Rivalutazione partecipazioni 21%: perizia and payment (individuals)"
+    who: "individuals holding shareholdings at 1 January"
+    source: "L. 199/2025 art. 1 c. 144"
+    confidence: high
+
+  - id: inps_inail_autoliquidazione_2026_02_16
+    date: "2026-02-16"
+    what: "INAIL autoliquidazione premium (16/2) for employers"
+    who: "employers with INAIL insurance"
+    source: "INAIL autoliquidazione (sites-it.md section 6)"
+    confidence: medium
+
+  - id: inps_forfettari_reduction_2026_02_28
+    date: "2026-02-28"
+    what: "Application for the 35% reduction of INPS contributions for forfettari (artigiani and commercianti), deadline 28/2"
+    who: "forfettari registered in the artigiani or commercianti funds (not Gestione separata)"
+    source: "INPS circ. 14 del 9/2/2026 (c. 77-84); sites-it.md section 7"
+    confidence: medium
+
+  - id: imu_2nd_2026_12_16
+    date: "2026-12-16"
+    what: "IMU 2nd instalment"
+    who: "owners of property"
+    source: "L. 160/2019 c. 762"
+    confidence: high
+
+  - id: acconto_iva_2026_12_28
+    date: "2026-12-28"
+    what: "VAT advance (acconto IVA); 27/12 is Sunday"
+    who: "VAT subjects"
+    source: "L. 405/1990 art. 6"
+    confidence: high
+
+  - id: esodati_f24_2026_12_31
+    date: "2026-12-31"
+    what: "Last day to use the Transizione 5.0 'esodati' credit in F24"
+    who: "companies holding the esodati credit"
+    source: "DL 38/2026 art. 8; DL 42/2026"
+    confidence: medium
+
+  - id: zes_integrative_2027_01
+    date: "2027-01-03 to 2027-01-17"
+    what: "ZES Unica integrative communication for 2026 investments (mandatory)"
+    who: "companies with 2026 ZES Unica investments"
+    source: "L. 199/2025 c. 438-447; DL 124/2023 art. 16"
+    confidence: high
+
+  - id: bonus_pubblicita_substitute_2027
+    date: "2027-01-09 to 2027-02-09"
+    what: "Bonus pubblicita: substitute declaration of 2026 investments"
+    who: "companies with 2026 advertising spend"
+    source: "DL 50/2017 art. 57-bis; DPCM 90/2018"
+    confidence: medium
+
+  - id: iperammortamento_report_2027_01_20
+    date: "2027-01-20"
+    what: "Iperammortamento periodic report to the GSE (and 30 June each year)"
+    who: "companies using the iperammortamento"
+    source: "DM attuativo 2026 (per notes)"
+    confidence: medium
+    notes: "The 30/6 report date is from the notes; the decree itself is not in the research set."
+
+  - id: lipe_q4_2026
+    date: "2027-03-01"
+    what: "LIPE Q4 2026 (28/2/2027 is Sunday), or inside the VAT return"
+    who: "VAT subjects filing LIPE"
+    source: "DL 78/2010 art. 21-bis"
+    confidence: high

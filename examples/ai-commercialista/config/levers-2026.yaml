@@ -1,0 +1,471 @@
+# Commercialista AI: levers catalogue, tax year 2026 (Italy)
+# Research date: 2026-10-15. Check status before every memo.
+# Sources: research/levers-2026.md; sites-it.md sections 2-4, 6, 7 for startup, PV, employer and forfettario facts.
+# Confidence is mapped from the notes: H = high, M = medium, L = low, UNVERIFIED = unverified.
+# Where the notes give M-H, the lower level (medium) is used.
+# Expired, closed and not-passed levers are kept on purpose: the scanner uses them to say "no longer available".
+# Figures, dates and article numbers are copied from the notes. Nothing here has been checked on the live text.
+# Profile keys: srl, startup, startup-innovativa, fotovoltaico, employer, forfettario (see profiles.yaml).
+
+levers:
+  - id: iperammortamento_2026
+    name: "Iperammortamento 2026-2028 (Nuovo Piano Transizione 5.0)"
+    profiles: [srl, startup, startup-innovativa, fotovoltaico, employer]
+    who: "business-income subjects with taxable profit; not companies in crisis or under D.Lgs. 231/2001 bans"
+    size: "cost uplift for depreciation/leasing: +180% up to EUR 2.5 m, +100% from 2.5 to 10 m, +50% from 10 to 20 m"
+    source: "L. 199/2025 art. 1 c. 427-436; DL 38/2026 art. 7 conv. L. 88/2026"
+    status: active
+    window: "investments 1/1/2026 - 30/9/2028; completion by 15/11/2028"
+    url: "https://www.mimit.gov.it/it/incentivi/piano-transizione-5-0"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Brackets annual or cumulative: not stated in the law. CPB adherents: mechanism worded differently by sources (verify text). GSE platform; DM date 4 or 7 May 2026 unverified. Not cumulable with the 4.0 credit on the same goods."
+
+  - id: tx50_credit_2024_2025
+    name: "Transizione 5.0 credit (DL 19/2024 art. 38), incl. 'esodati' tail"
+    profiles: [srl, startup, startup-innovativa, fotovoltaico, employer]
+    who: "companies with 2024-2025 4.0 investments; waiting-list 'esodati' companies"
+    size: "esodati: 89.77% of the requested credit (DL 42/2026); usable only in F24"
+    source: "DL 19/2024 art. 38; DL 38/2026 art. 8; DL 42/2026; DL 175/2025 art. 1 c. 2"
+    status: closed
+    window: "last bookings 31/12/2025; esodati credit usable in F24 by 31/12/2026 (code 7079)"
+    url: "https://www.mimit.gov.it/it/incentivi/piano-transizione-5-0"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Funds exhausted (DD MIMIT 6/11/2025). Esodati share 89.77% and code 7079 are medium confidence. Credit not carried forward and not taxable. Lever now: use it in F24 by 31/12/2026 or lose it."
+
+  - id: tx40_credit_tail
+    name: "Transizione 4.0 credit for beni strumentali (tail)"
+    profiles: [srl, startup, startup-innovativa, employer]
+    who: "companies that completed 4.0 investments with order accepted and 20% advance paid by 31/12/2025"
+    size: "tangible 4.0: 20% up to 2.5 m, 10% 2.5-10 m, 5% 10-20 m (2025 rates; the 2025 cap is UNVERIFIED)"
+    source: "L. 178/2020 c. 1051-1063 as amended by L. 207/2024 c. 445-448"
+    status: closed
+    window: "investments completed by 30/6/2026"
+    url: "https://www.mimit.gov.it/it/incentivi/piano-transizione-5-0"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "No new 4.0 credit for 2026 orders; replaced by iperammortamento. Use in later years in 3 annual instalments: not re-verified."
+
+  - id: ires_premiale_fy2025
+    name: "IRES premiale 20% (FY2025 only)"
+    profiles: [srl, startup-innovativa]
+    who: "IRES subjects, solar-year companies; excluded: liquidation, flat-rate regimes, simplified accounting in 2024"
+    size: "IRES 20% instead of 24% for FY2025 only"
+    source: "L. 207/2024 art. 1 c. 436-444; DM MEF 8/8/2025 (GU n. 190 of 18/8/2025)"
+    status: changed
+    window: "investments from 1/1/2025 to the FY2025 return deadline, 2/11/2026; not available for FY2026"
+    url: "https://www.fiscooggi.it/portale/-/riduzione-transitoria-dell-ires-pubblicato-il-dm-con-le-regole"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Conditions: 80% of 2024 profit set aside; 4.0/5.0 investments >= highest of 30% of set-aside, 24% of 2023 profit, EUR 20,000; FTE and CIG conditions; clawback rules. Exact use of the 2/11/2026 window: medium."
+
+  - id: ires_premiale_renewal_2026
+    name: "IRES premiale renewal for FY2026"
+    profiles: [srl, startup-innovativa]
+    who: "IRES subjects (asked about by clients)"
+    size: "none: ordinary IRES 24% (art. 77 TUIR) applies"
+    source: "L. 199/2025 (measure did not pass); TUIR art. 77"
+    status: not-passed
+    window: "none"
+    url: "https://www.fiscooggi.it/portale/-/legge-di-bilancio-2026-e-imprese-"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Not renewed by L. 199/2025 (table 1.2 of the notes). Only FY2025 can still use the premiale."
+
+  - id: flat_tax_incrementale
+    name: "Flat tax incrementale (15% on income growth)"
+    profiles: [forfettario]
+    who: "non-forfettario individuals (asked about by clients)"
+    size: "15% on income growth"
+    source: "L. 197/2022 c. 55-57"
+    status: expired
+    window: "FY2023 only; no renewal found"
+    url: "https://www.dirittobancario.it/wp-content/uploads/2024/04/Risoluzione-Agenzia-delle-Entrate-18-aprile-2024-n.-21.pdf"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Risoluzione AdE 18/4/2024 n. 21 (cited in the notes). No renewal in L. 199/2025 (the notes say it did not pass). Confidence M-H, shown as medium."
+
+  - id: ace_residuals
+    name: "ACE (aiuto alla crescita economica): residual surpluses"
+    profiles: [srl, startup, startup-innovativa]
+    who: "IRES subjects with ACE surpluses from 2023 (asked about by clients)"
+    size: "residual surpluses carried forward; IRAP credit conversion: to verify"
+    source: "DL 201/2011 art. 1; D.Lgs. 216/2023 art. 5; L. 199/2025 c. 76-81 (caps)"
+    status: expired
+    window: "repealed from FY2024"
+    url: "https://www.ecnews.it/fiscale/fisco-e-patrimonio/reddito-impresa-e-irap/agevolazione-ace-al-capolinea/"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Repeal is high confidence; residuals are medium. Caps on using ACE against DTA-deferral income: 45% in 2026, 54% in 2027 (banks and large companies). IRAP conversion option unverified."
+
+  - id: rottamazione_quinquies
+    name: "Rottamazione-quinquies (collection-agent debts)"
+    profiles: [srl, startup, forfettario, employer]
+    who: "debtors with debts entrusted to the collection agent 1/1/2000 - 31/12/2023 (not assessment rolls)"
+    size: "capital and notification/enforcement costs only; 54 bimonthly instalments; 3% interest from 1/8/2026"
+    source: "L. 199/2025 art. 1 c. 82-101"
+    status: closed
+    window: "application by 30/4/2026; instalments 31/7/2026, 30/9/2026, 30/11/2026, then bimonthly to 31/5/2035"
+    url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Window closed. Lapses on a missed first or single instalment, two instalments, or the last. No official rottamazione page URL is in the notes: Confindustria 03/2026 used (comma by comma)."
+
+  - id: forfettario_regime
+    name: "Regime forfettario (15% / 5% for the first 5 years, 35k employee-income ceiling)"
+    profiles: [forfettario]
+    who: "individuals running a business or profession; access: revenue <= 85,000; staff costs <= 20,000; employee income <= 35,000"
+    size: "tax 15% (5% first 5 years, conditions); exit in the same year above 100,000; no IRAP, no VAT, no withholding"
+    source: "L. 190/2014 art. 1 c. 54-89; L. 199/2025 c. 27; circ. 32/E/2023"
+    status: active
+    window: "2026 tax year; thresholds unchanged"
+    url: "https://www.agenziaentrate.gov.it/portale/regime-forfetario-le-regole-2020-/infogen-regime-forfetario-le-regole-2020-"
+    confidence: high
+    abuse_risk_default: green
+    notes: "85k/100k/35k: high. 5%/15% and the 20k staff limit: medium (not re-read on the current scheda). Flat-rate regime is a free choice (art. 10-bis c. 4)."
+
+  - id: rd_credit_10
+    name: "Credito R&S (10%)"
+    profiles: [srl, startup, startup-innovativa]
+    who: "business-income subjects with R&S costs; certification optional but binding on the administration"
+    size: "10% of eligible R&S costs, cap EUR 5 m per year"
+    source: "L. 160/2019 art. 1 c. 198-209 (c. 203 as extended); art. 23 DL 73/2022; certification c. 205"
+    status: active
+    window: "through FY2031 (c. 203 as extended)"
+    url: "https://www.ecnews.it/fiscale/fisco-e-patrimonio/agevolazioni/il-credito-design-prorogato-e-potenziato-nel-2026/"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Conf. M-H. Certification of costs mandatory (c. 205). Albo dei certificatori at MIMIT (https://certificatoricreditors.mimit.gov.it/Consultazione). Microelectronics R&D credit: details UNVERIFIED, not included."
+
+  - id: design_credit_2026
+    name: "Credito design e ideazione estetica 2026"
+    profiles: [srl, startup, startup-innovativa]
+    who: "companies with design and aesthetic-ideation costs"
+    size: "10% (from 5%), cap EUR 2 m, EUR 60 m overall spending cap"
+    source: "L. 199/2025 c. 925-926 (per ecnews); L. 160/2019 art. 1 c. 198-209"
+    status: active
+    window: "2026; used in one annual F24 instalment"
+    url: "https://www.ecnews.it/fiscale/fisco-e-patrimonio/agevolazioni/il-credito-design-prorogato-e-potenziato-nel-2026/"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Single source (ecnews); Leyton and Reteagevolazioni agree on 10%. Requires a communication to MIMIT (directorial decree)."
+
+  - id: nuova_sabatini
+    name: "Nuova Sabatini (refinanced)"
+    profiles: [srl, startup, fotovoltaico]
+    who: "micro, small and medium enterprises buying new capital goods with a bank loan or leasing"
+    size: "contribution equal to interest at 2.75% (ordinary) or 3.575% (4.0 and green); Sabatini Capitalizzazione: 5% micro/small, 3.575% medium"
+    source: "DL 69/2013 art. 2; DL 34/2019 art. 21; L. 199/2025 c. 468"
+    status: active
+    window: "refinanced EUR 650 m (200 m 2026, 450 m 2027); desk open until funds run out; MIMIT notice 24/3/2026"
+    url: "https://www.mimit.gov.it/it/incentivi/agevolazioni-per-gli-investimenti-delle-pmi-in-beni-strumentali-nuova-sabatini"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Capitalizzazione needs a capital increase of at least 30% of the loan, resolved (circ. 22/7/2024 n. 1115)."
+
+  - id: patent_box
+    name: "Patent box (110% additional deduction)"
+    profiles: [srl, startup-innovativa]
+    who: "business-income subjects that develop and use copyrighted software, patents, designs and models"
+    size: "110% additional deduction of R&D costs on those assets (210% total), IRES and IRAP"
+    source: "DL 146/2021 art. 6"
+    status: active
+    window: "5-year irrevocable option, renewable"
+    url: "https://www.agenziaentrate.gov.it/portale/schede/agevolazioni/patent-box"
+    confidence: medium
+    abuse_risk_default: amber
+    risk_note: "Option and documented R&D link needed; the 8-year premialita recapture is not re-verified."
+    notes: "Conf. M-H. No change found in L. 199/2025 (absence of change: M). Practice: provv. 15/2/2022 prot. 48243; circ. 5/E of 24/2/2023."
+
+  - id: zes_unica_credit
+    name: "ZES Unica Mezzogiorno credit"
+    profiles: [srl, startup, fotovoltaico]
+    who: "companies investing in production structures in the ZES Unica areas (Campania, Puglia, Basilicata, Calabria, Sicilia, Sardegna, Molise, Abruzzo, Marche, Umbria: 107.3.c areas)"
+    size: "regional-aid intensities, e.g. investments up to EUR 50 m: 40/50/60% (Calabria, Campania, Puglia, Sicilia by size); 15/25/35% Abruzzo, Marche, Umbria"
+    source: "DL 124/2023 art. 16 as amended by L. 199/2025 c. 438-447; DM 17/5/2024; L. 18/11/2025 n. 171"
+    status: active
+    window: "first communication 31/3 - 30/5/2026 (closed); integrative communication 3/1 - 17/1/2027 (mandatory)"
+    url: "https://www.agenziaentrate.gov.it/portale/provvedimento-del-30-gennaio-20261"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Investments >= EUR 200,000 (threshold not re-verified for 2026). Budget 2026 EUR 2.3 bn, pro-rata cut if requests exceed it. Same scheme for ZLS (DL 60/2024 art. 13)."
+
+  - id: super_deduzione_neoassunti
+    name: "Super-deduzione costo del lavoro neoassunti (120% / 130%)"
+    profiles: [srl, startup, startup-innovativa, employer]
+    who: "business and professional income subjects in analytical regime, active for 365 days or more (not forfettari)"
+    size: "extra deduction 20% (total 120%); 30% extra (130%) for Allegato 1 categories"
+    source: "D.Lgs. 216/2023 art. 4; L. 207/2024 art. 1 c. 399-400; circ. AdE 1/E of 20/1/2025"
+    status: active
+    window: "extended to FY2025, 2026 and 2027"
+    url: "https://www.fiscooggi.it/portale/-/maxi-deduzione-nuove-assunzioni-l-agenzia-fornisce-indicazioni"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Cost is the lower of new hires' cost and the staff-cost increase; permanent and total headcount must both rise. Not counted in acconti. L. 199/2025 c. 153-154 adds youth/ZES hiring funds (EUR 154 m 2026), decree pending: medium."
+
+  - id: bonus_giovani_2026
+    name: "Bonus giovani 2026 (under 35 hires)"
+    profiles: [employer]
+    who: "employers hiring under-35s permanently in 2026"
+    size: "100% contribution exemption up to EUR 500/month (EUR 650 in ZES)"
+    source: "DL 62/2026 (conv. L. 112/2026); INPS circ. 55/2026 of 14/5/2026"
+    status: active
+    window: "hires 1/1/2026 - 31/12/2026"
+    url: "https://www.inps.it/it/it/inps-comunica/atti/circolari-messaggi-e-normativa/dettaglio.circolari-e-messaggi.2026.05.circolare-numero-55-del-14-05-2026_15258.html"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Sources say DL 62/2026 repealed the DL 60/2024 bonuses: secondary only, verify. Check INPS circ. 80/2026 (24/7/2026) for the extension to agents and insurance intermediaries."
+
+  - id: bonus_zes_2026
+    name: "Bonus ZES 2026 (employers up to 10 employees)"
+    profiles: [employer]
+    who: "employers with up to 10 employees in the ZES Unica"
+    size: "exemption up to EUR 650/month"
+    source: "DL 62/2026 (conv. L. 112/2026); INPS circ. 56/2026 of 14/5/2026"
+    status: active
+    window: "hires 1/1/2026 - 31/12/2026"
+    url: "https://www.inps.it/it/it/inps-comunica/atti/circolari-messaggi-e-normativa/dettaglio.circolari-e-messaggi.2026.05.circolare-numero-56-del-14-05-2026_15259.html"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Size and scope from sites-it.md section 6 (secondary summary of INPS circ. 56/2026); check the circular text."
+
+  - id: bonus_donne_2026
+    name: "Bonus donne 2026 (disadvantaged women hires)"
+    profiles: [employer]
+    who: "employers hiring disadvantaged women in 2026"
+    size: "100% exemption up to EUR 650/month (EUR 800 in ZES)"
+    source: "DL 62/2026 (conv. L. 112/2026); INPS circ. 57/2026 of 14/5/2026"
+    status: active
+    window: "hires 1/1/2026 - 31/12/2026"
+    url: "https://www.inps.it/it/it/inps-comunica/atti/circolari-messaggi-e-normativa/dettaglio.circolari-e-messaggi.2026.05.circolare-numero-57-del-14-05-2026_15260.html"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Eligibility categories are in the circular: not copied here."
+
+  - id: decontribuzione_sud_pmi
+    name: "Decontribuzione Sud PMI 2026-2027"
+    profiles: [employer]
+    who: "small and medium enterprises in the Mezzogiorno"
+    size: "20% (max EUR 125/month) in 2026 and 2027 (25%, max EUR 145, in 2025)"
+    source: "L. 207/2024 art. 1 c. 406 ss.; INPS circ. 32/2025 (30/1/2025); INPS circ. 80/2026"
+    status: active
+    window: "2025-2029 scheme; decreasing rate"
+    url: "https://www.inps.it/it/it/inps-comunica/atti/circolari-messaggi-e-normativa/dettaglio.circolari-e-messaggi.2025.01.circolare-numero-32-del-30-01-2025_14812.html"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Circ. 80/2026 extends it to agents and insurance intermediaries: not verified in detail."
+
+  - id: productivity_premium_1pct
+    name: "Premi di produttività: 1% substitute tax"
+    profiles: [employer]
+    who: "private employers with second-level agreements; employees with 2025 employee income up to EUR 80,000"
+    size: "1% substitute tax on up to EUR 5,000 (from 3,000), paid in 2026 and 2027"
+    source: "L. 199/2025 art. 1 c. 9; L. 208/2015 c. 182-190"
+    status: active
+    window: "2026-2027"
+    url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Convertible into tax-free welfare: whether the cap is 5,000 or 3,000 is debated (open point 12 of the notes). Confindustria 03/2026 pp. 14-16."
+
+  - id: concordato_preventivo_biennale_2026
+    name: "Concordato preventivo biennale (CPB) 2026-2027"
+    profiles: [srl, startup, startup-innovativa, fotovoltaico, employer]
+    who: "business and professional income subjects that applied ISA for 2025; forfettari not admitted from 2025 (D.Lgs. 81/2025 art. 7)"
+    size: "agreed income for 2 years; substitute tax 10-15% on income above the previous year's, by ISA score; renewal premiums"
+    source: "D.Lgs. 13/2024; DL 38/2026 art. 7-7-bis; D.Lgs. 148/2026 art. 28-29; circ. AdE 8/E of 6/10/2026"
+    status: active
+    window: "adhesion by 2/11/2026 (31/10 is a Saturday), with Redditi 2026 or the CPB form with only the cover page"
+    url: "https://www.agenziaentrate.gov.it/portale/-/concordato-preventivo-biennale-pronta-la-circolare-guida-dell-agenzia.-per-il-biennio-2026-2027-adesione-entro-il-prossimo-2-novembre"
+    confidence: high
+    abuse_risk_default: amber
+    risk_note: "Adhesion is optional; the professional must check ISA score and the income proposal first (non-tax reasons documented)."
+    notes: "Proposal caps by ISA score (10%, 15%, 25%, 30%, 35%). Renewal premiums: visto di conformita exemption up to 100k VAT / 70k direct taxes and IRAP. Forfettari: not in 2026-2027 (AdE news says ISA only). Open point 6 of the notes."
+
+  - id: startup_detrazione_65
+    name: "Detrazione IRPEF 65% per investimenti in startup innovative (de minimis)"
+    profiles: [startup-innovativa]
+    who: "individuals investing in startup innovative (the investor claims the deduction; the startup files the request first)"
+    size: "65% IRPEF deduction; max EUR 100,000 per year per investor; 3-year holding; max EUR 300,000 per startup over 3 years"
+    source: "MIMIT page 'Incentivi fiscali de minimis all'investimento in startup innovative' (sites-it.md section 3)"
+    status: active
+    window: "instance by the startup before the investment, on the Invitalia platform (padigitale.invitalia.it)"
+    url: "https://www.mimit.gov.it/it/impresa/competitivita-e-nuove-imprese/start-up-innovative/incentivi-de-minimis"
+    confidence: medium
+    abuse_risk_default: amber
+    risk_note: "Only for the startup, not for PMI innovative from 2025. Check the investor's de minimis total and the holding conditions."
+    notes: "MIMIT page dated 22/9/2026 says the measure is fully operational. Source is a primary MIMIT page, not a law article: article number not in the sites file."
+
+  - id: startup_detrazione_30_ordinaria
+    name: "Detrazione/deduzione ordinaria 30% per startup innovative"
+    profiles: [startup-innovativa]
+    who: "investors in startup innovative (ordinary regime)"
+    size: "30% (ordinary deduction for investors)"
+    source: "not confirmed from an official text (sites-it.md section 3 note)"
+    status: expired
+    window: "secondary sources say it expired on 31/12/2025 with no extension in L. 199/2025"
+    url: "https://www.mimit.gov.it/it/impresa/competitivita-e-nuove-imprese/start-up-innovative/incentivi-de-minimis"
+    confidence: low
+    abuse_risk_default: green
+    notes: "No official confirmation found. Do not use as current until checked on the primary text."
+
+  - id: smart_start_italia
+    name: "Smart&Start Italia (zero-rate loan for innovative startups)"
+    profiles: [startup-innovativa]
+    who: "innovative startups (up to 60 months from registration)"
+    size: "zero-rate loan for 80-90% of expenses; +30% grant in the South"
+    source: "MIMIT Smart&Start page and Invitalia (sites-it.md section 3); legal article not in the sites file"
+    status: active
+    window: "a sportello (open window, no closing date given)"
+    url: "https://www.invitalia.it/incentivi-e-strumenti/smartstart-italia"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Application online through Invitalia. Confidence from the verified site list; not checked against a law text."
+
+  - id: resto_al_sud_20
+    name: "Resto al Sud 2.0 (under 35 in the South)"
+    profiles: [startup]
+    who: "under-35 unemployed or inactive people in the South starting a business"
+    size: "voucher up to EUR 40-50k and 70-75% grant (sites-it.md)"
+    source: "Invitalia page (sites-it.md section 2); legal article not in the sites file"
+    status: active
+    window: "open since 15/10/2025, sportello"
+    url: "https://www.invitalia.it/incentivi-e-strumenti/resto-al-sud-20"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Applicant is a person, not an existing company: the profile applies only to a company being set up."
+
+  - id: autoimpiego_centro_nord
+    name: "Autoimpiego Centro-Nord (under 35 outside the South)"
+    profiles: [startup]
+    who: "same target as Resto al Sud, in the Centre-North regions"
+    size: "voucher up to EUR 30-40k, grant 60-65%"
+    source: "Invitalia page (sites-it.md section 2); legal article not in the sites file"
+    status: active
+    window: "open since 15/10/2025"
+    url: "https://www.invitalia.it/incentivi-e-strumenti/autoimpiego-centro-nord"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Mutually exclusive with Resto al Sud by area: check the Invitalia rules."
+
+  - id: on_nuove_imprese
+    name: "ON - Oltre Nuove imprese a tasso zero (women and young founders)"
+    profiles: [startup]
+    who: "giovanile or femminile companies up to 60 months old"
+    size: "up to 90% of expenses; from 1/7/2026 zero-rate loan only (grant fund exhausted)"
+    source: "Invitalia page (sites-it.md section 2); legal article not in the sites file"
+    status: changed
+    window: "from 1/7/2026 zero-rate loan only"
+    url: "https://www.invitalia.it/incentivi-e-strumenti/ON-nuove-imprese-tasso-zero"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "The grant part no longer exists after 1/7/2026. Do not quote the 90% figure as a grant."
+
+  - id: cer_facility_cacer
+    name: "Facility CACER (ex contributo PNRR 40% for CER)"
+    profiles: [fotovoltaico]
+    who: "renewable energy communities (CER) and their members; comuni under 50,000 inhabitants (DM 127/2025)"
+    size: "PNRR contribution, EUR 795.5 m managed by GSE; advance up to 30% (DM 127/2025)"
+    source: "DL 19/2026 art. 27 (transformed the PNRR contribution); DM 127 del 16/5/2025"
+    status: changed
+    window: "plants in service within 24 months of the convention and by 31/12/2027 at the latest; tariffa premio open up to 5 GW and not after 31/12/2027"
+    url: "https://www.gse.it/documenti_site/Documenti%20GSE/Servizi%20per%20te/AUTOCONSUMO/Gruppi%20di%20autoconsumatori%20e%20comunita%20di%20energia%20rinnovabile/Regole%20e%20procedure/MC2%20I.1.2%20-%20Regole%20Operative%20Facility%20CACER.pdf"
+    confidence: medium
+    abuse_risk_default: amber
+    risk_note: "Self-consumption from a CER: the PV owner is not the same as the consumer, so the self-consumption exemption from excise does not apply to CER (ADM circ. 21/2026)."
+    notes: "The PNRR applications closed 30/11/2025. Source is the GSE rules document (27/3/2026) and the sites file; check the DL 19/2026 text."
+
+  - id: scambio_sul_posto
+    name: "Scambio sul posto (SSP)"
+    profiles: [fotovoltaico]
+    who: "PV plants already under an SSP convention"
+    size: "existing conventions only, to their expiry, no renewal"
+    source: "GSE scheda Scambio sul posto (sites-it.md section 4); plants in service by 29/5/2025"
+    status: closed
+    window: "applications closed 26/9/2025; from 30/5/2025 the new Modello Unico leads to RID or market sale"
+    url: "https://www.gse.it/servizi-per-te/fotovoltaico/scambio-sul-posto"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Clients asking about SSP for a new plant: answer 'no longer available' and point to RID (ritiro dedicato)."
+
+  - id: fer_x_definitivo
+    name: "FER X definitivo (incentives for renewable plants)"
+    profiles: [fotovoltaico]
+    who: "renewable plants up to and above 1 MW"
+    size: "direct access up to 1 MW; auctions above 1 MW (rates in the DM, not in the notes)"
+    source: "DM 18/6/2026 (MASE; GSE page); sites-it.md section 4"
+    status: active
+    window: "in force from 7/8/2026 to 31/12/2030"
+    url: "https://www.gse.it/servizi-per-te/fonti-rinnovabili/fer-x-definitivo"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "FER X transitorio (DM 30/12/2024) ended 31/12/2025. Tariff values are not in the notes: do not quote numbers."
+
+  - id: conto_termico_30
+    name: "Conto Termico 3.0 (energy efficiency and heating)"
+    profiles: [fotovoltaico, employer, srl]
+    who: "companies, the tertiary sector and public bodies (efficiency and thermal plants)"
+    size: "up to 65% (100% for small comuni)"
+    source: "DM 7/8/2025 (GSE page, sites-it.md section 4)"
+    status: active
+    window: "portal reopened 13/4/2026 after suspension on 3/3/2026"
+    url: "https://www.gse.it/servizi-per-te/efficienza-energetica/conto-termico-3-0"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Applications on the GSE portal with login. Not a PV lever as such: for buildings and thermal plants."
+
+  - id: welfare_fringe_benefit_2026
+    name: "Welfare aziendale: fringe benefit tax-free up to EUR 1,000 (2,000 with children)"
+    profiles: [employer]
+    who: "employers and employees (goods and services, utilities, rent, mortgage interest)"
+    size: "EUR 1,000 per employee; EUR 2,000 for employees with dependent children; cliff: above the limit, all is taxable"
+    source: "TUIR art. 51 c. 2-3; L. 207/2024 c. 390-391; AdE circ. 4/E of 16/5/2025"
+    status: active
+    window: "2025, 2026 and 2027 (ordinary limit EUR 258.23)"
+    url: "https://www.agenziaentrate.gov.it/portale/documents/20143/8410823/Circolare+lavoro+dipendente+LB2025+DD+IRPEF+n.+4+del+16+maggio+2025.pdf/36979eaa-9fc5-a4ec-a7aa-136497c53f91"
+    confidence: high
+    abuse_risk_default: amber
+    risk_note: "Welfare plans under art. 51 c. 2 have no cap, but the cliff at the limit needs documented amounts per employee."
+    notes: "New TUIR (D.Lgs. 117/2026) from 1/1/2027 renumbers art. 51: check the article map before FY2027 work."
+
+  - id: bonus_pubblicita_2026
+    name: "Bonus pubblicita 2026 (investimenti pubblicitari)"
+    profiles: [srl, startup, startup-innovativa]
+    who: "businesses, professionals and ENC investing in ads on daily and periodical press (also online)"
+    size: "75% of the incremental spend (min +1% on the same media); EUR 30 m/year cap with pro-rata (about 27% for 2026, provisional)"
+    source: "DL 50/2017 art. 57-bis; DPCM 90/2018"
+    status: active
+    window: "booking closed 1/4/2026; substitute declaration of 2026 investments 9/1 - 9/2/2027; F24 code 6900"
+    url: "https://edotto.com/articolo/bonus-pubblicita-2026-elenco-dei-richiedenti-adempimenti"
+    confidence: medium
+    abuse_risk_default: green
+    notes: "De minimis: sum all aid received first (see de_minimis_300k). Radio, TV and social excluded (one source includes local broadcasters: low)."
+
+  - id: de_minimis_300k
+    name: "De minimis ceiling (EUR 300,000 over 3 years)"
+    profiles: [srl, startup, startup-innovativa, fotovoltaico, employer, forfettario]
+    who: "any company or individual receiving de minimis aid; use as a check before any de minimis measure"
+    size: "EUR 300,000 per impresa unica over any rolling 3-year period"
+    source: "Reg. UE 2023/2831 (in force 1/1/2024 to 31/12/2030); register RNA (rna.gov.it)"
+    status: active
+    window: "1/1/2024 - 31/12/2030"
+    url: "https://eur-lex.europa.eu/eli/reg/2023/2831/oj"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Agriculture (Reg. 1408/2013) and fishing (Reg. 717/2014) have their own ceilings. Road-freight sub-ceiling: sources conflict (low): check the GUUE text."
+
+  - id: auto_aziendali_costs
+    name: "Auto aziendali: deductible costs (20% / 80% / 70%)"
+    profiles: [srl, startup, startup-innovativa]
+    who: "businesses and professionals with company cars"
+    size: "generic business use 20% (cost cap EUR 18,075.99); agents 80% (cap EUR 25,822.84); mixed-use cars assigned to employees 70%, no cap"
+    source: "TUIR art. 164 c. 1 lett. b, b-bis"
+    status: active
+    window: "2026 tax year"
+    url: "https://www.assolombarda.it/servizi/fisco/documenti/fiscalita-delle-auto-aziendali"
+    confidence: high
+    abuse_risk_default: green
+    notes: "Employee fringe benefit (taxable share 50%/10%/20% by car type) is a separate point: TUIR art. 51 c. 4 (medium), not in this entry."
+
+# @@MORE@@

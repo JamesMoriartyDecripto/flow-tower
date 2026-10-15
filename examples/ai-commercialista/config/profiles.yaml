@@ -1,0 +1,158 @@
+# Company profiles: how each profile is detected from the company profile (data/*.json, built by
+# scripts/build_profile.mjs), which levers apply (ids in levers-2026.yaml) and which deadlines apply
+# (ids in deadlines-2026.yaml). Research date 2026-10-15: check status before every memo.
+# A profile is a filter for the scanner, not a legal classification: the professional confirms it.
+# Fields missing from the company profile make the match "needs data", never "eligible".
+
+profiles:
+  - id: srl
+    name: "SRL / SPA (capital company, solar-year FY)"
+    detect:
+      legal_form: [srl, spa]
+    levers:
+      - iperammortamento_2026
+      - tx50_credit_2024_2025
+      - tx40_credit_tail
+      - ires_premiale_fy2025
+      - ires_premiale_renewal_2026
+      - ace_residuals
+      - rottamazione_quinquies
+      - rd_credit_10
+      - design_credit_2026
+      - nuova_sabatini
+      - patent_box
+      - zes_unica_credit
+      - super_deduzione_neoassunti
+      - concordato_preventivo_biennale_2026
+      - welfare_fringe_benefit_2026
+      - bonus_pubblicita_2026
+      - de_minimis_300k
+      - auto_aziendali_costs
+    deadlines:
+      - f24_monthly_16
+      - lipe_q1_2026
+      - ires_irap_balance_2026
+      - isa_payment_2026_07_20
+      - redditi_sc_2026
+      - cpb_adhesion_2026
+      - ires_second_advance_2026_11_30
+      - rivalutazione_partecipazioni_2026_11_30
+      - iperammortamento_report_2027_01_20
+      - zes_integrative_2027_01
+      - bonus_pubblicita_substitute_2027
+      - lipe_q4_2026
+
+  - id: startup
+    name: "Startup (new company, first years; not necessarily registered as innovative)"
+    detect:
+      legal_form: [srl, spa]
+      company_age_months_max: 60
+    levers:
+      - iperammortamento_2026
+      - rd_credit_10
+      - design_credit_2026
+      - nuova_sabatini
+      - zes_unica_credit
+      - super_deduzione_neoassunti
+      - bonus_pubblicita_2026
+      - de_minimis_300k
+      - resto_al_sud_20
+      - autoimpiego_centro_nord
+      - on_nuove_imprese
+      - concordato_preventivo_biennale_2026
+    deadlines:
+      - f24_monthly_16
+      - ires_irap_balance_2026
+      - redditi_sc_2026
+      - cpb_adhesion_2026
+      - zes_integrative_2027_01
+      - bonus_pubblicita_substitute_2027
+
+  - id: startup-innovativa
+    name: "Startup innovativa (registered in the Registro Imprese special section)"
+    detect:
+      startup_innovativa_registered: true
+      # L. 193/2024: status must be checked on the register and on the MIMIT circolare of 29/7/2025
+    levers:
+      - iperammortamento_2026
+      - ires_premiale_fy2025
+      - ires_premiale_renewal_2026
+      - rd_credit_10
+      - design_credit_2026
+      - nuova_sabatini
+      - patent_box
+      - super_deduzione_neoassunti
+      - bonus_pubblicita_2026
+      - de_minimis_300k
+      - startup_detrazione_65
+      - startup_detrazione_30_ordinaria
+      - smart_start_italia
+      - concordato_preventivo_biennale_2026
+      - auto_aziendali_costs
+    deadlines:
+      - f24_monthly_16
+      - ires_irap_balance_2026
+      - redditi_sc_2026
+      - cpb_adhesion_2026
+      - zes_integrative_2027_01
+      - bonus_pubblicita_substitute_2027
+
+  - id: fotovoltaico
+    name: "Company with a PV plant (self-consumption, CER or sales)"
+    detect:
+      pv_kw: ">0"
+      # pv_kw from the Gaudi/GSE data or the client's asset register; a CER member is detected from the CER contract
+    levers:
+      - iperammortamento_2026
+      - tx50_credit_2024_2025
+      - nuova_sabatini
+      - zes_unica_credit
+      - cer_facility_cacer
+      - scambio_sul_posto
+      - fer_x_definitivo
+      - conto_termico_30
+      - concordato_preventivo_biennale_2026
+    deadlines:
+      - f24_monthly_16
+      - ires_irap_balance_2026
+      - redditi_sc_2026
+      - cpb_adhesion_2026
+      - zes_integrative_2027_01
+
+  - id: employer
+    name: "Company with employees (payroll through a labour consultant)"
+    detect:
+      employees: ">0"
+      # employees: average FTE from the UniEmens or the payroll export; a CCNL code is recorded in the profile
+    levers:
+      - iperammortamento_2026
+      - super_deduzione_neoassunti
+      - bonus_giovani_2026
+      - bonus_zes_2026
+      - bonus_donne_2026
+      - decontribuzione_sud_pmi
+      - productivity_premium_1pct
+      - welfare_fringe_benefit_2026
+      - concordato_preventivo_biennale_2026
+    deadlines:
+      - f24_monthly_16
+      - cu_2026_03_16
+      - modello_770_2026_11_02
+      - redditi_sc_2026
+      - inps_inail_autoliquidazione_2026_02_16
+      - cpb_adhesion_2026
+
+  - id: forfettario
+    name: "Regime forfettario (ditta individuale or professional)"
+    detect:
+      legal_form: [ditta_individuale, professionista]
+      regime: forfettario
+      # revenue <= 85,000 and staff costs <= 20,000 are checked on the Fatture in Cloud data before any memo
+    levers:
+      - forfettario_regime
+      - rottamazione_quinquies
+      - de_minimis_300k
+    deadlines:
+      - f24_monthly_16
+      - isa_payment_2026_07_20
+      - inps_forfettari_reduction_2026_02_28
