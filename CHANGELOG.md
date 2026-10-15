@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- Example `ai-commercialista`: an AI accountant for Italian companies that cites every source, checks each citation against the text in force for the tax period, scans 2026 levers per profile (SRL, startup, startup innovativa, photovoltaic, employer, forfettario) and leaves every memo to a professional's signature (#228).
+
 ### Fixed
 - `flow-tower check-example` no longer reports `ft_` inside a word (`draft_for_professional_review`) as a token, nor a `/home/` or `/Users/` segment inside a URL path as a home folder; a home path after `-` (`${VAR:-/home/x}`), `../` or `file://` is still reported (#229).
 

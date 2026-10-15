@@ -40,7 +40,7 @@ The names "Lynfa Studio" and "TeamSystem Commercialista" appear on none of the p
 - In practice, plan to get studio data out of TeamSystem Studio through the product's own exports or a partner agreement. I did not verify the export formats; ask TeamSystem.
 
 ### Reviso API: public, VERIFIED
-REST/JSON. Headers `X-AppSecretToken` + `X-AgreementGrantToken`, a demo account, and webhooks. Free developer agreement by emailing api@reviso.com. https://rest.reviso.com/ , https://www.reviso.com/developer/
+REST/JSON. Headers `X-AppSecretToken` + `X-AgreementGrantToken`, a demo account, and webhooks. Free developer agreement by email (address on the developer page). https://rest.reviso.com/ , https://www.reviso.com/developer/
 
 ## 3. TeamSystem's own AI
 
