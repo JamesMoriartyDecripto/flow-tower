@@ -1,4 +1,13 @@
-import { expect, openProject, test } from './fixtures.ts';
+import { expect, openProject, test, ws } from './fixtures.ts';
+
+// Dev-only hook from src/app/mountApp.tsx, declared once here so the evaluate callback can stay plain JavaScript.
+declare global {
+  interface Window {
+    __flowTower: { store: { getState(): { focusLayer(i: number): void } } };
+  }
+}
+
+const ID = ws.projects.find((p) => p.startsWith('voice-commands/'))!;
 
 /**
  * The HUD tooltip of a long node description in the right node list must stay inside the window: it used to
@@ -7,9 +16,9 @@ import { expect, openProject, test } from './fixtures.ts';
 test.use({ viewport: { width: 1440, height: 800 } });
 
 test('tooltip: a long node description stays inside the window', async ({ page }) => {
-  await openProject(page, 'voice-commands');
+  await openProject(page, ID);
   // Focusing a layer opens its node list on the right, the same way the keyboard does.
-  await page.evaluate(() => (window as unknown as { __flowTower: { store: { getState(): { focusLayer(i: number): void } } } }).__flowTower.store.getState().focusLayer(3));
+  await page.evaluate(() => window.__flowTower.store.getState().focusLayer(3));
   const row = page.locator('.nodelist button, .nodelist [title]').filter({ hasText: 'Spoken reply' }).first();
   await row.hover();
   const tip = page.locator('.hud-tip');
