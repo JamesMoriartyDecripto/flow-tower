@@ -1,0 +1,697 @@
+# Source registry: every source the system may retrieve or cite, with its legal weight.
+# Read by the sources.sync process (towers/sources.tower.yaml) and by the citation guards.
+# Verified on 2026-10-15 from squad-input/sites-it.md and research/primary-sources.md.
+#
+# Weight scale (strongest first): law > practice > case-law > standard > guidance > data > press.
+# Use the weight as the citation rule: only law, practice, case-law and standard may support a claim;
+# guidance and data are informational; press is never cited as authority.
+#
+# Rule: press is a lead only. Follow it to the primary text, never cite it as authority.
+# The Gazzetta Ufficiale text prevails over Normattiva (Normattiva says its texts are not official).
+#
+# Each entry: id (kebab-case), name, url (exactly as in the inputs), kind (a weight below),
+# access (free | login-spid | entratel | paid | open-data), api (short), topics, note (how to cite,
+# or a verification flag). An URL marked unverified in the inputs is flagged in note.
+
+weights:
+  law: "binding on taxpayers and the administration: statutes, decrees with force of law, codes, EU law, regulator rules."
+  practice: binds the administration only (circolari, risoluzioni, interpelli, prassi). Relying on it protects from penalties (L. 212/2000 art. 10 c. 2); an interpello reply binds only for that applicant and question (art. 11 c. 5).
+  case-law: judgments and orders. Cassation and EU courts carry strong weight; merit decisions are persuasive only.
+  standard: technical accounting or professional standards (e.g. OIC principles) that interpret the law.
+  guidance: official pages, FAQs, portal descriptions. Informational, never the cited authority.
+  data: registers, databases, open-data feeds and APIs. Used to retrieve facts, cited through their own weight.
+  press: secondary sources (trade press, magazines, professional firms). A lead only, never cited as authority.
+
+sources:
+  - id: gazzetta-ufficiale
+    name: Gazzetta Ufficiale, Serie Generale
+    url: "https://www.gazzettaufficiale.it/"
+    kind: law
+    access: free
+    api: "RSS per series; no documented open data API"
+    topics: [all]
+    note: "The only official text. Cite the ELI: https://www.gazzettaufficiale.it/eli/id/AAAA/MM/GG/codice-redazionale/sg"
+  - id: normattiva
+    name: Normattiva (consolidated state legislation)
+    url: "https://www.normattiva.it/"
+    kind: law
+    access: free
+    api: "open data API, point-in-time text (see normattiva-open-data); per-article detail returned error 1000 on 15/10/2026"
+    topics: [all]
+    note: "Not official: the GU prevails. Cite stable URN links: https://www.normattiva.it/uri-res/N2Ls?urn:nir:..."
+  - id: normattiva-open-data
+    name: Normattiva open data portal and API
+    url: "https://dati.normattiva.it/"
+    kind: data
+    access: open-data
+    api: "open data API: acts changed between two dates, point-in-time text, bulk export; no key"
+    topics: [all]
+    note: "Licence CC BY 4.0 per secondary sources and the launch notice; the portal licence page is client-rendered, confirm it there"
+  - id: tuir-dpr-917-1986
+    name: TUIR, D.P.R. 917/1986 (old text, applies to tax periods up to 2026)
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.del.presidente.della.repubblica:1986-12-22;917"
+    kind: law
+    access: free
+    api: "point-in-time via urn ...;917~artN!vig=YYYY-MM-DD"
+    topics: [srl, startup, fotovoltaico, employer, forfettario]
+    note: "Repealed by the new TUIR from 1/1/2027. Cite the article with !vig=<tax period date>"
+  - id: tu-iva-dlgs-10-2026
+    name: Testo unico IVA, D.Lgs. 10/2026
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2026-01-19;10"
+    kind: law
+    access: free
+    api: "point-in-time via urn; open data API"
+    topics: [srl, startup, fotovoltaico, forfettario]
+    note: "Applies from 1/1/2027 (its art. 171). Old-to-new mapping: article-map-2027, concordance tables not yet published"
+  - id: tuir-dlgs-117-2026
+    name: New TUIR (testo unico imposte sui redditi), D.Lgs. 117/2026
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2026-06-19;117"
+    kind: law
+    access: free
+    api: "point-in-time via urn; open data API"
+    topics: [srl, startup, fotovoltaico, employer, forfettario]
+    note: "Applies from 1/1/2027 (art. 377), in force from 4/7/2026. Cite GU n. 152, 3/7/2026, S.O. 26"
+  - id: tu-adempimenti-dlgs-141-2026
+    name: Testo unico adempimenti e accertamento, D.Lgs. 141/2026
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2026-08-05;141"
+    kind: law
+    access: free
+    api: "point-in-time via urn"
+    topics: [all]
+    note: "Applies from 1/1/2027 (art. 368, per the MEF page); replaces DPR 600/1973 and DPR 322/1998 among others"
+  - id: tu-versamenti-dlgs-33-2025
+    name: Testo unico versamenti e riscossione, D.Lgs. 33/2025
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2025-03-24;33"
+    kind: law
+    access: free
+    api: "point-in-time via urn"
+    topics: [srl, employer, forfettario]
+    note: "Applies from 1/1/2027; restates the payment and shift rules for F24 deadlines"
+  - id: statuto-contribuente-l-212-2000
+    name: Statuto dei diritti del contribuente, L. 212/2000
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:legge:2000-07-27;212"
+    kind: law
+    access: free
+    api: "point-in-time via urn ...;212~artN"
+    topics: [all]
+    note: "Art. 10 c. 2 (reliance on practice) and art. 10-bis (abuse of law) and art. 11 (interpello). Text after D.Lgs. 219/2023 still to be fetched and checked"
+  - id: codice-civile-srl-2463-bis
+    name: Codice civile, art. 2463-bis (SRL semplificata)
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:regio.decreto:1942-03-16;262~art2463bis"
+    kind: law
+    access: free
+    api: "point-in-time via urn; the page renders client-side"
+    topics: [srl, startup]
+    note: "Cite R.D. 262/1942, art. 2463-bis. Standard model, capital of 1 EUR"
+  - id: startup-act-dl-179-2012
+    name: Startup Act, D.L. 179/2012
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legge:2012-10-18;179"
+    kind: law
+    access: free
+    api: "point-in-time via urn"
+    topics: [startup, startup-innovativa]
+    note: "Arts. 25 ss.: definition, special section, work for equity (art. 27), crowdfunding"
+  - id: pmi-innovative-dl-3-2015
+    name: PMI innovative, D.L. 3/2015
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legge:2015-01-24;3"
+    kind: law
+    access: free
+    api: "point-in-time via urn"
+    topics: [startup-innovativa, srl]
+    note: "Art. 4: PMI innovative. Cite the article in force on the tax period date"
+  - id: ade-circolari
+    name: Agenzia delle Entrate, Circolari
+    url: "https://www.agenziaentrate.gov.it/portale/normativa-e-prassi/circolari"
+    kind: practice
+    access: free
+    api: "RSS only (normativa e prassi feed); archive pages to scrape"
+    topics: [all]
+    note: "Cite as 'circolare n. X/E del GG/MM/AAAA'. Document URLs are not predictable: discover them from the listing"
+  - id: ade-risoluzioni
+    name: Agenzia delle Entrate, Risoluzioni
+    url: "https://www.agenziaentrate.gov.it/portale/normativa-e-prassi/risoluzioni"
+    kind: practice
+    access: free
+    api: "RSS only; listing to scrape"
+    topics: [all]
+    note: "Specific cases and codici tributo. Cite as 'risoluzione n. X/E del GG/MM/AAAA'"
+  - id: ade-interpelli
+    name: Agenzia delle Entrate, Risposte agli interpelli
+    url: "https://www.agenziaentrate.gov.it/portale/normativa-e-prassi/risposte-agli-interpelli"
+    kind: practice
+    access: free
+    api: "RSS only; no API"
+    topics: [all]
+    note: "Binds only the applicant and the question (art. 11 c. 5 L. 212/2000); other taxpayers may use it as persuasive reading. Cite as 'risposta n. X/YYYY'"
+  - id: ade-normativa-prassi-rss
+    name: Agenzia delle Entrate, normativa e prassi RSS feed
+    url: "https://www.agenziaentrate.gov.it/portale/c/portal/rss/entrate?idrss=0753fcb1-1a42-4f8c-f40d-02793c6aefb4"
+    kind: data
+    access: free
+    api: "RSS feed, live; use for incremental sync"
+    topics: [all]
+    note: "Feed of circolari, risoluzioni and interpelli. Verified live on 15/10/2026"
+  - id: ade-provvedimenti
+    name: Agenzia delle Entrate, Provvedimenti del Direttore
+    url: "https://www.agenziaentrate.gov.it/portale/normativa-e-prassi/provvedimenti"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [srl, employer, fotovoltaico, forfettario]
+    note: "Implementing acts with external effect when a law delegates to them (forms, specifications). Higher weight than circolari; weight is [K], confirm"
+  - id: ade-principi-diritto
+    name: Agenzia delle Entrate, Principi di diritto
+    url: "https://www.agenziaentrate.gov.it/portale/normativa-e-prassi/risposte-agli-interpelli/principi-di-diritto"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [all]
+    note: "Statements of law from the administration; cite the document, not the listing"
+  - id: ade-cassetto-fiscale
+    name: Agenzia delle Entrate, Cassetto fiscale
+    url: "https://www.agenziaentrate.gov.it/portale/servizi/servizitrasversali/altri/cassetto-fiscale"
+    kind: guidance
+    access: entratel
+    api: "web UI only; no public API; the agent never logs in"
+    topics: [srl, startup, fotovoltaico, employer, forfettario]
+    note: "Data source for the human uploader. Delega unica from 8/12/2025; old delegations end 28/02/2027 (secondary sources, to confirm)"
+  - id: ade-delega-unica
+    name: Agenzia delle Entrate, Delega unica ai servizi online
+    url: "https://www.agenziaentrate.gov.it/portale/delega-unica-ai-servizi-on-line-dell-agenzia-delle-entrate-e-dell-agenzia-delle-entrate-riscossione"
+    kind: guidance
+    access: login-spid
+    api: "none"
+    topics: [all]
+    note: "Legal basis art. 21 D.Lgs. 1/2024. Cap of two intermediaries per taxpayer: secondary source only, to confirm"
+  - id: ade-fatture-corrispettivi
+    name: Agenzia delle Entrate, Fatture e Corrispettivi (SDI)
+    url: "https://ivaservizi.agenziaentrate.gov.it/portale/"
+    kind: guidance
+    access: login-spid
+    api: "SDI channels WS and SFTP need accreditation; portal is authenticated"
+    topics: [srl, startup, fotovoltaico, forfettario]
+    note: "The XML on SDI is the legally valid invoice. Scheda: https://www.agenziaentrate.gov.it/portale/schede/comunicazioni/fatture-e-corrispettivi/acc-servizio-fatture-e-corrispettivi"
+  - id: ade-scadenzario
+    name: Agenzia delle Entrate, Scadenzario fiscale
+    url: "https://www1.agenziaentrate.gov.it/servizi/scadenzario/main.php"
+    kind: guidance
+    access: free
+    api: "none; scrape only, no ICS feed"
+    topics: [all]
+    note: "Informational: the deadline itself comes from the norm or a proroga, so cite the norm"
+  - id: ade-f24-codici-tributo
+    name: Agenzia delle Entrate, Ricerca codici tributo F24
+    url: "https://www1.agenziaentrate.gov.it/servizi/codici/ricerca/index.php"
+    kind: data
+    access: free
+    api: "none"
+    topics: [srl, employer, forfettario, fotovoltaico]
+    note: "Codici tributo are created by risoluzione: cite the risoluzione that created the code"
+  - id: ade-crediti-imposta
+    name: Agenzia delle Entrate, Crediti d'imposta (imprese)
+    url: "https://www.agenziaentrate.gov.it/portale/imprese/agevolazioni/crediti-imposta"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [srl, startup-innovativa]
+    note: "Index of tax credits and their F24 codes. Transizione 5.0 credit is closed; the 2026 measure is the iperammortamento"
+  - id: ade-patent-box
+    name: Agenzia delle Entrate, Patent box
+    url: "https://www.agenziaentrate.gov.it/portale/schede/agevolazioni/patent-box"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [startup-innovativa, srl]
+    note: "Patent box: 110% super-deduction on R&D costs (software, patents, designs); cite the norm, not the page"
+  - id: ade-circ-36e-2013-fotovoltaico
+    name: AdE circolare 36/E del 19/12/2013 (fotovoltaico)
+    url: "https://www.agenziaentrate.gov.it/portale/documents/20143/299021/Circolare+n.+36E+del+19+dicembre+2013_14290+FOTOVOLTAICO.pdf/6be631fa-4413-a822-5570-e604d616cdb7"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [fotovoltaico, srl]
+    note: "Bene mobile or immobile; ammortamento 9% mobile or 4% immobile; società di comodo 6% and 4.75%"
+  - id: ade-circ-2e-2016-imbullonati
+    name: AdE circolare 2/E del 1/2/2016 (imbullonati)
+    url: "https://www.agenziaentrate.gov.it/portale/documents/20143/298305/Circolare%202E%20del%2001%20febbraio%202016_20160129_Circolare%20n%202-E.pdf/19c312c8-7a97-48ba-7169-f329cf4712fa"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [fotovoltaico]
+    note: "Cadastral income D/E: panels and inverters outside the estimate unless integrated; relevant for IMU"
+  - id: ade-ris-18e-2021-tariffa-premio
+    name: AdE risoluzione 18/E del 12/3/2021
+    url: "https://www.agenziaentrate.gov.it/portale/documents/20143/3288760/RISOLUZIONE+N.+18+del+12+marzo+2021.pdf/98d0ffff-d8a3-36a3-7431-a0cee5bf064a"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [fotovoltaico]
+    note: "Tax treatment of the tariffa premio for collective self-consumption and CER"
+  - id: ade-risposta-37-2022-cer
+    name: AdE risposta 37/2022 (incentivi CER)
+    url: "https://www.agenziaentrate.gov.it/portale/documents/20143/4081309/Risposta_37_20.01.2022.pdf/fece810b-5983-8fcd-4715-d015dacf7a36"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [fotovoltaico]
+    note: "Interpello reply: binds only the applicant. Cite as a persuasive reading for others"
+  - id: ade-risposta-201-2024-cer-iva
+    name: AdE risposta 201/2024 (IVA, CER)
+    url: "https://www.agenziaentrate.gov.it/portale/documents/20143/6458344/Risposta+n.+201_2024.pdf/c61bbdd5-971b-7ea6-943c-d3ff1c6ae80f"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [fotovoltaico]
+    note: "Interpello reply: amounts passed by the CER to a non-member third producer are consideration. Applicant-specific"
+  - id: ade-risposta-22-2026-cer-ets
+    name: AdE risposta 22/2026 (CER-ETS)
+    url: "https://www.agenziaentrate.gov.it/portale/documents/20143/9680917/Risposta+n.+22_2026.pdf/5e5170b5-2a1c-a113-54e2-8f4f9a6579f2?t=1770641415458"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [fotovoltaico]
+    note: "Interpello reply: GSE incentives for CER-ETS are non-commercial and outside VAT scope. Applicant-specific"
+  - id: cassazione
+    name: Corte di Cassazione
+    url: "https://www.cortedicassazione.it/"
+    kind: case-law
+    access: free
+    api: "none"
+    topics: [all]
+    note: "Cite as 'Cass., sez. V, ord. n. X/AAAA' or 'Cass., SS.UU., sent. n. X/AAAA'. SS.UU. carry nomofilachia weight (art. 374 c.p.c.)"
+  - id: sentenzeweb-cassazione
+    name: SentenzeWeb (ItalgiureWeb archive, Cassazione)
+    url: "https://www.italgiure.giustizia.it/sncass/"
+    kind: case-law
+    access: free
+    api: "none; search only"
+    topics: [all]
+    note: "Free archive, coverage window unconfirmed. Unreachable from our test host (timeout, probable network filter): verify before use"
+  - id: giustizia-tributaria-merito
+    name: Banca dati giurisprudenza tributaria di merito
+    url: "https://bancadatigiurisprudenza.giustiziatributaria.gov.it/"
+    kind: case-law
+    access: free
+    api: "none; 403 to bots"
+    topics: [srl, fotovoltaico, forfettario, employer]
+    note: "Merit decisions are persuasive only: cite as trend evidence. URL from a search result, returns 403 to our test: verify manually"
+  - id: giustizia-tributaria-portale
+    name: Giustizia tributaria (MEF, DGT), portal and massimari
+    url: "https://www.dgt.mef.gov.it/gt/it/web/guest"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [all]
+    note: "Old giustiziatributaria.gov.it redirects here. Regional massimari: https://www.dgt.mef.gov.it/gt/it/web/guest/massimari-regionali"
+  - id: cerdef-def-finanze
+    name: Documentazione economica e finanziaria (CERDEF, MEF Dip. Finanze)
+    url: "https://def.finanze.it/DocTribFrontend/RS2_HomePage.jsp"
+    kind: data
+    access: free
+    api: "none; JSP web app, RSS only; manual lookups by the professional"
+    topics: [all]
+    note: "Repository of normativa, prassi and giurisprudenza. Cite the underlying document, not CERDEF. Multivigente text: use Normattiva"
+  - id: corte-costituzionale
+    name: Corte costituzionale, ricerca pronunce
+    url: "https://www.cortecostituzionale.it/ricerca-pronunce"
+    kind: case-law
+    access: free
+    api: "open data bulk download (XML, JSON, CSV) at https://dati.cortecostituzionale.it"
+    topics: [all]
+    note: "Declarations of unconstitutionality bind erga omnes (art. 136 Cost.). Licence not stated on the page: verify (2013 source says CC BY-SA 3.0)"
+  - id: eur-lex
+    name: EUR-Lex (diritto UE)
+    url: "https://eur-lex.europa.eu/homepage.html?locale=it"
+    kind: law
+    access: free
+    api: "Cellar SPARQL endpoint and REST API; SOAP web service with registration and daily quota"
+    topics: [srl, forfettario, all]
+    note: "EU law binds (VAT Directive 2006/112/EC: http://data.europa.eu/eli/dir/2006/112/oj). Cite CELEX or ECLI"
+  - id: curia-cgue
+    name: Corte di giustizia UE (CGUE), ricerca
+    url: "https://curia.europa.eu/juris/recherche.jsf"
+    kind: case-law
+    access: free
+    api: "none; redirects to infocuria.curia.europa.eu; judgments also in EUR-Lex"
+    topics: [all]
+    note: "Binding interpretation of EU law (art. 267 TFEU). Cite by ECLI"
+  - id: vies-commissione-ue
+    name: VIES, verifica partite IVA UE (Commissione UE)
+    url: "https://ec.europa.eu/taxation_customs/vies/"
+    kind: data
+    access: free
+    api: "API available"
+    topics: [srl, forfettario]
+    note: "Verifies EU VAT numbers; the status on the day is evidence, cite the check date"
+  - id: esma-crowdfunding-register
+    name: ESMA, registro fornitori di servizi di crowdfunding
+    url: "https://registers.esma.europa.eu/publication/searchRegister?core=esma_registers_crowdfunding"
+    kind: data
+    access: free
+    api: "none; search register"
+    topics: [startup-innovativa, startup]
+    note: "EU list of authorised platforms (Reg. UE 2020/1503): the only valid basis since 11/11/2023. Use it instead of the CONSOB page"
+  - id: oic-principi
+    name: OIC, Organismo Italiano di Contabilità (principi contabili)
+    url: "https://www.fondazioneoic.eu/"
+    kind: standard
+    access: free
+    api: "none"
+    topics: [srl, startup, forfettario]
+    note: "Standards interpret the codice civile; matter for tax via derivazione rafforzata (TUIR art. 83). Free download believed, to confirm. Draft for micro companies in consultation since 7/8/2026"
+  - id: cndcec
+    name: CNDCEC, Consiglio nazionale dei commercialisti
+    url: "https://commercialisti.it/"
+    kind: guidance
+    access: free
+    api: "none; members area"
+    topics: [all]
+    note: "Norme di comportamento and guides (e.g. 'L'aiuto intelligente al Commercialista #3'). Cite the document and its number"
+  - id: registro-imprese
+    name: Registro Imprese (InfoCamere)
+    url: "https://www.registroimprese.it/"
+    kind: data
+    access: paid
+    api: "none for self-serve; documents paid through Telemaco"
+    topics: [srl, startup, startup-innovativa]
+    note: "Legal publicity (c.c. art. 2188 ff.): a certified visura is evidence. Basic search is free"
+  - id: telemaco
+    name: Telemaco (InfoCamere), invio pratiche e bilanci
+    url: "https://webtelemaco.infocamere.it/"
+    kind: guidance
+    access: paid
+    api: "none"
+    topics: [srl, startup]
+    note: "Filing channel and paid document retrieval; the agent never files"
+  - id: registro-imprese-startup
+    name: Registro Imprese, sezione speciale startup e PMI innovative
+    url: "https://startup.registroimprese.it/"
+    kind: data
+    access: open-data
+    api: "open data"
+    topics: [startup, startup-innovativa]
+    note: "Official lists of startup and PMI innovative; use for status checks. Vetrina: https://startup.registroimprese.it/isin/home"
+  - id: rna-aiuti-di-stato
+    name: Registro Nazionale Aiuti di Stato (RNA)
+    url: "https://www.rna.gov.it/"
+    kind: data
+    access: open-data
+    api: "open data, CC BY 4.0; transparency search by codice fiscale"
+    topics: [srl, startup, fotovoltaico, employer]
+    note: "De minimis received (Reg. UE 2023/2831: 300k EUR over 3 years). Company self-service visura NOT verified: compute from open data"
+  - id: incentivi-gov-it
+    name: Incentivi.gov.it (catalogo MIMIT)
+    url: "https://www.incentivi.gov.it/it"
+    kind: data
+    access: open-data
+    api: "open data catalogue as CSV and JSON, IODL 2.0; no API, download on schedule"
+    topics: [srl, startup, fotovoltaico, employer]
+    note: "Informational: cite each measure's decree or bando, not the catalogue"
+  - id: mimit-startup-innovative
+    name: MIMIT, Startup innovative
+    url: "https://www.mimit.gov.it/it/impresa/competitivita-e-nuove-imprese/start-up-innovative"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [startup, startup-innovativa]
+    note: "Parent page: requirements and programmes. Status is set by L. 193/2024 (in force 18/12/2024)"
+  - id: mimit-startup-act-normativa
+    name: "MIMIT, Startup Act: normativa"
+    url: "https://www.mimit.gov.it/it/impresa/competitivita-e-nuove-imprese/start-up-innovative/start-up-act-normativa"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [startup, startup-innovativa]
+    note: "List of the norms (DL 179/2012, DL 3/2015, L. 193/2024). Cite the norm itself, not this list"
+  - id: mimit-relazione-annuale
+    name: MIMIT, Relazione annuale e rapporti periodici su startup
+    url: "https://www.mimit.gov.it/it/impresa/competitivita-e-nuove-imprese/start-up-innovative/relazione-annuale-e-rapporti-periodici"
+    kind: data
+    access: free
+    api: "none; PDF reports and quarterly dashboards"
+    topics: [startup, startup-innovativa]
+    note: "Last annual report 2025 (PDF of 17/2/2026). Data for context, not for legal claims"
+  - id: mimit-circolare-startup-2025
+    name: Circolare MIMIT 29/7/2025 (copy on CCIAA Marche site)
+    url: "https://www.marche.camcom.it/gestisci-la-tua-impresa/cosa-fare-per/diventare-start-up-o-pmi-innovativa/circolare_mimit_nuova_disciplina_start_up_luglio_2025.pdf"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [startup, startup-innovativa]
+    note: "Clarifies registration and status after L. 193/2024. Copy on a chamber site, not on mimit.gov.it: check the text before citing"
+  - id: l-193-2024-concorrenza
+    name: Normattiva, L. 193/2024 (legge annuale concorrenza 2023)
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:legge:2024-12-16;193"
+    kind: law
+    access: free
+    api: "point-in-time via urn"
+    topics: [startup, startup-innovativa]
+    note: "Reform of the startup innovativa status (EU SME requirement, agency and consulting exclusion, 3-year rule) and incentives (art. 31)"
+  - id: l-34-2026-legge-annuale-pmi
+    name: Normattiva, L. 34/2026 (legge annuale PMI)
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:legge:2026-03-11;34"
+    kind: law
+    access: free
+    api: "point-in-time via urn"
+    topics: [startup, startup-innovativa, srl]
+    note: "Delega for a testo unico on startup, PMI innovative and incubators. The legislative decree is not yet adopted per our notes"
+  - id: mimit-incentivo-de-minimis-startup
+    name: MIMIT, Incentivo fiscale de minimis all'investimento in startup innovative
+    url: "https://www.mimit.gov.it/it/impresa/competitivita-e-nuove-imprese/start-up-innovative/incentivi-de-minimis"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [startup-innovativa]
+    note: "IRPEF 65% deduction, max 300k EUR per startup over 3 years. Page says 'pienamente operativa' (22/9/2026); cite the decree, not the page"
+  - id: invitalia-padigitale
+    name: Piattaforma incentivi fiscali de minimis (Invitalia per MIMIT)
+    url: "https://padigitale.invitalia.it/"
+    kind: guidance
+    access: login-spid
+    api: "none"
+    topics: [startup-innovativa]
+    note: "Application by the legal representative before the investment. Cloudflare 403 to bots: reach it via the MIMIT link"
+  - id: invitalia-smartstart
+    name: Invitalia, Smart&Start Italia
+    url: "https://www.invitalia.it/incentivi-e-strumenti/smartstart-italia"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [startup, startup-innovativa]
+    note: "Zero-rate loan 80-90% for startups up to 60 months (+30% grant in the South). Open at sportello; check the decree"
+  - id: invitalia-resto-al-sud
+    name: Invitalia, Resto al Sud 2.0
+    url: "https://www.invitalia.it/incentivi-e-strumenti/resto-al-sud-20"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [startup]
+    note: "Under 35 unemployed in the South: vouchers and grants. Open since 15/10/2025, at sportello"
+  - id: invitalia-autoimpiego-centro-nord
+    name: Invitalia, Autoimpiego Centro-Nord
+    url: "https://www.invitalia.it/incentivi-e-strumenti/autoimpiego-centro-nord"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [startup]
+    note: "Same measure for the Centre-North. Open since 15/10/2025"
+  - id: invitalia-on-nuove-imprese
+    name: Invitalia, ON Oltre Nuove imprese a tasso zero
+    url: "https://www.invitalia.it/incentivi-e-strumenti/ON-nuove-imprese-tasso-zero"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [startup]
+    note: "From 1/7/2026 only the zero-rate loan (grant exhausted). Check the current decree before advising"
+  - id: fondo-garanzia-pmi
+    name: Fondo di Garanzia PMI
+    url: "https://www.fondidigaranzia.it/"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [startup, srl]
+    note: "Public guarantee on loans, applied for through a bank"
+  - id: mimit-transizione-5-0-iperammortamento
+    name: MIMIT, Nuovo Piano Transizione 5.0 (iperammortamento)
+    url: "https://www.mimit.gov.it/it/incentivi/nuovo-piano-transizione-5-0-iperammortamento"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [srl, fotovoltaico]
+    note: "Iperammortamento from 2026 (L. 199/2025 commi 427-436, to verify). Transizione 5.0 tax credit is closed. Not a credit"
+  - id: gse-piano-transizione-5-0
+    name: GSE, Nuovo Piano Transizione 5.0 (NPTR5)
+    url: "https://www.gse.it/servizi-per-te/imprese/nuovo-piano-transizione-5-0"
+    kind: guidance
+    access: login-spid
+    api: "NPTR5 platform, login in Area Clienti"
+    topics: [srl, fotovoltaico]
+    note: "Booking platform for the iperammortamento; investments 1/1/2026-30/9/2028 (secondary, to confirm on the decree)"
+  - id: gse-home
+    name: GSE, Gestore dei Servizi Energetici (home)
+    url: "https://www.gse.it"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [fotovoltaico]
+    note: "Official portal for FER, self-consumption and efficiency incentives"
+  - id: gse-cer-cacer
+    name: GSE, gruppi di autoconsumatori e comunità di energia rinnovabile (CACER)
+    url: "https://www.gse.it/servizi-per-te/autoconsumo/gruppi-di-autoconsumatori-e-comunita-di-energia-rinnovabile"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [fotovoltaico]
+    note: "DM 414/2023 (tariffa premio, PNRR contribution 40%); cite the decree. Facility CACER from D.L. 19/2026 art. 27"
+  - id: mase-decreto-cer
+    name: MASE, decreto CER (DM 414/2023, testo)
+    url: "https://www.mase.gov.it/portale/documents/d/guest/decreto-cer-pdf"
+    kind: law
+    access: free
+    api: "none"
+    topics: [fotovoltaico]
+    note: "Text of the CER decree (ministerial decree). Cite DM 414/2023 and its articles"
+  - id: mase-dm-127-2025
+    name: MASE, DM 127 del 16/5/2025 (modifica CER)
+    url: "https://www.mase.gov.it/portale/-/comunita-energetiche-firmato-il-decreto-che-modifica-la-disciplina-degli-incentivi"
+    kind: law
+    access: free
+    api: "none"
+    topics: [fotovoltaico]
+    note: "PNRR contribution extended to municipalities under 50,000 inhabitants; advance up to 30%. Cite the decree"
+  - id: mase-fer-x-definitivo
+    name: MASE, FER X definitivo (DM 18/6/2026)
+    url: "https://www.mase.gov.it/portale/-/energia-pubblicato-il-decreto-fer-x-definitivo"
+    kind: law
+    access: free
+    api: "none"
+    topics: [fotovoltaico]
+    note: "Decree of 18/6/2026, in force from 7/8/2026 to 31/12/2030 (direct access up to 1 MW). Cite the decree"
+  - id: mase-dm-223-2026-modello-unico
+    name: MASE, DM 223 del 15/7/2026 (Modello Unico Parte III)
+    url: "https://www.mase.gov.it/portale/documents/d/guest/mase_udcm_dm_0000223-15-07-2026-pdf"
+    kind: law
+    access: free
+    api: "none"
+    topics: [fotovoltaico]
+    note: "Free activity: Modello Unico Parte III to SUER within 5 days of commissioning. Cite the decree"
+  - id: dlgs-190-2024-fer-regimi
+    name: Normattiva, D.Lgs. 190/2024 (TU regimi amministrativi FER)
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2024-11-25;190"
+    kind: law
+    access: free
+    api: "point-in-time via urn"
+    topics: [fotovoltaico]
+    note: "Free activity (art. 7), PAS (art. 8), AU (art. 9), SUER (art. 5)"
+  - id: inps-circolari-messaggi
+    name: INPS, Circolari, messaggi e normativa
+    url: "https://www.inps.it/it/it/inps-comunica/atti/circolari-messaggi-e-normativa.html"
+    kind: practice
+    access: free
+    api: "none; archive pages"
+    topics: [employer, forfettario]
+    note: "Official archive of INPS circolari and messaggi. Cite as 'circolare n. X del GG/MM/AAAA'"
+  - id: inps-uniemens
+    name: INPS, UniEmens (documento tecnico, PDF)
+    url: "https://www.inps.it/content/dam/inps-site/pdf/prestazioni-e-servizi/uniemens-aziende-private/UniEMENSind.pdf"
+    kind: guidance
+    access: free
+    api: "none"
+    topics: [employer]
+    note: "Format and filling rules of the monthly flow. Cite the version date"
+  - id: inps-cassetto-previdenziale
+    name: INPS, Cassetto previdenziale del contribuente
+    url: "https://www.inps.it/it/it/dettaglio-scheda.it.schede-servizio-strumento.schede-aree-tematiche.cassetto-previdenziale-del-contribuente-50240.cassetto-previdenziale-del-contribuente.html"
+    kind: guidance
+    access: login-spid
+    api: "web UI only"
+    topics: [employer]
+    note: "Contribution position and virtual DM. Read by the human uploader only"
+  - id: inps-circ-55-2026-bonus-giovani
+    name: INPS, Circolare 55/2026 (bonus giovani)
+    url: "https://www.inps.it/it/it/inps-comunica/atti/circolari-messaggi-e-normativa/dettaglio.circolari-e-messaggi.2026.05.circolare-numero-55-del-14-05-2026_15258.html"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [employer]
+    note: "100% exemption for hiring under 35 in 2026. Applicant-independent guidance for the administration"
+  - id: inail-autoliquidazione
+    name: INAIL, Autoliquidazione (imprese con dipendenti)
+    url: "https://www.inail.it/portale/assicurazione/it/Datore-di-Lavoro/Impresa-con-dipendenti-industria-artigianato-terziario-altre-attivita/pagamento-premio-assicurativo-e-regolarita-impresa-con-dipendenti/autoliquidazione-impresa-con-dipendenti.html"
+    kind: guidance
+    access: login-spid
+    api: "none"
+    topics: [employer]
+    note: "Premium calculation and payment (16/2). Cite the INAIL operational guide for the cycle, not this page"
+  - id: inail-durc
+    name: INAIL, DURC per imprese con dipendenti
+    url: "https://www.inail.it/portale/assicurazione/it/Datore-di-Lavoro/Impresa-con-dipendenti-industria-artigianato-terziario-altre-attivita/pagamento-premio-assicurativo-e-regolarita-impresa-con-dipendenti/Durc-impresa-con-dipendenti.html"
+    kind: guidance
+    access: login-spid
+    api: "Durc On Line, validity 120 days"
+    topics: [employer]
+    note: "Regularity certificate; requested with SPID/CIE/CNS, also from INPS"
+  - id: press-commercialista-telematico
+    name: Il Commercialista Telematico
+    url: "https://www.commercialistatelematico.com/"
+    kind: press
+    access: free
+    api: "RSS not verified; free news, paid subscriptions"
+    topics: [srl, startup, fotovoltaico, employer, forfettario]
+    note: "LEAD ONLY. Follow to the primary text (GU, AdE, INPS). Never cite as authority"
+  - id: press-fiscal-focus
+    name: Fiscal Focus
+    url: "https://www.fiscal-focus.it/"
+    kind: press
+    access: free
+    api: "none"
+    topics: [employer, forfettario]
+    note: "LEAD ONLY. Daily newsletter and deadline calendars. Never cite as authority"
+  - id: press-fisco-e-tasse
+    name: Fisco e Tasse
+    url: "https://www.fiscoetasse.com/"
+    kind: press
+    access: free
+    api: "none"
+    topics: [srl, employer]
+    note: "LEAD ONLY. Articles and a public forum, which is not a source. Never cite as authority"
+  - id: press-eutekne
+    name: Eutekne (Il Quotidiano del Commercialista)
+    url: "https://www.eutekne.info/"
+    kind: press
+    access: paid
+    api: "none; free newsletter, Sistema Integrato paid"
+    topics: [srl, employer]
+    note: "LEAD ONLY. Trade press. Never cite as authority"
+  - id: press-lefebvre-giuffre
+    name: Lefebvre Giuffrè (QuotidianoPiù)
+    url: "https://www.lefebvregiuffre.it/"
+    kind: press
+    access: paid
+    api: "none; QuotidianoPiù free registration"
+    topics: [srl, startup, employer]
+    note: "LEAD ONLY. Editorial product; the Memento commentary is not a primary text. Never cite as authority"
+  - id: press-altalex
+    name: Altalex (Wolters Kluwer)
+    url: "https://www.altalex.com/"
+    kind: press
+    access: free
+    api: "none"
+    topics: [srl]
+    note: "LEAD ONLY. Legal daily aimed at lawyers. Never cite as authority"
+  - id: press-sole-24-ore-nt-plus-fisco
+    name: Il Sole 24 Ore, NT+ Fisco
+    url: "https://ntplusfisco.ilsole24ore.com/"
+    kind: press
+    access: paid
+    api: "none; free articles, subscriptions"
+    topics: [srl, startup, fotovoltaico, employer, forfettario]
+    note: "LEAD ONLY. Fiscal trade press; the fattura XML specs it reports must be checked on fatturapa.gov.it. Never cite as authority"
+  - id: press-fisco-oggi
+    name: FiscoOggi (rivista dell'Agenzia delle Entrate)
+    url: "https://www.fiscooggi.it/portale/home"
+    kind: press
+    access: free
+    api: "none"
+    topics: [all]
+    note: "LEAD ONLY. Agency magazine: a plain-language reading, no legal weight. Cite the underlying circolare or risposta"
