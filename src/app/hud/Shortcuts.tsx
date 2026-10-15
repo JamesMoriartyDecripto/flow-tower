@@ -48,27 +48,30 @@ export const GROUPS: [string, [string, string][]][] = [
 export function Shortcuts() {
   const help = usePrefs((s) => s.help);
   const panel = useRef<HTMLDivElement>(null);
-  // Focus on the panel itself: ↑ ↓ PageDown scroll it on short screens.
-  useDialogFocus(panel, help);
+  // Focus on the scroller inside the panel: keys scroll the element that has the focus, and the panel
+  // itself does not scroll (its corners sit on it).
+  useDialogFocus(panel, help, '.panel-scroll');
   if (!help) return null;
   const close = () => usePrefs.getState().set({ help: false });
   return (
     <div className="overlay" onClick={close}>
       <div className="panel shortcuts" ref={panel} role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" tabIndex={-1} onClick={(e) => e.stopPropagation()}>
-        <header>
-          <div className="title">Keyboard</div>
-          <button className="close" onClick={close} title="Close (Esc or ?)">✕</button>
-        </header>
-        <div className="keys">
-          {/* Voice and the Hub panel need a server: the static demo lists neither. */}
-          {GROUPS.map(([title, all]) => [title, all.filter(([k]) => !STATIC || (k !== 'V' && k !== 'H'))] as const).map(([title, keys]) => (
-            <section key={title}>
-              <h3>{title}</h3>
-              <dl>
-                {keys.map(([k, what]) => <div key={k}><dt><kbd>{k}</kbd></dt><dd>{what}</dd></div>)}
-              </dl>
-            </section>
-          ))}
+        <div className="panel-scroll" tabIndex={-1}>
+          <header>
+            <div className="title">Keyboard</div>
+            <button className="close" onClick={close} title="Close (Esc or ?)">✕</button>
+          </header>
+          <div className="keys">
+            {/* Voice and the Hub panel need a server: the static demo lists neither. */}
+            {GROUPS.map(([title, all]) => [title, all.filter(([k]) => !STATIC || (k !== 'V' && k !== 'H'))] as const).map(([title, keys]) => (
+              <section key={title}>
+                <h3>{title}</h3>
+                <dl>
+                  {keys.map(([k, what]) => <div key={k}><dt><kbd>{k}</kbd></dt><dd>{what}</dd></div>)}
+                </dl>
+              </section>
+            ))}
+          </div>
         </div>
       </div>
     </div>

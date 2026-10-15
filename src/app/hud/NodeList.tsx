@@ -18,31 +18,33 @@ export function NodeList() {
   const nodes = flowOrder(tower.id, layer);
   return (
     <aside className="panel nodelist" aria-label={`Nodes of ${layer.title}`}>
-      <div className="title">
-        <span className="idx">L{String(layer.index + 1).padStart(2, '0')}</span> {layer.title}
-        <span className="count">{layer.nodes.length}</span>
+      <div className="panel-scroll">
+        <div className="title">
+          <span className="idx">L{String(layer.index + 1).padStart(2, '0')}</span> {layer.title}
+          <span className="count">{layer.nodes.length}</span>
+        </div>
+        {layer.description && <p className="nodelist-desc">{layer.description}</p>}
+        {nodes.map((n) => {
+          const live = states.get(n.key);
+          return (
+            <button
+              key={n.key}
+              className={`${hovered === n.key ? 'hot' : ''} ${hiddenTypes.has(n.type) ? 'muted' : ''} ${n.status !== 'active' ? 'status' : ''}`}
+              onClick={() => select(n.key)}
+              onMouseEnter={() => hover(n.key)}
+              onMouseLeave={() => hover(undefined)}
+              onFocus={() => hover(n.key)}
+              onBlur={() => hover(undefined)}
+              title={`${n.label}${n.status !== 'active' ? ` (${n.status})` : ''}${n.description ? ` — ${n.description}` : ''}`}
+            >
+              <span className="tag">{NODE_STYLE[n.type].tag}</span>
+              <span className="name">{n.label}</span>
+              {n.tower && <span className="sub" title="Opens a sub-tower">⇣</span>}
+              {live && <span className={`live-dot ${live}`} />}
+            </button>
+          );
+        })}
       </div>
-      {layer.description && <p className="nodelist-desc">{layer.description}</p>}
-      {nodes.map((n) => {
-        const live = states.get(n.key);
-        return (
-          <button
-            key={n.key}
-            className={`${hovered === n.key ? 'hot' : ''} ${hiddenTypes.has(n.type) ? 'muted' : ''} ${n.status !== 'active' ? 'status' : ''}`}
-            onClick={() => select(n.key)}
-            onMouseEnter={() => hover(n.key)}
-            onMouseLeave={() => hover(undefined)}
-            onFocus={() => hover(n.key)}
-            onBlur={() => hover(undefined)}
-            title={`${n.label}${n.status !== 'active' ? ` (${n.status})` : ''}${n.description ? ` — ${n.description}` : ''}`}
-          >
-            <span className="tag">{NODE_STYLE[n.type].tag}</span>
-            <span className="name">{n.label}</span>
-            {n.tower && <span className="sub" title="Opens a sub-tower">⇣</span>}
-            {live && <span className={`live-dot ${live}`} />}
-          </button>
-        );
-      })}
     </aside>
   );
 }

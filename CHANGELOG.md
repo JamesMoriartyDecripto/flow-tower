@@ -32,6 +32,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Hub › Machines shows one row for a sender id that was revoked and added again, instead of two rows with the same data (#211).
 - Without a GPU (software WebGL such as SwiftShader) the 3D view starts in eco quality: post-processing drew a dark rectangle over part of the tower there, and it is the slowest path anyway; a quality set in the URL or in Settings still wins (#211). The automatic pick is not saved as a preference, so a browser that gets a GPU later starts in balanced again.
 - `npm run simulate` prints where it sends (the URL and why: `--url`, the running library, or the default port) and says so instead of a stack trace when nothing answers there (#211).
+- The white corner marks of the node list, the layer list, the legend, the validation panel and the shortcuts dialog stay on the panel's frame: these panels now scroll an inner element, so the corners no longer scroll away with the rows.
 
 ## [0.10.0] - 2026-10-13
 

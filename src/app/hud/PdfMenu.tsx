@@ -37,15 +37,17 @@ export function PdfMenu() {
   return (
     <div className="overlay" onClick={close}>
       <div className="panel shortcuts" ref={panel} role="dialog" aria-modal="true" aria-label="Documentation as PDF" tabIndex={-1} onClick={(e) => e.stopPropagation()}>
-        <header>
-          <div className="title">Documentation as PDF</div>
-          <button className="close" onClick={close} title="Close (Esc or D)">✕</button>
-        </header>
-        <div className="pdf-menu-list">
-          {LEVELS.map(([level, label]) => (
-            <button key={level} className="btn" onClick={() => pick(level)}>{label}</button>
-          ))}
-          {projectCount > 1 && <button className="btn" onClick={() => pick(4)}>{LIBRARY_ENTRY}</button>}
+        <div className="panel-scroll">
+          <header>
+            <div className="title">Documentation as PDF</div>
+            <button className="close" onClick={close} title="Close (Esc or D)">✕</button>
+          </header>
+          <div className="pdf-menu-list">
+            {LEVELS.map(([level, label]) => (
+              <button key={level} className="btn" onClick={() => pick(level)}>{label}</button>
+            ))}
+            {projectCount > 1 && <button className="btn" onClick={() => pick(4)}>{LIBRARY_ENTRY}</button>}
+          </div>
         </div>
       </div>
     </div>

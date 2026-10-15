@@ -80,7 +80,7 @@ input { font: inherit; color: inherit; }
 .issues-btn .warn { color: var(--warn); border-color: rgba(255, 209, 102, .4); }
 
 /* Left nav */
-.layernav { top: 80px; left: 14px; width: 240px; max-height: calc(100% - 300px); overflow: auto; padding: 14px 10px 10px; }
+.layernav { top: 80px; left: 14px; width: 240px; max-height: calc(100% - 300px); display: flex; flex-direction: column; overflow: hidden; }
 .layernav .title { padding: 0 6px 10px; }
 .layernav button { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; width: 100%; padding: 6px; text-align: left; border-left: 2px solid transparent; }
 .layernav button:hover { background: color-mix(in srgb, var(--orange) 8%, transparent); }
@@ -90,7 +90,7 @@ input { font: inherit; color: inherit; }
 .layernav .count { font: 11px var(--mono); color: var(--dim); }
 
 /* Legend */
-.legend { left: 14px; bottom: 14px; width: 240px; padding: 12px; max-height: 280px; overflow: auto; }
+.legend { left: 14px; bottom: 14px; width: 240px; max-height: 280px; display: flex; flex-direction: column; overflow: hidden; }
 .legend .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px; margin: 8px 0 10px; }
 .legend button { display: flex; gap: 6px; align-items: center; font: 600 12px var(--ui); letter-spacing: 0.04em; text-align: left; }
 .legend button.off { opacity: .3; text-decoration: line-through; }
@@ -155,7 +155,7 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .viewer footer { display: flex; justify-content: space-between; padding: 8px 18px; border-top: 1px solid var(--line-soft); font: 11px var(--mono); color: var(--dim); }
 
 /* Issues */
-.issues { top: 80px; right: 14px; width: 460px; max-height: calc(60 * var(--vh)); overflow: auto; padding: 14px; z-index: 3; }
+.issues { top: 80px; right: 14px; width: 460px; max-height: calc(60 * var(--vh)); display: flex; flex-direction: column; overflow: hidden; z-index: 3; }
 .issue { display: grid; grid-template-columns: 64px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line-soft); font: 12px var(--mono); }
 .issue .lvl-error { color: var(--error); }
 .issue .lvl-warning { color: var(--warn); }
@@ -414,7 +414,7 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 
 /* Keyboard */
 :where(button, [role="button"], a, input, [tabindex]):focus-visible { outline: 1px solid var(--orange); outline-offset: 2px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange) 25%, transparent); }
-.shortcuts { width: min(1040px, calc(calc(100 * var(--vw)) - 32px)); max-height: calc(calc(100 * var(--vh)) - 80px); overflow: auto; padding: 18px 22px; }
+.shortcuts { width: min(1040px, calc(calc(100 * var(--vw)) - 32px)); max-height: calc(calc(100 * var(--vh)) - 80px); display: flex; flex-direction: column; overflow: hidden; }
 .shortcuts header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .shortcuts .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px 26px; }
 .shortcuts h3 { margin: 0 0 8px; font: 600 11px var(--display); letter-spacing: .16em; text-transform: uppercase; color: var(--orange); }
@@ -445,19 +445,14 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .eval .val.fail { color: var(--live-error); }
 .conn .proto { font: 9px var(--mono); color: var(--live-run); border: 1px solid color-mix(in srgb, var(--live-run) 45%, transparent); padding: 0 4px; }
 
-/* Panels that scroll themselves: absolute ::before/::after corners would scroll with the content.
-   Draw the corners as the panel's own background instead (backgrounds stay fixed to the box). */
-.layernav, .legend, .issues, .shortcuts {
-  --corner: color-mix(in srgb, var(--white) 85%, transparent);
-  background:
-    linear-gradient(var(--corner), var(--corner)) top 3px right 3px / 14px 2px no-repeat,
-    linear-gradient(var(--corner), var(--corner)) top 3px right 3px / 2px 14px no-repeat,
-    linear-gradient(var(--corner), var(--corner)) bottom 3px left 3px / 14px 2px no-repeat,
-    linear-gradient(var(--corner), var(--corner)) bottom 3px left 3px / 2px 14px no-repeat,
-    var(--panel);
-}
-.layernav::before, .layernav::after, .legend::before, .legend::after,
-.issues::before, .issues::after, .shortcuts::before, .shortcuts::after { content: none; }
+/* The scroller inside the node list, layer list, legend, validation and shortcuts panels. An absolute
+   child of a scroll container scrolls with it, so the corners must sit on the .panel box, which does
+   not scroll: only this inner box scrolls, and it carries the padding the panel used to have. */
+.panel-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.nodelist > .panel-scroll, .layernav > .panel-scroll { padding: 14px 10px 10px; }
+.legend > .panel-scroll { padding: 12px; }
+.issues > .panel-scroll { padding: 14px; }
+.shortcuts > .panel-scroll { padding: 18px 22px; }
 
 /* Release audit (v0.1.0): layout edge cases, focus visibility, reduced motion */
 /* Issues and the live feed share the right edge: keep the issues list above the feed. */
@@ -542,7 +537,7 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
 .voice-close:hover { color: var(--white); }
 
 /* Nodes of the focused layer, in the inspector's place while nothing is selected. */
-.nodelist { top: 80px; right: 14px; width: 280px; max-height: calc(100% - 170px); overflow: auto; padding: 14px 10px 10px; animation: slidein .25s ease-out; }
+.nodelist { top: 80px; right: 14px; width: 280px; max-height: calc(100% - 170px); display: flex; flex-direction: column; overflow: hidden; animation: slidein .25s ease-out; }
 .nodelist .title { display: flex; align-items: baseline; gap: 6px; padding: 0 6px 6px; }
 .nodelist .title .idx { font: 600 11px var(--display); color: var(--orange); }
 .nodelist .title .count { margin-left: auto; font: 11px var(--mono); color: var(--dim); }
