@@ -1,0 +1,32 @@
+{
+  "_note": "fictional sample, illustrative figures",
+  "id": "client-sara-conti",
+  "name": "Sara Conti",
+  "legal_form": "professionista",
+  "activity": "freelance graphic designer",
+  "vat_number": "IT00000000000",
+  "tax_code": "CNTXXX00X00X000X",
+  "ateco_2025": "74.10.10",
+  "ateco_note": "Plausible code for graphic design; confirm against the registration",
+  "regime": "forfettario",
+  "inps_fund": "Gestione separata INPS",
+  "fiscal_year": "calendar year (1 Jan - 31 Dec)",
+  "startup_innovativa_registered": false,
+  "company_age_months": 60,
+  "employees": 0,
+  "pv_plant": null,
+  "invoices_source": "fatture-in-cloud",
+  "fic_company_id_placeholder": "fic-company-id",
+  "financials_illustrative": {
+    "fy": 2025,
+    "revenue_eur": 42000,
+    "costs_eur": 3500,
+    "currency": "EUR",
+    "note": "Forfettario check: revenue must be at most 85,000 EUR and staff costs at most 20,000 EUR"
+  },
+  "de_minimis_received": [],
+  "contact": {
+    "name": "Sara Example",
+    "email": "contact@example.invalid"
+  }
+}

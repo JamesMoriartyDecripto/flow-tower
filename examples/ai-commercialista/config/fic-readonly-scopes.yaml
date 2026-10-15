@@ -1,0 +1,54 @@
+# Fatture in Cloud API v2: OAuth scopes for the read-only identity of the commercialista AI.
+# Scope names from research/data-sources.md (from https://developers.fattureincloud.it/docs/basics/scopes/).
+# Every scope here is ":r" (read). This identity never creates, edits or sends anything.
+# Flow: OAuth 2.0 authorization code, https://api-v2.fattureincloud.it/oauth/authorize -> /oauth/token.
+# Access token 24h, refresh token 1 year from the last refresh: store the newest refresh_token every time.
+# Secrets live in Secret Manager under the placeholder names below; never in this repo or in agent context.
+
+app:
+  name: ai-commercialista-reader        # private app, placeholder: "Example S.r.l." (fictional)
+  company_id_secret: fic-company-id
+  client_id_secret: fic-oauth-client-id
+  client_secret_secret: fic-oauth-client-secret
+  refresh_token_secret: fic-oauth-refresh-token
+  redirect_uri: https://ai-commercialista.example/oauth/callback
+
+identities:
+  reader:        # the only identity of this example: read-only lookups for the data and profile steps
+    used_by: [data.fic, profile.build, deadline.sweep]
+    scopes:
+      - issued_documents.invoices:r   # sales invoices, with SDI XML (e_invoice/xml)
+      - received_documents:r          # purchase invoices, read only
+      - receipts:r                    # corrispettivi
+      - taxes:r                       # F24 records, read only
+      - cashbook:r                    # prima nota (cash movements)
+      - settings:r                    # tax profile and VAT types
+      - entity.clients:r
+      - entity.suppliers:r
+
+never_granted:
+  - issued_documents.invoices:a       # the agent does not issue or edit invoices
+  - issued_documents.credit_notes:a
+  - received_documents:a              # no agent edits supplier invoices
+  - receipts:a
+  - taxes:a                           # F24 stays with the commercialista
+  - cashbook:a
+  - settings:a
+  - entity.clients:a
+  - entity.suppliers:a
+  - archive:a
+
+# What the API does NOT have, so the agent must not look for it here:
+#   - general ledger (libro giornale), chart of accounts (piano dei conti)
+#   - bilancio di verifica (trial balance)
+#   - cespiti (fixed-asset register)
+#   - payroll (cedolini, UniEmens data)
+# The `cashbook` resource is a cash-movement prima nota, not a general ledger.
+# Alternative input for those items: the monthly accountant export of examples/invoicing-fic
+# (reporting/accountant-export-spec.md there), or the studio software export made by the
+# commercialista (TeamSystem Studio AI has no public API; see research notes).
+
+notes:
+  - A sub-user with the right scopes can still get 403 if the company admin has not granted the same permissions in the app.
+  - Scope names are as listed in research/data-sources.md. Check them against the live scope page before first use.
+  - No community MCP server is used for this identity. Build a thin in-house reader over the official SDK.
