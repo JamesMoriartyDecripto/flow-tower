@@ -179,6 +179,8 @@ layers:
 | `id` | Unique within the layer. Globally addressed as `layer.node`. |
 | `type` | `entry` `output` `agent` `process` `decision` `tool` `model` `memory` `human` `guard` `hook`. Defaults to `agent` when `agent` is set, else `process`. |
 | `label` | Short display name: at most 18 characters, 13 on a node with `tower` (longer ones are cut, and `validate` warns). Defaults to the agent name or the id. |
+| `description` (node) | At most 400 characters; the first sentence says what the node does, details go in its files or notes. `validate` warns above 400. |
+| `description` (layer) | At most 300 characters: a sentence or two on why the layer exists. `validate` warns above 300. |
 | `description` | Long text, shown in the inspector. |
 | `agent` | Reference to the `agents` registry. The node inherits model, prompt, tools, files and tower. |
 | `runtime` | Reference to `runtimes`. Inherited from the agent. |

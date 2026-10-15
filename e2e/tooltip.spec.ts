@@ -1,4 +1,4 @@
-import { expect, openProject, test, ws } from './fixtures.ts';
+import { expect, openProject, test, type Workspace, ws } from './fixtures.ts';
 
 // Dev-only hook from src/app/mountApp.tsx, declared once here so the evaluate callback can stay plain JavaScript.
 declare global {
@@ -16,6 +16,15 @@ const ID = ws.projects.find((p) => p.startsWith('voice-commands/'))!;
 test.use({ viewport: { width: 1440, height: 800 } });
 
 test('tooltip: a long node description stays inside the window', async ({ page }) => {
+  // The shipped description is short now (validate caps it), so the long text is injected here: the tooltip
+  // must still be checked against a description that actually overflows.
+  await page.route('**/api/workspace', async (route) => {
+    const res = await route.fetch();
+    const ws = (await res.json()) as Workspace;
+    const node = ws.towers[ID].layers[3].nodes.find((n) => n.label === 'Spoken reply')!;
+    node.description = 'A long node description that must stay inside the window. '.repeat(20);
+    await route.fulfill({ response: res, json: ws });
+  });
   await openProject(page, ID);
   // Focusing a layer opens its node list on the right, the same way the keyboard does.
   await page.evaluate(() => window.__flowTower.store.getState().focusLayer(3));

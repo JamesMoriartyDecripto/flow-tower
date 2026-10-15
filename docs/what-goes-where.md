@@ -20,7 +20,7 @@ A layer is a **stage of the run** (intake, orchestration, specialists, quality) 
 - **3 to 10 nodes per layer.** Fewer than 3: merge it into a neighbour. More than ~12: split it by stage, or move a self-contained part into a nested tower.
 - **One concern per layer.** "Review and deploy" is two layers if each has its own steps.
 - **Keep only layers with real content.** No empty "Models" layer for a system that calls one model from one place: put the model on the agent.
-- The title says what happens there (`Quality Loop`, `Tools & MCP`), the `description` says why it exists.
+- The title says what happens there (`Quality Loop`, `Tools & MCP`), the `description` says why it exists. Keep it to a sentence or two (at most 300 characters; validate warns above).
 
 ## Nodes
 
@@ -49,6 +49,7 @@ What belongs **on** a node (not in a separate node):
 - **`resources`** logs, scripts and dashboards for this step.
 - **Operations** (`trigger`, `approval`, `budget`, `limits`, `fanout`, `data`, `evals`, `sla`, `sandbox`…) only when config or code shows them. They describe *this node*. Run-wide budgets go at the top level of the tower.
 - **`label`** at most 18 characters (13 on a node that opens a nested tower: the badge takes the rest); `validate` warns above that. Details go in `description`.
+- **`description`** at most 400 characters. The first sentence says what the node does; then only what a reader of the tower needs: its role in the flow, key limits, the reason for a non-obvious choice. Implementation detail stays in the files it lists. `validate` warns above 400.
 
 ## Edges and links
 
