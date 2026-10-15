@@ -1,6 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { placeTip, TIP_MARGIN, type Box, type Placement } from './tipPlacement';
 
 const DELAY_MS = 350;
+// Longer texts get the wider column (see .hud-tip.long), so a long description is not a narrow strip.
+const LONG_TEXT = 280;
+
+/** The tip is zoomed with the HUD (--ui-scale): its left/top/arrow are in zoomed pixels. */
+const uiScale = () => Number(getComputedStyle(document.documentElement).getPropertyValue('--ui-scale')) || 1;
+
+type Placed = Placement & { capped: boolean };
 
 /**
  * One HUD-styled tooltip for the whole app. Any element with a `title` gets it: on hover the title
@@ -8,9 +16,30 @@ const DELAY_MS = 350;
  * short delay. Disabled elements keep their native title (browsers send them no mouse events).
  */
 export function Tooltip() {
-  const [tip, setTip] = useState<{ text: string; x: number; y: number; above: boolean }>();
+  const [tip, setTip] = useState<{ text: string; anchor: Box; placed?: Placed }>();
   const timer = useRef<number>(undefined);
   const anchor = useRef<HTMLElement | null>(null);
+  const tipEl = useRef<HTMLDivElement>(null);
+
+  // The tip is first drawn hidden at its natural size, measured, and only then placed: a guessed
+  // position would show it cut off for a frame. Layout effects run before paint, so the user never sees that.
+  useLayoutEffect(() => {
+    const el = tipEl.current;
+    if (!tip || tip.placed || !el) return;
+    const r = el.getBoundingClientRect();
+    const view = { w: window.innerWidth, h: window.innerHeight };
+    const p = placeTip(tip.anchor, { w: r.width, h: r.height }, view);
+    const k = uiScale();
+    // Taller than the window even after widening: CSS caps it, so the tip must stay inside the cap.
+    const placed: Placed = {
+      left: p.left / k,
+      top: p.top / k,
+      side: p.side,
+      arrow: p.arrow / k,
+      capped: r.height > view.h - 2 * TIP_MARGIN,
+    };
+    setTip((t) => (t && !t.placed ? { ...t, placed } : t));
+  }, [tip]);
 
   useEffect(() => {
     const show = (e: Event) => {
@@ -33,11 +62,7 @@ export function Tooltip() {
         anchor.current = el;
         watchdog ??= window.setInterval(check, 250);
         const r = el.getBoundingClientRect();
-        const above = r.bottom + 60 > window.innerHeight;
-        // The tip is zoomed with the HUD (--ui-scale): its left/top are in zoomed pixels.
-        const k = Number(getComputedStyle(document.documentElement).getPropertyValue('--ui-scale')) || 1;
-        const x = Math.min(Math.max(r.left + r.width / 2, 160), window.innerWidth - 160);
-        setTip({ text, x: x / k, y: (above ? r.top - 8 : r.bottom + 8) / k, above });
+        setTip({ text, anchor: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } });
       }, DELAY_MS);
     };
     const hide = (e: MouseEvent) => {
@@ -79,8 +104,19 @@ export function Tooltip() {
   }, []);
 
   if (!tip) return null;
+  const p = tip.placed;
+  const classes = ['hud-tip'];
+  if (p) classes.push(p.side);
+  if (tip.text.length > LONG_TEXT) classes.push('long');
+  if (p?.capped) classes.push('capped');
+  const style = {
+    left: p?.left ?? 0,
+    top: p?.top ?? 0,
+    '--arrow': `${p?.arrow ?? 0}px`,
+    visibility: p ? undefined : 'hidden',
+  } as CSSProperties;
   return (
-    <div className={`hud-tip ${tip.above ? 'above' : ''}`} style={{ left: tip.x, top: tip.y }} role="tooltip">
+    <div ref={tipEl} className={classes.join(' ')} style={style} role="tooltip">
       {tip.text}
     </div>
   );
