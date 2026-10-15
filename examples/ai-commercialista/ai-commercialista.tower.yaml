@@ -1,0 +1,404 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+# AI Commercialista (Italy): an AI accountant for Italian companies. It answers tax and accounting
+# questions and reviews accounts for legitimate savings, citing every statement to a stored source.
+# A commercialista signs every answer. Facts come only from the research notes; client names are fictional.
+version: 1
+name: AI Commercialista (Italy)
+description: >-
+  Tax and accounting answers for Italian companies, with a citation on every statement. A question or
+  a deadline enters through the engagement guard (AI clause, no opt-out, customer due diligence), the
+  period is fixed so the right law version applies, and company data is pseudonymized before any model
+  call. Research retrieves only stored sources; a scanner checks each savings lever per profile; code
+  computes the numbers; a risk label flags abuse of law. A verification loop checks quotes, the law in
+  force and the cited claim before a memo reaches a commercialista, who edits and signs it. Filing,
+  visto di conformita and any suspicious-transaction matter stay with people. Sample clients are
+  fictional: Lumen Grid S.r.l. (Padova) and Sara Conti (forfettario).
+budget: { usd: 400, per: month, for: model, on_exceed: pause, description: "Illustrative monthly cap for the whole system, not a measured figure. Over the cap, new runs pause for the professional to decide." }
+tags: [italy, tax, accounting, commercialista, citations, fatture-in-cloud, teamsystem, human-in-the-loop]
+
+runtimes:
+  workers:
+    kind: container
+    label: Tower workers
+    description: Node scripts (no dependencies), the redaction step and the audit writer. Holds no client credentials beyond the read-only Fatture in Cloud scopes.
+    provider: google-cloud-run
+    region: europe-west8
+  anthropic:
+    kind: cloud
+    label: Claude API
+    provider: anthropic
+    url: https://api.anthropic.com
+  fic:
+    kind: saas
+    label: Fatture in Cloud
+    description: "Read-only scopes only (config/fic-readonly-scopes.yaml). The agent never writes to the client's invoicing account."
+    provider: teamsystem
+    url: https://developers.fattureincloud.it
+  normattiva:
+    kind: saas
+    label: Normattiva / GU
+    description: Open data and official texts. Gazzetta Ufficiale is the only official source; Normattiva is not official.
+    provider: poligrafico
+    url: https://www.normattiva.it
+  ledger:
+    kind: cloud
+    label: Client file (EU)
+    description: Client profiles, memos, approvals and the append-only audit log. Retention 10 years.
+    provider: eu-hosted
+    region: europe-west8
+
+prompts:
+  triage: { file: prompts/triage.md, description: "Sorts a request into a question, an optimization review or a deadline action." }
+  researcher: { file: prompts/researcher.md, description: "Answers only from retrieved sources, through the citations API. No source, no claim." }
+  scanner: { file: prompts/scanner.md, description: "Judges one savings lever for one profile: eligible, not eligible or needs data." }
+  risk: { file: prompts/risk.md, description: "Labels each proposal green, amber or red under art. 10-bis L. 212/2000, and flags DAC6 cases." }
+  drafter: { file: prompts/drafter.md, description: "Writes the memo draft, every claim with its citation, the risk labels and the open points." }
+  support: { file: prompts/support.md, description: "Checks whether the cited text supports each claim. A different model from the drafter." }
+
+agents:
+  triage:
+    name: Request triage
+    description: Classifies the request and fixes the intent. Reads no client data beyond the redacted profile.
+    model: claude-haiku-5-5
+    prompt: triage
+    runtime: anthropic
+    tools: [read_profile]
+    budget: { usd: 0.05, turns: 6, on_exceed: stop }
+    data: { sensitivity: pii, region: eu, retention: 10y }
+  researcher:
+    name: Source researcher
+    description: Answers from retrieved sources only, through the Anthropic Citations API (search_result blocks with citations on).
+    model: claude-sonnet-5-5
+    prompt: researcher
+    runtime: anthropic
+    tools: [search_library, get_article]
+    harness: { max_turns: 12, permission_mode: default }
+    budget: { usd: 0.3, turns: 12, on_exceed: stop }
+    data: { sensitivity: confidential, region: eu, retention: 10y }
+  scanner:
+    name: Lever scanner
+    description: One instance per lever. Judges eligibility against the profile and cites the lever's legal source.
+    model: claude-sonnet-5-5
+    prompt: scanner
+    runtime: anthropic
+    tools: [search_library, get_article]
+    budget: { usd: 0.1, turns: 8, on_exceed: stop }
+    data: { sensitivity: confidential, region: eu, retention: 10y }
+  risk:
+    name: Abuse-of-law labeller
+    description: Structured output only. A separate call from the researcher, since Citations cannot be combined with structured outputs.
+    model: claude-haiku-5-5
+    prompt: risk
+    runtime: anthropic
+    harness: { max_turns: 4, output: json_schema }
+    budget: { usd: 0.03, turns: 4, on_exceed: stop }
+    data: { sensitivity: confidential, region: eu, retention: 10y }
+  drafter:
+    name: Memo drafter
+    description: Drafts the memo with a citation on every claim. Cannot mark a claim as verified; the verify layer does that.
+    model: claude-sonnet-5-5
+    prompt: drafter
+    runtime: anthropic
+    harness: { max_turns: 8, output: json_schema }
+    budget: { usd: 0.2, turns: 8, on_exceed: stop }
+    data: { sensitivity: confidential, region: eu, retention: 10y }
+  support:
+    name: Support checker
+    description: Opus reviews whether each cited span supports its claim. Deliberately a different model from the drafter.
+    model: claude-opus-5-5
+    prompt: support
+    runtime: anthropic
+    harness: { max_turns: 6, output: json_schema }
+    budget: { usd: 0.4, turns: 6, on_exceed: downgrade }
+    data: { sensitivity: confidential, region: eu, retention: 10y }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: intake
+    title: Intake & Engagement
+    description: Nothing is answered before the engagement guard passes. A missing mandate, an AI opt-out or an AML flag goes to a human and never to the model.
+    nodes:
+      - id: question
+        type: entry
+        label: Client question
+        description: A question by chat or email from the client, or from the professional on the client's behalf.
+        trigger: { kind: chat, source: client portal and studio email }
+        files: [data/lumen-grid.json, data/sara-conti.json]
+      - id: sweep
+        type: entry
+        label: Deadline sweep
+        description: Daily scan of the 2026 deadline calendar. Each due item opens a deadline action for the professional.
+        trigger: { kind: cron, schedule: "0 7 * * *", timezone: Europe/Rome, source: scheduler }
+        files: [config/deadlines-2026.yaml]
+      - id: engagement
+        type: guard
+        label: Engagement guard
+        description: "Mandate signed and carrying the AI clause (art. 13 L. 132/2025), no AI opt-out, customer due diligence on file (D.Lgs. 231/2007). Fails closed: any missing item stops the run."
+        decision: { output: binary, candidates: [pass, stop], fail: closed }
+        files: [policies/engagement.yaml]
+      - id: triage
+        agent: triage
+        label: Request triage
+        files: [prompts/triage.md, config/profiles.yaml]
+      - id: period
+        type: process
+        label: Tax period
+        description: Fixes the tax period and regime, so the right law version applies. Up to 2026 the current texts (TUIR, DPR 633/1972); from 1/1/2027 the testi unici.
+        files: [scripts/tax_period.mjs, config/article-map-2027.yaml]
+      - id: human_only
+        type: output
+        label: Human only
+        description: Used when there is no mandate, the client opted out of AI, or an AML flag is raised. The system never tells the client about a suspicious-transaction report (art. 39 D.Lgs. 231/2007).
+        files: [policies/engagement.yaml]
+    edges:
+      - question -> engagement
+      - sweep -> engagement
+      - "engagement -> triage: pass"
+      - "engagement -> human_only [handoff]: no mandate, opt-out or AML flag"
+      - "triage -> period: question or review"
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: data
+    title: Company Data
+    description: Company data comes from read-only sources and is pseudonymized before any model sees it. The agent never logs in to a portal.
+    nodes:
+      - id: fic
+        type: tool
+        label: Fatture in Cloud
+        description: Fatture in Cloud API v2 with read-only scopes only (issued and received documents, taxes, cashbook, settings, clients, suppliers). No ledger, trial balance, fixed assets or payroll.
+        runtime: fic
+        credentials: service
+        files: [config/fic-readonly-scopes.yaml]
+        data: { sensitivity: confidential, region: eu, retention: 10y }
+      - id: uploads
+        type: human
+        label: Studio uploads
+        description: The professional uploads exports from the studio software (trial balance, fixed assets, payroll) and from the cassetto fiscale. The agent never logs in to the delega unica portal.
+        files: [data/lumen-grid.json]
+      - id: registry
+        type: tool
+        label: Registro Imprese
+        description: Filed financial statements (XBRL, paid through Telemaco) and the RNA state-aid register for de minimis received under Reg. UE 2023/2831.
+        runtime: workers
+        files: [research/data-sources.md]
+      - id: profile
+        type: process
+        label: Company profile
+        description: Builds the company profile and the profiles that apply (srl, startup, startup-innovativa, fotovoltaico, employer, forfettario).
+        files: [scripts/build_profile.mjs, config/profiles.yaml, data/lumen-grid.json]
+      - id: redact
+        type: guard
+        label: Redact PII
+        description: Pseudonymizes personal data before anything reaches a model. No codice fiscale, IBAN or name goes into a prompt (CNDCEC guide; GDPR).
+        runtime: workers
+        files: [scripts/redact.mjs]
+        data: { sensitivity: pii, region: eu, retention: none, description: Held in memory only; the pseudonym map never leaves the workers. }
+    edges:
+      - "fic -> profile [data]: documents, taxes, clients"
+      - "uploads -> profile [data]: trial balance, fixed assets, payroll"
+      - "registry -> profile [data]: financials, de minimis"
+      - "profile -> redact: company profile"
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: sources
+    title: Sources
+    description: Every source has a kind and a weight. Only law is binding; press is a lead and is never cited as authority.
+    nodes:
+      - id: registry
+        type: memory
+        label: Source registry
+        description: Each source with its kind (law, practice, case-law, standard, guidance, press) and its weight. Gazzetta Ufficiale is the only official text.
+        files: [config/source-registry.yaml]
+      - id: sync
+        type: process
+        label: Source sync
+        description: Daily sync of the source library. Opens the sub-tower that fetches Normattiva, Gazzetta Ufficiale and the Agenzia Entrate feed.
+        tower: towers/sources.tower.yaml
+        trigger: { kind: cron, schedule: "0 5 * * *", timezone: Europe/Rome, source: scheduler }
+        files: [scripts/normattiva.mjs, scripts/prassi_rss.mjs]
+      - id: library
+        type: memory
+        label: Source library
+        description: One record per article or document, with in_force_from and in_force_to, the URN or ELI, the retrieval date and a hash.
+        files: [config/source-registry.yaml, config/article-map-2027.yaml]
+        data: { sensitivity: internal, region: eu, retention: 10y }
+      - id: article_map
+        type: memory
+        label: Article map 2027
+        description: Old-to-new article map for the testi unici from 1/1/2027. Official tables are not yet published, so only mappings stated in the notes appear.
+        files: [config/article-map-2027.yaml]
+    edges:
+      - "sync -> library [data]: library updated"
+      - "registry -> sync [data]: sources and weights"
+      - "article_map -> library [data]: renumbering"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: analysis
+    title: Research & Analysis
+    description: The researcher answers from retrieved text only. The scanner fans out one copy per lever, and code computes every number.
+    nodes:
+      - id: researcher
+        agent: researcher
+        label: Source researcher
+        description: Retrieves articles from the library and answers with citations. No source, no claim.
+        files: [prompts/researcher.md, research/primary-sources.md]
+      - id: scanner
+        agent: scanner
+        label: Lever scanner
+        fanout: { min: 1, max: 40, by: savings lever }
+        description: One copy per lever in config/levers-2026.yaml that the profiles touch. Each returns eligible, not eligible or needs data, with the lever's legal source.
+        files: [config/levers-2026.yaml, research/levers-2026.md]
+      - id: calc
+        type: process
+        label: Calculator
+        description: Numbers come from code, never from the model. Covers the iperammortamento brackets, super-deduzione 120% and 130%, and the forfettario versus ordinary regime comparison.
+        files: [scripts/levers_calc.mjs]
+      - id: drafter
+        agent: drafter
+        label: Memo drafter
+        description: Writes the memo draft with a citation on every claim, the risk labels and the open points. Re-runs from the verify gate, at most twice.
+        files: [prompts/drafter.md, templates/memo-template.md]
+      - id: risk
+        agent: risk
+        label: Abuse-of-law check
+        description: Labels each proposal green, amber or red under art. 10-bis L. 212/2000, and flags DAC6 for cross-border arrangements. Red suggests an interpello.
+        files: [research/practices.md]
+    edges:
+      - "researcher -> scanner [spawn]: lever list"
+      - "scanner -> calc [call]: eligible levers"
+      - "calc -> risk: proposals with numbers"
+      - "risk -> drafter: risk labels"
+      - "researcher -> drafter [data]: cited spans"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: verify
+    title: Verification
+    description: Three checks and a gate. A claim that fails any of them is never shown as settled; the gate sends it back once, then refuses.
+    nodes:
+      - id: quotes
+        type: guard
+        label: Quote check
+        description: Each cited span must exist verbatim in the stored source.
+        runtime: workers
+        files: [scripts/check_citations.mjs]
+        resources:
+          - { kind: log, label: Verification log, path: logs/verification.log }
+      - id: in_force
+        type: guard
+        label: In-force check
+        description: Each cited article must have been in force in the tax period. Flags articles renumbered by the testi unici and any press source used as authority.
+        runtime: workers
+        files: [scripts/check_in_force.mjs]
+      - id: support
+        agent: support
+        label: Support check
+        description: Does the cited text support the claim? Opus, a different model from the drafter.
+        files: [prompts/support.md, scripts/check_citations.mjs]
+      - id: gate
+        type: decision
+        label: Gate
+        description: Pass, retry (max 2, back to the drafter), or refuse. A refusal goes out as a no-source answer.
+        decision: { output: choice, candidates: [pass, retry, refuse], fail: closed }
+        limits: { max_iterations: 2 }
+        files: [logs/verification.log, scripts/check_in_force.mjs]
+      - id: no_source
+        type: output
+        label: No sourced answer
+        description: The memo says there is no sourced answer and suggests an interpello or research by the professional.
+        files: [templates/memo-template.md]
+    edges:
+      - "quotes -> in_force: verbatim spans"
+      - "in_force -> support: in-force claims"
+      - "support -> gate: verdicts"
+      - "gate -> no_source: refuse"
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: deliver
+    title: Review & Delivery
+    description: The commercialista reviews, edits and signs. The professional's work prevails (art. 13 L. 132/2025), and filing stays with a person.
+    nodes:
+      - id: review
+        type: human
+        label: Commercialista
+        description: Reviews, edits and signs the memo. Nothing leaves the studio without a signature.
+        approval: { by: commercialista, via: studio portal, actions: [approve, edit, reject], timeout: 48h, on_timeout: escalate, per: memo }
+        sla: 48h
+        files: [policies/ai-disclosure-it.md, templates/memo-template.md]
+      - id: memo
+        type: output
+        label: Client memo
+        description: The client memo in Italian, with a sources table and the AI disclosure.
+        files: [templates/memo-template.md, policies/ai-disclosure-it.md, samples/memo-lumen-grid-2026-10.md]
+      - id: filing
+        type: human
+        label: Professional files
+        description: Returns and F24 are filed by the professional from the studio software via Entratel. Only an authorised intermediary affixes the visto di conformita (art. 35 D.Lgs. 241/1997). The agent never files or signs.
+        approval: { by: commercialista, via: studio software, actions: [approve, reject], per: filing }
+        files: [policies/engagement.yaml]
+      - id: interpello
+        type: output
+        label: Interpello draft
+        description: A draft interpello request for red-labelled cases. The professional files it.
+        files: [templates/memo-template.md]
+    edges:
+      - "review -> memo: signed"
+      - "review -> filing [handoff]: signed return"
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: memory
+    title: Memory & Audit
+    description: The client file and the audit trail are kept for ten years. The evals run weekly against illustrative targets.
+    nodes:
+      - id: client_file
+        type: memory
+        label: Client file
+        description: Client profile, memos and approvals. Retention 10 years (D.Lgs. 231/2007 art. 31).
+        runtime: ledger
+        files: [data/lumen-grid.json, data/sara-conti.json]
+        data: { sensitivity: confidential, region: eu, retention: 10y, lawful_basis: legal_obligation }
+      - id: ai_register
+        type: memory
+        label: AI register
+        description: The register of AI systems used, as the CNDCEC guide asks, with the DPIA reference.
+        runtime: ledger
+        files: [policies/ai-disclosure-it.md]
+        data: { sensitivity: internal, region: eu, retention: 10y }
+      - id: audit
+        type: hook
+        label: Audit log
+        description: Append-only log of every prompt, retrieved source, check result and approver.
+        runtime: ledger
+        files: [logs/audit.log]
+        resources:
+          - { kind: log, label: Audit log, path: logs/audit.log }
+        data: { sensitivity: confidential, region: eu, retention: 10y }
+      - id: evals
+        type: process
+        label: Weekly evals
+        description: Runs the eval set weekly. Targets are illustrative until the studio sets its own acceptance thresholds.
+        files: [evals/questions.yaml]
+        evals:
+          - { name: citation accuracy, value: 0.93, target: 0.9, illustrative: true, description: "Share of statements whose citation supports the claim." }
+          - { name: in-force accuracy, value: 0.96, target: 0.95, illustrative: true, description: "Share of cited articles in force for the period." }
+    edges:
+      - "evals -> client_file [data]: scores"
+
+links:
+  # intake -> data -> analysis
+  - "intake.triage -> data.profile [data]: redacted profile"
+  - "intake.period -> sources.library [data]: law version"
+  - "data.redact -> analysis.researcher: redacted profile"
+  - "sources.library -> analysis.researcher [data]: retrieved articles"
+  - "sources.library -> analysis.scanner [data]: article lookup"
+  - "sources.registry -> analysis.researcher [data]: weight and kind"
+  # analysis -> verify -> deliver
+  - "analysis.drafter -> verify.quotes: draft and citations"
+  - "verify.gate -> analysis.drafter [return]: max 2"
+  - "verify.gate -> deliver.review: pass"
+  - "analysis.risk -> deliver.interpello: red label"
+  - "deliver.review -> memory.client_file [data]: signed memo"
+  # audit trail
+  - "analysis.researcher -> memory.audit [data]: retrieved sources"
+  - "verify.quotes -> memory.audit [data]: check results"
+  - "deliver.review -> memory.audit [data]: approver"
+  - "intake.engagement -> memory.audit [data]: guard result"
+  - "intake.engagement -> memory.ai_register [data]: AI clause on file"
+
