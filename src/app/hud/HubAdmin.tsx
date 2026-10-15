@@ -16,7 +16,7 @@ const RULES = ['silent', 'budget', 'error-spike', 'new-host', 'errors'];
 const OTHER_MACHINE_HINT = ' (or node <their checkout>/bin/flow-tower.js)';
 
 /** What the add-sender box shows once: the token and the connect line. Held only while the box is open. */
-interface Shown { id: string; token: string; configLine: string }
+interface Shown { id: string; token: string; configLine: string; urlConfigured: boolean }
 
 /**
  * The Admin tab (#93). Mounted by Hub.tsx only for a hub that is not a remote viewer, so no control here
@@ -76,15 +76,16 @@ function SendersSection({ senders, cadence, change }: { senders: AdminSender[]; 
     // The token comes back in the answer and is kept only in `shown`; nothing else in the panel stores it.
     const r = await change('POST', '/senders', { id: newId, cadence: newCadence });
     if (r.ok) {
-      const d = r.data as { token: string; configLine: string };
-      setShown({ id: newId, token: d.token, configLine: d.configLine });
+      const d = r.data as { token: string; configLine: string; urlConfigured: boolean };
+      setShown({ id: newId, token: d.token, configLine: d.configLine, urlConfigured: d.urlConfigured });
       setLastAdded(newId);
       setNewId('');
       setAdding(false);
     }
   };
 
-  const loopback = shown !== undefined && isLoopbackUrl(connectUrl(shown.configLine) ?? '');
+  // A url the operator configured is theirs to keep, even when it is loopback: the note only helps when none was set.
+  const loopback = shown !== undefined && !shown.urlConfigured && isLoopbackUrl(connectUrl(shown.configLine) ?? '');
 
   const closeShown = () => {
     setShown(undefined);

@@ -52,7 +52,8 @@ switch (cmd) {
     const cfg = loadConfig({ home }).config;
     const hubUrl = cfg.url ?? `http://127.0.0.1:${DEFAULT_PORT}`;
     console.log(`on the other machine: ${OTHER_MACHINE_CLI} connect ${hubUrl} --token ${token} --machine ${id}`);
-    if (isLoopbackUrl(hubUrl)) console.log('replace 127.0.0.1 with the address other machines use for this hub (its tailnet name)');
+    // Only when no url is configured: a loopback url set on purpose (one host, two senders) is already the right one.
+    if (cfg.url === undefined && isLoopbackUrl(hubUrl)) console.log('replace 127.0.0.1 with the address other machines use for this hub (its tailnet name)');
     audit('sender.add', id);
     break;
   }

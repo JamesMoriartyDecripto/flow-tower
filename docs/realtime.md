@@ -132,7 +132,7 @@ the last weeks looked like.
 
 **Where.** `<FLOW_TOWER_HOME or ~/.config/flow-tower>/history.db`, never in the repo, created owner-only
 (0600, WAL). It needs **Node ≥ 22.13** (built-in `node:sqlite`); on an older Node history is off with one
-message and the live view keeps working. `history.db` is in the same user folder as the token store, so a
+message and the live view keeps working. On Node 22 Node flags the SQLite module as experimental; Flow Tower hides that one warning, and Node 24 does not print it. `history.db` is in the same user folder as the token store, so a
 `FLOW_TOWER_HOME` pointing inside the checkout is warned about at startup.
 
 **What is kept — and never kept.** Only metadata: time, sender, user, host, runtime, project, session,

@@ -135,6 +135,16 @@ describe('notify admin: test send (#191)', () => {
     expect(readAudit(home, 1)[0]).toMatchObject({ action: 'notify.test', detail: { ok: true } });
   });
 
+  it('sends the test alert with rule test, so a json receiver can tell it from a real alert (#211)', async () => {
+    const hook = await receiver(200);
+    const port = await serve();
+    await call(port, 'PUT', '/api/hub/admin/notify', { url: `http://127.0.0.1:${hook.port}/${TOKEN}`, format: 'json' });
+    await call(port, 'POST', '/api/hub/admin/notify/test', {});
+    const sent = JSON.parse(hook.bodies[0]) as { alert: { id: string; rule: string } };
+    expect(sent.alert.rule).toBe('test');
+    expect(sent.alert.id).toBe('test:hub:hub');
+  });
+
   it('reports a receiver that refuses, without echoing the url', async () => {
     const hook = await receiver(500);
     const port = await serve();

@@ -3,10 +3,15 @@
  * plus one POST. The url is a secret in practice (a Slack or Telegram token sits in its path), so it is
  * never put in an error, a log line or a return value: a failure says only what went wrong.
  */
-import type { Alert } from './alerts.ts';
+import type { Alert, Rule } from './alerts.ts';
 import type { Config } from './config.ts';
 
 export type NotifyConfig = NonNullable<Config['notify']>;
+/**
+ * What formatMessage accepts: a real alert, or the panel's test alert. `test` is not in RULES on purpose: it must
+ * not become a toggle in the alerts settings, only a rule name a receiver can tell apart from a real one.
+ */
+export type NotifyAlert = Omit<Alert, 'rule'> & { rule: Rule | 'test' };
 export type NotifyFormat = NotifyConfig['format'];
 export type NotifyEvent = 'open' | 'clear';
 
@@ -31,7 +36,7 @@ export const NOTIFY_TIMEOUT_MS = 5_000;
  * The message as a person reads it. Only the alert's own message: never event content, a prompt or a user
  * name, which the alert text already keeps out (see alerts.ts).
  */
-const text = (alert: Alert, event: NotifyEvent): string =>
+const text = (alert: NotifyAlert, event: NotifyEvent): string =>
   event === 'open' ? `⚠ ${alert.message}` : `✓ cleared: ${alert.message}`;
 
 /**
@@ -39,7 +44,7 @@ const text = (alert: Alert, event: NotifyEvent): string =>
  * name; slack and telegram take `{ text }` (telegram's chat_id travels in the url the user pastes); ntfy is
  * a plain-text body, with the title and priority as headers. Pure: the same input always gives the same payload.
  */
-export function formatMessage(alert: Alert, event: NotifyEvent, format: NotifyFormat, hub = 'hub'): Payload {
+export function formatMessage(alert: NotifyAlert, event: NotifyEvent, format: NotifyFormat, hub = 'hub'): Payload {
   if (format === 'json') {
     const body = { event, alert: { id: alert.id, rule: alert.rule, level: alert.level, subject: alert.subject, message: alert.message }, hub };
     return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };

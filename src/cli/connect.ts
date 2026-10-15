@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { userHome } from '../core/secrets.ts';
 import { writeUserConfig } from '../server/user-config.ts';
+import { wiredHarnesses } from './hooks.ts';
 import { machineId } from './machine-id.ts';
 import { cliName, OTHER_MACHINE_CLI } from '../../bin/cli-name.js';
 import { localServerUrl } from '../../bin/local-server.js';
@@ -128,7 +129,13 @@ try {
   if (res.status === 204) {
     const rotated = enrolled?.rotated ? ' (the previous token of this machine was revoked)' : '';
     console.log(`connected to ${url} as ${sender}${rotated}`);
-    console.log(`next: ${cliName()} hooks install   (wires Claude Code, Codex, Pi, Hermes on this machine)`);
+    // A teammate who re-runs connect has usually wired the hooks already: name them instead of sending them back to install.
+    const alreadyWired = wiredHarnesses();
+    if (alreadyWired.length === 0) {
+      console.log(`next: ${cliName()} hooks install   (wires Claude Code, Codex, Pi, Hermes on this machine)`);
+    } else {
+      console.log(`hooks: already wired for ${alreadyWired.join(', ')} (check: ${cliName()} hooks status)`);
+    }
     // Without a running library the hooks have nowhere local to post: say how to keep one running.
     if (!localServerUrl({ env: process.env, home: userHome() })) {
       console.log(`next: ${cliName()} service install   (keeps your library running, so no event is lost)`);

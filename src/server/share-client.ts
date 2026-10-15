@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { basename, isAbsolute, relative, resolve } from 'node:path';
+import { parseDocument } from 'yaml';
 import { loadLibrary } from '../core/loader.ts';
 import { allowedFile, checkFiles, checkPath, isTowerFile, MAX_FILE_BYTES } from './share-rules.ts';
 
@@ -135,17 +136,53 @@ export async function collectTower(dir: string, opts: { withFiles: boolean }): P
 }
 
 /**
- * The default name of a shared folder: its base name as a slug. The hub accepts only a-z, 0-9 and -, so
- * every other character becomes a dash; `tower` is the fallback when nothing is left.
+ * A text as a share name: the hub accepts only a-z, 0-9 and -, so every other character becomes a dash.
+ * May return an empty string when nothing is left; the callers decide the fallback.
  */
-export function shareName(dir: string): string {
-  const slug = basename(resolve(dir))
+function slugOf(text: string): string {
+  return text
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 64)
     .replace(/-+$/, '');
-  return slug || 'tower';
+}
+
+/**
+ * The default name of a shared folder: its base name as a slug, `tower` when nothing is left.
+ */
+export function shareName(dir: string): string {
+  return slugOf(basename(resolve(dir))) || 'tower';
+}
+
+/**
+ * The name a new share takes from its tower: the slug of the top-level `name:` of the folder's only tower
+ * file. Folders are often called `tower`, so two projects of one sender would collide on that name (#211).
+ * Undefined when the folder holds no tower file or several (which one would name it?), or the file cannot be
+ * read or has no usable name; the caller then falls back to the folder name.
+ */
+export function towerShareName(dir: string): string | undefined {
+  const root = resolve(dir);
+  let towers: string[];
+  try {
+    // Top level only, as the share's own tower files are listed by towerFiles: a nested tower is not the folder's name.
+    towers = readdirSync(root, { withFileTypes: true })
+      .filter((d) => d.isFile() && isTowerFile(d.name))
+      .map((d) => resolve(root, d.name));
+  } catch {
+    return undefined;
+  }
+  if (towers.length !== 1) return undefined;
+  try {
+    // The loader's YAML parser: a name the loader reads as a string is the one the tower shows under.
+    const doc = parseDocument(readFileSync(towers[0], 'utf8'));
+    if (doc.errors.length) return undefined;
+    const name = (doc.toJS() as { name?: unknown } | null)?.name;
+    if (typeof name !== 'string') return undefined;
+    return slugOf(name) || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
