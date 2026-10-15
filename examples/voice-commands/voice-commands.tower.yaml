@@ -20,7 +20,7 @@ runtimes:
   browser:
     kind: browser
     label: Your browser
-    description: "The Flow Tower page: Firefox, Chrome, Edge or Safari. Mic, end-of-speech detection, routing, parser, the agent loop, its tools and the <audio> playback all run here. The static demo has no server, so it hides the MIC button."
+    description: "The Flow Tower page: Firefox, Chrome, Edge or Safari. Mic, end-of-speech detection, routing, parser, the agent loop, its tools and the <audio> playback all run here. The static demo has no server and a remote hub view is refused voice, so both hide the MIC button."
   server:
     kind: local
     label: flow-tower server
@@ -64,7 +64,7 @@ layers:
         type: entry
         label: V key / MIC
         runtime: browser
-        description: "V toggles voice in the tower and in the library (App.tsx); the MIC button in the top bar and the library header does the same. A second press (or ✕ on the caption) stops listening, and with it any reply being spoken."
+        description: "V toggles voice in the tower and in the library (App.tsx); the MIC button in the top bar and the library header does the same, and is hidden in the static demo and on a remote view of a hub. A second press (or ✕ on the caption) stops listening, and with it any reply being spoken."
         trigger: { kind: manual, source: V key or MIC button }
         files: [src/app/App.tsx, src/app/hud/Voice.tsx, src/app/hud/Chrome.tsx, src/app/hud/Library.tsx]
       - id: esc
@@ -84,9 +84,9 @@ layers:
         type: decision
         label: Key configured?
         runtime: browser
-        description: "Checks the server before the mic opens: GET /api/voice reports whether a key and an agent model are set (never the key), and the voice memory is loaded. No key, or no server: the caption says why and the mic stays closed. The static demo has no MIC button."
+        description: "Checks the server before the mic opens: GET /api/voice reports whether a key and an agent model are set (never the key), and the voice memory is loaded. No key or no server: the caption says why and the mic stays closed. On a remote hub view (403) it says voice runs on the machine serving the page. The static demo has no MIC button."
         decision: { output: binary, candidates: [yes, no], fail: closed }
-        files: [src/app/voice/voice.ts]
+        files: [src/app/voice/voice.ts, src/app/voice/unavailable.ts]
       - id: mic
         type: process
         label: Mic + recorder

@@ -88,7 +88,7 @@ layers:
         type: process
         label: flow-tower --hub
         runtime: hub-vps
-        description: "systemd, as an unprivileged user, on Node 22 (Ubuntu 24.04's /usr/bin/node is Node 20). Restart=on-failure. ProtectHome=read-only, so ReadWritePaths must list the user folder, Vite's cache and towers/; without the Vite paths the unit fails at start. Or docker compose with host networking."
+        description: "systemd, as an unprivileged user, on Node 22 (Ubuntu 24.04's /usr/bin/node is Node 20). Restart=on-failure, SuccessExitStatus=130 143 so a stop is not a failure. ProtectHome=read-only, so ReadWritePaths must list the user folder, Vite's cache and towers/; without the Vite paths the unit fails at start. Or docker compose with host networking."
         files: [deploy/flow-tower.service, deploy/docker-compose.yml]
         resources:
           - { kind: config, label: systemd unit, path: deploy/flow-tower.service }

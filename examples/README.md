@@ -63,9 +63,9 @@ Towers of Flow Tower itself (its hub, its releases, its voice commands, its docs
 
 | Folder | Layers | Use it as a model for |
 |---|---|---|
-| [`team-hub`](team-hub) | 7 | The team hub's architecture, dogfooded on this repo: senders, guard and tokens, ingest limits, identity cascade, SQLite history with rollups, config precedence; planned views (hub panel, privacy profiles, admin, alerts) dashed |
+| [`team-hub`](team-hub) | 7 | The team hub's architecture, dogfooded on this repo: senders, guard and tokens, ingest limits, identity cascade, SQLite history with rollups, config precedence; views: live tower, satellite list, Hub panel (Now, Machines, Alerts, Admin), alert webhook; privacy profiles planned (dashed) |
 | [`release-auditor`](release-auditor) | 6 | Pre-release bug sweep, dogfooded on this repo: deterministic gates, Playwright sweep sub-tower, one finder per charter, adversarial verifier, test-first fixes; `root: ../..` so nodes open real repo files, scripts report live |
-| [`voice-commands`](voice-commands) | 6 | A feature mapped with its design choices, dogfooded on this repo: the voice widget from microphone to command, the speech engines it weighed (Web Speech on-device and cloud, Whisper in the browser, OpenRouter: chosen), and the conversational agent that answers out loud with tower tools |
+| [`voice-commands`](voice-commands) | 7 | A feature mapped with its design choices, dogfooded on this repo: the voice widget from microphone to command, the speech engines it weighed (Web Speech on-device and cloud, Whisper in the browser, OpenRouter: chosen), and the conversational agent that answers out loud with tower tools |
 
 `docs-qa` (above) also runs on this repo by default; copied elsewhere, `DOCS_QA_ROOT` points it at a flow-tower clone.
 

@@ -178,32 +178,34 @@ export function LayerNav() {
   };
   return (
     <nav className="panel layernav">
-      <div className="title">Layers</div>
-      {tower.run && (
-        <div className="run-limits mono" title={`One run of the whole system, across every node: ${[budgetsText(tower.run.budget), limitsText(tower.run.limits)].filter(Boolean).join(' · ')}`}>
-          RUN · {[budgetsText(tower.run.budget, true), limitsText(tower.run.limits, true)].filter(Boolean).join(' · ')}
-        </div>
-      )}
-      <button className={focusedLayer === undefined ? 'on' : ''} onClick={resetView} title="Show the whole tower (0)">
-        <span className="idx">◈</span><span className="name">Tower overview</span><span className="count">{tower.layers.length}L</span>
-      </button>
-      {tower.layers.map((l) => (
-        <button
-          key={l.id}
-          className={`${focusedLayer === l.index ? 'on' : ''} ${hoveredLayer === l.index ? 'hot' : ''}`}
-          onClick={() => focusLayer(l.index)}
-          onMouseEnter={() => hoverLayer(l.index)}
-          onMouseLeave={() => hoverLayer(undefined)}
-          onFocus={() => hoverLayer(l.index)}
-          onBlur={() => hoverLayer(undefined)}
-          title={`${l.title}: focus this layer (${l.index < 9 ? l.index + 1 : 'click'})${l.description ? ` — ${l.description}` : ''}`}
-        >
-          <span className="idx">L{String(l.index + 1).padStart(2, '0')}</span>
-          <span className="name">{l.title}</span>
-          <LiveCount {...liveOf(l.id)} total={l.nodes.length} />
+      <div className="panel-scroll">
+        <div className="title">Layers</div>
+        {tower.run && (
+          <div className="run-limits mono" title={`One run of the whole system, across every node: ${[budgetsText(tower.run.budget), limitsText(tower.run.limits)].filter(Boolean).join(' · ')}`}>
+            RUN · {[budgetsText(tower.run.budget, true), limitsText(tower.run.limits, true)].filter(Boolean).join(' · ')}
+          </div>
+        )}
+        <button className={focusedLayer === undefined ? 'on' : ''} onClick={resetView} title="Show the whole tower (0)">
+          <span className="idx">◈</span><span className="name">Tower overview</span><span className="count">{tower.layers.length}L</span>
         </button>
-      ))}
-      <SubTowers />
+        {tower.layers.map((l) => (
+          <button
+            key={l.id}
+            className={`${focusedLayer === l.index ? 'on' : ''} ${hoveredLayer === l.index ? 'hot' : ''}`}
+            onClick={() => focusLayer(l.index)}
+            onMouseEnter={() => hoverLayer(l.index)}
+            onMouseLeave={() => hoverLayer(undefined)}
+            onFocus={() => hoverLayer(l.index)}
+            onBlur={() => hoverLayer(undefined)}
+            title={`${l.title}: focus this layer (${l.index < 9 ? l.index + 1 : 'click'})${l.description ? ` — ${l.description}` : ''}`}
+          >
+            <span className="idx">L{String(l.index + 1).padStart(2, '0')}</span>
+            <span className="name">{l.title}</span>
+            <LiveCount {...liveOf(l.id)} total={l.nodes.length} />
+          </button>
+        ))}
+        <SubTowers />
+      </div>
     </nav>
   );
 }
@@ -253,54 +255,56 @@ export function Legend() {
 
   return (
     <aside className="panel legend">
-      <nav className="legend-tabs">
-        <button className={tab === 'types' ? 'on' : ''} onClick={() => setTab('types')} title="Node types: click a type to hide or show it">Types</button>
-        <button className={tab === 'edges' ? 'on' : ''} onClick={() => setTab('edges')} title="What each edge style means">Edges</button>
-        <button className={tab === 'runtimes' ? 'on' : ''} disabled={!runtimes.length} onClick={() => setTab('runtimes')} title={runtimes.length ? 'Where things run: click one to spotlight its nodes' : 'This tower declares no runtimes'}>
-          Runtimes{runtimes.length ? ` ${runtimes.length}` : ''}
-        </button>
-      </nav>
-      {tab === 'types' && (
-        <>
+      <div className="panel-scroll">
+        <nav className="legend-tabs">
+          <button className={tab === 'types' ? 'on' : ''} onClick={() => setTab('types')} title="Node types: click a type to hide or show it">Types</button>
+          <button className={tab === 'edges' ? 'on' : ''} onClick={() => setTab('edges')} title="What each edge style means">Edges</button>
+          <button className={tab === 'runtimes' ? 'on' : ''} disabled={!runtimes.length} onClick={() => setTab('runtimes')} title={runtimes.length ? 'Where things run: click one to spotlight its nodes' : 'This tower declares no runtimes'}>
+            Runtimes{runtimes.length ? ` ${runtimes.length}` : ''}
+          </button>
+        </nav>
+        {tab === 'types' && (
+          <>
+            <div className="grid">
+              {NODE_TYPES.map((t) => (
+                <button key={t} className={hiddenTypes.has(t) ? 'off' : ''} onClick={() => toggleType(t)} title={NODE_STYLE[t].hint}>
+                  <span className="tag">{NODE_STYLE[t].tag}</span>{t}
+                </button>
+              ))}
+            </div>
+            <div className="sub-key" title="Nodes with stacked plates (and ⇣ SUB in their subtitle) contain their own tower. Double-click, press Enter, or use ⇣ in the Layers panel.">
+              <span>▤ ⇣ SUB</span><span className="dim">sub-tower · double-click to enter</span>
+            </div>
+          </>
+        )}
+        {tab === 'edges' && (
           <div className="grid">
-            {NODE_TYPES.map((t) => (
-              <button key={t} className={hiddenTypes.has(t) ? 'off' : ''} onClick={() => toggleType(t)} title={NODE_STYLE[t].hint}>
-                <span className="tag">{NODE_STYLE[t].tag}</span>{t}
+            {EDGE_KINDS.map((k) => (
+              <span key={k} className="edge" tabIndex={0} title={EDGE_STYLE[k].hint}>
+                <span className="swatch" style={{
+                  borderTopStyle: EDGE_STYLE[k].dashed ? 'dashed' : 'solid',
+                  borderTopWidth: Math.max(1, EDGE_STYLE[k].width),
+                  borderTopColor: k === 'call' || k === 'return' || k === 'data' ? 'var(--white)' : k === 'spawn' ? 'var(--amber)' : 'var(--orange)',
+                }} />
+                {k}
+              </span>
+            ))}
+            <span className="edge" tabIndex={0} title="Node status other than active"><span className="swatch" style={{ borderTopStyle: 'dashed', borderTopColor: 'var(--amber)' }} />planned / exp.</span>
+          </div>
+        )}
+        {tab === 'runtimes' && (
+          <div className="runtimes">
+            {runtimes.map((r) => (
+              <button key={r.id} className={runtimeFocus === r.id ? 'on' : ''} onClick={() => set({ runtimeFocus: runtimeFocus === r.id ? undefined : r.id })}
+                title={`Spotlight nodes running here (click again to clear)${[r.description, r.host, r.provider, r.region].some(Boolean) ? ` — ${[r.description, r.host, r.provider, r.region].filter(Boolean).join(' · ')}` : ''}`}>
+                <span className="tag">{RUNTIME_ICON[r.kind]} {r.kind.toUpperCase()}</span>
+                <span className="name">{r.label ?? r.id}</span>
+                <span className="count">{counts.get(r.id) ?? 0}</span>
               </button>
             ))}
           </div>
-          <div className="sub-key" title="Nodes with stacked plates (and ⇣ SUB in their subtitle) contain their own tower. Double-click, press Enter, or use ⇣ in the Layers panel.">
-            <span>▤ ⇣ SUB</span><span className="dim">sub-tower · double-click to enter</span>
-          </div>
-        </>
-      )}
-      {tab === 'edges' && (
-        <div className="grid">
-          {EDGE_KINDS.map((k) => (
-            <span key={k} className="edge" tabIndex={0} title={EDGE_STYLE[k].hint}>
-              <span className="swatch" style={{
-                borderTopStyle: EDGE_STYLE[k].dashed ? 'dashed' : 'solid',
-                borderTopWidth: Math.max(1, EDGE_STYLE[k].width),
-                borderTopColor: k === 'call' || k === 'return' || k === 'data' ? 'var(--white)' : k === 'spawn' ? 'var(--amber)' : 'var(--orange)',
-              }} />
-              {k}
-            </span>
-          ))}
-          <span className="edge" tabIndex={0} title="Node status other than active"><span className="swatch" style={{ borderTopStyle: 'dashed', borderTopColor: 'var(--amber)' }} />planned / exp.</span>
-        </div>
-      )}
-      {tab === 'runtimes' && (
-        <div className="runtimes">
-          {runtimes.map((r) => (
-            <button key={r.id} className={runtimeFocus === r.id ? 'on' : ''} onClick={() => set({ runtimeFocus: runtimeFocus === r.id ? undefined : r.id })}
-              title={`Spotlight nodes running here (click again to clear)${[r.description, r.host, r.provider, r.region].some(Boolean) ? ` — ${[r.description, r.host, r.provider, r.region].filter(Boolean).join(' · ')}` : ''}`}>
-              <span className="tag">{RUNTIME_ICON[r.kind]} {r.kind.toUpperCase()}</span>
-              <span className="name">{r.label ?? r.id}</span>
-              <span className="count">{counts.get(r.id) ?? 0}</span>
-            </button>
-          ))}
-        </div>
-      )}
+        )}
+      </div>
     </aside>
   );
 }
@@ -335,14 +339,17 @@ export function Issues({ onClose }: { onClose(): void }) {
   return (
     <aside className={`panel issues ${inspecting ? 'shifted' : ''}`}>
       <button className="close" style={{ position: 'absolute', top: 10, right: 18 }} onClick={onClose} title="Close the validation panel">✕</button>
-      <div className="title" style={{ marginBottom: 10 }}>Validation · {issues.length}</div>
-      {issues.length === 0 && <p className="mono dim">All systems nominal.</p>}
-      {issues.map((i, k) => (
-        <div key={k} className="issue">
-          <span className={`lvl-${i.level}`}>{i.level.toUpperCase()}</span>
-          <span>{i.path && <span className="dim">{i.path} · </span>}{i.message}</span>
-        </div>
-      ))}
+      {/* The close button stays outside the scroller: it is pinned to the corner of the frame. */}
+      <div className="panel-scroll">
+        <div className="title" style={{ marginBottom: 10 }}>Validation · {issues.length}</div>
+        {issues.length === 0 && <p className="mono dim">All systems nominal.</p>}
+        {issues.map((i, k) => (
+          <div key={k} className="issue">
+            <span className={`lvl-${i.level}`}>{i.level.toUpperCase()}</span>
+            <span>{i.path && <span className="dim">{i.path} · </span>}{i.message}</span>
+          </div>
+        ))}
+      </div>
     </aside>
   );
 }

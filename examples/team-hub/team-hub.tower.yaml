@@ -49,14 +49,14 @@ layers:
         type: memory
         label: Local port file
         runtime: laptop
-        description: "local-server.json (#187): the running library records its url and pid; emit and simulate post there with no --url. On a satellite with no live record, emit posts straight to the hub, never to a default port (#194). A JSONL stream keeps Pi's session and Codex's thread id on every line (#196)."
-        files: [bin/local-server.js, bin/stream-context.js]
+        description: "local-server.json (#187): the running library records its url and pid; emit and simulate post there with no --url, and simulate prints the url and why. On a satellite with no live record, emit posts straight to the hub, never to a default port (#194). A JSONL stream keeps Pi's session and Codex's thread id on every line (#196)."
+        files: [bin/local-server.js, bin/stream-context.js, scripts/simulate.ts, scripts/simulate-target.ts]
       - id: service-cli
         type: tool
         label: service CLI
         runtime: laptop
-        description: "flow-tower service install|status|uninstall (#194): a systemd user unit or a launchd agent keeps the library running at login, so hooks always find it."
-        files: [src/cli/service.ts]
+        description: "flow-tower service install|status|uninstall (#194): a systemd user unit or a launchd agent keeps the library running at login, so hooks always find it. The unit runs the node on PATH and reads exits 130/143 as a clean stop; install says when the library is empty, status points a failed unit to journalctl, uninstall clears the failed state."
+        files: [src/cli/service.ts, src/cli/service-files.ts]
       - id: supervisor
         type: process
         label: Relay supervisor
@@ -67,7 +67,7 @@ layers:
         type: process
         label: Share sync
         runtime: laptop
-        description: "Every 15 s re-sends a shared folder whose fingerprint changed (#164); a tower with an error is not sent (#190), a removed node is flagged, and the state (synced, not sent: reason) shows in Settings > Sharing and on the SAT chip."
+        description: "Every 15 s re-sends a shared folder whose fingerprint changed (#164); a tower with an error is not sent (#190), a removed node is flagged, and the state (synced, not sent: reason) shows in Settings > Sharing and on the SAT chip. A new share is named after the tower's `name:` (#211)."
         files: [src/server/share-sync.ts, src/server/share-client.ts, src/cli/share.ts]
       - id: otel
         type: entry
@@ -83,8 +83,8 @@ layers:
       - id: connect-cli
         type: tool
         label: connect CLI
-        description: "flow-tower connect <hub-url> [--token]: writes url, token, role and identity to the user folder's config.json (mode 0600, token never printed), sends one heartbeat so a bad token shows up at once, then points to hooks install and, with no library running, service install. A running library picks it up in 5 s."
-        files: [src/cli/connect.ts]
+        description: "flow-tower connect <hub-url> [--token]: writes url, token, role and identity to the user folder's config.json (mode 0600, token never printed) and sends one heartbeat so a bad token shows at once. Then it points to hooks install, or names the harnesses already wired and points to hooks status; with no library running, to service install. A running library picks it up in 5 s."
+        files: [src/cli/connect.ts, src/cli/hooks.ts]
       - id: sharing
         type: output
         label: /api/sharing
@@ -127,7 +127,7 @@ layers:
       - id: token-cli
         type: tool
         label: token CLI
-        description: "flow-tower token: create, list, revoke, pause."
+        description: "flow-tower token add|list|revoke|pause|resume. add prints the token once with the connect line, and says to replace 127.0.0.1 with the hub's tailnet name only when no url is configured."
         files: [src/cli/token.ts]
       - id: exposure
         type: tool
@@ -288,7 +288,7 @@ layers:
         type: output
         label: Alert webhook
         runtime: hub
-        description: "Each new alert and its clearing, once, to an optional webhook (#191): ntfy, Slack, Telegram or JSON; only the alert text; acked or snoozed alerts are not sent; at most 10 per 10 min; redirects refused; the url never logged. Browser notifications from an open hub tab too."
+        description: "Each new alert and its clearing, once, to an optional webhook (#191): ntfy, Slack, Telegram or JSON; only the alert text; acked or snoozed alerts are not sent; at most 10 per 10 min; redirects refused; the url never logged. Browser notifications from an open hub tab too. The Admin test alert has rule `test`."
         files: [src/server/alert-notify.ts, src/app/hud/HubAdminNotify.tsx]
     edges:
       - "satellite-list -> hub-panel [data]: runtime, host, last seen"
