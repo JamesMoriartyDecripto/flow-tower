@@ -87,10 +87,10 @@ On a tailnet, with the user's tailnet login in `viewers` (step 2), four commands
 flow-tower connect https://hub.example.ts.net     # the hub mints this machine's token (named after the hostname, or --machine)
 flow-tower hooks install                          # wires every harness found on this machine to the local library
 flow-tower service install                        # keeps the local library running at login (systemd user unit or launchd)
-flow-tower share ~/towers/my-project              # the hub gets the tower in towers/<machine>/my-project/; YAML only, --files adds referenced files
+flow-tower share ~/towers/my-project              # the hub gets it in towers/<machine>/<name>/: <name> is the tower's name: as a slug (else the folder name; --name wins); YAML only, --files adds referenced files
 ```
 
-`flow-tower unshare my-project` removes it from the hub; `flow-tower share --list` shows what is shared. An agent can walk the user through it: [`skills/flow-tower-satellite`](../../skills/flow-tower-satellite/SKILL.md).
+`flow-tower unshare <name>` removes it from the hub; `flow-tower share --list` shows each share's name. An agent can walk the user through it: [`skills/flow-tower-satellite`](../../skills/flow-tower-satellite/SKILL.md).
 
 **A team without Tailscale** (a VPS or an office server): run the hub as above, put [`deploy/Caddyfile.hub`](deploy/Caddyfile.hub) in front (TLS for your domain; it forwards events, heartbeats, OTLP and shared towers, nothing else), and set `allowedHosts` to your domain and `viewers` to `[]` (remove the kit's `example` placeholders: the hub warns about them at start). Per machine: `flow-tower token add laptop-1` on the hub prints the connect line to run on the laptop (it reads `http://127.0.0.1:5317` until you set `url` in the hub's config.json: use `https://hub.example.com`); then `share` works as on a tailnet. The owner views the hub over SSH (`ssh -N -L 5317:127.0.0.1:5317 you@hub.example.com`); other people cannot view it without Tailscale. `deploy/satellite.config.json` shows what `connect` writes (mode 0600, it holds the token). The ingest-only [`Caddyfile`](../../integrations/hub/Caddyfile) is for senders only (Lambda, CI): no `share` there.
 

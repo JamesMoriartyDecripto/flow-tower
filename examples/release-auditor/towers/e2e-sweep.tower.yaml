@@ -27,7 +27,8 @@ layers:
         type: entry
         label: playwright test
         runtime: chrome
-        files: [playwright.config.ts]
+        description: "npm run e2e on installed Chrome, software WebGL by default; FLOW_TOWER_E2E_GPU=1 adds the GPU flags of src/cli/browser.ts, the same ones export and report use."
+        files: [playwright.config.ts, src/cli/browser.ts]
         trigger: { kind: manual, source: "npm run e2e" }
         limits: { timeout: 3m, concurrency: 3, retries: 0 }
       - id: workspace
