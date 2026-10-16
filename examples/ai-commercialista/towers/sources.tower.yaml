@@ -14,8 +14,6 @@ runtimes:
   workers:
     kind: container
     label: Source sync workers
-    provider: google-cloud-run
-    region: europe-west8
   normattiva:
     kind: saas
     label: Normattiva open data

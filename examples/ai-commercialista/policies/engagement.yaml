@@ -42,7 +42,7 @@ checks:
   - id: aml-cdd-on-file
     description: "customer due diligence under D.Lgs. 231/2007 on file (content per the CNDCEC Regole Tecniche, see research/practices.md §4b)"
     source: "D.Lgs. 231/2007 (customer due diligence obligations of professionals); CNDCEC AML technical rules (Regole Tecniche, update of 16/1/2025), as summarised in research/practices.md section 4b"
-    evidence: "CDD record id and risk rating in client_file"
+    evidence: "CDD record id in client_file"
     required: true
     confidence: medium
     note: "Article numbers for CDD are not stated in the notes; the check cites the decree, not an article."

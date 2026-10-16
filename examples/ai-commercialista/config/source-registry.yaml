@@ -708,12 +708,12 @@ sources:
     note: "Cite the comma (art. 1 c. ...). Iperammortamento c. 427-436; forfettario c. 27; R&S and design credit via L. 160/2019 art. 1 c. 198-209 (see l-160-2019-rs-credit)"
   - id: dl-38-2026
     name: DL 38/2026 (decreto fiscale), converted by L. 88/2026
-    url: null
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legge:2026-03-27;38"
     kind: law
     access: free
-    api: "none in notes"
+    api: "point-in-time via urn"
     topics: [srl, fotovoltaico, forfettario]
-    note: "URL to confirm. DL 27/3/2026 n. 38, converted by L. 22/5/2026 n. 88 (GU n. 117). Art. 7 CPB and iperammortamento; art. 8 esodati credit"
+    note: "URN resolved on normattiva.it on 2026-10-16; the GU text prevails. DL 27/3/2026 n. 38, converted by L. 22/5/2026 n. 88 (GU n. 117). Art. 7 CPB and iperammortamento; art. 8 esodati credit"
   - id: ade-circ-8e-2026-cpb
     name: Agenzia Entrate, circolare 8/E del 6/10/2026 (CPB 2026-2027)
     url: "https://www.agenziaentrate.gov.it/portale/documents/20143/10360006/Circolare+n.+8+del+6+ottobre+2026+(CBP).pdf/b9eb6625-912e-36f2-6895-c889f500b8a1"
@@ -724,20 +724,20 @@ sources:
     note: "Cite as 'circolare n. 8/E del 6/10/2026'. Concordato preventivo biennale 2026-2027; adhesion by 2/11/2026"
   - id: l-160-2019-rs-credit
     name: L. 160/2019 art. 1 c. 198-209 (credito R&S, innovazione, design)
-    url: null
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:legge:2019-12-27;160"
     kind: law
     access: free
-    api: "none in notes"
+    api: "point-in-time via urn"
     topics: [srl, startup-innovativa]
-    note: "URL to confirm. Cite the comma. Innovazione tecnologica expired after FY2025; design credit extended to 2026 by L. 199/2025 c. 925-926"
+    note: "URN resolved on normattiva.it on 2026-10-16; the GU text prevails. Cite the comma. Innovazione tecnologica expired after FY2025; design credit extended to 2026 by L. 199/2025 c. 925-926"
   - id: dlgs-216-2023-art4
     name: D.Lgs. 216/2023 art. 4 (super-deduzione costo del lavoro neoassunti)
-    url: null
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2023-12-30;216~art4"
     kind: law
     access: free
-    api: "none in notes"
+    api: "point-in-time via urn"
     topics: [employer, srl]
-    note: "URL to confirm. Extended to 2026 and 2027 by L. 207/2024 art. 1 c. 399-400. Do not confuse with art. 5 of the same decree, which repealed the ACE from FY2024"
+    note: "URN resolved on normattiva.it on 2026-10-16; the GU text prevails. Extended to 2026 and 2027 by L. 207/2024 art. 1 c. 399-400. Do not confuse with art. 5 of the same decree, which repealed the ACE from FY2024"
   - id: ade-circ-1e-2025-super-deduzione
     name: Agenzia Entrate, circolare 1/E del 20/1/2025 (super-deduzione, maggiorazione costo del lavoro)
     url: "https://www.agenziaentrate.gov.it/portale/documents/20143/0/circolare%20Maggiorazione%20costo%20del%20lavoroEC%20del%2020%20gennaio%202025%20rettificata.pdf/9afb2d71-75b5-5cd9-824c-69abb2c0d198"

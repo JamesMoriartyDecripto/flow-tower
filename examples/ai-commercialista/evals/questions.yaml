@@ -140,7 +140,7 @@ questions:
     lever_ids: [decontribuzione_sud_pmi, bonus_zes_2026]
     expected_sources: [inps-circ-32-2025-decontribuzione-sud, inps-circolari-messaggi]
     expected_behaviour: answer
-    notes: "The answer must ask for the average FTE and the ZES location before stating a rate. INPS circ. 32/2025 (30/1/2025) exists and is in the registry for the Sud PMI cut 2025-2029, but it is not the 2026 rule: the answer must say to confirm the 2026 source. Grader checks that no rate is promised without FTE and location."
+    notes: "The answer must ask for the average FTE and the ZES location before stating a rate. INPS circ. 32/2025 (30/1/2025) covers the Sud PMI cut for 2025-2029, which includes 2026 (sites-it.md): the answer must cite inps-circ-32-2025-decontribuzione-sud for that scheme and say to confirm the 2026 rate. Grader checks that no rate is promised without FTE and location."
 
   - id: q14-forfettario-ceiling
     profile: forfettario

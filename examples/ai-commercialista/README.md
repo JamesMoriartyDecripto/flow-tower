@@ -125,12 +125,12 @@ professional must complete and approve before it goes to a client. Everything el
 
 **From primary sources** (read on the official page or by a live call on 15/10/2026): the text of
 art. 13 L. 132/2025 as quoted by the CNDCEC guide; the Normattiva open-data endpoints and the
-Agenzia delle Entrate RSS feed; the 2026 lever figures and dates as they appear in the research
+Agenzia delle Entrate RSS feed; the testi unici and their GU dates (MEF list, research/primary-sources.md section 7); the 2026 lever figures and dates as they appear in the research
 notes, where the notes label them H (confirmed on a primary source, or on two or more agreeing
 professional sources that quote the text); and the Anthropic Citations behaviour. Labels in the
-notes: H = high confidence as above; M = medium, from several consistent secondary sources.
+notes: H = high confidence as above; M = professional press only, or the sources agree on substance but differ on a detail.
 
-**Medium or low confidence, marked in the files**: the testi unici and their GU dates; the new TUIR apply-from date (1/1/2027, D.Lgs. 117/2026, art. 377);
+**Medium or low confidence, marked in the files**: the new TUIR apply-from date (1/1/2027, D.Lgs. 117/2026, art. 377);
 the iperammortamento procedure dates and the CPB
 mechanism for adherents; the esodati share of 89.77% and code 7079; the bonus giovani repeal point
 in DL 62/2026; the Smart&Start and Resto al Sud rules (no legal article in the sources); the
@@ -172,7 +172,7 @@ RNA open data (https://www.rna.gov.it/open-data), the MIMIT iperammortamento pag
 (https://www.agenziaentrate.gov.it/portale/-/concordato-preventivo-biennale-pronta-la-circolare-guida-dell-agenzia.-per-il-biennio-2026-2027-adesione-entro-il-prossimo-2-novembre).
 Most lever links point to secondary sources, and the notes say to check each against the decree.
 
-Further sources, from the verified list of Italian sites (`squad-input/sites-it.md`):
+Further sources, from a verified list of Italian sites:
 
 - INPS, circolare 55/2026 (bonus giovani, 14/5/2026): https://www.inps.it/it/it/inps-comunica/atti/circolari-messaggi-e-normativa/dettaglio.circolari-e-messaggi.2026.05.circolare-numero-55-del-14-05-2026_15258.html
 - DL 62/2026 (Decreto Lavoro 2026): https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legge:2026-04-30;62

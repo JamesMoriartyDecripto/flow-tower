@@ -84,6 +84,7 @@ levers:
     status: expired
     window: "FY2023 only; no renewal found"
     url: "https://www.dirittobancario.it/wp-content/uploads/2024/04/Risoluzione-Agenzia-delle-Entrate-18-aprile-2024-n.-21.pdf"
+    url_kind: press
     confidence: medium
     abuse_risk_default: green
     notes: "Risoluzione AdE 18/4/2024 n. 21 (cited in the notes). No renewal in L. 199/2025 (the notes say it did not pass). Confidence M-H, shown as medium."
@@ -137,8 +138,7 @@ levers:
     source: "L. 160/2019 art. 1 c. 198-209 (c. 203 as extended); art. 23 DL 73/2022; certification c. 205"
     status: active
     window: "through FY2031 (c. 203 as extended)"
-    url: "https://www.ecnews.it/fiscale/fisco-e-patrimonio/agevolazioni/il-credito-design-prorogato-e-potenziato-nel-2026/"
-    url_kind: press
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:legge:2019-12-27;160"
     confidence: medium
     abuse_risk_default: green
     notes: "Conf. M-H. Certification of costs mandatory (c. 205). Albo dei certificatori at MIMIT (https://certificatoricreditors.mimit.gov.it/Consultazione). Microelectronics R&D credit: details UNVERIFIED, not included."

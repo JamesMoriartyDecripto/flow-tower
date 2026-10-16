@@ -3,7 +3,7 @@
 {"ts":"2026-10-15T09:12:04+02:00","event":"run_start","run_id":"RUN-2026-10-15-0001","memo":"memo-lumen-grid-2026-10","client":"[NAME_1]","period":"2026","operator":"[OPERATOR_1]"}
 {"ts":"2026-10-15T09:12:04+02:00","event":"prompt_hash","role":"drafter","prompt":"prompts/drafter.md","sha256":"[HASH_DRAFTER_v1]"}
 {"ts":"2026-10-15T09:12:04+02:00","event":"prompt_hash","role":"support","prompt":"prompts/support.md","sha256":"[HASH_SUPPORT_v1]","model_family":"different_from_drafter"}
-{"ts":"2026-10-15T09:12:05+02:00","event":"sources_retrieved","run_id":"RUN-2026-10-15-0001","source_ids":["l-199-2025","dl-38-2026","ade-circ-8e-2026-cpb","dlgs-216-2023-art4","inps-circ-55-2026-bonus-giovani","l-160-2019-rs-credit","invitalia-smartstart"]}
+{"ts":"2026-10-15T09:12:05+02:00","event":"sources_retrieved","run_id":"RUN-2026-10-15-0001","source_ids":["l-199-2025","mimit-transizione-5-0-iperammortamento","dl-38-2026","ade-circ-8e-2026-cpb","dlgs-216-2023-art4","ade-circ-1e-2025-super-deduzione","inps-circ-55-2026-bonus-giovani","dl-62-2026-decreto-lavoro","l-160-2019-rs-credit","tuir-dpr-917-1986","tuir-dlgs-117-2026","invitalia-smartstart"]}
 {"ts":"2026-10-15T09:12:05+02:00","event":"quote_check","run_id":"RUN-2026-10-15-0001","attempt":1,"passed":4,"failed":1,"failed_claims":["C3"],"reason":"cited_text not found verbatim in source"}
 {"ts":"2026-10-15T09:12:06+02:00","event":"retry","run_id":"RUN-2026-10-15-0001","attempt":1,"max_attempts":2,"claims":["C3"],"sources_added":0}
 {"ts":"2026-10-15T09:12:41+02:00","event":"quote_check","run_id":"RUN-2026-10-15-0001","attempt":2,"passed":5,"failed":0}
