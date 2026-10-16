@@ -14,6 +14,7 @@ description: >-
   staged rollout guarded by a crash-rate check, a Remote Config kill switch and EAS Update for
   JavaScript-only hotfixes. Sample app: "Leafwise", a plant-care app with reminders, plant ID
   and a subscription, in en-US, de-DE, it-IT and es-ES.
+budget: { usd: 190, per: run, on_exceed: escalate, description: "One release cycle: the studio lead's 40 USD (maxBudgetUsd, specialists included) plus the four Claude Code sessions (50 + 35 + 35 + 30). Cron agents bill per run on their own budgets." }
 tags: [mobile, ios, android, expo, react-native, app-store, google-play, aso, testflight, phased-release, crashlytics, revenuecat, supabase, maestro, human-in-the-loop, claude-agent-sdk]
 
 runtimes:
@@ -145,6 +146,7 @@ agents:
     files: [src/orchestrator.ts, CLAUDE.md]
     harness: { max_turns: 80, effort: high, fallback_model: claude-sonnet-5-5 }
     budget: { usd: 40, on_exceed: pause }
+    limits: { concurrency: 8, description: "At most 8 specialists at a time (studio-lead prompt); discovery alone can ask for 28." }
   market:
     name: Market researcher
     model: claude-sonnet-5-5
@@ -162,6 +164,7 @@ agents:
     runtime: orchestrator
     fanout: { min: 8, max: 16, by: [competitor, store] }
     budget: { usd: 3, on_exceed: stop }
+    limits: { timeout: 10m, retries: 1 }
   aso:
     name: ASO strategist
     model: claude-sonnet-5-5
@@ -169,6 +172,7 @@ agents:
     tools: [mcp__appfigures__*, Read, Write]
     runtime: orchestrator
     fanout: { min: 4, max: 4, by: locales }
+    limits: { timeout: 15m, retries: 1 }
   product:
     name: Product lead
     model: claude-opus-5-5
@@ -201,6 +205,7 @@ agents:
     budget: { usd: 30, on_exceed: escalate }
     credentials: user
     sandbox: { network: allowlist, allow: [mcp.supabase.com, mcp.revenuecat.ai, registry.npmjs.org, api.github.com], filesystem: workspace }
+    approval: { by: tech lead, via: GitHub PR review, actions: [approve, edit, reject], when: a migration or Edge Function goes to production, description: "Agents write only to the development project (backend-lead rule 7); production ships from the merged PR." }
   app-lead:
     name: App lead (Expo)
     model: claude-opus-5-5
@@ -255,6 +260,7 @@ agents:
     files: [fastlane/Fastfile, app/eas.json, release/release-checklist.md]
     credentials: service
     budget: { usd: 8, on_exceed: pause }
+    sandbox: { network: allowlist, allow: [api.expo.dev, api.appstoreconnect.apple.com, androidpublisher.googleapis.com, oauth2.googleapis.com], filesystem: workspace }
   store-copy:
     name: Store copywriter
     model: claude-sonnet-5-5
@@ -262,6 +268,7 @@ agents:
     tools: [Read, Write]
     runtime: orchestrator
     fanout: { min: 4, max: 4, by: locales }
+    limits: { timeout: 15m, retries: 1 }
   rejection:
     name: Rejection responder
     model: claude-opus-5-5
@@ -286,6 +293,7 @@ agents:
     trigger: { kind: cron, schedule: "0 8 * * *", source: orchestrator scheduler }
     fanout: { min: 2, max: 8, by: [store, locale with new reviews] }
     budget: { usd: 2, on_exceed: stop }
+    limits: { timeout: 10m, retries: 1 }
     data: { sensitivity: pii, retention: 90d, description: Review text with reviewer nicknames; drafts never quote names back. }
 
 layers:
@@ -347,6 +355,7 @@ layers:
         label: Figma design
         description: Shared components, then per-platform variants (tab bar and sheets on iOS, navigation bar and predictive back on Android).
         fanout: { min: 2, max: 2, by: "platform (HIG, Material 3)" }
+        limits: { timeout: 2h, description: One Figma session per platform variant. }
       - id: tokens
         label: Tokens export
         description: Figma variables to design/tokens.json; the app theme and both native targets read the generated file.
@@ -390,7 +399,7 @@ layers:
         description: "Chosen: Expo SDK 57 (React Native 0.86) for the app, with native targets per platform for widgets. Revisit if more than 30% of screens need native UI."
         runtime: orchestrator
         files: [specs/adr-001-stack.md]
-        decision: { output: choice, candidates: [native, Expo / React Native, Flutter, Kotlin Multiplatform] }
+        decision: { output: choice, candidates: [native, Expo / React Native, Flutter, Kotlin Multiplatform], fail: closed, description: "No approved ADR, no backend work." }
         approval: { by: tech lead, via: GitHub PR review, actions: [approve, edit, reject], timeout: 2d, on_timeout: escalate }
       - id: backend
         agent: backend
@@ -430,6 +439,7 @@ layers:
     edges:
       - "architect -> stack: options + scores"
       - "stack -> backend [handoff]: approved ADR"
+      - "stack -> architect [return]: rejected or edits"
       - { from: backend, to: db, kind: data, label: migrations, protocol: mcp }
       - "backend -> auth: providers + deletion"
       - "auth -> db [data]: user rows"
@@ -454,6 +464,7 @@ layers:
       - id: app_lead
         agent: app-lead
         label: Shared app (Expo)
+        limits: { concurrency: 2, description: One iOS and one Android lane session at a time on the Mac. }
       - id: ios
         agent: ios
         label: iOS lane
@@ -553,6 +564,7 @@ layers:
         files: [credentials/README.md]
         data: { sensitivity: secret, description: "Distribution certificate, upload keystore, ASC .p8 key and Play service-account JSON. Placeholders only in this example." }
         credentials: service
+        approval: { by: release owner, via: EAS dashboard, actions: [approve, reject], when: "a certificate, key or service account is created, rotated or revoked", description: "Done by a person (credentials/README.md); the release guard denies agents any read of signing material." }
       - id: store_build
         label: Store builds
         description: "eas build --profile production (autoIncrement build numbers), version 2.4.0, both platforms."
@@ -566,6 +578,7 @@ layers:
         runtime: testers
         sla: 5d
         fanout: { min: 2, max: 2, by: store }
+        limits: { timeout: 5d, description: The beta window; the release manager writes the digest after 48 h. }
         resources:
           - { kind: log, label: Build and beta log, path: logs/build.log }
       - id: listing
@@ -611,7 +624,7 @@ layers:
         description: Both stores approved, or one rejected. Three resubmissions, then the studio lead escalates (appeal or scope change).
         runtime: orchestrator
         limits: { max_iterations: 3 }
-        decision: { output: binary, candidates: [approved, rejected] }
+        decision: { output: binary, candidates: [approved, rejected], fail: closed, description: An unknown store status counts as not approved; nothing rolls out. }
       - id: resolve
         agent: rejection
         label: Rejection fix
@@ -697,7 +710,7 @@ layers:
         label: Fix path?
         description: JavaScript-only and same fingerprint goes over the air; anything native needs a new binary and store review.
         runtime: orchestrator
-        decision: { output: choice, candidates: [OTA update, store build] }
+        decision: { output: choice, candidates: [OTA update, store build], fail: closed, description: "When the fingerprint check fails or is unsure, the fix goes through a store build and review." }
       - id: ota
         label: EAS Update
         description: "eas update --channel production --rollout-percentage=10, then eas update:edit; revert with eas update:revert-update-rollout. Bug fixes only, never new features."
@@ -734,6 +747,9 @@ layers:
       - "analytics -> monitor [data]"
       - "monitor -> hotfix: regression"
       - "hotfix -> ota: JS only"
+      - "ota -> devices: JS update"
+      - "phased -> devices: iOS 2.4.0"
+      - "staged -> devices: Android 2.4.0"
       - "monitor -> staged: advance"
       - "triage -> reply_ok: drafts"
       - "triage -> backlog [data]: bug issues"
@@ -749,8 +765,9 @@ layers:
         label: Expo MCP
         description: "Remote server (mcp.expo.dev): builds, submissions, workflows, TestFlight crashes and feedback; local simulator screenshots via expo-mcp."
         runtime: eas
-        files: [.mcp.json]
+        files: [.mcp.json, src/hooks/release-guard.ts]
         credentials: user
+        approval: { by: product owner, via: Slack, actions: [approve, reject], when: build_submit targets production, description: "Asked with request_approval; the release guard blocks the call without that approval id. Builds and beta submissions pass." }
       - id: figma
         type: tool
         label: Figma MCP
