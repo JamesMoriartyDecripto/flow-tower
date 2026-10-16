@@ -174,7 +174,7 @@ layers:
         label: Score >= 7?
         description: Below 7 -> new take with the critique added to the prompt.
         runtime: orchestrator
-        decision: { output: score, threshold: ">= 7" }
+        decision: { output: score, threshold: ">= 7", fail: closed, description: "A frame that cannot be scored is not kept: new take, then escalate after 3." }
         limits: { max_iterations: 3 }
       - id: keep
         type: memory
