@@ -66,6 +66,9 @@ describe('cli check-example (#116)', () => {
     ['email', 'write to ada@corp.example.io please', 'email'],
     ['public ipv4', 'host 8.8.8.8 is up', 'ipv4'],
     ['token', 'token ft_abcdefghijklmnopqrstuv here', 'secret'],
+    ['home path in a file URL', 'file:///home/ada/x.md', 'home-path'],
+    ['quoted home path', 'see "/home/ada/notes"', 'home-path'],
+    ['token after an equals sign', 'key=ft_abcdefghijklmnopqrstuv', 'secret'],
   ])('fires on a planted %s', { timeout: 20_000 }, (name, line, rule) => {
     const dir = make(`planted-${rule}-${name.replace(/\s/g, '-')}`);
     writeFileSync(join(dir, 'prompts/main.md'), `${line}\n`);
@@ -73,6 +76,18 @@ describe('cli check-example (#116)', () => {
     expect(r.ok).toBe(false);
     expect(r.rules).toContain(rule);
     expect(check(dir).status).toBe(1);
+  });
+
+  it.each([
+    ['a word that ends in ft_', 'status draft_for_professional_review here'],
+    ['a home-like path inside a URL', 'https://www.garanteprivacy.it/home/docweb/-/docweb-display/print/10085432'],
+    ['a Users path inside a URL', 'https://example.com/Users/list'],
+  ])('does not fire on %s', { timeout: 20_000 }, (_name, line) => {
+    const dir = make(`clean-boundary-${line.replace(/[^a-z0-9]/gi, '-').slice(0, 40)}`);
+    writeFileSync(join(dir, 'prompts/main.md'), `${line}\n`);
+    const r = check(dir, '--json');
+    expect(r.status).toBe(0);
+    expect(JSON.parse(r.stdout).ok).toBe(true);
   });
 
   it('fires on a README without a Sources heading', { timeout: 20_000 }, () => {
