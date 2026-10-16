@@ -10,6 +10,9 @@ description: >-
   can take over in Live View, and a guard holds Submit until an independent verifier has
   confirmed every field on a fresh screenshot. Exceptions go to a human.
 
+# Run-wide: every browser session in the system shares the portal's service user.
+limits: { concurrency: 6, retries: 2, description: "At most 6 browser sessions across the system (max_concurrent_sessions in config/browser.yaml: the portal locks the service user after 8 parallel logins); a work item gets one try and 2 retries (MAX_ATTEMPTS = 3 in src/handler.py), then the DLQ." }
+
 runtimes:
   sqs:
     kind: cloud
@@ -148,8 +151,12 @@ layers:
         type: decision
         label: Supported?
         description: "Cancellations, bank details and claim payouts are never automated; missing fields go to a person."
-        decision: { output: choice, candidates: [address_change, add_driver, claim_documents, unsupported] }
-        files: [prompts/classifier.md]
+        decision:
+          output: choice
+          candidates: [address_change, add_driver, claim_documents, unsupported]
+          fail: closed
+          description: Unsupported, or any missing field, goes to the human review queue (src/intake.py); nothing the classifier is unsure of is automated.
+        files: [prompts/classifier.md, src/intake.py]
       - id: review_queue
         runtime: sqs
         type: output
@@ -183,7 +190,11 @@ layers:
         type: decision
         label: Single or batch?
         description: "Nightly renewal batches (> 20 policies) need one long session instead of 20 logins."
-        decision: { output: choice, candidates: [single, batch] }
+        decision:
+          output: choice
+          candidates: [single, batch]
+          fail: open
+          description: start(batch=False) is the default (src/session.py), so an unclear case runs as a single session with the 15-minute TTL.
         files: [src/session.py]
       - id: start
         runtime: browser
@@ -293,7 +304,11 @@ layers:
         type: decision
         label: Worker outcome?
         description: "The worker's stop tool; report carries exception, mismatch or stuck."
-        decision: { output: choice, candidates: [ready_to_submit, request_takeover, report] }
+        decision:
+          output: choice
+          candidates: [ready_to_submit, request_takeover, report]
+          fail: closed
+          description: Only ready_to_submit reaches the verifier, and the submit guard re-checks it; any other outcome goes to an operator, the review queue or an SQS retry (src/handler.py).
         files: [src/handler.py]
       - id: attempts
         runtime: sqs
