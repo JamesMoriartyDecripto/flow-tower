@@ -1,0 +1,365 @@
+{
+  "takenAt": "2026-10-16T09:02:50.209Z",
+  "path": "../deep-research",
+  "towers": [
+    {
+      "id": "deep-research.tower.yaml",
+      "name": "Deep Research Team",
+      "inventory": {
+        "layers": 5,
+        "nodes": 36,
+        "nodesByType": {
+          "agent": 10,
+          "decision": 5,
+          "entry": 1,
+          "guard": 1,
+          "hook": 1,
+          "human": 3,
+          "memory": 3,
+          "model": 3,
+          "output": 1,
+          "process": 3,
+          "tool": 5
+        },
+        "edges": {
+          "total": 43,
+          "links": 11,
+          "byKind": {
+            "call": 10,
+            "data": 12,
+            "flow": 10,
+            "handoff": 6,
+            "return": 4,
+            "spawn": 1
+          }
+        },
+        "agents": 10,
+        "models": {
+          "claude-haiku-5-5": 2,
+          "claude-opus-5-5": 4,
+          "claude-sonnet-5-5": 7
+        },
+        "runtimes": {
+          "declared": 7,
+          "byKind": {
+            "browser": 1,
+            "cloud": 1,
+            "container": 1,
+            "saas": 4
+          }
+        },
+        "withOps": {
+          "budget": 1,
+          "limits": 5,
+          "approval": 2,
+          "evals": 4,
+          "sandbox": 1,
+          "fanout": 1
+        },
+        "nestedTowers": [
+          "search.searcher"
+        ],
+        "run": {
+          "budget": true,
+          "limits": true
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "search.confluence",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "search.gdrive",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "search.searcher",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "intake.effort",
+          "message": "decision with 1 outgoing edge(s): add one edge per answer"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "intake.effort",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "intake.need_input",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "synthesis.verified",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "ops.rollout",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "intake.clarify",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "intake.brief",
+          "role": "writing",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "lead.lead",
+          "role": "orchestrator",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "search.searcher",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "search.summarize",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "search.compress",
+          "role": "writing",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "synthesis.writer",
+          "role": "writing",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "synthesis.citation",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "synthesis.verifier",
+          "role": "review",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "ops.judge",
+          "role": "review",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        }
+      ]
+    },
+    {
+      "id": "towers/searcher.tower.yaml",
+      "name": "Searcher internals",
+      "inventory": {
+        "layers": 3,
+        "nodes": 13,
+        "nodesByType": {
+          "agent": 4,
+          "decision": 2,
+          "entry": 1,
+          "guard": 1,
+          "memory": 1,
+          "model": 1,
+          "output": 1,
+          "process": 2
+        },
+        "edges": {
+          "total": 13,
+          "links": 3,
+          "byKind": {
+            "call": 2,
+            "data": 2,
+            "flow": 7,
+            "return": 2
+          }
+        },
+        "agents": 4,
+        "models": {
+          "claude-sonnet-5-5": 5
+        },
+        "runtimes": {
+          "declared": 3,
+          "byKind": {
+            "cloud": 1,
+            "container": 1,
+            "saas": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 4,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 1
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "loop.parallel",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "plan.internal",
+          "message": "decision with 1 outgoing edge(s): add one edge per answer"
+        },
+        {
+          "rule": "AUD10",
+          "level": "info",
+          "message": "4 agents with no tower budget or limits: add a run-wide budget"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "plan.scan",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "plan.broad",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "loop.evaluate",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "loop.narrow",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        }
+      ]
+    }
+  ]
+}
