@@ -111,7 +111,7 @@ layers:
           absolute minimum by the Sensitivity margin, and be peaky once whitened by the floor: a fan or hiss is flat,
           voiced speech is not. A clip is cut after ~0.6 s of silence or 8 s of speech; under 0.2 s of speech (a click)
           is dropped.
-        decision: { output: binary, candidates: [speech, noise] }
+        decision: { output: binary, candidates: [speech, noise], fail: closed }
         limits: { timeout: 8s, description: "A clip is cut after at most 8 s of speech." }
         files: [src/app/voice/noise.ts, src/app/voice/mic.ts, tests/voice-noise.test.ts]
       - id: clip
@@ -135,6 +135,7 @@ layers:
       - "floor -> detect [data]: whitening"
       - "prefs -> detect [data]: sensitivity"
       - "detect -> clip: speech, ~0.6 s silence"
+      - "detect -> floor [data]: noise, the floor follows the room"
       - "clip -> duplex: recording time"
       - "prefs -> duplex [data]: interrupt by voice"
 
@@ -215,21 +216,21 @@ layers:
         label: Barge-in?
         runtime: browser
         description: "Lets the user talk over a reply, and only with Interrupt by voice on, for speech heard from the speakers. A stop word (stop, basta, ferma, zitto, enough...) ends the reply. Under 3 words (a cough, \"ok\") are ignored and the reply goes on; 3 or more stop it and are handled as a new request, the minimum-words rule of Pipecat."
-        decision: { output: choice, candidates: [not during a reply, stop word, under 3 words, 3+ words] }
+        decision: { output: choice, candidates: [not during a reply, stop word, under 3 words, 3+ words], fail: closed }
         files: [src/app/voice/duplex.ts, src/app/voice/voice.ts, tests/voice-duplex.test.ts]
       - id: route
         type: decision
         label: Agent or parser?
         runtime: browser
         description: "Chooses between the agent and the local parser. Questions (a question mark or a question word), requests (dimmi, explain) and references to the screen (questo, this, collegato, the first) go to the agent; the rest goes to the parser first. The user's accepted aliases are applied before. With no agent model on the server, everything goes to the parser."
-        decision: { output: binary, candidates: [agent, parser] }
+        decision: { output: binary, candidates: [agent, parser], fail: closed }
         files: [src/app/voice/agent.ts, src/app/voice/voice.ts, tests/voice-agent.test.ts]
       - id: pick
         type: decision
         label: Pending pick?
         runtime: browser
         description: "run(): if the last command offered a numbered choice and this phrase is only a pick (\"one\", \"due\", \"3\"; up to 4), that option is taken without parsing. With the agent on, \"il primo\", \"la prima\", \"il secondo\", \"the first\", \"the second\" match wantsAgent and go to the agent instead, which does not see the parser's numbered list."
-        decision: { output: binary, candidates: [pick, parse] }
+        decision: { output: binary, candidates: [pick, parse], fail: closed }
         files: [src/app/voice/voice.ts]
       - id: parser
         type: process
@@ -245,7 +246,7 @@ layers:
         label: Ambiguous?
         runtime: browser
         description: "best(): candidates scoring >= 0.5; those within 0.05 of the top are a tie. One wins: an action. Several: a numbered choice of up to 4. None: \"Not understood\", which goes on to the agent when there is one."
-        decision: { output: choice, candidates: [one, several, none], threshold: 0.5 }
+        decision: { output: choice, candidates: [one, several, none], threshold: 0.5, fail: closed }
         files: [src/app/voice/commands.ts, src/app/voice/voice.ts]
     edges:
       - "echo -> noise: not an echo"
@@ -284,7 +285,7 @@ layers:
         label: Tool calls?
         runtime: browser
         description: "Tool calls: run them and take another step. None: the content is the answer. Step 4 is sent with answer: true, so it cannot call tools any more."
-        decision: { output: choice, candidates: [tool calls, answer] }
+        decision: { output: choice, candidates: [tool calls, answer], fail: closed }
         limits: { max_iterations: 4 }
         files: [src/app/voice/agent.ts]
       - id: tools
@@ -413,7 +414,7 @@ layers:
         label: Review due?
         runtime: browser
         description: "reviewIfDue() at mic off: the journal is on and 20 or more turns were recorded since the last review in this page (the count starts again on reload). Otherwise nothing is sent. One at a time; the turns a review covered come off the count, success or failure, so a failed one (maybe paid) waits for 20 more turns. Review now in Settings asks at once."
-        decision: { output: binary, candidates: [review, wait], threshold: 20 }
+        decision: { output: binary, candidates: [review, wait], threshold: 20, fail: closed }
         files: [src/app/voice/journal.ts, src/app/voice/voice.ts]
       - id: review
         type: process
