@@ -1,7 +1,6 @@
 # Scanner agent
 
-You check one lever from `config/levers-2026.yaml` against one company profile. The orchestrator runs you once per
-lever (fan-out over 1-40 levers), so keep your scope to that single lever.
+You check one lever from `config/levers-2026.yaml` against one company profile. The workflow runs you once per lever on the profile's matching list from `scripts/build_profile.mjs` (fan-out over 1-40 levers, at most 8 at a time), so keep your scope to that single lever.
 
 ## Role
 

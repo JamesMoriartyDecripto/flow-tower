@@ -26,10 +26,10 @@ invoices from Fatture in Cloud, or the monthly accountant export that the invoic
 
 | # | Layer | What happens |
 |---|---|---|
-| 1 | Intake & Engagement | A client question or the daily deadline sweep enters. The engagement guard checks the signed mandate with the AI clause (art. 13 L. 132/2025), the absence of an AI opt-out and customer due diligence. An open AML flag also stops the run. Any failed check closes the guard: no AI step runs and the professional takes the case. Triage routes to question, optimization review, deadline action or human only. |
+| 1 | Intake & Engagement | A client question or the daily deadline sweep enters. The engagement guard checks the signed mandate with the AI clause (art. 13 L. 132/2025), the absence of an AI opt-out and customer due diligence. An open AML flag also stops the run. Any failed check closes the guard: no AI step runs and the professional takes the case. The question text is pseudonymized before the triage model reads it. Triage routes to question, optimization review, deadline action or human only. |
 | 2 | Company Data | Fatture in Cloud through read-only scopes, plus uploads from the professional (trial balance, fixed assets, payroll, cassetto fiscale) and the Registro Imprese. The company profile is built per profile (srl, startup, startup-innovativa, fotovoltaico, employer, forfettario). A redaction step pseudonymises personal data before any model sees it. |
 | 3 | Sources | A source registry with each source's kind and legal weight. A daily sync fills the source library. An article map covers the testi unici from 1/1/2027. Only stored texts can be cited. |
-| 4 | Research & Analysis | The researcher answers from retrieved text only ("no source, no claim"). A lever scanner runs once per savings lever that the profiles touch (fan-out from 1 to 40). Code computes every number. A risk labeller marks abuse-of-law risk under art. 10-bis L. 212/2000 and flags DAC6 cases. |
+| 4 | Research & Analysis | The researcher answers from retrieved text only ("no source, no claim"). A lever scanner runs once per savings lever on the matching list that code builds from the profiles (fan-out from 1 to 40, at most 8 at a time; the caps are illustrative). Code computes every number. A risk labeller marks abuse-of-law risk under art. 10-bis L. 212/2000 and flags DAC6 cases. |
 | 5 | Verification | Quote check, in-force check and support check by a second model, then a gate: pass, retry (at most twice, back to the drafter), or refuse. |
 | 6 | Review & Delivery | The commercialista reviews, edits and signs the memo, and nothing leaves the studio without a signature. A draft interpello is prepared for red-labelled cases. The professional files it. |
 | 7 | Memory & Audit | The client file and an append-only audit log, kept for 10 years. Weekly evals run against illustrative targets. |
@@ -50,7 +50,7 @@ broken link keeps the old record. When an article changes, the open memos that c
 2. **In force.** `scripts/check_in_force.mjs` requires each cited article to have been in force in
    the tax period. It flags an article repealed before the period, an old text used for a period
    from 2027, and any press source used as authority.
-3. **Support.** A different model from the drafter (Opus) checks that each cited span states the
+3. **Support.** A different model family from the drafter (GPT-6 Luna) checks that each cited span states the
    claim, for the tax period. A claim whose only source is press gets `not_supported`.
 4. **Gate.** Pass, retry (at most twice, back to the drafter with the same sources), or refuse.
    A refusal goes out as a no-source answer that suggests an interpello or research by the
@@ -120,6 +120,35 @@ The client-facing files are in Italian, because the client reads them: the memo 
 (`templates/memo-template.md`), the sample memo (`samples/memo-lumen-grid-2026-10.md`) and the AI
 information notice (`policies/ai-disclosure-it.md`). The notice is a template that the
 professional must complete and approve before it goes to a client. Everything else is in English.
+
+## Model choice
+
+The models come from the benchmark of 2026-10-16 (`benchmark/results/`), six models with three runs
+per task and deterministic checks. The rule is: same result, then the lowest cost per correct
+answer, then speed, across providers.
+
+| Role | Node | Model now | Correct | $ / correct | Why |
+|---|---|---|---|---|---|
+| Triage | `intake.triage` | Claude Haiku 5.5 | 6/6 | $0.0000 | Tied on result, cheapest; unchanged |
+| Abuse-of-law labels | `analysis.risk` | Claude Haiku 5.5 | 6/6 | $0.0003 | Cheapest 6/6 model; GPT-6 Luna 5/6; unchanged |
+| Researcher | `analysis.researcher` | Claude Haiku 5.5 | 6/6 | $0.0007 | Was Sonnet 5.5 (5/6, $0.016); about 1/23 of the cost |
+| Support check | `verify.support` | GPT-6 Luna | 6/6 | $0.0001 | Fastest and cheapest; was Opus 5.5 (6/6, $0.0026) |
+| Scanner, drafter | `analysis.scanner`, `analysis.drafter` | Claude Sonnet 5.5 | no task set | n/a | Not benchmarked yet; unchanged |
+
+- Triage and risk stay on Claude Haiku 5.5. All models tied on triage, and Haiku was the cheapest.
+  On abuse labels GPT-6 Luna scored 5/6, so it is not tied.
+- The researcher moves from Sonnet to Haiku. DeepSeek 4.1 Flash also scored 6/6, but it costs more
+  per correct answer, has no Citations API, and its runs spread over six providers.
+- The support check moves from Opus to GPT-6 Luna. Claude Haiku scored 0/6 because it accepted
+  unsupported claims, so it must never verify.
+- GPT-6 Luna and Gemini 3.7 Flash often answered in prose instead of the asked JSON on the
+  cited-answer tasks. Check the output format before using either model in another role.
+- The scanner and the drafter stay on Claude Sonnet 5.5, because there is no task set for them yet.
+
+The sample is small: 2 tasks × 3 runs per role, with deterministic checks only. The "no fine" rule
+of `ai-in-the-studio` was widened after the run, because it rejected correct wordings; the expected
+answer did not change. The total cost of the run was $0.43. The full tables are in
+`benchmark/results/`.
 
 ## Verified vs illustrative
 

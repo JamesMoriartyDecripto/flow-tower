@@ -1,0 +1,207 @@
+{
+  "takenAt": "2026-10-16T12:43:39.165Z",
+  "path": "../ai-commercialista",
+  "towers": [
+    {
+      "id": "ai-commercialista.tower.yaml",
+      "name": "AI Commercialista (Italy)",
+      "inventory": {
+        "layers": 7,
+        "nodes": 33,
+        "nodesByType": {
+          "agent": 6,
+          "decision": 1,
+          "entry": 2,
+          "guard": 4,
+          "hook": 1,
+          "human": 3,
+          "memory": 5,
+          "output": 4,
+          "process": 5,
+          "tool": 2
+        },
+        "edges": {
+          "total": 40,
+          "links": 16,
+          "byKind": {
+            "call": 1,
+            "data": 19,
+            "flow": 16,
+            "handoff": 2,
+            "return": 1,
+            "spawn": 1
+          }
+        },
+        "agents": 6,
+        "models": {
+          "claude-haiku-5-5": 2,
+          "claude-opus-5-5": 1,
+          "claude-sonnet-5-5": 3
+        },
+        "runtimes": {
+          "declared": 5,
+          "byKind": {
+            "cloud": 2,
+            "container": 1,
+            "saas": 2
+          }
+        },
+        "withOps": {
+          "budget": 6,
+          "limits": 1,
+          "approval": 2,
+          "evals": 1,
+          "sandbox": 0,
+          "fanout": 1
+        },
+        "nestedTowers": [
+          "sources.sync"
+        ],
+        "run": {
+          "budget": true,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "analysis.scanner",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD05",
+          "level": "info",
+          "node": "analysis.risk",
+          "message": "feeds output with no evals: add evals to measure the answer"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "deliver.filing",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "intake.triage",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "analysis.researcher",
+          "role": "orchestrator",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "analysis.scanner",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "analysis.drafter",
+          "role": "writing",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "analysis.risk",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "verify.support",
+          "role": "writing",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        }
+      ]
+    },
+    {
+      "id": "towers/sources.tower.yaml",
+      "name": "Sources sync",
+      "inventory": {
+        "layers": 4,
+        "nodes": 16,
+        "nodesByType": {
+          "decision": 1,
+          "entry": 1,
+          "human": 1,
+          "memory": 1,
+          "output": 2,
+          "process": 6,
+          "tool": 4
+        },
+        "edges": {
+          "total": 19,
+          "links": 8,
+          "byKind": {
+            "data": 1,
+            "flow": 17,
+            "handoff": 1
+          }
+        },
+        "agents": 0,
+        "models": {},
+        "runtimes": {
+          "declared": 4,
+          "byKind": {
+            "container": 1,
+            "local": 1,
+            "saas": 2
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 0,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [],
+      "modelFit": []
+    }
+  ]
+}

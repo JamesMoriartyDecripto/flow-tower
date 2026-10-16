@@ -26,6 +26,12 @@ runtimes:
     label: Claude API
     provider: anthropic
     url: https://api.anthropic.com
+  openai:
+    kind: cloud
+    label: OpenAI API
+    description: "Support check only. Client data reaches a second processor: a DPA with OpenAI and the data region must be confirmed before production use."
+    provider: openai
+    url: https://api.openai.com
   fic:
     kind: saas
     label: Fatture in Cloud
@@ -58,25 +64,27 @@ agents:
     description: Classifies the request and fixes the intent. Reads only the question text and the client id, never the profile.
     model: claude-haiku-5-5
     prompt: triage
+    match: ["agent:triage"]
     runtime: anthropic
-    tools: [read_profile]
     budget: { usd: 0.05, turns: 6, on_exceed: stop }
-    data: { sensitivity: pii, region: eu, retention: 10y }
+    data: { sensitivity: confidential, region: eu, retention: 10y }
   researcher:
     name: Source researcher
-    description: Answers from retrieved sources only, through the Anthropic Citations API (search_result blocks with citations on).
-    model: claude-sonnet-5-5
+    description: "Answers from retrieved sources only, through the Anthropic Citations API (search_result blocks with citations on). Haiku 5.5: 6/6 on the benchmark at the lowest cost per correct answer."
+    model: claude-haiku-5-5
     prompt: researcher
+    match: ["agent:researcher"]
     runtime: anthropic
     tools: [search_library, get_article]
     harness: { max_turns: 12, permission_mode: default }
-    budget: { usd: 0.3, turns: 12, on_exceed: stop }
+    budget: { usd: 0.05, turns: 12, on_exceed: stop }
     data: { sensitivity: confidential, region: eu, retention: 10y }
   scanner:
     name: Lever scanner
     description: One instance per lever. Judges eligibility against the profile and cites the lever's legal source.
     model: claude-sonnet-5-5
     prompt: scanner
+    match: ["agent:scanner"]
     runtime: anthropic
     tools: [search_library, get_article]
     budget: { usd: 0.1, turns: 8, on_exceed: stop }
@@ -86,6 +94,7 @@ agents:
     description: Structured output only. A separate call from the researcher, since Citations cannot be combined with structured outputs.
     model: claude-haiku-5-5
     prompt: risk
+    match: ["agent:risk"]
     runtime: anthropic
     harness: { max_turns: 4, output: json_schema }
     budget: { usd: 0.03, turns: 4, on_exceed: stop }
@@ -95,18 +104,20 @@ agents:
     description: Drafts the memo with a citation on every claim. Cannot mark a claim as verified; the verify layer does that.
     model: claude-sonnet-5-5
     prompt: drafter
+    match: ["agent:drafter"]
     runtime: anthropic
     harness: { max_turns: 8, output: json_schema }
     budget: { usd: 0.2, turns: 8, on_exceed: stop }
     data: { sensitivity: confidential, region: eu, retention: 10y }
   support:
     name: Support checker
-    description: Opus reviews whether each cited span supports its claim. Deliberately a different model from the drafter.
-    model: claude-opus-5-5
+    description: "GPT-6 Luna reviews whether each cited span supports its claim: a different model family from the drafter. Chosen on the benchmark: 6/6 correct, the fastest and cheapest (Claude Haiku accepted unsupported claims, 0/6)."
+    model: gpt-6-luna
     prompt: support
-    runtime: anthropic
+    match: ["agent:support"]
+    runtime: openai
     harness: { max_turns: 6, output: json_schema }
-    budget: { usd: 0.4, turns: 6, on_exceed: escalate }
+    budget: { usd: 0.02, turns: 6, on_exceed: escalate }
     data: { sensitivity: confidential, region: eu, retention: 10y }
 
 layers:
@@ -133,6 +144,13 @@ layers:
         description: "Mandate signed and carrying the AI clause (art. 13 L. 132/2025), no AI opt-out, customer due diligence on file (D.Lgs. 231/2007). Fails closed: any missing item stops the run."
         decision: { output: binary, candidates: [pass, stop], fail: closed }
         files: [policies/engagement.yaml]
+      - id: redact_text
+        type: guard
+        label: Redact question
+        description: Pseudonymizes the question text before the triage model sees it, so no name, codice fiscale or IBAN reaches a prompt.
+        runtime: workers
+        files: [scripts/redact.mjs]
+        data: { sensitivity: pii, region: eu, retention: none }
       - id: triage
         agent: triage
         label: Request triage
@@ -150,7 +168,8 @@ layers:
     edges:
       - question -> engagement
       - sweep -> engagement
-      - "engagement -> triage: pass"
+      - "engagement -> redact_text: pass"
+      - "redact_text -> triage: pseudonymized text"
       - "engagement -> human_only [handoff]: no mandate, opt-out or AML flag"
       - "triage -> period: question, review or deadline action"
 
@@ -237,11 +256,14 @@ layers:
         agent: researcher
         label: Source researcher
         description: Retrieves articles from the library and answers with citations. No source, no claim.
-        files: [prompts/researcher.md, research/primary-sources.md]
+        files: [prompts/researcher.md, research/primary-sources.md, benchmark/results/2026-10-16-cited-answer.md]
+        evals:
+          - { name: verbatim-quote answers, value: 1.0, target: 0.9, illustrative: false, description: "Benchmark 2026-10-16, benchmark/tasks/cited-answer, 6 runs; the target is illustrative until the studio sets its own." }
       - id: scanner
         agent: scanner
         label: Lever scanner
         fanout: { min: 1, max: 40, by: savings lever }
+        limits: { concurrency: 8, timeout: 2m, description: Illustrative caps. }
         description: One copy per lever in config/levers-2026.yaml that the profiles touch. Each returns eligible, not eligible or needs data, with the lever's legal source.
         files: [config/levers-2026.yaml, research/levers-2026.md]
       - id: calc
@@ -258,9 +280,10 @@ layers:
         agent: risk
         label: Abuse-of-law check
         description: Labels each proposal green, amber or red under art. 10-bis L. 212/2000, and flags DAC6 for cross-border arrangements. Red suggests an interpello.
-        files: [research/practices.md]
+        files: [research/practices.md, benchmark/results/2026-10-16-abuse-label.md]
+        evals:
+          - { name: abuse-label accuracy, value: 1.0, target: 0.95, illustrative: false, description: "Benchmark 2026-10-16, benchmark/tasks/abuse-label, 6 runs; the target is illustrative until the studio sets its own." }
     edges:
-      - "researcher -> scanner [spawn]: lever list"
       - "scanner -> calc [call]: eligible levers"
       - "calc -> risk: proposals with numbers"
       - "risk -> drafter: risk labels"
@@ -288,8 +311,10 @@ layers:
       - id: support
         agent: support
         label: Support check
-        description: Does the cited text support the claim? Opus, a different model from the drafter.
-        files: [prompts/support.md, scripts/check_citations.mjs]
+        description: "Does the cited text support the claim? GPT-6 Luna, a different model family from the drafter."
+        files: [prompts/support.md, scripts/check_citations.mjs, benchmark/results/2026-10-16-citation-support.md]
+        evals:
+          - { name: citation-support accuracy, value: 1.0, target: 0.95, illustrative: false, description: "Benchmark 2026-10-16, benchmark/tasks/citation-support, 6 runs; the target is illustrative until the studio sets its own." }
       - id: gate
         type: decision
         label: Gate
@@ -380,9 +405,10 @@ layers:
 
 links:
   # intake -> data -> analysis
-  - "intake.triage -> data.profile [data]: redacted profile"
+  - "intake.triage -> data.profile [data]: client id and route"
   - "intake.period -> sources.library [data]: law version"
   - "data.redact -> analysis.researcher: redacted profile"
+  - "data.redact -> analysis.scanner [spawn]: matching levers (build_profile.mjs)"
   - "sources.library -> analysis.researcher [data]: retrieved articles"
   - "sources.library -> analysis.scanner [data]: article lookup"
   - "sources.registry -> analysis.researcher [data]: weight and kind"
@@ -398,4 +424,5 @@ links:
   - "deliver.review -> memory.audit [data]: approver"
   - "intake.engagement -> memory.audit [data]: guard result"
   - "intake.engagement -> memory.ai_register [data]: AI clause on file"
+  - "deliver.filing -> memory.audit [data]: filing receipt"
 

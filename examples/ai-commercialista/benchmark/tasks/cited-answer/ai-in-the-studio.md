@@ -19,4 +19,4 @@ Question: Can our studio let an AI system draft and send memos to clients with n
 
 ## Expected
 
-`ai-in-the-studio.check.mjs` (with `verify-quotes.mjs`) checks that the answer is one JSON object, that every citation is a verbatim quote from one of the two fixtures, that a quote from art. 13 comma 1 ("attività strumentali e di supporto") and one from comma 2 ("comunicate al soggetto destinatario") are present, and that the answer says the files state no fine. An invented fine fails.
+`ai-in-the-studio.check.mjs` (with `verify-quotes.mjs`) checks that the answer is one JSON object, that every citation is a verbatim quote from one of the two fixtures, that a quote from art. 13 comma 1 ("attività strumentali e di supporto") and one from comma 2 ("comunicate al soggetto destinatario") are present, and that the answer says in any wording that the files give no fine (a sentence that mentions a fine must carry a negation). A fine sentence that states an amount fails, since the amount is invented.
