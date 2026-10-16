@@ -324,7 +324,7 @@ layers:
         agent: lead
         label: Rank by severity
         description: Per severity.md. Blockers stop the release; minors may become issues.
-        decision: { output: choice, candidates: [blocker, major, minor] }
+        decision: { output: choice, candidates: [blocker, major, minor], fail: closed, description: "On doubt the finding ranks one level higher (severity.md), so it never slips through as minor; only the maintainer defers it." }
       - id: issues
         type: output
         label: GitHub issues
