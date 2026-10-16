@@ -227,7 +227,11 @@ layers:
         type: decision
         label: Route?
         description: Regulated topics (medical, legal, financial advice) need an accredited SME or are declined.
-        decision: { output: choice, candidates: [new, refresh, needs_info, decline] }
+        decision:
+          output: choice
+          candidates: [new, refresh, needs_info, decline]
+          fail: closed
+          description: "The model proposes, policy disposes (src/intake.ts): an answer that fails IntakeSchema stops the run, no named SME forces needs_info, and a regulated topic without an accredited SME is declined."
         runtime: orchestrator
         files: [src/intake.ts]
       - id: clarify

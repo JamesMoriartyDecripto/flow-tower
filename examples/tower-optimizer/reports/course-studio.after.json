@@ -1,0 +1,741 @@
+{
+  "takenAt": "2026-10-16T09:49:35.278Z",
+  "path": "examples/course-studio",
+  "towers": [
+    {
+      "id": "course-studio.tower.yaml",
+      "name": "Syllabus Forge",
+      "inventory": {
+        "layers": 12,
+        "nodes": 109,
+        "nodesByType": {
+          "agent": 18,
+          "decision": 9,
+          "entry": 1,
+          "guard": 9,
+          "hook": 5,
+          "human": 5,
+          "memory": 9,
+          "model": 3,
+          "output": 2,
+          "process": 37,
+          "tool": 11
+        },
+        "edges": {
+          "total": 162,
+          "links": 57,
+          "byKind": {
+            "call": 32,
+            "data": 51,
+            "flow": 36,
+            "handoff": 13,
+            "return": 14,
+            "spawn": 16
+          }
+        },
+        "agents": 18,
+        "models": {
+          "claude-haiku-5-5": 3,
+          "claude-opus-5-5": 6,
+          "claude-sonnet-5-5": 12
+        },
+        "runtimes": {
+          "declared": 13,
+          "byKind": {
+            "browser": 1,
+            "ci": 1,
+            "cloud": 2,
+            "container": 1,
+            "edge": 1,
+            "local": 1,
+            "saas": 5,
+            "serverless": 1
+          }
+        },
+        "withOps": {
+          "budget": 3,
+          "limits": 3,
+          "approval": 5,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [
+          "assessment.assessor",
+          "content.writer",
+          "media.media",
+          "review.board"
+        ],
+        "run": {
+          "budget": true,
+          "limits": true
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "assessment.adaptive",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "content.legacy_lint",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "content.localizer",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "media.dubbing",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "brief.intake",
+          "role": "router",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [
+            "low-latency",
+            "structured-output"
+          ],
+          "prefer": "small and fast; picks one label out of a few"
+        },
+        {
+          "node": "brief.director",
+          "role": "orchestrator",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "research.librarian",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "design.architect",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "content.writer",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "content.localizer",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "media.media",
+          "role": "orchestrator",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "media.script",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "assessment.assessor",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "review.pedagogy",
+          "role": "review",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "review.fact",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "review.a11y",
+          "role": "review",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "review.rights",
+          "role": "review",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "review.consolidate",
+          "role": "writing",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "pilot.simulator",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "publish.packager",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "publish.marketer",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "memory.tagger",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        }
+      ]
+    },
+    {
+      "id": "towers/assessment.tower.yaml",
+      "name": "Assessment internals",
+      "inventory": {
+        "layers": 4,
+        "nodes": 18,
+        "nodesByType": {
+          "agent": 1,
+          "decision": 2,
+          "entry": 1,
+          "guard": 1,
+          "memory": 2,
+          "model": 1,
+          "output": 1,
+          "process": 9
+        },
+        "edges": {
+          "total": 21,
+          "links": 6,
+          "byKind": {
+            "call": 1,
+            "data": 7,
+            "flow": 9,
+            "return": 3,
+            "spawn": 1
+          }
+        },
+        "agents": 1,
+        "models": {
+          "claude-haiku-5-5": 1,
+          "claude-sonnet-5-5": 1
+        },
+        "runtimes": {
+          "declared": 2,
+          "byKind": {
+            "cloud": 1,
+            "container": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 0,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [],
+      "modelFit": [
+        {
+          "node": "blueprint.assessor",
+          "role": "orchestrator",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        }
+      ]
+    },
+    {
+      "id": "towers/fact-check.tower.yaml",
+      "name": "Fact-check internals",
+      "inventory": {
+        "layers": 3,
+        "nodes": 13,
+        "nodesByType": {
+          "agent": 1,
+          "decision": 2,
+          "entry": 1,
+          "memory": 2,
+          "output": 2,
+          "process": 3,
+          "tool": 2
+        },
+        "edges": {
+          "total": 16,
+          "links": 5,
+          "byKind": {
+            "call": 3,
+            "data": 8,
+            "flow": 5
+          }
+        },
+        "agents": 1,
+        "models": {
+          "claude-haiku-5-5": 1,
+          "claude-sonnet-5-5": 1
+        },
+        "runtimes": {
+          "declared": 3,
+          "byKind": {
+            "cloud": 1,
+            "container": 1,
+            "saas": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 0,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [],
+      "modelFit": [
+        {
+          "node": "extract.extractor",
+          "role": "data",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [
+            "structured-output"
+          ],
+          "prefer": "extracts into a JSON schema; low temperature, same answer each run"
+        },
+        {
+          "node": "verify.checker",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        }
+      ]
+    },
+    {
+      "id": "towers/media.tower.yaml",
+      "name": "Media internals",
+      "inventory": {
+        "layers": 4,
+        "nodes": 18,
+        "nodesByType": {
+          "agent": 2,
+          "decision": 2,
+          "entry": 1,
+          "guard": 1,
+          "memory": 1,
+          "output": 1,
+          "process": 8,
+          "tool": 2
+        },
+        "edges": {
+          "total": 23,
+          "links": 7,
+          "byKind": {
+            "call": 1,
+            "data": 12,
+            "flow": 7,
+            "return": 3
+          }
+        },
+        "agents": 2,
+        "models": {
+          "claude-sonnet-5-5": 2
+        },
+        "runtimes": {
+          "declared": 3,
+          "byKind": {
+            "container": 1,
+            "saas": 1,
+            "serverless": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 0,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [],
+      "modelFit": [
+        {
+          "node": "script.writer",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "render.producer",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    },
+    {
+      "id": "towers/module-writer.tower.yaml",
+      "name": "Module writer internals",
+      "inventory": {
+        "layers": 4,
+        "nodes": 18,
+        "nodesByType": {
+          "agent": 1,
+          "decision": 2,
+          "entry": 1,
+          "guard": 1,
+          "memory": 2,
+          "model": 1,
+          "output": 2,
+          "process": 7,
+          "tool": 1
+        },
+        "edges": {
+          "total": 20,
+          "links": 5,
+          "byKind": {
+            "call": 3,
+            "data": 4,
+            "flow": 11,
+            "return": 2
+          }
+        },
+        "agents": 1,
+        "models": {
+          "claude-sonnet-5-5": 2
+        },
+        "runtimes": {
+          "declared": 2,
+          "byKind": {
+            "cloud": 1,
+            "container": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 0,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [],
+      "modelFit": [
+        {
+          "node": "inputs.plan",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    },
+    {
+      "id": "towers/review-board.tower.yaml",
+      "name": "Review board internals",
+      "inventory": {
+        "layers": 4,
+        "nodes": 18,
+        "nodesByType": {
+          "agent": 5,
+          "decision": 2,
+          "entry": 1,
+          "guard": 1,
+          "human": 1,
+          "memory": 2,
+          "model": 1,
+          "output": 2,
+          "process": 3
+        },
+        "edges": {
+          "total": 24,
+          "links": 10,
+          "byKind": {
+            "call": 1,
+            "data": 7,
+            "flow": 8,
+            "handoff": 2,
+            "return": 5,
+            "spawn": 1
+          }
+        },
+        "agents": 5,
+        "models": {
+          "claude-opus-5-5": 4,
+          "claude-sonnet-5-5": 2
+        },
+        "runtimes": {
+          "declared": 3,
+          "byKind": {
+            "cloud": 1,
+            "container": 1,
+            "saas": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 1,
+          "approval": 1,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [
+          "parallel.fact"
+        ],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD10",
+          "level": "info",
+          "message": "5 agents with no tower budget or limits: add a run-wide budget"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "parallel.pedagogy",
+          "role": "writing",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "parallel.fact",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "parallel.a11y",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "parallel.rights",
+          "role": "research",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "consolidate.merge",
+          "role": "general",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        }
+      ]
+    }
+  ]
+}
