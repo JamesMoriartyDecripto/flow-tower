@@ -2,10 +2,21 @@
 // A task is Markdown with a small front matter and two sections:
 //   ## Prompt   sent to the model, nothing else is
 //   ## Expected never sent: the answer key, written before the first run
+// Front matter `endpoint:` picks the OpenRouter endpoint (default chat). Non-chat endpoints that take a body
+// (decisions, embeddings, rerank) carry it as a ```json block under "## Request"; the others send "## Prompt".
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
 export const CHECKS = ['command', 'json', 'regex', 'rubric'];
+export const ENDPOINTS = ['chat', 'decisions', 'embeddings', 'rerank', 'images', 'videos', 'speech', 'transcriptions'];
+// Endpoints whose input is the "## Request" json, and the keys that json must hold.
+const REQUEST_KEYS = { decisions: ['state', 'questions'], embeddings: ['corpus', 'queries'], rerank: ['query', 'documents'] };
+// Image fixtures: the media type sent in the data URL, by extension.
+const IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
+
+export function mimeOf(name) {
+  return IMAGE_TYPES[String(name).split('.').pop().toLowerCase()];
+}
 
 function frontMatter(text) {
   const m = /^---\n([\s\S]*?)\n---\n/.exec(text);
@@ -40,6 +51,7 @@ export function loadTask(file) {
   const [meta, body] = frontMatter(text);
   const dir = resolve(file, '..');
   const list = (s) => (s ? s.split(',').map((x) => x.trim()).filter(Boolean) : []);
+  const requestText = section(body, 'Request');
   const task = {
     file,
     dir,
@@ -52,10 +64,22 @@ export function loadTask(file) {
     files: list(meta.files),
     steps: Number(meta.steps || 8),
     title: (/^# (.+)$/m.exec(body) || [])[1] || basename(file),
+    endpoint: meta.endpoint || 'chat',
+    images: list(meta.images),
+    audio: meta.audio || '',
     prompt: section(body, 'Prompt'),
     expected: section(body, 'Expected'),
+    requestText,
+    request: parseRequest(requestText),
   };
   return task;
+}
+
+// The "## Request" json, or null when it is missing or does not parse: taskProblems reports either.
+function parseRequest(text) {
+  const [j] = blocks(text, 'json');
+  if (!j) return null;
+  try { return JSON.parse(j); } catch { return null; }
 }
 
 // Problems that would make a run meaningless: caught by --dry-run before any money is spent.
@@ -73,8 +97,22 @@ export function taskProblems(t) {
   if (t.rubric && !/rubric/i.test(t.expected)) p.push('rubric task: list its rubric points under "## Expected"');
   for (const f of t.files) if (!existsSync(join(t.dir, f))) p.push(`fixture missing: ${f}`);
   if (t.files.length && !t.tools.includes('read_file')) p.push('fixtures need tools: read_file');
-  // The answer key must never reach the model.
+  if (!ENDPOINTS.includes(t.endpoint)) p.push(`endpoint must be one of ${ENDPOINTS.join(', ')}`);
+  const needs = REQUEST_KEYS[t.endpoint];
+  if (needs) {
+    if (!t.request) p.push(`${t.endpoint} needs a valid \`\`\`json block under "## Request"`);
+    else for (const k of needs) if (!(k in t.request)) p.push(`Request needs "${k}" for ${t.endpoint}`);
+  }
+  // Fixtures are checked here so a missing image costs nothing: the run would send a broken request.
+  for (const img of t.images) {
+    if (!existsSync(join(t.dir, img))) p.push(`images fixture missing: ${img}`);
+    else if (!mimeOf(img)) p.push(`images fixture must be png, jpg, webp or gif: ${img}`);
+  }
+  if (t.images.length && t.endpoint !== 'chat') p.push('images: is only read by the chat endpoint');
+  if (t.audio && !existsSync(join(t.dir, t.audio))) p.push(`audio fixture missing: ${t.audio}`);
+  // The answer key must never reach the model, neither in the prompt nor in the request body.
   if (t.expected && t.prompt.includes(t.expected.slice(0, 40))) p.push('the prompt contains the expected answer');
+  if (t.expected && t.requestText && t.requestText.includes(t.expected.slice(0, 40))) p.push('the Request block contains the expected answer');
   return p;
 }
 
