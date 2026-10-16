@@ -8,6 +8,9 @@ description: >-
 root: ..
 tags: [legal, extraction, citations]
 
+# One session per document and clause family: src/extract.ts sets maxTurns 12.
+limits: { max_iterations: 12, description: "maxTurns 12 per extraction session (src/extract.ts); a session that does not succeed throws." }
+
 runtimes:
   matter-svc:
     kind: container
@@ -79,7 +82,10 @@ layers:
         description: e.g. assignment clause exists -> extract consent requirement; otherwise the dependent columns are skipped.
         runtime: matter-svc
         files: [templates/review-columns.yaml]
-        decision: { output: binary }
+        decision:
+          output: binary
+          fail: closed
+          description: No quote means not found (prompts/clause-reviewer.md), so an unproven clause takes the no branch and the associate sees the empty cell in the review table.
       - id: conditional
         agent: reviewer
         label: Dependent columns
@@ -112,7 +118,11 @@ layers:
         label: Confidence ok?
         description: Cells under 0.7 are marked for the associate even if the quote verifies.
         runtime: matter-svc
-        decision: { output: binary, threshold: 0.7 }
+        decision:
+          output: binary
+          threshold: 0.7
+          fail: closed
+          description: A cell under 0.7 goes to the associate even when its quote verifies; the lawyer approves the whole table at the review_table checkpoint.
       - id: cells
         type: output
         label: Cells

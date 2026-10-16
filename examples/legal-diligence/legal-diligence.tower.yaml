@@ -12,6 +12,9 @@ description: >-
   deal for a German industrial supplier, 1,184 documents.
 tags: [legal, m-and-a, due-diligence, contract-review, human-in-the-loop, citations, data-residency, claude-agent-sdk]
 
+# Run-wide: the two pools in src/pipeline.ts, on the Bedrock EU quota every matter shares.
+limits: { concurrency: 32, description: "At most 32 extraction sessions (pool(jobs, 32)) and 8 classification batches (pool(batches, 8)) at once; each stage then waits for a lawyer checkpoint." }
+
 runtimes:
   matter-svc:
     kind: container
@@ -226,6 +229,7 @@ layers:
         description: (document x clause family) jobs, concurrency 32 against the shared Bedrock EU quota.
         runtime: matter-svc
         files: [src/pipeline.ts]
+        limits: { concurrency: 32, description: "pool(jobs, 32) in src/pipeline.ts: the Bedrock EU quota is shared by every matter in the region." }
       - id: coc
         agent: clause-reviewer
         label: CoC review
@@ -306,7 +310,11 @@ layers:
         label: Severity?
         description: red (price / structure / deal-breaker), amber (warranty, indemnity, condition), green (appendix), or information gap.
         runtime: matter-svc
-        decision: { output: choice, candidates: [red, amber, green, information gap] }
+        decision:
+          output: choice
+          candidates: [red, amber, green, information gap]
+          fail: closed
+          description: Unknown materiality counts as above threshold (prompts/red-flag-scorer.md), so doubt scores up, never down; a senior associate approves every flag at the flags checkpoint.
       - id: alert
         type: output
         label: Red-flag alert
