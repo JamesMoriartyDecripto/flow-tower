@@ -1,0 +1,279 @@
+{
+  "takenAt": "2026-10-16T09:24:19.209Z",
+  "path": "examples/release-auditor",
+  "towers": [
+    {
+      "id": "release-auditor.tower.yaml",
+      "name": "Release Auditor",
+      "inventory": {
+        "layers": 6,
+        "nodes": 31,
+        "nodesByType": {
+          "agent": 9,
+          "decision": 1,
+          "entry": 1,
+          "guard": 1,
+          "human": 1,
+          "memory": 3,
+          "output": 4,
+          "process": 5,
+          "tool": 6
+        },
+        "edges": {
+          "total": 43,
+          "links": 12,
+          "byKind": {
+            "call": 2,
+            "data": 16,
+            "flow": 19,
+            "return": 6
+          }
+        },
+        "agents": 9,
+        "models": {
+          "claude-opus-5-5": 9
+        },
+        "runtimes": {
+          "declared": 8,
+          "byKind": {
+            "browser": 1,
+            "ci": 1,
+            "local": 3,
+            "saas": 3
+          }
+        },
+        "withOps": {
+          "budget": 6,
+          "limits": 3,
+          "approval": 1,
+          "evals": 0,
+          "sandbox": 7,
+          "fanout": 1
+        },
+        "nestedTowers": [
+          "sweep.e2e"
+        ],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "gates.secrets",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "ship.triage",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD05",
+          "level": "info",
+          "node": "ship.triage",
+          "message": "feeds output with no evals: add evals to measure the answer"
+        },
+        {
+          "rule": "AUD10",
+          "level": "info",
+          "message": "9 agents with no tower budget or limits: add a run-wide budget"
+        },
+        {
+          "rule": "AUD11",
+          "level": "warning",
+          "node": "scope.lead",
+          "message": "shell or code tool with no sandbox: add sandbox (network, filesystem)"
+        },
+        {
+          "rule": "AUD11",
+          "level": "warning",
+          "node": "ship.triage",
+          "message": "shell or code tool with no sandbox: add sandbox (network, filesystem)"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "scope.lead",
+          "role": "orchestrator",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "finders.correctness",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "finders.security",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "finders.ux",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "finders.perf",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "finders.docs",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "verify.verifier",
+          "role": "review",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "ship.triage",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "ship.fixer",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    },
+    {
+      "id": "towers/e2e-sweep.tower.yaml",
+      "name": "E2E Sweep",
+      "inventory": {
+        "layers": 5,
+        "nodes": 16,
+        "nodesByType": {
+          "entry": 1,
+          "guard": 2,
+          "memory": 1,
+          "output": 1,
+          "process": 8,
+          "tool": 3
+        },
+        "edges": {
+          "total": 17,
+          "links": 6,
+          "byKind": {
+            "call": 1,
+            "data": 4,
+            "flow": 12
+          }
+        },
+        "agents": 0,
+        "models": {},
+        "runtimes": {
+          "declared": 2,
+          "byKind": {
+            "browser": 1,
+            "local": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 1,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 2
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "layout.panels",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "tower.open",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        }
+      ],
+      "modelFit": []
+    }
+  ]
+}
