@@ -104,3 +104,12 @@ The tower's own task sets (`examples/ai-commercialista/benchmark/tasks/`, answer
 - **Judge bug:** on Node 24 the judge counted every `check: command` run as a fail (#256, fixed in #257). The cited-answer runs were re-judged with the fixed judge.
 - **Widened check:** after the run, the "no fine" rule of `ai-in-the-studio` was widened because it rejected correct wordings such as "Neither file sets a fine". The expected answer did not change.
 - **Sample size:** the sample is small (2 tasks × 3 runs per role) and every check is deterministic.
+
+## Squad review
+
+GLM 5.3 FlashX, one oneshot pass, $0.0068 (issue #231). It raised six points; none was applied, each checked in the code:
+- "Empty diff": the packed diff was not empty.
+- **Two `registry` nodes:** they are in different layers, and ids are layer-qualified (`data.registry`, `sources.registry`), as the validator accepts.
+- **`opt()` with no value, PIVA vs PHONE order:** these are a local operator script's edge cases. The pattern order already decides the PIVA/PHONE precedence.
+- **The sentence split breaking amounts:** tested, it does not. `€1.000` and `EUR 1.000,00` are caught as amounts, since the split needs a space after the stop.
+- **The tower file is 428 lines:** this is over the ~400 guideline, and is kept that way, as in the other example towers (several are over 700).
