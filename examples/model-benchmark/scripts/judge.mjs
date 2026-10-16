@@ -10,9 +10,10 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { argv, env, execPath, exit } from 'node:process';
 import { live } from './live.mjs';
+import { sttRoundTrip, visionJudge, wer, werVerdict } from './judge-media.mjs';
 import { blocks, loadTasks } from './tasks.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
@@ -69,13 +70,34 @@ function runCommand(task, answer) {
   }
 }
 
-function check(task, answer) {
+// Model judges (speech round trip, vision) read the key from the shell only, and only when a run needs one.
+const sttJudge = arg('stt-judge', '');
+const visionJudges = arg('vision-judge', '').split(',').map((s) => s.trim()).filter(Boolean);
+const modelCtx = () => ({ key: env.OPENROUTER_API_KEY, timeoutMs: 180_000 });
+const NO_KEY = { pass: null, detail: 'no OPENROUTER_API_KEY in the shell' };
+
+async function check(task, r) {
+  const answer = r.answer;
   // One judge node event per deterministic check. `tool` names the check kind; the detail never travels
   // (it can quote the answer), only the verdict does.
   emit({ kind: 'tool.start', node: 'judges.check', tool: task.check, model: task.id, message: `${task.category}/${task.id}` });
-  const done = (r) => { emit({ kind: 'tool.end', node: 'judges.check', tool: task.check, model: task.id, status: r.pass === false ? 'error' : 'ok' }); return r; };
+  const done = (x) => { emit({ kind: 'tool.end', node: 'judges.check', tool: task.check, model: task.id, status: x.pass === false ? 'error' : 'ok' }); return x; };
   if (task.check === 'rubric') return done({ pass: null, detail: 'rubric only' });
   if (task.check === 'command') return done(runCommand(task, answer));
+  if (task.check === 'wer') return done(werVerdict(wer(blocks(task.expected, 'text')[0], answer), task.maxWer));
+  // The artifact is stored relative to the input jsonl, so it is resolved against that folder.
+  const artifact = r.artifact ? join(dirname(resolve(input)), r.artifact) : null;
+  if (task.check === 'wer-roundtrip') {
+    if (!sttJudge) return done({ pass: null, detail: 'needs --stt-judge' });
+    if (!modelCtx().key) return done(NO_KEY);
+    return done(await sttRoundTrip(modelCtx(), { sttModel: sttJudge, artifact, prompt: task.prompt, maxWer: task.maxWer }));
+  }
+  if (task.check === 'vision-judge') {
+    if (!visionJudges.length) return done({ pass: null, detail: 'needs --vision-judge' });
+    if (!modelCtx().key) return done(NO_KEY);
+    const questions = JSON.parse(blocks(task.expected, 'json')[0]);
+    return done(await visionJudge(modelCtx(), { judges: visionJudges, candidate: r.model, artifact, questions }));
+  }
   if (task.check === 'json') {
     const got = extractJson(answer);
     const want = JSON.parse(blocks(task.expected, 'json')[0]);
@@ -92,12 +114,15 @@ function check(task, answer) {
   return done({ pass, detail: pass ? 'all patterns found' : [missing.length && `missing ${missing.join(' ; ')}`, wrong.length && `should not say ${wrong.join(' ; ')}`].filter(Boolean).join('; ') });
 }
 
-const judged = runs.map((r) => {
+const judged = await Promise.all(runs.map(async (r) => {
   const task = tasks.get(`${r.category}/${r.task}`);
   if (!task) return { ...r, check: null, pass: null, detail: 'task file not given to judge.mjs' };
   if (r.error || r.answer == null) return { ...r, check: task.check, rubric: task.rubric, pass: false, detail: `no answer: ${r.error ?? 'empty'}` };
-  return { ...r, check: task.check, rubric: task.rubric, ...check(task, r.answer) };
-});
+  return { ...r, check: task.check, rubric: task.rubric, ...(await check(task, r)) };
+}));
+// The judges' own spend, kept apart from the candidates' $/run: report.mjs prints it on its own line.
+const judgeCalls = judged.filter((r) => r.judgeCost != null);
+const judgeSpend = judgeCalls.reduce((s, r) => s + r.judgeCost, 0);
 
 // Blind file: shuffled, numbered, no model, provider, cost or timing, so the scorer cannot favour a name.
 const rubricRuns = judged.filter((r) => tasks.get(`${r.category}/${r.task}`)?.rubric && r.answer != null && r.pass !== false);
@@ -132,4 +157,5 @@ await Promise.allSettled(sent);
 const pass = judged.filter((r) => r.pass === true).length, fail = judged.filter((r) => r.pass === false).length;
 console.log(`${judged.length} runs: ${pass} pass, ${fail} fail, ${judged.length - pass - fail} pending (rubric only)`);
 for (const r of judged.filter((x) => x.pass === false)) console.log(`  fail ${r.model} ${r.task} #${r.run}: ${r.detail}`);
+if (judgeCalls.length) console.log(`judge cost: $${judgeSpend.toFixed(4)} over ${judgeCalls.length} calls (not in $/run)`);
 console.log(`wrote ${base}.judged.jsonl${shuffled.length ? `, ${shuffled.length} answers in ${base}.blind.md (score them in ${base}.scores.json)` : ''}`);

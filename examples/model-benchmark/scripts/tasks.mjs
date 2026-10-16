@@ -7,7 +7,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
-export const CHECKS = ['command', 'json', 'regex', 'rubric'];
+export const CHECKS = ['command', 'json', 'regex', 'rubric', 'wer', 'wer-roundtrip', 'vision-judge'];
 export const ENDPOINTS = ['chat', 'decisions', 'embeddings', 'rerank', 'images', 'videos', 'speech', 'transcriptions'];
 // Endpoints whose input is the "## Request" json, and the keys that json must hold.
 const REQUEST_KEYS = { decisions: ['state', 'questions'], embeddings: ['corpus', 'queries'], rerank: ['query', 'documents'] };
@@ -67,6 +67,8 @@ export function loadTask(file) {
     endpoint: meta.endpoint || 'chat',
     images: list(meta.images),
     audio: meta.audio || '',
+    // Word error rate ceiling for the wer checks: 15% by default, a speech task may set its own.
+    maxWer: Number(meta.max_wer || 0.15),
     prompt: section(body, 'Prompt'),
     expected: section(body, 'Expected'),
     requestText,
@@ -87,7 +89,22 @@ export function taskProblems(t) {
   const p = [];
   if (!t.prompt) p.push('no "## Prompt" section');
   if (!CHECKS.includes(t.check)) p.push(`check must be one of ${CHECKS.join(', ')}`);
-  if (t.check !== 'rubric' && !t.expected) p.push('no "## Expected" section');
+  // A round trip is judged against the prompt itself, so it needs no answer key of its own.
+  if (t.check !== 'rubric' && t.check !== 'wer-roundtrip' && !t.expected) p.push('no "## Expected" section');
+  if (t.check === 'wer' && !blocks(t.expected, 'text').length) p.push('Expected needs a ```text block with the reference transcript');
+  if (t.check === 'wer-roundtrip') {
+    if (t.endpoint !== 'speech') p.push('wer-roundtrip needs endpoint: speech (its artifact is the audio)');
+    if (!(t.maxWer >= 0 && t.maxWer <= 1)) p.push('max_wer must be a number between 0 and 1');
+  }
+  if (t.check === 'vision-judge') {
+    if (!['images', 'videos'].includes(t.endpoint)) p.push('vision-judge needs endpoint: images or videos');
+    const [j] = blocks(t.expected, 'json');
+    let qs = null;
+    try { qs = JSON.parse(j); } catch { /* reported below */ }
+    if (!Array.isArray(qs) || !qs.length || !qs.every((x) => typeof x?.q === 'string' && typeof x?.a === 'boolean')) {
+      p.push('Expected needs a ```json array of { "q": string, "a": boolean }');
+    }
+  }
   if (t.check === 'command' && !(t.command && existsSync(join(t.dir, t.command)))) p.push(`check command file missing: ${t.command}`);
   if (t.check === 'json') {
     const [j] = blocks(t.expected, 'json');

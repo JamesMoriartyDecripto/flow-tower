@@ -95,6 +95,9 @@ for (const cat of categories) {
   // Best value first: most correct, then cheapest per correct answer.
   rows.sort((a, b) => b.correct - a.correct || (a.perCorrect ?? Infinity) - (b.perCorrect ?? Infinity));
   for (const r of rows) lines.push(`| ${r.cells.join(' | ')} |`);
+  // Judge calls (speech round trip, vision) are billed apart from the candidates: say so under the table.
+  const judgeRuns = rs.filter((r) => r.judgeCost != null);
+  if (judgeRuns.length) lines.push(`judge cost: ${usd(judgeRuns.reduce((s, r) => s + r.judgeCost, 0))} over ${judgeRuns.length} calls (not in $/run)`);
   lines.push('');
 }
 lines.push('Correct: deterministic check, plus a blind rubric score >= ' + passScore + ' where the task has a rubric. A warm start is a run whose first step already hit the cache (left by an earlier run): compare them with cold ones.');
