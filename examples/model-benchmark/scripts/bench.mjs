@@ -195,7 +195,8 @@ async function runEndpoint(model, task, run) {
     providers: [], answer: null, error: null, endpoint: task.endpoint,
   };
   emit({ kind: 'agent.start', node: 'runner.loop', model, message: `${task.category}/${task.id} run ${run} (${task.endpoint})` });
-  const r = await ENDPOINT_CALLS[task.endpoint]({ key: KEY, timeoutMs }, model, task);
+  // outDir is where media endpoints keep their files (artifacts/ inside it); run numbers those files.
+  const r = await ENDPOINT_CALLS[task.endpoint]({ key: KEY, timeoutMs, outDir: dirname(resolve(out)), run }, model, task);
   rec.firstOutputMs = r.firstOutputMs;
   rec.totalMs = r.totalMs;
   rec.cost = Number((r.cost ?? 0).toFixed(6));
@@ -204,6 +205,7 @@ async function runEndpoint(model, task, run) {
   rec.error = r.error;
   rec.ok = !r.error && r.answer !== null;
   if (r.raw) rec.raw = r.raw;
+  if (r.artifact) rec.artifact = r.artifact;
   emit({ kind: 'agent.end', node: 'runner.loop', model, status: rec.error ? 'error' : 'ok', duration_ms: rec.totalMs, ...(rec.error && { message: rec.error.slice(0, 120) }) });
   emit({ kind: 'usage', node: 'measure.cost', model, cost_usd: rec.cost });
   return rec;

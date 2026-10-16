@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { mimeOf } from './tasks.mjs';
+import { MEDIA_CALLS } from './endpoints-media.mjs';
 
 const API = 'https://openrouter.ai/api/v1';
 const ALPHA = 'https://openrouter.ai/api/alpha';
@@ -129,4 +130,5 @@ async function rerank(ctx, model, task) {
   return { ...done(r.data, r.totalMs), answer: JSON.stringify(order) };
 }
 
-export const ENDPOINT_CALLS = { decisions, embeddings, rerank };
+// The media calls live in their own file to keep this one short; they share the same return contract.
+export const ENDPOINT_CALLS = { decisions, embeddings, rerank, ...MEDIA_CALLS };
