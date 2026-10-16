@@ -5,7 +5,7 @@
 //   ENDPOINT_CALLS[endpoint](ctx, model, task) → { answer, cost, provider, firstOutputMs, totalMs, error, raw? }
 //   ctx = { key, fetchImpl = fetch, timeoutMs }
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { mimeOf } from './tasks.mjs';
 import { MEDIA_CALLS } from './endpoints-media.mjs';
 
@@ -15,16 +15,27 @@ const ALPHA = 'https://openrouter.ai/api/alpha';
 // Every candidate gets the same data policy, as on chat; an endpoint that cannot honour it is a result.
 const provider = { data_collection: 'deny' };
 
+// The path of `rel` under `base`, or null when it resolves outside it (`../x`, an absolute path elsewhere).
+// Model-written or task-written paths must not reach files the task does not own, so every such read goes through here.
+export function inside(base, rel) {
+  const root = resolve(base);
+  const abs = resolve(root, String(rel ?? ''));
+  const r = relative(root, abs);
+  if (!r || r === '..' || r.startsWith(`..${sep}`) || isAbsolute(r)) return null;
+  return abs;
+}
+
 /**
  * The user message content for a task. Plain text unless the task carries `images:` on the chat endpoint,
  * then the prompt text first and each image as a base64 data URL, so the model sees the prompt before the pictures.
  */
 export function userContent(task, prompt) {
   if (task.endpoint !== 'chat' || !task.images.length) return prompt;
-  const images = task.images.map((img) => ({
-    type: 'image_url',
-    image_url: { url: `data:${mimeOf(img)};base64,${readFileSync(join(task.dir, img)).toString('base64')}` },
-  }));
+  const images = task.images.map((img) => {
+    const path = inside(task.dir, img);
+    if (!path) throw new Error(`image outside the task folder: ${img}`);
+    return { type: 'image_url', image_url: { url: `data:${mimeOf(img)};base64,${readFileSync(path).toString('base64')}` } };
+  });
   return [{ type: 'text', text: prompt }, ...images];
 }
 
@@ -70,7 +81,8 @@ function decisionValue(type, a) {
   if (type === 'choice') return a.choice ?? null;
   if (type === 'noul') return typeof a.noul === 'number' ? a.noul >= 0.5 : null;
   if (type === 'score') {
-    const entries = Object.entries(a.probabilities ?? {});
+    // Only integer keys name a level; a stray key such as "a" would otherwise win on its probability alone.
+    const entries = Object.entries(a.probabilities ?? {}).filter(([k, p]) => /^-?\d+$/.test(k) && Number.isFinite(p));
     if (!entries.length) return null;
     // The index is the integer key with the largest probability; ties keep the first key.
     let best = entries[0];
@@ -106,6 +118,11 @@ async function embeddings(ctx, model, task) {
   if (r.error) return failed(r);
   // Rows come back with an index; sort on it so the vectors line up with the input even if the order differs.
   const vectors = [...(r.data.data ?? [])].sort((x, y) => x.index - y.index).map((d) => d.embedding);
+  // A short or malformed reply would make cosine() read undefined; report it as a failed call, not a crash.
+  const inputs = corpusIds.length + queryIds.length;
+  if (vectors.length < inputs || vectors.some((v) => !Array.isArray(v))) {
+    return failed({ error: `bad response: ${vectors.length} vectors for ${inputs} inputs`, totalMs: r.totalMs });
+  }
   const pick = {};
   queryIds.forEach((qid, qi) => {
     const qv = vectors[corpusIds.length + qi];
@@ -131,4 +148,11 @@ async function rerank(ctx, model, task) {
 }
 
 // The media calls live in their own file to keep this one short; they share the same return contract.
-export const ENDPOINT_CALLS = { decisions, embeddings, rerank, ...MEDIA_CALLS };
+// The media entries look MEDIA_CALLS up at call time: endpoints-media imports inside() from this file, so a
+// spread here could read MEDIA_CALLS before that module has finished loading.
+// The names are listed here, not read from MEDIA_CALLS, for the same reason: reading it at load time would fail.
+const mediaCall = (name) => (ctx, model, task) => MEDIA_CALLS[name](ctx, model, task);
+export const ENDPOINT_CALLS = {
+  decisions, embeddings, rerank,
+  images: mediaCall('images'), videos: mediaCall('videos'), speech: mediaCall('speech'), transcriptions: mediaCall('transcriptions'),
+};

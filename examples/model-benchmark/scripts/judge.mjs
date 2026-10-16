@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { argv, env, execPath, exit } from 'node:process';
 import { live } from './live.mjs';
+import { inside } from './endpoints.mjs';
 import { sttRoundTrip, visionJudge, wer, werVerdict } from './judge-media.mjs';
 import { blocks, loadTasks } from './tasks.mjs';
 
@@ -59,7 +60,12 @@ function runCommand(task, answer) {
     execFileSync(execPath, [
       permissionFlag, `--allow-fs-read=${dir}`, `--allow-fs-read=${taskDir}`,
       join(taskDir, task.command), join(dir, 'answer.mjs'),
-    ], { timeout: 20_000, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' });
+    ], {
+      timeout: 20_000, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8',
+      // The child runs model-written code and the permission model does not stop network calls, so it gets
+      // no secret from this shell: OPENROUTER_API_KEY must not reach it. PATH alone is passed, nothing else.
+      env: { PATH: env.PATH },
+    });
     return { pass: true, detail: 'check exited 0' };
   } catch (e) {
     const lines = (e.stderr || e.stdout || e.message || '').toString().split('\n').map((l) => l.trim()).filter(Boolean);
@@ -86,7 +92,10 @@ async function check(task, r) {
   if (task.check === 'command') return done(runCommand(task, answer));
   if (task.check === 'wer') return done(werVerdict(wer(blocks(task.expected, 'text')[0], answer), task.maxWer));
   // The artifact is stored relative to the input jsonl, so it is resolved against that folder.
-  const artifact = r.artifact ? join(dirname(resolve(input)), r.artifact) : null;
+  // A run's artifact must stay under that folder; anything else would let a results file read any file.
+  const folder = dirname(resolve(input));
+  const artifact = r.artifact ? inside(folder, r.artifact) : null;
+  if (r.artifact && !artifact) return done({ pass: false, detail: 'artifact outside the results folder' });
   if (task.check === 'wer-roundtrip') {
     if (!sttJudge) return done({ pass: null, detail: 'needs --stt-judge' });
     if (!modelCtx().key) return done(NO_KEY);

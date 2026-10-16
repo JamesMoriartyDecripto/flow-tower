@@ -58,9 +58,13 @@ const batchable = (t) => batchEligible(t) && t.endpoint === 'chat';
 const batchTasks = batch ? tasks.filter(batchable) : tasks;
 if (batch) for (const t of tasks) if (!batchable(t)) console.log(`--batch skips ${t.category}/${t.id} (${t.endpoint !== 'chat' ? `endpoint ${t.endpoint}` : `${t.steps} steps, tools: ${t.tools.join(',') || 'none'}`}): only chat with steps: 1 and no tools can be batched`);
 
-const calls = models.length * batchTasks.length * runs * (warm ? 2 : 1);
+// A warm repeat only helps a chat run: a non-chat task has no prompt cache to warm, so it is run once.
+const warmable = (t) => warm && t.endpoint === 'chat';
+const passes = (t) => (warmable(t) ? 2 : 1);
+const calls = models.length * runs * batchTasks.reduce((s, t) => s + passes(t), 0);
 // A non-chat task is one request, so its step count does not count toward the cap.
-const maxCalls = models.length * runs * (warm ? 2 : 1) * batchTasks.reduce((s, t) => s + (t.endpoint === 'chat' ? t.steps : 1), 0);
+const maxCalls = models.length * runs * batchTasks.reduce((s, t) => s + (t.endpoint === 'chat' ? t.steps : 1) * passes(t), 0);
+if (warm) for (const t of batchTasks) if (!warmable(t)) console.log(`--warm skips ${t.category}/${t.id} (endpoint ${t.endpoint}: no prompt cache to warm)`);
 console.log(`\nplan: ${models.length} models × ${batchTasks.length} tasks × ${runs} runs${warm ? ' × 2 (cold + warm)' : ''} = ${calls} runs (at most ${maxCalls} model calls, ${maxCalls * 2} with retries)`);
 console.log(`models: ${models.join(', ')}`);
 if (batch) console.log(`batch: one batch per model, ${calls / models.length} request(s) each, at about half price`);
@@ -316,7 +320,7 @@ for (let run = 1; run <= runs; run++) {
         continue;
       }
       write(await runOne(model, task, run, session, false), task, run);
-      if (warm) write(await runOne(model, task, run, session, true), task, run);
+      if (warmable(task)) write(await runOne(model, task, run, session, true), task, run);
     }
   }
 }

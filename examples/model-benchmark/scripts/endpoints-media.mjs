@@ -8,6 +8,7 @@
 //   videoModels (optional): model id -> /videos/models entry, used in place of that fetch (tests).
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
+import { inside } from './endpoints.mjs';
 
 const API = 'https://openrouter.ai/api/v1';
 // Speech may report its cost in a header; when the header is absent the cost stays null, never estimated.
@@ -70,8 +71,11 @@ async function send(ctx, method, url, { body, auth = true } = {}) {
 const failed = (error, totalMs = 0, extra = {}) => ({ answer: null, artifact: null, cost: 0, provider: null, firstOutputMs: null, totalMs, error, ...extra });
 
 // Artifacts are named by task, model and run, so a repeat of one cell overwrites only its own file.
+// Every character outside [A-Za-z0-9._-] becomes `_`, so a task or model id can never add a path separator.
+// The model's `/` is turned into `__` first, so `a/b` stays readable as `a__b`.
 function saveArtifact(ctx, task, model, ext, bytes) {
-  const name = `${task.id}-${model.replace(/\//g, '__')}-run${ctx.run ?? 1}.${ext}`;
+  const safe = (s) => String(s).replace(/[^A-Za-z0-9._-]/g, '_');
+  const name = `${safe(task.id)}-${safe(String(model).replace(/\//g, '__'))}-run${ctx.run ?? 1}.${ext}`;
   const dir = join(ctx.outDir, 'artifacts');
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, name), bytes);
@@ -97,15 +101,18 @@ async function images(ctx, model, task) {
 }
 
 // The video catalogue lists, per model, the durations and resolutions it accepts. One fetch per process; a failed
-// fetch leaves the map empty, so the request goes out as the task asked and the provider's answer decides.
+// fetch gives an empty map for this call, and is not cached, so the next call tries the catalogue again.
 let videoCatalogue = null;
 function fetchVideoCatalogue(ctx) {
   if (!videoCatalogue) {
     const fetchImpl = ctx.fetchImpl ?? fetch;
     videoCatalogue = fetchImpl(`${API}/videos/models`, { signal: AbortSignal.timeout(VIDEO_LIST_TIMEOUT_MS) })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((j) => new Map((Array.isArray(j) ? j : (j?.data ?? [])).map((m) => [m.id, m])))
-      .catch(() => new Map());
+      .catch(() => {
+        videoCatalogue = null; // a failure is not remembered
+        return new Map();
+      });
   }
   return videoCatalogue;
 }
@@ -178,9 +185,10 @@ async function videos(ctx, model, task) {
   if (!url) return fail('no video url in the response');
   // The key goes only to openrouter.ai. Any other host is a signed or public storage URL, and sending the key
   // there would leak it to a third party.
-  let host = '';
-  try { host = new URL(url).hostname; } catch { /* a malformed URL gets no key and fails in the fetch */ }
-  const d = await send(ctx, 'GET', url, { auth: host === 'openrouter.ai' });
+  // Https only: a plain http URL to the same host would still send the key in the clear.
+  let keyed = false;
+  try { const u = new URL(url); keyed = u.protocol === 'https:' && u.hostname === 'openrouter.ai'; } catch { /* a malformed URL gets no key and fails in the fetch */ }
+  const d = await send(ctx, 'GET', url, { auth: keyed });
   if (d.error) return fail(d.error);
   const artifact = saveArtifact(ctx, task, model, 'mp4', Buffer.from(await d.res.arrayBuffer()));
   return { answer: artifact, artifact, cost: state.usage?.cost ?? 0, provider: null, firstOutputMs: null, totalMs: elapsed(), error: null, raw };
@@ -194,9 +202,12 @@ function fetchVoiceCatalogue(ctx) {
   if (!voiceCatalogue) {
     const fetchImpl = ctx.fetchImpl ?? fetch;
     voiceCatalogue = fetchImpl(`${API}/models?output_modalities=speech`, { signal: AbortSignal.timeout(VOICE_LIST_TIMEOUT_MS) })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((j) => new Map((j?.data ?? []).map((m) => [m.id, m.supported_voices ?? []])))
-      .catch(() => new Map());
+      .catch(() => {
+        voiceCatalogue = null; // a failure is not remembered, so the next call asks again
+        return new Map();
+      });
   }
   return voiceCatalogue;
 }
@@ -290,7 +301,9 @@ async function transcriptions(ctx, model, task) {
   if (!AUDIO_FORMATS.includes(format)) return failed(`audio format must be one of ${AUDIO_FORMATS.join(', ')}: ${task.audio}`);
   const meta = frontMatter(task);
   const elapsed = clock();
-  const data = readFileSync(join(task.dir, task.audio)).toString('base64');
+  const path = inside(task.dir, task.audio);
+  if (!path) return failed(`audio outside the task folder: ${task.audio}`);
+  const data = readFileSync(path).toString('base64');
   const body = { model, input_audio: { data, format } };
   if (meta.language) body.language = meta.language;
   const r = await send(ctx, 'POST', `${API}/audio/transcriptions`, { body });

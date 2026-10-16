@@ -109,7 +109,8 @@ export async function visionJudge(ctx, { judges, candidate, artifact, questions 
   const ext = extname(artifact || '').slice(1).toLowerCase();
   const isVideo = ext === 'mp4';
   const type = isVideo ? VIDEO_TYPE : MEDIA_TYPES[ext];
-  if (!type) return { pass: false, detail: `unsupported media for the vision judge: ${basename(artifact || '')}`, judgeModel: judge, judgeCost: 0 };
+  // Not a fail: the candidate's output was never looked at, so the check stays pending rather than blaming it.
+  if (!type) return { pass: null, detail: `unsupported media for the vision judge: ${basename(artifact || '')}`, judgeModel: judge, judgeCost: 0 };
   const data = `data:${type};base64,${readFileSync(artifact).toString('base64')}`;
   const media = isVideo ? { type: 'video_url', video_url: { url: data } } : { type: 'image_url', image_url: { url: data } };
   const list = questions.map((q, i) => `${i + 1}. ${q.q}`).join('\n');
