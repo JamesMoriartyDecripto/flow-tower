@@ -40,11 +40,11 @@ with Mercury writing text only for `TYPE_TEXT`, and an independent check on `DON
 
 `decision` on every Jev node: `output` (`choice` with its declared `candidates`, or `binary` for
 nouls), `confidence`, the policy `threshold`, the pinned `model: jev-1.13.0` and `fail` (routing
-and the Stop check fail open, tool risk fails closed) · `approval` with `when` (ask user under
+the next action and the Stop check fail open; tool risk, compaction and the browser step fail closed) · `approval` with `when` (ask user under
 the confidence floor; hold review `per: tool call`; escalate on p ≥ 0.5 or the cap) · edge
 `group`s for the alternatives each policy picks (ask gate, risk verdict, next step, browser
 verify) · `evals` with `unit` and `illustrative` (reported values carry their source URL) ·
-`budget`, `limits` (timeouts, retries, iteration caps), `fanout` (compaction batches),
+`budget`, `limits` (timeouts, retries, iteration caps, run-wide 60 iterations), `fanout` (compaction batches),
 `sandbox`, `credentials`, `trigger` (chat, nightly cron), `data` retention on the judgment log.
 
 ## Files
