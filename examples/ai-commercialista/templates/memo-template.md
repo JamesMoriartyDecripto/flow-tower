@@ -45,7 +45,7 @@ Per ogni proposta: descrizione, condizioni, documenti necessari, etichetta di ri
 | 1 | [nome della fonte] | [articolo, comma o numero del documento] | [legge / prassi / giurisprudenza / standard / guida] | [URL ufficiale] | [GG/MM/AAAA] |
 
 Il peso indica quanto la fonte vincola: la legge vincola; la prassi vincola l'amministrazione e tutela il contribuente
-dalle sanzioni; la stampa di settore non è mai citata come fonte.
+dalle sanzioni (testo da verificare); la stampa di settore non è mai citata come fonte.
 
 ## Punti aperti
 

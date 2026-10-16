@@ -105,7 +105,7 @@ article number.
   used, in clear language (art. 13 c. 2). The CNDCEC guide "L'aiuto intelligente al Commercialista
   #3" (October 2025) gives a model mandate clause.
 - **AI Act (Reg. 2024/1689)**: this use is not high-risk, since Annex III lists no tax or
-  accounting use. Art. 50 transparency applies from 2/8/2026. The Digital Omnibus (Reg. 2026/1744)
+  accounting use. Art. 50 transparency applies from 2/8/2026 (medium confidence). The Digital Omnibus (Reg. 2026/1744, medium confidence)
   moves the high-risk dates, which do not affect this use.
 - **GDPR**: the studio is the controller, and personal data is pseudonymised before any prompt.
   Art. 22 rules out automated decisions with legal effect.
@@ -125,11 +125,13 @@ professional must complete and approve before it goes to a client. Everything el
 
 **From primary sources** (read on the official page or by a live call on 15/10/2026): the text of
 art. 13 L. 132/2025 as quoted by the CNDCEC guide; the Normattiva open-data endpoints and the
-Agenzia delle Entrate RSS feed; the testi unici and their GU dates; the 2026 lever figures and
-dates as they appear in the research notes (labelled H, high confidence, in the notes); and the
-Anthropic Citations behaviour.
+Agenzia delle Entrate RSS feed; the 2026 lever figures and dates as they appear in the research
+notes, where the notes label them H (confirmed on a primary source, or on two or more agreeing
+professional sources that quote the text); and the Anthropic Citations behaviour. Labels in the
+notes: H = high confidence as above; M = medium, from several consistent secondary sources.
 
-**Medium or low confidence, marked in the files**: the iperammortamento procedure dates and the CPB
+**Medium or low confidence, marked in the files**: the testi unici and their GU dates; the new TUIR apply-from date (1/1/2027, D.Lgs. 117/2026, art. 377);
+the iperammortamento procedure dates and the CPB
 mechanism for adherents; the esodati share of 89.77% and code 7079; the bonus giovani repeal point
 in DL 62/2026; the Smart&Start and Resto al Sud rules (no legal article in the sources); the
 interpello deadlines and fee after D.Lgs. 219/2023; the DAC6 sanction amounts (not used); the
@@ -169,4 +171,18 @@ RNA open data (https://www.rna.gov.it/open-data), the MIMIT iperammortamento pag
 (https://www.mimit.gov.it/it/incentivi/piano-transizione-5-0) and the Agenzia concordato page
 (https://www.agenziaentrate.gov.it/portale/-/concordato-preventivo-biennale-pronta-la-circolare-guida-dell-agenzia.-per-il-biennio-2026-2027-adesione-entro-il-prossimo-2-novembre).
 Most lever links point to secondary sources, and the notes say to check each against the decree.
+
+Further sources, from the verified list of Italian sites (`squad-input/sites-it.md`):
+
+- INPS, circolare 55/2026 (bonus giovani, 14/5/2026): https://www.inps.it/it/it/inps-comunica/atti/circolari-messaggi-e-normativa/dettaglio.circolari-e-messaggi.2026.05.circolare-numero-55-del-14-05-2026_15258.html
+- DL 62/2026 (Decreto Lavoro 2026): https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legge:2026-04-30;62
+- GSE, comunità di energia rinnovabile (CACER): https://www.gse.it/servizi-per-te/autoconsumo/gruppi-di-autoconsumatori-e-comunita-di-energia-rinnovabile
+- GSE, Regole operative Facility CACER (PDF): https://www.gse.it/documenti_site/Documenti%20GSE/Servizi%20per%20te/AUTOCONSUMO/Gruppi%20di%20autoconsumatori%20e%20comunita%20di%20energia%20rinnovabile/Regole%20e%20procedure/MC2%20I.1.2%20-%20Regole%20Operative%20Facility%20CACER.pdf
+- GSE, Nuovo Piano Transizione 5.0 (NPTR5): https://www.gse.it/servizi-per-te/imprese/nuovo-piano-transizione-5-0
+- Invitalia, Smart&Start Italia: https://www.invitalia.it/incentivi-e-strumenti/smartstart-italia
+- Invitalia, Resto al Sud 2.0: https://www.invitalia.it/incentivi-e-strumenti/resto-al-sud-20
+- Invitalia, Autoimpiego Centro-Nord: https://www.invitalia.it/incentivi-e-strumenti/autoimpiego-centro-nord
+- Invitalia, ON Oltre Nuove imprese a tasso zero: https://www.invitalia.it/incentivi-e-strumenti/ON-nuove-imprese-tasso-zero
+
+A verified list of 294 Italian sites was used as input (not shipped).
 

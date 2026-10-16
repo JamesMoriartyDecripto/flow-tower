@@ -56,7 +56,7 @@ contratti con i fornitori.]
 ## 6. Come escludere l'uso dell'intelligenza artificiale
 
 Lei può chiedere, in qualsiasi momento e per iscritto, che per la sua pratica non vengano
-usati strumenti di intelligenza artificiale. Può farlo indicando anche il motivo.
+usati strumenti di intelligenza artificiale. Può farlo in modo espresso e motivato.
 Lo studio rispetta la richiesta: il lavoro continuerà con i soli strumenti tradizionali.
 Per chiederlo, scriva a [indirizzo PEC o e-mail dello studio].
 

@@ -125,22 +125,22 @@ questions:
 
   - id: q12-employer-welfare-cliff
     profile: employer
-    question: "We want to give each employee a welfare plan worth EUR 1,200 this year. Is it fully tax-free?"
+    question: "We want to give an employee a fringe benefit worth EUR 1,200 this year. The employee has no dependent children. Is it tax-free?"
     period: "2026"
     lever_ids: [welfare_fringe_benefit_2026]
     expected_sources: [tuir-dpr-917-1986, tuir-dlgs-117-2026]
     expected_behaviour: answer
     expected_risk: amber
-    notes: "The EUR 1,000 limit (EUR 2,000 with children) is a cliff: above the limit all is taxable. Grader checks the cliff is stated and that the answer asks for per-employee amounts. Also flags the renumbering from 1/1/2027."
+    notes: "The fringe-benefit limit is EUR 1,000 for an employee without dependent children (EUR 2,000 with children) and it is a cliff: above the limit all is taxable, so EUR 1,200 is fully taxable. Welfare plans under art. 51 c. 2 have no amount cap; the cliff does not apply to them. Grader checks the cliff is stated, that the EUR 1,200 is said to be taxable in full, and that the answer asks for per-employee amounts. Also flags the renumbering from 1/1/2027."
 
   - id: q13-employer-decontribuzione-sud
     profile: employer
     question: "We are a small company in Puglia with 14 employees. Do we get the Sud contribution cut in 2026?"
     period: "2026"
     lever_ids: [decontribuzione_sud_pmi, bonus_zes_2026]
-    expected_sources: [inps-circolari-messaggi]
+    expected_sources: [inps-circ-32-2025-decontribuzione-sud, inps-circolari-messaggi]
     expected_behaviour: answer
-    notes: "The answer must ask for the average FTE and the ZES location before stating a rate. The registry has no direct INPS circular for the 2026 cut, so the answer must say to confirm the source. Grader checks that no rate is promised without FTE and location."
+    notes: "The answer must ask for the average FTE and the ZES location before stating a rate. INPS circ. 32/2025 (30/1/2025) exists and is in the registry for the Sud PMI cut 2025-2029, but it is not the 2026 rule: the answer must say to confirm the 2026 source. Grader checks that no rate is promised without FTE and location."
 
   - id: q14-forfettario-ceiling
     profile: forfettario
