@@ -409,11 +409,12 @@ layers:
         type: output
         label: results/<date>.md
         description: >-
-          Per category: model, runs, correct, total median [min-max], first output, steps, $ / run,
-          $ / correct, cached %, retries, errors, providers. First real run: results/2026-10-11.md,
-          8 models × 5 categories, n = 3 per model and task, 240 runs, $0.19. Format example labelled
-          ILLUSTRATIVE in results/example.md.
-        files: [results/2026-10-11.md, results/example.md]
+          Per category: model, runs, correct, timing, steps, cost, cache, retries, errors, providers.
+          First real run: results/2026-10-11.md,
+          8 models × 5 categories, n = 3 per model and task, 240 runs, $0.19. Roles of the example towers:
+          results/2026-10-16-roles.md, 409 runs, n = 3-5, with a recommendation per node. Format example
+          labelled ILLUSTRATIVE in results/example.md.
+        files: [results/2026-10-11.md, results/2026-10-16-roles.md, results/example.md]
       - id: signoff
         type: human
         label: Sign-off
