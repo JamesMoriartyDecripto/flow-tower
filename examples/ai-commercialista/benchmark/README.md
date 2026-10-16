@@ -11,7 +11,7 @@ Four task sets, two tasks each, for the roles of the commercialista tower. They 
 
 ## Run it
 
-From the repository root. The commands are those of [the model benchmark](../../model-benchmark/README.md), with `--tasks` pointing at one of these folders and `--category` set to the same folder name (the runner keeps only the tasks of that category). One run per folder, each into its own results file.
+From the repository root. The commands are those of [the model benchmark](../../model-benchmark/README.md), with `--tasks` pointing at one of these folders and `--category` set to the same folder name (`bench.mjs` keeps only the tasks of that category). One run per folder, each into its own results file.
 
 ```bash
 cd examples/model-benchmark
