@@ -44,6 +44,22 @@ describe('wer', () => {
   it('keeps accents, so "perché" and "perche" are different words', () => {
     expect(wer('perché no', 'perche no')).toBe(0.5);
   });
+
+  it('reads a dotted address the same as the spoken "punto"', () => {
+    expect(wer('visitate il sito librivox.org', 'visitate il sito librivox punto org')).toBe(0);
+  });
+
+  it('reads a dotted address the same as the spoken "dot"', () => {
+    expect(wer('visit librivox.org', 'visit librivox dot org')).toBe(0);
+  });
+
+  it('keeps "dot" when no top-level domain follows it', () => {
+    expect(wer('the dot matrix', 'the matrix')).toBeCloseTo(1 / 3);
+  });
+
+  it('treats "punto it" after a word as the address example.it', () => {
+    expect(wer('vai su example punto it', 'vai su example.it')).toBe(0);
+  });
 });
 
 describe('vision-judge', () => {

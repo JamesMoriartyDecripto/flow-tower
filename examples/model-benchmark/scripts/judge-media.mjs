@@ -16,10 +16,21 @@ const API = 'https://openrouter.ai/api/v1';
 const MEDIA_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
 const VIDEO_TYPE = 'video/mp4';
 
+// Top-level domains that make a preceding "dot" / "punto" / "point" a spoken dot in an address.
+const TLDS = new Set(['org', 'com', 'it', 'net', 'io', 'eu']);
+const SPOKEN_DOT = new Set(['dot', 'punto', 'point']);
+
 // Lower case, punctuation removed (letters with accents and digits kept), split on spaces. Punctuation is
 // removed rather than turned into a space, so "don't" and "dont" are the same word on both sides.
+// A dot between two letters or digits (an address, "v0.11") becomes a space first, so "librivox.org" is two
+// words, as a reader says it. The spoken-dot rule below is the only spoken-punctuation rule: a transcript that
+// says "librivox punto org" for "librivox.org" must not cost errors, but "dot" elsewhere stays a word.
 export function words(text) {
-  return String(text).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/).filter(Boolean);
+  const split = String(text).toLowerCase()
+    .replace(/(?<=[\p{L}\p{N}])\.(?=[\p{L}\p{N}])/gu, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .split(/\s+/).filter(Boolean);
+  return split.filter((w, i) => !(SPOKEN_DOT.has(w) && TLDS.has(split[i + 1])));
 }
 
 // Word-level Levenshtein distance: one row of the table at a time, which is all the last row needs.
