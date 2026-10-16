@@ -12,6 +12,7 @@ description: >-
   guardrails on gpt-4.1-mini (OpenAI models, as in the source). Dashed nodes are production
   extensions the demo does not have: payout approval, a human-agent console for
   escalations, and the Baggage Agent its prompts already mention.
+limits: { max_iterations: 10, description: "Per user message: Runner.run_streamed uses the Agents SDK default max_turns (10), and MaxTurnsExceeded ends the reply (airline_server.py)." }
 
 runtimes:
   ui:
@@ -326,7 +327,7 @@ layers:
         type: decision
         label: Wants a person?
         description: "Production extension: explicit request for a human, or the same guardrail tripped twice."
-        decision: { output: binary }
+        decision: { output: binary, fail: closed, description: "On an error the customer is not kept with the bot: a ticket opens." }
         files: [python-backend/airline/approvals.py]
       - id: ticket
         runtime: contact_center
@@ -359,6 +360,7 @@ layers:
       - "refunds -> baggage [handoff]: bags missing"
       - "triage -> wants_human: escalation check"
       - "wants_human -> ticket [call]: yes"
+      - "wants_human -> triage [return]: no, Triage keeps the floor"
 
   # 4 ───────────────────────────────────────────────────────────────
   - id: tools
