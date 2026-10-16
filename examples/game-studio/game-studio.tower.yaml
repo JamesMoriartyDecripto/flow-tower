@@ -236,6 +236,7 @@ agents:
     prompt: web-developer
     tools: [Read, Write, Edit, Bash, mcp__figma__get_variable_defs]
     files: [src/departments/marketing.ts, config/style-guide.json]
+    sandbox: { network: allowlist, allow: [registry.npmjs.org], filesystem: workspace }
   marketing-lead:
     runtime: studio-cluster
     name: Marketing lead
@@ -319,7 +320,7 @@ agents:
   market-analyst: { runtime: studio-cluster, from: .claude/agents/market-analyst.md, harness: { max_turns: 25, context: isolated }, meta: { pattern: parallelization } }
   web-researcher: { runtime: studio-cluster, from: .claude/agents/web-researcher.md, harness: { max_turns: 20, context: isolated } }
   game-designer: { runtime: studio-cluster, from: .claude/agents/game-designer.md, files: [docs/gdd-template.md], harness: { max_turns: 40 } }
-  economy-balancer: { runtime: studio-cluster, from: .claude/agents/economy-balancer.md, files: [config/economy.yaml] }
+  economy-balancer: { runtime: studio-cluster, from: .claude/agents/economy-balancer.md, files: [config/economy.yaml], sandbox: { network: none, filesystem: workspace } }
   narrative-writer: { runtime: studio-cluster, from: .claude/agents/narrative-writer.md, files: [docs/storyboard-template.md] }
   concept-artist: { runtime: studio-cluster, from: .claude/agents/concept-artist.md, harness: { max_images_per_round: 12 } }
   art-director:
@@ -344,7 +345,7 @@ agents:
   material-artist: { runtime: artist-ws, from: .claude/agents/material-artist.md, files: [pipelines/blender/bake_pbr.py] }
   rigger: { runtime: artist-ws, from: .claude/agents/rigger.md, files: [pipelines/blender/auto_rig.py] }
   animator: { runtime: render-farm, from: .claude/agents/animator.md, files: [pipelines/unreal/anim_blueprint.py] }
-  world-builder: { runtime: render-farm, from: .claude/agents/world-builder.md, files: [pipelines/unreal/build_level.py] }
+  world-builder: { runtime: render-farm, from: .claude/agents/world-builder.md, files: [pipelines/unreal/build_level.py], sandbox: { network: none, filesystem: workspace } }
   lighting-artist: { runtime: render-farm, from: .claude/agents/lighting-artist.md }
   audio-designer: { runtime: studio-cluster, from: .claude/agents/audio-designer.md }
   gameplay-programmer:
@@ -352,7 +353,8 @@ agents:
     from: .claude/agents/gameplay-programmer.md
     tower: towers/engineering.tower.yaml
     harness: { permission_mode: acceptEdits, max_attempts: 3 }
-  tools-engineer: { runtime: studio-cluster, from: .claude/agents/tools-engineer.md, harness: { permission_mode: acceptEdits } }
+    sandbox: { network: none, filesystem: workspace }
+  tools-engineer: { runtime: studio-cluster, from: .claude/agents/tools-engineer.md, harness: { permission_mode: acceptEdits }, sandbox: { network: none, filesystem: workspace } }
   code-reviewer:
     runtime: studio-cluster
     resources:
@@ -362,9 +364,10 @@ agents:
     harness: { fresh_session_each_round: true, escalate_fixer_on_round: 3 }
     limits: { max_iterations: 3 }
     meta: { pattern: evaluator-optimizer, role: evaluator }
-  perf-profiler: { runtime: render-farm, from: .claude/agents/perf-profiler.md, files: [config/quality-gates.yaml] }
+    sandbox: { network: none, filesystem: read-only }
+  perf-profiler: { runtime: render-farm, from: .claude/agents/perf-profiler.md, files: [config/quality-gates.yaml], sandbox: { network: none, filesystem: workspace } }
   ui-designer: { runtime: studio-cluster, from: .claude/agents/ui-designer.md }
-  release-engineer: { runtime: ci, resources: [{ kind: log, label: "Package log", path: "logs/ci-package.log" }, { kind: script, label: "Local packaging", path: "scripts/package-win64.sh" }, { kind: dashboard, label: "Package workflow", url: "https://github.com/forge-studio-example/emberwake/actions/workflows/package.yml" }], from: .claude/agents/release-engineer.md, files: [.github/workflows/package.yml] }
+  release-engineer: { runtime: ci, resources: [{ kind: log, label: "Package log", path: "logs/ci-package.log" }, { kind: script, label: "Local packaging", path: "scripts/package-win64.sh" }, { kind: dashboard, label: "Package workflow", url: "https://github.com/forge-studio-example/emberwake/actions/workflows/package.yml" }], from: .claude/agents/release-engineer.md, files: [.github/workflows/package.yml], sandbox: { network: allowlist, allow: [api.github.com, uploads.github.com], filesystem: workspace } }
 
 layers:
   # 1 ───────────────────────────────────────────────────────────────
@@ -389,7 +392,7 @@ layers:
         type: decision
         label: Studio fit?
         description: Scope <= vertical slice in 10 weeks, team skills, no licensed IP, budget under the studio cap.
-        decision: { output: score, threshold: ">= 0.6", description: "pitch_fit gate in config/quality-gates.yaml" }
+        decision: { output: score, threshold: ">= 0.6", description: "pitch_fit gate in config/quality-gates.yaml", fail: closed }
         files: [src/greenlight.ts]
       - id: greenlight
         runtime: review-portal
@@ -460,6 +463,7 @@ layers:
         label: Research questions
         description: Producer splits unknowns into independent questions (market, comps, references, tech risk).
         files: [src/departments/research.ts]
+        limits: { concurrency: 5, description: "Five isolated research sessions (QUESTIONS in research.ts), each capped at 40 turns and $3." }
       - id: market
         agent: market-analyst
         label: Market analyst
@@ -517,6 +521,7 @@ layers:
       - id: designer
         agent: game-designer
         label: Game designer
+        limits: { concurrency: 3, description: "GDD, narrative and economy drafts run side by side (preproduction.ts), each capped at 40 turns and $3." }
       - id: economy
         agent: economy-balancer
         label: Economy balancer
@@ -554,7 +559,7 @@ layers:
         type: decision
         label: Score >= 8?
         description: Blocking findings go back to the designer. Round 3 is final; unresolved items escalate to the creative director.
-        decision: { output: score, threshold: ">= 8" }
+        decision: { output: score, threshold: ">= 8", fail: closed }
         limits: { max_iterations: 3 }
         files: [config/quality-gates.yaml, src/loop/review-gate.ts]
       - id: gdd_locked
@@ -607,7 +612,7 @@ layers:
         type: decision
         label: On style?
         description: No silhouette or palette blockers either. Notes return to the concept artist.
-        decision: { output: score, threshold: ">= 8" }
+        decision: { output: score, threshold: ">= 8", fail: closed }
         limits: { max_iterations: 3 }
         files: [config/quality-gates.yaml]
       - id: signoff
@@ -670,6 +675,7 @@ layers:
         label: Retopo & UV
         description: Quad-dominant retopo to budget, then seams + UV packing at the target texel density.
         files: [pipelines/blender/retopo.py, pipelines/blender/uv_unwrap.py]
+        limits: { concurrency: 6, description: "art.ts runs assets 3 at a time; per asset, materials and rig run side by side, so up to 6 Blender sessions at once." }
       - id: materials
         agent: material-artist
         label: Material artist
@@ -728,6 +734,7 @@ layers:
       - id: integration_lead
         label: Integration
         agent: integration-lead
+        limits: { concurrency: 3, description: "Animation, lighting and audio passes run side by side (engine.ts), each capped by LIMITS.dcc: 60 turns, $4." }
       - id: import
         runtime: render-farm
         label: Import assets
@@ -939,6 +946,7 @@ layers:
         description: Promise.all of fresh evaluator sessions with the rubric and previous findings.
         prompt: review-round
         files: [src/loop/review-gate.ts]
+        limits: { concurrency: 4, max_iterations: 3, description: "One fresh evaluator per review type (code, assets, tech, pillars), at most 4 at once; each gate stops after 3 rounds (quality-gates.yaml), then escalates." }
       - id: code_reviewer
         agent: code-reviewer
         label: Code reviewer
@@ -1142,6 +1150,7 @@ layers:
         model: claude-sonnet-5-5
         prompt: positioning
         files: [memory/competitors.md]
+        limits: { concurrency: 4, description: "Website, trailer, store page and social run side by side (marketing.ts), each with its own review loop." }
       - id: website
         runtime: site-edge
         resources:

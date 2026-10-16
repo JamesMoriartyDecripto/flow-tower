@@ -158,6 +158,7 @@ layers:
         label: Level streaming
         description: World Partition cells and data layers per island; HLOD build.
         files: [pipelines/unreal/level_streaming.py]
+        limits: { concurrency: 3, description: "Animation, lighting and audio passes run side by side (engine.ts), each capped by LIMITS.dcc: 60 turns, $4." }
       - id: lighting
         agent: lighting
         label: Lighting artist

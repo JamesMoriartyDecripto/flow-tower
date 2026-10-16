@@ -149,6 +149,7 @@ layers:
         label: Parallel fork
         description: Promise.all over three agents, each on its own .blend copy to avoid write conflicts.
         files: [src/departments/art.ts]
+        limits: { concurrency: 6, description: "art.ts runs assets 3 at a time; per asset, materials and rig run side by side on their own .blend copies: up to 6 sessions." }
       - id: materials
         agent: materials
         label: Materials
@@ -218,7 +219,7 @@ layers:
         type: decision
         label: Approved?
         description: No blockers either. Round 2 is final; then the producer is told.
-        decision: { output: score, threshold: ">= 8" }
+        decision: { output: score, threshold: ">= 8", fail: closed }
         files: [config/quality-gates.yaml]
       - id: tagger
         agent: tagger
@@ -247,3 +248,4 @@ links:
   - "export.verdict -> parallel.materials [return]: surface notes"
   - "ticket.budgets -> export.budget_guard [data]: limits"
   - "ticket.refs -> export.review [data]: concept"
+  - "ticket.asset_class -> parallel.rigger: skinned only"

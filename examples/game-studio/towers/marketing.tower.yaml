@@ -72,6 +72,7 @@ agents:
     model: claude-sonnet-5-5
     prompt: web-developer
     tools: [Read, Write, Edit, Bash, mcp__figma__get_variable_defs]
+    sandbox: { network: allowlist, allow: [registry.npmjs.org], filesystem: workspace }
   trailer:
     runtime: studio-cluster
     name: Trailer writer
@@ -122,6 +123,7 @@ layers:
         description: One-line hook, audience segments, three differentiators.
         prompt: positioning
         model: claude-sonnet-5-5
+        limits: { concurrency: 4, description: "Website, trailer, store page and social run side by side (marketing.ts), each with its own review loop." }
       - id: pillars
         runtime: studio-cluster
         type: memory
