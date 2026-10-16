@@ -1,0 +1,328 @@
+{
+  "takenAt": "2026-10-16T09:20:42.810Z",
+  "path": "examples/sales-pipeline",
+  "towers": [
+    {
+      "id": "sales-pipeline.tower.yaml",
+      "name": "Sales Pipeline: prospect to invoice",
+      "inventory": {
+        "layers": 8,
+        "nodes": 63,
+        "nodesByType": {
+          "agent": 12,
+          "decision": 4,
+          "entry": 7,
+          "guard": 6,
+          "human": 9,
+          "memory": 4,
+          "output": 4,
+          "process": 9,
+          "tool": 8
+        },
+        "edges": {
+          "total": 82,
+          "links": 15,
+          "byKind": {
+            "call": 11,
+            "data": 17,
+            "flow": 36,
+            "handoff": 6,
+            "return": 9,
+            "spawn": 3
+          }
+        },
+        "agents": 12,
+        "models": {
+          "claude-haiku-5-5": 3,
+          "claude-opus-5-5": 4,
+          "claude-sonnet-5-5": 5
+        },
+        "runtimes": {
+          "declared": 14,
+          "byKind": {
+            "browser": 1,
+            "cloud": 1,
+            "container": 1,
+            "saas": 11
+          }
+        },
+        "withOps": {
+          "budget": 12,
+          "limits": 8,
+          "approval": 9,
+          "evals": 7,
+          "sandbox": 0,
+          "fanout": 3
+        },
+        "nestedTowers": [
+          "outreach.sequencer"
+        ],
+        "run": {
+          "budget": true,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "outreach.route",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "prospecting.tier",
+          "message": "decision with 1 outgoing edge(s): add one edge per answer"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "prospecting.tier",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "qualification.qualified",
+          "message": "decision with 1 outgoing edge(s): add one edge per answer"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "qualification.qualified",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "analytics.analyst",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "invoicing.ar_manager",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "targeting.icp",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "prospecting.scorer",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "outreach.sequencer",
+          "role": "writing",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "outreach.triage",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "outreach.objection",
+          "role": "writing",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "qualification.prep",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "qualification.meddicc",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "proposal.scoping",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "proposal.negotiator",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "invoicing.dunning",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "analytics.analyst",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "analytics.winloss",
+          "role": "review",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        }
+      ]
+    },
+    {
+      "id": "towers/outreach.tower.yaml",
+      "name": "Outreach sequence engine",
+      "inventory": {
+        "layers": 4,
+        "nodes": 21,
+        "nodesByType": {
+          "agent": 2,
+          "decision": 2,
+          "entry": 2,
+          "guard": 4,
+          "human": 2,
+          "memory": 3,
+          "output": 1,
+          "process": 3,
+          "tool": 2
+        },
+        "edges": {
+          "total": 27,
+          "links": 8,
+          "byKind": {
+            "call": 2,
+            "data": 4,
+            "flow": 16,
+            "return": 4,
+            "spawn": 1
+          }
+        },
+        "agents": 2,
+        "models": {
+          "claude-haiku-5-5": 1,
+          "claude-sonnet-5-5": 1
+        },
+        "runtimes": {
+          "declared": 7,
+          "byKind": {
+            "browser": 1,
+            "cloud": 1,
+            "container": 1,
+            "saas": 4
+          }
+        },
+        "withOps": {
+          "budget": 2,
+          "limits": 5,
+          "approval": 2,
+          "evals": 1,
+          "sandbox": 0,
+          "fanout": 1
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "replies.route",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "draft.personalizer",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "replies.triage",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        }
+      ]
+    }
+  ]
+}
