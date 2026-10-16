@@ -39,7 +39,7 @@ with Mercury writing text only for `TYPE_TEXT`, and an independent check on `DON
 ## Operational fields used
 
 `decision` on every Jev node: `output` (`choice` with its declared `candidates`, or `binary` for
-nouls), `confidence`, the policy `threshold`, the pinned `model: jev-1.13.0` and `fail` (routing
+nouls), `confidence`, the policy `threshold`, the pinned `model: jev-1.13.0` and `fail` (routing,
 the next action and the Stop check fail open; tool risk, compaction and the browser step fail closed) · `approval` with `when` (ask user under
 the confidence floor; hold review `per: tool call`; escalate on p ≥ 0.5 or the cap) · edge
 `group`s for the alternatives each policy picks (ask gate, risk verdict, next step, browser
