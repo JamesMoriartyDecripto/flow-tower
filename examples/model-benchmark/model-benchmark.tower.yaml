@@ -90,7 +90,7 @@ layers:
         type: output
         label: Planned category
         status: planned
-        description: "Lead/planner, voice agent, long context, vision: tasks still to write. STT/TTS need an audio runner, not chat completions."
+        description: "Voice agent and vision: tasks still to write (bench.mjs sends text only, so vision needs image input first). STT/TTS need an audio runner, not chat completions."
     edges:
       - question -> categories
       - categories -> ready
@@ -119,13 +119,28 @@ layers:
       - id: intent
         type: memory
         label: intent tasks
-        description: "Voice commands to actions (src/app/voice/commands.ts). Check: exact JSON, key order ignored. No tools: structured output only."
-        files: [tasks/intent/navigation.md, tasks/intent/node-and-layer.md]
+        description: "Voice commands to actions (src/app/voice/commands.ts); the airline-support triage routes and its relevance guard. Check: exact JSON, key order ignored. No tools: structured output only."
+        files: [tasks/intent/navigation.md, tasks/intent/node-and-layer.md, tasks/intent/airline-routing.md, tasks/intent/airline-relevance.md]
       - id: docs
         type: memory
         label: doc-writer tasks
         description: "A changelog entry and a gotcha paragraph. Check: required facts as patterns, then the rubric (accuracy, length)."
         files: [tasks/doc-writer/changelog-entry.md, tasks/doc-writer/hook-gotcha.md]
+      - id: writer
+        type: memory
+        label: writer tasks
+        description: "Brand copy from the social-studio and marketing-studio examples: a how-to short against a voice guide and banned claims, a landing section against a claims register. Check: required facts and banned words, then the rubric."
+        files: [tasks/writer/halden-battery-cold.md, tasks/writer/tallymoor-landing-v2.md]
+      - id: planner
+        type: memory
+        label: planner tasks
+        description: "A late change request in the web-studio lead's phases, and the plan for the real Admin pause 415 bug (#206). Check: the plan names the right steps and files, then the rubric."
+        files: [tasks/planner/web-change-request.md, tasks/planner/hub-pause-415-v2.md]
+      - id: summarizer
+        type: memory
+        label: summarizer tasks
+        description: "Every file of the sre-incident and fraud-desk examples (27-36 KB) with seven questions whose answers sit in different files. Check: exact JSON."
+        files: [tasks/summarizer/sre-incident-facts.md, tasks/summarizer/fraud-desk-facts.md]
       - id: keyfirst
         type: guard
         label: Answer key first
@@ -141,6 +156,9 @@ layers:
       - "security -> keyfirst [data]"
       - "intent -> keyfirst [data]"
       - "docs -> keyfirst [data]"
+      - "writer -> keyfirst [data]"
+      - "planner -> keyfirst [data]"
+      - "summarizer -> keyfirst [data]"
 
   # 3 ───────────────────────────────────────────────────────────────
   - id: candidates

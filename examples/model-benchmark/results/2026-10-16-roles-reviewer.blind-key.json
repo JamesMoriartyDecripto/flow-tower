@@ -1,0 +1,134 @@
+{
+  "B001": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 3
+  },
+  "B002": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 2
+  },
+  "B003": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "reviewer",
+    "task": "events-204",
+    "run": 1
+  },
+  "B004": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 3
+  },
+  "B005": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 2
+  },
+  "B006": {
+    "model": "google/gemini-2.5-flash",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 2
+  },
+  "B007": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 3
+  },
+  "B008": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "reviewer",
+    "task": "events-204",
+    "run": 1
+  },
+  "B009": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "reviewer",
+    "task": "events-204",
+    "run": 2
+  },
+  "B010": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 1
+  },
+  "B011": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 1
+  },
+  "B012": {
+    "model": "google/gemini-3.8-flash",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 1
+  },
+  "B013": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "reviewer",
+    "task": "events-204",
+    "run": 3
+  },
+  "B014": {
+    "model": "google/gemini-3.8-flash",
+    "category": "reviewer",
+    "task": "events-204",
+    "run": 1
+  },
+  "B015": {
+    "model": "google/gemini-3.8-flash",
+    "category": "reviewer",
+    "task": "events-204",
+    "run": 3
+  },
+  "B016": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "reviewer",
+    "task": "events-204",
+    "run": 3
+  },
+  "B017": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 1
+  },
+  "B018": {
+    "model": "google/gemini-3.8-flash",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 3
+  },
+  "B019": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 2
+  },
+  "B020": {
+    "model": "google/gemini-2.5-flash",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 1
+  },
+  "B021": {
+    "model": "google/gemini-3.8-flash",
+    "category": "reviewer",
+    "task": "events-204",
+    "run": 2
+  },
+  "B022": {
+    "model": "google/gemini-3.8-flash",
+    "category": "reviewer",
+    "task": "store-mutation",
+    "run": 2
+  }
+}
