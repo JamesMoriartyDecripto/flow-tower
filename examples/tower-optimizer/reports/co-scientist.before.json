@@ -1,0 +1,269 @@
+{
+  "takenAt": "2026-10-16T09:45:59.788Z",
+  "path": "examples/co-scientist",
+  "towers": [
+    {
+      "id": "co-scientist.tower.yaml",
+      "name": "AI Co-Scientist",
+      "inventory": {
+        "layers": 5,
+        "nodes": 36,
+        "nodesByType": {
+          "agent": 9,
+          "decision": 2,
+          "entry": 1,
+          "guard": 2,
+          "human": 3,
+          "memory": 6,
+          "model": 2,
+          "output": 3,
+          "process": 4,
+          "tool": 4
+        },
+        "edges": {
+          "total": 52,
+          "links": 22,
+          "byKind": {
+            "call": 8,
+            "data": 19,
+            "flow": 11,
+            "handoff": 4,
+            "return": 4,
+            "spawn": 6
+          }
+        },
+        "agents": 9,
+        "models": {
+          "gemini-2.0-flash": 10,
+          "gemini-embedding-001": 1
+        },
+        "runtimes": {
+          "declared": 5,
+          "byKind": {
+            "cloud": 1,
+            "saas": 4
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 2,
+          "approval": 2,
+          "evals": 3,
+          "sandbox": 0,
+          "fanout": 1
+        },
+        "nestedTowers": [
+          "tournament.ranking"
+        ],
+        "run": {
+          "budget": true,
+          "limits": true
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "tools.private_lit",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "generate.pass_initial",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "tools.lab",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "scientist.parser",
+          "role": "data",
+          "model": "gemini-2.0-flash",
+          "categories": [],
+          "needs": [
+            "structured-output"
+          ],
+          "prefer": "extracts into a JSON schema; low temperature, same answer each run"
+        },
+        {
+          "node": "supervisor.supervisor",
+          "role": "writing",
+          "model": "gemini-2.0-flash",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "generate.generation",
+          "role": "research",
+          "model": "gemini-2.0-flash",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "generate.initial",
+          "role": "review",
+          "model": "gemini-2.0-flash",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "generate.deep_review",
+          "role": "review",
+          "model": "gemini-2.0-flash",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "tournament.proximity",
+          "role": "general",
+          "model": "gemini-2.0-flash",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "tournament.ranking",
+          "role": "general",
+          "model": "gemini-2.0-flash",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "tournament.evolution",
+          "role": "research",
+          "model": "gemini-2.0-flash",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "tournament.meta",
+          "role": "review",
+          "model": "gemini-2.0-flash",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        }
+      ]
+    },
+    {
+      "id": "towers/tournament.tower.yaml",
+      "name": "Elo tournament",
+      "inventory": {
+        "layers": 3,
+        "nodes": 12,
+        "nodesByType": {
+          "agent": 2,
+          "decision": 2,
+          "entry": 1,
+          "memory": 3,
+          "model": 1,
+          "output": 1,
+          "process": 2
+        },
+        "edges": {
+          "total": 14,
+          "links": 4,
+          "byKind": {
+            "call": 2,
+            "data": 5,
+            "flow": 7
+          }
+        },
+        "agents": 2,
+        "models": {
+          "gemini-2.0-flash": 3
+        },
+        "runtimes": {
+          "declared": 2,
+          "byKind": {
+            "cloud": 1,
+            "saas": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 1,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "pair.top",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "judge.debate",
+          "role": "general",
+          "model": "gemini-2.0-flash",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "judge.single",
+          "role": "general",
+          "model": "gemini-2.0-flash",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        }
+      ]
+    }
+  ]
+}
