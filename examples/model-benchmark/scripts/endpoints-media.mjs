@@ -158,7 +158,37 @@ export function pickVoice(voices, language) {
   return kokoro ?? voices[0];
 }
 
-// Speech: the prompt is read aloud; the bytes are kept as mp3.
+// Some speech models (Gemini TTS) take only PCM and refuse mp3 with a 400 that names pcm. PCM is raw 16-bit
+// little-endian samples with no header, so a WAV header is added to make the saved file playable.
+const PCM_TYPE = /^audio\/pcm/i;
+export function pcmToWav(pcmBuffer, rate, channels) {
+  const data = Buffer.from(pcmBuffer);
+  const blockAlign = channels * 2;
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0);
+  h.writeUInt32LE(36 + data.length, 4);
+  h.write('WAVE', 8);
+  h.write('fmt ', 12);
+  h.writeUInt32LE(16, 16);
+  h.writeUInt16LE(1, 20);
+  h.writeUInt16LE(channels, 22);
+  h.writeUInt32LE(rate, 24);
+  h.writeUInt32LE(rate * blockAlign, 28);
+  h.writeUInt16LE(blockAlign, 32);
+  h.writeUInt16LE(16, 34);
+  h.write('data', 36);
+  h.writeUInt32LE(data.length, 40);
+  return Buffer.concat([h, data]);
+}
+
+// Rate and channels come from the Content-Type parameters, e.g. `audio/pcm;rate=24000;channels=1`.
+function pcmFormat(contentType) {
+  const rate = Number(/rate=(\d+)/i.exec(contentType)?.[1]) || 24000;
+  const channels = Number(/channels=(\d+)/i.exec(contentType)?.[1]) || 1;
+  return { rate, channels };
+}
+
+// Speech: the prompt is read aloud; the bytes are kept as mp3, or as wav when the model answers in PCM.
 async function speech(ctx, model, task) {
   if (!ctx.outDir) return failed(NEEDS_OUT);
   const meta = frontMatter(task);
@@ -172,14 +202,25 @@ async function speech(ctx, model, task) {
     const voice = pickVoice(list, meta.language);
     if (voice) body.voice = voice;
   }
-  const r = await send(ctx, 'POST', `${API}/audio/speech`, { body });
+  let r = await send(ctx, 'POST', `${API}/audio/speech`, { body });
+  // Retry once in pcm, and only for the 400 that names pcm: any other refusal is reported as it is.
+  if (r.error?.startsWith('HTTP 400') && /pcm/i.test(r.error)) {
+    body.response_format = 'pcm';
+    r = await send(ctx, 'POST', `${API}/audio/speech`, { body });
+  }
   if (r.error) return failed(r.error, elapsed());
-  const bytes = Buffer.from(await r.res.arrayBuffer());
+  let bytes = Buffer.from(await r.res.arrayBuffer());
+  const type = r.res.headers?.get?.('content-type') ?? '';
+  const isPcm = PCM_TYPE.test(type);
+  if (isPcm) {
+    const { rate, channels } = pcmFormat(type);
+    bytes = pcmToWav(bytes, rate, channels);
+  }
   const raw = r.res.headers?.get?.(SPEECH_COST_HEADER);
   const cost = raw && Number.isFinite(Number(raw)) ? Number(raw) : null;
-  const artifact = saveArtifact(ctx, task, model, 'mp3', bytes);
+  const artifact = saveArtifact(ctx, task, model, isPcm ? 'wav' : 'mp3', bytes);
   const totalMs = elapsed();
-  return { answer: artifact, artifact, cost, provider: null, firstOutputMs: totalMs, totalMs, error: null };
+  return { answer: artifact, artifact, cost, voice: body.voice ?? null, provider: null, firstOutputMs: totalMs, totalMs, error: null };
 }
 
 // Transcriptions: the audio fixture goes in as plain base64 (no data URL), its extension names the format.

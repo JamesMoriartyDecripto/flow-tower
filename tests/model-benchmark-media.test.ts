@@ -6,12 +6,12 @@ import { ENDPOINT_CALLS as CALLS } from '../examples/model-benchmark/scripts/end
 // endpoints-media.mjs has no declaration file (only the endpoints.d.mts types are in scope), so TypeScript
 // cannot infer pickVoice's signature; the call sites below pass plain strings and arrays, which is all it needs.
 // @ts-expect-error untyped .mjs module
-import { pickVoice } from '../examples/model-benchmark/scripts/endpoints-media.mjs';
+import { pcmToWav, pickVoice } from '../examples/model-benchmark/scripts/endpoints-media.mjs';
 
 // endpoints.d.mts only types the step-03 context and result. The media fields are cast here, so the
 // declaration file stays untouched by this step.
 type MediaCtx = { key: string; fetchImpl: unknown; outDir?: string; run?: number; pollMs?: number; videoWaitMs?: number; timeoutMs?: number; voices?: Record<string, string[]> };
-type MediaResult = { answer: string | null; artifact?: string | null; cost: number | null; firstOutputMs: number | null; totalMs: number; error: string | null };
+type MediaResult = { answer: string | null; artifact?: string | null; voice?: string | null; cost: number | null; firstOutputMs: number | null; totalMs: number; error: string | null };
 type MediaCall = (ctx: MediaCtx, model: string, task: Record<string, unknown>) => Promise<MediaResult>;
 const ENDPOINT_CALLS = CALLS as unknown as Record<'images' | 'videos' | 'speech' | 'transcriptions', MediaCall>;
 
@@ -116,6 +116,36 @@ describe('media: speech', () => {
     expect(r.cost).toBeNull();
     expect(calls[0].body).toEqual({ model: 's/voice', input: 'a red fox', response_format: 'mp3' });
     expect([...readFileSync(join(dir, 'artifacts/read-s__voice-run1.mp3'))]).toEqual([255, 251, 144, 0]);
+  });
+});
+
+describe('media: speech in pcm', () => {
+  it('wraps 4 bytes of 24 kHz mono pcm in a 44-byte WAV header', () => {
+    const wav = pcmToWav(Buffer.from([1, 2, 3, 4]), 24000, 1);
+    expect(wav.length).toBe(48);
+    expect(wav.subarray(0, 4).toString('latin1')).toBe('RIFF');
+    expect(wav.subarray(8, 12).toString('latin1')).toBe('WAVE');
+    expect(wav.readUInt32LE(24)).toBe(24000);
+    expect(wav.readUInt32LE(40)).toBe(4);
+    expect([...wav.subarray(44)]).toEqual([1, 2, 3, 4]);
+  });
+
+  it('retries once in pcm after the 400 and saves the answer as a wav', async () => {
+    const refusal = { status: 400, bytes: new TextEncoder().encode('Gemini TTS only supports response_format="pcm". Got "mp3".') };
+    const { calls, fetchImpl } = stub([
+      refusal,
+      { bytes: new Uint8Array([0, 0, 1, 0]), headers: { 'content-type': 'audio/pcm;rate=24000;channels=1' } },
+    ]);
+    const r = await ENDPOINT_CALLS.speech(
+      { key: 'k', fetchImpl, outDir: dir, run: 1, voices: { 'g/tts': ['Kore'] } }, 'g/tts', task({ endpoint: 'speech', id: 'pcm' }),
+    );
+    expect(r.error).toBeNull();
+    expect(r.answer).toBe('artifacts/pcm-g__tts-run1.wav');
+    expect(r.voice).toBe('Kore');
+    expect(calls.map((c) => c.body?.response_format)).toEqual(['mp3', 'pcm']);
+    const saved = readFileSync(join(dir, 'artifacts/pcm-g__tts-run1.wav'));
+    expect(saved.subarray(0, 4).toString('latin1')).toBe('RIFF');
+    expect(saved.length).toBe(48);
   });
 });
 
