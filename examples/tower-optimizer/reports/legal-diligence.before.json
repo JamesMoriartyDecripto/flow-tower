@@ -1,0 +1,336 @@
+{
+  "takenAt": "2026-10-16T09:34:15.689Z",
+  "path": "examples/legal-diligence",
+  "towers": [
+    {
+      "id": "legal-diligence.tower.yaml",
+      "name": "Legal Due Diligence",
+      "inventory": {
+        "layers": 5,
+        "nodes": 36,
+        "nodesByType": {
+          "agent": 10,
+          "decision": 1,
+          "entry": 1,
+          "guard": 5,
+          "hook": 1,
+          "human": 5,
+          "memory": 4,
+          "model": 3,
+          "output": 2,
+          "process": 2,
+          "tool": 2
+        },
+        "edges": {
+          "total": 54,
+          "links": 16,
+          "byKind": {
+            "call": 9,
+            "data": 17,
+            "flow": 15,
+            "handoff": 3,
+            "return": 4,
+            "spawn": 6
+          }
+        },
+        "agents": 10,
+        "models": {
+          "claude-haiku-5-5": 2,
+          "claude-opus-5-5": 4,
+          "claude-sonnet-5-5": 7
+        },
+        "runtimes": {
+          "declared": 6,
+          "byKind": {
+            "browser": 1,
+            "cloud": 1,
+            "container": 1,
+            "saas": 3
+          }
+        },
+        "withOps": {
+          "budget": 9,
+          "limits": 8,
+          "approval": 5,
+          "evals": 8,
+          "sandbox": 7,
+          "fanout": 6
+        },
+        "nestedTowers": [
+          "review.assign",
+          "review.coc",
+          "review.excl",
+          "review.indem",
+          "review.term"
+        ],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "review.dispatch",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "governance.dms",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "risk.severity",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD10",
+          "level": "info",
+          "message": "10 agents with no tower budget or limits: add a run-wide budget"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "intake.classifier",
+          "role": "router",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [
+            "low-latency",
+            "structured-output"
+          ],
+          "prefer": "small and fast; picks one label out of a few"
+        },
+        {
+          "node": "review.coc",
+          "role": "review",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "review.assign",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "review.excl",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "review.term",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "review.indem",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "review.consistency",
+          "role": "general",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "risk.scorer",
+          "role": "general",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "risk.rfi",
+          "role": "writing",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "report.memo",
+          "role": "writing",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        }
+      ]
+    },
+    {
+      "id": "towers/clause-review.tower.yaml",
+      "name": "Clause reviewer internals",
+      "inventory": {
+        "layers": 3,
+        "nodes": 12,
+        "nodesByType": {
+          "agent": 3,
+          "decision": 2,
+          "entry": 1,
+          "guard": 1,
+          "model": 1,
+          "output": 2,
+          "tool": 2
+        },
+        "edges": {
+          "total": 13,
+          "links": 2,
+          "byKind": {
+            "call": 2,
+            "data": 2,
+            "flow": 8,
+            "return": 1
+          }
+        },
+        "agents": 3,
+        "models": {
+          "claude-sonnet-5-5": 4
+        },
+        "runtimes": {
+          "declared": 2,
+          "byKind": {
+            "cloud": 1,
+            "container": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 3,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 3,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "extract.present",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "output.confidence",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD10",
+          "level": "info",
+          "message": "3 agents with no tower budget or limits: add a run-wide budget"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "locate.definitions",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "extract.answer",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "extract.conditional",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        }
+      ]
+    }
+  ]
+}

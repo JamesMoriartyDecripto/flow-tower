@@ -22,8 +22,8 @@ Sub-tower: `towers/clause-review.tower.yaml` (double-click any clause reviewer) 
 
 - `approval` on five checkpoints (scope, classification, review table, flags, report) with `edit` actions, as in Harvey's "step in, edit, then approve" workflows: classification only `when: "confidence < 0.8 or privileged"`, `per: document`; flags `per: flag`; partner sign-off with `rounds: 3`.
 - `data: { sensitivity: confidential, region: eu }` on every agent; `retention` with `retention_after: matter close` on the docstore and review table (180d) and audit trail (`7y`).
-- `fanout` for batch classification and per-document clause review; `limits` with concurrency, retries and backoff; `budget` (`per: run` for the fan-outs) with `pause` / `escalate`.
-- `decision`: severity as a `choice` over red / amber / green / information gap; in the sub-tower, clause presence and a confidence `threshold: 0.7`, with their branches as edge `group`s.
+- `fanout` for batch classification and per-document clause review; `limits` with concurrency, retries and backoff, run-wide too (the 32 and 8 pools of `src/pipeline.ts`); `budget` (`per: run` for the fan-outs) with `pause` / `escalate`.
+- `decision`: severity as a `choice` over red / amber / green / information gap; in the sub-tower, clause presence and a confidence `threshold: 0.7`, with their branches as edge `group`s; all three `fail: closed` (doubt scores up, an unquoted clause is not found, a low-confidence cell goes to the associate).
 - `evals` (all `illustrative: true`): extraction accuracy, citation verified rate, associate edit rate (`higher_is_better: false`), BigLaw Bench-style answer and source scores.
 - `version` + `rollout: shadow` for the v8 clause prompt; `sla` on review, alerts and delivery; `credentials: user` for DMS and VDR calls; `sandbox: { network: none }` for reviewers; `trigger: webhook`; edge `protocol` (webhook, queue, mcp, http).
 
