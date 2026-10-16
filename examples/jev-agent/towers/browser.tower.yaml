@@ -78,7 +78,14 @@ layers:
           BLOCKED, plus speculative heads click_target (clickable rows) and type_text_target
           (editable rows) in the same request. Only the head matching the operation is used.
         files: [src/browser.ts, config/decisions.yaml]
-        decision: { output: choice, candidates: [CLICK, TYPE_TEXT, SELECT, SCROLL_UP, SCROLL_DOWN, WAIT, DONE, BLOCKED], confidence: true, threshold: 0.5, model: jev-1.13.0 }
+        decision:
+          output: choice
+          candidates: [CLICK, TYPE_TEXT, SELECT, SCROLL_UP, SCROLL_DOWN, WAIT, DONE, BLOCKED]
+          confidence: true
+          threshold: 0.5
+          model: jev-1.13.0
+          fail: closed
+          description: Below 0.5 the page is observed again once, then the run returns BLOCKED (src/browser.ts); the agent never acts on an unsure step.
         limits: { timeout: 2s }
         evals:
           - { name: "flight search", value: 7.1, target: 10, unit: s, higher_is_better: false, description: "Reported by Browser Use (jev-ultrafast README): Zürich→London on Google Flights, 7,073 ms.", url: "https://github.com/browser-use/jev-ultrafast" }
