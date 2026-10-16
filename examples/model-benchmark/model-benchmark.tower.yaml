@@ -302,7 +302,7 @@ layers:
       - id: sandbox
         type: guard
         label: Permission model
-        description: "Model-written code runs in a child Node with --experimental-permission: it reads its temp folder and the task folder only, cannot write or spawn, 20 s timeout."
+        description: "Model-written code runs in a child Node with the permission model (`--permission`; `--experimental-permission` on Node 20/22): it reads its temp folder and the task folder only, cannot write or spawn, 20 s timeout."
         sandbox: { network: open, filesystem: read-only }
       - id: blind
         type: memory
