@@ -3,9 +3,10 @@
 //   ## Prompt   sent to the model, nothing else is
 //   ## Expected never sent: the answer key, written before the first run
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, extname, join, resolve } from 'node:path';
 
 export const CHECKS = ['command', 'json', 'regex', 'rubric'];
+const IMAGE_MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
 
 function frontMatter(text) {
   const m = /^---\n([\s\S]*?)\n---\n/.exec(text);
@@ -50,6 +51,7 @@ export function loadTask(file) {
     rubric: meta.rubric === 'true' || meta.check === 'rubric',
     tools: list(meta.tools),
     files: list(meta.files),
+    images: list(meta.images),
     steps: Number(meta.steps || 8),
     title: (/^# (.+)$/m.exec(body) || [])[1] || basename(file),
     prompt: section(body, 'Prompt'),
@@ -72,10 +74,26 @@ export function taskProblems(t) {
   if (t.check === 'regex' && !blocks(t.expected, 'regex').length) p.push('Expected needs a ```regex block');
   if (t.rubric && !/rubric/i.test(t.expected)) p.push('rubric task: list its rubric points under "## Expected"');
   for (const f of t.files) if (!existsSync(join(t.dir, f))) p.push(`fixture missing: ${f}`);
+  // Only the formats every vision model accepts: anything else is rejected before a run is paid for.
+  for (const img of t.images) {
+    if (!existsSync(join(t.dir, img))) p.push(`image missing: ${img}`);
+    if (!IMAGE_MIME[extname(img).toLowerCase()]) p.push(`image must be .png, .jpg, .jpeg or .webp: ${img}`);
+  }
   if (t.files.length && !t.tools.includes('read_file')) p.push('fixtures need tools: read_file');
   // The answer key must never reach the model.
   if (t.expected && t.prompt.includes(t.expected.slice(0, 40))) p.push('the prompt contains the expected answer');
   return p;
+}
+
+// What a task's content becomes for the API: plain text when there are no images, so text-only requests stay as they were.
+export function userContent(task) {
+  if (!task.images.length) return task.prompt;
+  const parts = [{ type: 'text', text: task.prompt }];
+  for (const img of task.images) {
+    const data = readFileSync(join(task.dir, img)).toString('base64');
+    parts.push({ type: 'image_url', image_url: { url: `data:${IMAGE_MIME[extname(img).toLowerCase()]};base64,${data}` } });
+  }
+  return parts;
 }
 
 export function loadTasks(path) {
