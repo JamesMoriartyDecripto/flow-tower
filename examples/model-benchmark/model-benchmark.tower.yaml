@@ -90,7 +90,7 @@ layers:
         type: output
         label: Planned category
         status: planned
-        description: "Voice agent and vision: tasks still to write (bench.mjs sends text only, so vision needs image input first). STT/TTS need an audio runner, not chat completions."
+        description: "Voice agent: tasks still to write. STT/TTS need an audio runner, not chat completions."
     edges:
       - question -> categories
       - categories -> ready
@@ -104,13 +104,13 @@ layers:
       - id: coder
         type: memory
         label: coder tasks
-        description: "parse-edge (src/core/edges.ts) and format-price (models.mjs). Check: a test script imports the answer."
-        files: [tasks/coder/parse-edge.md, tasks/coder/parse-edge.check.mjs, tasks/coder/format-price.md, tasks/coder/format-price.check.mjs]
+        description: "parse-edge (src/core/edges.ts), format-price (models.mjs) and shell-path (bin/cli-name.js). Check: a test script imports the answer."
+        files: [tasks/coder/parse-edge.md, tasks/coder/parse-edge.check.mjs, tasks/coder/format-price.md, tasks/coder/format-price.check.mjs, tasks/coder/shell-path.md, tasks/coder/shell-path.check.mjs]
       - id: reviewer
         type: memory
         label: reviewer tasks
         description: "A planted bug each: /api/events answering 200 + JSON, a zustand store mutated in place. Check: the expected finding's patterns, then the rubric penalises invented defects."
-        files: [tasks/reviewer/events-204.md, tasks/reviewer/fixtures/events-route.ts, tasks/reviewer/store-mutation.md, tasks/reviewer/fixtures/live-store.ts]
+        files: [tasks/reviewer/events-204.md, tasks/reviewer/fixtures/events-route.ts, tasks/reviewer/store-mutation.md, tasks/reviewer/fixtures/live-store.ts, tasks/reviewer/history-dedupe.md, tasks/reviewer/fixtures/history-row.ts]
       - id: security
         type: memory
         label: security tasks
@@ -130,17 +130,27 @@ layers:
         type: memory
         label: writer tasks
         description: "Brand copy from the social-studio and marketing-studio examples: a how-to short against a voice guide and banned claims, a landing section against a claims register. Check: required facts and banned words, then the rubric."
-        files: [tasks/writer/halden-battery-cold.md, tasks/writer/tallymoor-landing-v2.md]
+        files: [tasks/writer/halden-battery-cold.md, tasks/writer/tallymoor-landing-v2.md, tasks/writer/halden-public-reply.md]
       - id: planner
         type: memory
         label: planner tasks
         description: "A late change request in the web-studio lead's phases, and the plan for the real Admin pause 415 bug (#206). Check: the plan names the right steps and files, then the rubric."
-        files: [tasks/planner/web-change-request.md, tasks/planner/hub-pause-415-v2.md]
+        files: [tasks/planner/web-change-request.md, tasks/planner/hub-pause-415-v2.md, tasks/planner/ebook-outline-change-v2.md]
       - id: summarizer
         type: memory
         label: summarizer tasks
         description: "Every file of the sre-incident and fraud-desk examples (27-36 KB) with seven questions whose answers sit in different files. Check: exact JSON."
         files: [tasks/summarizer/sre-incident-facts.md, tasks/summarizer/fraud-desk-facts.md]
+      - id: vision
+        type: memory
+        label: vision tasks
+        description: "Screenshots rendered from the browser-worker portal (a wrong birth date, a one-character licence slip, a referral banner) and an ai-video-studio contact sheet (black frame, logo outside the safe zone, garbled caption). Sent with images:. Check: exact JSON."
+        files: [tasks/vision/portal-add-driver.md, tasks/vision/portal-licence-char.md, tasks/vision/portal-referral-banner.md, tasks/vision/frame-contact-sheet.md, tasks/vision/fixtures/portal-add-driver.png, tasks/vision/fixtures/portal-licence-char.png, tasks/vision/fixtures/portal-referral-banner.png, tasks/vision/fixtures/frame-contact-sheet.png]
+      - id: retired
+        type: memory
+        label: Retired tasks
+        description: "Tasks whose answer key proved wrong after a run: kept for the record, never run again. Each has a v2 under a new id (rubric.md: a wrong key gets a new task id)."
+        files: [tasks/retired/tallymoor-landing.md, tasks/retired/hub-pause-415.md, tasks/retired/ebook-outline-change.md]
       - id: keyfirst
         type: guard
         label: Answer key first
@@ -159,6 +169,8 @@ layers:
       - "writer -> keyfirst [data]"
       - "planner -> keyfirst [data]"
       - "summarizer -> keyfirst [data]"
+      - "vision -> keyfirst [data]"
+      - "keyfirst -> retired [return]: wrong key"
 
   # 3 ───────────────────────────────────────────────────────────────
   - id: candidates

@@ -2,59 +2,59 @@
   "B001": {
     "model": "anthropic/claude-sonnet-5.5",
     "category": "doc-writer",
-    "task": "hook-gotcha",
-    "run": 3
-  },
-  "B002": {
-    "model": "anthropic/claude-opus-5.5",
-    "category": "doc-writer",
     "task": "changelog-entry",
     "run": 1
+  },
+  "B002": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "doc-writer",
+    "task": "hook-gotcha",
+    "run": 3
   },
   "B003": {
     "model": "anthropic/claude-opus-5.5",
     "category": "doc-writer",
     "task": "changelog-entry",
-    "run": 2
+    "run": 3
   },
   "B004": {
-    "model": "anthropic/claude-sonnet-5.5",
-    "category": "doc-writer",
-    "task": "hook-gotcha",
-    "run": 2
-  },
-  "B005": {
     "model": "anthropic/claude-haiku-5.5",
     "category": "doc-writer",
     "task": "changelog-entry",
     "run": 1
   },
-  "B006": {
+  "B005": {
     "model": "anthropic/claude-haiku-5.5",
     "category": "doc-writer",
     "task": "hook-gotcha",
     "run": 2
+  },
+  "B006": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "doc-writer",
+    "task": "changelog-entry",
+    "run": 1
   },
   "B007": {
     "model": "anthropic/claude-sonnet-5.5",
     "category": "doc-writer",
-    "task": "changelog-entry",
+    "task": "hook-gotcha",
     "run": 2
   },
   "B008": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "doc-writer",
+    "task": "hook-gotcha",
+    "run": 2
+  },
+  "B009": {
     "model": "anthropic/claude-haiku-5.5",
     "category": "doc-writer",
     "task": "hook-gotcha",
-    "run": 3
-  },
-  "B009": {
-    "model": "anthropic/claude-opus-5.5",
-    "category": "doc-writer",
-    "task": "changelog-entry",
-    "run": 3
+    "run": 1
   },
   "B010": {
-    "model": "anthropic/claude-opus-5.5",
+    "model": "anthropic/claude-haiku-5.5",
     "category": "doc-writer",
     "task": "hook-gotcha",
     "run": 3
@@ -63,7 +63,7 @@
     "model": "anthropic/claude-haiku-5.5",
     "category": "doc-writer",
     "task": "changelog-entry",
-    "run": 3
+    "run": 2
   },
   "B012": {
     "model": "anthropic/claude-opus-5.5",
@@ -75,36 +75,36 @@
     "model": "anthropic/claude-sonnet-5.5",
     "category": "doc-writer",
     "task": "changelog-entry",
-    "run": 1
+    "run": 2
   },
   "B014": {
-    "model": "anthropic/claude-sonnet-5.5",
+    "model": "anthropic/claude-haiku-5.5",
     "category": "doc-writer",
     "task": "changelog-entry",
     "run": 3
   },
   "B015": {
-    "model": "anthropic/claude-haiku-5.5",
+    "model": "anthropic/claude-sonnet-5.5",
     "category": "doc-writer",
-    "task": "changelog-entry",
-    "run": 2
+    "task": "hook-gotcha",
+    "run": 1
   },
   "B016": {
     "model": "anthropic/claude-opus-5.5",
     "category": "doc-writer",
     "task": "hook-gotcha",
-    "run": 2
+    "run": 3
   },
   "B017": {
-    "model": "anthropic/claude-haiku-5.5",
-    "category": "doc-writer",
-    "task": "hook-gotcha",
-    "run": 1
-  },
-  "B018": {
     "model": "anthropic/claude-sonnet-5.5",
     "category": "doc-writer",
-    "task": "hook-gotcha",
-    "run": 1
+    "task": "changelog-entry",
+    "run": 3
+  },
+  "B018": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "doc-writer",
+    "task": "changelog-entry",
+    "run": 2
   }
 }

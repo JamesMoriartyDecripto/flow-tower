@@ -1,0 +1,60 @@
+Verifier: `z-ai/glm-5.3-flashx` through OpenRouter (data_collection deny), a family no candidate in this run belongs to. Each answer scored alone, twice (forward, then reverse order); final = the lower score. A gap above 2 points is marked for a human.
+
+Format: id: pass 1 / pass 2 -> final; reason when final < 7.
+
+- B001: 9 / 9 -> 9.
+- B002: null / null -> null.
+- B003: 9 / 9 -> 9.
+- B004: 10 / 10 -> 10.
+- B005: 10 / 10 -> 10.
+- B006: 10 / 10 -> 10.
+- B007: null / null -> null.
+- B008: 10 / 10 -> 10.
+- B009: 10 / 10 -> 10.
+- B010: 10 / 10 -> 10.
+- B011: null / null -> null.
+- B012: 10 / 10 -> 10.
+- B013: 10 / 10 -> 10.
+- B014: 10 / 10 -> 10.
+- B015: 6 / 8 -> 6. Correctly identifies the 200+JSON hook-decision defect and the 204/empty-body fix (8 pts), but invents two false findings — parseEvents error handling causing hangs, and size-cap UTF-8/byte-count flaws the rubric says are fine — costing 2 points.
+- B016: 10 / 10 -> 10.
+- B017: 9 / 8 -> 8.
+- B018: 9 / 9 -> 9.
+- B019: 10 / 10 -> 10.
+- B020: null / 9 -> 9.
+- B021: null / 8 -> 8.
+- B022: 10 / 10 -> 10.
+- B023: null / 7 -> 7.
+- B024: 9 / 9 -> 9.
+- B025: 10 / 10 -> 10.
+- B026: 10 / 10 -> 10.
+- B027: 10 / 10 -> 10.
+- B028: 9 / 10 -> 9.
+- B029: null / null -> null.
+- B030: 10 / 10 -> 10.
+- B031: null / null -> null.
+- B032: 9 / 9 -> 9.
+- B033: null / null -> null.
+- B034: null / 9 -> 9.
+- B035: null / null -> null.
+- B036: 10 / 10 -> 10.
+- B037: 10 / 10 -> 10.
+- B038: null / 9 -> 9.
+- B039: 10 / 10 -> 10.
+- B040: 10 / 10 -> 10.
+- B041: 8 / 8 -> 8.
+- B042: 10 / 10 -> 10.
+- B043: null / null -> null.
+- B044: 9 / null -> 9.
+- B045: 9 / 9 -> 9.
+- B046: null / 8 -> 8.
+- B047: 9 / 9 -> 9.
+- B048: 10 / 10 -> 10.
+- B049: 9 / 9 -> 9.
+- B050: 9 / 10 -> 9.
+- B051: null / null -> null.
+- B052: 9 / 9 -> 9.
+- B053: 9 / 9 -> 9.
+- B054: 9 / 10 -> 9.
+- B055: 10 / 10 -> 10.
+- B056: 9 / 9 -> 9.
