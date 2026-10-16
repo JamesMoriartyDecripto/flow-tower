@@ -1,0 +1,345 @@
+{
+  "takenAt": "2026-10-16T08:35:54.181Z",
+  "path": "examples/chief-of-staff",
+  "towers": [
+    {
+      "id": "chief-of-staff.tower.yaml",
+      "name": "Ambient Chief of Staff",
+      "inventory": {
+        "layers": 5,
+        "nodes": 54,
+        "nodesByType": {
+          "agent": 7,
+          "decision": 7,
+          "entry": 6,
+          "guard": 2,
+          "hook": 4,
+          "human": 3,
+          "memory": 5,
+          "model": 3,
+          "output": 2,
+          "process": 9,
+          "tool": 6
+        },
+        "edges": {
+          "total": 72,
+          "links": 29,
+          "byKind": {
+            "call": 13,
+            "data": 16,
+            "flow": 32,
+            "handoff": 2,
+            "return": 3,
+            "spawn": 6
+          }
+        },
+        "agents": 7,
+        "models": {
+          "claude-haiku-5-5": 2,
+          "claude-opus-5-5": 3,
+          "claude-sonnet-5-5": 5
+        },
+        "runtimes": {
+          "declared": 8,
+          "byKind": {
+            "browser": 1,
+            "container": 1,
+            "device": 1,
+            "local": 1,
+            "saas": 4
+          }
+        },
+        "withOps": {
+          "budget": 3,
+          "limits": 1,
+          "approval": 3,
+          "evals": 2,
+          "sandbox": 3,
+          "fanout": 1
+        },
+        "nestedTowers": [
+          "specialists.analyst"
+        ],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "orchestration.cos",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "orchestration.delegate",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "orchestration.cos",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "specialists.drafter",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "specialists.scheduler",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "specialists.send",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "specialists.workspace_mcp",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "triggers.history",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "harness.durable",
+          "message": "decision with 1 outgoing edge(s): add one edge per answer"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "harness.durable",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "orchestration.needs_user",
+          "message": "decision with 1 outgoing edge(s): add one edge per answer"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "orchestration.needs_user",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "orchestration.plan_first",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "surfaces.style",
+          "message": "decision with 1 outgoing edge(s): add one edge per answer"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "triggers.from_me",
+          "message": "decision with 1 outgoing edge(s): add one edge per answer"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "triggers.route",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD05",
+          "level": "info",
+          "node": "orchestration.cos",
+          "message": "feeds output with no evals: add evals to measure the answer"
+        },
+        {
+          "rule": "AUD10",
+          "level": "info",
+          "message": "7 agents with no tower budget or limits: add a run-wide budget"
+        },
+        {
+          "rule": "AUD11",
+          "level": "warning",
+          "node": "specialists.recruiter",
+          "message": "shell or code tool with no sandbox: add sandbox (network, filesystem)"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "triggers.triage",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "orchestration.cos",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "specialists.drafter",
+          "role": "writing",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "specialists.scheduler",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "specialists.analyst",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "specialists.recruiter",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "harness.reflect",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    },
+    {
+      "id": "towers/financial-analyst.tower.yaml",
+      "name": "Financial analyst internals",
+      "inventory": {
+        "layers": 3,
+        "nodes": 16,
+        "nodesByType": {
+          "agent": 1,
+          "decision": 1,
+          "entry": 1,
+          "guard": 1,
+          "hook": 1,
+          "memory": 4,
+          "model": 1,
+          "output": 2,
+          "process": 1,
+          "tool": 3
+        },
+        "edges": {
+          "total": 19,
+          "links": 9,
+          "byKind": {
+            "call": 4,
+            "data": 7,
+            "flow": 7,
+            "spawn": 1
+          }
+        },
+        "agents": 1,
+        "models": {
+          "claude-sonnet-5-5": 2
+        },
+        "runtimes": {
+          "declared": 2,
+          "byKind": {
+            "container": 1,
+            "saas": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 0,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 1,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "analysis.kind",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "analysis.analyst",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    }
+  ]
+}
