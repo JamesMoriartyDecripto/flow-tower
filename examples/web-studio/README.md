@@ -23,10 +23,10 @@ node bin/flow-tower.js examples/web-studio
 
 ## Operational features exercised
 
-- `approval` on every client checkpoint (`timeout: 5d`, `on_timeout: escalate`, `rounds` included: 2 for sitemap and wireframes, 3 for design and preview, `via` lists of channels), plus the contract review, destructive migrations (`when`, replacing a decision node) and each rolling-release step (`per: rollout step`, `on_timeout: reject`).
+- `approval` on every client checkpoint (`timeout: 5d`, `on_timeout: escalate`, `rounds` included: 2 for sitemap and wireframes, 3 for design and preview, `via` lists of channels), plus the contract review, destructive migrations (`when`, replacing a decision node) and each rolling-release step (`per: rollout step`, `on_timeout: reject`). The customer approves each payment on Stripe's hosted Checkout, and the deploy guard is the approval on the Vercel MCP's production calls.
 - `limits.max_iterations` for the QA and self-review fix loops; `limits.ttl` for browser sessions.
 - `evals` (all `illustrative`, with `unit`): Lighthouse scores vs targets, LCP/CLS/TBT and field INP with `higher_is_better: false`, axe violations target 0, visual diff, Semgrep blocking findings, checkout conversion, rounds used.
-- `decision` (route: ready / needs_info / decline; in scope?), `exactly_once` (Stripe webhook creates each order once), `rollout: staged` with `steps: [25, 100]` (Vercel Rolling Releases), `fanout` (competitors, templates, pages × locales, locales), `budget`, `trigger` (webhook, event, cron), `data` (PII/EU/`5y` on Postgres, PCI on Stripe), `credentials` (user for Figma/Vercel OAuth, service for the bot and handlers), `sandbox` allowlists, edge `protocol` (mcp, webhook, http), and a `recording` resource (Playwright traces).
+- `decision` (route: ready / needs_info / decline; in scope?; both `fail: closed`: ask the client, or a change request), `limits` (at most 6 specialists at a time, a rule in the lead prompt), a run `budget` ($30 per phase, `maxBudgetUsd` in the orchestrator; $45 for the backend lane), `exactly_once` (Stripe webhook creates each order once), `rollout: staged` with `steps: [25, 100]` (Vercel Rolling Releases), `fanout` (competitors, templates, pages × locales, locales), `budget`, `trigger` (webhook, event, cron), `data` (PII/EU/`5y` on Postgres, PCI on Stripe), `credentials` (user for Figma/Vercel OAuth, service for the bot and handlers), `sandbox` allowlists, edge `protocol` (mcp, webhook, http), and a `recording` resource (Playwright traces).
 
 ## Sources
 

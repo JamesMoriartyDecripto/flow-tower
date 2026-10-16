@@ -128,6 +128,8 @@ prompts:
   qa-auditor: { file: prompts/qa-auditor.md, description: "What automation misses: keyboard, names, alt relevance, forms, SEO." }
   monitor: { file: prompts/monitor.md, description: "Weekly CWV, traffic, Search Console and API health digest." }
 
+budget: { usd: 30, per: run, on_exceed: stop, description: "maxBudgetUsd of each runPhase query (src/orchestrator.ts): the lead and every specialist it dispatches. The build lanes run in Claude Code with their own budgets." }
+
 agents:
   intake:
     name: Brief intake
@@ -247,7 +249,7 @@ layers:
         type: decision
         label: Route?
         description: Custom web apps are not our offer, so those briefs are declined.
-        decision: { output: choice, candidates: [ready, needs_info, decline] }
+        decision: { output: choice, candidates: [ready, needs_info, decline], fail: closed, description: "When unsure, ask the client: nothing is estimated on a vague brief." }
         runtime: orchestrator
       - id: clarify
         type: output
@@ -337,8 +339,10 @@ layers:
         label: Visual design
         description: High-fidelity templates, three breakpoints, components only from the library.
         fanout: { min: 4, max: 8, by: page templates }
+        limits: { concurrency: 6, description: "The studio lead dispatches at most 6 specialists at a time (prompts/studio-lead.md)." }
       - id: copy
         agent: copywriter
+        limits: { concurrency: 6, description: "At most 6 copies at a time (prompts/studio-lead.md); every copy also stops at the copywriter's $12 budget." }
       - id: voice
         type: guard
         label: Voice & claims
@@ -451,6 +455,7 @@ layers:
         description: Hosted Checkout (card data never touches our servers), subscriptions, test mode until launch.
         runtime: stripe
         data: { sensitivity: pci, description: Card data stays in Stripe-hosted Checkout. }
+        approval: { by: customer, via: Stripe-hosted Checkout, actions: [approve, reject], description: "The customer confirms every payment on Stripe's page; no agent charges a card. Live keys come with the production release, which the deploy guard escalates." }
       - id: resend
         type: tool
         label: Resend email
@@ -568,7 +573,7 @@ layers:
         type: decision
         label: In scope?
         description: Against the signed sitemap and proposal.
-        decision: { output: binary, candidates: [yes, no] }
+        decision: { output: binary, candidates: [yes, no], fail: closed, description: "Unsure means a change request with an estimate, never silent work (prompts/studio-lead.md)." }
         runtime: orchestrator
       - id: change_request
         type: output
@@ -643,6 +648,7 @@ layers:
         runtime: vercel-edge
         files: [.mcp.json]
         credentials: user
+        approval: { by: studio lead, when: "promote or production", actions: [approve, reject], description: "deploy-guard.ts answers ask for any mcp__vercel__ call that promotes or touches production; previews are free." }
       - id: deploy_guard
         type: guard
         label: Deploy guard
@@ -683,6 +689,7 @@ links:
   - "design.tokens -> frontend.ui_pkg [data]: theme.css"
   - "design.copy -> backend.payload [data]: drafts"
   - "backend.contract -> frontend.api_client [data]: openapi.yaml"
+  - "frontend.islands -> backend.api [call]: checkout, enquiries"
   - "frontend.fe_lead -> qa.preview: PR"
   - "backend.be_lead -> qa.preview: PR"
   - "backend.db -> qa.preview [data]: Neon branch"

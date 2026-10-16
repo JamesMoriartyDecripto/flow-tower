@@ -7,6 +7,7 @@ description: >-
   security scans) on a seeded Neon branch before the PR.
 root: ..
 tags: [backend, openapi, payload-cms, postgres, stripe, security]
+budget: { usd: 45, on_exceed: escalate, description: "The backend lead's lane budget (be-lead in the root tower): every node here is that one Claude Code session." }
 
 runtimes:
   laptop:
@@ -143,6 +144,7 @@ layers:
         label: Stripe
         runtime: stripe
         data: { sensitivity: pci, description: Hosted Checkout keeps card data at Stripe. }
+        approval: { by: customer, via: Stripe-hosted Checkout, actions: [approve, reject], description: "The customer confirms every payment on Stripe's page; no agent charges a card." }
       - id: turnstile
         type: tool
         label: Turnstile
