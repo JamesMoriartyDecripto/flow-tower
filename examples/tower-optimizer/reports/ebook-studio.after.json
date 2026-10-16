@@ -1,0 +1,384 @@
+{
+  "takenAt": "2026-10-16T09:15:47.844Z",
+  "path": "examples/ebook-studio",
+  "towers": [
+    {
+      "id": "ebook-studio.tower.yaml",
+      "name": "Ebook Studio",
+      "inventory": {
+        "layers": 7,
+        "nodes": 50,
+        "nodesByType": {
+          "agent": 14,
+          "decision": 1,
+          "entry": 1,
+          "guard": 4,
+          "hook": 1,
+          "human": 9,
+          "memory": 4,
+          "process": 8,
+          "tool": 8
+        },
+        "edges": {
+          "total": 80,
+          "links": 24,
+          "byKind": {
+            "call": 2,
+            "data": 29,
+            "flow": 29,
+            "handoff": 3,
+            "return": 11,
+            "spawn": 6
+          }
+        },
+        "agents": 14,
+        "models": {
+          "claude-haiku-5-5": 2,
+          "claude-opus-5-5": 3,
+          "claude-sonnet-5-5": 9
+        },
+        "runtimes": {
+          "declared": 14,
+          "byKind": {
+            "ci": 1,
+            "cloud": 1,
+            "container": 1,
+            "edge": 1,
+            "local": 2,
+            "saas": 8
+          }
+        },
+        "withOps": {
+          "budget": 6,
+          "limits": 10,
+          "approval": 8,
+          "evals": 9,
+          "sandbox": 6,
+          "fanout": 7
+        },
+        "nestedTowers": [
+          "drafting.writer"
+        ],
+        "run": {
+          "budget": true,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "launch.arc",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "launch.audiobook",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "market.intake",
+          "role": "coding",
+          "model": "claude-haiku-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "market.comps",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "market.keywords",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "market.lead",
+          "role": "orchestrator",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "outline.outliner",
+          "role": "orchestrator",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "outline.librarian",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "drafting.writer",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "editing.dev_edit",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "editing.line_edit",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "editing.copy_edit",
+          "role": "orchestrator",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "editing.fact_check",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "production.alt_text",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "publishing.metadata",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "launch.analyst",
+          "role": "coding",
+          "model": "claude-haiku-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    },
+    {
+      "id": "towers/chapter.tower.yaml",
+      "name": "Chapter writing loop",
+      "inventory": {
+        "layers": 4,
+        "nodes": 15,
+        "nodesByType": {
+          "agent": 5,
+          "decision": 1,
+          "entry": 1,
+          "hook": 1,
+          "memory": 3,
+          "model": 1,
+          "output": 3
+        },
+        "edges": {
+          "total": 19,
+          "links": 10,
+          "byKind": {
+            "call": 2,
+            "data": 7,
+            "flow": 8,
+            "return": 2
+          }
+        },
+        "agents": 5,
+        "models": {
+          "claude-haiku-5-5": 1,
+          "claude-sonnet-5-5": 5
+        },
+        "runtimes": {
+          "declared": 2,
+          "byKind": {
+            "cloud": 1,
+            "container": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 1,
+          "approval": 0,
+          "evals": 2,
+          "sandbox": 5,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD10",
+          "level": "info",
+          "message": "5 agents with no tower budget or limits: add a run-wide budget"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "draft.plan",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "draft.write",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "review.self_review",
+          "role": "review",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "review.continuity",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "revise.revise_round",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    }
+  ]
+}

@@ -148,7 +148,7 @@ layers:
         label: Findings left?
         description: Blocking findings from either reviewer -> revise; none -> hand off; still blocking after round 3 -> escalate.
         runtime: orchestrator
-        decision: { output: choice, candidates: [revise, hand off, escalate] }
+        decision: { output: choice, candidates: [revise, hand off, escalate], fail: closed, description: "A review that cannot be read counts as blocking: the chapter is never handed off on doubt." }
         limits: { max_iterations: 3 }
       - id: revise_round
         agent: writer
