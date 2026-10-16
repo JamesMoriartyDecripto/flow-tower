@@ -265,7 +265,7 @@ layers:
         description: "Negative share over 35% on 30+ mentions in 2h, any safety claim (fire, brakes, injury), or press pickup."
         runtime: studio
         files: [config/triage-rules.yaml]
-        decision: { output: binary, candidates: [normal, crisis] }
+        decision: { output: binary, candidates: [normal, crisis], fail: closed, description: "Any one crisis trigger is enough (config/triage-rules.yaml), so a borderline signal goes to the comms lead and pauses the queue." }
       - id: ideas
         type: memory
         label: Idea backlog
@@ -377,7 +377,7 @@ layers:
         description: "High: claims, safety, prices, people, news-adjacent, paid. From config/approval-policy.yaml."
         runtime: studio
         files: [config/approval-policy.yaml]
-        decision: { output: choice, candidates: [standard, high] }
+        decision: { output: choice, candidates: [standard, high], fail: open, description: "Only the listed triggers make a post high; everything else is standard (config/approval-policy.yaml) and still needs the post approval." }
       - id: legal
         type: human
         label: Legal review
@@ -495,7 +495,7 @@ layers:
         description: "spam -> hide | faq -> template | question, complaint -> draft | order issue -> helpdesk | crisis -> comms lead."
         runtime: studio
         files: [config/triage-rules.yaml]
-        decision: { output: choice, candidates: [spam, faq, question, complaint, order issue, crisis] }
+        decision: { output: choice, candidates: [spam, faq, question, complaint, order issue, crisis], fail: closed, description: "Nothing auto-sends on doubt: faq only when a template answers completely, crisis on any trigger even in a calm tone; the rest gets a draft a person sends (prompts/triage.md)." }
       - id: policy
         type: guard
         label: Reply policy
