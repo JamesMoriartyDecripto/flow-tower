@@ -44,6 +44,9 @@ function extractCode(answer) {
   return all.length ? all[all.length - 1] : answer;
 }
 
+// Node 24 dropped --experimental-permission (the model is stable as --permission); Node 20/22 need the old name.
+const permissionFlag = process.allowedNodeEnvironmentFlags.has('--permission') ? '--permission' : '--experimental-permission';
+
 // The check scripts import model-written code: run them in a child Node with the permission model on,
 // so the answer can read only its own temp folder and the task folder, and cannot spawn processes or write.
 function runCommand(task, answer) {
@@ -53,7 +56,7 @@ function runCommand(task, answer) {
   try {
     writeFileSync(join(dir, 'answer.mjs'), extractCode(answer));
     execFileSync(execPath, [
-      '--experimental-permission', `--allow-fs-read=${dir}`, `--allow-fs-read=${taskDir}`,
+      permissionFlag, `--allow-fs-read=${dir}`, `--allow-fs-read=${taskDir}`,
       join(taskDir, task.command), join(dir, 'answer.mjs'),
     ], { timeout: 20_000, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' });
     return { pass: true, detail: 'check exited 0' };
