@@ -59,3 +59,21 @@ export function capPerFamily(models, n) {
     return true;
   });
 }
+
+/**
+ * The measured pick rows of catalogue.md for one role id. A row matches when its first cell is the id, or the id
+ * followed by a space or " (": "voice-stt (live)" and "review (security: …)" match, "data" never matches "database".
+ * Columns: Role | Pick | Correct | $/run | s | Alternatives | Avoid here.
+ */
+export function cataloguePicks(markdown, roleId) {
+  const picks = [];
+  for (const line of String(markdown).split('\n')) {
+    if (!line.startsWith('|')) continue;
+    const cells = line.split('|').slice(1, -1).map((c) => c.trim());
+    if (cells.length < 6) continue;
+    const label = cells[0];
+    const matches = label === roleId || label.startsWith(`${roleId} `) || label.startsWith(`${roleId} (`);
+    if (matches) picks.push({ label, pick: cells[1], alternatives: cells[5] });
+  }
+  return picks;
+}

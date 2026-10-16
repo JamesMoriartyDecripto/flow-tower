@@ -1,10 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buildTower } from '../src/core/loader';
 import { classifyNode, ROLE_CLASSES } from '../src/core/roles';
 import { TowerSchema, type TowerDef } from '../src/core/schema';
 import type { ResolvedNode, ResolvedTower } from '../src/core/types';
 // @ts-expect-error plain Node script with no type declarations, imported on purpose
-import { ROLE_FILTERS, capPerFamily, dropVariants, familyOf, meets } from '../skills/flow-tower-costs/roles.mjs';
+import { ROLE_FILTERS, capPerFamily, cataloguePicks, dropVariants, familyOf, meets } from '../skills/flow-tower-costs/roles.mjs';
 
 const none = { read: async () => undefined };
 
@@ -68,6 +69,45 @@ describe('capPerFamily', () => {
       { id: 'a/1' }, { id: 'b/1' }, { id: 'a/2' }, { id: 'a/3' }, { id: 'b/2' }, { id: '~b/3' },
     ];
     expect(capPerFamily(models, 2).map((m: { id: string }) => m.id)).toEqual(['a/1', 'b/1', 'a/2', 'b/2']);
+  });
+});
+
+describe('cataloguePicks', () => {
+  const sample = [
+    '# Role catalogue',
+    '',
+    '| Role (`roles.ts`) | Pick | Correct | $/run | s | Alternatives (other families) | Avoid here |',
+    '|---|---|---|---|---|---|---|',
+    '| coding | openai/gpt-6-luna | 6/6 | 0.0003 | 11.1 | anthropic/claude-haiku-5.5 (6/6) | z-ai/glm-5.3-flash 1/6 |',
+    '| voice-stt (live) | microsoft/mai-transcribe-2 | 6/6 | 0.0007 | 1.0 | x-ai/grok-stt-1.0 (6/6) | nvidia nemotron 3/6 |',
+    '| voice-stt (batch) | qwen/qwen3-asr-1.7b | 6/6 | 0.0002 | 25.1 | x-ai/grok-stt-1.0 | — |',
+  ].join('\n');
+
+  it('a role with one row gives one entry with its pick and alternatives', () => {
+    expect(cataloguePicks(sample, 'coding')).toEqual([
+      { label: 'coding', pick: 'openai/gpt-6-luna', alternatives: 'anthropic/claude-haiku-5.5 (6/6)' },
+    ]);
+  });
+
+  it('voice-stt matches both its live and its batch row', () => {
+    const picks = cataloguePicks(sample, 'voice-stt');
+    expect(picks.map((p: { label: string }) => p.label)).toEqual(['voice-stt (live)', 'voice-stt (batch)']);
+    expect(picks.map((p: { pick: string }) => p.pick)).toEqual(['microsoft/mai-transcribe-2', 'qwen/qwen3-asr-1.7b']);
+  });
+
+  it('an unknown role gives an empty list', () => {
+    expect(cataloguePicks(sample, 'nope')).toEqual([]);
+  });
+
+  it('a role id is not matched as a prefix of a longer word', () => {
+    expect(cataloguePicks(sample, 'cod')).toEqual([]);
+  });
+
+  it('the real catalogue has a pick for every role except realtime-voice and general', () => {
+    const md = readFileSync(new URL('../skills/flow-tower-costs/catalogue.md', import.meta.url), 'utf8');
+    const ids = Object.keys(ROLE_FILTERS).filter((id) => id !== 'realtime-voice' && id !== 'general');
+    const missing = ids.filter((id) => cataloguePicks(md, id).length === 0);
+    expect(missing).toEqual([]);
   });
 });
 

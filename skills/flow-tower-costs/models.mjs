@@ -18,7 +18,9 @@
 // Non-text modalities price per image, per second or per call: the price column shows those keys.
 // The shortlist is ranked by real use, not by the lowest price: the cheapest models are often small ones.
 import { argv, exit } from 'node:process';
-import { ROLE_FILTERS, capPerFamily, dropVariants, familyOf, meets } from './roles.mjs';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { ROLE_FILTERS, capPerFamily, cataloguePicks, dropVariants, familyOf, meets } from './roles.mjs';
 
 const MODALITIES = ['text', 'image', 'video', 'audio', 'speech', 'transcription', 'embeddings', 'rerank', 'decisions', 'all'];
 // Server-side orders OpenRouter understands; 'price' is the local cheapest-output-first order.
@@ -56,6 +58,17 @@ if (sinceArg !== undefined && Number.isNaN(since)) { console.error('--since need
 const roleId = valueOf('--role');
 const role = roleId !== undefined ? ROLE_FILTERS[roleId] : undefined;
 if (roleId !== undefined && !role) { console.error(`unknown role: ${roleId}\nroles: ${Object.keys(ROLE_FILTERS).join(', ')}`); exit(1); }
+
+// The measured pick for the role, from the catalogue next to this script, printed before the live list so the
+// shortlist is read against it. A missing file or no matching row prints nothing: the lister still works offline.
+if (roleId !== undefined) {
+  let md = null;
+  try { md = readFileSync(fileURLToPath(new URL('./catalogue.md', import.meta.url)), 'utf8'); } catch { /* no catalogue */ }
+  const date = md ? /\*\*Date:\*\*\s*(\d{4}-\d{2}-\d{2})/.exec(md)?.[1] : undefined;
+  for (const p of md ? cataloguePicks(md, roleId) : []) {
+    console.error(`measured pick (catalogue.md, ${date ?? 'undated'}): ${p.pick} — alternatives: ${p.alternatives}`);
+  }
+}
 
 const modality = role?.modality ?? valueOf('--modality');
 if (modality !== undefined && !MODALITIES.includes(modality)) {
