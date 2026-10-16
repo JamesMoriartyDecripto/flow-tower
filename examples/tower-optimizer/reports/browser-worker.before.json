@@ -1,0 +1,143 @@
+{
+  "takenAt": "2026-10-16T09:38:48.043Z",
+  "path": "examples/browser-worker",
+  "towers": [
+    {
+      "id": "browser-worker.tower.yaml",
+      "name": "Legacy Portal Browser Worker",
+      "inventory": {
+        "layers": 5,
+        "nodes": 35,
+        "nodesByType": {
+          "agent": 3,
+          "decision": 5,
+          "entry": 1,
+          "guard": 2,
+          "human": 2,
+          "memory": 1,
+          "model": 3,
+          "output": 3,
+          "process": 9,
+          "tool": 6
+        },
+        "edges": {
+          "total": 49,
+          "links": 19,
+          "byKind": {
+            "call": 15,
+            "data": 7,
+            "flow": 16,
+            "handoff": 8,
+            "return": 3
+          }
+        },
+        "agents": 3,
+        "models": {
+          "claude-haiku-5-5": 2,
+          "claude-opus-5-5": 2,
+          "claude-sonnet-5-5": 2
+        },
+        "runtimes": {
+          "declared": 8,
+          "byKind": {
+            "browser": 1,
+            "cloud": 3,
+            "saas": 1,
+            "server": 1,
+            "serverless": 2
+          }
+        },
+        "withOps": {
+          "budget": 3,
+          "limits": 6,
+          "approval": 2,
+          "evals": 3,
+          "sandbox": 2,
+          "fanout": 1
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "platform.secrets",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "verify.submit",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "intake.route",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "session.mode",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "worker.outcome",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "session.stop",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        },
+        {
+          "rule": "AUD10",
+          "level": "info",
+          "message": "3 agents with no tower budget or limits: add a run-wide budget"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "intake.classify",
+          "role": "router",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [
+            "low-latency",
+            "structured-output"
+          ],
+          "prefer": "small and fast; picks one label out of a few"
+        },
+        {
+          "node": "worker.worker",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "verify.verifier",
+          "role": "review",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        }
+      ]
+    }
+  ]
+}

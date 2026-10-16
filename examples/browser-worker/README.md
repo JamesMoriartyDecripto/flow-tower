@@ -31,7 +31,7 @@ node bin/flow-tower.js examples/browser-worker/browser-worker.tower.yaml
 retention · `credentials: service` · `sandbox` (host allowlist) · `approval` + `sla` on the
 operator takeover (`actions: [takeover, reject]`, two channels in `via`) and the exception
 review · `exactly_once` on the guarded submit · typed `decision` on routing, session mode and
-worker outcome · `evals` (`illustrative: true`: the portal is fictional, so no number is a
+worker outcome, each with its `fail` policy (closed on routing and outcome, open to a single session) · run-wide `limits` (6 sessions, 2 retries) · `evals` (`illustrative: true`: the portal is fictional, so no number is a
 measurement) · `version` + canary `rollout` · resources of kind `recording`, `dashboard`,
 `queue`, `database` · edge `protocol: queue`.
 
