@@ -1,0 +1,543 @@
+{
+  "takenAt": "2026-10-16T08:41:11.349Z",
+  "path": "examples/web-studio",
+  "towers": [
+    {
+      "id": "towers/backend.tower.yaml",
+      "name": "Backend lane internals",
+      "inventory": {
+        "layers": 4,
+        "nodes": 19,
+        "nodesByType": {
+          "agent": 5,
+          "decision": 1,
+          "entry": 1,
+          "guard": 1,
+          "human": 2,
+          "memory": 1,
+          "output": 1,
+          "process": 3,
+          "tool": 4
+        },
+        "edges": {
+          "total": 22,
+          "links": 6,
+          "byKind": {
+            "call": 3,
+            "data": 6,
+            "flow": 11,
+            "return": 2
+          }
+        },
+        "agents": 5,
+        "models": {
+          "claude-opus-5-5": 5
+        },
+        "runtimes": {
+          "declared": 7,
+          "byKind": {
+            "ci": 1,
+            "cloud": 1,
+            "local": 1,
+            "saas": 3,
+            "serverless": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 1,
+          "approval": 2,
+          "evals": 1,
+          "sandbox": 5,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "handlers.stripe",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "handlers.webhook",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD10",
+          "level": "info",
+          "message": "5 agents with no tower budget or limits: add a run-wide budget"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "contract.spec",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "data.collections",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "handlers.checkout",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "handlers.webhook",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "handlers.enquiries",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    },
+    {
+      "id": "towers/frontend.tower.yaml",
+      "name": "Frontend lane internals",
+      "inventory": {
+        "layers": 4,
+        "nodes": 16,
+        "nodesByType": {
+          "agent": 2,
+          "decision": 2,
+          "entry": 1,
+          "memory": 2,
+          "output": 1,
+          "process": 5,
+          "tool": 3
+        },
+        "edges": {
+          "total": 18,
+          "links": 7,
+          "byKind": {
+            "call": 2,
+            "data": 3,
+            "flow": 12,
+            "return": 1
+          }
+        },
+        "agents": 2,
+        "models": {
+          "claude-opus-5-5": 2
+        },
+        "runtimes": {
+          "declared": 6,
+          "byKind": {
+            "browser": 2,
+            "edge": 1,
+            "local": 1,
+            "saas": 1,
+            "serverless": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 2,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 2,
+          "fanout": 1
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "page.rsc",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "inputs.design_ctx",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "page.island",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "components.build",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "page.rsc",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    },
+    {
+      "id": "web-studio.tower.yaml",
+      "name": "Website & Web Design Studio",
+      "inventory": {
+        "layers": 8,
+        "nodes": 59,
+        "nodesByType": {
+          "agent": 13,
+          "decision": 3,
+          "entry": 1,
+          "guard": 3,
+          "human": 5,
+          "memory": 4,
+          "model": 3,
+          "output": 3,
+          "process": 16,
+          "tool": 8
+        },
+        "edges": {
+          "total": 84,
+          "links": 29,
+          "byKind": {
+            "call": 14,
+            "data": 25,
+            "flow": 31,
+            "handoff": 4,
+            "return": 8,
+            "spawn": 2
+          }
+        },
+        "agents": 13,
+        "models": {
+          "claude-haiku-5-5": 3,
+          "claude-opus-5-5": 6,
+          "claude-sonnet-5-5": 7
+        },
+        "runtimes": {
+          "declared": 18,
+          "byKind": {
+            "browser": 2,
+            "ci": 1,
+            "cloud": 2,
+            "container": 1,
+            "edge": 1,
+            "local": 1,
+            "saas": 9,
+            "serverless": 1
+          }
+        },
+        "withOps": {
+          "budget": 6,
+          "limits": 5,
+          "approval": 7,
+          "evals": 6,
+          "sandbox": 4,
+          "fanout": 3
+        },
+        "nestedTowers": [
+          "backend.be_lead",
+          "frontend.fe_lead"
+        ],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "brief.kickoff",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "design.copy",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "design.visual",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "backend.stripe",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "design.ds",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "platform.figma",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "platform.vercel_mcp",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "brief.route",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "launch.in_scope",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "frontend.islands",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        },
+        {
+          "rule": "AUD10",
+          "level": "info",
+          "message": "13 agents with no tower budget or limits: add a run-wide budget"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "brief.intake",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "brief.lead",
+          "role": "orchestrator",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "discovery.researcher",
+          "role": "review",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "discovery.seo",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "discovery.ia",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "design.wireframes",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "design.ds",
+          "role": "general",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "design.visual",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "design.copy",
+          "role": "writing",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "frontend.fe_lead",
+          "role": "orchestrator",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "backend.be_lead",
+          "role": "orchestrator",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "qa.auditor",
+          "role": "review",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "launch.monitor",
+          "role": "research",
+          "model": "claude-haiku-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        }
+      ]
+    }
+  ]
+}
