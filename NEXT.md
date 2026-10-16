@@ -13,6 +13,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   - **Support check:** Opus → GPT-6 Luna. This adds OpenAI as a data processor: a DPA and the data region are to be confirmed before production.
   - **Researcher:** Sonnet → Haiku 5.5.
   - **Open:** the scanner and drafter have no task set yet. Results are in the [cost skill reference § Benchmark 2026-10-16](skills/flow-tower-costs/reference.md).
+- **Role catalogue** (#261, PR #262): `skills/flow-tower-costs/catalogue.md` gives a measured pick and two alternatives from other families for every node role, from 968 runs over 17 task sets (2026-10-16). `models.mjs --role <id> --families 2` prints the pick, then the live shortlist. The benchmark now calls every OpenRouter endpoint (decisions, embeddings, rerank, images, videos, speech, transcriptions). On the way, a key leak was fixed: `judge.mjs` let model-written code see `OPENROUTER_API_KEY`. Next for it: harder sets where every model passes (guard, data, intent, images), a `realtime-voice` set, rubric scores for review and writing, and a re-run when new models land (`--since 2026-10-16`).
 - **Tool fixes found on the way:**
   - #229 / PR #230: `check-example` no longer flags `ft_` inside words or `/home/` inside URLs.
   - #256 / PR #257: `judge.mjs` command checks run on Node 24 (`--permission`).
