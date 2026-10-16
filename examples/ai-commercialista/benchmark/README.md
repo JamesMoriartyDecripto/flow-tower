@@ -11,22 +11,22 @@ Four task sets, two tasks each, for the roles of the commercialista tower. They 
 
 ## Run it
 
-From the repository root. The commands are those of [the model benchmark](../../model-benchmark/README.md), with `--tasks` pointing at these folders and `--category commercialista`.
+From the repository root. The commands are those of [the model benchmark](../../model-benchmark/README.md), with `--tasks` pointing at one of these folders and `--category` set to the same folder name (the runner keeps only the tasks of that category). One run per folder, each into its own results file.
 
 ```bash
 cd examples/model-benchmark
 
 # 1. Dry run: no key, no network. Checks every task file.
-node scripts/bench.mjs --category commercialista --models vendor-a/model-x,vendor-b/model-y --tasks ../ai-commercialista/benchmark/tasks/triage/ --runs 3 --dry-run
+node scripts/bench.mjs --category triage --models vendor-a/model-x,vendor-b/model-y --tasks ../ai-commercialista/benchmark/tasks/triage/ --runs 3 --dry-run
 
 # 2. Real run: the key from your shell only.
-node scripts/bench.mjs --category commercialista --models vendor-a/model-x,vendor-b/model-y --tasks ../ai-commercialista/benchmark/tasks/triage/ --runs 3 --out results/2026-10-16.jsonl
+node scripts/bench.mjs --category triage --models vendor-a/model-x,vendor-b/model-y --tasks ../ai-commercialista/benchmark/tasks/triage/ --runs 3 --out results/2026-10-16-triage.jsonl
 
 # 3. Judge: deterministic checks, then a blind sheet for the rubric.
-node scripts/judge.mjs --in results/2026-10-16.jsonl --tasks ../ai-commercialista/benchmark/tasks/triage/ --tasks ../ai-commercialista/benchmark/tasks/cited-answer/
+node scripts/judge.mjs --in results/2026-10-16-triage.jsonl --tasks ../ai-commercialista/benchmark/tasks/triage/
 
 # 4. Report.
-node scripts/report.mjs --in results/2026-10-16.judged.jsonl --scores results/2026-10-16.scores.json --out results/2026-10-16.md
+node scripts/report.mjs --in results/2026-10-16-triage.judged.jsonl --out results/2026-10-16-triage.md
 ```
 
 The `cited-answer` checks run as `command` judges: each one reads the answer with `verify-quotes.mjs`, and must find every quote verbatim in the fixture it names.
