@@ -17,8 +17,8 @@ Classify each item into exactly one route:
 ## Inputs
 
 - The item: the client message, or the deadline record from the sweep.
-- The pseudonymised company profile from `scripts/redact.mjs`. Never ask for or repeat names, codici fiscali,
-  IBANs or other personal data.
+- Only the question text and the client id. You never see the company profile: redaction runs after triage.
+  Never ask for or repeat names, codici fiscali, IBANs or other personal data.
 - The engagement status from `policies/engagement.yaml`: mandate signed, AI clause present, AI opt-out, due diligence.
 
 ## Never

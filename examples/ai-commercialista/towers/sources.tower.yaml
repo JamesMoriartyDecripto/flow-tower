@@ -13,7 +13,7 @@ tags: [sources, normattiva, gazzetta-ufficiale, prassi, library, daily-sync]
 runtimes:
   workers:
     kind: container
-    label: Finance agents
+    label: Source sync workers
     provider: google-cloud-run
     region: europe-west8
   normattiva:
@@ -41,8 +41,8 @@ layers:
         type: entry
         label: Daily sync
         runtime: workers
-        description: Cron, once a day, at 07:00 Europe/Rome like the deadline sweep in the main tower.
-        trigger: { kind: cron, schedule: "0 7 * * *", timezone: Europe/Rome }
+        description: Cron, once a day, at 06:00 Europe/Rome.
+        trigger: { kind: cron, schedule: "0 6 * * *", timezone: Europe/Rome }
       - id: normattiva
         type: tool
         label: Normattiva changes
@@ -65,7 +65,7 @@ layers:
         type: tool
         label: INPS, INL, GSE
         runtime: workers
-        description: Circolari and pages of INPS, INL, GSE, MIMIT and ADM for incentives and energy. Listed in primary-sources.md, pulled by hand when they have no feed.
+        description: Circolari and pages of INPS, INL, GSE, MIMIT and ADM for incentives and energy. Listed in the sites list (README Sources), pulled by hand when they have no feed.
         files: [research/primary-sources.md]
       - id: cerdef
         type: human
@@ -73,11 +73,6 @@ layers:
         runtime: studio
         description: CERDEF has no API. The professional looks up the norm and records the URL and date; the sync does not query it.
         files: [research/primary-sources.md]
-      - id: cassetto
-        type: human
-        label: Cassetto fiscale
-        runtime: studio
-        description: "Web access only, through the delega unica. Not a norm source: the professional pulls only what a memo needs, and the agent never logs in."
     edges:
       - start -> normattiva
       - start -> prassi
@@ -173,7 +168,6 @@ links:
   - "fetch.gazzetta -> normalize.split [flow]: ELI text"
   - "fetch.agencies -> normalize.split [flow]: circolari and pages"
   - { from: fetch.cerdef, to: normalize.tag, kind: handoff, protocol: manual, label: "manual lookup, recorded by hand" }
-  - { from: fetch.cassetto, to: normalize.tag, kind: handoff, protocol: manual, label: "manual pull, recorded by hand" }
   - "normalize.weight -> check.dedupe [flow]: tagged records"
   - "check.changed -> store.write [flow]: new or changed records"
   - "check.notice -> store.done [flow]: notices sent"

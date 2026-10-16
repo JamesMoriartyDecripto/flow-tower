@@ -21,8 +21,6 @@ runtimes:
     kind: container
     label: Tower workers
     description: Node scripts (no dependencies), the redaction step and the audit writer. Holds no client credentials beyond the read-only Fatture in Cloud scopes.
-    provider: google-cloud-run
-    region: europe-west8
   anthropic:
     kind: cloud
     label: Claude API
@@ -45,7 +43,6 @@ runtimes:
     label: Client file (EU)
     description: Client profiles, memos, approvals and the append-only audit log. Retention 10 years.
     provider: eu-hosted
-    region: europe-west8
 
 prompts:
   triage: { file: prompts/triage.md, description: "Sorts a request into a question, an optimization review or a deadline action." }
@@ -58,7 +55,7 @@ prompts:
 agents:
   triage:
     name: Request triage
-    description: Classifies the request and fixes the intent. Reads no client data beyond the redacted profile.
+    description: Classifies the request and fixes the intent. Reads only the question text and the client id, never the profile.
     model: claude-haiku-5-5
     prompt: triage
     runtime: anthropic
@@ -109,7 +106,7 @@ agents:
     prompt: support
     runtime: anthropic
     harness: { max_turns: 6, output: json_schema }
-    budget: { usd: 0.4, turns: 6, on_exceed: downgrade }
+    budget: { usd: 0.4, turns: 6, on_exceed: escalate }
     data: { sensitivity: confidential, region: eu, retention: 10y }
 
 layers:
@@ -155,7 +152,7 @@ layers:
       - sweep -> engagement
       - "engagement -> triage: pass"
       - "engagement -> human_only [handoff]: no mandate, opt-out or AML flag"
-      - "triage -> period: question or review"
+      - "triage -> period: question, review or deadline action"
 
   # 2 ───────────────────────────────────────────────────────────────
   - id: data
@@ -211,9 +208,9 @@ layers:
       - id: sync
         type: process
         label: Source sync
-        description: Daily sync of the source library. Opens the sub-tower that fetches Normattiva, Gazzetta Ufficiale and the Agenzia Entrate feed.
+        description: Daily sync of the source library at 06:00, before the 07:00 deadline sweep so the sweep reads a fresh library. Opens the sub-tower that fetches Normattiva, Gazzetta Ufficiale and the Agenzia Entrate feed.
         tower: towers/sources.tower.yaml
-        trigger: { kind: cron, schedule: "0 5 * * *", timezone: Europe/Rome, source: scheduler }
+        trigger: { kind: cron, schedule: "0 6 * * *", timezone: Europe/Rome, source: scheduler }
         files: [scripts/normattiva.mjs, scripts/prassi_rss.mjs]
       - id: library
         type: memory
@@ -272,7 +269,7 @@ layers:
   # 5 ───────────────────────────────────────────────────────────────
   - id: verify
     title: Verification
-    description: Three checks and a gate. A claim that fails any of them is never shown as settled; the gate sends it back once, then refuses.
+    description: Three checks and a gate. A claim that fails any of them is never shown as settled; the gate sends it back up to twice, then refuses.
     nodes:
       - id: quotes
         type: guard

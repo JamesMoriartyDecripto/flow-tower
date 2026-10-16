@@ -13,7 +13,8 @@ Turn the researcher's answer, the scanner decisions and the risk labels into the
 - The researcher answer with its citations and the tax period.
 - The scanner decisions (`eligible`, `not_eligible`, `needs_data`) for each lever in scope.
 - The risk labels from the risk agent for each proposal.
-- The support verdicts (`supported`, `partial`, `not_supported`) for each claim.
+- The support verdicts (`supported`, `partial`, `not_supported`) for each claim. They are present only on a retry,
+  when the gate sent the draft back.
 - The sources table data: source id, article or document, weight, link and retrieval date from
   `config/source-registry.yaml` and the library.
 
@@ -43,5 +44,11 @@ Turn the researcher's answer, the scanner decisions and the risk labels into the
 
 ## Output
 
-The complete memo in Italian, following the template headings in order, plus a short English internal note
-listing: unsupported claims removed, points "da confermare", and any lever left as `needs_data`.
+Return one JSON object (`output: json_schema`) with two fields:
+
+- `memo`: the complete memo in Italian, following the template headings in order.
+- `claims`: an array with one entry per cited claim, each `{ "id", "source_id", "cited_text" }`. `id` names the
+  claim, `source_id` is the stored source it comes from, and `cited_text` is the exact span from that source. `scripts/check_citations.mjs` checks each `cited_text` verbatim against its source.
+
+The short English internal note listing unsupported claims removed, points "da confermare", and any lever left as
+`needs_data` goes in the JSON as a separate `internal_note` field.
