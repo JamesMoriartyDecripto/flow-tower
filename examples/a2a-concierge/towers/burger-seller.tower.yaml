@@ -89,7 +89,7 @@ layers:
         label: Order confirmed?
         description: "Items and total confirmed in the incoming text? If not, answer with the total and a confirmation question."
         files: [prompts/burger-seller.md]
-        decision: { output: binary }
+        decision: { output: binary, fail: closed, description: "No confirmation found in the text: the seller answers with the total and asks (prompts/burger-seller.md)." }
         approval: { by: customer, relayed_by: concierge, via: A2A follow-up message, actions: [approve, reject], on_timeout: wait }
       - id: create_order
         runtime: burger_run
