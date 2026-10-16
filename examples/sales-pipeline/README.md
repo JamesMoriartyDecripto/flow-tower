@@ -55,7 +55,7 @@ decides this deterministically per contact. The agents never decide who may be c
   - webhook: Instantly replies, HubSpot form, Calendly, Fireflies, Yousign, HubSpot closed-won, FIC SDI status
   - queue: sub-tower intake
 - `approval`: ICP 5d escalate; first batch 24h wait `when: new sequence or variant`; rep tasks 2d; Sales Director and CEO `per: quote` with the discount-policy conditions in `when` (24h / 48h, reject); legal 72h wait `when: non-standard clause`; finance `per: invoice` 24h escalate; AR manager 72h wait.
-- `decision`: prospect tier (choice A/B/C), reply route (choice over the triage labels), qualified (`threshold: ">= 14/21"`), discount gate (choice of approver, `fail: closed`) with its branches as an edge `group`.
+- `decision`: prospect tier (choice A/B/C), reply route (choice over the triage labels), qualified (`threshold: ">= 14/21"`), discount gate (choice of approver) with its branches as an edge `group`. All four are `fail: closed`: an unscored prospect is not contacted, a low-confidence reply goes to the rep, a deal without the AE stays in nurture.
 - `fanout`: per source, account batch, prospect, prospect in batch.
 - `limits`: retries with backoff (FIC honours `Retry-After`), concurrency, `rate` quotas (FIC `300/5m` and `1000/h`, 30 new emails per mailbox per day, 180 per domain, 15 LinkedIn notes per rep), `max_iterations` on the pacer.
 - `budget`: Apollo credits 400 USD `per: month` pause; per-agent LLM budgets; tower-wide 600 USD `per: month` `for: model` with downgrade.

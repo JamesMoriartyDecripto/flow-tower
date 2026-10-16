@@ -334,7 +334,7 @@ layers:
         runtime: workers
         description: "A >= 70 goes to sequences this week; B 50-69 waits for a trigger event; C is not contacted."
         files: [scoring/prospect-scoring.yaml]
-        decision: { output: choice, candidates: [A, B, C] }
+        decision: { output: choice, candidates: [A, B, C], fail: closed, description: "A score that cannot be computed is not contacted (scoring/prospect-scoring.yaml: a signal without evidence scores 0)." }
     edges:
       - weekly -> pull [spawn]
       - { from: pull, to: atoka, kind: call, protocol: http, label: "IT accounts" }
@@ -410,7 +410,7 @@ layers:
         label: Reply type?
         runtime: workers
         files: [outreach/reply-triage-rules.yaml]
-        decision: { output: choice, candidates: [unsubscribe, objection_to_processing, bounce, out_of_office, wrong_person, interested, objection, not_now, not_interested], description: "Labels from outreach/reply-triage-rules.yaml; the first matching label wins." }
+        decision: { output: choice, candidates: [unsubscribe, objection_to_processing, bounce, out_of_office, wrong_person, interested, objection, not_now, not_interested], fail: closed, description: "Labels from outreach/reply-triage-rules.yaml; the first matching label wins. Below 0.7 confidence the rep labels the reply: nothing is acted on automatically." }
       - id: optout
         type: guard
         label: Opt-out + erasure
@@ -485,7 +485,7 @@ layers:
         runtime: workers
         description: "Pain, Metrics and Economic Buyer known, total >= 14/21, and the AE agrees. Otherwise nurture with a reason."
         files: [qualification/meddicc-scorecard.md]
-        decision: { output: binary, threshold: ">= 14/21" }
+        decision: { output: binary, threshold: ">= 14/21", fail: closed, description: "Without the AE agreeing the deal stays in nurture (qualification/meddicc-scorecard.md)." }
       - id: crm
         type: tool
         label: HubSpot MCP
@@ -499,6 +499,7 @@ layers:
       - { from: notes, to: meddicc, protocol: webhook, label: transcript ready }
       - meddicc -> qualified
       - { from: qualified, to: crm, kind: call, protocol: mcp, label: "stage + scorecard" }
+      - { from: qualified, to: crm, kind: call, protocol: mcp, label: "not qualified: nurture tasks for the missing elements" }
 
   # 5 ───────────────────────────────────────────────────────────────
   - id: proposal
@@ -693,6 +694,7 @@ layers:
       - "fic -> payments [data]: open invoices"
       - "payments -> dunning: overdue"
       - "dunning -> ar_manager: + 15 days"
+      - "ar_manager -> dunning [return]: approved stage: formal notice, late interest wording"
       - "fic -> invoicing_fic [handoff]: full workflow"
 
   # 8 ───────────────────────────────────────────────────────────────
@@ -752,6 +754,7 @@ links:
   - "contract.won -> invoicing.billing_plan [handoff]: billing schedule"
   - "invoicing.payments -> analytics.mart [data]: payments"
   - "qualification.crm -> analytics.mart [data]: deals + activities"
+  - "analytics.analyst -> targeting.icp [return]: ICP and scoring proposals for the quarterly review"
   - "outreach.instantly -> analytics.mart [data]: send + reply stats"
   - "analytics.winloss -> targeting.icp [return]: ICP feedback"
   - "analytics.winloss -> outreach.sequencer [return]: messaging feedback"
