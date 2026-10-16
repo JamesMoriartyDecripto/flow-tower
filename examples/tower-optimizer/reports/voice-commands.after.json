@@ -1,0 +1,105 @@
+{
+  "takenAt": "2026-10-16T08:58:58.505Z",
+  "path": "../voice-commands",
+  "towers": [
+    {
+      "id": "voice-commands.tower.yaml",
+      "name": "Voice Commands",
+      "inventory": {
+        "layers": 7,
+        "nodes": 56,
+        "nodesByType": {
+          "agent": 1,
+          "decision": 9,
+          "entry": 2,
+          "guard": 7,
+          "human": 1,
+          "memory": 9,
+          "model": 1,
+          "output": 4,
+          "process": 15,
+          "tool": 7
+        },
+        "edges": {
+          "total": 132,
+          "links": 67,
+          "byKind": {
+            "call": 34,
+            "data": 31,
+            "flow": 56,
+            "return": 11
+          }
+        },
+        "agents": 1,
+        "models": {
+          "elevenlabs/eleven-flash-v2.5": 1,
+          "google/gemini-3.5-flash-lite": 2,
+          "openai/whisper-large-v3-turbo": 1
+        },
+        "runtimes": {
+          "declared": 3,
+          "byKind": {
+            "browser": 1,
+            "local": 1,
+            "saas": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 9,
+          "approval": 1,
+          "evals": 3,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "server.secrets",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "transcription.engine",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD06",
+          "level": "info",
+          "node": "conversation.agent",
+          "message": "19 tools: split the job across agents"
+        },
+        {
+          "rule": "AUD06",
+          "level": "info",
+          "node": "conversation.tools",
+          "message": "19 tools: split the job across agents"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "conversation.agent",
+          "role": "research",
+          "model": "google/gemini-3.5-flash-lite",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        }
+      ]
+    }
+  ]
+}
