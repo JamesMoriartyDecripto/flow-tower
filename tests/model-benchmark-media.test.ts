@@ -6,12 +6,12 @@ import { ENDPOINT_CALLS as CALLS } from '../examples/model-benchmark/scripts/end
 // endpoints-media.mjs has no declaration file (only the endpoints.d.mts types are in scope), so TypeScript
 // cannot infer pickVoice's signature; the call sites below pass plain strings and arrays, which is all it needs.
 // @ts-expect-error untyped .mjs module
-import { pcmToWav, pickVoice } from '../examples/model-benchmark/scripts/endpoints-media.mjs';
+import { fitVideo, pcmToWav, pickVoice } from '../examples/model-benchmark/scripts/endpoints-media.mjs';
 
 // endpoints.d.mts only types the step-03 context and result. The media fields are cast here, so the
 // declaration file stays untouched by this step.
-type MediaCtx = { key: string; fetchImpl: unknown; outDir?: string; run?: number; pollMs?: number; videoWaitMs?: number; timeoutMs?: number; voices?: Record<string, string[]> };
-type MediaResult = { answer: string | null; artifact?: string | null; voice?: string | null; cost: number | null; firstOutputMs: number | null; totalMs: number; error: string | null };
+type MediaCtx = { key: string; fetchImpl: unknown; outDir?: string; run?: number; pollMs?: number; videoWaitMs?: number; timeoutMs?: number; voices?: Record<string, string[]>; videoModels?: Record<string, unknown> };
+type MediaResult = { answer: string | null; artifact?: string | null; voice?: string | null; cost: number | null; firstOutputMs: number | null; totalMs: number; error: string | null; raw?: unknown };
 type MediaCall = (ctx: MediaCtx, model: string, task: Record<string, unknown>) => Promise<MediaResult>;
 const ENDPOINT_CALLS = CALLS as unknown as Record<'images' | 'videos' | 'speech' | 'transcriptions', MediaCall>;
 
@@ -76,7 +76,8 @@ describe('media: videos', () => {
       { bytes: new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]) },
     ]);
     const r = await ENDPOINT_CALLS.videos(
-      { key: 'k', fetchImpl, outDir: dir, run: 2, pollMs: 1, videoWaitMs: 5000 },
+      // videoModels stands in for the /videos/models fetch, which would otherwise take a reply from this stub.
+      { key: 'k', fetchImpl, outDir: dir, run: 2, pollMs: 1, videoWaitMs: 5000, videoModels: {} },
       'v/model', task({ endpoint: 'videos', id: 'clip' }),
     );
     expect(r.error).toBeNull();
@@ -190,5 +191,70 @@ describe('media: pickVoice', () => {
 
   it('returns the first voice when no language is set', () => {
     expect(pickVoice(['Zephyr', 'Puck'])).toBe('Zephyr');
+  });
+});
+
+describe('media: fitVideo', () => {
+  it('picks the supported duration closest to the requested one', () => {
+    expect(fitVideo({ supported_durations: [5, 8] }, { duration: 5 }).duration).toBe(5);
+    expect(fitVideo({ supported_durations: [4, 6, 8] }, { duration: 5 }).duration).toBe(4);
+  });
+
+  it('keeps the shorter duration on a tie', () => {
+    expect(fitVideo({ supported_durations: [4, 6] }, { duration: 5 }).duration).toBe(4);
+  });
+
+  it('falls back to the lowest supported resolution when the requested one is not listed', () => {
+    expect(fitVideo({ supported_resolutions: ['720p'] }, { resolution: '480p' }).resolution).toBe('720p');
+    expect(fitVideo({ supported_resolutions: ['480p', '720p'] }, { resolution: '480p' }).resolution).toBe('480p');
+    expect(fitVideo({ supported_resolutions: ['1080p', '720p'] }, { resolution: '4k' }).resolution).toBe('720p');
+  });
+
+  it('sends what was asked when there is no entry or the lists are empty', () => {
+    expect(fitVideo(null, { duration: 5, resolution: '480p' })).toEqual({ duration: 5, resolution: '480p' });
+    expect(fitVideo({ supported_durations: [], supported_resolutions: [] }, { duration: 5, resolution: '480p' }))
+      .toEqual({ duration: 5, resolution: '480p' });
+  });
+});
+
+describe('media: video download auth', () => {
+  const doneJob = (url: string) => ({ json: { id: 'job-1', status: 'completed', unsigned_urls: [url], usage: { cost: 0.3 } } });
+
+  it('sends the key when the unsigned URL is on openrouter.ai', async () => {
+    const { calls, fetchImpl } = stub([doneJob('https://openrouter.ai/api/v1/videos/job-1/content'), { bytes: new Uint8Array([1, 2]) }]);
+    const r = await ENDPOINT_CALLS.videos(
+      { key: 'k', fetchImpl, outDir: dir, run: 1, pollMs: 1, videoWaitMs: 5000, videoModels: {} },
+      'v/model', task({ endpoint: 'videos' }),
+    );
+    expect(r.error).toBeNull();
+    expect(calls[1].headers.Authorization).toBe('Bearer k');
+  });
+
+  it('sends no key to any other host and keeps the cost on a failed download', async () => {
+    const { calls, fetchImpl } = stub([doneJob('https://storage.example.com/v.mp4'), { status: 403, bytes: new TextEncoder().encode('expired') }]);
+    const r = await ENDPOINT_CALLS.videos(
+      { key: 'k', fetchImpl, outDir: dir, run: 1, pollMs: 1, videoWaitMs: 5000, videoModels: {} },
+      'v/model', task({ endpoint: 'videos' }),
+    );
+    expect(calls[1].headers.Authorization).toBeUndefined();
+    expect(r.error).toMatch(/^HTTP 403/);
+    expect(r.cost).toBe(0.3);
+    expect(r.raw).toEqual({ id: 'job-1', generation_id: null, duration: null, resolution: null });
+  });
+
+  it('sends the fitted duration, resolution and generate_audio false from the catalogue entry', async () => {
+    // The front matter is read from the task file, so the requested values go in one.
+    const file = join(dir, 'task.md');
+    writeFileSync(file, '---\nduration: 5\nresolution: 480p\n---\na red fox\n');
+    const { calls, fetchImpl } = stub([doneJob('https://openrouter.ai/api/v1/videos/job-1/content'), { bytes: new Uint8Array([1]) }]);
+    const r = await ENDPOINT_CALLS.videos(
+      {
+        key: 'k', fetchImpl, outDir: dir, run: 1, pollMs: 1, videoWaitMs: 5000,
+        videoModels: { 'v/model': { supported_durations: [5, 8], supported_resolutions: ['720p'], generate_audio: true } },
+      },
+      'v/model', task({ endpoint: 'videos', file }),
+    );
+    expect(calls[0].body).toEqual({ model: 'v/model', prompt: 'a red fox', duration: 5, resolution: '720p', generate_audio: false });
+    expect(r.raw).toEqual({ id: 'job-1', generation_id: null, duration: 5, resolution: '720p' });
   });
 });

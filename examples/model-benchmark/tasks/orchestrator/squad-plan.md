@@ -6,7 +6,7 @@ steps: 1
 ---
 # Plan the squad steps for a change
 
-From real work: the Flow Tower dev squad (`tools/squad/README.md`): a lead picks which roles run on a change, in order.
+From real work: the Flow Tower dev squad (`tools/squad/README.md`): a lead picks which roles run on a change, in order. Rule 4 was made explicit after the first run (2026-10-16): its earlier wording ("user-facing behaviour") let a security fix count as a docs change, so three models added `doc-writer` to item 1 with a fair reading.
 
 ## Prompt
 
@@ -16,7 +16,7 @@ Rules:
 1. Every change that edits code starts with `coder`, and `tester` runs right after the last `coder`.
 2. `reviewer` runs on every change that edits code, after `tester`.
 3. `security` runs only when the change touches authentication, tokens, file paths built from user input, or anything a remote request reaches; it runs after `reviewer`.
-4. `doc-writer` runs when user-facing behaviour or a documented command changes; it runs after all code roles.
+4. `doc-writer` runs only when a documented command, option or file format is added or changed; a bug fix that makes the code do what the docs already say does not need it. It runs after all code roles.
 5. `release` runs only when the change is a version release, and always last.
 6. A change that edits only documentation runs `doc-writer` alone.
 7. No role appears twice.
