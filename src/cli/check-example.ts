@@ -77,11 +77,11 @@ const maskSecrets = (text: string) =>
 
 /**
  * Home folders of a person. Any name under them belongs to a machine, not to a shared example.
- * The lookbehind skips a folder that sits inside a URL or a longer path (e.g. `garanteprivacy.it/home/...`),
- * where `/home/` is just a web path segment; a real home path starts a line, or follows whitespace, a quote,
- * `(`, `=`, `:` or `file://`.
+ * The lookbehind skips only a folder glued to a word, such as a URL segment (`garanteprivacy.it/home/...`),
+ * where `/home/` is just a web path segment. A real home path may also follow `-` (a shell default,
+ * `${VAR:-/home/x}`) or `.` and `/` (a traversal, `../../home/x`), so those must not exclude it.
  */
-const HOME = /(?<![A-Za-z0-9._~%-])(?:\/Users\/|\/home\/|C:\\Users\\)[A-Za-z0-9._-]+/g;
+const HOME = /(?<![A-Za-z0-9_%~])(?:\/Users\/|\/home\/|C:\\Users\\)[A-Za-z0-9._-]+/g;
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const IPV4 = /\b(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b/g;
 /** Loopback and the documentation ranges (RFC 5737): an example may name those on purpose. */

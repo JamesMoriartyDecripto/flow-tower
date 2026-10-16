@@ -69,6 +69,8 @@ describe('cli check-example (#116)', () => {
     ['home path in a file URL', 'file:///home/ada/x.md', 'home-path'],
     ['quoted home path', 'see "/home/ada/notes"', 'home-path'],
     ['token after an equals sign', 'key=ft_abcdefghijklmnopqrstuv', 'secret'],
+    ['home path after a shell default', 'data ${DIR:-/home/ada/data}', 'home-path'],
+    ['home path after a traversal', 'open ../../home/ada/x', 'home-path'],
   ])('fires on a planted %s', { timeout: 20_000 }, (name, line, rule) => {
     const dir = make(`planted-${rule}-${name.replace(/\s/g, '-')}`);
     writeFileSync(join(dir, 'prompts/main.md'), `${line}\n`);
