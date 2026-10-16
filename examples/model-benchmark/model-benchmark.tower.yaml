@@ -90,7 +90,7 @@ layers:
         type: output
         label: Planned category
         status: planned
-        description: "Lead/planner, voice agent, long context, vision: tasks still to write. STT/TTS need an audio runner, not chat completions."
+        description: "Voice / chat agent and long context / summarizer: tasks still to write."
     edges:
       - question -> categories
       - categories -> ready
@@ -126,6 +126,17 @@ layers:
         label: doc-writer tasks
         description: "A changelog entry and a gotcha paragraph. Check: required facts as patterns, then the rubric (accuracy, length)."
         files: [tasks/doc-writer/changelog-entry.md, tasks/doc-writer/hook-gotcha.md]
+      - { id: orchestrator, type: memory, label: orchestrator tasks, description: "Release plan and squad plan: order the steps by stated rules. Check: exact JSON.", files: [tasks/orchestrator/release-plan.md, tasks/orchestrator/squad-plan.md] }
+      - { id: data, type: memory, label: data tasks, description: "Invoice fields and a deadline email into a JSON schema. Check: exact JSON.", files: [tasks/data/invoice-fields.md, tasks/data/deadlines-email.md] }
+      - { id: guard, type: memory, label: guard tasks, description: "A prompt injection and an outgoing data leak. Check: exact JSON labels.", files: [tasks/guard/injection.md, tasks/guard/data-leak.md] }
+      - { id: decision, type: memory, label: decision tasks, description: "Triage routes and abuse labels as fixed answers with probabilities. Check: plain values, exact JSON.", files: [tasks/decision/triage-routes.md, tasks/decision/abuse-labels.md] }
+      - { id: vision, type: memory, label: vision tasks, description: "Two known screenshots, one exact answer each. Check: exact answer about the picture.", files: [tasks/vision/node-inspector.md, tasks/vision/tower-overview.md] }
+      - { id: image_gen, type: memory, label: image-gen tasks, description: "Poster text and a scene with counts and positions. Check: a vision judge of another family, yes/no.", files: [tasks/image-gen/poster-text.md, tasks/image-gen/scene-objects.md] }
+      - { id: video_gen, type: memory, label: video-gen tasks, description: "A paper boat and a rolling ball, each with clear motion. Check: a video judge, yes/no.", files: [tasks/video-gen/paper-boat.md, tasks/video-gen/rolling-ball.md] }
+      - { id: tts, type: memory, label: tts tasks, description: "An English and an Italian sentence to speak. Check: round trip through an STT judge, word error rate.", files: [tasks/tts/en-status.md, tasks/tts/it-scadenza.md] }
+      - { id: stt, type: memory, label: stt tasks, description: "English and Italian LibriVox clips. Check: word error rate against the book text.", files: [tasks/stt/en-france.md, tasks/stt/it-deledda.md, tasks/stt/fixtures/stt-en-france.wav, tasks/stt/fixtures/stt-it-deledda.wav] }
+      - { id: embeddings, type: memory, label: embeddings tasks, description: "Corpus passages for English and Italian queries. Check: nearest corpus id per query.", files: [tasks/embeddings/docs-en.md, tasks/embeddings/levers-it.md] }
+      - { id: rerank, type: memory, label: rerank tasks, description: "Passages in English and Italian, the right one must come first. Check: top result index.", files: [tasks/rerank/gotcha-en.md, tasks/rerank/abuso-it.md] }
       - id: keyfirst
         type: guard
         label: Answer key first
@@ -141,6 +152,17 @@ layers:
       - "security -> keyfirst [data]"
       - "intent -> keyfirst [data]"
       - "docs -> keyfirst [data]"
+      - "orchestrator -> keyfirst [data]"
+      - "data -> keyfirst [data]"
+      - "guard -> keyfirst [data]"
+      - "decision -> keyfirst [data]"
+      - "vision -> keyfirst [data]"
+      - "image_gen -> keyfirst [data]"
+      - "video_gen -> keyfirst [data]"
+      - "tts -> keyfirst [data]"
+      - "stt -> keyfirst [data]"
+      - "embeddings -> keyfirst [data]"
+      - "rerank -> keyfirst [data]"
 
   # 3 ───────────────────────────────────────────────────────────────
   - id: candidates
@@ -221,6 +243,12 @@ layers:
           maintainer's default); max_tokens 4000. Order is run-major with models interleaved, so a slow
           hour hits every model alike.
         budget: { tokens: 4000, per: call, description: "max_tokens per call; the step cap bounds a run." }
+      - id: endpoints
+        type: process
+        label: Endpoint calls
+        runtime: openrouter
+        description: "Calls the endpoint a task names: decisions, embeddings, rerank, images, videos (submit, poll, download), speech (a voice the model lists; PCM wrapped as WAV), transcriptions."
+        files: [scripts/endpoints.mjs, scripts/endpoints-media.mjs]
       - id: api
         type: tool
         label: chat/completions
@@ -246,6 +274,7 @@ layers:
       - "loop -> cap"
       - "cap -> loop [return]: tool calls, max steps"
       - "cap -> jsonl [data]: run record"
+      - "loop -> endpoints: non-chat task"
 
   # 5 ───────────────────────────────────────────────────────────────
   - id: measure
@@ -308,6 +337,12 @@ layers:
         type: memory
         label: Blind sheet
         description: "<run>.blind.md: rubric answers shuffled, numbered B001…, without model, provider, cost or timing. The key to un-blind is a separate file the scorer never opens."
+      - id: media
+        type: process
+        label: judge-media.mjs
+        runtime: laptop
+        description: "Word error rate for speech, a round trip through an STT judge of another family for text to speech, a vision judge of another family for images and video."
+        files: [scripts/judge-media.mjs]
       - id: verifier
         agent: verifier
         label: Blind verifier
@@ -323,6 +358,7 @@ layers:
     edges:
       - "check -> sandbox [call]: command checks"
       - "check -> blind [data]: passed rubric runs"
+      - "check -> media: wer, wer-roundtrip, vision-judge"
       - "blind -> verifier"
       - "verifier -> human: gap > 2"
       - "verifier -> scores [data]"

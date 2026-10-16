@@ -16,6 +16,7 @@ import { argv, env, exit } from 'node:process';
 import { live } from './live.mjs';
 import { BATCH_WARNING, batchEligible, runBatch } from './batch.mjs';
 import { loadTasks, taskProblems } from './tasks.mjs';
+import { ENDPOINT_CALLS, userContent } from './endpoints.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
 const dry = argv.includes('--dry-run');
@@ -51,12 +52,19 @@ for (const t of tasks) {
 }
 if (!tasks.length) { console.error(`no tasks in ${tasksPath}`); exit(2); }
 
-// With --batch only single-step, tool-less tasks can go: the others are skipped with a clear line each.
-const batchTasks = batch ? tasks.filter(batchEligible) : tasks;
-if (batch) for (const t of tasks) if (!batchEligible(t)) console.log(`--batch skips ${t.category}/${t.id} (${t.steps} steps, tools: ${t.tools.join(',') || 'none'}): only steps: 1 without tools can be batched`);
+// With --batch only single-step, tool-less chat tasks can go: the others are skipped with a clear line each.
+// Non-chat endpoints are one request each and never go through the Batch API in this version.
+const batchable = (t) => batchEligible(t) && t.endpoint === 'chat';
+const batchTasks = batch ? tasks.filter(batchable) : tasks;
+if (batch) for (const t of tasks) if (!batchable(t)) console.log(`--batch skips ${t.category}/${t.id} (${t.endpoint !== 'chat' ? `endpoint ${t.endpoint}` : `${t.steps} steps, tools: ${t.tools.join(',') || 'none'}`}): only chat with steps: 1 and no tools can be batched`);
 
-const calls = models.length * batchTasks.length * runs * (warm ? 2 : 1);
-const maxCalls = models.length * runs * (warm ? 2 : 1) * batchTasks.reduce((s, t) => s + t.steps, 0);
+// A warm repeat only helps a chat run: a non-chat task has no prompt cache to warm, so it is run once.
+const warmable = (t) => warm && t.endpoint === 'chat';
+const passes = (t) => (warmable(t) ? 2 : 1);
+const calls = models.length * runs * batchTasks.reduce((s, t) => s + passes(t), 0);
+// A non-chat task is one request, so its step count does not count toward the cap.
+const maxCalls = models.length * runs * batchTasks.reduce((s, t) => s + (t.endpoint === 'chat' ? t.steps : 1) * passes(t), 0);
+if (warm) for (const t of batchTasks) if (!warmable(t)) console.log(`--warm skips ${t.category}/${t.id} (endpoint ${t.endpoint}: no prompt cache to warm)`);
 console.log(`\nplan: ${models.length} models × ${batchTasks.length} tasks × ${runs} runs${warm ? ' × 2 (cold + warm)' : ''} = ${calls} runs (at most ${maxCalls} model calls, ${maxCalls * 2} with retries)`);
 console.log(`models: ${models.join(', ')}`);
 if (batch) console.log(`batch: one batch per model, ${calls / models.length} request(s) each, at about half price`);
@@ -105,7 +113,7 @@ class CallError extends Error { constructor(msg, retry) { super(msg); this.retry
 
 // The step-1 body both the sync loop and --batch send, so a batch request is exactly what runOne would post.
 // `stream` is added by call() alone: the Batch API takes no streaming.
-function stepBody(model, task, session, messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: task.prompt }]) {
+function stepBody(model, task, session, messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: userContent(task, task.prompt) }]) {
   const tools = task.tools.length ? [...task.tools.map((t) => TOOL_DEFS[t]), FINISH] : undefined;
   return {
     model,
@@ -181,6 +189,32 @@ async function call(body) {
 
 // 4. One run: fresh session (cold cache at step 1, warm afterwards), capped steps, one retry per call.
 // The warm pass reuses the cold run's session_id so the provider can serve the same prefix from its cache.
+// A non-chat task: one request through its endpoint call, written with the same fields as a chat run.
+// The endpoint and the raw answers ride along, so judge.mjs and calibration can read them later.
+async function runEndpoint(model, task, run) {
+  const rec = {
+    date: today, category: task.category, task: task.id, model, run, warm: false, effort, ok: false,
+    firstOutputMs: null, totalMs: 0, steps: 1, retries: 0,
+    promptTokens: 0, completionTokens: 0, cachedTokens: 0, cachedFirstStep: null, cost: 0,
+    providers: [], answer: null, error: null, endpoint: task.endpoint,
+  };
+  emit({ kind: 'agent.start', node: 'runner.loop', model, message: `${task.category}/${task.id} run ${run} (${task.endpoint})` });
+  // outDir is where media endpoints keep their files (artifacts/ inside it); run numbers those files.
+  const r = await ENDPOINT_CALLS[task.endpoint]({ key: KEY, timeoutMs, outDir: dirname(resolve(out)), run }, model, task);
+  rec.firstOutputMs = r.firstOutputMs;
+  rec.totalMs = r.totalMs;
+  rec.cost = Number((r.cost ?? 0).toFixed(6));
+  if (r.provider) rec.providers.push(r.provider);
+  rec.answer = r.answer;
+  rec.error = r.error;
+  rec.ok = !r.error && r.answer !== null;
+  if (r.raw) rec.raw = r.raw;
+  if (r.artifact) rec.artifact = r.artifact;
+  emit({ kind: 'agent.end', node: 'runner.loop', model, status: rec.error ? 'error' : 'ok', duration_ms: rec.totalMs, ...(rec.error && { message: rec.error.slice(0, 120) }) });
+  emit({ kind: 'usage', node: 'measure.cost', model, cost_usd: rec.cost });
+  return rec;
+}
+
 async function runOne(model, task, run, session, warm) {
   const rec = {
     date: today, category: task.category, task: task.id, model, run, warm, effort, ok: false,
@@ -188,7 +222,7 @@ async function runOne(model, task, run, session, warm) {
     promptTokens: 0, completionTokens: 0, cachedTokens: 0, cachedFirstStep: null, cost: 0,
     providers: [], answer: null, error: null,
   };
-  const messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: task.prompt }];
+  const messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: userContent(task, task.prompt) }];
   const tools = task.tools.length ? [...task.tools.map((t) => TOOL_DEFS[t]), FINISH] : undefined;
   const t0 = performance.now();
   // The loop node lights for the whole run; `session` is the run id, and the message names the run in words.
@@ -281,8 +315,12 @@ for (let run = 1; run <= runs; run++) {
     for (const model of models) {
       // The cold run owns the session_id; the warm repeat reuses it, so the cache is what the second run measures.
       const session = `bench-${model.replace(/\W+/g, '-')}-${task.id}-${run}-${Date.now()}`;
+      if (task.endpoint !== 'chat') {
+        write(await runEndpoint(model, task, run), task, run);
+        continue;
+      }
       write(await runOne(model, task, run, session, false), task, run);
-      if (warm) write(await runOne(model, task, run, session, true), task, run);
+      if (warmable(task)) write(await runOne(model, task, run, session, true), task, run);
     }
   }
 }
