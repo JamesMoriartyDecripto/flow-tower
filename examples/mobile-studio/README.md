@@ -23,13 +23,13 @@ node bin/flow-tower.js examples/mobile-studio
 
 ## Operational features exercised
 
-- `approval`: go / no-go (2 `rounds`), design (3 `rounds`, `via` Figma prototype + Slack), ADR, privacy lead, release sign-off (`on_timeout: reject`), reply approval (`per: reply`, `wait`), kill switch (`on_timeout: approve`, fail-safe).
-- `decision` typed outputs: stack choice (with its candidates), store verdict (binary), fix path (OTA update or store build).
-- `limits`: store review timeouts (4d / 7d), build timeouts and retries, `max_iterations` on code review, QA and resubmissions; `ttl` on device sessions.
+- `approval`: go / no-go (2 `rounds`), design (3 `rounds`, `via` Figma prototype + Slack), ADR, a tech-lead review before a production migration, signing-credential changes by a person, the production submit through the release guard, privacy lead, release sign-off (`on_timeout: reject`), reply approval (`per: reply`, `wait`), kill switch (`on_timeout: approve`, fail-safe).
+- `decision` typed outputs: stack choice (with its candidates), store verdict (binary), fix path (OTA update or store build), each with `fail: closed`.
+- `limits`: store review timeouts (4d / 7d), build timeouts and retries, `max_iterations` on code review, QA and resubmissions; `ttl` on device sessions; timeouts on every fan-out worker, at most 8 specialists at a time and 2 lane sessions.
 - `sla`: App Review 48h and Play review 72h as `external` waits `after: submission`, beta 5d. `trigger`: chat, cron (monitor hourly, guard every 30 min, triage daily), GitHub events.
-- `fanout`: competitors, `[competitor, store]`, locales, platforms, `[device, OS version]`, `[store, locale]`, stores. `budget` per agent with `on_exceed`.
+- `fanout`: competitors, `[competitor, store]`, locales, platforms, `[device, OS version]`, `[store, locale]`, stores. `budget` per agent with `on_exceed`, and 190 USD for a whole release cycle.
 - `data`: PII in Postgres (30d `retention_after: account deletion`), auth and Analytics (EU, `lawful_basis: consent`), confidential purchase history, `secret` signing material. `credentials`: `service` for store APIs and submit, `user` for Figma, Expo and Supabase OAuth.
-- `sandbox` allowlists for every coding agent; `version` + `rollout`: `staged` with `steps` on both stores (App Store 1-2-5-10-20-50-100 %, Play 1-5-20-50-100 %), `metric` and crash-rate `guard`, canary 10 % OTA, previous version; edge `protocol` (`mcp`, `http`, `webhook`, `stdio`).
+- `sandbox` allowlists for every coding agent and the release manager; `version` + `rollout`: `staged` with `steps` on both stores (App Store 1-2-5-10-20-50-100 %, Play 1-5-20-50-100 %), `metric` and crash-rate `guard`, canary 10 % OTA, previous version; edge `protocol` (`mcp`, `http`, `webhook`, `stdio`).
 - `evals` (all `illustrative: true`, with `unit`): contrast failures and touch targets, Maestro pass rate, unlabeled controls, cold start, download size, crash-free sessions ≥ 99.5%, Android vitals crash rate < 1.09% and ANR < 0.47% (`higher_is_better: false`), crash-free users, store rating, review reply time.
 
 ## Files
