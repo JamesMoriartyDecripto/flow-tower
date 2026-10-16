@@ -69,7 +69,9 @@ Top-level `budget` ($15 per issue run) and `limits` (4 concurrent subagents), ag
 (`maxBudgetUsd` per query from `src/config.ts`), `limits` (2 issues in flight, 3 review rounds),
 `approval` (plan sign-off only `when: "risk == high or steps > 6"`, 4h; merge via PR review),
 an edge `group` for the two plan-gate paths, `async: poll` on `request_approval`, and typed
-`decision` outputs (route, suite green, review verdict).
+`decision` outputs (route, suite green, review verdict; all `fail: closed`, since an unreadable answer stops the run
+or goes back to the coder), and a `sandbox` on each agent with a shell or code tool: the worktree as the filesystem, network `open` (the
+container has no egress filter yet; see the optimizer report).
 
 ## Layout
 
