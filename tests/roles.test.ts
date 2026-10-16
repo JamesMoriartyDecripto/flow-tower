@@ -22,7 +22,7 @@ describe('ROLE_CLASSES', () => {
   it('lists every role once, with the fields the optimizer reads', () => {
     const ids = ROLE_CLASSES.map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).toEqual(expect.arrayContaining(['coding', 'review', 'orchestrator', 'router', 'research', 'writing', 'data', 'voice-stt', 'voice-tts', 'realtime-voice', 'vision', 'image-gen', 'video-gen', 'embeddings', 'guard', 'general']));
+    expect(ids).toEqual(expect.arrayContaining(['coding', 'review', 'orchestrator', 'router', 'research', 'writing', 'data', 'voice-stt', 'voice-tts', 'realtime-voice', 'vision', 'image-gen', 'video-gen', 'embeddings', 'guard', 'general', 'decision', 'rerank']));
     for (const r of ROLE_CLASSES) {
       expect(r.title).not.toBe('');
       expect(r.prefer).not.toBe('');
@@ -38,9 +38,9 @@ describe('classifyNode', () => {
     expect(classifyNode(n)).toEqual({ role: 'guard', why: 'node type is guard' });
   });
 
-  it('decision node type is a router', async () => {
+  it('decision node type is a decision', async () => {
     const n = await one({ type: 'decision', decision: { output: 'binary', fail: 'closed' } });
-    expect(classifyNode(n)).toEqual({ role: 'router', why: 'node type is decision' });
+    expect(classifyNode(n)).toEqual({ role: 'decision', why: 'node type is decision' });
   });
 
   it('model id hint names a specialised role', async () => {
@@ -172,6 +172,6 @@ describe('modelFit', () => {
       ],
     });
     const fits = modelFit(t);
-    expect(fits.map((f) => [f.node, f.role])).toEqual([['l.d', 'router'], ['l.g', 'guard']]);
+    expect(fits.map((f) => [f.node, f.role])).toEqual([['l.d', 'decision'], ['l.g', 'guard']]);
   });
 });

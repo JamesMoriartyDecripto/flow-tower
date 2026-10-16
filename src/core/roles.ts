@@ -30,6 +30,8 @@ const ROLE_TABLE = [
   { id: 'voice-stt', title: 'Speech to text', needs: ['streaming-audio', 'low-latency'], categories: [], modality: { in: ['audio'], out: ['text'] }, prefer: 'streaming transcription; latency matters more than polish' },
   { id: 'voice-tts', title: 'Text to speech', needs: ['streaming-audio', 'low-latency'], categories: [], modality: { in: ['text'], out: ['audio'] }, prefer: 'fast first audio chunk; natural voice' },
   { id: 'realtime-voice', title: 'Realtime voice', needs: ['streaming-audio', 'low-latency', 'tools'], categories: [], modality: { in: ['audio', 'text'], out: ['audio', 'text'] }, prefer: 'speech in and out with barge-in and tool calls mid-conversation' },
+  { id: 'decision', title: 'Decision', needs: ['structured-output', 'low-latency'], categories: [], modality: { in: ['text', 'image'], out: ['decision'] }, prefer: 'a typed answer with calibrated probabilities over fixed candidates (noul, choice, score); a decision model through the Decisions API, or a small model with a JSON schema' },
+  { id: 'rerank', title: 'Rerank', needs: [], categories: [], modality: { in: ['text'], out: ['ranking'] }, prefer: 'orders candidate documents for a query; pairs with an embeddings model for retrieval' },
   { id: 'vision', title: 'Vision', needs: ['vision'], categories: [], modality: { in: ['text', 'image'], out: ['text'] }, prefer: 'reads images and screenshots accurately' },
   { id: 'image-gen', title: 'Image generation', needs: [], categories: [], modality: { in: ['text'], out: ['image'] }, prefer: 'text to image; prompt adherence and cost per image' },
   { id: 'video-gen', title: 'Video generation', needs: [], categories: [], modality: { in: ['text'], out: ['video'] }, prefer: 'text to video; clip length and cost per second' },
@@ -50,7 +52,10 @@ const MODEL_HINTS: [RegExp, RoleId][] = [
   // realtime before tts|speech|voice: "gpt-realtime-voice" is realtime voice, not TTS.
   [/realtime/, 'realtime-voice'],
   [/tts|speech|voice/, 'voice-tts'],
+  [/rerank/, 'rerank'],
   [/embed/, 'embeddings'],
+  // Decision models named on OpenRouter's decisions list (typed answers with probabilities).
+  [/jev|decid|decision|clef/, 'decision'],
   [/image|flux|dall/, 'image-gen'],
   [/video|veo|sora/, 'video-gen'],
 ];
@@ -79,7 +84,7 @@ const modelOf = (node: ResolvedNode): string | undefined => node.model ?? node.a
  * The role of one node, from facts only. Order (first match wins), and `why` names the fact used.
  * The order follows what the node is *for* before the tools it happens to carry: a reviewer with
  * Bash is still a reviewer, and a lead that spawns agents is an orchestrator, not a coder.
- *  1. node type: guard → guard, decision → router (the type says what the node is for).
+ *  1. node type: guard → guard, decision → decision (the type says what the node is for).
  *  2. model id hints: a specialised model (whisper, tts, realtime, embed, image, video) names its role.
  *  3. delegation: an outgoing spawn edge, or id/label words lead, orchestrat, planner,
  *     manager → orchestrator. A handoff is not delegation: it is how a worker hands back to the lead.
@@ -92,7 +97,7 @@ const modelOf = (node: ResolvedNode): string | undefined => node.model ?? node.a
  */
 export function classifyNode(node: ResolvedNode, delegates = false): { role: RoleId; why: string } {
   if (node.type === 'guard') return { role: 'guard', why: 'node type is guard' };
-  if (node.type === 'decision') return { role: 'router', why: 'node type is decision' };
+  if (node.type === 'decision') return { role: 'decision', why: 'node type is decision' };
 
   const model = modelOf(node)?.toLowerCase();
   if (model) {
@@ -144,7 +149,7 @@ const NO_FIT_TYPES = new Set(['model', 'tool', 'memory', 'hook', 'entry', 'outpu
 /**
  * Per node that runs a model (type agent, or any node with a model on it): the role, and the
  * categories and needs to look for in a model. A process or human node with no model runs no model,
- * so it has no fit; a decision or guard with a model is a router or guard and stays in.
+ * so it has no fit; a decision or guard with a model is a decision or guard and stays in.
  */
 export function modelFit(tower: ResolvedTower): ModelFit[] {
   const nodes = tower.layers.flatMap((l) => l.nodes);
