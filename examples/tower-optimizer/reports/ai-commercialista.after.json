@@ -1,0 +1,191 @@
+{
+  "takenAt": "2026-10-16T13:28:36.370Z",
+  "path": "../ai-commercialista",
+  "towers": [
+    {
+      "id": "ai-commercialista.tower.yaml",
+      "name": "AI Commercialista (Italy)",
+      "inventory": {
+        "layers": 7,
+        "nodes": 34,
+        "nodesByType": {
+          "agent": 6,
+          "decision": 1,
+          "entry": 2,
+          "guard": 5,
+          "hook": 1,
+          "human": 3,
+          "memory": 5,
+          "output": 4,
+          "process": 5,
+          "tool": 2
+        },
+        "edges": {
+          "total": 42,
+          "links": 18,
+          "byKind": {
+            "call": 1,
+            "data": 20,
+            "flow": 17,
+            "handoff": 2,
+            "return": 1,
+            "spawn": 1
+          }
+        },
+        "agents": 6,
+        "models": {
+          "claude-haiku-5-5": 3,
+          "claude-sonnet-5-5": 2,
+          "gpt-6-luna": 1
+        },
+        "runtimes": {
+          "declared": 6,
+          "byKind": {
+            "cloud": 3,
+            "container": 1,
+            "saas": 2
+          }
+        },
+        "withOps": {
+          "budget": 6,
+          "limits": 2,
+          "approval": 2,
+          "evals": 4,
+          "sandbox": 0,
+          "fanout": 1
+        },
+        "nestedTowers": [
+          "sources.sync"
+        ],
+        "run": {
+          "budget": true,
+          "limits": false
+        }
+      },
+      "findings": [],
+      "modelFit": [
+        {
+          "node": "intake.triage",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "analysis.researcher",
+          "role": "research",
+          "model": "claude-haiku-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "analysis.scanner",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "analysis.drafter",
+          "role": "writing",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "analysis.risk",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "verify.support",
+          "role": "writing",
+          "model": "gpt-6-luna",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        }
+      ]
+    },
+    {
+      "id": "towers/sources.tower.yaml",
+      "name": "Sources sync",
+      "inventory": {
+        "layers": 4,
+        "nodes": 16,
+        "nodesByType": {
+          "decision": 1,
+          "entry": 1,
+          "human": 1,
+          "memory": 1,
+          "output": 2,
+          "process": 6,
+          "tool": 4
+        },
+        "edges": {
+          "total": 19,
+          "links": 8,
+          "byKind": {
+            "data": 1,
+            "flow": 17,
+            "handoff": 1
+          }
+        },
+        "agents": 0,
+        "models": {},
+        "runtimes": {
+          "declared": 4,
+          "byKind": {
+            "container": 1,
+            "local": 1,
+            "saas": 2
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 0,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [],
+      "modelFit": []
+    }
+  ]
+}
