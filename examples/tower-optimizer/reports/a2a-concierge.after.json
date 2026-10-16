@@ -1,0 +1,233 @@
+{
+  "takenAt": "2026-10-16T09:28:26.151Z",
+  "path": "examples/a2a-concierge",
+  "towers": [
+    {
+      "id": "a2a-concierge.tower.yaml",
+      "name": "A2A Purchasing Concierge",
+      "inventory": {
+        "layers": 5,
+        "nodes": 25,
+        "nodesByType": {
+          "agent": 3,
+          "decision": 3,
+          "entry": 1,
+          "guard": 1,
+          "hook": 1,
+          "human": 1,
+          "memory": 5,
+          "model": 2,
+          "output": 1,
+          "process": 5,
+          "tool": 2
+        },
+        "edges": {
+          "total": 34,
+          "links": 17,
+          "byKind": {
+            "call": 12,
+            "data": 10,
+            "flow": 8,
+            "handoff": 1,
+            "return": 3
+          }
+        },
+        "agents": 3,
+        "models": {
+          "gemini-2.5-flash": 2,
+          "gemini-2.5-flash-lite": 3
+        },
+        "runtimes": {
+          "declared": 5,
+          "byKind": {
+            "cloud": 2,
+            "local": 1,
+            "serverless": 2
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 1,
+          "approval": 1,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [
+          "sellers.burger",
+          "sellers.pizza"
+        ],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "sellers.auth",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        },
+        {
+          "rule": "AUD10",
+          "level": "info",
+          "message": "3 agents with no tower budget or limits: add a run-wide budget"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "concierge.concierge",
+          "role": "general",
+          "model": "gemini-2.5-flash",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "sellers.burger",
+          "role": "general",
+          "model": "gemini-2.5-flash-lite",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "sellers.pizza",
+          "role": "general",
+          "model": "gemini-2.5-flash-lite",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        }
+      ]
+    },
+    {
+      "id": "towers/burger-seller.tower.yaml",
+      "name": "Burger seller internals",
+      "inventory": {
+        "layers": 2,
+        "nodes": 9,
+        "nodesByType": {
+          "agent": 1,
+          "decision": 1,
+          "entry": 1,
+          "memory": 2,
+          "model": 1,
+          "output": 1,
+          "process": 1,
+          "tool": 1
+        },
+        "edges": {
+          "total": 10,
+          "links": 3,
+          "byKind": {
+            "call": 2,
+            "data": 2,
+            "flow": 2,
+            "return": 3,
+            "spawn": 1
+          }
+        },
+        "agents": 1,
+        "models": {
+          "gemini-2.5-flash-lite": 2
+        },
+        "runtimes": {
+          "declared": 2,
+          "byKind": {
+            "cloud": 1,
+            "serverless": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 0,
+          "approval": 1,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [],
+      "modelFit": [
+        {
+          "node": "crew.seller",
+          "role": "general",
+          "model": "gemini-2.5-flash-lite",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        }
+      ]
+    },
+    {
+      "id": "towers/pizza-seller.tower.yaml",
+      "name": "Pizza seller internals",
+      "inventory": {
+        "layers": 2,
+        "nodes": 8,
+        "nodesByType": {
+          "agent": 1,
+          "decision": 1,
+          "entry": 1,
+          "memory": 1,
+          "model": 1,
+          "output": 1,
+          "process": 1,
+          "tool": 1
+        },
+        "edges": {
+          "total": 9,
+          "links": 2,
+          "byKind": {
+            "call": 3,
+            "data": 1,
+            "flow": 2,
+            "return": 3
+          }
+        },
+        "agents": 1,
+        "models": {
+          "gemini-2.5-flash-lite": 2
+        },
+        "runtimes": {
+          "declared": 2,
+          "byKind": {
+            "cloud": 1,
+            "serverless": 1
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 0,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [],
+      "modelFit": [
+        {
+          "node": "graph.agent",
+          "role": "general",
+          "model": "gemini-2.5-flash-lite",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        }
+      ]
+    }
+  ]
+}
