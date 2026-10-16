@@ -40,6 +40,7 @@ agents:
     skills: [incident-runbooks]
     disabled_tools: [web_search, web_fetch]
     files: [src/setup.py]
+    sandbox: { network: none, filesystem: workspace }
 
 layers:
   - id: edit
@@ -68,6 +69,7 @@ layers:
         label: cp original
         description: "`cp k8s/checkout-deploy.yaml /tmp/orig.yaml` so the diff has a base."
         tools: [bash]
+        sandbox: { network: none, filesystem: workspace }
       - id: edit_file
         runtime: sandbox
         type: tool
@@ -81,12 +83,13 @@ layers:
         label: diff -u
         description: Unified diff passed verbatim to open_pull_request.
         tools: [bash]
+        sandbox: { network: none, filesystem: workspace }
       - id: scope
         runtime: sandbox
         type: decision
         label: Diff minimal?
         description: "Self-check: only the fields the runbook names, no unrelated reformatting."
-        decision: { output: binary, candidates: [minimal, too broad] }
+        decision: { output: binary, candidates: [minimal, too broad], fail: closed, description: "When unsure, treat it as too broad and re-plan, so only minimal diffs reach the approver." }
     edges:
       - "findings -> plan: signature + files"
       - "runbook -> plan [data]: remediate steps"
@@ -129,7 +132,7 @@ layers:
         type: decision
         label: Result?
         description: The request_approval custom tool result.
-        decision: { output: choice, candidates: [approved, rejected, escalated] }
+        decision: { output: choice, candidates: [approved, rejected, escalated], fail: closed, description: "Only an exact \"approved\" merges; anything else stops (prompts/remediator.md)." }
       - id: merge
         runtime: app
         type: tool

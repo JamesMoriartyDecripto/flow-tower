@@ -1,0 +1,206 @@
+{
+  "takenAt": "2026-10-16T08:50:32.131Z",
+  "path": "examples/sre-incident",
+  "towers": [
+    {
+      "id": "sre-incident.tower.yaml",
+      "name": "SRE Incident Responder",
+      "inventory": {
+        "layers": 5,
+        "nodes": 46,
+        "nodesByType": {
+          "agent": 4,
+          "decision": 4,
+          "entry": 1,
+          "guard": 5,
+          "human": 4,
+          "memory": 4,
+          "model": 3,
+          "output": 3,
+          "process": 8,
+          "tool": 10
+        },
+        "edges": {
+          "total": 57,
+          "links": 17,
+          "byKind": {
+            "call": 17,
+            "data": 8,
+            "flow": 18,
+            "handoff": 7,
+            "return": 5,
+            "spawn": 2
+          }
+        },
+        "agents": 4,
+        "models": {
+          "claude-haiku-5-5": 2,
+          "claude-opus-5-5": 3,
+          "claude-sonnet-5-5": 2
+        },
+        "runtimes": {
+          "declared": 10,
+          "byKind": {
+            "ci": 1,
+            "cloud": 2,
+            "container": 1,
+            "saas": 6
+          }
+        },
+        "withOps": {
+          "budget": 4,
+          "limits": 5,
+          "approval": 2,
+          "evals": 2,
+          "sandbox": 4,
+          "fanout": 0
+        },
+        "nestedTowers": [
+          "remediation.remediator"
+        ],
+        "run": {
+          "budget": true,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "intake.session",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "platform.secrets",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "investigation.investigator",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "remediation.remediator",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "closeout.status_writer",
+          "role": "writing",
+          "model": "claude-haiku-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "closeout.scribe",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    },
+    {
+      "id": "towers/remediator.tower.yaml",
+      "name": "Remediator internals",
+      "inventory": {
+        "layers": 2,
+        "nodes": 15,
+        "nodesByType": {
+          "agent": 1,
+          "decision": 2,
+          "entry": 1,
+          "guard": 1,
+          "human": 1,
+          "memory": 1,
+          "output": 2,
+          "tool": 6
+        },
+        "edges": {
+          "total": 16,
+          "links": 2,
+          "byKind": {
+            "call": 4,
+            "data": 1,
+            "flow": 7,
+            "handoff": 1,
+            "return": 3
+          }
+        },
+        "agents": 1,
+        "models": {
+          "claude-opus-5-5": 1
+        },
+        "runtimes": {
+          "declared": 4,
+          "byKind": {
+            "cloud": 1,
+            "container": 1,
+            "saas": 2
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 0,
+          "approval": 1,
+          "evals": 0,
+          "sandbox": 3,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [],
+      "modelFit": [
+        {
+          "node": "edit.plan",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    }
+  ]
+}
