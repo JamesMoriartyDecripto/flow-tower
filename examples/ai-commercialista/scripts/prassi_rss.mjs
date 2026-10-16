@@ -18,20 +18,22 @@ const since = opt('--since', '1900-01-01');
 
 // Inline two-item sample in the RSS 2.0 shape, used only by --dry-run (no network).
 const DRY_XML = `<?xml version="1.0"?><rss version="2.0"><channel>
-<item><title>Risposta n. 185 del 15/10/2026 - IVA su servizi CER</title>
+<item><title>[SAMPLE] Risposta n. 000 del 15/10/2026 - IVA su servizi CER</title>
 <link>https://www.agenziaentrate.gov.it/portale/documents/sample-185</link>
 <pubDate>Thu, 15 Oct 2026 10:00:00 +0200</pubDate></item>
-<item><title>Circolare n. 8/E del 6 ottobre 2026 - Chiarimenti</title>
+<item><title>[SAMPLE] Circolare n. 0/E del 6 ottobre 2026 - Chiarimenti</title>
 <link>https://www.agenziaentrate.gov.it/portale/documents/sample-8e</link>
 <pubDate>Tue, 06 Oct 2026 09:00:00 +0200</pubDate></item>
 </channel></rss>`;
 
 // Type comes from the title prefix, which is how the Agency names its documents. Anything else is "altro".
 function typeOf(title) {
-  if (/^circolare/i.test(title)) return 'circolare';
-  if (/^risoluzione/i.test(title)) return 'risoluzione';
-  if (/^risposta/i.test(title)) return 'risposta a interpello';
-  if (/^provvedimento/i.test(title)) return 'provvedimento';
+  // The [SAMPLE] tag marks dry-run items; it is not part of the Agency's title, so strip it first.
+  const t = title.replace(/^\[SAMPLE\]\s*/, '');
+  if (/^circolare/i.test(t)) return 'circolare';
+  if (/^risoluzione/i.test(t)) return 'risoluzione';
+  if (/^risposta/i.test(t)) return 'risposta a interpello';
+  if (/^provvedimento/i.test(t)) return 'provvedimento';
   return 'altro';
 }
 

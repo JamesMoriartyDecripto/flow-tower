@@ -23,7 +23,9 @@ replaces_note: >-
 testi_unici:
   - id: tu-sanzioni
     decree: "D.Lgs. 173/2024"
-    gu_date: "2024-11-05"
+    decree_date: "2024-11-05"
+    gu_date: null  # notes give only "GU: Nov 2024"
+    gu_month: "2024-11"
     subject: "Sanzioni tributarie amministrative e penali"
     replaces: ["D.Lgs. 471/1997", "D.Lgs. 472/1997", "D.Lgs. 74/2000"]
     applies_from: "2027-01-01"
@@ -32,7 +34,9 @@ testi_unici:
 
   - id: tu-minori
     decree: "D.Lgs. 174/2024"
-    gu_date: "2024-11-05"
+    decree_date: "2024-11-05"
+    gu_date: null  # notes give only "GU: Nov 2024"
+    gu_month: "2024-11"
     subject: "Tributi erariali minori"
     replaces: []  # not listed in the notes
     applies_from: "2027-01-01"
@@ -41,7 +45,9 @@ testi_unici:
 
   - id: tu-giustizia-tributaria
     decree: "D.Lgs. 175/2024"
-    gu_date: "2024-11-14"
+    decree_date: "2024-11-14"
+    gu_date: null  # notes give only "GU: Nov 2024"
+    gu_month: "2024-11"
     subject: "Giustizia tributaria"
     replaces: ["D.Lgs. 545/1992", "D.Lgs. 546/1992"]
     applies_from: "2027-01-01"
@@ -61,7 +67,7 @@ testi_unici:
     decree: "D.Lgs. 123/2025"
     gu_date: "2025-08-12"
     subject: "Imposta di registro e altri tributi indiretti"
-    replaces: ["DPR 131/1986", "D.Lgs. 346/1990 (parts)"]
+    replaces: ["DPR 131/1986", "D.Lgs. 346/1990"]
     applies_from: "2027-01-01"
     postponed_by: "DL 200/2025 art. 4 c. 5"
     urn: null
@@ -101,12 +107,18 @@ testi_unici:
 mappings:
   # Empty on purpose. Each entry needs: old (source act, article, version date),
   # new (testo unico, article), and a source that states the pair.
-  # The regime forfettario move to D.Lgs. 117/2026 (Capo XXI, artt. 232-243) was
-  # considered, but no note in research/ or squad-input/ states it: sites-it.md has
-  # no section 7. Add it only once a source confirms it.
-  []
+  # One mapping, from squad-input/sites-it.md section 7 (regime forfettario). Its numbering
+  # is flagged there as not verified on the text, so confidence is low.
+  - old:
+      act: "L. 190/2014 art. 1 c. 54-89 (regime forfettario)"
+      version_date: null
+    new:
+      act: "D.Lgs. 117/2026 (nuovo TUIR), Capo XXI 'Regime forfetario'"
+      article: "artt. 232-243"
+    source: "squad-input/sites-it.md section 7"
+    confidence: low
+    note: "numbering not verified on the text (sites-it.md §7)"
 
 unmapped:
-  - "All article-level pairs. The concordance tables are not published (see status)."
-  - "Regime forfettario: the new location (D.Lgs. 117/2026) is not confirmed by a source in this repo."
+  - "All other article-level pairs. The concordance tables are not published (see status)."
   - "Transitional rules for periods that straddle 1/1/2027, per testo unico."

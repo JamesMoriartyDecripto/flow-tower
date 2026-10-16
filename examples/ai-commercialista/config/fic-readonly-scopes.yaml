@@ -1,8 +1,8 @@
 # Fatture in Cloud API v2: OAuth scopes for the read-only identity of the commercialista AI.
 # Scope names from research/data-sources.md (from https://developers.fattureincloud.it/docs/basics/scopes/).
 # Every scope here is ":r" (read). This identity never creates, edits or sends anything.
-# Flow: OAuth 2.0 authorization code, https://api-v2.fattureincloud.it/oauth/authorize -> /oauth/token.
-# Access token 24h, refresh token 1 year from the last refresh: store the newest refresh_token every time.
+# Auth: OAuth 2.0 (authorization code, device code or manual token), per research/data-sources.md.
+# Endpoints and token lifetimes are not in the notes: confirm them on the official auth page before use.
 # Secrets live in Secret Manager under the placeholder names below; never in this repo or in agent context.
 
 app:
@@ -22,7 +22,7 @@ identities:
       - receipts:r                    # corrispettivi
       - taxes:r                       # F24 records, read only
       - cashbook:r                    # prima nota (cash movements)
-      - settings:r                    # tax profile and VAT types
+      - settings:r                    # tax profile (`/settings/tax_profile`); VAT types are under `/info/vat_types`
       - entity.clients:r
       - entity.suppliers:r
 

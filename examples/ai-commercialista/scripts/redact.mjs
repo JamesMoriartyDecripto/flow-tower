@@ -15,7 +15,7 @@ const client = JSON.parse(readFileSync(resolve(root, opt('--client', 'data/lumen
 const text = opt('--text',
   `Fattura per ${client.name}, P.IVA ${client.vat_number}, CF ${client.tax_code}. ` +
   `Contatto ${client.contact.name} <${client.contact.email}>, tel +39 333 0000000, ` +
-  `IBAN IT60X0542811101000000123456. Codice fiscale di controllo RSSMRA80A01F205X.`);
+  `IBAN IT00X0000000000000000000000. Codice fiscale di controllo XXXXXX00X00X000X.`);
 
 // Order matters: specific patterns first, so a name or company inside an email is not split.
 const PATTERNS = [

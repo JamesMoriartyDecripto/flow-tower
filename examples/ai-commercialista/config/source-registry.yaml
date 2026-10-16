@@ -2,7 +2,9 @@
 # Read by the sources.sync process (towers/sources.tower.yaml) and by the citation guards.
 # Verified on 2026-10-15 from squad-input/sites-it.md and research/primary-sources.md.
 #
-# Weight scale (strongest first): law > practice > case-law > standard > guidance > data > press.
+# Weight scale: law first. Case-law and practice are different kinds of weight: case-law binds the
+# parties and guides courts (Corte costituzionale rulings bind erga omnes; SS.UU. carry nomofilachia);
+# practice binds only the administration. Then: standard, guidance, data, press.
 # Use the weight as the citation rule: only law, practice, case-law and standard may support a claim;
 # guidance and data are informational; press is never cited as authority.
 #
@@ -15,7 +17,7 @@
 
 weights:
   law: "binding on taxpayers and the administration: statutes, decrees with force of law, codes, EU law, regulator rules."
-  practice: binds the administration only (circolari, risoluzioni, interpelli, prassi). Relying on it protects from penalties (L. 212/2000 art. 10 c. 2); an interpello reply binds only for that applicant and question (art. 11 c. 5).
+  practice: "binds the administration only (circolari, risoluzioni, interpelli, prassi). Relying on it protects from penalties (L. 212/2000 art. 10 c. 2, text to confirm: [K] in primary-sources.md); an interpello reply binds only for that applicant and question (art. 11 c. 5)."
   case-law: judgments and orders. Cassation and EU courts carry strong weight; merit decisions are persuasive only.
   standard: technical accounting or professional standards (e.g. OIC principles) that interpret the law.
   guidance: official pages, FAQs, portal descriptions. Informational, never the cited authority.
@@ -34,11 +36,11 @@ sources:
   - id: normattiva
     name: Normattiva (consolidated state legislation)
     url: "https://www.normattiva.it/"
-    kind: law
+    kind: guidance
     access: free
     api: "open data API, point-in-time text (see normattiva-open-data); per-article detail returned error 1000 on 15/10/2026"
     topics: [all]
-    note: "Not official: the GU prevails. Cite stable URN links: https://www.normattiva.it/uri-res/N2Ls?urn:nir:..."
+    note: "Not official: the GU prevails. The law it shows is binding, but the Normattiva page is not the official text. Cite stable URN links: https://www.normattiva.it/uri-res/N2Ls?urn:nir:..."
   - id: normattiva-open-data
     name: Normattiva open data portal and API
     url: "https://dati.normattiva.it/"
@@ -554,11 +556,11 @@ sources:
   - id: mase-dm-127-2025
     name: MASE, DM 127 del 16/5/2025 (modifica CER)
     url: "https://www.mase.gov.it/portale/-/comunita-energetiche-firmato-il-decreto-che-modifica-la-disciplina-degli-incentivi"
-    kind: law
+    kind: guidance
     access: free
     api: "none"
     topics: [fotovoltaico]
-    note: "PNRR contribution extended to municipalities under 50,000 inhabitants; advance up to 30%. Cite the decree"
+    note: "News page; cite the decree from the GU. PNRR contribution extended to municipalities under 50,000 inhabitants; advance up to 30%"
   - id: mase-fer-x-definitivo
     name: MASE, FER X definitivo (DM 18/6/2026)
     url: "https://www.mase.gov.it/portale/-/energia-pubblicato-il-decreto-fer-x-definitivo"
@@ -695,3 +697,68 @@ sources:
     api: "none"
     topics: [all]
     note: "LEAD ONLY. Agency magazine: a plain-language reading, no legal weight. Cite the underlying circolare or risposta"
+  # Acts cited by the sample memo and logs. A null url means the notes give no URL: confirm before citing.
+  - id: l-199-2025
+    name: Legge di bilancio 2026, L. 199/2025
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:legge:2025-12-30;199"
+    kind: law
+    access: free
+    api: "point-in-time via urn"
+    topics: [srl, employer, fotovoltaico, forfettario, startup-innovativa]
+    note: "Cite the comma (art. 1 c. ...). Iperammortamento c. 427-436; forfettario c. 27; R&S and design credit via L. 160/2019 art. 1 c. 198-209 (see l-160-2019-rs-credit)"
+  - id: dl-38-2026
+    name: DL 38/2026 (decreto fiscale), converted by L. 88/2026
+    url: null
+    kind: law
+    access: free
+    api: "none in notes"
+    topics: [srl, fotovoltaico, forfettario]
+    note: "URL to confirm. DL 27/3/2026 n. 38, converted by L. 22/5/2026 n. 88 (GU n. 117). Art. 7 CPB and iperammortamento; art. 8 esodati credit"
+  - id: ade-circ-8e-2026-cpb
+    name: Agenzia Entrate, circolare 8/E del 6/10/2026 (CPB 2026-2027)
+    url: "https://www.agenziaentrate.gov.it/portale/documents/20143/10360006/Circolare+n.+8+del+6+ottobre+2026+(CBP).pdf/b9eb6625-912e-36f2-6895-c889f500b8a1"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [srl, forfettario]
+    note: "Cite as 'circolare n. 8/E del 6/10/2026'. Concordato preventivo biennale 2026-2027; adhesion by 2/11/2026"
+  - id: l-160-2019-rs-credit
+    name: L. 160/2019 art. 1 c. 198-209 (credito R&S, innovazione, design)
+    url: null
+    kind: law
+    access: free
+    api: "none in notes"
+    topics: [srl, startup-innovativa]
+    note: "URL to confirm. Cite the comma. Innovazione tecnologica expired after FY2025; design credit extended to 2026 by L. 199/2025 c. 925-926"
+  - id: dlgs-216-2023-art4
+    name: D.Lgs. 216/2023 art. 4 (super-deduzione costo del lavoro neoassunti)
+    url: null
+    kind: law
+    access: free
+    api: "none in notes"
+    topics: [employer, srl]
+    note: "URL to confirm. Extended to 2026 and 2027 by L. 207/2024 art. 1 c. 399-400. Do not confuse with art. 5 of the same decree, which repealed the ACE from FY2024"
+  - id: ade-circ-1e-2025-super-deduzione
+    name: Agenzia Entrate, circolare 1/E del 20/1/2025 (super-deduzione, maggiorazione costo del lavoro)
+    url: "https://www.agenziaentrate.gov.it/portale/documents/20143/0/circolare%20Maggiorazione%20costo%20del%20lavoroEC%20del%2020%20gennaio%202025%20rettificata.pdf/9afb2d71-75b5-5cd9-824c-69abb2c0d198"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [employer, srl]
+    note: "Cite as 'circolare n. 1/E del 20/1/2025'. Rectified version; check the text date before citing"
+  - id: inps-circ-32-2025-decontribuzione-sud
+    name: INPS, circolare 32 del 30/1/2025 (decontribuzione Sud PMI 2025-2029)
+    url: "https://www.inps.it/it/it/inps-comunica/atti/circolari-messaggi-e-normativa/dettaglio.circolari-e-messaggi.2025.01.circolare-numero-32-del-30-01-2025_14812.html"
+    kind: practice
+    access: free
+    api: "none"
+    topics: [employer]
+    note: "Decrescent exemption for Southern PMI (L. 207/2024 c. 406 ss.). Not the super-deduzione: do not cite it for that"
+  - id: dl-62-2026-decreto-lavoro
+    name: DL 62/2026 (Decreto Lavoro 2026), converted by L. 112/2026
+    url: "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legge:2026-04-30;62"
+    kind: law
+    access: free
+    api: "point-in-time via urn"
+    topics: [employer]
+    note: "Bonus giovani, donne and ZES hiring incentives for 2026. Cite the article; the INPS circolari 55, 56, 57 of 14/5/2026 apply it"

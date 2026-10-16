@@ -40,22 +40,24 @@ checks:
     required: true
 
   - id: aml-cdd-on-file
-    description: "Customer due diligence (adeguata verifica della clientela) is complete and on file: identity of the client and of the beneficial owner, purpose and nature of the relationship, and a risk rating."
-    source: "D.Lgs. 231/2007 (customer due diligence obligations of professionals); CNDCEC AML technical rules (Regole Tecniche, update of 16/1/2025), as summarised in research/primary-sources.md section 4b"
+    description: "customer due diligence under D.Lgs. 231/2007 on file (content per the CNDCEC Regole Tecniche, see research/practices.md §4b)"
+    source: "D.Lgs. 231/2007 (customer due diligence obligations of professionals); CNDCEC AML technical rules (Regole Tecniche, update of 16/1/2025), as summarised in research/practices.md section 4b"
     evidence: "CDD record id and risk rating in client_file"
     required: true
+    confidence: medium
     note: "Article numbers for CDD are not stated in the notes; the check cites the decree, not an article."
 
   - id: aml-no-open-flag
     description: "No open AML flag on the client. An open flag routes the case to the professional (human_only output)."
-    source: "D.Lgs. 231/2007 art. 35 (report to UIF) and art. 39 (no tipping-off), as summarised in research/primary-sources.md section 4b"
+    source: "D.Lgs. 231/2007 art. 35 (report to UIF) and art. 39 (no tipping-off), as summarised in research/practices.md section 4b"
     evidence: "AML flag status from the professional's internal channel"
     required: true
+    confidence: medium
     on_match: route_to_professional    # the AI never sees or decides on the SOS itself
 
   - id: data-scope
     description: "The data needed for the question is in scope: read-only Fatture in Cloud data, or the accountant export. No data is pulled from the cassetto fiscale by the agent."
-    source: "config/fic-readonly-scopes.yaml; research/data-sources.md section 5.2 (no public API for the cassetto fiscale; web access only)"
+    source: "config/fic-readonly-scopes.yaml; research/primary-sources.md section 5.2 (no public API for the cassetto fiscale; web access only)"
     evidence: "data source id in the run record"
     required: false
     note: "Not an engagement check in law. Kept here so the guard reports where the data came from."
