@@ -45,10 +45,11 @@ have**:
 |---|---|
 | `trigger: chat` | `ui.chat` |
 | `budget.turns` | `api.runner` (SDK default `max_turns` 10, `MaxTurnsExceeded` caught) |
+| `limits.max_iterations` | the whole tower: the same 10 turns bound every handoff loop between agents |
 | `data` (pii, phi, public; retention, region) | every agent; `special_seat` is phi; `retention: none` for everything held in process memory (context, conversation state, thread store) |
 | `credentials: service` | the agents that write bookings |
 | `approval` + `sla` | `ui.duty_manager` (`when: "payout > 500 USD or any cash refund"`, no separate gate node), `ui.agent_console` |
-| `decision` | `agents.wants_human` (`binary`) |
+| `decision` | `agents.wants_human` (`binary`, `fail: closed`: on an error a ticket opens) |
 | `evals` (targets only, no measured values) | relevance and jailbreak guardrails |
 | edge `protocol` (http, webhook) | all frontend/backend links, the Responses API calls, escalation |
 
