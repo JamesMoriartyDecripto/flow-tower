@@ -1,0 +1,1 @@
+{"answer": "Yes, the tax authority cannot treat it as abuse: comma 4 of art. 10-bis keeps the taxpayer's freedom to choose between optional regimes offered by the law.", "citations": [{"file": "fixtures/l212-2000-art10bis.txt", "quote": "Resta ferma la libertà di scelta del contribuente tra regimi opzionali diversi offerti dalla legge"}]}

@@ -1,0 +1,1 @@
+{"answer": "No, the tax authority cannot treat it as abuse, because comma 4 of art. 10-bis lets the taxpayer freely pick optional regimes.", "citations": [{"file": "fixtures/l212-2000-art10bis.txt", "quote": "the taxpayer is free to choose between optional tax regimes that the law offers"}]}

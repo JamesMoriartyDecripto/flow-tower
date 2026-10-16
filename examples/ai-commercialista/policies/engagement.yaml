@@ -1,0 +1,69 @@
+# Engagement guard for the intake step (design: squad-input/design.md, "Intake & Engagement").
+# Every check must pass before any AI-assisted work starts for a client. Any failure closes the guard.
+# Sources are the research notes in research/ (practices.md, primary-sources.md). Not legal advice.
+
+guard: intake.engagement
+fail: closed            # on any failed or unknown check: no AI work, hand the case to the professional
+on_fail:
+  - stop_ai_steps: true              # no triage, research, scanner, drafter or support call
+  - route_to: professional           # the commercialista decides the next step by hand
+  - log: audit                       # append-only entry in logs/audit.log, with the failed check
+  - tell_client: "Only that the case is being handled by the professional; no reason is given."
+  # Hard rule: the system never tells the client about a suspicious-transaction report
+  # (SOS). Art. 39 D.Lgs. 231/2007 prohibits disclosure. A report can only be handled
+  # through the professional's internal channel; the client is never told why the case is held.
+
+checks:
+  - id: mandate-signed
+    description: "A signed professional mandate (mandato professionale) is on file for this client."
+    source: "CNDCEC guide 'L'aiuto intelligente al Commercialista #3', Appendix D (model clause for the mandato professionale)"
+    evidence: "signed mandate document id in client_file"
+    required: true
+
+  - id: mandate-ai-clause
+    description: "The mandate carries the AI clause: AI only for ancillary and support activities; evaluations, decisions and responsibility stay with the professional under effective human control; no automated decisions under art. 22 GDPR; the client may ask for AI tools to be excluded."
+    source: "Art. 13 c. 1 and c. 2 L. 132/2025 (text quoted in CNDCEC guide #3, section 5.2.2 and footnote 26); CNDCEC guide #3, Appendix D"
+    evidence: "clause version id in the mandate"
+    required: true
+
+  - id: ai-opt-out-honoured
+    description: "The client has not opted out of AI tools. If they have, no AI step runs for this client. The opt-out is read from the mandate and from the latest written instruction on file."
+    source: "CNDCEC guide #3, Appendix D, point 4 (the client may ask, with reasons, that AI tools be excluded)"
+    evidence: "opt-out flag and its date in client_file"
+    required: true
+    on_match: stop_ai_steps            # an opt-out is a stop, not a warning
+
+  - id: ai-disclosure-delivered
+    description: "The AI information notice (policies/ai-disclosure-it.md, adapted by the professional) has been given to the client. It lists the AI systems used and their purposes."
+    source: "Art. 13 c. 2 L. 132/2025: the information on AI systems is given to the client in clear, simple and complete language"
+    evidence: "date and channel of delivery in client_file"
+    required: true
+
+  - id: aml-cdd-on-file
+    description: "customer due diligence under D.Lgs. 231/2007 on file (content per the CNDCEC Regole Tecniche, see research/practices.md §4b)"
+    source: "D.Lgs. 231/2007 (customer due diligence obligations of professionals); CNDCEC AML technical rules (Regole Tecniche, update of 16/1/2025), as summarised in research/practices.md section 4b"
+    evidence: "CDD record id in client_file"
+    required: true
+    confidence: medium
+    note: "Article numbers for CDD are not stated in the notes; the check cites the decree, not an article."
+
+  - id: aml-no-open-flag
+    description: "No open AML flag on the client. An open flag routes the case to the professional (human_only output)."
+    source: "D.Lgs. 231/2007 art. 35 (report to UIF) and art. 39 (no tipping-off), as summarised in research/practices.md section 4b"
+    evidence: "AML flag status from the professional's internal channel"
+    required: true
+    confidence: medium
+    on_match: route_to_professional    # the AI never sees or decides on the SOS itself
+
+  - id: data-scope
+    description: "The data needed for the question is in scope: read-only Fatture in Cloud data, or the accountant export. No data is pulled from the cassetto fiscale by the agent."
+    source: "config/fic-readonly-scopes.yaml; research/primary-sources.md section 5.2 (no public API for the cassetto fiscale; web access only)"
+    evidence: "data source id in the run record"
+    required: false
+    note: "Not an engagement check in law. Kept here so the guard reports where the data came from."
+
+failure_examples:
+  - "Mandate unsigned or missing the AI clause: closed, professional informed, client told only that the case is with the professional."
+  - "AI opt-out recorded: closed for AI steps; the professional decides how to proceed without AI."
+  - "CDD missing: closed; no reason is given to the client."
+  - "AML flag open: closed; the case goes to the professional's internal channel. The client is not told about any report (art. 39)."
