@@ -21,7 +21,7 @@ node bin/flow-tower.js examples/fraud-desk/fraud-desk.tower.yaml
 
 Escalation thresholds are labeled conditional edges on the **Escalate?** decision:
 structuring $4,900 to $4,999, ≥ $50,000 when the agent would approve, confidence 75 to 85,
-and a fraud-ring hit.
+and a fraud-ring hit. A rule that cannot be checked (a tool failed or returned no data) escalates too: the decision is `fail: closed`.
 
 ## Operational fields used
 
@@ -30,7 +30,7 @@ senior 24h `on_timeout: reject`), `sla` (24h senior; SAR `within: 30d` `after: d
 `budget` ($0.50 and 80 turns `per: session`, one session per batch, `on_exceed: pause`; packet `per: call`),
 `limits` (session `ttl`, concurrency 1), `sandbox` (no network, no filesystem), `credentials: service`,
 `data` (PII, US, `5y` retention; SAR records `retention_after: SAR filing`), `exactly_once` on
-`record_decision`, `decision` (mandate gate binary `fail: closed`; escalation binary with confidence),
+`record_decision`, `decision` (mandate gate binary `fail: closed`; escalation binary with confidence, `fail: closed`), `approval` `when` an escalation rule matches on `record_decision`,
 edge `group`s (mandate pass / hard reject; one verdict: an escalation rule or clear-cut),
 `evals` (analyst agreement, threshold recall, terminal-call rate, cost per case in USD; all
 `illustrative`), `version` + `rollout` (v4 in shadow against v3), edge `protocol: event`, a
