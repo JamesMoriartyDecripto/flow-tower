@@ -2,6 +2,23 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Status on 2026-10-16
+
+- **New example `ai-commercialista`** (#228, PR #255): an AI accountant for Italian companies that cites every source.
+  - A professional signs every memo.
+  - The research notes are in `examples/ai-commercialista/research/`. A verified list of 294 Italian sites was used as input and is not shipped (it is published as a private artifact, "Siti del commercialista").
+  - Optimized with the tower optimizer (#231, PR #258): the question is pseudonymized before triage, the fan-out is started by code, and the audit shows 0 warnings and 0 info.
+- **Its own benchmark** (`examples/ai-commercialista/benchmark/`, 4 roles × 2 tasks) picked the models.
+  - **Rule set by the maintainer:** same result, then the cheapest per correct answer and/or the fastest, any provider.
+  - **Support check:** Opus → GPT-6 Luna. This adds OpenAI as a data processor: a DPA and the data region are to be confirmed before production.
+  - **Researcher:** Sonnet → Haiku 5.5.
+  - **Open:** the scanner and drafter have no task set yet. Results are in the [cost skill reference § Benchmark 2026-10-16](skills/flow-tower-costs/reference.md).
+- **Tool fixes found on the way:**
+  - #229 / PR #230: `check-example` no longer flags `ft_` inside words or `/home/` inside URLs.
+  - #256 / PR #257: `judge.mjs` command checks run on Node 24 (`--permission`).
+  - Note for CI: `check-example` flags any word equal to the CI user name `runner` in an example's text.
+- **Squad cost:** #228 $1.24, #229 $0.012, #256 $0.004, ai-commercialista under #231 $0.034. The benchmark run cost $0.44.
+
 ## Status on 2026-10-15
 
 - **v0.11.0 released** (2026-10-15): the #181 laptop checks (GPU for 3D, `service` on real systemd), #211 closed, the remote-voice choice, the tooltip and panel-corner fixes, the description-length guideline, the example towers matched to the code. Gates and the full e2e with the GPU (94/94): [report](examples/release-auditor/reports/v0.11.0.md).
@@ -33,7 +50,8 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 5. #147 Blender and Unreal benchmark categories
 6. #85 privacy profiles (unblocks the profile wizard of the Admin tab) · #95 the rest of remote activity · #86 fan-out
 7. #97 the docker compose and Caddy variants (systemd and Tailscale tested)
-8. On hold: #129 voice 2 items 4–8, until the maintainer asks
+8. ai-commercialista: benchmark task sets for the scanner and the drafter (both still on Sonnet), and harder cited-answer tasks (longer sources) before trusting Haiku on real research
+9. On hold: #129 voice 2 items 4–8, until the maintainer asks
 
 ## How work is done
 

@@ -90,6 +90,23 @@ Reviewers on that PR: glm-5.3-flashx 3 steps, $0.007, found the main issue; deep
 
 Caveats: some doc-writer regex checks are lenient (a fix under Added passed; `### Unreleased` passed). Cache was 0% for most models: 300–600-token prompts are below most providers' minimum, and Anthropic needs `cache_control`; #149 adds `--warm`, `--batch` and `cache_control`.
 
+## Benchmark 2026-10-16: tax-advisor roles
+
+flow-tower, 2026-10-16: the roles of the [ai-commercialista](../../examples/ai-commercialista) tower, 6 models × 4 categories × 2 tasks × 3 runs = 144 runs, $0.43 in total, OpenRouter (`data_collection: deny`), effort low. The task sets and the tables are in [benchmark/](../../examples/ai-commercialista/benchmark). Every check is deterministic: exact JSON, or quotes found verbatim in Normattiva text. n = 6 per model per category.
+The maintainer's rule for the choice: same result, then the lowest cost per correct answer and/or the fastest, across providers. The table columns are correct/n, $ per correct answer and median total seconds.
+
+| Role (node) | Picked | Correct | $/correct | s | Notes |
+|---|---|---|---|---|---|
+| triage (`intake.triage`) | claude-haiku-5.5 | 6/6 | $0.0000 | 1.5 | all 6 models 6/6 |
+| abuse-of-law label (`analysis.risk`) | claude-haiku-5.5 | 6/6 | $0.0003 | 6.8 | gpt-6-luna 5/6, it missed a DAC6 flag |
+| citation support (`verify.support`) | gpt-6-luna | 6/6 | $0.0001 | 1.5 | **claude-haiku-5.5 0/6**: it accepts claims the cited text does not state, so never use it as a verifier |
+| answers quoted verbatim (`analysis.researcher`) | claude-haiku-5.5 | 6/6 | $0.0007 | 8.0 | deepseek-v4.1-flash 6/6 at $0.0012; gpt-6-luna 1/6 and gemini-3.7-flash 0/6 answered in prose instead of the JSON asked for |
+
+Caveats:
+- The `cited-answer` runs were first judged as failures by a judge bug on Node 24 (#256, fixed in #257), then re-judged.
+- One check rule ("no fine") was widened after the run because it rejected correct wordings.
+- Data policy is not in the score: a model from a second provider adds a data processor (GDPR), and the tower says so.
+
 ## Field results
 
 flow-tower, 2026-10-10. Illustrative: one run each.
