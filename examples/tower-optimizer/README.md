@@ -37,11 +37,15 @@ node scripts/compare.mjs reports/dev-squad.before.json reports/dev-squad.after.j
 
 ## The worked run on dev-squad
 
-[reports/](reports) holds a real run, not an illustration: the [dev-squad](../dev-squad) example audited
-([before](reports/dev-squad.before.json)), two proposals applied to a copy ([the diff](reports/dev-squad.proposals.diff):
-a sandbox on the coder, tester, reviewer and verifier for AUD11, `fail: closed` on three decisions for AUD04), audited
-again ([after](reports/dev-squad.after.json)), and compared ([report](reports/dev-squad.compare.md)): 7 warnings fixed,
-none new, 4 findings still open. The dev-squad tower itself is unchanged; its findings stay as a live sample.
+[reports/](reports) holds real runs, not illustrations. On the [dev-squad](../dev-squad) example the run went like this:
+- **Before:** the tower was audited ([before](reports/dev-squad.before.json)).
+- **Applied:** the accepted proposals were applied to the tower itself:
+  - a `sandbox` on the coder, tester, reviewer, verifier and built-in tools, for AUD11, declaring what the container and the worktree fences enforce today;
+  - `fail: closed` on three decisions, for AUD04.
+- **After:** the tower was audited again ([after](reports/dev-squad.after.json)).
+- **Compared:** the [report](reports/dev-squad.compare.md) shows 9 warnings fixed, none new and 4 findings open, each with its reason. Its recommendations include network isolation for the container.
+
+The other `reports/*.compare.md` files are the same run on the other example towers.
 
 ## Sources
 

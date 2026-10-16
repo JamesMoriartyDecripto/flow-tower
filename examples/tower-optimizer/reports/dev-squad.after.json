@@ -1,6 +1,6 @@
 {
-  "takenAt": "2026-10-12T21:27:52.730Z",
-  "path": "../dev-squad with reports/dev-squad.proposals.diff applied",
+  "takenAt": "2026-10-16T08:55:34.762Z",
+  "path": "../dev-squad",
   "towers": [
     {
       "id": "dev-squad.tower.yaml",
@@ -56,7 +56,7 @@
           "limits": 2,
           "approval": 2,
           "evals": 0,
-          "sandbox": 4,
+          "sandbox": 5,
           "fanout": 0
         },
         "nestedTowers": [
@@ -86,12 +86,6 @@
           "level": "info",
           "node": "orchestration.lead",
           "message": "feeds output with no evals: add evals to measure the answer"
-        },
-        {
-          "rule": "AUD11",
-          "level": "warning",
-          "node": "tools.builtin",
-          "message": "shell or code tool with no sandbox: add sandbox (network, filesystem)"
         }
       ],
       "modelFit": [
@@ -263,7 +257,7 @@
           "limits": 0,
           "approval": 0,
           "evals": 0,
-          "sandbox": 0,
+          "sandbox": 1,
           "fanout": 0
         },
         "nestedTowers": [],
@@ -272,14 +266,7 @@
           "limits": false
         }
       },
-      "findings": [
-        {
-          "rule": "AUD11",
-          "level": "warning",
-          "node": "edit.plan_edit",
-          "message": "shell or code tool with no sandbox: add sandbox (network, filesystem)"
-        }
-      ],
+      "findings": [],
       "modelFit": [
         {
           "node": "edit.plan_edit",
