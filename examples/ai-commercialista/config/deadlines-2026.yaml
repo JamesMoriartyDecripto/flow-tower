@@ -59,7 +59,7 @@ deadlines:
     date: "2026-07-20"
     what: "Same payments for ISA subjects (revenue up to EUR 5,164,569), forfettari and transparent partners, without surcharge; 20/8/2026 with +0.80%"
     who: "ISA subjects, forfettari, transparent partners"
-    source: "DL 89/2026 art. 6; sites-it.md section 7 (edotto 20/7 for ISA and forfettari)"
+    source: "DL 89/2026 art. 6; research/levers-2026.md section 6 (edotto 20/7 for ISA and forfettari)"
     confidence: medium
 
   - id: rottamazione_quinquies_2026_07_31
@@ -74,7 +74,7 @@ deadlines:
     what: "LIPE Q2 2026; rottamazione-quinquies 2nd instalment; assegnazione agevolata deadline for the act and 60% payment (window closed)"
     who: "VAT subjects; rottamazione debtors; assegnazione beneficiaries"
     source: "DL 78/2010 art. 21-bis; L. 199/2025 c. 82-101 and c. 35-41"
-    confidence: high
+    confidence: medium
     notes: "Older guidance gives 16/9 for LIPE Q2; Agenzia and FiscoOggi give 30/9 (medium-high)."
 
   - id: cpb_adhesion_2026

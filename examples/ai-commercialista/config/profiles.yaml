@@ -36,6 +36,7 @@ profiles:
       - redditi_sc_2026
       - cpb_adhesion_2026
       - ires_second_advance_2026_11_30
+      # rivalutazione_partecipazioni_2026_11_30: for the shareholders (individuals), not the company
       - rivalutazione_partecipazioni_2026_11_30
       - iperammortamento_report_2027_01_20
       - zes_integrative_2027_01
@@ -155,4 +156,6 @@ profiles:
     deadlines:
       - f24_monthly_16
       - isa_payment_2026_07_20
+      # inps_forfettari_reduction_2026_02_28: 35% INPS reduction only for artigiani and commercianti;
+      # it does not apply in Gestione separata (sites-it.md section 7)
       - inps_forfettari_reduction_2026_02_28

@@ -17,9 +17,9 @@ levers:
     status: active
     window: "investments 1/1/2026 - 30/9/2028; completion by 15/11/2028"
     url: "https://www.mimit.gov.it/it/incentivi/piano-transizione-5-0"
-    confidence: high
+    confidence: medium
     abuse_risk_default: green
-    notes: "Brackets annual or cumulative: not stated in the law. CPB adherents: mechanism worded differently by sources (verify text). GSE platform; DM date 4 or 7 May 2026 unverified. Not cumulable with the 4.0 credit on the same goods."
+    notes: "rates H; procedure dates M (§2.1). Brackets annual or cumulative: not stated in the law. CPB adherents: mechanism worded differently by sources (verify text). GSE platform; DM date 4 or 7 May 2026 unverified. Not cumulable with the 4.0 credit on the same goods."
 
   - id: tx50_credit_2024_2025
     name: "Transizione 5.0 credit (DL 19/2024 art. 38), incl. 'esodati' tail"
@@ -56,6 +56,7 @@ levers:
     status: changed
     window: "investments from 1/1/2025 to the FY2025 return deadline, 2/11/2026; not available for FY2026"
     url: "https://www.fiscooggi.it/portale/-/riduzione-transitoria-dell-ires-pubblicato-il-dm-con-le-regole"
+    url_kind: press
     confidence: high
     abuse_risk_default: green
     notes: "Conditions: 80% of 2024 profit set aside; 4.0/5.0 investments >= highest of 30% of set-aside, 24% of 2023 profit, EUR 20,000; FTE and CIG conditions; clawback rules. Exact use of the 2/11/2026 window: medium."
@@ -69,14 +70,15 @@ levers:
     status: not-passed
     window: "none"
     url: "https://www.fiscooggi.it/portale/-/legge-di-bilancio-2026-e-imprese-"
+    url_kind: press
     confidence: high
     abuse_risk_default: green
     notes: "Not renewed by L. 199/2025 (table 1.2 of the notes). Only FY2025 can still use the premiale."
 
   - id: flat_tax_incrementale
     name: "Flat tax incrementale (15% on income growth)"
-    profiles: [forfettario]
-    who: "non-forfettario individuals (asked about by clients)"
+    profiles: []
+    who: "non-forfettario individuals (asked about by clients); not for forfettari (sites-it.md section 7)"
     size: "15% on income growth"
     source: "L. 197/2022 c. 55-57"
     status: expired
@@ -95,6 +97,7 @@ levers:
     status: expired
     window: "repealed from FY2024"
     url: "https://www.ecnews.it/fiscale/fisco-e-patrimonio/reddito-impresa-e-irap/agevolazione-ace-al-capolinea/"
+    url_kind: press
     confidence: high
     abuse_risk_default: green
     notes: "Repeal is high confidence; residuals are medium. Caps on using ACE against DTA-deferral income: 45% in 2026, 54% in 2027 (banks and large companies). IRAP conversion option unverified."
@@ -108,6 +111,7 @@ levers:
     status: closed
     window: "application by 30/4/2026; instalments 31/7/2026, 30/9/2026, 30/11/2026, then bimonthly to 31/5/2035"
     url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    url_kind: press
     confidence: high
     abuse_risk_default: green
     notes: "Window closed. Lapses on a missed first or single instalment, two instalments, or the last. No official rottamazione page URL is in the notes: Confindustria 03/2026 used (comma by comma)."
@@ -134,6 +138,7 @@ levers:
     status: active
     window: "through FY2031 (c. 203 as extended)"
     url: "https://www.ecnews.it/fiscale/fisco-e-patrimonio/agevolazioni/il-credito-design-prorogato-e-potenziato-nel-2026/"
+    url_kind: press
     confidence: medium
     abuse_risk_default: green
     notes: "Conf. M-H. Certification of costs mandatory (c. 205). Albo dei certificatori at MIMIT (https://certificatoricreditors.mimit.gov.it/Consultazione). Microelectronics R&D credit: details UNVERIFIED, not included."
@@ -147,6 +152,7 @@ levers:
     status: active
     window: "2026; used in one annual F24 instalment"
     url: "https://www.ecnews.it/fiscale/fisco-e-patrimonio/agevolazioni/il-credito-design-prorogato-e-potenziato-nel-2026/"
+    url_kind: press
     confidence: medium
     abuse_risk_default: green
     notes: "Single source (ecnews); Leyton and Reteagevolazioni agree on 10%. Requires a communication to MIMIT (directorial decree)."
@@ -200,6 +206,7 @@ levers:
     status: active
     window: "extended to FY2025, 2026 and 2027"
     url: "https://www.fiscooggi.it/portale/-/maxi-deduzione-nuove-assunzioni-l-agenzia-fornisce-indicazioni"
+    url_kind: press
     confidence: high
     abuse_risk_default: green
     notes: "Cost is the lower of new hires' cost and the staff-cost increase; permanent and total headcount must both rise. Not counted in acconti. L. 199/2025 c. 153-154 adds youth/ZES hiring funds (EUR 154 m 2026), decree pending: medium."
@@ -207,7 +214,7 @@ levers:
   - id: bonus_giovani_2026
     name: "Bonus giovani 2026 (under 35 hires)"
     profiles: [employer]
-    who: "employers hiring under-35s permanently in 2026"
+    who: "employers hiring under-35s in 2026"
     size: "100% contribution exemption up to EUR 500/month (EUR 650 in ZES)"
     source: "DL 62/2026 (conv. L. 112/2026); INPS circ. 55/2026 of 14/5/2026"
     status: active
@@ -265,6 +272,7 @@ levers:
     status: active
     window: "2026-2027"
     url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    url_kind: press
     confidence: high
     abuse_risk_default: green
     notes: "Convertible into tax-free welfare: whether the cap is 5,000 or 3,000 is debated (open point 12 of the notes). Confindustria 03/2026 pp. 14-16."
@@ -438,6 +446,7 @@ levers:
     status: active
     window: "booking closed 1/4/2026; substitute declaration of 2026 investments 9/1 - 9/2/2027; F24 code 6900"
     url: "https://edotto.com/articolo/bonus-pubblicita-2026-elenco-dei-richiedenti-adempimenti"
+    url_kind: press
     confidence: medium
     abuse_risk_default: green
     notes: "De minimis: sum all aid received first (see de_minimis_300k). Radio, TV and social excluded (one source includes local broadcasters: low)."
@@ -464,8 +473,148 @@ levers:
     status: active
     window: "2026 tax year"
     url: "https://www.assolombarda.it/servizi/fisco/documenti/fiscalita-delle-auto-aziendali"
+    url_kind: press
     confidence: high
     abuse_risk_default: green
     notes: "Employee fringe benefit (taxable share 50%/10%/20% by car type) is a separate point: TUIR art. 51 c. 4 (medium), not in this entry."
 
-# @@MORE@@
+  - id: contract_renewal_tax_2026
+    name: "Tax on contract-renewal pay rises (5% substitute tax, 2026)"
+    profiles: [employer]
+    who: "private employers applying the tax to employees with 2025 employee income up to EUR 33,000"
+    size: "5% substitute tax on 2026 increases from CCNL renewals signed 2024-2026"
+    source: "L. 199/2025 art. 1 c. 7-8; Agenzia circ. 2/E of 24/2/2026"
+    status: active
+    window: "2026"
+    url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    url_kind: press
+    confidence: high
+    abuse_risk_default: green
+    notes: "Employer applies the substitute tax on the pay increase. Income ceiling and CCNL scope as in the notes."
+
+  - id: meal_vouchers_electronic_2026
+    name: "Electronic meal vouchers (tax-free EUR 10/day)"
+    profiles: [employer]
+    who: "employers paying meal vouchers"
+    size: "tax-free limit EUR 10/day (from 8); paper vouchers stay at EUR 4"
+    source: "L. 199/2025 art. 1 c. 14"
+    status: active
+    window: "active (no end date in the notes)"
+    url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    url_kind: press
+    confidence: high
+    abuse_risk_default: green
+    notes: "Applies to electronic vouchers only; paper vouchers keep the EUR 4 limit."
+
+  - id: assegnazione_cessione_agevolata_2026
+    name: "Assegnazione/cessione agevolata beni ai soci, trasformazione, estromissione (closed; payments due)"
+    profiles: [srl, startup, startup-innovativa]
+    who: "snc, sas, srl, spa, sapa and sole traders (estromissione); the profiles listed here are the companies"
+    size: "substitute tax 8% (10.5% non-operating companies), 13% on cancelled suspended reserves; registration tax halved"
+    source: "L. 199/2025 art. 1 c. 35-41"
+    status: closed
+    window: "window closed (30/9/2026; estromissione 31/5/2026). Payments still due: 40% by 30/11/2026 (assegnazioni); estromissione 1st instalment 30/11/2026, 2nd 30/6/2027"
+    url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    url_kind: press
+    confidence: high
+    abuse_risk_default: green
+    notes: "Closed to new applications. The lever now is paying the instalments on time."
+
+  - id: rateizzazione_plusvalenze_2026
+    name: "Rateizzazione plusvalenze (spread over 3 or 5 periods)"
+    profiles: [srl, startup, startup-innovativa]
+    who: "business-income subjects with capital gains on business assets"
+    size: "gains on assets held 5 years or more: spread over 3 periods; business or branch sold after 3 years held: 5 periods"
+    source: "L. 199/2025 art. 1 c. 42-43"
+    status: active
+    window: "active from gains realised in 2026; option in the tax return"
+    url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    url_kind: press
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Wording from Confindustria 03/2026; check the law text before quoting the periods."
+
+  - id: affrancamento_riserve_2026
+    name: "Affrancamento riserve in sospensione d'imposta (10%)"
+    profiles: [srl, startup, startup-innovativa]
+    who: "companies with suspended reserves at FY2024 still present at the end of FY2025"
+    size: "10% substitute tax (IRES + IRAP), paid in 4 equal instalments"
+    source: "L. 199/2025 art. 1 c. 44-45"
+    status: active
+    window: "for Redditi 2026 (due 2/11/2026)"
+    url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    url_kind: press
+    confidence: high
+    abuse_risk_default: green
+    notes: "Liquidated in Redditi 2026. Only reserves still suspended at the end of FY2025 qualify."
+
+  - id: dividend_exemption_pex_2026
+    name: "Dividend exemption (PEX): 95% only above the holding threshold"
+    profiles: [srl, startup, startup-innovativa]
+    who: "IRES subjects and sole traders receiving dividends or gains on shareholdings"
+    size: "95% exemption (IRES) only for holdings of 5% or more, or of EUR 500,000 or more (direct or via controlled companies)"
+    source: "L. 199/2025 art. 1 c. 51-55"
+    status: active
+    window: "distributions resolved from 1/1/2026; holdings acquired from 1/1/2026"
+    url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    url_kind: press
+    confidence: high
+    abuse_risk_default: green
+    notes: "Below the threshold the exemption does not apply: check the holding size before advising."
+
+  - id: compensation_ban_threshold_2026
+    name: "Compensation ban threshold (EUR 50,000 overdue rolls)"
+    profiles: [srl, startup, startup-innovativa, fotovoltaico, employer, forfettario]
+    who: "taxpayers with unpaid tax rolls or executive assessments"
+    size: "horizontal offset banned if overdue rolls exceed EUR 50,000 (from 100,000); art. 37 c. 49-quinquies DL 223/2006"
+    source: "L. 199/2025 art. 1 c. 116"
+    status: active
+    window: "active 2026"
+    url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    url_kind: press
+    confidence: high
+    abuse_risk_default: green
+    notes: "A limit, not a saving. The planned ban on offsetting incentive credits against INPS/INAIL was dropped."
+
+  - id: rivalutazione_partecipazioni_2026
+    name: "Rivalutazione partecipazioni (21% substitute tax, shareholders)"
+    profiles: [srl, startup]
+    who: "individuals holding shares at 1 January"
+    size: "substitute tax 21% (from 18%) on the appraised value; perizia and payment by 30 November each year"
+    source: "L. 199/2025 art. 1 c. 144"
+    status: active
+    window: "next deadline 30/11/2026"
+    url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    url_kind: press
+    confidence: high
+    abuse_risk_default: green
+    notes: "For the shareholders (individuals), not for the company itself. Listed here for the srl and startup profiles because the shares sit in those companies."
+
+  - id: complementary_pension_deduction_2026
+    name: "Complementary pension deduction (EUR 5,300)"
+    profiles: [employer]
+    who: "employees and employers contributing to complementary pension"
+    size: "deduction limit EUR 5,300 (from 5,164.57)"
+    source: "L. 199/2025 art. 1 c. 201"
+    status: active
+    window: "2026"
+    url: "https://public.confindustria.it/repository/2026/03/16160200/documenti-legge-di-bilancio-2026-analisi-Circolare-Legge-di-Bilancio-2026_analisi-delle-misure-fiscali.pdf"
+    url_kind: press
+    confidence: high
+    abuse_risk_default: green
+    notes: "Employer-side contributions are the point of contact for the company."
+
+  - id: credito_formazione_4_0
+    name: "Credito formazione 4.0 (not active in 2026)"
+    profiles: [srl, startup, startup-innovativa, employer]
+    who: "companies with training costs for 4.0 skills (historical)"
+    size: "not available in 2026"
+    source: "L. 205/2017 c. 46-56; extended by L. 160/2019 and L. 178/2020"
+    status: expired
+    window: "last extension found covers periods to FY2022; no later extension found; exact last year UNVERIFIED (2022 most likely)"
+    url: "https://www.ecnews.it/fiscale/fisco-e-patrimonio/agevolazioni/prorogato-con-modifiche-il-credito-dimposta-formazione-4-0/"
+    url_kind: press
+    confidence: medium
+    abuse_risk_default: green
+    notes: "Inactive (confidence M); last year L. Training costs were eligible inside Transizione 5.0 (2024-2025, now closed). Do not quote it as current."
+
