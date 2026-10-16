@@ -15,7 +15,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { argv, env, exit } from 'node:process';
 import { live } from './live.mjs';
 import { BATCH_WARNING, batchEligible, runBatch } from './batch.mjs';
-import { loadTasks, taskProblems } from './tasks.mjs';
+import { loadTasks, taskProblems, userContent } from './tasks.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
 const dry = argv.includes('--dry-run');
@@ -46,7 +46,7 @@ let broken = 0;
 for (const t of tasks) {
   const p = taskProblems(t);
   broken += p.length;
-  console.log(`${p.length ? 'FAIL' : 'ok  '} ${t.category}/${t.id}  check=${t.check}${t.rubric ? '+rubric' : ''}  tools=${t.tools.join(',') || 'none'}  steps<=${t.steps}`);
+  console.log(`${p.length ? 'FAIL' : 'ok  '} ${t.category}/${t.id}  check=${t.check}${t.rubric ? '+rubric' : ''}  tools=${t.tools.join(',') || 'none'}  steps<=${t.steps}${t.images.length ? `  images=${t.images.length}` : ''}`);
   for (const x of p) console.log(`       - ${x}`);
 }
 if (!tasks.length) { console.error(`no tasks in ${tasksPath}`); exit(2); }
@@ -105,7 +105,7 @@ class CallError extends Error { constructor(msg, retry) { super(msg); this.retry
 
 // The step-1 body both the sync loop and --batch send, so a batch request is exactly what runOne would post.
 // `stream` is added by call() alone: the Batch API takes no streaming.
-function stepBody(model, task, session, messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: task.prompt }]) {
+function stepBody(model, task, session, messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: userContent(task) }]) {
   const tools = task.tools.length ? [...task.tools.map((t) => TOOL_DEFS[t]), FINISH] : undefined;
   return {
     model,
@@ -188,7 +188,7 @@ async function runOne(model, task, run, session, warm) {
     promptTokens: 0, completionTokens: 0, cachedTokens: 0, cachedFirstStep: null, cost: 0,
     providers: [], answer: null, error: null,
   };
-  const messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: task.prompt }];
+  const messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: userContent(task) }];
   const tools = task.tools.length ? [...task.tools.map((t) => TOOL_DEFS[t]), FINISH] : undefined;
   const t0 = performance.now();
   // The loop node lights for the whole run; `session` is the run id, and the message names the run in words.

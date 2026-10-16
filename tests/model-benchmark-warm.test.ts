@@ -19,7 +19,8 @@ function run(args: string[]): string {
 describe('bench.mjs --warm (#149)', () => {
   // The plan is the only part of a --warm run that needs no key and no network, so it is what a test can pin.
   it('counts cold and warm runs in the plan', () => {
-    const base = ['--category', 'reviewer', '--models', 'a/x', '--tasks', 'examples/model-benchmark/tasks/reviewer/', '--runs', '2', '--dry-run'];
+    // doc-writer: a two-task folder the role benchmark (#231) did not grow.
+    const base = ['--category', 'doc-writer', '--models', 'a/x', '--tasks', 'examples/model-benchmark/tasks/doc-writer/', '--runs', '2', '--dry-run'];
     expect(run(base)).toContain('× 2 runs = 4 runs');
     expect(run([...base, '--warm'])).toContain('× 2 runs × 2 (cold + warm) = 8 runs');
   });

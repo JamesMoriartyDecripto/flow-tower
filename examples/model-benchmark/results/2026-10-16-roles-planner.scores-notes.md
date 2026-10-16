@@ -1,0 +1,74 @@
+Verifier: `z-ai/glm-5.3-flashx` through OpenRouter (data_collection deny), a family no candidate in this run belongs to. Each answer scored alone, twice (forward, then reverse order); final = the lower score. A gap above 2 points is marked for a human.
+
+Format: id: pass 1 / pass 2 -> final; reason when final < 7.
+
+- B001: 9 / 9 -> 9.
+- B002: 10 / 10 -> 10.
+- B003: 10 / 10 -> 10.
+- B004: 10 / 9 -> 9.
+- B005: 8 / 8 -> 8.
+- B006: 10 / 9 -> 9.
+- B007: 9 / 9 -> 9.
+- B008: 9 / 9 -> 9.
+- B009: 9 / 9 -> 9.
+- B010: 10 / 9 -> 9.
+- B011: 10 / 9 -> 9.
+- B012: 9 / 9 -> 9.
+- B013: 9 / 9 -> 9.
+- B014: 10 / 10 -> 10.
+- B015: 10 / 9 -> 9.
+- B016: 8 / 8 -> 8.
+- B017: 9 / 9 -> 9.
+- B018: 9 / 9 -> 9.
+- B019: 9 / 9 -> 9.
+- B020: 9 / 8 -> 8.
+- B021: 9 / 9 -> 9.
+- B022: 9 / 9 -> 9.
+- B023: 9 / 9 -> 9.
+- B024: 10 / 9 -> 9.
+- B025: 9 / 9 -> 9.
+- B026: 9 / 9 -> 9.
+- B027: 9 / 9 -> 9.
+- B028: 10 / 9 -> 9.
+- B029: 8 / 7 -> 7.
+- B030: 9 / 10 -> 9.
+- B031: 9 / 9 -> 9.
+- B032: 10 / 10 -> 10.
+- B033: 10 / 10 -> 10.
+- B034: 9 / 9 -> 9.
+- B035: 10 / 9 -> 9.
+- B036: 9 / 10 -> 9.
+- B037: 9 / 9 -> 9.
+- B038: 10 / 10 -> 10.
+- B039: 8 / 9 -> 8.
+- B040: 9 / 10 -> 9.
+- B041: 10 / 10 -> 10.
+- B042: 9 / 10 -> 9.
+- B043: 10 / 9 -> 9.
+- B044: 9 / 9 -> 9.
+- B045: 10 / 10 -> 10.
+- B046: 10 / 9 -> 9.
+- B047: 9 / 9 -> 9.
+- B048: 9 / 10 -> 9.
+- B049: 10 / 9 -> 9.
+- B050: 9 / 10 -> 9.
+- B051: 9 / 10 -> 9.
+- B052: 9 / 9 -> 9.
+- B053: 10 / 10 -> 10.
+- B054: 6 / 7 -> 6. Gets outline revision with author sign-off before drafting, correct specialists, and ≤8 steps, but omits the style-sheet update, an explicit pause/hold of in-flight chapters, the 4-session resume cap, and the whole-manuscript dev-edit stages in order.
+- B055: 10 / 10 -> 10.
+- B056: 6 / 6 -> 6. Outline revision with author sign-off before drafting resumes and the 4-session cap are covered, but the style-sheet update is missing, no explicit pause/hold of the affected chapters (10-12 renumbering, 6-7 merge pass), later stages after the dev edit are never ordered, and the sign-off step is stated redundantly.
+- B057: 10 / 10 -> 10.
+- B058: 10 / 10 -> 10.
+- B059: 8 / 7 -> 7.
+- B060: 7 / 7 -> 7.
+- B061: 10 / 10 -> 10.
+- B062: 10 / 10 -> 10.
+- B063: 9 / 9 -> 9.
+- B064: 9 / 9 -> 9.
+- B065: 9 / 9 -> 9.
+- B066: 9 / 9 -> 9.
+- B067: 10 / 10 -> 10.
+- B068: 10 / 10 -> 10.
+- B069: 9 / 10 -> 9.
+- B070: 10 / 10 -> 10.

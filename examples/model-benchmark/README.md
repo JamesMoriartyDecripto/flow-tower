@@ -59,7 +59,7 @@ To watch a run on the benchmark's own tower, open it (`node bin/flow-tower.js ex
 
 ## Extend it
 
-- **A task:** a Markdown file in `tasks/<category>/` with front matter (`check: command | json | regex | rubric`, optional `rubric: true`, `tools: read_file`, `files:` fixtures, `steps:`), a `## Prompt` (the only thing sent) and a `## Expected` (the key: a ```json block, ```regex and ```must-not blocks with one pattern per line, or a `command:` script that imports `answer.mjs` and exits 0 on success, plus the rubric points). Take it from real work: a bug that was fixed, a review that found something, a command people say. `--dry-run` rejects it until it is judgeable.
+- **A task:** a Markdown file in `tasks/<category>/` with front matter (`check: command | json | regex | rubric`, optional `rubric: true`, `tools: read_file`, `files:` fixtures, `images:` sent with the prompt, for vision tasks, `steps:`), a `## Prompt` (the only thing sent) and a `## Expected` (the key: a ```json block, ```regex and ```must-not blocks with one pattern per line, or a `command:` script that imports `answer.mjs` and exits 0 on success, plus the rubric points). Take it from real work: a bug that was fixed, a review that found something, a command people say. `--dry-run` rejects it until it is judgeable.
 - **A category:** a folder in `tasks/`, a row in [categories.md](categories.md), a node in the Task Sets layer. Two tasks minimum before any run.
 - **A model:** add its id to `--models`. Run one smoke run first: a listed model may have no endpoint under the data policy, and that is a result to record.
 
