@@ -30,8 +30,16 @@ const DRY = {
       in_force_from: '1987-01-01', in_force_to: '2025-06-30' },
     { claim: 'c3', act: 'FiscoOggi article', article: 'n/a', source_id: 'press-fisco-oggi',
       in_force_from: '2020-01-01', in_force_to: null },
+    { claim: 'c4', act: 'DPR 917/1986', article: 'art. 5', source_id: 'tuir-dpr-917-1986',
+      in_force_from: null, in_force_to: null },
   ],
 };
+
+// Same guard as check_citations.mjs: a missing flag must fail with usage, not read a file called "undefined".
+if (!dryRun && (!opt('--memo') || !opt('--library') || !opt('--registry'))) {
+  console.error('usage: node scripts/check_in_force.mjs --memo <draft.json> --library <records.json> --registry <registry.json>');
+  process.exit(2);
+}
 
 const input = dryRun ? DRY : null;
 const memo = dryRun ? { citations: input.citations } : JSON.parse(readFileSync(opt('--memo'), 'utf8'));
@@ -48,6 +56,8 @@ const flags = (c) => {
   if (period.to >= REPLACED_FROM && REPLACED_ACTS.includes(c.act)) {
     out.push(`${c.act} replaced by the testi unici from ${REPLACED_FROM}: map to the new article`);
   }
+  // Without a start date the validity cannot be checked, so it is flagged rather than passed.
+  if (!c.in_force_from) out.push('validity start unknown');
   if (kindOf[c.source_id] === 'press') out.push('press source used as authority: lead only');
   return out;
 };

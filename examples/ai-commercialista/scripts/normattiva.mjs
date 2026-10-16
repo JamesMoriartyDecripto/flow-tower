@@ -38,10 +38,12 @@ const tuir109 = urnLink({
 async function simpleSearch(text) {
   // The body follows the spec: testoRicerca and orderType. Paging is not sent: its exact shape
   // is not in our notes, so the server default page is used.
+  // A timeout keeps a hung service from stalling the run.
   const res = await fetch(`${API}/ricerca/semplice`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ testoRicerca: text, orderType: 'recente' }),
+    signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) throw new Error(`normattiva search HTTP ${res.status}`);
   return res.json();
@@ -50,8 +52,11 @@ async function simpleSearch(text) {
 if (dryRun) {
   console.log(JSON.stringify({ dry_run: true, date, tuir_art_109: tuir109 }, null, 2));
 } else {
+  // The search text goes to a third-party service. It must hold only norm references (act, article,
+  // keywords), never client facts: no names, amounts, VAT numbers or other client details.
   const text = opt('--search', null);
   if (!text) throw new Error('give --search "testo" or --dry-run');
+  console.error('note: --search text is sent to Normattiva (third party): norm references only, no client facts');
   const data = await simpleSearch(text);
   console.log(JSON.stringify({ date, query: text, result: data }, null, 2));
 }

@@ -38,6 +38,11 @@ const DRY_MEMO = {
   ],
 };
 
+// Without this guard, a missing flag would read a file called "undefined".
+if (!dryRun && (!opt('--memo') || !opt('--sources'))) {
+  console.error('usage: node scripts/check_citations.mjs --memo <draft.json> --sources <sources.json>');
+  process.exit(2);
+}
 const memo = dryRun ? DRY_MEMO : JSON.parse(readFileSync(opt('--memo'), 'utf8'));
 const sources = dryRun ? DRY_SOURCES : JSON.parse(readFileSync(opt('--sources'), 'utf8'));
 const byId = new Map(sources.map((s) => [s.id, s]));

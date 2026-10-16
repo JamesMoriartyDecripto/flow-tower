@@ -62,10 +62,16 @@ function forfettario(revenue, costs, coefficient) {
 
 // Ordinary company view: IRES 24% (art. 77 TUIR, notes section 2.8: ordinary rate from FY2026) on profit.
 // IRAP and individual IRPEF are not computed (no brackets for addizionali/INPS in the repo): a known gap.
+// The profit is signed so a loss year is not shown as break-even. Losses carried forward are not modelled.
 const IRES_RATE = 0.24;
 function ordinaryIres(revenue, costs) {
-  const profit = Math.max(0, revenue - costs);
-  return { profit_eur: profit, ires_eur: Math.round(profit * IRES_RATE), ires_rate: IRES_RATE };
+  const profit = revenue - costs;
+  return {
+    profit_eur: profit,
+    ires_eur: profit > 0 ? Math.round(profit * IRES_RATE) : 0,
+    loss_eur: profit < 0 ? -profit : 0,
+    ires_rate: IRES_RATE,
+  };
 }
 
 // Revenue and costs come from the client file when not given on the command line. Capex, hire cost and

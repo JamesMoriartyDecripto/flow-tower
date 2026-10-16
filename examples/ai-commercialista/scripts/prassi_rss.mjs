@@ -16,6 +16,10 @@ const opt = (name, def) => {
 };
 const since = opt('--since', '1900-01-01');
 
+// Item dates are formatted in Italian time. In UTC, an item published between 00:00 and 02:00 Rome
+// time falls on the previous day, and --since would miss it.
+const romeDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' });
+
 // Inline two-item sample in the RSS 2.0 shape, used only by --dry-run (no network).
 const DRY_XML = `<?xml version="1.0"?><rss version="2.0"><channel>
 <item><title>[SAMPLE] Risposta n. 000 del 15/10/2026 - IVA su servizi CER</title>
@@ -51,7 +55,7 @@ function parseItems(xml) {
     items.push({
       title,
       type: typeOf(title),
-      date: Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10),
+      date: Number.isNaN(date.getTime()) ? null : romeDay.format(date),
       link: field('link'),
     });
   }
@@ -61,7 +65,11 @@ function parseItems(xml) {
 const xml = dryRun
   ? DRY_XML
   : await (async () => {
-      const res = await fetch(FEED, { headers: { Accept: 'application/rss+xml, application/xml' } });
+      // A timeout keeps a hung feed from stalling the scheduled run.
+      const res = await fetch(FEED, {
+        headers: { Accept: 'application/rss+xml, application/xml' },
+        signal: AbortSignal.timeout(20_000),
+      });
       if (!res.ok) throw new Error(`AdE feed HTTP ${res.status}`);
       return res.text();
     })();
