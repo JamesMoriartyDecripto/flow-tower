@@ -71,9 +71,11 @@ agents:
     runtime: studio-cluster
     from: .claude/agents/gameplay-programmer.md
     harness: { permission_mode: acceptEdits, max_attempts: 3 }
+    sandbox: { network: none, filesystem: workspace }
   tools:
     runtime: studio-cluster
     from: .claude/agents/tools-engineer.md
+    sandbox: { network: none, filesystem: workspace }
   ui:
     runtime: studio-cluster
     from: .claude/agents/ui-designer.md
@@ -83,9 +85,11 @@ agents:
       - { kind: log, label: "Review gates log", path: "logs/review-gates.log" }
     from: .claude/agents/code-reviewer.md
     harness: { fresh_session_each_round: true }
+    sandbox: { network: none, filesystem: read-only }
   perf:
     runtime: render-farm
     from: .claude/agents/perf-profiler.md
+    sandbox: { network: none, filesystem: workspace }
 
 layers:
   - id: spec
@@ -204,7 +208,7 @@ layers:
         type: decision
         label: Approved?
         description: No blocking findings (correctness, replication, GC safety, tick cost).
-        decision: { output: score, threshold: ">= 8" }
+        decision: { output: score, threshold: ">= 8", fail: closed }
       - id: cap
         runtime: studio-cluster
         type: decision
@@ -265,3 +269,5 @@ links:
   - "test.green -> review.reviewer [handoff]: green"
   - "review.cap -> implement.gameplay [return]: fix list"
   - "review.perf_ok -> implement.gameplay [return]: hotspots"
+  - "review.escalate -> implement.gameplay [return]: lead's call"
+  - "review.escalate -> review.perf [handoff]: accepted with notes"

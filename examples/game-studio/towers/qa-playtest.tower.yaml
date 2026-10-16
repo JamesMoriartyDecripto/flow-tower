@@ -83,6 +83,7 @@ agents:
   perf:
     runtime: render-farm
     from: .claude/agents/perf-profiler.md
+    sandbox: { network: none, filesystem: workspace }
 
 layers:
   - id: plan
@@ -110,6 +111,7 @@ layers:
         label: Test matrix
         description: 5 personas x 4 seeds x 2 graphics presets = 40 runs, 8 in parallel.
         files: [src/departments/qa.ts]
+        limits: { concurrency: 8, description: "The playtest fleet has 8 g5.xlarge spot instances (logs/playtest-fleet.log); each bot is capped at 30 turns and $0.40." }
     edges:
       - "build -> lead [handoff]: build id"
       - "personas -> lead [data]: personas"
