@@ -392,6 +392,7 @@ layers:
       - { from: seo, to: semrush, kind: call, protocol: mcp, label: keyword data }
       - { from: seo, to: gsc, kind: call, protocol: http, label: page x query }
       - "seo -> ai_search [spawn]: monthly"
+      - "ai_search -> seo [return]: citations, directional"
       - "seo -> writer [spawn]: briefs"
       - "seo -> programmatic: template + data"
       - "writer -> editor: draft"
@@ -586,7 +587,7 @@ layers:
         runtime: orchestrator
         description: Fit A/B and score >= 65, or any demo request from fit A.
         files: [sales/lead-scoring-rules.yaml]
-        decision: { output: binary, candidates: [MQL, nurture], threshold: ">= 65", model: lead scoring rules v5 }
+        decision: { output: binary, candidates: [MQL, nurture], threshold: ">= 65", model: lead scoring rules v5, fail: closed, description: "Missing inputs score only what is there, and a personal email with no company is capped at C and never auto-MQL, so a doubtful lead goes to nurture, not to an SDR." }
       - id: hubspot
         type: tool
         label: HubSpot MCP

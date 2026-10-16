@@ -44,7 +44,7 @@ product events and spend spikes) · `approval` (PMM/legal 5d escalate, Finance 7
 claims 72h reject `per: variant`, Head of Growth 4h/48h reject, editor 3d wait with 2 `rounds`,
 SDR 1h escalate to the team lead; spend and claims approvals carry their `when` conditions,
 e.g. `> 500 EUR/day or > 20 %`, with the auto-apply path as an alternative edge `group`) ·
-`decision` (MQL: binary, threshold `>= 65`, scoring rules v5; off plan?) · `fanout` (VoC
+`decision` (MQL: binary, threshold `>= 65`, scoring rules v5; off plan?; both `fail: closed`: a doubtful lead goes to nurture, missing spend data is flagged) · `fanout` (VoC
 sources, briefs, creative variants by `[message pillar, format]`, platforms) · `limits`
 (timeouts, retries with exponential backoff, concurrency, `rate` quotas: Google Ads Basic
 access 15,000 ops/day, GA4 200k tokens/day, 2 budget edits per campaign per week;

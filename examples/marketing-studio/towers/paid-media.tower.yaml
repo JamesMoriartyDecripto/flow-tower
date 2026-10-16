@@ -146,7 +146,7 @@ layers:
         label: Off plan?
         runtime: orchestrator
         description: Pacing outside +-10 %, projected cap breach, or an anomaly flag.
-        decision: { output: binary, candidates: [off plan, within plan] }
+        decision: { output: binary, candidates: [off plan, within plan], fail: closed, description: "A campaign with no ledger rows reads as 0 spend and is flagged under-pacing (scripts/pacing_check.py), so missing data reaches the optimizer instead of a silent no-op." }
       - id: noop
         type: output
         label: No change
