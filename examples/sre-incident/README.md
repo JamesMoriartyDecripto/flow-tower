@@ -31,8 +31,8 @@ Top-level `budget` ($6 and 100 turns per incident run), agent `skills` (`inciden
 `approval` (on-call, Slack, 15m, `on_timeout: escalate`, `escalate_to` secondary then incident commander;
 postmortem review 72h), `budget` (per agent), `limits` (timeouts, session `ttl` 24h, concurrency),
 `exactly_once` (one session per incident), `decision` (typed outputs: new incident, signature with
-confidence, approval result, recovery threshold), `async` (event loop polls every 1s), `sandbox`
-(read-only investigator, no-network remediator), `credentials`, `data` (retention), `evals`,
+confidence, approval result, recovery threshold; every one `fail: closed`: redelivery, a human, no merge, escalate), `async` (event loop polls every 1s), `sandbox`
+(read-only investigator and its bash, no-network remediator and its copy/diff steps), `credentials`, `data` (retention), `evals`,
 `version` + `rollout` (remediator v2 canary 20%), `sla`, edge `protocol: webhook`, a `recording` resource.
 
 ## Deviations from the cookbook

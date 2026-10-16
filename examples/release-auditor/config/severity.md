@@ -6,4 +6,6 @@
 | **Major** | Wrong result or broken flow with a workaround; docs that send users to the wrong place | Fix before the tag unless the maintainer defers it |
 | **Minor** | Cosmetic, rare edge case, missing polish | Issue with reproduction, may ship |
 
+When the level is unclear, rank the finding one level higher: the maintainer can still defer it, the lead cannot.
+
 Every finding carries: commit, steps or a failing test, expected vs actual, file:line, finder, verifier verdict.

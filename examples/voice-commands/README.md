@@ -116,7 +116,8 @@ Single runs on this machine, not benchmarks:
 stop, 200 entries per review), `data` (the voice clip and the reply audio in memory only; transcript text to ZDR
 endpoints; the journal and the memory as personal data; the key as a secret), `credentials` (service key on the
 server), `approval` (the user accepts or rejects each suggestion), `evals` (the measured numbers above, marked
-illustrative), typed `decision` outputs and `status: planned` for the speech engines not chosen. There is no budget cap in the code, so no `budget`.
+illustrative), typed `decision` outputs (`fail: closed`: on doubt or error no action runs, or the local parser
+goes first) and `status: planned` for the speech engines not chosen. There is no budget cap in the code, so no `budget`.
 
 ## Sources
 

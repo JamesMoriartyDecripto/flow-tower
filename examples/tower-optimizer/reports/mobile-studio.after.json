@@ -1,0 +1,453 @@
+{
+  "takenAt": "2026-10-16T08:33:36.109Z",
+  "path": "examples/mobile-studio",
+  "towers": [
+    {
+      "id": "mobile-studio.tower.yaml",
+      "name": "Mobile App Studio",
+      "inventory": {
+        "layers": 8,
+        "nodes": 64,
+        "nodesByType": {
+          "agent": 18,
+          "decision": 5,
+          "entry": 1,
+          "guard": 5,
+          "human": 5,
+          "memory": 5,
+          "model": 3,
+          "process": 13,
+          "tool": 9
+        },
+        "edges": {
+          "total": 99,
+          "links": 31,
+          "byKind": {
+            "call": 12,
+            "data": 30,
+            "flow": 36,
+            "handoff": 3,
+            "return": 13,
+            "spawn": 5
+          }
+        },
+        "agents": 18,
+        "models": {
+          "claude-haiku-5-5": 4,
+          "claude-opus-5-5": 9,
+          "claude-sonnet-5-5": 8
+        },
+        "runtimes": {
+          "declared": 18,
+          "byKind": {
+            "ci": 1,
+            "cloud": 3,
+            "container": 1,
+            "device": 3,
+            "local": 1,
+            "saas": 9
+          }
+        },
+        "withOps": {
+          "budget": 9,
+          "limits": 20,
+          "approval": 10,
+          "evals": 7,
+          "sandbox": 7,
+          "fanout": 8
+        },
+        "nestedTowers": [
+          "build.android",
+          "build.ios"
+        ],
+        "run": {
+          "budget": true,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "platform.figma",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "discovery.lead",
+          "role": "orchestrator",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "discovery.market",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "discovery.reviews",
+          "role": "review",
+          "model": "claude-haiku-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "discovery.aso",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "product.spec",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "product.designer",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "architecture.architect",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "architecture.backend",
+          "role": "orchestrator",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "build.app_lead",
+          "role": "orchestrator",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "build.ios",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "build.android",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "build.reviewer",
+          "role": "review",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "qa.lab",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "release.listing",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "release.submit",
+          "role": "review",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "release.resolve",
+          "role": "research",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "rollout.monitor",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "rollout.triage",
+          "role": "review",
+          "model": "claude-haiku-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        }
+      ]
+    },
+    {
+      "id": "towers/android.tower.yaml",
+      "name": "Android lane internals",
+      "inventory": {
+        "layers": 3,
+        "nodes": 12,
+        "nodesByType": {
+          "agent": 1,
+          "decision": 1,
+          "entry": 1,
+          "guard": 1,
+          "memory": 1,
+          "output": 1,
+          "process": 3,
+          "tool": 3
+        },
+        "edges": {
+          "total": 12,
+          "links": 4,
+          "byKind": {
+            "call": 3,
+            "data": 3,
+            "flow": 5,
+            "return": 1
+          }
+        },
+        "agents": 1,
+        "models": {
+          "claude-opus-5-5": 1
+        },
+        "runtimes": {
+          "declared": 5,
+          "byKind": {
+            "device": 1,
+            "local": 2,
+            "saas": 2
+          }
+        },
+        "withOps": {
+          "budget": 1,
+          "limits": 3,
+          "approval": 0,
+          "evals": 1,
+          "sandbox": 1,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "inputs.design",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "native.module",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    },
+    {
+      "id": "towers/ios.tower.yaml",
+      "name": "iOS lane internals",
+      "inventory": {
+        "layers": 3,
+        "nodes": 13,
+        "nodesByType": {
+          "agent": 1,
+          "decision": 1,
+          "entry": 1,
+          "guard": 1,
+          "memory": 2,
+          "output": 1,
+          "process": 3,
+          "tool": 3
+        },
+        "edges": {
+          "total": 14,
+          "links": 5,
+          "byKind": {
+            "call": 2,
+            "data": 4,
+            "flow": 7,
+            "return": 1
+          }
+        },
+        "agents": 1,
+        "models": {
+          "claude-opus-5-5": 1
+        },
+        "runtimes": {
+          "declared": 5,
+          "byKind": {
+            "device": 1,
+            "local": 2,
+            "saas": 2
+          }
+        },
+        "withOps": {
+          "budget": 1,
+          "limits": 2,
+          "approval": 0,
+          "evals": 1,
+          "sandbox": 1,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "inputs.design",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "native.target",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    }
+  ]
+}

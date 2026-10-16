@@ -41,6 +41,7 @@ agents:
   builder:
     runtime: render-farm
     from: .claude/agents/world-builder.md
+    sandbox: { network: none, filesystem: workspace }
   designer:
     runtime: studio-cluster
     from: .claude/agents/game-designer.md

@@ -10,6 +10,9 @@ description: >-
   its probabilities into allow / warn / review / block, and an LLM runs only where
   text must be written. Every judgment is logged with its probability for calibration.
 
+# Run-wide: the act loop's iteration cap (policy.next_action.max_iterations in config/policy.yaml).
+limits: { max_iterations: 60, description: "The act loop in src/loop.ts stops at 60 iterations and escalates to the developer; browser runs stop at 40 steps." }
+
 runtimes:
   laptop:
     kind: local
@@ -210,7 +213,13 @@ layers:
           After every tool batch. Choice over continue, run_check, new_hypothesis, finish,
           escalate, judged on the request, the plan, the last 3 results and the failure streak.
         files: [config/decisions.yaml, src/loop.ts]
-        decision: { output: choice, candidates: [continue, run_check, new_hypothesis, finish, escalate], confidence: true, model: jev-1.13.0 }
+        decision:
+          output: choice
+          candidates: [continue, run_check, new_hypothesis, finish, escalate]
+          confidence: true
+          model: jev-1.13.0
+          fail: open
+          description: "On a Jev error decideNext returns continue (src/loop.ts): the Stop hook still guards the exit and the 60-iteration cap still escalates."
       - id: loop_policy
         runtime: devbox
         type: guard
@@ -281,7 +290,13 @@ layers:
           with results replaced by size notes, fitted under 25k tokens; batches stay under 30k
           and run concurrently (fast-jev-compaction defaults).
         files: [src/compact.ts, config/decisions.yaml]
-        decision: { output: binary, confidence: true, threshold: 0.5, model: jev-1.13.0 }
+        decision:
+          output: binary
+          confidence: true
+          threshold: 0.5
+          model: jev-1.13.0
+          fail: closed
+          description: "On a Jev error nothing is pruned: compaction falls back to the LLM summary (on_jev_error: llm_summary in config/policy.yaml)."
         fanout: { min: 1, max: 8, by: "calls per 30k-token request" }
         limits: { timeout: 10s, retries: 1 }
       - id: prune

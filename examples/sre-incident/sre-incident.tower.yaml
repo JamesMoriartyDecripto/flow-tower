@@ -175,7 +175,7 @@ layers:
         type: decision
         label: New incident?
         description: Redis incident:<id> -> session id. Redeliveries and re-triggers return the existing session.
-        decision: { output: binary, candidates: [new, seen] }
+        decision: { output: binary, candidates: [new, seen], fail: closed, description: "A Redis error raises: the webhook answers 5xx and PagerDuty redelivers; no second session." }
         files: [src/state.py]
       - id: existing
         runtime: app
@@ -231,6 +231,7 @@ layers:
         description: agent_toolset_20260401 with edit, write, web_search and web_fetch disabled.
         tools: [bash, read, grep, glob]
         files: [src/setup.py]
+        sandbox: { network: allowlist, allow: [pypi.org], filesystem: read-only }
       - id: get_alerts
         runtime: app
         type: tool
@@ -257,7 +258,7 @@ layers:
         type: decision
         label: Signature?
         description: A signature with a runbook, or unknown / low confidence (handed to on-call).
-        decision: { output: choice, candidates: [oom, 5xx, latency, unknown], confidence: true }
+        decision: { output: choice, candidates: [oom, 5xx, latency, unknown], confidence: true, fail: closed, description: "Low confidence or contradictory evidence is unknown: a human takes over (prompts/investigator.md)." }
       - id: findings
         runtime: app
         label: Findings block
@@ -325,7 +326,7 @@ layers:
         type: decision
         label: Approved?
         description: The request_approval custom tool result.
-        decision: { output: choice, candidates: [approved, rejected, escalated] }
+        decision: { output: choice, candidates: [approved, rejected, escalated], fail: closed, description: "Only an exact \"approved\" merges; anything else stops (prompts/remediator.md)." }
       - id: merge
         runtime: app
         type: tool
@@ -355,7 +356,7 @@ layers:
         type: decision
         label: Recovered?
         description: Per the runbook's Verify section, watched for 10 minutes.
-        decision: { output: binary, threshold: "5xx < 0.5% and 0 restarts for 10m" }
+        decision: { output: binary, threshold: "5xx < 0.5% and 0 restarts for 10m", fail: closed, description: "No metric means not recovered: escalate (still failing)." }
         limits: { timeout: 10m }
     edges:
       - "handoff -> remediator: findings"

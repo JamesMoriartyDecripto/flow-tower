@@ -18,3 +18,4 @@ Rules:
 - The frontend lane never invents an endpoint: if the contract lacks it, the backend lead adds it first.
 - Before asking for any client sign-off, the QA gate must be green.
 - Keep the Linear project current: one issue per page template, component and endpoint.
+- Dispatch at most 6 specialists at a time (competitors, page templates or pages × locales): queue the rest.

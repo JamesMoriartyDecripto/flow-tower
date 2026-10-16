@@ -1,0 +1,298 @@
+{
+  "takenAt": "2026-10-16T09:41:49.281Z",
+  "path": "examples/jev-agent",
+  "towers": [
+    {
+      "id": "jev-agent.tower.yaml",
+      "name": "Jev Agent",
+      "inventory": {
+        "layers": 5,
+        "nodes": 36,
+        "nodesByType": {
+          "agent": 3,
+          "decision": 6,
+          "entry": 1,
+          "guard": 5,
+          "hook": 2,
+          "human": 3,
+          "memory": 4,
+          "model": 5,
+          "output": 1,
+          "process": 5,
+          "tool": 1
+        },
+        "edges": {
+          "total": 64,
+          "links": 28,
+          "byKind": {
+            "call": 16,
+            "data": 25,
+            "flow": 10,
+            "handoff": 5,
+            "return": 6,
+            "spawn": 2
+          }
+        },
+        "agents": 3,
+        "models": {
+          "claude-haiku-5-5": 2,
+          "claude-opus-5-5": 1,
+          "claude-sonnet-5-5": 2,
+          "inception/mercury-2.5": 1,
+          "jev-1.13.0": 7
+        },
+        "runtimes": {
+          "declared": 7,
+          "byKind": {
+            "browser": 1,
+            "ci": 1,
+            "container": 1,
+            "local": 1,
+            "saas": 3
+          }
+        },
+        "withOps": {
+          "budget": 2,
+          "limits": 7,
+          "approval": 3,
+          "evals": 7,
+          "sandbox": 3,
+          "fanout": 1
+        },
+        "nestedTowers": [
+          "act.browser"
+        ],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "act.next",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "context.keep",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "act.escalate",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        },
+        {
+          "rule": "AUD09",
+          "level": "info",
+          "node": "act.browser",
+          "message": "no model: set model on the node or its agent"
+        },
+        {
+          "rule": "AUD10",
+          "level": "info",
+          "message": "3 agents with no tower budget or limits: add a run-wide budget"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "intake.route",
+          "role": "router",
+          "model": "jev-1.13.0",
+          "categories": [],
+          "needs": [
+            "low-latency",
+            "structured-output"
+          ],
+          "prefer": "small and fast; picks one label out of a few"
+        },
+        {
+          "node": "act.coder",
+          "role": "orchestrator",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "act.risk",
+          "role": "router",
+          "model": "jev-1.13.0",
+          "categories": [],
+          "needs": [
+            "low-latency",
+            "structured-output"
+          ],
+          "prefer": "small and fast; picks one label out of a few"
+        },
+        {
+          "node": "act.browser",
+          "role": "writing",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "act.next",
+          "role": "router",
+          "model": "jev-1.13.0",
+          "categories": [],
+          "needs": [
+            "low-latency",
+            "structured-output"
+          ],
+          "prefer": "small and fast; picks one label out of a few"
+        },
+        {
+          "node": "context.keep",
+          "role": "router",
+          "model": "jev-1.13.0",
+          "categories": [],
+          "needs": [
+            "low-latency",
+            "structured-output"
+          ],
+          "prefer": "small and fast; picks one label out of a few"
+        },
+        {
+          "node": "context.fallback",
+          "role": "writing",
+          "model": "claude-haiku-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "completion.done_check",
+          "role": "router",
+          "model": "jev-1.13.0",
+          "categories": [],
+          "needs": [
+            "low-latency",
+            "structured-output"
+          ],
+          "prefer": "small and fast; picks one label out of a few"
+        },
+        {
+          "node": "completion.pref_check",
+          "role": "router",
+          "model": "jev-1.13.0",
+          "categories": [],
+          "needs": [
+            "low-latency",
+            "structured-output"
+          ],
+          "prefer": "small and fast; picks one label out of a few"
+        }
+      ]
+    },
+    {
+      "id": "towers/browser.tower.yaml",
+      "name": "Browser worker",
+      "inventory": {
+        "layers": 3,
+        "nodes": 11,
+        "nodesByType": {
+          "agent": 1,
+          "decision": 1,
+          "entry": 1,
+          "guard": 2,
+          "memory": 1,
+          "output": 2,
+          "process": 2,
+          "tool": 1
+        },
+        "edges": {
+          "total": 15,
+          "links": 7,
+          "byKind": {
+            "call": 3,
+            "data": 3,
+            "flow": 6,
+            "return": 3
+          }
+        },
+        "agents": 1,
+        "models": {
+          "inception/mercury-2.5": 1,
+          "jev-1.13.0": 1
+        },
+        "runtimes": {
+          "declared": 4,
+          "byKind": {
+            "browser": 1,
+            "container": 1,
+            "saas": 2
+          }
+        },
+        "withOps": {
+          "budget": 0,
+          "limits": 2,
+          "approval": 0,
+          "evals": 1,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "decide.jev_step",
+          "message": "decision with 1 outgoing edge(s): add one edge per answer"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "decide.jev_step",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "decide.jev_step",
+          "role": "router",
+          "model": "jev-1.13.0",
+          "categories": [],
+          "needs": [
+            "low-latency",
+            "structured-output"
+          ],
+          "prefer": "small and fast; picks one label out of a few"
+        },
+        {
+          "node": "act.text",
+          "role": "data",
+          "model": "inception/mercury-2.5",
+          "categories": [],
+          "needs": [
+            "structured-output"
+          ],
+          "prefer": "extracts into a JSON schema; low temperature, same answer each run"
+        }
+      ]
+    }
+  ]
+}

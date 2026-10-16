@@ -1,0 +1,350 @@
+{
+  "takenAt": "2026-10-16T09:09:25.400Z",
+  "path": "../marketing-studio",
+  "towers": [
+    {
+      "id": "marketing-studio.tower.yaml",
+      "name": "Marketing Studio",
+      "inventory": {
+        "layers": 8,
+        "nodes": 63,
+        "nodesByType": {
+          "agent": 12,
+          "decision": 1,
+          "entry": 3,
+          "guard": 8,
+          "human": 7,
+          "memory": 4,
+          "model": 3,
+          "output": 2,
+          "process": 12,
+          "tool": 11
+        },
+        "edges": {
+          "total": 94,
+          "links": 34,
+          "byKind": {
+            "call": 20,
+            "data": 25,
+            "flow": 33,
+            "handoff": 3,
+            "return": 6,
+            "spawn": 7
+          }
+        },
+        "agents": 12,
+        "models": {
+          "claude-haiku-5-5": 3,
+          "claude-opus-5-5": 5,
+          "claude-sonnet-5-5": 7
+        },
+        "runtimes": {
+          "declared": 18,
+          "byKind": {
+            "browser": 1,
+            "cloud": 2,
+            "container": 2,
+            "saas": 12,
+            "serverless": 1
+          }
+        },
+        "withOps": {
+          "budget": 15,
+          "limits": 8,
+          "approval": 7,
+          "evals": 6,
+          "sandbox": 0,
+          "fanout": 4
+        },
+        "nestedTowers": [
+          "paid.paid"
+        ],
+        "run": {
+          "budget": true,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "content.writer",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "paid.creative",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "planning.brief",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "research.voc",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "paid.linkedin_ads",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "platform.secrets",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "conversion.mql",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "content.ai_search",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "conversion.sdr",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "research.voc",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "research.icp",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "research.messaging",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "planning.planner",
+          "role": "orchestrator",
+          "model": "claude-opus-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "content.seo",
+          "role": "orchestrator",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "content.writer",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "paid.paid",
+          "role": "orchestrator",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "paid.creative",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "lifecycle.segments",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "lifecycle.journeys",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "conversion.scorer",
+          "role": "orchestrator",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "measurement.analyst",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        }
+      ]
+    },
+    {
+      "id": "towers/paid-media.tower.yaml",
+      "name": "Paid media optimization loop",
+      "inventory": {
+        "layers": 5,
+        "nodes": 21,
+        "nodesByType": {
+          "agent": 1,
+          "decision": 1,
+          "entry": 2,
+          "guard": 1,
+          "human": 2,
+          "memory": 3,
+          "output": 2,
+          "process": 5,
+          "tool": 4
+        },
+        "edges": {
+          "total": 29,
+          "links": 13,
+          "byKind": {
+            "call": 8,
+            "data": 5,
+            "flow": 12,
+            "handoff": 1,
+            "return": 2,
+            "spawn": 1
+          }
+        },
+        "agents": 1,
+        "models": {
+          "claude-sonnet-5-5": 1
+        },
+        "runtimes": {
+          "declared": 8,
+          "byKind": {
+            "cloud": 2,
+            "container": 1,
+            "saas": 5
+          }
+        },
+        "withOps": {
+          "budget": 2,
+          "limits": 5,
+          "approval": 2,
+          "evals": 1,
+          "sandbox": 0,
+          "fanout": 2
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "check.off_plan",
+          "message": "decision with no fail: set decision.fail to open or closed"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "propose.optimizer",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        }
+      ]
+    }
+  ]
+}

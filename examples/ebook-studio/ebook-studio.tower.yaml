@@ -118,6 +118,7 @@ agents:
     runtime: orchestrator
     files: [CLAUDE.md, samples/book-brief.yaml]
     harness: { max_turns: 120, effort: high, fallback_model: claude-sonnet-5-5 }
+    limits: { concurrency: 4, description: "Dispatches at most four specialist sessions at a time in every phase (prompts/publishing-lead.md), to stay under rate limits." }
   market:
     name: Market analyst
     model: claude-sonnet-5-5
@@ -178,6 +179,7 @@ agents:
     tools: [Read, Edit]
     runtime: orchestrator
     fanout: { min: 10, max: 14, by: chapter }
+    limits: { concurrency: 4 }
     data: { sensitivity: confidential }
   copy-editor:
     name: Copy editor
@@ -187,6 +189,7 @@ agents:
     runtime: orchestrator
     files: [memory/style-sheet.md, config/vale.ini]
     data: { sensitivity: confidential }
+    sandbox: { network: none, filesystem: workspace }
   fact-checker:
     name: Fact-checker
     model: claude-sonnet-5-5
@@ -194,6 +197,7 @@ agents:
     tools: [Read, WebSearch, WebFetch]
     runtime: orchestrator
     fanout: { min: 10, max: 14, by: chapter }
+    limits: { concurrency: 4 }
     budget: { usd: 2.5, per: copy, on_exceed: escalate }
     sandbox: { network: open, filesystem: read-only }
   alt-text:
@@ -203,6 +207,7 @@ agents:
     tools: [Read, Write]
     runtime: orchestrator
     fanout: { min: 20, max: 40, by: figures }
+    limits: { concurrency: 4 }
   metadata:
     name: Metadata editor
     model: claude-sonnet-5-5
@@ -603,9 +608,9 @@ layers:
       - id: next
         type: decision
         label: Update or edition?
-        description: "Errata -> corrected upload (v1.0.x, same ISBN); new or rewritten chapters -> new edition, new ISBN, full edit loop."
+        description: "Errata -> corrected upload (v1.0.x, same ISBN); new or rewritten chapters -> new edition, new ISBN, back to drafting and the full edit loop."
         runtime: orchestrator
-        decision: { output: choice, candidates: [corrected upload, new edition] }
+        decision: { output: choice, candidates: [corrected upload, new edition], fail: closed, description: "When the digest does not say which, nothing is uploaded: the publishing lead decides." }
       - id: audiobook
         label: AI audiobook
         status: planned
@@ -638,6 +643,8 @@ links:
   - "production.cover -> launch.landing [data]: cover finalists"
   - "publishing.kdp -> launch.landing: pre-order live"
   - "publishing.kdp -> launch.analyst [data]: KDP reports"
+  - "launch.next -> publishing.kdp: corrected upload, same ISBN"
+  - "launch.next -> drafting.dispatch: new edition, new chapters"
   - "publishing.d2d -> launch.analyst [data]: D2D reports"
   - "launch.next -> editing.copy_edit [return]: errata"
   - "drafting.writer -> market.lead [return]: escalations after round 3"

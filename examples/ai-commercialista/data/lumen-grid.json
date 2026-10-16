@@ -1,0 +1,51 @@
+{
+  "_note": "fictional sample, illustrative figures",
+  "id": "client-lumen-grid",
+  "name": "Lumen Grid S.r.l.",
+  "legal_form": "srl",
+  "registered_office": "Padova (PD)",
+  "vat_number": "IT00000000000",
+  "tax_code": "00000000000",
+  "ateco_2025": null,
+  "ateco_note": "to confirm against the registration",
+  "activity": "Energy-management software",
+  "fiscal_year": "calendar year (1 Jan - 31 Dec)",
+  "regime": "ordinaria",
+  "startup_innovativa_registered": true,
+  "startup_innovativa_registration_date": "2023-06-01",
+  "startup_innovativa_status_checked": null,
+  "startup_status_note": "3 years from registration passed on 2026-06-01: check the L. 193/2024 conditions to stay in the special section (sites-it.md)",
+  "company_age_months": 40,
+  "employees": 9,
+  "employees_note": "average FTE, placeholder value",
+  "ccnl_code": "PLACEHOLDER",
+  "pv_plant": {
+    "kw": 120,
+    "use": "self-consumption",
+    "in_service_date": "2024-09-30",
+    "gaudi_code": "IT000000000000000000000000",
+    "note": "placeholder identifier"
+  },
+  "accounts_kept_by": "studio (TeamSystem Studio AI)",
+  "invoices_source": "fatture-in-cloud",
+  "fic_company_id_placeholder": "fic-company-id",
+  "financials_illustrative": {
+    "fy": 2025,
+    "revenue_eur": 1850000,
+    "costs_eur": 1720000,
+    "currency": "EUR"
+  },
+  "de_minimis_received": [
+    {
+      "grantor": "PLACEHOLDER",
+      "date": "2024-03-15",
+      "amount_eur": 25000,
+      "regulation": "Reg. (UE) 2023/2831",
+      "source": "RNA (to be checked on rna.gov.it)"
+    }
+  ],
+  "contact": {
+    "name": "Mario Example",
+    "email": "contact@example.invalid"
+  }
+}

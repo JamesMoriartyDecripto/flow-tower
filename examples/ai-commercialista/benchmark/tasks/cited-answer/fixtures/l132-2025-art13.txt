@@ -1,0 +1,6 @@
+Legge 23 settembre 2025, n. 132 (disposizioni e deleghe in materia di intelligenza artificiale), art. 13.
+Text in force, from https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:legge:2025-09-23;132~art13 (retrieved 2026-10-16). Normattiva is not the official text: the Gazzetta Ufficiale prevails.
+
+Art. 13 Disposizioni in materia di professioni intellettuali
+1. L'utilizzo di sistemi di intelligenza artificiale nelle professioni intellettuali è finalizzato al solo esercizio delle attività strumentali e di supporto all'attività professionale e con prevalenza del lavoro intellettuale oggetto della prestazione d'opera.
+2. Per assicurare il rapporto fiduciario tra professionista e cliente, le informazioni relative ai sistemi di intelligenza artificiale utilizzati dal professionista sono comunicate al soggetto destinatario della prestazione intellettuale con linguaggio chiaro, semplice ed esaustivo.

@@ -119,11 +119,13 @@ agents:
     model: anthropic/claude-haiku-5.5
     tower: towers/coder.tower.yaml
     harness: { provider: openrouter, max_steps: 60, writes: [src/, tests/, e2e/], escalate_model_on_round: 3, escalate_to: claude-opus-5-5 }
+    sandbox: { network: open, filesystem: workspace }
     files: [src/openrouter-agent.ts, src/tools/run-coder.ts]
   tester:
     runtime: vps
     from: .claude/agents/tester.md
     harness: { flaky_retries: 1 }
+    sandbox: { network: open, filesystem: workspace }
   doc-writer:
     runtime: vps
     from: .claude/agents/doc-writer.md
@@ -134,6 +136,7 @@ agents:
     from: .claude/agents/reviewer.md
     model: z-ai/glm-5.3-flashx
     harness: { provider: openrouter, max_steps: 25, fresh_session_each_round: true, read_only: true }
+    sandbox: { network: open, filesystem: read-only }
     budget: { usd: 1.5, on_exceed: stop }
     files: [src/loop/review-loop.ts, src/openrouter-agent.ts]
     meta: { pattern: evaluator-optimizer, role: evaluator, cross_model: "GLM reviews Haiku's code" }
@@ -149,6 +152,7 @@ agents:
     from: .claude/agents/verifier.md
     model: claude-opus-5-5
     harness: { max_turns: 30, permission_mode: dontAsk, context: fresh }
+    sandbox: { network: open, filesystem: workspace }
     budget: { usd: 1.5, on_exceed: stop }
     files: [src/loop/verify.ts]
 
@@ -185,7 +189,7 @@ layers:
         type: decision
         label: Route?
         description: "Model proposes a route; deterministic policy decides last: the squad:skip label rejects first, then quickfixes with complexity > 2 or a sensitive area (auth, billing, payment, privacy, personal data...) are upgraded to full, and a full route in a sensitive area gets risk high, so its plan always needs a human sign-off."
-        decision: { output: choice, candidates: [quickfix, full, needs_info, reject] }
+        decision: { output: choice, candidates: [quickfix, full, needs_info, reject], fail: closed }
         files: [src/triage.ts]
       - id: quickfix
         runtime: vps
@@ -270,7 +274,7 @@ layers:
         type: decision
         label: Suite green?
         description: "Tester result. Red goes back to the coder at most 2 extra times before the lead reports blocked (a rule in the lead's prompt, not enforced in code)."
-        decision: { output: binary, candidates: [green, red] }
+        decision: { output: binary, candidates: [green, red], fail: closed }
         files: [.claude/agents/tester.md]
       - id: doc_writer
         agent: doc-writer
@@ -319,7 +323,7 @@ layers:
         type: decision
         label: All pass?
         description: "Passes when nothing blocks: the reviewer's blocking findings plus critical/high security findings. Lower security findings become follow-ups on the PR."
-        decision: { output: binary, candidates: [approved, changes] }
+        decision: { output: binary, candidates: [approved, changes], fail: closed }
         files: [src/loop/review-loop.ts]
       - id: round_cap
         runtime: vps
@@ -385,6 +389,7 @@ layers:
         label: Built-in tools
         description: Read, Edit, Write, Grep, Glob, Bash, WebSearch, WebFetch. Granted per agent, never all.
         tools: [Read, Edit, Write, Grep, Glob, Bash, WebSearch, WebFetch, TodoWrite, Agent]
+        sandbox: { network: open, filesystem: workspace }
         files: [.claude/settings.json]
       - id: squad_mcp
         runtime: vps

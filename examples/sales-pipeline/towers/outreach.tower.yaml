@@ -209,7 +209,7 @@ layers:
         label: Route
         runtime: workers
         files: [outreach/reply-triage-rules.yaml]
-        decision: { output: choice, candidates: [unsubscribe, objection_to_processing, bounce, out_of_office, wrong_person, interested, objection, not_now, not_interested], description: "Labels from outreach/reply-triage-rules.yaml; the first matching label wins." }
+        decision: { output: choice, candidates: [unsubscribe, objection_to_processing, bounce, out_of_office, wrong_person, interested, objection, not_now, not_interested], fail: closed, description: "Labels from outreach/reply-triage-rules.yaml; the first matching label wins. Below 0.7 confidence the rep labels the reply: nothing is acted on automatically." }
       - id: suppress
         type: guard
         label: Suppress

@@ -15,6 +15,8 @@ description: >-
   trail-running brand, campaign "Your First Ultra".
 tags: [video, short-form, generative-video, veo, elevenlabs, heygen, remotion, ffmpeg, c2pa, ai-disclosure, human-in-the-loop, claude-agent-sdk]
 
+budget: { usd: 1200, per: run, on_exceed: pause, description: "budget_usd of the brief (briefs/kestrel-first-ultra.yaml); the producer pauses at 80% and proposes cuts." }
+
 runtimes:
   orchestrator:
     kind: container
@@ -222,10 +224,16 @@ layers:
         label: Route?
         description: "Declined: real people without a consent record, political or election content, medical claims without a source."
         runtime: orchestrator
-        decision: { output: choice, candidates: [ready, needs_info, decline] }
+        decision: { output: choice, candidates: [ready, needs_info, decline], fail: closed, description: "Unsure is needs_info: the intake never invents a budget, a deadline, a claim or a person (prompts/intake.md)." }
+      - id: reply
+        type: output
+        label: Reply in Slack
+        description: "needs_info: the missing fields as questions. decline: the reason (real person without consent, political, medical). Nothing is generated."
+        runtime: slack
       - id: producer
         agent: producer
         files: [briefs/kestrel-first-ultra.yaml, CLAUDE.md]
+        limits: { concurrency: 6, max_iterations: 120, description: "Step 1 of prompts/producer.md: 3-5 researchers and the hook lab in parallel; the session stops at max_turns 120." }
       - id: research
         agent: researcher
         label: Research
@@ -261,6 +269,7 @@ layers:
       - "calendar -> intake: slot"
       - "intake -> route [data]: brief.yaml"
       - "route -> producer [handoff]: ready"
+      - "route -> reply: needs_info, decline"
       - "producer -> research [spawn]: questions"
       - "producer -> hooks [spawn]"
       - "learnings -> hooks [data]: hook bank"
@@ -312,7 +321,7 @@ layers:
         label: Within budget?
         description: "Over budget -> downgrade b-roll to Veo 3.1 Fast or Lite, cut shots, or ask the producer."
         runtime: orchestrator
-        decision: { output: binary, candidates: [yes, "no"] }
+        decision: { output: binary, candidates: [yes, "no"], fail: closed, description: "estimate-cost.ts exits 2 over 80% of the budget: trim or ask the producer." }
       - id: script_ok
         type: human
         label: Script sign-off
@@ -458,6 +467,7 @@ layers:
         runtime: render-box
         files: [pipeline/reframe.sh, config/platform-specs.yaml]
         fanout: { min: 2, max: 4, by: target platforms and aspect ratios }
+        limits: { concurrency: 1, description: "reframe.sh runs the ffmpeg passes one after another." }
       - id: rough_ok
         type: human
         label: Rough-cut review
@@ -570,6 +580,7 @@ layers:
         runtime: youtube
         files: [pipeline/publish-youtube.ts]
         credentials: user
+        approval: { by: client marketing lead, via: Slack Connect review link, actions: [approve, reject], description: "Only cuts approved at qa.final_ok reach the upload; publish-youtube.ts uploads one approved, C2PA-signed cut (producer rule: never upload without client approval)." }
         limits: { retries: 3, backoff: "exponential 5s..5m" }
       - id: tiktok
         type: tool
@@ -578,6 +589,7 @@ layers:
         runtime: tiktok
         files: [pipeline/publish-tiktok.ts]
         credentials: user
+        approval: { by: client marketing lead, via: Slack Connect review link, actions: [approve, reject], description: "Only cuts approved at qa.final_ok reach the post (producer rule: never upload without client approval)." }
         limits: { ttl: 1h, retries: 2, rate: "6/m", description: Requests per user token. }
       - id: reels
         type: tool
@@ -585,6 +597,7 @@ layers:
         description: "Container (media_type REELS) -> poll status_code until FINISHED -> media_publish."
         runtime: meta
         credentials: user
+        approval: { by: client marketing lead, via: Slack Connect review link, actions: [approve, reject], description: "Only cuts approved at qa.final_ok reach media_publish (producer rule: never upload without client approval)." }
         limits: { timeout: 5m, retries: 1, rate: "100/24h", description: API posts per account. }
         async: { mode: poll, interval: 1m, timeout: 5m }
     edges:

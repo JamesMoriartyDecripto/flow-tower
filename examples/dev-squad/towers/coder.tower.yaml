@@ -33,6 +33,7 @@ agents:
     from: .claude/agents/coder.md
     model: anthropic/claude-haiku-5.5
     harness: { provider: openrouter, max_steps: 60, max_attempts: 3, context: isolated }
+    sandbox: { network: open, filesystem: workspace }
     files: [src/openrouter-agent.ts]
 
 layers:

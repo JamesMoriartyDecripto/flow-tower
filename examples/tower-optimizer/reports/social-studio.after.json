@@ -1,0 +1,283 @@
+{
+  "takenAt": "2026-10-16T09:06:51.116Z",
+  "path": "../social-studio",
+  "towers": [
+    {
+      "id": "social-studio.tower.yaml",
+      "name": "Social Media Studio",
+      "inventory": {
+        "layers": 6,
+        "nodes": 49,
+        "nodesByType": {
+          "agent": 10,
+          "decision": 3,
+          "entry": 3,
+          "guard": 6,
+          "hook": 1,
+          "human": 7,
+          "memory": 6,
+          "output": 2,
+          "process": 5,
+          "tool": 6
+        },
+        "edges": {
+          "total": 63,
+          "links": 13,
+          "byKind": {
+            "call": 7,
+            "data": 18,
+            "flow": 31,
+            "handoff": 2,
+            "return": 3,
+            "spawn": 2
+          }
+        },
+        "agents": 10,
+        "models": {
+          "claude-haiku-5-5": 3,
+          "claude-opus-5-5": 1,
+          "claude-sonnet-5-5": 7,
+          "gemini-3.1-flash-image": 1,
+          "veo-3.1-fast-generate-preview": 1
+        },
+        "runtimes": {
+          "declared": 11,
+          "byKind": {
+            "cloud": 4,
+            "container": 1,
+            "device": 1,
+            "saas": 5
+          }
+        },
+        "withOps": {
+          "budget": 8,
+          "limits": 7,
+          "approval": 7,
+          "evals": 6,
+          "sandbox": 0,
+          "fanout": 3
+        },
+        "nestedTowers": [
+          "publishing.publisher"
+        ],
+        "run": {
+          "budget": true,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "creation.copywriter",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD02",
+          "level": "warning",
+          "node": "creation.repurpose",
+          "message": "fan-out with no limits: add limits.concurrency or limits.timeout"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "community.boost",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "community.meta_ads",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "community.boost_ok",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "strategy.strategist",
+          "role": "coding",
+          "model": "claude-opus-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "listening.scout",
+          "role": "research",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "academia"
+          ],
+          "needs": [
+            "tools",
+            "long-context",
+            "citations"
+          ],
+          "prefer": "web search or retrieval, long context, cites its sources"
+        },
+        {
+          "node": "listening.sentiment",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "creation.copywriter",
+          "role": "orchestrator",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "plans and delegates; follows instructions and calls tools reliably"
+        },
+        {
+          "node": "creation.visual",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "creation.repurpose",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "review.brand_guard",
+          "role": "guard",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [
+            "low-latency",
+            "structured-output"
+          ],
+          "prefer": "small moderation or safety classifier; returns a label and a score"
+        },
+        {
+          "node": "community.triage",
+          "role": "general",
+          "model": "claude-haiku-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        },
+        {
+          "node": "community.drafter",
+          "role": "writing",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "marketing",
+            "translation"
+          ],
+          "needs": [
+            "long-context"
+          ],
+          "prefer": "fluent long-form prose; for translation, strong in the target language"
+        },
+        {
+          "node": "community.analyst",
+          "role": "coding",
+          "model": "claude-sonnet-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "tools",
+            "reasoning"
+          ],
+          "prefer": "strong code model with reliable tool calls; long context helps on big repos"
+        },
+        {
+          "node": "community.boost",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        }
+      ]
+    },
+    {
+      "id": "towers/publisher.tower.yaml",
+      "name": "Publisher internals",
+      "inventory": {
+        "layers": 3,
+        "nodes": 16,
+        "nodesByType": {
+          "decision": 2,
+          "entry": 1,
+          "guard": 1,
+          "memory": 1,
+          "output": 1,
+          "process": 2,
+          "tool": 8
+        },
+        "edges": {
+          "total": 23,
+          "links": 17,
+          "byKind": {
+            "data": 3,
+            "flow": 19,
+            "return": 1
+          }
+        },
+        "agents": 0,
+        "models": {},
+        "runtimes": {
+          "declared": 9,
+          "byKind": {
+            "cloud": 1,
+            "container": 1,
+            "saas": 7
+          }
+        },
+        "withOps": {
+          "budget": 1,
+          "limits": 9,
+          "approval": 0,
+          "evals": 0,
+          "sandbox": 0,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "dispatch.job",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "dispatch.token",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        }
+      ],
+      "modelFit": []
+    }
+  ]
+}

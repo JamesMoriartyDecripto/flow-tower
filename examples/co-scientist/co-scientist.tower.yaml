@@ -268,8 +268,12 @@ layers:
         runtime: backend
         label: Passes?
         description: pass and revise enter the pool at 1200 Elo; reject drops the hypothesis.
-        decision: { output: choice, candidates: [pass, revise, reject] }
-        files: [src/specialists.py]
+        decision:
+          output: choice
+          candidates: [pass, revise, reject]
+          fail: closed
+          description: A review that does not parse raises in ask() (src/cosci_llm.py), so admit() never adds the hypothesis (or a review with no verdict). Any verdict but reject then enters the pool, after the safety check.
+        files: [src/specialists.py, src/cosci_llm.py]
       - id: deep_review
         agent: reflection
         label: Deep reviews

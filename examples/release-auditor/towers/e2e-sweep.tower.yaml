@@ -62,6 +62,7 @@ layers:
         description: Click the card, wait for the stack and a non-empty canvas, expect 0 errors and 0 warnings.
         files: [e2e/towers.spec.ts]
         fanout: { min: 25, max: 40, by: project }
+        limits: { concurrency: 3, description: "Playwright workers: `workers: CI ? 2 : 3` in playwright.config.ts; 3 is the local maximum." }
       - id: keyboard
         type: process
         label: Keyboard walk
@@ -120,6 +121,7 @@ layers:
         description: 720 (half a laptop screen) to 2560 px, interface size 1x to 1.6x, inspector and feed open; no overlap, nothing off screen.
         files: [e2e/layout.spec.ts, src/app/scene/hudFrame.ts, src/app/styles.css]
         fanout: 7
+        limits: { concurrency: 3, description: "Playwright workers: `workers: CI ? 2 : 3` in playwright.config.ts; 3 is the local maximum." }
       - id: axe
         type: tool
         label: axe-core WCAG

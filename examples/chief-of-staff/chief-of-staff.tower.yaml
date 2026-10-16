@@ -14,6 +14,8 @@ description: >-
   subagents, slash commands, output styles, plan mode, hooks); the ambient patterns follow
   LangChain's ambient agents and its executive AI assistant.
 
+limits: { concurrency: 4, description: "At most four ambient runs at once across all threads (MAX_PARALLEL_RUNS, ambient/run_thread.py); each lead session also has its own $1.50 / 40-turn budget." }
+
 runtimes:
   laptop:
     kind: local
@@ -78,6 +80,8 @@ agents:
     harness: { setting_sources: [project], max_turns: 40, permission_modes: "default | plan | acceptEdits" }
     budget: { usd: 1.5, turns: 40, on_exceed: pause }
     fanout: { min: 1, max: 4, by: "email threads in flight (Semaphore 4)" }
+    limits: { concurrency: 4, max_iterations: 40, description: "MAX_PARALLEL_RUNS = 4 sessions (ambient/run_thread.py), each stopped at max_turns=40 (agent.py)." }
+    approval: { by: Executive, per: outbound action, via: [Review Inbox, push], actions: [approve, edit, reject, respond], when: "send, accept, decline or commit", description: "The send gate denies send_email / send_invite without an approved review_id." }
     data: { sensitivity: pii, region: us, retention: 30d, description: "Email bodies, calendars, candidate and board names." }
     credentials: user
     sandbox: { network: allowlist, allow: [gmail.googleapis.com, www.googleapis.com, api.anthropic.com], filesystem: workspace }
@@ -119,6 +123,7 @@ agents:
     runtime: worker
     from: .claude/agents/recruiter.md
     data: { sensitivity: pii, retention: 30d }
+    sandbox: { network: none, filesystem: read-only }  # Bash runs only python scripts/* (settings.json); WebSearch runs in the harness
   reflect:
     name: Reflection
     description: "Rewrites one section of memory/preferences.md from one piece of feedback. Read + Edit only."
@@ -278,7 +283,7 @@ layers:
         type: decision
         label: Verdict?
         description: "EAIA triage_no / triage_notify / triage_email."
-        decision: { output: choice, candidates: [ignore, notify, respond] }
+        decision: { output: choice, candidates: [ignore, notify, respond], fail: closed, description: "A verdict that does not parse raises in run_thread.py: no run and no card for that email." }
         files: [ambient/run_thread.py]
       - id: ignored
         runtime: worker
@@ -297,6 +302,7 @@ layers:
       - "from_me -> triage: inbound"
       - "triage -> route [data]: JSON verdict"
       - "route -> ignored: ignore"
+      - "from_me -> ignored: she replied"
 
   # 3 ── background ──────────────────────────────────────────────────
   - id: orchestration
@@ -316,7 +322,7 @@ layers:
         type: decision
         label: Plan first?
         description: "Spends money, commits > 1h of her time, or writes to > 3 people -> plan mode."
-        decision: { output: binary, candidates: [risky, routine] }
+        decision: { output: binary, candidates: [risky, routine], fail: closed, description: "When unsure, plan first: plan mode cannot write or send." }
         files: [prompts/chief-of-staff.md]
       - id: plan_mode
         runtime: worker
@@ -339,7 +345,7 @@ layers:
         type: decision
         label: Card kind?
         description: "FYI -> notify. Missing fact -> question. Any outbound action -> review."
-        decision: { output: choice, candidates: [notify, question, review] }
+        decision: { output: choice, candidates: [notify, question, review], fail: closed, description: "Any outbound action is a review: no send without one." }
         files: [prompts/chief-of-staff.md, ambient/inbox_tools.py]
       - id: execute
         runtime: worker
@@ -387,6 +393,7 @@ layers:
         description: "create_sdk_mcp_server('workspace'): get_thread, free_busy, mark_read, send_email, send_invite."
         files: [ambient/workspace_tools.py, ambient/oauth.py]
         credentials: user
+        approval: { by: Executive, when: "send_email / send_invite", via: [Review Inbox], description: "PreToolUse send-gate.py denies a send unless review_id is an approved card; reads are allowed." }
       - id: send
         runtime: google
         type: tool
@@ -395,6 +402,7 @@ layers:
         files: [ambient/workspace_tools.py]
         credentials: user
         data: { sensitivity: pii }
+        approval: { by: Executive, per: outbound action, via: [Review Inbox, push], actions: [approve, edit], description: "Only an approved or edited review card reaches here (send-gate.py)." }
       - id: websearch
         runtime: anthropic
         type: tool
@@ -506,7 +514,7 @@ layers:
         type: decision
         label: Durable lesson?
         description: "Most edits are one-off facts: NO_CHANGE. Only rules that generalize are written."
-        decision: { output: binary, candidates: [dated rule, NO_CHANGE] }
+        decision: { output: binary, candidates: [dated rule, NO_CHANGE], fail: closed, description: "A failed reflection writes nothing." }
         files: [prompts/reflection.md]
     edges:
       - "send_gate -> cards_db [data]: status == approved?"
@@ -539,6 +547,8 @@ links:
   - "orchestration.delegate -> specialists.analyst [spawn]: money"
   - "orchestration.delegate -> specialists.recruiter [spawn]: people"
   - { from: orchestration.needs_user, to: specialists.inbox_mcp, kind: call, label: "notify / ask_question / request_review", protocol: mcp }
+  - "orchestration.needs_user -> surfaces.review_card: review (via inbox MCP)"
+  - "orchestration.needs_user -> surfaces.question_card: question (via inbox MCP)"
   - { from: orchestration.execute, to: specialists.workspace_mcp, kind: call, label: "send_email(review_id)", protocol: mcp }
   - "orchestration.cos -> specialists.opus [call]"
   - "triggers.triage -> specialists.haiku [call]"

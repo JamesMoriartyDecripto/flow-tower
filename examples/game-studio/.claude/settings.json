@@ -74,6 +74,7 @@
       "Edit(./Content/**/*.uasset)"
     ]
   },
+  "sandbox": { "enabled": true, "autoAllowBashIfSandboxed": false },
   "enableAllProjectMcpServers": false,
   "enabledMcpjsonServers": ["blender", "unreal", "imagegen", "github", "figma", "analytics"],
   "hooks": {

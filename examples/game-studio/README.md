@@ -37,12 +37,15 @@ playtest bot).
 
 ## Operational fields used
 
-Top-level `budget` ($400 per pitch-to-launch run), agent `budget` (`maxBudgetUsd` per query),
-`limits` (6 concurrent department agents, 8 parallel playtest bots, review and regression caps as
-`max_iterations`), `approval` on the human checkpoints (review portal + GitHub issue + Slack, 72h then
-`reject`) and on the community manager `when` publishing, `trigger` (daily standup cron, bug-triage
-webhook), score `decision` thresholds (pitch fit >= 0.6, reviews >= 8) and a multi-dimension `fanout`
-for the playtest matrix (persona × seed × graphics preset).
+Top-level `budget` ($400 per pitch-to-launch run), agent `budget` (`maxBudgetUsd` per query), `limits`
+(6 concurrent department agents; a `concurrency` cap taken from the code on each fan-out, e.g. 6 Blender sessions and
+8 parallel playtest bots, except the engineering tasks, an uncapped `Promise.all` in `engineering.ts`; review and
+regression caps as `max_iterations`), `sandbox` on every agent with a shell (no network and the workspace only, a
+read-only reviewer, a GitHub or npm allowlist for release and web; `.claude/settings.json` turns the Bash sandbox on),
+`approval` on the human checkpoints (review portal + GitHub issue + Slack, 72h then `reject`) and on the community
+manager `when` publishing, `trigger` (daily standup cron, bug-triage webhook), score `decision` thresholds (pitch
+fit >= 0.6, reviews >= 8) that fail closed, and a multi-dimension `fanout` for the playtest matrix (persona × seed ×
+graphics preset).
 
 ## Layout
 

@@ -21,6 +21,7 @@ transaction ids of this batch. Review each one independently, in order.
 - **High value:** amount ≥ $50,000 and you would otherwise approve.
 - **Ring:** `detect_fraud_ring` reports `suspicious_patterns: true`.
 - **Medium confidence:** your confidence is about 75 to 85.
+- **Unchecked:** a rule above cannot be checked because a tool failed or returned no data.
 
 `escalate` is not terminal. It returns `{"human_decision": "approve" | "reject"}`.
 Then call `record_decision` with that decision, `escalated=true` and your own

@@ -66,7 +66,7 @@ Top-level `budget` ($60 per course run) and `limits` (6 concurrent subagents), a
 (`maxBudgetUsd` per query), `limits` (3 module writers in parallel with one re-dispatch, 3 review
 rounds), `approval` on every human checkpoint (SME / program owner via Notion + email; escalations
 `per: finding`), `async: poll` every 10m on `request_signoff`, `data.disclosure` (synthetic voice,
-AI-assistance credit on the live course) and typed `decision` outputs (route, fact-check verdict).
+AI-assistance credit on the live course) and typed `decision` outputs (route, fact-check verdict), both `fail: closed`.
 
 ## Deployment (runtimes in the tower)
 The orchestrator runs in a container (ECS); curriculum design runs interactively in Claude Code on

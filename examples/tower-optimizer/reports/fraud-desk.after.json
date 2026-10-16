@@ -1,0 +1,121 @@
+{
+  "takenAt": "2026-10-16T09:31:03.835Z",
+  "path": "examples/fraud-desk",
+  "towers": [
+    {
+      "id": "fraud-desk.tower.yaml",
+      "name": "Fraud Review Desk",
+      "inventory": {
+        "layers": 5,
+        "nodes": 42,
+        "nodesByType": {
+          "agent": 2,
+          "decision": 4,
+          "entry": 1,
+          "guard": 4,
+          "human": 3,
+          "memory": 7,
+          "model": 3,
+          "output": 1,
+          "process": 9,
+          "tool": 8
+        },
+        "edges": {
+          "total": 58,
+          "links": 20,
+          "byKind": {
+            "call": 16,
+            "data": 15,
+            "flow": 15,
+            "handoff": 3,
+            "return": 8,
+            "spawn": 1
+          }
+        },
+        "agents": 2,
+        "models": {
+          "claude-haiku-5-5": 2,
+          "claude-sonnet-5-5": 2,
+          "voyage-3.5": 1
+        },
+        "runtimes": {
+          "declared": 6,
+          "byKind": {
+            "browser": 1,
+            "cloud": 2,
+            "container": 1,
+            "saas": 2
+          }
+        },
+        "withOps": {
+          "budget": 2,
+          "limits": 3,
+          "approval": 3,
+          "evals": 1,
+          "sandbox": 1,
+          "fanout": 0
+        },
+        "nestedTowers": [],
+        "run": {
+          "budget": false,
+          "limits": false
+        }
+      },
+      "findings": [
+        {
+          "rule": "AUD03",
+          "level": "warning",
+          "node": "platform.secrets",
+          "message": "sensitive or exactly-once step with no approval: add approval (or a human node before it)"
+        },
+        {
+          "rule": "AUD04",
+          "level": "warning",
+          "node": "desk.override",
+          "message": "decision with 1 outgoing edge(s): add one edge per answer"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "data.rerank",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "desk.sar",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        },
+        {
+          "rule": "AUD07",
+          "level": "info",
+          "node": "platform.env",
+          "message": "no outgoing edge: connect it, or make it the target of a call"
+        }
+      ],
+      "modelFit": [
+        {
+          "node": "review.reviewer",
+          "role": "review",
+          "model": "claude-haiku-5-5",
+          "categories": [
+            "programming"
+          ],
+          "needs": [
+            "reasoning",
+            "structured-output"
+          ],
+          "prefer": "judges the work against a rubric; a model that is not the author is a fair judge"
+        },
+        {
+          "node": "desk.packet",
+          "role": "general",
+          "model": "claude-sonnet-5-5",
+          "categories": [],
+          "needs": [],
+          "prefer": "balanced default; no specific need was detected"
+        }
+      ]
+    }
+  ]
+}

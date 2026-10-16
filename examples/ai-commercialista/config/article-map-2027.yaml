@@ -1,0 +1,124 @@
+# Old-to-new article map for the testi unici that apply from 1/1/2027 (design: squad-input/design.md, section 3).
+# Sources: research/primary-sources.md section 7 (MEF list, Camera dossier of 21/7/2026), checked 2026-10-15.
+#
+# RULE: pick the text by tax period (or by taxable event date), never by today's date.
+# Periods up to 31/12/2026 cite the old sources (DPR 917/1986, DPR 633/1972, ...).
+# Periods or events from 1/1/2027 cite the testo unico. Periods that straddle the change
+# follow the transitional rules of each testo unico, which are not mapped here yet.
+#
+# Only mappings that the research notes state are recorded below. Anything else stays
+# in "unmapped": the agent must say so and never guess a new article number.
+
+as_of: "2026-10-15"
+
+status: >-
+  Official correspondence tables (tabelle di concordanza) were NOT published as of 2026-10-15.
+  The notes say Agenzia delle Entrate, Sogei and the Dipartimento Finanze are still building them.
+  Until they are published, article-level mappings stay empty.
+
+replaces_note: >-
+  The "replaces" lists are indicative, taken from the research notes (primary-sources.md, section 7).
+  They are not a legal concordance.
+
+testi_unici:
+  - id: tu-sanzioni
+    decree: "D.Lgs. 173/2024"
+    decree_date: "2024-11-05"
+    gu_date: null  # notes give only "GU: Nov 2024"
+    gu_month: "2024-11"
+    subject: "Sanzioni tributarie amministrative e penali"
+    replaces: ["D.Lgs. 471/1997", "D.Lgs. 472/1997", "D.Lgs. 74/2000"]
+    applies_from: "2027-01-01"
+    postponed_by: "DL 200/2025 art. 4 c. 1 (converted by L. 26/2026); originally 1/1/2026"
+    urn: null  # not stated in the notes
+
+  - id: tu-minori
+    decree: "D.Lgs. 174/2024"
+    decree_date: "2024-11-05"
+    gu_date: null  # notes give only "GU: Nov 2024"
+    gu_month: "2024-11"
+    subject: "Tributi erariali minori"
+    replaces: []  # not listed in the notes
+    applies_from: "2027-01-01"
+    postponed_by: "DL 200/2025 art. 4 c. 2"
+    urn: null
+
+  - id: tu-giustizia-tributaria
+    decree: "D.Lgs. 175/2024"
+    decree_date: "2024-11-14"
+    gu_date: null  # notes give only "GU: Nov 2024"
+    gu_month: "2024-11"
+    subject: "Giustizia tributaria"
+    replaces: ["D.Lgs. 545/1992", "D.Lgs. 546/1992"]
+    applies_from: "2027-01-01"
+    postponed_by: "DL 200/2025 art. 4 c. 3"
+    urn: null
+
+  - id: tu-versamenti-riscossione
+    decree: "D.Lgs. 33/2025"
+    gu_date: "2025-03-26"
+    subject: "Versamenti e riscossione"
+    replaces: ["DPR 602/1973", "D.Lgs. 241/1997 (parts)"]
+    applies_from: "2027-01-01"
+    postponed_by: "DL 200/2025 art. 4 c. 4"
+    urn: "urn:nir:stato:decreto.legislativo:2025-03-24;33"
+
+  - id: tu-registro
+    decree: "D.Lgs. 123/2025"
+    gu_date: "2025-08-12"
+    subject: "Imposta di registro e altri tributi indiretti"
+    replaces: ["DPR 131/1986", "D.Lgs. 346/1990"]
+    applies_from: "2027-01-01"
+    postponed_by: "DL 200/2025 art. 4 c. 5"
+    urn: null
+
+  - id: tu-iva
+    decree: "D.Lgs. 10/2026"
+    gu_date: "2026-01-30"
+    subject: "Imposta sul valore aggiunto (IVA)"
+    replaces: ["DPR 633/1972", "DL 331/1993"]
+    applies_from: "2027-01-01"
+    postponed_by: null  # its own art. 171 sets the date; no postponement in the notes
+    urn: "urn:nir:stato:decreto.legislativo:2026-01-19;10"
+
+  - id: tu-imposte-redditi
+    decree: "D.Lgs. 117/2026"
+    gu_date: "2026-07-03"
+    subject: "Imposte sui redditi (new TUIR, 377 articles)"
+    replaces: ["DPR 917/1986 (TUIR)"]
+    applies_from: "2027-01-01"  # art. 377; in force from 2026-07-04, applies from 2027
+    postponed_by: null
+    urn: "urn:nir:stato:decreto.legislativo:2026-06-19;117"
+    confidence: medium  # applies_from is marked [S] in the notes
+
+  - id: tu-adempimenti-accertamento
+    decree: "D.Lgs. 141/2026"
+    gu_date: "2026-08-06"
+    subject: "Adempimenti e accertamento"
+    replaces: ["DPR 600/1973", "DPR 322/1998 (parts)"]
+    applies_from: "2027-01-01"  # art. 368, per the MEF page
+    postponed_by: null
+    urn: "urn:nir:stato:decreto.legislativo:2026-08-05;141"
+
+# Notes on other sources that the notes name but do not map to a testo unico here:
+# DPR 600/1973, DPR 602/1973, DPR 322/1998 and DL 331/1993 appear as "replaces" only as
+# listed above; their article-level replacements are unmapped.
+
+mappings:
+  # Empty on purpose. Each entry needs: old (source act, article, version date),
+  # new (testo unico, article), and a source that states the pair.
+  # One mapping, from squad-input/sites-it.md section 7 (regime forfettario). Its numbering
+  # is flagged there as not verified on the text, so confidence is low.
+  - old:
+      act: "L. 190/2014 art. 1 c. 54-89 (regime forfettario)"
+      version_date: null
+    new:
+      act: "D.Lgs. 117/2026 (nuovo TUIR), Capo XXI 'Regime forfetario'"
+      article: "artt. 232-243"
+    source: "squad-input/sites-it.md section 7"
+    confidence: low
+    note: "numbering not verified on the text (sites-it.md §7)"
+
+unmapped:
+  - "All other article-level pairs. The concordance tables are not published (see status)."
+  - "Transitional rules for periods that straddle 1/1/2027, per testo unico."

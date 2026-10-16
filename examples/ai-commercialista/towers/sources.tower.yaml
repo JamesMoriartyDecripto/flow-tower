@@ -1,0 +1,171 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Sources sync
+description: >-
+  The daily sync of the source library behind the AI commercialista. Each run fetches what changed in
+  the Italian primary sources, splits it into articles, tags it with its in-force dates, URN or ELI and
+  authority from the source registry, checks it for duplicates and broken links, and writes it to the
+  library. If an article changed, the open memos get a "norm changed" notice. Nothing here is a
+  sourced answer by itself; the researcher only reads what this tower stored.
+root: ..
+tags: [sources, normattiva, gazzetta-ufficiale, prassi, library, daily-sync]
+
+runtimes:
+  workers:
+    kind: container
+    label: Source sync workers
+  normattiva:
+    kind: saas
+    label: Normattiva open data
+    url: https://dati.normattiva.it
+    description: "Open data API, 'acts changed between two dates'. Not an official text: the Gazzetta Ufficiale is."
+  agenzia:
+    kind: saas
+    label: Agenzia Entrate RSS
+    url: https://www.agenziaentrate.gov.it
+    description: 'RSS feed "Normativa e prassi" (circolari, risoluzioni, interpelli). No API.'
+  studio:
+    kind: local
+    label: Studio desk
+    description: The professional's own browser, used for sites without an API.
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: fetch
+    title: Fetch
+    description: Pulls what changed since the last run. Sources without an API are manual steps, never scraped.
+    nodes:
+      - id: start
+        type: entry
+        label: Daily sync
+        runtime: workers
+        description: Cron, once a day, at 06:00 Europe/Rome.
+        trigger: { kind: cron, schedule: "0 6 * * *", timezone: Europe/Rome }
+      - id: normattiva
+        type: tool
+        label: Normattiva changes
+        runtime: normattiva
+        description: Acts changed between two dates, point-in-time text. The per-article lookup returned "error 1000" on 15/10/2026, so the sync uses the list and not the lookup.
+        files: [scripts/normattiva.mjs]
+      - id: prassi
+        type: tool
+        label: Prassi RSS
+        runtime: agenzia
+        description: Agenzia Entrate feed of circolari, risoluzioni and interpelli. Read-only; the feed is the only programmatic access.
+        files: [scripts/prassi_rss.mjs]
+      - id: gazzetta
+        type: tool
+        label: Gazzetta ELI
+        runtime: workers
+        description: Gazzetta Ufficiale Serie Generale, the only official text. Matches the ELI links to the Normattiva acts.
+        files: [research/primary-sources.md]
+      - id: agencies
+        type: tool
+        label: INPS, INL, GSE
+        runtime: workers
+        description: Circolari and pages of INPS, INL, GSE, MIMIT and ADM for incentives and energy. Listed in the sites list (README Sources), pulled by hand when they have no feed.
+        files: [research/primary-sources.md]
+      - id: cerdef
+        type: human
+        label: def.finanze.it
+        runtime: studio
+        description: CERDEF has no API. The professional looks up the norm and records the URL and date; the sync does not query it.
+        files: [research/primary-sources.md]
+    edges:
+      - start -> normattiva
+      - start -> prassi
+      - start -> gazzetta
+      - start -> agencies
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: normalize
+    title: Normalize
+    description: Turns raw documents into one record per article or document, with the same fields for every source.
+    nodes:
+      - id: split
+        type: process
+        label: Split articles
+        runtime: workers
+        description: Splits by article and comma, so a changed comma does not mark the whole act as changed.
+        files: [scripts/normattiva.mjs, scripts/prassi_rss.mjs]
+      - id: tag
+        type: process
+        label: Tag dates & ids
+        runtime: workers
+        description: Sets in_force_from and in_force_to, URN or ELI, and the retrieval date on each record.
+        files: [config/source-registry.yaml]
+      - id: weight
+        type: process
+        label: Authority weight
+        runtime: workers
+        description: Takes kind and weight from the registry. Press sources get weight press and are never cited as authority.
+        files: [config/source-registry.yaml]
+    edges:
+      - split -> tag
+      - tag -> weight
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: check
+    title: Check
+    description: Stops duplicates and dead links before they reach the library, and warns the memos that rely on a changed article.
+    nodes:
+      - id: dedupe
+        type: process
+        label: Hash & dedupe
+        runtime: workers
+        description: Hashes each record and drops repeats. A changed hash on a known URN is a changed article.
+      - id: links
+        type: process
+        label: Broken links
+        runtime: workers
+        description: Checks the URN or ELI resolves. A broken link keeps the old record and is reported, never replaced by a guess.
+        files: [config/article-map-2027.yaml]
+      - id: changed
+        type: decision
+        label: Article changed?
+        runtime: workers
+        description: Compares with the stored hash. Articles renumbered by the testi unici from 1/1/2027 are checked against the article map.
+        files: [config/article-map-2027.yaml]
+      - id: notice
+        type: output
+        label: Norm changed
+        runtime: workers
+        description: Notice to the open memos that cite the changed article, so the professional reviews them again.
+    edges:
+      - dedupe -> links
+      - links -> changed
+      - "changed -> notice: article changed"
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: store
+    title: Store
+    description: One library, append-only per record, so every memo can show the text it was based on.
+    nodes:
+      - id: write
+        type: process
+        label: Write records
+        runtime: workers
+        description: Writes new and changed records with their retrieval date and hash. Old versions stay, with in_force_to set.
+      - id: library
+        type: memory
+        label: Source library
+        runtime: workers
+        description: The source store the researcher reads. No record is cited unless it is stored here.
+      - id: done
+        type: output
+        label: Library updated
+        runtime: workers
+        description: Ends the run. The memo notices come from the Check layer.
+    edges:
+      - write -> library [data]
+      - write -> done
+
+links:
+  - "fetch.normattiva -> normalize.split [flow]: changed acts"
+  - "fetch.prassi -> normalize.split [flow]: circolari and interpelli"
+  - "fetch.gazzetta -> normalize.split [flow]: ELI text"
+  - "fetch.agencies -> normalize.split [flow]: circolari and pages"
+  - { from: fetch.cerdef, to: normalize.tag, kind: handoff, protocol: manual, label: "manual lookup, recorded by hand" }
+  - "normalize.weight -> check.dedupe [flow]: tagged records"
+  - "check.changed -> store.write [flow]: new or changed records"
+  - "check.notice -> store.done [flow]: notices sent"

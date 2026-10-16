@@ -180,7 +180,7 @@ layers:
         runtime: app
         label: Ambiguous?
         description: need_clarification from the clarifier JSON. Skipped entirely when allow_clarification is false.
-        decision: { output: binary }
+        decision: { output: binary, fail: closed, description: "An unreadable clarifier answer raises (json.loads) and the run stops before any search." }
         files: [src/config.py]
       - id: ask_user
         type: human
@@ -195,7 +195,7 @@ layers:
         runtime: app
         label: Query class?
         description: "Effort scaling: simple = 1 searcher x 3-10 calls; comparison = 2-4 x 10-15; complex = 5-10+ with divided responsibilities."
-        decision: { output: choice, candidates: [simple, comparison, complex] }
+        decision: { output: choice, candidates: [simple, comparison, complex], fail: open, description: "An unknown class runs as comparison (plan_for in src/config.py), at most max_concurrent_research_units * 2 searchers." }
         files: [src/config.py, prompts/research-brief.md]
     edges:
       - question -> clarify
@@ -338,7 +338,7 @@ layers:
         runtime: app
         label: Blocking issues?
         description: verified == true, or only minor issues.
-        decision: { output: binary, candidates: [clean, blocking] }
+        decision: { output: binary, candidates: [clean, blocking], fail: closed, description: "An unreadable verdict raises and the report is not delivered." }
         files: [src/verify_loop.py]
       - id: round_cap
         type: decision

@@ -165,13 +165,13 @@ layers:
         type: decision
         label: Which seller?
         description: "The model picks a seller by card description; mixed baskets are split, one seller at a time."
-        decision: { output: choice, candidates: [burger_seller_agent, pizza_seller_agent] }
+        decision: { output: choice, candidates: [burger_seller_agent, pizza_seller_agent], fail: closed, description: "A name not on the agent cards raises ValueError in purchasing_agent.py: no task is sent." }
       - id: confirmed
         runtime: agent_engine
         type: decision
         label: Confirmed already?
         description: "If the user confirmed these items and this total earlier in the session, the concierge may confirm for them."
-        decision: { output: binary }
+        decision: { output: binary, fail: closed, description: "Unless the same items and total were confirmed earlier in the session, the question goes to the user (prompts/concierge.md)." }
         files: [prompts/concierge.md]
       - id: send_task
         runtime: agent_engine
@@ -183,7 +183,8 @@ layers:
       - "before_agent -> instruction [data]: cards"
       - "instruction -> concierge [data]: system prompt"
       - "concierge -> route"
-      - "route -> send_task [call]: burger | pizza"
+      - "route -> send_task [call]: burger_seller_agent"
+      - "route -> send_task [call]: pizza_seller_agent"
       - "confirmed -> send_task [call]: yes, create"
 
   # 3 ───────────────────────────────────────────────────────────────
@@ -223,7 +224,7 @@ layers:
         description: >-
           Both sellers return a completed Task with one text artifact. A confirmation question is
           therefore read from the artifact text, not from an input-required state.
-        decision: { output: choice, candidates: [confirmation question, order created] }
+        decision: { output: choice, candidates: [confirmation question, order created], fail: closed, description: "Read as a question unless an order id is there: the prompt says never make up an order ID and relay confirmation questions." }
         files: [logs/concierge.log]
       - id: context
         runtime: agent_engine
@@ -319,3 +320,4 @@ links:
   - "sellers.burger -> platform.flash_lite [call]"
   - "sellers.pizza -> platform.flash_lite [call]"
   - "platform.deploy_run -> sellers.auth: --allow-unauthenticated"
+  - "platform.deploy_engine -> concierge.concierge: deploys the AdkApp"

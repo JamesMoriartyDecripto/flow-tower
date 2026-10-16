@@ -11,6 +11,7 @@ One category per role a tower node can have (issue #105). Each needs a task set 
 | doc-writer | Accurate, short, verified | required facts as patterns, then rubric | `tasks/doc-writer/` (2) |
 | voice / chat agent | First sentence fast, tool use, spoken style | tool calls and answer facts; no Markdown in speech | planned (the six-model run of #70 is the template) |
 | intent / classifier | Cheap, fast, structured output | exact JSON | `tasks/intent/` (4: voice commands, airline routing and relevance) |
+| tax advisor (commercialista) | Route, label abuse risk, judge citation support, answer only from cited text | exact JSON; quotes found verbatim in the source | `../ai-commercialista/benchmark/tasks/` (4 sets × 2) |
 | STT / TTS | Transcribe / speak | word error rate on recorded phrases; first audio time | planned: needs audio, not chat completions |
 | long context / summarizer | Read a lot, keep the facts | questions whose answers sit deep in the input, exact JSON | `tasks/summarizer/` (2) |
 | writer | Brand or marketing copy against a brief, a voice guide and a claims list | required facts and banned claims as patterns, then rubric | `tasks/writer/` (3) |

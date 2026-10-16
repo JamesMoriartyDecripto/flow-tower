@@ -49,16 +49,16 @@ the decision to the CEO.
 | Field | Where |
 |---|---|
 | `trigger` (`event`, `cron`, `manual`) | Gmail and Calendar push, daily brief `0 7 * * 1-5`, sweep `*/10 * * * *`, renew watches (all `timezone: America/Los_Angeles`), CLI |
-| `approval` with `actions` | notify and question `[respond, dismiss]`; review `[approve, edit, reject, respond]`, `per: outbound action`, `rounds: 3` (redrafts via `respond`); `via` Review Inbox and push |
+| `approval` with `actions` | notify and question `[respond, dismiss]`; review `[approve, edit, reject, respond]`, `per: outbound action`, `rounds: 3` (redrafts via `respond`); `via` Review Inbox and push; the lead, the workspace MCP and `send_email/invite` name the same gate (the send hook) |
 | `sla`, `timeout`, `on_timeout` | review 24h; cards wait rather than auto-approve |
 | `budget` | Chief of Staff $1.50/40 turns (pause), triage $0.002/1 turn, reflection |
-| `limits` | receiver 10s ack with Pub/Sub retries |
-| `decision` | triage verdict, plan first?, card kind, durable lesson?, analyst question type |
+| `limits` | tower: 4 ambient runs at once (`MAX_PARALLEL_RUNS`); lead 4 sessions × 40 turns; receiver 10s ack with Pub/Sub retries |
+| `decision` | triage verdict, plan first?, card kind, durable lesson?, analyst question type; all `fail: closed` (no run, plan first, review, write nothing, no numbers) |
 | edge `async` | push receiver → history (acked first, `BackgroundTasks`), feedback → reflection |
 | `fanout` | Chief of Staff 1-4 parallel thread runs |
 | `data` | pii (email, cards), confidential (finance, preferences, audit) |
 | `credentials: user` | every Gmail/Calendar call uses the executive's OAuth token |
-| `sandbox` | lead allowlist (Google APIs, Anthropic); scripts with no network; analyst read-only |
+| `sandbox` | lead allowlist (Google APIs, Anthropic); scripts and the recruiter with no network; analyst read-only |
 | `evals`, `version`, `rollout` | triage v3 in `shadow` against v2; targets for agreement, dismissals, unedited drafts |
 | edge `protocol` | `webhook` (push), `http` (crons, inbox), `mcp` (inbox/workspace), `stdio` (command hooks) |
 

@@ -7,6 +7,7 @@ escalate_if:
   high_value_usd: 50000           # only when the agent would otherwise approve
   confidence_band: [75, 85]
   ring: suspicious_patterns        # circular_flow OR layering (>= 5 transfers < $1,000) OR network_size >= 3
+  unchecked_rule: true             # a rule above could not be checked (tool failed or no data)
 ring:
   max_depth: 4
   small_transfer_usd: 1000

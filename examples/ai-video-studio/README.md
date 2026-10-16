@@ -36,8 +36,9 @@ vision check → score ≥ 7? (3 takes) → keep take with provenance, or escala
 ## Operational features exercised
 
 - `trigger`: chat (Slack), cron (calendar, analytics), and webhooks on edges.
-- `approval` on direction, script, rough cut, legal and final; `timeout` 8 h–48 h, `on_timeout` escalate or reject; `rounds: 3` on script and final sign-off; legal only `when` a likeness, voice, claim or paid partnership is involved (alternative edges in `group: review`).
-- `decision` typed outputs: intake route (choice), within budget (binary), take score (`score`, threshold `>= 7`).
+- `approval` on direction, script, rough cut, legal and final; `timeout` 8 h–48 h, `on_timeout` escalate or reject; `rounds: 3` on script and final sign-off; legal only `when` a likeness, voice, claim or paid partnership is involved (alternative edges in `group: review`). The three uploads name the client approval they depend on.
+- `decision` typed outputs: intake route (choice), within budget (binary), take score (`score`, threshold `>= 7`); all three `fail: closed` (needs info, trim, new take). Needs info and decline answer in Slack.
+- Run `budget`: the brief's `budget_usd` ($1,200, pause at 80 %); `limits` on the producer (6 in parallel, 120 turns) and the reframe (ffmpeg passes one at a time).
 - `fanout`: research questions, formats, shots (6–24), platforms, thumbnails (3).
 - `limits`: async job `timeout` (Veo 10 m, HeyGen 30 m, Lambda 15 m), `retries` + `backoff`, `concurrency` (Veo jobs, Lambda), `ttl` (TikTok upload URL 1 h), `max_iterations` for QA fixes and takes, `rate` quotas (TikTok 6/min, Instagram 100/24 h).
 - `async`: poll (Veo every 10 s, Runway, Luma, Instagram containers every minute) and callback (HeyGen `callback_url`, Remotion webhook).

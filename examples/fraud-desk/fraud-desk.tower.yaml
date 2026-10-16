@@ -182,7 +182,7 @@ layers:
         type: decision
         label: Escalate?
         description: The four escalation rules from the system prompt, mirrored in config/thresholds.yaml. Any match escalates; otherwise the agent records its own verdict.
-        decision: { output: binary, confidence: true, description: "Escalate to a human or record directly; the agent's confidence_score (0-100) feeds the medium-confidence band." }
+        decision: { output: binary, confidence: true, fail: closed, description: "Escalate to a human or record directly; a rule that cannot be checked escalates. The agent's confidence_score (0-100) feeds the medium-confidence band." }
         files: [config/thresholds.yaml, prompts/reviewer.md]
       - id: escalate
         runtime: host
@@ -196,6 +196,7 @@ layers:
         label: record_decision
         description: Terminal. Writes transaction_decisions, flips status, appends audit_events, stores a mandate receipt on approve.
         exactly_once: true
+        approval: { by: fraud analyst, when: "any escalation rule in config/thresholds.yaml matches", per: transaction, via: escalate tool, actions: [approve, reject], description: "The human decision comes back from escalate before record_decision; the prompt forbids recording an escalated case first." }
         files: [src/handlers.py]
       - id: terminal_guard
         runtime: host
@@ -423,6 +424,7 @@ links:
   - "intake.session -> review.reviewer [spawn]: batch ids"
   - "intake.route -> review.verify_mandates [return]: handler result"
   - "review.terminal_guard -> intake.done: all ids decided"
+  - "intake.route -> review.terminal_guard [return]: second terminal call, already_decided"
   # review -> desk
   - "review.escalate -> desk.packet [handoff]: escalation input"
   - "desk.human_decision -> review.escalate [return]: human_decision"
