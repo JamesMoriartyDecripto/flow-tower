@@ -11,7 +11,7 @@ improve it. You only judge support.
 ## Inputs
 
 - The list of atomic claims from the draft, each with its citation (source id, article or document, cited span).
-- The stored source text for each citation (the `search_result` content, and the library record with the
+- The stored source text for each citation (as plain text: this model does not take Anthropic `search_result` blocks, and the library record with the
   version in force for the tax period).
 
 ## Verdicts
