@@ -23,7 +23,7 @@ node bin/flow-tower.js examples/social-studio
 
 - `trigger`: cron with `timezone: Europe/Amsterdam` (planning, listening, insights, weekly report), webhook (Meta comments/mentions/DMs), queue (publish jobs).
 - `approval` on plan, post, legal, reply, crisis, boost and the TikTok finish step; `on_timeout` is `reject`, `escalate` or `wait`, never `approve`. Also `rounds: 2` (plan, post), `escalate_to` (plan, reply), `when: "risk tier == high"` (legal), `per: reply`, `via` as a list and the `takeover` action (crisis lead).
-- `decision` typed outputs: spike (binary), risk tier and inbox route (choice with candidates).
+- `decision` typed outputs: spike (binary), risk tier and inbox route (choice with candidates); `fail: closed` on the inbox route and the spike (doubt goes to a person or the comms lead), `fail: open` on the risk tier (everything not listed is standard and still approved).
 - `fanout`: briefs per week, platforms per brief, platforms per post.
 - `limits`: timeouts, retries with exponential backoff, publisher concurrency; `rate` quotas per platform adapter (Instagram 100/24h, Threads, TikTok, YouTube, Bluesky points) and X reads (2,000/d).
 - `budget`: run-wide weekly text-model cap at the top level; per-agent spend; weekly image/video caps (`for: media`, `on_exceed: downgrade` for Veo); X read and post spend with `rate` unit prices; weekly boost cap in EUR (`for: ads`).
