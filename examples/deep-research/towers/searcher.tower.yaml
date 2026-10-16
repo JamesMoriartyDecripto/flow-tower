@@ -65,6 +65,7 @@ layers:
       - task -> scan
       - scan -> internal
       - "internal -> broad: yes = Drive + wiki first"
+      - "internal -> broad: no = web search first"
 
   - id: loop
     title: Search Loop

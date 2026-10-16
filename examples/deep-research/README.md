@@ -34,6 +34,7 @@ The **Searcher** node drills down into `towers/searcher.tower.yaml`.
 | `fanout` `{ min: 1, max: 10, by: query complexity }` | `search.searcher`; 3-5 parallel tool calls inside the sub-tower |
 | `budget` | searcher ($1.5, 15 turns) |
 | `limits` | lead `max_iterations: 6`, `concurrency: 5`; searcher `max_iterations: 10`, retries + backoff; verify `max_iterations: 2` |
+| `decision.fail` | `intake.need_input` and `synthesis.verified` closed (an unreadable answer stops the run); `intake.effort` open (an unknown class runs as comparison) |
 | `data` | confidential questions and artifacts, 30-day retention |
 | `credentials: user`, `sandbox` | MCP calls run on the analyst's OAuth grant; searchers reach only the MCP gateway |
 | `decision` | clarify? (`binary`), query class (`choice`: simple / comparison / complex), blocking issues? |
