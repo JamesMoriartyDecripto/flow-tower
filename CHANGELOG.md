@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Added
+- Role catalogue (#261): `skills/flow-tower-costs/catalogue.md`, the measured model pick and two alternatives from other families for every role a node can have, from a 968-run benchmark of 17 task sets on 2026-10-16 (results in `examples/model-benchmark/results/2026-10-16-roles/`). `models.mjs --role <id>` shortlists from OpenRouter's live list by what the role needs (output modality, tools, structured output, image or audio input), `--families <n>` keeps n per family ranked by weekly use, and it prints the catalogue's pick first. New role classes `decision` (fixed answers with probabilities, OpenRouter's Decisions API) and `rerank`; a `type: decision` node is now classed `decision`.
+- Model benchmark: `bench.mjs` calls every endpoint a role needs (decisions, embeddings, rerank, image input, images, videos, speech, transcriptions), with checks `wer`, `wer-roundtrip` and `vision-judge` (a judge from another family than the candidate), and 11 new task sets (orchestrator, data, guard, decision, vision, image-gen, video-gen, tts, stt, embeddings, rerank).
 - Example `ai-commercialista`: an AI accountant for Italian companies that cites every source, checks each citation against the text in force for the tax period, scans 2026 levers per profile (SRL, startup, startup innovativa, photovoltaic, employer, forfettario) and leaves every memo to a professional's signature (#228). It ships four benchmark task sets for its model roles (triage, abuse-of-law label, citation support, answers quoted verbatim from Normattiva text), listed in `examples/model-benchmark/categories.md`.
 
 ### Fixed
