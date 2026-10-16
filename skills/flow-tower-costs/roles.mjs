@@ -39,3 +39,23 @@ export function meets(model, needs) {
 export function familyOf(id) {
   return id.replace(/^~/, '').split('/')[0];
 }
+
+/**
+ * Drops ids that are not a model of their own: ":batch" is the same model priced for batch jobs,
+ * and "~" marks an alias that points at another model. Listing them would count one model twice.
+ */
+export function dropVariants(models) {
+  return models.filter((m) => !m.id.endsWith(':batch') && !m.id.startsWith('~'));
+}
+
+/** Keeps the first n models of each family, in the order given (so a server sort is kept). */
+export function capPerFamily(models, n) {
+  const seen = new Map();
+  return models.filter((m) => {
+    const fam = familyOf(m.id);
+    const count = seen.get(fam) ?? 0;
+    if (count >= n) return false;
+    seen.set(fam, count + 1);
+    return true;
+  });
+}

@@ -4,7 +4,7 @@ import { classifyNode, ROLE_CLASSES } from '../src/core/roles';
 import { TowerSchema, type TowerDef } from '../src/core/schema';
 import type { ResolvedNode, ResolvedTower } from '../src/core/types';
 // @ts-expect-error plain Node script with no type declarations, imported on purpose
-import { ROLE_FILTERS, familyOf, meets } from '../skills/flow-tower-costs/roles.mjs';
+import { ROLE_FILTERS, capPerFamily, dropVariants, familyOf, meets } from '../skills/flow-tower-costs/roles.mjs';
 
 const none = { read: async () => undefined };
 
@@ -52,6 +52,22 @@ describe('familyOf', () => {
   it('takes the part before the slash, without a leading ~', () => {
     expect(familyOf('~perplexity/pplx-decider-latest')).toBe('perplexity');
     expect(familyOf('openai/gpt-4o')).toBe('openai');
+  });
+});
+
+describe('dropVariants', () => {
+  it('drops ":batch" and "~" alias ids, keeps the rest in order', () => {
+    const models = [{ id: 'openai/gpt-4o' }, { id: 'openai/gpt-4o:batch' }, { id: '~openai/gpt-latest' }, { id: 'mistralai/mistral-nemo:free' }];
+    expect(dropVariants(models).map((m: { id: string }) => m.id)).toEqual(['openai/gpt-4o', 'mistralai/mistral-nemo:free']);
+  });
+});
+
+describe('capPerFamily', () => {
+  it('keeps the first n models of each family, in the order given', () => {
+    const models = [
+      { id: 'a/1' }, { id: 'b/1' }, { id: 'a/2' }, { id: 'a/3' }, { id: 'b/2' }, { id: '~b/3' },
+    ];
+    expect(capPerFamily(models, 2).map((m: { id: string }) => m.id)).toEqual(['a/1', 'b/1', 'a/2', 'b/2']);
   });
 });
 
