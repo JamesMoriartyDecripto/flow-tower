@@ -3,10 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ENDPOINT_CALLS as CALLS } from '../examples/model-benchmark/scripts/endpoints.mjs';
+// endpoints-media.mjs has no declaration file (only the endpoints.d.mts types are in scope), so TypeScript
+// cannot infer pickVoice's signature; the call sites below pass plain strings and arrays, which is all it needs.
+// @ts-expect-error untyped .mjs module
+import { pickVoice } from '../examples/model-benchmark/scripts/endpoints-media.mjs';
 
 // endpoints.d.mts only types the step-03 context and result. The media fields are cast here, so the
 // declaration file stays untouched by this step.
-type MediaCtx = { key: string; fetchImpl: unknown; outDir?: string; run?: number; pollMs?: number; videoWaitMs?: number; timeoutMs?: number };
+type MediaCtx = { key: string; fetchImpl: unknown; outDir?: string; run?: number; pollMs?: number; videoWaitMs?: number; timeoutMs?: number; voices?: Record<string, string[]> };
 type MediaResult = { answer: string | null; artifact?: string | null; cost: number | null; firstOutputMs: number | null; totalMs: number; error: string | null };
 type MediaCall = (ctx: MediaCtx, model: string, task: Record<string, unknown>) => Promise<MediaResult>;
 const ENDPOINT_CALLS = CALLS as unknown as Record<'images' | 'videos' | 'speech' | 'transcriptions', MediaCall>;
@@ -106,7 +110,7 @@ describe('media: videos', () => {
 describe('media: speech', () => {
   it('writes the bytes as mp3 and records cost null when the header is absent', async () => {
     const { calls, fetchImpl } = stub([{ bytes: new Uint8Array([255, 251, 144, 0]) }]);
-    const r = await ENDPOINT_CALLS.speech({ key: 'k', fetchImpl, outDir: dir, run: 1 }, 's/voice', task({ endpoint: 'speech', id: 'read' }));
+    const r = await ENDPOINT_CALLS.speech({ key: 'k', fetchImpl, outDir: dir, run: 1, voices: { 's/voice': [] } }, 's/voice', task({ endpoint: 'speech', id: 'read' }));
     expect(r.error).toBeNull();
     expect(r.answer).toBe('artifacts/read-s__voice-run1.mp3');
     expect(r.cost).toBeNull();
@@ -131,5 +135,30 @@ describe('media: transcriptions', () => {
     expect(body.input_audio.format).toBe('wav');
     expect(body.input_audio.data).toBe(Buffer.from([82, 73, 70, 70]).toString('base64'));
     expect(body.input_audio.data.startsWith('data:')).toBe(false);
+  });
+});
+
+describe('media: pickVoice', () => {
+  it('returns undefined for an empty or missing list', () => {
+    expect(pickVoice([], 'it')).toBeUndefined();
+    expect(pickVoice(undefined, 'it')).toBeUndefined();
+  });
+
+  it('prefers a voice tagged with the language for Microsoft-style ids', () => {
+    const voices = ['it-IT-Isabella:MAI-Voice-2.1-Flash', 'en-US-Harper:MAI-Voice-2.1-Flash'];
+    expect(pickVoice(voices, 'it')).toBe('it-IT-Isabella:MAI-Voice-2.1-Flash');
+  });
+
+  it('picks the kokoro id whose prefix matches the language', () => {
+    expect(pickVoice(['af_heart', 'if_sara', 'im_nicola'], 'it')).toBe('if_sara');
+    expect(pickVoice(['af_heart', 'if_sara', 'im_nicola'], 'en')).toBe('af_heart');
+  });
+
+  it('falls back to the first voice when nothing matches the language', () => {
+    expect(pickVoice(['Zephyr', 'Puck'], 'it')).toBe('Zephyr');
+  });
+
+  it('returns the first voice when no language is set', () => {
+    expect(pickVoice(['Zephyr', 'Puck'])).toBe('Zephyr');
   });
 });

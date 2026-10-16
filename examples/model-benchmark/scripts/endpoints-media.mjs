@@ -3,13 +3,16 @@
 // Binary results (pictures, video, speech) are written under ctx.outDir/artifacts/; `answer` is that path.
 //
 //   MEDIA_CALLS[endpoint](ctx, model, task)
-//   ctx = { key, fetchImpl = fetch, timeoutMs, outDir, run, pollMs, videoWaitMs }
+//   ctx = { key, fetchImpl = fetch, timeoutMs, outDir, run, pollMs, videoWaitMs, voices }
+//   voices (optional): model id -> voice list, used in place of the catalogue fetch (tests).
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 
 const API = 'https://openrouter.ai/api/v1';
 // Speech may report its cost in a header; when the header is absent the cost stays null, never estimated.
 const SPEECH_COST_HEADER = 'x-openrouter-cost';
+// The voice catalogue is a small public list; a slow answer should not hold up the whole run.
+const VOICE_LIST_TIMEOUT_MS = 20_000;
 const AUDIO_FORMATS = ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'webm'];
 const IMAGE_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
 
@@ -123,13 +126,52 @@ async function videos(ctx, model, task) {
   return { answer: artifact, artifact, cost: state.usage?.cost ?? 0, provider: null, firstOutputMs: null, totalMs: elapsed(), error: null };
 }
 
+// Some speech providers refuse a request with no voice, so a voice is picked from the provider's own list.
+// Voices come from one catalogue fetch per process; a failed fetch leaves the map empty, so the call goes out
+// without a voice and the provider's error is reported as before.
+let voiceCatalogue = null;
+function fetchVoiceCatalogue(ctx) {
+  if (!voiceCatalogue) {
+    const fetchImpl = ctx.fetchImpl ?? fetch;
+    voiceCatalogue = fetchImpl(`${API}/models?output_modalities=speech`, { signal: AbortSignal.timeout(VOICE_LIST_TIMEOUT_MS) })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((j) => new Map((j?.data ?? []).map((m) => [m.id, m.supported_voices ?? []])))
+      .catch(() => new Map());
+  }
+  return voiceCatalogue;
+}
+
+// The first voice that fits the language: a `<lang>-` tag (Microsoft style), then a kokoro-style id such as
+// `if_sara` (language initial, then f or m). English also takes the a and b prefixes of the kokoro ids.
+// Without a language, or with no match, the first voice is used; an empty list means no voice at all.
+export function pickVoice(voices, language) {
+  if (!Array.isArray(voices) || voices.length === 0) return undefined;
+  if (!language) return voices[0];
+  const lang = language.toLowerCase().split('-')[0];
+  const tagged = voices.find((v) => v.toLowerCase().startsWith(`${lang}-`));
+  if (tagged) return tagged;
+  const initials = lang === 'en' ? ['a', 'b'] : [lang[0]];
+  const kokoro = voices.find((v) => {
+    const m = /^([a-z])([fm])_/i.exec(v);
+    return m && initials.includes(m[1].toLowerCase());
+  });
+  return kokoro ?? voices[0];
+}
+
 // Speech: the prompt is read aloud; the bytes are kept as mp3.
 async function speech(ctx, model, task) {
   if (!ctx.outDir) return failed(NEEDS_OUT);
   const meta = frontMatter(task);
   const elapsed = clock();
   const body = { model, input: task.prompt, response_format: 'mp3' };
-  if (meta.voice) body.voice = meta.voice;
+  if (meta.voice) {
+    body.voice = meta.voice;
+  } else {
+    // ctx.voices lets a test stand in for the catalogue, so no extra request reaches its stub.
+    const list = ctx.voices ? ctx.voices[model] : (await fetchVoiceCatalogue(ctx)).get(model);
+    const voice = pickVoice(list, meta.language);
+    if (voice) body.voice = voice;
+  }
   const r = await send(ctx, 'POST', `${API}/audio/speech`, { body });
   if (r.error) return failed(r.error, elapsed());
   const bytes = Buffer.from(await r.res.arrayBuffer());
