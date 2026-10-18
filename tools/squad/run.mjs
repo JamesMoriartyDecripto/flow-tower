@@ -72,7 +72,16 @@ if (!env.OPENROUTER_API_KEY) { console.error(`no key: put OPENROUTER_API_KEY in 
 const log = join(HERE, `${role}-${Date.now()}.log`);
 const note = (s) => appendFileSync(log, `${s}\n`);
 // Run through sh so the helper needs no executable bit, and drop undefined arguments (a missing --node).
-const emit = (...a) => { try { execFileSync('sh', [EV, ...a.filter((x) => x !== undefined).map(String)], { stdio: 'ignore' }); } catch { /* tower offline */ } };
+// The helper finds the tower from its environment (ev.sh): the project's cli, tower and source go in unless the user
+// already exported them. The API key is dropped from the copy: the helper has no use for it.
+const { OPENROUTER_API_KEY: _key, ...evEnv } = env;
+const evChildEnv = {
+  ...evEnv,
+  ...(config.cli && !env.FLOW_TOWER_CLI && { FLOW_TOWER_CLI: resolve(REPO, config.cli) }),
+  ...(!env.SQUAD_TOWER && { SQUAD_TOWER: config.tower }),
+  ...(!env.SQUAD_SOURCE && { SQUAD_SOURCE: config.source }),
+};
+const emit = (...a) => { try { execFileSync('sh', [EV, ...a.filter((x) => x !== undefined).map(String)], { stdio: 'ignore', env: evChildEnv }); } catch { /* tower offline */ } };
 
 const SECRET = /(^|\/)(\.env[^/]*|.*\.(key|pem|p12|pfx|crt)|id_rsa[^/]*|\.npmrc|\.git|node_modules|\.ssh|\.config\/flow-tower)(\/|$)/i;
 // Reviewers are read-only; the coder writes src/ tests/ e2e/, or the folders a task names with --write a,b.

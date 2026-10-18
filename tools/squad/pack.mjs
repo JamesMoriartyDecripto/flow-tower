@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { argv, exit, stderr, stdout } from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { loadConfig } from './config.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
 const USAGE = 'usage: node tools/squad/pack.mjs --role reviewer|security --issue <n> [--base origin/main] [--repo <path>] [--files a,b] [--brief <file>] [--max-kb 120]';
@@ -16,12 +17,15 @@ const role = arg('role');
 const issue = arg('issue');
 // The issue goes into the title and the gh call: digits only, so nothing else can ride along (#169 review).
 if (!['reviewer', 'security'].includes(role) || !/^\d+$/.test(String(issue ?? ''))) { stderr.write(`${USAGE}\n`); exit(1); }
-const base = arg('base', 'origin/main');
-// A base is a revision, never an option: one starting with '-' would be read by git as a flag.
-if (String(base).startsWith('-')) { stderr.write(`base must be a revision, not an option: ${base}\n`); exit(1); }
 const maxKb = Number(arg('max-kb', '120'));
 if (!Number.isFinite(maxKb) || maxKb <= 0) { stderr.write(`${USAGE}\n`); exit(1); }
 const REPO = resolve(arg('repo') ?? execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim());
+// The repo's own settings: the base to diff against and the folders to review come from its squad.json (#265).
+let config;
+try { config = loadConfig(REPO); } catch (e) { stderr.write(`${e.message}\n`); exit(1); }
+const base = arg('base', config.base);
+// A base is a revision, never an option: one starting with '-' would be read by git as a flag.
+if (String(base).startsWith('-')) { stderr.write(`base must be a revision, not an option: ${base}\n`); exit(1); }
 // The base must name a commit in this repo; --verify --quiet makes a bad one a plain failure, not a git error text.
 try {
   execFileSync('git', ['rev-parse', '--verify', '--quiet', `${base}^{commit}`], { cwd: REPO, encoding: 'utf8', stdio: 'ignore' });
@@ -103,11 +107,11 @@ const head = [
   '',
 ].join('\n');
 
-// Tests are left out on purpose: they are large and the review is of src, bin and tools.
-const diffRaw = git('diff', base, '--', 'src', 'bin', 'tools');
+// Tests are left out on purpose: they are large, so the diff covers the review folders only (config.review).
+const diffRaw = git('diff', base, '--', ...config.review);
 // (the -- above keeps the paths from being read as options; base was checked as a commit already)
 const diffHead = '## Diff\n\nTests are not included (git diff '
-  + `${base} -- src bin tools).\n\n\`\`\`diff\n`;
+  + `${base} -- ${config.review.join(' ')}).\n\n\`\`\`diff\n`;
 const diffTail = '\n```\n';
 
 const files = arg('files') ? arg('files').split(',').map((s) => s.trim()).filter(Boolean) : [];
