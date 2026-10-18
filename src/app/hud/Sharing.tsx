@@ -198,7 +198,11 @@ function SharedTowerRow({ share, hubNames, now }: { share: TowerShare; hubNames?
   const status = shareStatus(share, now);
   const missing = hubNames !== undefined && !hubNames.includes(share.name);
   const unshare = (force: boolean) => {
-    if (!window.confirm(`Stop sharing ${share.name} with the hub? The hub removes its copy.`)) return;
+    // A forced removal runs when the hub is down, so it must not claim the hub removes its copy.
+    const question = force
+      ? `Remove ${share.name} from this machine only? The hub cannot be reached, so it keeps its copy until you unshare it there.`
+      : `Stop sharing ${share.name} with the hub? The hub removes its copy.`;
+    if (!window.confirm(question)) return;
     setBusy(true);
     setFailed(undefined);
     void unshareTower(share.name, force)
@@ -218,7 +222,11 @@ function SharedTowerRow({ share, hubNames, now }: { share: TowerShare; hubNames?
       {share.warning && <div className="sharing-warn">{share.warning}</div>}
       <button className="btn" disabled={busy} onClick={() => unshare(false)}>Unshare</button>
       {unreachable && <button className="btn" disabled={busy} onClick={() => unshare(true)} title="Drop the share from this machine only; the hub keeps its copy">Remove from config only</button>}
-      {error && <span className="err" role="alert">{error}</span>}
+      {error && (unreachable
+        // The server text ends with a CLI hint for a --force flag this UI does not have, so show our own wording
+        // and keep the server text in the title for anyone who wants the full message.
+        ? <span className="err" role="alert" title={error}>{`The hub cannot be reached: ${share.name} stays shared. "Remove from config only" drops it from this machine; the hub keeps its copy.`}</span>
+        : <span className="err" role="alert">{error}</span>)}
     </li>
   );
 }
