@@ -34,9 +34,9 @@ describe('AUD01 agent loops with no budget', () => {
 
 describe('AUD02 fan-out with no limits', () => {
   it('fires on fanout, quiet with tower limits', async () => {
-    const bad = await build({ nodes: [{ id: 'a', type: 'process', fanout: 3 }] });
+    const bad = await build({ nodes: [{ id: 'a', type: 'process', fanout: 21 }] });
     expect(rulesOf(auditTower(bad), 'AUD02')).toHaveLength(1);
-    const ok = await build({ limits: { timeout: '5m' }, nodes: [{ id: 'a', type: 'process', fanout: 3 }] });
+    const ok = await build({ limits: { timeout: '5m' }, nodes: [{ id: 'a', type: 'process', fanout: 21 }] });
     expect(rulesOf(auditTower(ok), 'AUD02')).toEqual([]);
   });
 });

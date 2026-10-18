@@ -10,7 +10,7 @@ import type { ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from './typ
 
 export const RULES = {
   AUD01: 'agent loops on itself (or an agent cycle) with no budget or limits',
-  AUD02: 'fan-out or several spawns with no limits',
+  AUD02: 'fan-out wider than 20 with no limits',
   AUD03: 'exactly-once, irreversible, sensitive or user-credential node with no approval and no human before it',
   AUD04: 'decision node with fewer than 2 outgoing edges, or no decision.fail',
   AUD05: 'agent feeds an output directly with no evals on it or on a guard between them',
@@ -51,11 +51,23 @@ const SHELL_TOOLS = new Set(['bash', 'shell', 'exec', 'terminal', 'code_interpre
 const LOOP_KINDS = new Set(['spawn', 'handoff', 'call', 'return', 'flow']);
 /** Node types that do work and so need an outgoing edge (or be called) to be useful. */
 const WORK_TYPES = new Set(['entry', 'agent', 'process', 'decision', 'human', 'guard']);
+/** Nodes that start a lane of work rather than deciding how many workers run; AUD02 skips them. */
+const LANE_TYPES = new Set(['human', 'output', 'entry']);
 const MAX_TOOLS = 15;
+/**
+ * Engineering judgement, not a measured limit: Anthropic's runaway example spawned 50 subagents,
+ * so a width past 20 with nothing to bound it is worth a warning.
+ */
+const MAX_WIDTH = 20;
 const SENSITIVE = ['pci', 'secret'];
 
 function sortKeys<T>(o: Record<string, T>): Record<string, T> {
   return Object.fromEntries(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+}
+
+/** A fanout is a count, or a range whose `max` is the most copies that can run. */
+function fanoutCount(f: number | { max: number } | undefined): number | undefined {
+  return typeof f === 'number' ? f : f?.max;
 }
 
 function countBy(items: string[]): Record<string, number> {
@@ -107,6 +119,14 @@ export function auditTower(tower: ResolvedTower, ctx: AuditContext = NO_CONTEXT)
   const byKey = new Map(nodes.map((n) => [n.key, n]));
   const outOf = (key: string) => edges.filter((e) => e.from === key);
   const inOf = (key: string) => edges.filter((e) => e.to === key);
+  /** How many copies a node runs at once: its own fanout, else what its spawn edges start. */
+  const widthOf = (key: string): number => {
+    const own = fanoutCount(byKey.get(key)?.ops.fanout);
+    if (own !== undefined) return own;
+    return outOf(key)
+      .filter((e) => e.kind === 'spawn')
+      .reduce((sum, e) => sum + (fanoutCount(byKey.get(e.to)?.ops.fanout) ?? 1), 0);
+  };
   // A sub-tower runs inside its parents' run, so their budget or limits count here too.
   const runBudget = tower.run?.budget !== undefined || ctx.runBudget;
   const runLimits = tower.run?.limits !== undefined || ctx.runLimits;
@@ -117,7 +137,11 @@ export function auditTower(tower: ResolvedTower, ctx: AuditContext = NO_CONTEXT)
 
   // Agent-only subgraph of loop-capable edges, used to find cycles.
   const agentKeys = new Set(nodes.filter((n) => n.type === 'agent').map((n) => n.key));
-  const loopEdges = edges.filter((e) => LOOP_KINDS.has(e.kind) && agentKeys.has(e.from) && agentKeys.has(e.to));
+  // A return that answers a spawn or call back is the close of a delegation, not a loop of control:
+  // the caller only gets its worker's result back. A return with no such delegation is a revision loop.
+  const closesDelegation = (e: ResolvedEdge) =>
+    e.kind === 'return' && edges.some((d) => (d.kind === 'spawn' || d.kind === 'call') && d.from === e.to && d.to === e.from);
+  const loopEdges = edges.filter((e) => LOOP_KINDS.has(e.kind) && agentKeys.has(e.from) && agentKeys.has(e.to) && !closesDelegation(e));
   /** True when `key` can reach itself through loop edges (a self-loop included). */
   const onAgentCycle = (key: string) => {
     const seen = new Set<string>();
@@ -141,16 +165,17 @@ export function auditTower(tower: ResolvedTower, ctx: AuditContext = NO_CONTEXT)
     const outs = outOf(key);
     const ins = inOf(key);
     const hasLimits = n.ops.limits !== undefined || runLimits;
-    const spawns = outs.filter((e) => e.kind === 'spawn').length;
 
     // AUD01: an agent that can loop with nothing to stop it runs up cost unbounded.
     if (n.type === 'agent' && onAgentCycle(key) && n.ops.budget === undefined && n.ops.limits === undefined && !runBudget && !runLimits) {
       add('AUD01', 'warning', 'loops with no budget or limits: add limits.max_iterations or a budget', key);
     }
 
-    // AUD02: parallel copies or many spawns multiply cost and load; bound them.
-    if ((n.ops.fanout !== undefined || spawns >= 2) && !hasLimits) {
-      add('AUD02', 'warning', 'fan-out with no limits: add limits.concurrency or limits.timeout', key);
+    // AUD02: parallel copies multiply cost and load; bound them. A fanout declares its count, so it
+    // is a bound in itself. Without one, the width is what the spawn edges start at once.
+    const width = widthOf(n.key);
+    if (width > MAX_WIDTH && !hasLimits && !LANE_TYPES.has(n.type)) {
+      add('AUD02', 'warning', `fan-out of up to ${width} with no limits: add limits.concurrency or limits.timeout`, key);
     }
 
     // AUD03: a sensitive or irreversible step needs a person in the loop, either as a gate on the
