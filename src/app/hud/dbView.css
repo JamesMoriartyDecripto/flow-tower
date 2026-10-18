@@ -1,11 +1,14 @@
 /* Database viewer (DbView): sits inside the viewer's .code area, which scrolls it both ways. */
 
-.db-view { display: flex; align-items: flex-start; font: 12px/1.5 var(--mono); }
+/* The .code area drops its top padding for the db view (sticky offsets count from inside that padding, so the header would stick 14px low and rows would show above it). The 14px moves here so the list and grid still start 14px down. */
+.viewer .code:has(> .db-view) { padding-top: 0; }
+.db-view { display: flex; align-items: flex-start; padding-top: 14px; font: 12px/1.5 var(--mono); }
 .db-empty { padding: 20px; }
 
 /* The table list scrolls on its own (capped height), so a database with many tables never pushes the grid away. */
 /* Sticky on both axes: it stays in view when the grid scrolls down, and its height fits the .code area (zoom does not rescale vh, hence --vh). */
-.db-tables { flex: 0 0 220px; max-height: calc(60 * var(--vh)); overflow-y: auto; position: sticky; top: 0; left: 0; z-index: 2; border-right: 1px solid var(--line-soft); padding: 4px 0; background: var(--panel-solid); }
+/* Opaque background: a translucent one lets the rows scrolling beneath show through. */
+.db-tables { flex: 0 0 220px; max-height: calc(60 * var(--vh)); overflow-y: auto; position: sticky; top: 0; left: 0; z-index: 2; border-right: 1px solid var(--line-soft); padding: 4px 0; background: var(--bg); }
 .db-tables button { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; width: 100%; padding: 6px 14px; text-align: left; font: inherit; color: var(--dim); border-left: 2px solid transparent; }
 .db-tables button.on { color: var(--orange); border-left-color: var(--orange); }
 .db-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -14,7 +17,8 @@
 /* No overflow here on purpose: the grid widens past this box and the .code area takes the scrolling. */
 .db-data { flex: 1 1 auto; min-width: 0; padding: 0 20px 14px; }
 .db-grid { border-collapse: separate; border-spacing: 0; font: 12px/1.5 var(--mono); }
-.db-grid th { position: sticky; top: 0; z-index: 1; background: var(--panel-solid); text-align: left; vertical-align: bottom; padding: 6px 14px 4px 0; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+/* Opaque background (see .db-tables): rows scroll under the sticky header. */
+.db-grid th { position: sticky; top: 0; z-index: 1; background: var(--bg); text-align: left; vertical-align: bottom; padding: 6px 14px 4px 0; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
 .db-col { font: 11px var(--display); text-transform: uppercase; letter-spacing: .08em; }
 .db-type { display: block; font: 11px var(--mono); color: var(--dim); text-transform: none; letter-spacing: normal; }
 .db-pk { margin-left: 6px; font-size: 10px; color: var(--orange); }
