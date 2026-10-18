@@ -24,7 +24,8 @@ export type ShareOutcome =
 
 export type UnshareOutcome =
   | { ok: true; name: string; gone: boolean; hubReached: boolean }
-  | { ok: false; error: string; known?: string[] };
+  // `unreachable` is set only when the hub could not be asked: the UI offers the config-only removal from this flag.
+  | { ok: false; error: string; known?: string[]; unreachable?: true };
 
 export interface ListOutcome {
   shares: Share[];
@@ -66,6 +67,19 @@ function rawSharesNow(home: string): unknown[] {
   return Array.isArray(fresh) ? fresh : [];
 }
 
+/**
+ * The config writes still to run, per home folder. Each write reads config.json as it is at that moment, so two
+ * writes from this server must not interleave; the hub calls before them are not queued and may overlap.
+ */
+const configWrites = new Map<string, Promise<unknown>>();
+
+/** Runs `task` after the writes already queued for `home`. The chain swallows failures so one bad write cannot block the next. */
+function queuedWrite<T>(home: string, task: () => T): Promise<T> {
+  const run = (configWrites.get(home) ?? Promise.resolve()).then(task);
+  configWrites.set(home, run.catch(() => {}));
+  return run;
+}
+
 /** Uploads the folder `dir` to the hub as `opts.name` and records it, only once the hub has accepted it. */
 export async function shareFolder(home: string, dir: string, opts: { files: boolean; name?: string }): Promise<ShareOutcome> {
   const conn = connection(home);
@@ -92,20 +106,23 @@ export async function shareFolder(home: string, dir: string, opts: { files: bool
     };
   }
 
-  writeUserConfig(home, { shares: withShare(rawSharesNow(home), { dir: absDir, name, files: opts.files }) });
-
-  // A shared tower is one of the user's own towers: add it to the library so `library` and the sync see it (#164).
-  const library = addToLibrary(home, absDir);
+  // The share and the library entry are both config.json writes: they run in one queued step, so no other write slips in between.
+  const library = await queuedWrite(home, () => {
+    writeUserConfig(home, { shares: withShare(rawSharesNow(home), { dir: absDir, name, files: opts.files }) });
+    // A shared tower is one of the user's own towers: add it to the library so `library` and the sync see it (#164).
+    return addToLibrary(home, absDir);
+  });
   return { ok: true, name, dir: absDir, hub: conn.hub, files, skipped, sender: tokenId(conn.token) ?? 'this-machine', library };
 }
 
 /**
  * Removes a share from the hub and from config. `target` matches a share by name or by its folder. The entry is
  * dropped when the hub agrees, or has nothing under that name (404); an unreachable hub keeps it unless `force`.
+ * With `byName` the target is a share name only: the route uses it so a folder path can never pick a share.
  */
-export async function unshareFolder(home: string, target: string, opts: { force: boolean }): Promise<UnshareOutcome> {
+export async function unshareFolder(home: string, target: string, opts: { force: boolean; byName?: boolean }): Promise<UnshareOutcome> {
   const shares = recordedShares(home);
-  const match = shares.find((s) => s.name === target || s.dir === resolve(target));
+  const match = shares.find((s) => s.name === target || (!opts.byName && s.dir === resolve(target)));
   if (!match) {
     const known = shares.map((s) => s.name);
     return { ok: false, error: `no share named or at "${target}". known shares: ${known.join(', ') || 'none'}`, known };
@@ -121,11 +138,11 @@ export async function unshareFolder(home: string, target: string, opts: { force:
     return { ok: false, error: `the hub refused the unshare: ${r.error}\n${match.name} stays in config.` };
   }
   if (!r.ok && !gone && !opts.force) {
-    return { ok: false, error: `cannot reach the hub (${r.error}): ${match.name} stays shared.\nUse --force to drop it from config only.` };
+    return { ok: false, error: `cannot reach the hub (${r.error}): ${match.name} stays shared.\nUse --force to drop it from config only.`, unreachable: true };
   }
 
   // Dropped from config only after the hub agreed (or had nothing), or on force when it could not be asked.
-  writeUserConfig(home, { shares: withoutShare(rawSharesNow(home), match.name) });
+  await queuedWrite(home, () => writeUserConfig(home, { shares: withoutShare(rawSharesNow(home), match.name) }));
   return { ok: true, name: match.name, gone, hubReached: r.ok || gone };
 }
 

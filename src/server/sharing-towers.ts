@@ -24,13 +24,13 @@ export interface SharingTowersOptions {
   /** The folder of a local library project; undefined for an unknown id or a tower another machine shared. */
   dirOf: (projectId: string) => string | undefined;
   /** Every local project id, so each share can list the projects that live in its folder (#266). Optional: a caller without it gets no project links. */
-  projectIds?: () => string[];
+  projectIds: () => string[];
 }
 
 /** The hub's refusal or silence is a 502; any other unshare failure (e.g. no such share) is a 400. */
 const HUB_FAILURE = /^(the hub refused|cannot reach the hub)/;
 
-export function sharingTowersHandler({ home, hub, sync, dirOf, projectIds = () => [] }: SharingTowersOptions) {
+export function sharingTowersHandler({ home, hub, sync, dirOf, projectIds }: SharingTowersOptions) {
   /** The recorded shares with the sync state matched by name. Never a token. */
   const recorded = () => {
     const states = new Map((sync()?.state() ?? []).map((s) => [s.name, s]));
@@ -82,8 +82,13 @@ export function sharingTowersHandler({ home, hub, sync, dirOf, projectIds = () =
     }
 
     if (typeof body?.unshare === 'string') {
-      const out = await unshareFolder(home, body.unshare, { force: body.force === true });
-      if (!out.ok) return send(res, HUB_FAILURE.test(out.error) ? 502 : 400, { error: out.error });
+      // The route matches by name only: a folder path from the browser must never pick a share.
+      const out = await unshareFolder(home, body.unshare, { force: body.force === true, byName: true });
+      if (!out.ok) {
+        // `unreachable` is the flag the Settings row reads; the regex only decides the status code.
+        const failure = { error: out.error, ...(out.unreachable ? { unreachable: true } : {}) };
+        return send(res, HUB_FAILURE.test(out.error) ? 502 : 400, failure);
+      }
       await syncAfter();
       return send(res, 200, { name: out.name, gone: out.gone, hubReached: out.hubReached });
     }
@@ -98,13 +103,16 @@ export function sharingTowersHandler({ home, hub, sync, dirOf, projectIds = () =
   const towers = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     if (!isMountRoot(req.url)) return next();
     if (!localOnly(req, res, hub, { shares: [] })) return;
-    if (req.method !== 'POST') {
-      const url = new URL(req.url ?? '', 'http://localhost');
-      if (url.searchParams.get('hub') !== '1') return send(res, 200, { shares: recorded() });
-      const listed = await listShares(home);
-      return send(res, 200, { shares: recorded(), hub: listed.hub });
+    // Only GET and HEAD list and POST acts. Anything else is refused with the methods that do exist.
+    if (req.method === 'POST') return post(req, res);
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.setHeader('Allow', 'GET, HEAD, POST');
+      return send(res, 405, { error: 'method not allowed' });
     }
-    return post(req, res);
+    const url = new URL(req.url ?? '', 'http://localhost');
+    if (url.searchParams.get('hub') !== '1') return send(res, 200, { shares: recorded() });
+    const listed = await listShares(home);
+    return send(res, 200, { shares: recorded(), hub: listed.hub });
   };
 
   return { towers };

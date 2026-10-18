@@ -15,6 +15,10 @@
 
 /* The per-project share control on a library card (#266). It sits in the card footer, beside Tower and Map. */
 .share-control { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+/* With the control in the footer span, the span wraps: the control takes its own line above Tower and Map, aligned
+   right, so the Map button is not pushed out of the card (#266). */
+.lib-open:has(.share-control) { flex-wrap: wrap; justify-content: flex-end; }
+.lib-open .share-control { flex-basis: 100%; justify-content: flex-end; }
 .share-control select { font: 10px var(--mono); padding: 3px 6px; background: transparent; color: var(--white); border: 1px solid var(--line-soft); border-radius: 4px; }
 .share-control select:disabled { opacity: .6; }
 .share-chip.on { color: var(--live-done); }

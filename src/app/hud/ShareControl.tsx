@@ -40,7 +40,7 @@ export function ShareControl({ id, name, source }: { id: string; name: string; s
     setBusy(true);
     setError(undefined);
     const run = next === 'off' ? unshareTower(share!.name) : shareProject(id, next === 'files');
-    void run.then((err) => setError(err)).finally(() => setBusy(false));
+    void run.then((f) => setError(f?.error)).finally(() => setBusy(false));
   };
 
   // A stop on the wrapper keeps the card's onClick (open the tower) from firing for any click or change inside.

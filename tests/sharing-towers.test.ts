@@ -41,6 +41,15 @@ async function stubHub(status = 204) {
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, seen };
 }
 
+/** A port nothing listens on: the connection is refused at once. */
+async function closedUrl() {
+  const closed = createServer();
+  await new Promise<void>((r) => closed.listen(0, '127.0.0.1', r));
+  const port = (closed.address() as AddressInfo).port;
+  await new Promise<void>((r) => closed.close(() => r()));
+  return `http://127.0.0.1:${port}`;
+}
+
 const MOUNT = '/api/sharing/towers';
 
 /** A home with a config that names the stub hub, or with no config at all when `hub` is undefined. */
@@ -61,13 +70,15 @@ function projectFolder() {
 }
 
 /** The handler behind a real server, mounted the way plugin.ts mounts it (prefix stripped from req.url). */
-async function start(opts: { home: string; hub?: boolean; sync?: () => unknown; dir?: string }) {
+async function start(opts: { home: string; hub?: boolean; sync?: () => unknown; dir?: string; projectIds?: string[] }) {
   const sync = opts.sync ?? (() => undefined);
   const handler = sharingTowersHandler({
     home: opts.home,
     hub: opts.hub ?? false,
     sync: sync as Parameters<typeof sharingTowersHandler>[0]['sync'],
     dirOf: (id) => (id === 'demo' ? opts.dir : undefined),
+    // No project unless a test names one, so the existing list test keeps its empty `projects`.
+    projectIds: () => opts.projectIds ?? [],
   });
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const url = req.url ?? '';
@@ -173,5 +184,40 @@ describe('the local shared-towers route (#266)', () => {
     expect(await read.json()).toEqual({ shares: [] });
     expect((await post(url, { unshare: 'demo' }, { 'X-Forwarded-For': '10.0.0.9' })).status).toBe(403);
     expect(readConfig(home).shares).toHaveLength(1); // the remote POST changed nothing
+  });
+
+  it('answers 405 with the Allow header for a PUT', { timeout: 5_000 }, async () => {
+    const dir = projectFolder();
+    const home = homeWith('http://127.0.0.1:1', { shares: [{ dir, name: 'demo', files: false }] });
+    const url = await start({ home, dir });
+
+    const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    expect(r.status).toBe(405);
+    expect(r.headers.get('allow')).toBe('GET, HEAD, POST');
+    expect(readConfig(home).shares).toHaveLength(1); // a PUT changed nothing
+  });
+
+  it('a folder path in unshare finds no share, so nothing is dropped', { timeout: 5_000 }, async () => {
+    const hub = await stubHub();
+    const dir = projectFolder();
+    const home = homeWith(hub.url, { shares: [{ dir, name: 'demo', files: false }] });
+    const url = await start({ home, dir });
+
+    // The browser sends the name only; a path to the folder must not match the recorded share.
+    const r = await post(url, { unshare: dir });
+    expect(r.status).toBe(400);
+    expect(hub.seen).toHaveLength(0); // the hub is not asked about a share that was never matched
+    expect(readConfig(home).shares).toEqual([{ dir, name: 'demo', files: false }]);
+  });
+
+  it('an unreachable hub answers 502 with unreachable: true', { timeout: 5_000 }, async () => {
+    const dir = projectFolder();
+    const home = homeWith(await closedUrl(), { shares: [{ dir, name: 'demo', files: false }] });
+    const url = await start({ home, dir });
+
+    const r = await post(url, { unshare: 'demo' });
+    expect(r.status).toBe(502);
+    expect(await r.json()).toMatchObject({ unreachable: true });
+    expect(readConfig(home).shares).toHaveLength(1); // kept without force
   });
 });

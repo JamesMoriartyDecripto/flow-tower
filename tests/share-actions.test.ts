@@ -163,6 +163,50 @@ describe('unshareFolder (#266)', () => {
     const r = await unshareFolder(home, 'nope', { force: false });
     expect(r).toEqual({ ok: false, error: 'no share named or at "nope". known shares: beta', known: ['beta'] });
   });
+
+  it('with byName a folder path matches nothing', async () => {
+    reset();
+    connectedConfig('http://127.0.0.1:1', { shares: [{ dir: '/x/gamma', name: 'gamma', files: false }] });
+    const r = await unshareFolder(home, '/x/gamma', { force: true, byName: true });
+    expect(r.ok).toBe(false);
+    expect(configOf().shares).toHaveLength(1);
+  });
+
+  it('an unreachable hub without force is flagged unreachable', { timeout: 30_000 }, async () => {
+    reset();
+    connectedConfig(await closedUrl(), { shares: [{ dir: '/x/eta', name: 'eta', files: false }] });
+    const r = await unshareFolder(home, 'eta', { force: false });
+    expect(r).toMatchObject({ ok: false, unreachable: true });
+  });
+});
+
+describe('config writes are queued (#266)', () => {
+  it('two shareFolder calls started together both end up recorded', { timeout: 30_000 }, async () => {
+    reset();
+    connectedConfig(await stubHub(200));
+    const one = towerFolder();
+    const two = towerFolder();
+    const [a, b] = await Promise.all([
+      shareFolder(home, one, { files: false, name: 'one' }),
+      shareFolder(home, two, { files: false, name: 'two' }),
+    ]);
+
+    expect(a.ok && b.ok).toBe(true);
+    const names = (configOf().shares as { name: string }[]).map((s) => s.name).sort();
+    expect(names).toEqual(['one', 'two']);
+  });
+
+  it('re-sharing a folder in the other mode replaces its entry', { timeout: 30_000 }, async () => {
+    reset();
+    connectedConfig(await stubHub(200));
+    const dir = towerFolder();
+    await shareFolder(home, dir, { files: false, name: 'swap' });
+    const again = await shareFolder(home, dir, { files: true, name: 'swap' });
+
+    expect(again.ok).toBe(true);
+    const shares = configOf().shares as { dir: string; name: string; files: boolean }[];
+    expect(shares).toEqual([{ dir, name: 'swap', files: true }]);
+  });
 });
 
 describe('listShares (#266)', () => {

@@ -21,8 +21,8 @@ async function getSharing(): Promise<SharingState> {
 }
 
 /** The recorded shares (GET /api/sharing/towers). Only asked for a satellite: a local server has none. */
-async function getShares(hub = false): Promise<TowerShare[]> {
-  const res = await fetch(hub ? '/api/sharing/towers?hub=1' : '/api/sharing/towers');
+async function getShares(): Promise<TowerShare[]> {
+  const res = await fetch('/api/sharing/towers');
   if (!res.ok) return [];
   return ((await res.json()) as { shares: TowerShare[] }).shares;
 }
@@ -87,24 +87,39 @@ export function refreshSharing(): Promise<void> {
   }).catch(() => {});
 }
 
-/** The route's error text, or a fallback when the answer carries none. */
-async function failure(res: Response): Promise<string> {
-  const body = (await res.json().catch(() => ({}))) as { error?: string };
-  return body.error ?? `request failed (${res.status})`;
+/** What a failed share or unshare reports: the text, and whether the hub could not be reached at all. */
+export interface ActionFailure { error: string; unreachable?: boolean }
+
+/** The route's error text and its unreachable flag, or a fallback when the answer carries none. */
+async function failure(res: Response): Promise<ActionFailure> {
+  const body = (await res.json().catch(() => ({}))) as { error?: string; unreachable?: boolean };
+  return { error: body.error ?? `request failed (${res.status})`, unreachable: body.unreachable === true };
 }
 
-/** Share a library project with the hub; resolves to undefined on success, or the error text. */
-export async function shareProject(project: string, files: boolean): Promise<string | undefined> {
-  const res = await fetch('/api/sharing/towers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project, files }) });
+/**
+ * POST one action to the route. A rejected fetch (the local server is down, the connection dropped) becomes the
+ * failure text instead of a throw, so the caller always gets an answer to show and can clear its busy state.
+ */
+async function postTower(body: object): Promise<ActionFailure | undefined> {
+  let res: Response;
+  try {
+    res = await fetch('/api/sharing/towers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch (err) {
+    await refreshSharing();
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
   await refreshSharing();
   return res.ok ? undefined : failure(res);
+}
+
+/** Share a library project with the hub; resolves to undefined on success, or the failure. */
+export function shareProject(project: string, files: boolean): Promise<ActionFailure | undefined> {
+  return postTower({ project, files });
 }
 
 /** Stop sharing a folder by its share name. `force` drops it from this config even when the hub cannot be told. */
-export async function unshareTower(name: string, force = false): Promise<string | undefined> {
-  const res = await fetch('/api/sharing/towers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ unshare: name, force }) });
-  await refreshSharing();
-  return res.ok ? undefined : failure(res);
+export function unshareTower(name: string, force = false): Promise<ActionFailure | undefined> {
+  return postTower({ unshare: name, force });
 }
 
 /** Poll every 5 s. The chip is always mounted, so the store stays fresh while Settings is closed too. */
@@ -151,19 +166,26 @@ async function postSharing(path: string, body?: unknown): Promise<SharingState |
   return next;
 }
 
-/** The hub's list of tower names, read once when the section opens; undefined until it answers. */
-function useHubTowers(): { towers?: string[]; error?: string } {
-  const [hub, setHub] = useState<{ towers?: string[]; error?: string }>({});
+interface HubTowers { towers?: string[]; error?: string }
+
+/**
+ * The hub's list of tower names. It is read again whenever the set of share names changes, so a tower shared
+ * after the section opened is not reported as missing. Until the answer for the current names arrives, nothing is
+ * known, so the rows do not claim "missing on the hub" from an older list.
+ */
+function useHubTowers(names: string[]): HubTowers {
+  const key = [...names].sort().join(',');
+  const [hub, setHub] = useState<HubTowers & { key?: string }>({});
   useEffect(() => {
     if (STATIC) return;
     let live = true;
     fetch('/api/sharing/towers?hub=1')
       .then((r) => r.json() as Promise<{ hub?: { ok: boolean; towers?: string[]; error?: string } }>)
-      .then((body) => { if (live && body.hub) setHub(body.hub.ok ? { towers: body.hub.towers ?? [] } : { error: body.hub.error }); })
-      .catch(() => { if (live) setHub({ error: 'cannot reach the hub' }); });
+      .then((body) => { if (live && body.hub) setHub(body.hub.ok ? { key, towers: body.hub.towers ?? [] } : { key, error: body.hub.error }); })
+      .catch(() => { if (live) setHub({ key, error: 'cannot reach the hub' }); });
     return () => { live = false; };
-  }, []);
-  return hub;
+  }, [key]);
+  return hub.key === key ? hub : {};
 }
 
 /**
@@ -171,19 +193,21 @@ function useHubTowers(): { towers?: string[]; error?: string } {
  * the row also offers the forced removal, which drops the share from this config only.
  */
 function SharedTowerRow({ share, hubNames, now }: { share: TowerShare; hubNames?: string[]; now: number }) {
-  const [error, setError] = useState<string>();
+  const [failed, setFailed] = useState<ActionFailure>();
   const [busy, setBusy] = useState(false);
   const status = shareStatus(share, now);
   const missing = hubNames !== undefined && !hubNames.includes(share.name);
   const unshare = (force: boolean) => {
     if (!window.confirm(`Stop sharing ${share.name} with the hub? The hub removes its copy.`)) return;
     setBusy(true);
+    setFailed(undefined);
     void unshareTower(share.name, force)
-      .then((err) => setError(err))
+      .then((f) => setFailed(f))
       .finally(() => setBusy(false));
   };
   // Only a hub that cannot be reached can be bypassed: a refusal means the hub is up and must be answered.
-  const unreachable = error !== undefined && /cannot reach the hub/.test(error);
+  const unreachable = failed?.unreachable === true;
+  const error = failed?.error;
   return (
     <li className="sharing-row">
       <span className="sharing-name">{share.name}</span>
@@ -209,7 +233,7 @@ function DarkProjectRow({ project }: { project: DarkProject }) {
     setBusy(true);
     setError(undefined);
     void shareProject(project.id, false)
-      .then((err) => setError(err))
+      .then((f) => setError(f?.error))
       .finally(() => setBusy(false));
   };
   return (
@@ -226,7 +250,7 @@ export function SharingSection() {
   const sharing = useSharing((s) => s.sharing);
   const shares = useSharing((s) => s.shares);
   const dark = useSharing((s) => s.dark);
-  const hub = useHubTowers();
+  const hub = useHubTowers(shares.map((s) => s.name));
   const [test, setTest] = useState<string>();
   const [busy, setBusy] = useState(false);
   // Settings may open before the first poll ever ran (or after a long idle): refresh on mount.
