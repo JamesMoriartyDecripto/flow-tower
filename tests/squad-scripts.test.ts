@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, copyFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -22,7 +22,8 @@ describe('ev.sh (#265)', () => {
     writeFileSync(fake, `require('node:fs').appendFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ') + '\\n');\n`);
     const r = spawnSync('sh', [join(squad, 'ev.sh'), 'log', 'coder.step', 'hello'], {
       encoding: 'utf8',
-      env: { PATH: SYS_PATH, FLOW_TOWER_CLI: fake, SQUAD_TOWER: 'Test Tower' },
+      // On CI node sits in the tool cache, not in SYS_PATH; put the running node's folder first so ev.sh's `node` resolves.
+      env: { PATH: `${dirname(process.execPath)}:${SYS_PATH}`, FLOW_TOWER_CLI: fake, SQUAD_TOWER: 'Test Tower' },
     });
     expect(r.status).toBe(0);
     const argv = readFileSync(log, 'utf8');
