@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCell, rowsLabel } from '../src/app/hud/DbView';
+import { formatCell, rowsLabel, tablesLabel } from '../src/app/hud/DbView';
 import type { DbTable } from '../src/core/dbPreview';
 
 describe('formatCell', () => {
@@ -32,5 +32,22 @@ describe('rowsLabel', () => {
   });
   it('says a sql schema has no data', () => {
     expect(rowsLabel(base)).toBe('schema only: no data in a .sql file');
+  });
+  it('marks a capped row count as a floor', () => {
+    const rows = Array.from({ length: 100 }, () => [1]);
+    expect(rowsLabel({ ...base, rowCount: 100000, rowCountCapped: true, rows })).toBe('first 100 of 100,000+ rows');
+  });
+});
+
+describe('tablesLabel', () => {
+  const table: DbTable = { name: 't', kind: 'table', columns: [] };
+  it('uses the singular for one table', () => {
+    expect(tablesLabel({ source: 'sqlite', tables: [table] })).toBe('1 table · sqlite');
+  });
+  it('shows how many tables are listed out of the file total', () => {
+    expect(tablesLabel({ source: 'sql', tables: [table], tableCount: 40 })).toBe('first 1 of 40 tables · sql');
+  });
+  it('gives the plain count when every table is listed', () => {
+    expect(tablesLabel({ source: 'sqlite', tables: [table, table], tableCount: 2 })).toBe('2 tables · sqlite');
   });
 });

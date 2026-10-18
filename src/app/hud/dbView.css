@@ -4,7 +4,8 @@
 .db-empty { padding: 20px; }
 
 /* The table list scrolls on its own (capped height), so a database with many tables never pushes the grid away. */
-.db-tables { flex: 0 0 220px; max-height: 70vh; overflow-y: auto; position: sticky; left: 0; border-right: 1px solid var(--line-soft); padding: 4px 0; background: var(--panel-solid); }
+/* Sticky on both axes: it stays in view when the grid scrolls down, and its height fits the .code area (zoom does not rescale vh, hence --vh). */
+.db-tables { flex: 0 0 220px; max-height: calc(60 * var(--vh)); overflow-y: auto; position: sticky; top: 0; left: 0; z-index: 2; border-right: 1px solid var(--line-soft); padding: 4px 0; background: var(--panel-solid); }
 .db-tables button { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; width: 100%; padding: 6px 14px; text-align: left; font: inherit; color: var(--dim); border-left: 2px solid transparent; }
 .db-tables button.on { color: var(--orange); border-left-color: var(--orange); }
 .db-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -24,3 +25,6 @@
 /* A block span is what lets the ellipsis work inside a table cell. */
 .db-cell { display: block; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-note { margin: 10px 0 0; font: 11px var(--mono); color: var(--dim); }
+/* One line per column in a .sql file: the key and not-null cells stay narrow, the type is dimmed. */
+.db-columns td { white-space: nowrap; }
+.db-columns td.dim { color: var(--dim); }

@@ -4,7 +4,7 @@ import { fetchFile } from '../api';
 import { usePrefs } from '../settings';
 import { useStore } from '../store';
 import type { DbPreview } from '../../core/dbPreview';
-import { DbView } from './DbView';
+import { DbView, tablesLabel } from './DbView';
 import { MarkdownView } from './MarkdownView';
 import { useDialogFocus } from './dialog';
 
@@ -91,7 +91,7 @@ export function FileViewer() {
           {view.state === 'ok' && (view.markdown && !markdownSource
             ? <MarkdownView source={view.source} path={path} files={file.files} onOpen={(f) => openFile({ ...file, index: file.files.indexOf(f) })} />
             : view.db && !markdownSource
-              ? <DbView db={view.db} />
+              ? <DbView key={path} db={view.db} />
               : <div dangerouslySetInnerHTML={{ __html: view.html }} />)}
         </div>
         <footer>
@@ -110,7 +110,7 @@ export function FileViewer() {
               </span>
             )}
             <button className={`chip clickable ${wrap ? 'on' : ''}`} onClick={() => usePrefs.getState().set({ viewerWrap: !wrap })} title="Wrap long lines (W)">⏎ Wrap</button>
-            <span>{view.state === 'ok' ? (view.db && !markdownSource ? `${view.db.tables.length} tables · ${view.db.source}` : `${view.lines} lines · ${view.lang}`) : ''} · ESC to close</span>
+            <span>{view.state === 'ok' ? (view.db && !markdownSource ? tablesLabel(view.db) : `${view.lines} lines · ${view.lang}`) : ''} · ESC to close</span>
           </span>
         </footer>
       </div>
