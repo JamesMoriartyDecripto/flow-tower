@@ -2,6 +2,16 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Status on 2026-10-18
+
+- **Dev squad kit** (#265, PR #267, CI green, waiting for the merge): the squad runs on any git project. `flow-tower squad init <project>` copies the runner into `tools/squad/` with a detected `squad.json` (check command, writable and review folders, base branch, models), a task template and a ready squad tower; `flow-tower squad key` stores the OpenRouter key in the user folder; the `flow-tower-squad` skill is the lead's procedure, shipped by `install-skill`. Review and security found that the project's check and test commands saw `OPENROUTER_API_KEY` (fixed: dropped from every child). Checked end to end on a scratch project with a real key. Squad cost $0.21.
+- **Viewer: SQLite databases and SQL schemas as tables** (#264, branch `feat/264-sqlite-viewer`, no PR yet): steps 01-04 done (read-only `node:sqlite` preview, tolerant `CREATE TABLE` parser, the table view, the review and security fixes on the server). Next: step 05 (viewer fixes from the browser check, task written), a browser check, docs, CHANGELOG, PR.
+- **Opened:** #266, share and unshare a tower with the hub from the interface, and say why the hub stays dark (a satellite's events light only the towers that machine shared, #206).
+- **Squad lessons:**
+  - a task that changes a text an existing test asserts must let the step update that assertion (step 09 of #265 went red on it);
+  - tests that limit `PATH` must keep the running Node's folder: on GitHub Actions node is not in /usr/bin;
+  - under load (a browser, two servers) the full check can fail on 5 s timeouts of unrelated tests: rerun the touched and timed-out files on their own before calling a step red, and commit it by hand once verified.
+
 ## Status on 2026-10-16
 
 - **New example `ai-commercialista`** (#228, PR #255): an AI accountant for Italian companies that cites every source.
@@ -44,6 +54,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Next, in order
 
+0. Merge #267, then finish #264 (step 05, browser check, PR) and #266
 1. #181 what needs the Mac: a real tailnet with the v0.10.0 team journeys, the macOS side of #194 (launchd)
 2. #69 tower names as an STT prompt
 3. docs-qa gaps left after #143: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)
