@@ -114,7 +114,10 @@ restart, and empties the queue: nothing waits to leave later. The SAT chip in th
 **Reading it.** `GET /api/sharing` on the satellite answers its relay state
 (`online`; `queued`: the hub is unreachable, events wait in a queue of at most 5000, oldest dropped
 first; `revoked`; `held`: paused by the hub owner; `paused`: paused here; plus hub url, queued/dropped counters, last error) and never the token;
-a server that is not a satellite answers `{ "state": "off" }`. On the hub, each satellite posts
+a server that is not a satellite answers `{ "state": "off" }`. `GET /api/sharing/towers` lists this machine's shares
+(name, folder, files or not, sync state, the library projects in that folder; `?hub=1` adds the hub's list), `POST`
+`{ project, files }` shares a local project's folder and `POST { unshare, force? }` removes a share by name (#266): loopback
+only, like the pause control, JSON bodies only, never the token. On the hub, each satellite posts
 `POST /api/heartbeat` (counters and state word, authenticated like `/api/events`) and every accepted
 event counts as a sign of life; `GET /api/hub/satellites` lists them, calling one offline after three
 missed minute-long beats.

@@ -68,7 +68,31 @@ layers:
         label: Share sync
         runtime: laptop
         description: "Every 15 s re-sends a shared folder whose fingerprint changed (#164); a tower with an error is not sent (#190), a removed node is flagged, and the state (synced, not sent: reason) shows in Settings > Sharing and on the SAT chip. A new share is named after the tower's `name:` (#211)."
-        files: [src/server/share-sync.ts, src/server/share-client.ts, src/cli/share.ts]
+        files: [src/server/share-sync.ts, src/server/share-client.ts]
+      - id: share-actions
+        type: process
+        label: Share actions
+        runtime: laptop
+        description: "shareFolder, unshareFolder and listShares (#266): collect and upload a folder, record the share in config.json only after the hub accepted it, add it to the library. Unshare drops the entry when the hub agrees or holds nothing (404); an unreachable hub keeps it unless forced. A folder already shared keeps its name; a name another folder holds is refused. Shared by the CLI and the route."
+        files: [src/server/share-actions.ts, src/server/share-entries.ts]
+      - id: share-cli
+        type: tool
+        label: share CLI
+        runtime: laptop
+        description: "flow-tower share <dir> [--files], share --list, unshare <name|dir> [--force] (#164): lists the files that leave the machine (the first 30, then a count) and any it skipped, then calls the share actions."
+        files: [src/cli/share.ts]
+      - id: share-ui
+        type: entry
+        label: Share UI
+        runtime: laptop
+        description: "Share and unshare from the interface, on a satellite only (#266): a Share with hub menu on each local library card, and Settings > Sharing with each share's folder, mode, state and Unshare (Remove from config only when the hub is down). An active local project no share lists is named there and in the SAT chip's tooltip: the hub lights only towers this machine shared (#206)."
+        files: [src/app/hud/ShareControl.tsx, src/app/hud/Sharing.tsx, src/app/sharing.ts]
+      - id: sharing-towers
+        type: output
+        label: Sharing towers
+        runtime: laptop
+        description: "/api/sharing/towers, the local route behind the share menu (#266). GET lists the shares with their sync state and projects (?hub=1 adds the hub's list); POST shares a local project or unshares by name, then syncs at once. Loopback only: cross-site and remote POST 403, a remote GET sees an empty list; JSON only, capped bodies, never the token."
+        files: [src/server/sharing-towers.ts]
       - id: otel
         type: entry
         label: OTel collector
@@ -101,6 +125,12 @@ layers:
       - "supervisor -> share-sync [call]: start, stop"
       - "relay -> sharing [data]: state"
       - "share-sync -> sharing [data]: towers"
+      - "share-ui -> sharing-towers [call]: list, share, unshare"
+      - "share-ui -> sharing [call]: relay state"
+      - "sharing-towers -> share-actions [call]: share, unshare, list"
+      - "share-cli -> share-actions [call]: share, unshare, list"
+      - "share-actions -> config-file [data]: shares"
+      - "sharing-towers -> share-sync [call]: sync now"
 
   - id: guard
     title: Guard
@@ -304,6 +334,7 @@ links:
   - { from: senders.relay, to: guard.hub-guard, kind: call, label: /api/events, protocol: http }
   - { from: senders.relay, to: guard.hub-guard, kind: call, label: /api/heartbeat, protocol: http }
   - { from: senders.share-sync, to: guard.hub-guard, kind: call, label: PUT /api/hub/towers, protocol: http }
+  - { from: senders.share-actions, to: guard.hub-guard, kind: call, label: "GET, PUT, DELETE /api/hub/towers", protocol: http }
   - "guard.authorize -> ingest.shared-towers: sender token"
   - "guard.authorize -> ingest.events: authorized"
   - "guard.authorize -> ingest.otlp-route: authorized"

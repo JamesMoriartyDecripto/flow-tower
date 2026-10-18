@@ -77,6 +77,30 @@ describe('squad ledger (#156)', () => {
     expect(out).toContain('**Squad cost for #9:** $0.2500 (1 with unknown cost, not counted) over 2 runs, 2 steps.');
   });
 
+  it('sums the same issue number of two projects apart, and --all sums both', () => {
+    const ledger = join(dir, 'costs.jsonl');
+    appendRun(ledger, { project: 'alpha', issue: '1', role: 'coder', model: 'a', steps: 1, cost: 0.5, promptTokens: 1, cachedTokens: 0 });
+    appendRun(ledger, { project: 'beta', issue: '1', role: 'coder', model: 'a', steps: 1, cost: 0.25, promptTokens: 1, cachedTokens: 0 });
+    const script = fileURLToPath(new URL('../tools/squad/cost.mjs', import.meta.url));
+    const env = { ...process.env, SQUAD_LEDGER: ledger };
+    const alpha = execFileSync(process.execPath, [script, '1', '--repo', join(dir, 'alpha')], { env, encoding: 'utf8', timeout: 20_000 });
+    expect(alpha).toContain('**Squad cost for #1:** $0.5000 over 1 run, 1 step.');
+    const all = execFileSync(process.execPath, [script, '1', '--repo', join(dir, 'alpha'), '--all'], { env, encoding: 'utf8', timeout: 20_000 });
+    expect(all).toContain('**Squad cost for #1:** $0.7500 over 2 runs, 2 steps.');
+  });
+
+  it('counts an entry without a project for flow-tower only', () => {
+    const ledger = join(dir, 'costs.jsonl');
+    // Entries written before #265 carry no project: they were all runs of this repo.
+    appendRun(ledger, { issue: '2', role: 'coder', model: 'a', steps: 1, cost: 0.3, promptTokens: 1, cachedTokens: 0 });
+    const script = fileURLToPath(new URL('../tools/squad/cost.mjs', import.meta.url));
+    const env = { ...process.env, SQUAD_LEDGER: ledger };
+    const flow = execFileSync(process.execPath, [script, '2', '--repo', join(dir, 'flow-tower')], { env, encoding: 'utf8', timeout: 20_000 });
+    expect(flow).toContain('**Squad cost for #2:** $0.3000 over 1 run, 1 step.');
+    const other = execFileSync(process.execPath, [script, '2', '--repo', join(dir, 'other')], { env, encoding: 'utf8', timeout: 20_000 });
+    expect(other).toContain('No squad runs recorded for #2.');
+  });
+
   it('cost.mjs prints the issue block, or a no-runs line', () => {
     const ledger = join(dir, 'costs.jsonl');
     appendRun(ledger, { issue: '7', role: 'coder', model: 'a', steps: 4, cost: 0.1, promptTokens: 10, cachedTokens: 5 });

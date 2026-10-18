@@ -75,11 +75,12 @@ layers:
           - { kind: doc, label: "Issue #108", url: "https://github.com/JamesMoriartyDecripto/flow-tower/issues/108" }
       - id: categories
         type: memory
-        label: 10 categories
+        label: Role categories
         description: >-
-          Coder, reviewer, security, lead/planner, doc-writer, voice/chat agent, intent classifier,
-          STT/TTS, long context, vision. One per role a node can have. Each says what the role must do
-          and what its deterministic check is. Pitfall: one "general" leaderboard; a fast classifier
+          Coder, reviewer, security, orchestrator, planner, doc-writer, writer, voice/chat agent, intent,
+          tax advisor, STT, TTS, long context, vision, data, guard, decision, embeddings, rerank, image
+          and video generation. One per role a node can have. Each says what the role must do
+          and its deterministic check. Pitfall: one "general" leaderboard; a fast classifier
           and a careful reviewer are different jobs.
         files: [categories.md]
       - id: ready
@@ -90,7 +91,7 @@ layers:
         type: output
         label: Planned category
         status: planned
-        description: "Voice / chat agent and long context / summarizer: tasks still to write."
+        description: "Voice / chat agent (realtime voice): tasks still to write."
     edges:
       - question -> categories
       - categories -> ready
@@ -104,13 +105,13 @@ layers:
       - id: coder
         type: memory
         label: coder tasks
-        description: "parse-edge (src/core/edges.ts) and format-price (models.mjs). Check: a test script imports the answer."
-        files: [tasks/coder/parse-edge.md, tasks/coder/parse-edge.check.mjs, tasks/coder/format-price.md, tasks/coder/format-price.check.mjs]
+        description: "parse-edge (src/core/edges.ts), format-price (models.mjs) and shell-path (bin/cli-name.js). Check: a test script imports the answer."
+        files: [tasks/coder/parse-edge.md, tasks/coder/parse-edge.check.mjs, tasks/coder/format-price.md, tasks/coder/format-price.check.mjs, tasks/coder/shell-path.md, tasks/coder/shell-path.check.mjs]
       - id: reviewer
         type: memory
         label: reviewer tasks
-        description: "A planted bug each: /api/events answering 200 + JSON, a zustand store mutated in place. Check: the expected finding's patterns, then the rubric penalises invented defects."
-        files: [tasks/reviewer/events-204.md, tasks/reviewer/fixtures/events-route.ts, tasks/reviewer/store-mutation.md, tasks/reviewer/fixtures/live-store.ts]
+        description: "A planted bug each: /api/events answering 200 + JSON, a zustand store mutated in place, a history dedupe key without the event kind (#187). Check: the expected finding's patterns, then the rubric penalises invented defects."
+        files: [tasks/reviewer/events-204.md, tasks/reviewer/fixtures/events-route.ts, tasks/reviewer/store-mutation.md, tasks/reviewer/fixtures/live-store.ts, tasks/reviewer/history-dedupe.md, tasks/reviewer/fixtures/history-row.ts]
       - id: security
         type: memory
         label: security tasks
@@ -119,18 +120,42 @@ layers:
       - id: intent
         type: memory
         label: intent tasks
-        description: "Voice commands to actions (src/app/voice/commands.ts). Check: exact JSON, key order ignored. No tools: structured output only."
-        files: [tasks/intent/navigation.md, tasks/intent/node-and-layer.md]
+        description: "Voice commands to actions (src/app/voice/commands.ts); the airline-support triage routes and its relevance guard. Check: exact JSON, key order ignored. No tools: structured output only."
+        files: [tasks/intent/navigation.md, tasks/intent/node-and-layer.md, tasks/intent/airline-routing.md, tasks/intent/airline-relevance.md]
       - id: docs
         type: memory
         label: doc-writer tasks
         description: "A changelog entry and a gotcha paragraph. Check: required facts as patterns, then the rubric (accuracy, length)."
         files: [tasks/doc-writer/changelog-entry.md, tasks/doc-writer/hook-gotcha.md]
+      - id: writer
+        type: memory
+        label: writer tasks
+        description: "Brand copy from the social-studio and marketing-studio examples: a how-to short against a voice guide and banned claims, a landing section against a claims register, a public reply to an upset customer. Check: required facts and banned words, then the rubric."
+        files: [tasks/writer/halden-battery-cold.md, tasks/writer/tallymoor-landing-v2.md, tasks/writer/halden-public-reply.md]
+      - id: planner
+        type: memory
+        label: planner tasks
+        description: "A late change request in the web-studio lead's phases, the plan for the real Admin pause 415 bug (#206), and a mid-book change in the ebook-studio phases. Check: the plan names the right steps and files, then the rubric."
+        files: [tasks/planner/web-change-request.md, tasks/planner/hub-pause-415-v2.md, tasks/planner/ebook-outline-change-v2.md]
+      - id: summarizer
+        type: memory
+        label: summarizer tasks
+        description: "Every file of the sre-incident and fraud-desk examples (27-36 KB) with seven questions whose answers sit in different files. Check: exact JSON."
+        files: [tasks/summarizer/sre-incident-facts.md, tasks/summarizer/fraud-desk-facts.md]
+      - id: vision
+        type: memory
+        label: vision tasks
+        description: "Screenshots sent with images:, one exact answer each: two Flow Tower panels, three browser-worker portal screens (a wrong birth date, a one-character licence slip, a referral banner) and an ai-video-studio contact sheet (black frame, logo outside the safe zone, garbled caption). Check: exact JSON."
+        files: [tasks/vision/node-inspector.md, tasks/vision/tower-overview.md, tasks/vision/portal-add-driver.md, tasks/vision/portal-licence-char.md, tasks/vision/portal-referral-banner.md, tasks/vision/frame-contact-sheet.md, tasks/vision/fixtures/node-inspector.png, tasks/vision/fixtures/tower-overview.png, tasks/vision/fixtures/portal-add-driver.png, tasks/vision/fixtures/portal-licence-char.png, tasks/vision/fixtures/portal-referral-banner.png, tasks/vision/fixtures/frame-contact-sheet.png]
+      - id: retired
+        type: memory
+        label: Retired tasks
+        description: "Tasks whose answer key proved wrong after a run: kept for the record, never run again. Each has a v2 under a new id (rubric.md: a wrong key gets a new task id)."
+        files: [tasks/retired/tallymoor-landing.md, tasks/retired/hub-pause-415.md, tasks/retired/ebook-outline-change.md]
       - { id: orchestrator, type: memory, label: orchestrator tasks, description: "Release plan and squad plan: order the steps by stated rules. Check: exact JSON.", files: [tasks/orchestrator/release-plan.md, tasks/orchestrator/squad-plan.md] }
       - { id: data, type: memory, label: data tasks, description: "Invoice fields and a deadline email into a JSON schema. Check: exact JSON.", files: [tasks/data/invoice-fields.md, tasks/data/deadlines-email.md] }
       - { id: guard, type: memory, label: guard tasks, description: "A prompt injection and an outgoing data leak. Check: exact JSON labels.", files: [tasks/guard/injection.md, tasks/guard/data-leak.md] }
       - { id: decision, type: memory, label: decision tasks, description: "Triage routes and abuse labels as fixed answers with probabilities. Check: plain values, exact JSON.", files: [tasks/decision/triage-routes.md, tasks/decision/abuse-labels.md] }
-      - { id: vision, type: memory, label: vision tasks, description: "Two known screenshots, one exact answer each. Check: exact answer about the picture.", files: [tasks/vision/node-inspector.md, tasks/vision/tower-overview.md] }
       - { id: image_gen, type: memory, label: image-gen tasks, description: "Poster text and a scene with counts and positions. Check: a vision judge of another family, yes/no.", files: [tasks/image-gen/poster-text.md, tasks/image-gen/scene-objects.md] }
       - { id: video_gen, type: memory, label: video-gen tasks, description: "A paper boat and a rolling ball, each with clear motion. Check: a video judge, yes/no.", files: [tasks/video-gen/paper-boat.md, tasks/video-gen/rolling-ball.md] }
       - { id: tts, type: memory, label: tts tasks, description: "An English and an Italian sentence to speak. Check: round trip through an STT judge, word error rate.", files: [tasks/tts/en-status.md, tasks/tts/it-scadenza.md] }
@@ -152,17 +177,21 @@ layers:
       - "security -> keyfirst [data]"
       - "intent -> keyfirst [data]"
       - "docs -> keyfirst [data]"
+      - "writer -> keyfirst [data]"
+      - "planner -> keyfirst [data]"
+      - "summarizer -> keyfirst [data]"
+      - "vision -> keyfirst [data]"
       - "orchestrator -> keyfirst [data]"
       - "data -> keyfirst [data]"
       - "guard -> keyfirst [data]"
       - "decision -> keyfirst [data]"
-      - "vision -> keyfirst [data]"
       - "image_gen -> keyfirst [data]"
       - "video_gen -> keyfirst [data]"
       - "tts -> keyfirst [data]"
       - "stt -> keyfirst [data]"
       - "embeddings -> keyfirst [data]"
       - "rerank -> keyfirst [data]"
+      - "keyfirst -> retired [return]: wrong key"
 
   # 3 ───────────────────────────────────────────────────────────────
   - id: candidates
@@ -415,11 +444,12 @@ layers:
         type: output
         label: results/<date>.md
         description: >-
-          Per category: model, runs, correct, total median [min-max], first output, steps, $ / run,
-          $ / correct, cached %, retries, errors, providers. First real run: results/2026-10-11.md,
-          8 models × 5 categories, n = 3 per model and task, 240 runs, $0.19. Format example labelled
-          ILLUSTRATIVE in results/example.md.
-        files: [results/2026-10-11.md, results/example.md]
+          Per category: model, runs, correct, timing, steps, cost, cache, retries, errors, providers.
+          First real run: results/2026-10-11.md,
+          8 models × 5 categories, n = 3 per model and task, 240 runs, $0.19. Roles of the example towers:
+          results/2026-10-16-tower-nodes.md, 409 runs, n = 3-5, with a recommendation per node. Format example
+          labelled ILLUSTRATIVE in results/example.md.
+        files: [results/2026-10-11.md, results/2026-10-16-tower-nodes.md, results/example.md]
       - id: signoff
         type: human
         label: Sign-off

@@ -52,7 +52,8 @@ Not measured yet: `realtime-voice` and `general`. `general` needs no own pick; u
 
 ## Caveats
 
-- **Review and writing:** only the deterministic checks count. The rubric scores of those tasks were not filled in.
+- **Review and writing:** only the deterministic checks count here. Within one family, blind rubric scores for reviewer, planner, writer and doc-writer are in [the per-node run](../../examples/model-benchmark/results/2026-10-16-tower-nodes.md).
+- **Per node when the harness fixes the family:** that same page picks inside Claude, Gemini or OpenAI for each flagged node of the example towers. On vision it sends Haiku's frame QA (spotting defects, 20/20) while this table avoids Haiku for reading exact values (3/6): use Haiku for defect spotting only.
 - **Text to speech:** OpenRouter does not return the cost per run, so the pick uses the list price. Kokoro's list price is 0.00000062 per input unit, against 0.000015 for Microsoft MAI Voice and 0.00002 for ElevenLabs v4 Turbo, about 24-32 times lower.
 - **Coding:** the dev squad keeps `anthropic/claude-haiku-5.5`. In the #126 field trial on a real refactor, GPT-6 Luna missed the size goal, and Haiku met it with the cleanest diff. A benchmark tie does not beat a field result.
 - **Research:** the ai-commercialista example keeps Haiku for its researcher, since the node is built on the Anthropic Citations API, which DeepSeek does not have. A hard dependency outranks the cost rule.

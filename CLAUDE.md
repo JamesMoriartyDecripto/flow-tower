@@ -22,7 +22,7 @@
 | How the hub works inside | [examples/team-hub](examples/team-hub/README.md): the tower of the hub's own code |
 | Model benchmarks | [examples/model-benchmark/README.md](examples/model-benchmark/README.md) |
 | The agent skill | [skills/flow-tower/SKILL.md](skills/flow-tower/SKILL.md), [reference.md](skills/flow-tower/reference.md) |
-| Build work with the squad (coder/reviewer through OpenRouter) | [tools/squad/README.md](tools/squad/README.md) |
+| Build work with the squad (coder/reviewer through OpenRouter); the squad on another project (`squad init`, `squad key`) | [tools/squad/README.md](tools/squad/README.md), [skills/flow-tower-squad](skills/flow-tower-squad/SKILL.md) |
 
 ## Conventions
 

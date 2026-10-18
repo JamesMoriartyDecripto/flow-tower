@@ -1,0 +1,15 @@
+{
+  "project": "Flow Tower (TypeScript, React 19, Vite 8, vitest)",
+  "commands": {
+    "check": "npm run check",
+    "typecheck": "npm run typecheck",
+    "test": "npx vitest run {file}"
+  },
+  "write": ["src", "tests", "e2e"],
+  "review": ["src", "bin", "tools"],
+  "rules": [
+    "Code passed to Playwright's page.evaluate runs as plain JavaScript in the browser, so keep TypeScript syntax out of it."
+  ],
+  "extras": ["validate", "dryrun"],
+  "cli": "bin/flow-tower.js"
+}

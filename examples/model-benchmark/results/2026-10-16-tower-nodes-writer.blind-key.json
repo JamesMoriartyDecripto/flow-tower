@@ -1,0 +1,272 @@
+{
+  "B001": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 2
+  },
+  "B002": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 5
+  },
+  "B003": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 2
+  },
+  "B004": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 5
+  },
+  "B005": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 4
+  },
+  "B006": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 1
+  },
+  "B007": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 2
+  },
+  "B008": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 4
+  },
+  "B009": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 3
+  },
+  "B010": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 2
+  },
+  "B011": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 4
+  },
+  "B012": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 2
+  },
+  "B013": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 4
+  },
+  "B014": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 3
+  },
+  "B015": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 5
+  },
+  "B016": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 1
+  },
+  "B017": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 3
+  },
+  "B018": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 1
+  },
+  "B019": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 2
+  },
+  "B020": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 4
+  },
+  "B021": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 3
+  },
+  "B022": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 2
+  },
+  "B023": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 5
+  },
+  "B024": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 5
+  },
+  "B025": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 4
+  },
+  "B026": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 5
+  },
+  "B027": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 1
+  },
+  "B028": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 5
+  },
+  "B029": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 1
+  },
+  "B030": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 2
+  },
+  "B031": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 3
+  },
+  "B032": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 4
+  },
+  "B033": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 3
+  },
+  "B034": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 3
+  },
+  "B035": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 4
+  },
+  "B036": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 4
+  },
+  "B037": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 5
+  },
+  "B038": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 1
+  },
+  "B039": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "halden-public-reply",
+    "run": 1
+  },
+  "B040": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "halden-battery-cold",
+    "run": 1
+  },
+  "B041": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 2
+  },
+  "B042": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 5
+  },
+  "B043": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 1
+  },
+  "B044": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 3
+  },
+  "B045": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "writer",
+    "task": "tallymoor-landing-v2",
+    "run": 3
+  }
+}

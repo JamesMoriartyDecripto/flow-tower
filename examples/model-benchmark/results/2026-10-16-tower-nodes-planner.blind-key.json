@@ -1,0 +1,422 @@
+{
+  "B001": {
+    "model": "google/gemini-2.5-flash",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 2
+  },
+  "B002": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 2
+  },
+  "B003": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 5
+  },
+  "B004": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 3
+  },
+  "B005": {
+    "model": "google/gemini-2.5-flash",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 5
+  },
+  "B006": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 1
+  },
+  "B007": {
+    "model": "google/gemini-2.5-flash",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 5
+  },
+  "B008": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 5
+  },
+  "B009": {
+    "model": "google/gemini-2.5-flash",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 4
+  },
+  "B010": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 2
+  },
+  "B011": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 3
+  },
+  "B012": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 4
+  },
+  "B013": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 3
+  },
+  "B014": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 2
+  },
+  "B015": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 2
+  },
+  "B016": {
+    "model": "google/gemini-2.5-flash",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 3
+  },
+  "B017": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 5
+  },
+  "B018": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 4
+  },
+  "B019": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 1
+  },
+  "B020": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 4
+  },
+  "B021": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 3
+  },
+  "B022": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 2
+  },
+  "B023": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 3
+  },
+  "B024": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 3
+  },
+  "B025": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 5
+  },
+  "B026": {
+    "model": "google/gemini-2.5-flash",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 3
+  },
+  "B027": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 5
+  },
+  "B028": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 5
+  },
+  "B029": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 1
+  },
+  "B030": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 1
+  },
+  "B031": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 3
+  },
+  "B032": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 4
+  },
+  "B033": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 5
+  },
+  "B034": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 1
+  },
+  "B035": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 3
+  },
+  "B036": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 4
+  },
+  "B037": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 1
+  },
+  "B038": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 2
+  },
+  "B039": {
+    "model": "google/gemini-2.5-flash",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 1
+  },
+  "B040": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 4
+  },
+  "B041": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 2
+  },
+  "B042": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 5
+  },
+  "B043": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 3
+  },
+  "B044": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 5
+  },
+  "B045": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 2
+  },
+  "B046": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 4
+  },
+  "B047": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 1
+  },
+  "B048": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 2
+  },
+  "B049": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 5
+  },
+  "B050": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 2
+  },
+  "B051": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 1
+  },
+  "B052": {
+    "model": "google/gemini-2.5-flash",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 4
+  },
+  "B053": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 5
+  },
+  "B054": {
+    "model": "google/gemini-2.5-flash",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 1
+  },
+  "B055": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 4
+  },
+  "B056": {
+    "model": "google/gemini-2.5-flash",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 2
+  },
+  "B057": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 3
+  },
+  "B058": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 2
+  },
+  "B059": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 3
+  },
+  "B060": {
+    "model": "google/gemini-2.5-flash",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 3
+  },
+  "B061": {
+    "model": "anthropic/claude-opus-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 1
+  },
+  "B062": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 4
+  },
+  "B063": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 5
+  },
+  "B064": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 4
+  },
+  "B065": {
+    "model": "anthropic/claude-haiku-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 1
+  },
+  "B066": {
+    "model": "google/gemini-2.5-flash",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 2
+  },
+  "B067": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "ebook-outline-change-v2",
+    "run": 2
+  },
+  "B068": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 4
+  },
+  "B069": {
+    "model": "anthropic/claude-sonnet-5.5",
+    "category": "planner",
+    "task": "hub-pause-415-v2",
+    "run": 4
+  },
+  "B070": {
+    "model": "google/gemini-3.8-flash",
+    "category": "planner",
+    "task": "web-change-request",
+    "run": 3
+  }
+}

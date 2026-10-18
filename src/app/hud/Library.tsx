@@ -9,6 +9,7 @@ import { RUNTIME_ICON } from '../theme';
 import { MicButton } from './Voice';
 import { AlertsPill, useHub, WorkingChip } from './Hub';
 import { libraryHint, type LibraryHintKind } from '../libraryHint';
+import { ShareControl } from './ShareControl';
 
 /** "5 min ago", "3 h ago", "2 d ago", or a date. */
 function ago(iso?: string) {
@@ -220,6 +221,7 @@ const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current,
             {usage && <span className="lib-usage" title="Tokens and cost reported by live telemetry, from the events the local server keeps (the last 2000), sub-towers included"> · {usage}</span>}
           </span>
           <span className="lib-open">
+            <ShareControl id={id} name={tower.name} source={source} />
             <button className="btn" onClick={open('tower')} title="Open as a tower (sets the default view)">Tower</button>
             <button className="btn" onClick={open('map')} title="Open as a map (sets the default view)">Map</button>
           </span>

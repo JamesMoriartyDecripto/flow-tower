@@ -1,7 +1,9 @@
 import { open, readFile, realpath, stat } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { safeJoin } from '../core/loader.ts';
+import { parseSqlSchema, type DbPreview } from '../core/dbPreview.ts';
 import { isForbidden, isSecretPath } from '../core/secrets.ts';
+import { isSqliteFile, readSqlitePreview } from './sqlite-preview.ts';
 
 const MAX_FILE_BYTES = 1_000_000;
 /**
@@ -11,7 +13,7 @@ const MAX_FILE_BYTES = 1_000_000;
 export { isSecretPath };
 
 export type FileResult =
-  | { status: 200; body: { path: string; ext: string; content: string } }
+  | { status: 200; body: { path: string; ext: string; content: string; db?: DbPreview } }
   | { status: 403 | 404 | 413 | 415; body: { error: string } };
 
 /**
@@ -25,13 +27,23 @@ export async function readTowerFile(root: string, path: string): Promise<FileRes
     const abs = candidate && await realpath(candidate);
     if (!abs || !safeJoin(realRoot, abs)) return { status: 403, body: { error: 'path outside tower root' } };
     if (await isForbidden(abs, path)) return { status: 403, body: { error: 'secret files are never served' } };
+    // A database is answered as a preview (schema and first rows), whatever its size: only the preview is read.
+    if (await isSqliteFile(abs)) {
+      const preview = await readSqlitePreview(abs);
+      if ('error' in preview) return { status: 415, body: { error: preview.error } };
+      return { status: 200, body: { path, ext: extname(abs).slice(1), content: preview.content, db: preview.db } };
+    }
     const { size } = await stat(abs);
     const isLog = /\.(log|jsonl|out|txt)$/.test(abs);
     if (size > MAX_FILE_BYTES && !isLog) return { status: 413, body: { error: 'file too large to preview' } };
     // Logs grow forever: show their tail instead of refusing them.
     const content = size > MAX_FILE_BYTES ? await readTail(abs, MAX_FILE_BYTES) : await readFile(abs, 'utf8');
     if (content.includes('\u0000')) return { status: 415, body: { error: 'binary file' } };
-    return { status: 200, body: { path, ext: extname(abs).slice(1), content } };
+    const ext = extname(abs).slice(1);
+    // A .sql file is a schema, so its tables show like a database's; no tables means no db field.
+    const tables = ext === 'sql' ? parseSqlSchema(content) : [];
+    const db: DbPreview | undefined = tables.length > 0 ? { source: 'sql', tables } : undefined;
+    return { status: 200, body: { path, ext, content, ...(db ? { db } : {}) } };
   } catch {
     return { status: 404, body: { error: `file not found: ${path}` } };
   }
