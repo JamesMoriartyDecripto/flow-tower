@@ -67,7 +67,8 @@ const MAIN = dirname(resolve(REPO, execFileSync('git', ['rev-parse', '--git-comm
 for (const f of [USER_ENV, join(REPO, DOT), join(MAIN, DOT)]) {
   if (!env.OPENROUTER_API_KEY && existsSync(f)) loadEnvFile(f);
 }
-if (!env.OPENROUTER_API_KEY) { console.error(`no key: put OPENROUTER_API_KEY in ${USER_ENV} or in the git-ignored .env of ${REPO}, or export it`); exit(1); }
+// A user of the kit has no git-ignored key file in the project, so the first fix named is the one that stores the key.
+if (!env.OPENROUTER_API_KEY) { console.error(`no key: run "flow-tower squad key" (it stores the key in ${USER_ENV}), or export OPENROUTER_API_KEY`); exit(1); }
 
 const log = join(HERE, `${role}-${Date.now()}.log`);
 const note = (s) => appendFileSync(log, `${s}\n`);

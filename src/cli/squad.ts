@@ -24,7 +24,8 @@ const KIT = join(RUNNER, 'kit');
 const CLI = join(pkgRoot, 'bin', 'flow-tower.js');
 
 /** Source folders a squad may write to, in the order the config lists them. */
-const SRC_DIRS = ['src', 'lib', 'app', 'pkg', 'cmd', 'internal', 'tests', 'test', '__tests__', 'spec'];
+// scripts and bin hold the code of many Node and Python projects; tools is left out on purpose: it is the runner's folder.
+const SRC_DIRS = ['src', 'lib', 'app', 'pkg', 'cmd', 'scripts', 'bin', 'internal', 'tests', 'test', '__tests__', 'spec'];
 /** The subset that holds tests: the review reads the code, not the tests. */
 const TEST_DIRS = ['tests', 'test', '__tests__', 'spec'];
 /** What `npm init` writes into scripts.test: a placeholder, not a test suite. */
@@ -98,11 +99,17 @@ function detectMake(project: string, folder: string): Found | undefined {
 
 const DETECTORS = [detectNode, detectPython, detectRust, detectGo, detectMake];
 
-/** The default branch of origin, as git names it (origin/main); `main` when there is no origin. */
+/**
+ * The branch the squad diffs against. The default branch of origin when there is one (origin/main); otherwise
+ * the current branch, because a repo with no origin may only have `master` and `git diff main` would fail later.
+ * `main` only when git cannot name either.
+ */
 function baseBranch(project: string): string {
-  const r = spawnSync('git', ['-C', project, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], { encoding: 'utf8' });
-  const out = r.status === 0 ? r.stdout.trim() : '';
-  return out || 'main';
+  const symbolic = (ref: string) => {
+    const r = spawnSync('git', ['-C', project, 'symbolic-ref', '--short', ref], { encoding: 'utf8' });
+    return r.status === 0 ? r.stdout.trim() : '';
+  };
+  return symbolic('refs/remotes/origin/HEAD') || symbolic('HEAD') || 'main';
 }
 
 /**

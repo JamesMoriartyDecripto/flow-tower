@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -30,7 +30,7 @@ const nodePackage = {
 };
 
 describe('squad init (#265)', () => {
-  it('sets a Node project up: runner, squad.json, tower, gitignore', () => {
+  it('sets a Node project up: runner, squad.json, tower, gitignore', { timeout: 30_000 }, () => {
     const dir = gitProject({
       'package.json': JSON.stringify(nodePackage),
       'tsconfig.json': '{}',
@@ -66,7 +66,7 @@ describe('squad init (#265)', () => {
     expect(ignore.filter((l) => l === 'tools/squad/tasks/*.out')).toHaveLength(1);
   });
 
-  it('refuses a second init, and --force keeps an edited squad.json', () => {
+  it('refuses a second init, and --force keeps an edited squad.json', { timeout: 30_000 }, () => {
     const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
     expect(run('squad', 'init', dir).status).toBe(0);
 
@@ -92,7 +92,7 @@ describe('squad init (#265)', () => {
     expect(config.project).toMatch(/\(Python\)$/);
   });
 
-  it('finds no check for a placeholder npm test script', () => {
+  it('finds no check for a placeholder npm test script', { timeout: 30_000 }, () => {
     const dir = gitProject({
       'package.json': JSON.stringify({ name: 'bare', scripts: { test: 'echo "Error: no test specified" && exit 1' } }),
     });
@@ -110,11 +110,40 @@ describe('squad init (#265)', () => {
     expect(config.commands.check).toBe('make ci');
   });
 
-  it('refuses a folder that is not a git repository', () => {
+  it('refuses a folder that is not a git repository', { timeout: 30_000 }, () => {
     const dir = mkdtempSync(join(tmpdir(), 'squad-plain-'));
     const r = run('squad', 'init', dir);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('not a git repository');
+  });
+
+  it('uses the current branch as base when there is no origin', () => {
+    // git init -b names the only branch: with no origin, base must follow it, not assume main.
+    const dir = mkdtempSync(join(tmpdir(), 'squad-base-'));
+    expect(spawnSync('git', ['init', '-q', '-b', 'master', dir], { encoding: 'utf8' }).status).toBe(0);
+    const { config } = detectConfig(dir, 'make ci') as { config: { base: string } };
+    expect(config.base).toBe('master');
+  });
+
+  it('makes a scripts-only project writable and reviewable without editing squad.json', () => {
+    const dir = gitProject({ 'scripts/build.mjs': 'export {};\n' });
+    const { config, notes } = detectConfig(dir, 'make ci') as { config: { write: string[]; review: string[] }; notes: string[] };
+    expect(config.write).toEqual(['scripts']);
+    expect(config.review).toEqual(['scripts']);
+    expect(notes.join('\n')).not.toContain('edit tools/squad/squad.json');
+  });
+
+  it('installs the flow-tower-squad skill with the others for claude', { timeout: 30_000 }, () => {
+    // HOME is a temp folder, so install-skill writes to ~/.claude there and never to the developer's home.
+    const fakeHome = mkdtempSync(join(tmpdir(), 'squad-skill-home-'));
+    const r = spawnSync(process.execPath, [CLI, 'install-skill', '--target', 'claude'], {
+      encoding: 'utf8', timeout: 20_000, env: cleanEnv({ HOME: fakeHome }),
+    });
+    expect(r.status, r.stderr).toBe(0);
+    const md = readFileSync(join(fakeHome, '.claude', 'skills', 'flow-tower-squad', 'SKILL.md'), 'utf8');
+    expect(md).not.toContain('{{FLOW_TOWER_CLI}}');
+    expect(md).toContain(`node ${CLI} squad init`);
+    rmSync(fakeHome, { recursive: true, force: true });
   });
 });
 

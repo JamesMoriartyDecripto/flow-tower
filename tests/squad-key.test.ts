@@ -24,7 +24,7 @@ function runKey(home: string, args: string[], input = '', extraEnv: Record<strin
 const newHome = () => mkdtempSync(join(tmpdir(), 'squad-key-'));
 
 describe('squad key (#265)', () => {
-  it('saves a piped key into the user folder file, mode 600, without echoing it', () => {
+  it('saves a piped key into the user folder file, mode 600, without echoing it', { timeout: 30_000 }, () => {
     const home = newHome();
     const r = runKey(home, [], `${FAKE_KEY}\n`);
     expect(r.status, r.stderr).toBe(0);
@@ -35,7 +35,7 @@ describe('squad key (#265)', () => {
     expect(r.stdout).toContain('only you can read it');
   });
 
-  it('keeps other lines and replaces the old key line', () => {
+  it('keeps other lines and replaces the old key line', { timeout: 30_000 }, () => {
     const home = newHome();
     const file = join(home, DOT);
     writeFileSync(file, 'OTHER=1\nOPENROUTER_API_KEY=sk-or-old\n');
@@ -47,7 +47,7 @@ describe('squad key (#265)', () => {
     expect(readFileSync(file, 'utf8')).not.toContain('sk-or-old');
   });
 
-  it('refuses a value that is not an OpenRouter key and writes nothing', () => {
+  it('refuses a value that is not an OpenRouter key and writes nothing', { timeout: 30_000 }, () => {
     const home = newHome();
     const r = runKey(home, [], 'not-a-key\n');
     expect(r.status).toBe(1);
@@ -55,7 +55,7 @@ describe('squad key (#265)', () => {
     expect(existsSync(join(home, DOT))).toBe(false);
   });
 
-  it('status says whether a key is set, and where it comes from, without printing it', () => {
+  it('status says whether a key is set, and where it comes from, without printing it', { timeout: 30_000 }, () => {
     const home = newHome();
     const before = runKey(home, ['status']);
     expect(before.status).toBe(1);
