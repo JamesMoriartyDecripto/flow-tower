@@ -58,7 +58,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Next, in order
 
-0. Review and merge #267 (then the squad kit acceptance test on a real project), #269, #270, #260, #268. #267, #269 and #270 each add a CHANGELOG line at the same place: after each merge, merge main into the next branch (the conflict is that one line; the code merges clean, and the five together pass the full check, 1610 tests)
+0. Review and merge #267 (then the squad kit acceptance test on a real project), #269, #270, #260, #268. #267, #269 and #270 each add a CHANGELOG line at the same place: after each merge, merge main into the next branch (the conflict is that one line; the code merges clean, and the five together pass the full check, 1624 tests)
 0b. #249 audit false positives, then close #231
 1. #181 what needs the Mac: a real tailnet with the v0.10.0 team journeys, the macOS side of #194 (launchd)
 2. #69 tower names as an STT prompt
