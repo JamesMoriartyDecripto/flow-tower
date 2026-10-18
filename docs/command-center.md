@@ -132,6 +132,13 @@ with a dot for a change in the last 10 minutes; files a share does not carry (a 
 errors, on every shared tower. `share --files` also carries `.github/`, `.claude/agents|skills|commands/`, `.agents/` and `.codex/prompts/`. `flow-tower unshare
 <name>` removes it from the hub; `share --list` shows what is shared.
 
+**From the interface** (#266). On a satellite, each local card of the library has a **Share with hub** menu: not shared,
+towers only, or towers and files (the same two choices as `--files`); stopping asks first. Settings › Sharing lists each
+share with its folder, mode and state, an Unshare button, and **Remove from config only** when the hub cannot be reached
+(the hub keeps its copy). A local project with recent events that no share lists is named there, under *Active here but
+dark on the hub*, and in the SAT chip's tooltip: its events reach the hub, but the hub lights only the towers this machine
+shared (#206), so share it from there or from its card.
+
 On the hub, each library card names its source (THIS HUB, or the device that shared it), and the FROM row filters by
 device, with a green dot for a device online now; the filter stays in the URL (`?source=<machine>`). Only metadata is relayed; while the hub is down events queue in memory
 ([what is relayed, the queue, `/api/sharing`](hub-reference.md#satellite-a-local-library-that-relays-to-the-hub)).
@@ -204,6 +211,7 @@ Precedence is **flags > environment > config file > defaults** for every key bot
 | `could not store the shared tower` (share) | the hub may not write `towers/` in its library folder: with the kit's unit, check `ReadWritePaths` |
 | `403 remote viewing is not allowed` | not through Tailscale, or the login is not in `viewers` |
 | `403 remote requests may only ingest events` | a remote client tried anything but sending events: by design |
+| the hub stays dark for a project this machine works on | it is not shared from this machine (the same project shared by another machine does not light either, #206): Settings › Sharing names it under *Active here but dark on the hub*; share it there or from its library card |
 | `/api/sharing` says `queued` | hub unreachable: check the URL, the tailnet and the hub service |
 | `/api/sharing` says `revoked` | the hub refused the token: events wait in the queue; `connect` with a new token, and the running library picks it up with no restart |
 | `/api/sharing` says `held` | the hub owner paused this machine: events wait and leave by themselves within 30 s of a resume |

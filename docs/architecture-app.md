@@ -13,7 +13,8 @@ Which browser file owns what: navigation and live state (zustand stores), the th
 | `src/app/layout.ts` | ELK layout of a layer (left to right) |
 | `src/app/ops.ts` | Operational markers and inspector rows |
 | `src/app/api.ts` | Fetching the workspace and refetching on server push |
-| `src/app/sharing.ts` | Pure formatting for the satellite SAT chip and Sharing section (#91), unit-tested without a DOM |
+| `src/app/sharing.ts` | Pure formatting for the satellite SAT chip and Sharing section (#91), unit-tested without a DOM; `shareOf`, `shareMode`, `shareStatus` and `darkProjects` (active local projects no share lists) for sharing from the interface (#266) |
+| `src/app/hud/ShareControl.tsx` | The Share with hub menu on a local library card, on a satellite only (#266); stopping asks first |
 | `src/app/hub.ts` | Pure model of the Hub panel (#92): Now rows per machine and session with tower › node and the last error, never event text (#192; machine / runtime / project / starter without a session, `AUTO` for CI), `workingCount`, the live `errorCount` and the feed `glyph`, the state thresholds (● under 2 min, ◐ under 15 min, ○ silent), the `HUB n/m` pill and the Machines dots. No React, no fetch, no DOM |
 | `src/app/main.tsx` | Entry point: fonts, styles, prefs, the React root, and the dev-only `window.__flowTower` hook for E2E |
 | `src/app/staticData.ts`, `demo.ts` | Static demo mode (Vite mode `demo`): data from `data/`, in-browser live simulator, DEMO chip |
@@ -66,6 +67,7 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 | `hud/HubAdmin.tsx`, `hubAdminApi.ts`, `hubAdminModel.ts`, `HubAdminNotify.tsx` | The Admin tab (#93), only when not read-only: senders (token box shown once, revoke by typing the id), viewers, budgets, alert switches, retention and delete-before with a preview, the audit log; Notifications (#191): the webhook (url masked), a test alert, the errors threshold |
 | `hud/dialog.ts` | Modal focus for HUD dialogs: move focus in, trap Tab, restore on close |
 | `hud/FileViewer.tsx` | File popup with syntax highlighting (shiki), focus restored on close |
+| `hud/DbView.tsx` | SQLite databases and `.sql` schemas as tables (#264): a table list, the first rows of the selected table (sqlite) or its columns (sql); the viewer's Tables/Schema switch shows the source instead |
 | `hud/MarkdownView.tsx` | Formatted Markdown: no raw HTML, links to the node's files, math in `$$…$$` (KaTeX) |
 | `hud/Voice.tsx` | MIC button (top bar, library header) and the voice caption under the top bar (with the pending-suggestions chip); hidden in the static demo |
 | `hud/VoiceLearning.tsx` | Settings > Voice > Learning: journal toggle, 7-day stats, suggestions to accept or reject, learned items, Review now, Forget everything |

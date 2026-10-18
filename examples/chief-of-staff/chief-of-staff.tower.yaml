@@ -500,8 +500,8 @@ layers:
         runtime: worker
         type: memory
         label: ambient.sqlite3
-        description: "Inbox cards (status, response) and the dedupe table. Card ids link sends to approvals."
-        files: [ambient/state.py]
+        description: "Inbox cards (status, response) and the dedupe table. Card ids link sends to approvals. The sample file holds fictitious cards."
+        files: [ambient/state.py, memory/ambient.sqlite3]
         data: { sensitivity: pii, retention: 30d }
       - id: feedback
         runtime: worker

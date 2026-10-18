@@ -59,7 +59,7 @@ export function panelKey(panel: HTMLElement, e: KeyboardEvent): boolean {
 
 /**
  * File viewer: ← → switch files, ↑ ↓ PageUp PageDown Home End scroll the code, W wraps long lines,
- * V switches Markdown between formatted and source. Other letters do nothing here (no map toggle behind).
+ * V switches Markdown between formatted and source, and a database between tables and schema. Other letters do nothing here (no map toggle behind).
  */
 function viewerKey(panel: HTMLElement, e: KeyboardEvent): boolean {
   if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1) {

@@ -190,7 +190,8 @@ layers:
 | `model`, `prompt`, `tools`, `files`, `tower`, `meta` | Override or set directly. |
 | `trigger`, `approval`, `budget`, `limits`, `fanout`, `data`, `evals`, `version`, `rollout`, `sla`, `credentials`, `sandbox` | See [Operations](#operations). Inherited from the agent. |
 
-Every path in `files` opens in the file viewer. Missing files are reported as warnings, except a file a run writes,
+Every path in `files` opens in the file viewer. A SQLite database (recognised by its header, whatever the extension) opens as
+tables with its first 100 rows, read-only; a `.sql` file with `CREATE TABLE` statements lists each table's columns. Missing files are reported as warnings, except a file a run writes,
 listed as an object with `optional: true`: until it exists the Inspector shows it as "not generated yet", and neither
 `validate` nor the PDF checks complain.
 

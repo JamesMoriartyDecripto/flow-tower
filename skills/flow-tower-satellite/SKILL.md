@@ -41,6 +41,8 @@ Hubs that are not on a tailnet: the hub owner runs `token add <id>` and hands th
 3. **The OK.** Say exactly what will go (tower names, YAML only or with which files, to which hub) and wait for yes.
 4. Per tower: `{{FLOW_TOWER_CLI}} share <tower folder>` (add `--files` for the second choice). It prints every file it sends and any it skipped with the reason, and adds the folder to the user's library if it was not there.
 
+The same from the interface, once the local library runs (step 5): the **Share with hub** menu on the tower's library card (towers only, or towers and files), and Settings › Sharing to see each share's state or unshare it.
+
 To stop later: `{{FLOW_TOWER_CLI}} unshare <name>` removes it from the hub; `<name>` is what `share --list` shows (the tower's `name:` as a slug when the folder holds one tower file, else the folder name; `--name` sets it).
 
 ## 5. Start the local library
@@ -76,6 +78,7 @@ Offer `{{FLOW_TOWER_CLI}} service install [--port N]` (ask first): it keeps the 
 | a `400` naming a file or a limit | Fix that file, or share YAML only. |
 | `share` says `<file>: <error>`, or Settings › Sharing shows `not sent` | The tower has an error: `validate` it, fix it, save; the hub keeps the last valid version meanwhile. |
 | `/api/sharing` shows another `hub`, or towers you did not share | Another server answered on that port: stop it or use another `--port`. |
+| Settings › Sharing lists the project under *Active here but dark on the hub* | It is not shared from this machine: the hub lights only the towers this machine shared. Share it (step 4) from there or from its library card. |
 | the tower is shared but nothing lights | The agents' hooks are not wired (step 6), or the local library is not running (step 5). If events arrive but show as `unmapped` in the Live feed, the tower's nodes do not match their names: add `match:` rules (the main agent is `agent:main` in every harness; tools by name, e.g. `tool:bash`; docs/realtime.md § Matching). |
 
 Report: the hub address, the machine name, the towers shared and how (YAML only or with files), and the result of step 7.

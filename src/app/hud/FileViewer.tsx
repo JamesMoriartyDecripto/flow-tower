@@ -3,6 +3,8 @@ import { codeToHtml } from 'shiki';
 import { fetchFile } from '../api';
 import { usePrefs } from '../settings';
 import { useStore } from '../store';
+import type { DbPreview } from '../../core/dbPreview';
+import { DbView, tablesLabel } from './DbView';
 import { MarkdownView } from './MarkdownView';
 import { useDialogFocus } from './dialog';
 
@@ -12,7 +14,7 @@ const LANGS: Record<string, string> = {
   rs: 'rust', go: 'go', sql: 'sql', html: 'html', css: 'css', sol: 'solidity',
 };
 
-type View = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ok'; html: string; lines: number; lang: string; source: string; markdown: boolean };
+type View = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ok'; html: string; lines: number; lang: string; source: string; markdown: boolean; db?: DbPreview };
 
 /** Modal popup showing one of the node's files with syntax highlighting. */
 export function FileViewer() {
@@ -33,12 +35,13 @@ export function FileViewer() {
       return;
     }
     fetchFile(file.tower, path)
-      .then(async ({ content, ext }) => {
-        const lang = LANGS[ext] ?? 'text';
+      .then(async ({ content, ext, db }) => {
+        // A database's content is SQL whatever its extension says (.db, .sqlite), so the source decides.
+        const lang = db ? 'sql' : LANGS[ext] ?? 'text';
         // shiki escapes the source, so the generated HTML is safe to inject
         const html = await codeToHtml(content, { lang, theme: 'vitesse-dark' }).catch(() =>
           codeToHtml(content, { lang: 'text', theme: 'vitesse-dark' }));
-        if (alive) setView({ state: 'ok', html, lines: content.split('\n').length, lang, source: content, markdown: ext === 'md' || ext === 'markdown' });
+        if (alive) setView({ state: 'ok', html, lines: content.split('\n').length, lang, source: content, markdown: ext === 'md' || ext === 'markdown', db });
       })
       .catch((e: Error) => alive && setView({ state: 'error', message: e.message }));
     return () => { alive = false; };
@@ -87,7 +90,9 @@ export function FileViewer() {
           {view.state === 'error' && <p className="mono" style={{ padding: 20, color: 'var(--error)' }}>{view.message}</p>}
           {view.state === 'ok' && (view.markdown && !markdownSource
             ? <MarkdownView source={view.source} path={path} files={file.files} onOpen={(f) => openFile({ ...file, index: file.files.indexOf(f) })} />
-            : <div dangerouslySetInnerHTML={{ __html: view.html }} />)}
+            : view.db && !markdownSource
+              ? <DbView key={path} db={view.db} />
+              : <div dangerouslySetInnerHTML={{ __html: view.html }} />)}
         </div>
         <footer>
           <span className="viewer-path">{path}</span>
@@ -98,8 +103,14 @@ export function FileViewer() {
                 <button className={markdownSource ? 'on' : ''} onClick={() => usePrefs.getState().set({ markdownSource: true })}>Source</button>
               </span>
             )}
+            {view.state === 'ok' && view.db && (
+              <span className="seg" title="Database: tables or schema (V)">
+                <button className={markdownSource ? '' : 'on'} onClick={() => usePrefs.getState().set({ markdownSource: false })}>Tables</button>
+                <button className={markdownSource ? 'on' : ''} onClick={() => usePrefs.getState().set({ markdownSource: true })}>{view.db.source === 'sqlite' ? 'Schema' : 'Source'}</button>
+              </span>
+            )}
             <button className={`chip clickable ${wrap ? 'on' : ''}`} onClick={() => usePrefs.getState().set({ viewerWrap: !wrap })} title="Wrap long lines (W)">⏎ Wrap</button>
-            <span>{view.state === 'ok' ? `${view.lines} lines · ${view.lang}` : ''} · ESC to close</span>
+            <span>{view.state === 'ok' ? (view.db && !markdownSource ? tablesLabel(view.db) : `${view.lines} lines · ${view.lang}`) : ''} · ESC to close</span>
           </span>
         </footer>
       </div>

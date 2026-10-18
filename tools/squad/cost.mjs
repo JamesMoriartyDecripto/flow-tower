@@ -1,21 +1,41 @@
 #!/usr/bin/env node
-// node tools/squad/cost.mjs <issue> [--json]: one issue's squad cost from the local ledger (#156).
-// The Markdown block is meant to be pasted on the issue when it closes, so the numbers can be audited later.
-import { ledgerPath, readRuns, summarize } from './ledger.mjs';
+// node tools/squad/cost.mjs <issue> [--repo <path>] [--all] [--json]: one issue's squad cost from the local ledger (#156).
+// The ledger is shared by every project (#265), so by default only the project of --repo (default: the git root
+// of the cwd) is summed; --all sums every project. The Markdown block is meant to be pasted on the issue when it
+// closes, so the numbers can be audited later.
+import { execFileSync } from 'node:child_process';
+import { ledgerPath, projectOf, readRuns, summarize } from './ledger.mjs';
 
 const args = process.argv.slice(2);
 const json = args.includes('--json');
-const issue = args.find((a) => !a.startsWith('--'));
+const all = args.includes('--all');
+// --repo takes a value: that value is not the issue number.
+const repoAt = args.indexOf('--repo');
+const repoValueAt = repoAt >= 0 ? repoAt + 1 : -1;
+const repoArg = repoAt >= 0 ? args[repoValueAt] : undefined;
+const issue = args.find((a, i) => !a.startsWith('--') && i !== repoValueAt);
 
 if (!issue) {
-  console.error('usage: node tools/squad/cost.mjs <issue> [--json]');
+  console.error('usage: node tools/squad/cost.mjs <issue> [--repo <path>] [--all] [--json]');
   process.exit(1);
 }
 
-const summary = summarize(readRuns(ledgerPath(process.env)), issue);
+let repo = repoArg;
+if (!repo) {
+  try {
+    repo = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    repo = process.cwd();
+  }
+}
+const project = projectOf(repo);
+// Entries written before #265 have no project. Every one of them was a run of this repo, so they count for flow-tower only.
+const LEGACY_PROJECT = 'flow-tower';
+const runs = readRuns(ledgerPath(process.env)).filter((r) => all || (r.project ?? LEGACY_PROJECT) === project);
+const summary = summarize(runs, issue);
 
 if (json) {
-  console.log(JSON.stringify({ issue, ...summary }, null, 2));
+  console.log(JSON.stringify({ issue, project: all ? 'all' : project, ...summary }, null, 2));
   process.exit(0);
 }
 

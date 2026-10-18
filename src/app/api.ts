@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
+import type { DbPreview } from '../core/dbPreview';
 import type { Workspace } from '../core/types';
 import { STATIC, staticFile, staticWorkspace } from './staticData';
 import { useStore } from './store';
 
-export interface FilePayload { path: string; ext: string; content: string }
+export interface FilePayload { path: string; ext: string; content: string; db?: DbPreview }
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
