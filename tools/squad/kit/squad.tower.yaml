@@ -1,0 +1,111 @@
+# The dev squad of this project, written by `flow-tower squad init` (#265).
+# Open it with `flow-tower tools/squad/squad.tower.yaml` (or add it to your library): every squad run lights
+# its node live, because run.mjs sends its events to this tower's name (`tower` in squad.json).
+version: 1
+name: "{{TOWER}}"
+tags: [coding, multi-agent, openrouter]
+limits: { max_iterations: 70, description: "The coder stops at 70 model calls per step (steps.sh), and the chain stops at the first red step." }
+description: >-
+  The dev squad working on this project. Your coding agent is the lead: it splits an issue into small
+  steps and writes one task file per step. A cheap coder writes the code through OpenRouter, a reviewer
+  and a security auditor from two other model families read the diff, the lead verifies, and you merge.
+
+runtimes:
+  laptop:
+    kind: local
+    label: "This computer"
+    description: "The lead (your coding agent) and the squad scripts, one git worktree per issue."
+  openrouter:
+    kind: saas
+    label: "OpenRouter"
+    description: "One API in front of the coder, reviewer and security models. The key lives in the user folder, never in the repo."
+    provider: "openrouter"
+    url: "https://openrouter.ai"
+
+agents:
+  coder:
+    runtime: openrouter
+    name: Coder
+    description: Writes one step through a tool loop (read, edit, run the project's check), then reports its known gaps.
+    model: "{{CODER}}"
+    files: [run.mjs, guard.mjs, args.mjs]
+  reviewer:
+    runtime: openrouter
+    name: Reviewer
+    description: Read-only review of the diff against the issue, from another model family than the coder.
+    model: "{{REVIEWER}}"
+    files: [pack.mjs, oneshot.mjs]
+  security:
+    runtime: openrouter
+    name: Security auditor
+    description: Read-only security pass on the same diff, from a third model family.
+    model: "{{SECURITY}}"
+    files: [pack.mjs, oneshot.mjs]
+
+layers:
+  - id: lead
+    title: Lead
+    description: Your coding agent plans, writes the task files and verifies every step.
+    nodes:
+      - id: issue
+        type: entry
+        label: Issue
+        description: The work to do, split by the lead into steps of one or two items each.
+      - id: lead
+        type: agent
+        runtime: laptop
+        label: Lead
+        description: Writes one task file per step (Rules, Verify, Files), runs steps.sh in a worktree, reads the known gaps.
+        files: [tasks/TEMPLATE.md, steps.sh, squad.json]
+      - id: verify
+        type: decision
+        runtime: laptop
+        label: Verified?
+        description: The lead runs the tests and the real thing (screenshots for UI), then commits or writes a fix step.
+      - id: merge
+        type: human
+        label: You merge
+        description: Nothing reaches the main branch without you.
+      - id: main
+        type: output
+        label: Main branch
+        description: The merged work.
+    edges:
+      - issue -> lead
+      - "verify -> merge: green"
+      - "verify -> lead [return]: fix step"
+      - merge -> main
+
+  - id: specialists
+    title: Squad
+    description: The OpenRouter models, each in its own process with its own fences.
+    nodes:
+      - id: coder
+        agent: coder
+        label: Coder
+      - id: check
+        type: guard
+        label: Check + files
+        description: After every step the project's check command must pass and every file the task lists must be touched, else the chain stops.
+        files: [config.mjs, files-check.mjs]
+      - id: reviewer
+        agent: reviewer
+        label: Reviewer
+      - id: security
+        agent: security
+        label: Security
+      - id: costs
+        type: memory
+        label: Cost ledger
+        description: One line per run in the user folder (squad-costs.jsonl); cost.mjs sums an issue.
+        files: [ledger.mjs, cost.mjs]
+    edges:
+      - coder -> check
+      - "check -> reviewer: step commits"
+      - "check -> security: step commits"
+      - "coder -> costs [data]"
+
+links:
+  - "lead.lead -> specialists.coder [spawn]: task file"
+  - "specialists.reviewer -> lead.verify [return]: verdict"
+  - "specialists.security -> lead.verify [return]: findings"

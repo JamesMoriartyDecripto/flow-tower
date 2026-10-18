@@ -10,7 +10,8 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { writeDirs } from './args.mjs';
-import { appendRun, issueOf, ledgerPath } from './ledger.mjs';
+import { commandArgv, loadConfig, systemLine } from './config.mjs';
+import { appendRun, issueOf, ledgerPath, projectOf } from './ledger.mjs';
 import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
 import { realRelIfAllowed, realTarget } from './guard.mjs';
 import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './oneshot.mjs';
@@ -26,6 +27,9 @@ if (!taskFile || !existsSync(taskFile)) { console.error(USAGE); exit(1); }
 // --repo runs the squad in another worktree, so two tasks never share a checkout; without it, the checkout
 // the command is run from.
 const REPO = resolve(arg('repo') ?? execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim());
+// The repo's own settings (tools/squad/squad.json): a bad file stops the run before anything is run or sent.
+let config;
+try { config = loadConfig(REPO); } catch (e) { console.error(e.message); exit(1); }
 // The live-events helper is a sibling of this script, so a checkout carries its own copy, wherever it sits.
 const EV = join(HERE, 'ev.sh');
 // The issue is taken from --issue, else from the branch name; a detached or unreadable HEAD gives no branch.
@@ -58,22 +62,43 @@ const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or
 // FLOW_TOWER_HOME. The git-ignored .env of the checkout is the fallback. Real environment variables win.
 // A worktree has no copy of that ignored file: the main checkout (parent of the shared .git) is tried last.
-const USER_ENV = join(env.FLOW_TOWER_HOME ?? join(homedir(), '.config', 'flow-tower'), DOT);
+// An empty FLOW_TOWER_HOME counts as unset, as it does for squad key, which writes the user folder.
+const USER_ENV = join(env.FLOW_TOWER_HOME || join(homedir(), '.config', 'flow-tower'), DOT);
 const MAIN = dirname(resolve(REPO, execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: REPO, encoding: 'utf8' }).trim()));
 for (const f of [USER_ENV, join(REPO, DOT), join(MAIN, DOT)]) {
   if (!env.OPENROUTER_API_KEY && existsSync(f)) loadEnvFile(f);
 }
-if (!env.OPENROUTER_API_KEY) { console.error(`no key: put OPENROUTER_API_KEY in ${USER_ENV} or in the git-ignored .env of ${REPO}, or export it`); exit(1); }
+// A user of the kit has no git-ignored key file in the project, so the first fix named is the one that stores the key.
+// The command must work from a clone: the checkout two levels above tools/squad when it has the CLI, else the path init wrote to .cli.
+const checkoutCli = join(resolve(HERE, '..', '..'), 'bin', 'flow-tower.js');
+const cliFromFile = existsSync(join(HERE, '.cli')) ? readFileSync(join(HERE, '.cli'), 'utf8').trim() : '';
+// The same order ev.sh uses: an exported FLOW_TOWER_CLI first, then the path init wrote to .cli.
+const hintCli = existsSync(checkoutCli) ? checkoutCli : env.FLOW_TOWER_CLI || cliFromFile;
+const keyCommand = hintCli ? `node ${hintCli} squad key` : 'flow-tower squad key';
+if (!env.OPENROUTER_API_KEY) { console.error(`no key: run "${keyCommand}" (it stores the key in ${USER_ENV}), or export OPENROUTER_API_KEY`); exit(1); }
 
 const log = join(HERE, `${role}-${Date.now()}.log`);
+// squad.json no longer names the checkout (machine-local, #265): init writes its path to .cli, git-ignored beside this script.
+// A squad.json that still has "cli" keeps working, and wins.
+const CLI_FILE = join(HERE, '.cli');
+const cliPath = config.cli || (existsSync(CLI_FILE) ? readFileSync(CLI_FILE, 'utf8').trim() : '');
 const note = (s) => appendFileSync(log, `${s}\n`);
 // Run through sh so the helper needs no executable bit, and drop undefined arguments (a missing --node).
-const emit = (...a) => { try { execFileSync('sh', [EV, ...a.filter((x) => x !== undefined).map(String)], { stdio: 'ignore' }); } catch { /* tower offline */ } };
+// The helper finds the tower from its environment (ev.sh): the project's cli, tower and source go in unless the user
+// already exported them. The API key is dropped from the copy: the helper has no use for it.
+const { OPENROUTER_API_KEY: _key, ...evEnv } = env;
+const evChildEnv = {
+  ...evEnv,
+  ...(cliPath && !env.FLOW_TOWER_CLI && { FLOW_TOWER_CLI: resolve(REPO, cliPath) }),
+  ...(!env.SQUAD_TOWER && { SQUAD_TOWER: config.tower }),
+  ...(!env.SQUAD_SOURCE && { SQUAD_SOURCE: config.source }),
+};
+const emit = (...a) => { try { execFileSync('sh', [EV, ...a.filter((x) => x !== undefined).map(String)], { stdio: 'ignore', env: evChildEnv }); } catch { /* tower offline */ } };
 
 const SECRET = /(^|\/)(\.env[^/]*|.*\.(key|pem|p12|pfx|crt)|id_rsa[^/]*|\.npmrc|\.git|node_modules|\.ssh|\.config\/flow-tower)(\/|$)/i;
 // Reviewers are read-only; the coder writes src/ tests/ e2e/, or the folders a task names with --write a,b.
 // A bad --write (empty, absolute or with "..") is refused with the usage, before the checkout is touched.
-const dirs = writeDirs(arg('write', 'src,tests,e2e'));
+const dirs = writeDirs(arg('write', config.write.join(',')));
 if (!dirs) { console.error(USAGE); exit(2); }
 const WRITABLE = role === 'coder' ? new RegExp(`^(${dirs.map((d) => d.replace(/[.]/g, "\\.")).join("|")})(/|$)`) : /^$/;
 const SCRATCH = /(^|\/)(tmp[-_.]|zz[-_]|[^/]*(probe|scratch)[^/]*$)/i;
@@ -82,6 +107,12 @@ const inRepo = (p) => {
   const rel = relative(REPO, abs);
   if (!rel || rel.startsWith('..') || SECRET.test(rel)) throw new Error(`path not allowed: ${p}`);
   return { abs, rel };
+};
+// Reads follow symlinks, so the real path is checked as well: a link inside the repo must not reach a key file.
+const readRel = (p) => {
+  const r = inRepo(p);
+  if (realRelIfAllowed({ repo: REPO, abs: r.abs, secret: SECRET, writable: /^/ }) === null) throw new Error(`path not allowed: ${p}`);
+  return r;
 };
 // Every write is checked on its real path, so a symlink inside the repo cannot lead the write out of it (#169 review).
 // Returns the real path to write to; the role's writable folders and the secret patterns still apply.
@@ -93,39 +124,43 @@ const writable = (abs, rel) => {
 };
 const git = (...a) => execFileSync('git', a, { cwd: REPO, encoding: 'utf8', maxBuffer: 20e6 });
 const cap = (s, n = 40_000) => (s.length > n ? `${s.slice(0, n)}\n…[cut ${s.length - n} chars]` : s);
+// The project's commands run without the key (#265): the coder writes the tests they run, so a test could read it.
 const sh = (cmd, a) => {
-  try { return cap(execFileSync(cmd, a, { cwd: REPO, encoding: 'utf8', maxBuffer: 50e6, timeout: 600_000, stdio: ['ignore', 'pipe', 'pipe'] }), 20_000); }
+  try { return cap(execFileSync(cmd, a, { cwd: REPO, encoding: 'utf8', maxBuffer: 50e6, timeout: 600_000, stdio: ['ignore', 'pipe', 'pipe'], env: evEnv }), 20_000); }
   catch (e) { return cap(`EXIT ${e.status}\n${e.stdout ?? ''}\n${e.stderr ?? ''}`, 20_000); }
 };
 
+// Commands come from the repo's config and run without a shell (commandArgv). An old task file that asks for
+// "vitest" still gets the test command, but the alias is not advertised in the tool's enum.
+const runCmd = (name, file) => { const av = commandArgv(config.commands[name], file); return sh(av[0], av.slice(1)); };
+const ALIAS = { vitest: 'test' };
 const RUNS = {
-  check: () => sh('npm', ['run', 'check']),
-  typecheck: () => sh('npm', ['run', 'typecheck']),
-  vitest: (f) => sh('npx', ['vitest', 'run', inRepo(f).rel]),
+  ...Object.fromEntries(['check', 'typecheck', 'lint'].filter((n) => config.commands[n]).map((n) => [n, () => runCmd(n)])),
+  ...(config.commands.test && { test: (f) => runCmd('test', readRel(f).rel) }),
   // The dirs a task may touch (--write) are the ones worth reviewing: a reviewer of tools/ would see nothing otherwise.
-  diff: () => cap(git('diff', 'origin/main', '--', ...dirs)),
+  diff: () => cap(git('diff', config.base, '--', ...dirs)),
   status: () => git('status', '--short'),
-  validate: (f) => sh('node', ['bin/flow-tower.js', 'validate', f ? inRepo(f).rel : 'examples', '--json']),
+  ...(config.extras.includes('validate') && { validate: (f) => sh('node', [resolve(REPO, cliPath), 'validate', f ? readRel(f).rel : 'examples', '--json']) }),
   // An example script in dry-run mode (the coder could not verify scripts/*.mjs otherwise, #75). The key is
   // removed from the child environment, so nothing paid can run whatever the script does.
-  dryrun: (f) => {
-    const { rel } = inRepo(f);
+  ...(config.extras.includes('dryrun') && { dryrun: (f) => {
+    const { rel } = readRel(f);
     if (!/^examples\/[^/]+\/scripts\/[^/]+\.mjs$/.test(rel)) throw new Error('dryrun: file must be examples/<name>/scripts/<script>.mjs');
     const { OPENROUTER_API_KEY: _drop, ...childEnv } = env;
     // The output file goes to the system temp folder: the repo must not collect run leftovers.
     const out = join(tmpdir(), `flow-tower-dryrun-${process.pid}.md`);
     try { return cap(execFileSync('node', [rel, '--dry-run', '--out', out], { cwd: REPO, env: childEnv, encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'pipe'] }), 20_000); }
     catch (e) { return cap(`EXIT ${e.status}\n${e.stdout ?? ''}\n${e.stderr ?? ''}`, 20_000); }
-  },
+  } }),
 };
 const tools = {
-  list_files: ({ dir = '.' }) => cap(git('ls-files', '--', inRepo(dir === '.' ? 'src' : dir).rel)),
+  list_files: ({ dir = '.' }) => cap(git('ls-files', '--', readRel(dir === '.' ? 'src' : dir).rel)),
   read_file: ({ path, from = 1, to = 2000 }) => {
-    const { abs } = inRepo(path);
+    const { abs } = readRel(path);
     const lines = readFileSync(abs, 'utf8').split('\n');
     return cap(lines.slice(from - 1, to).map((l, i) => `${from + i}\t${l}`).join('\n'));
   },
-  grep: ({ pattern, path = '.' }) => { try { return cap(git('grep', '-n', '-I', '-E', String(pattern), '--', path === '.' ? '.' : inRepo(path).rel), 15_000); } catch { return 'no match'; } },
+  grep: ({ pattern, path = '.' }) => { try { return cap(git('grep', '-n', '-I', '-E', String(pattern), '--', path === '.' ? '.' : readRel(path).rel), 15_000); } catch { return 'no match'; } },
   // A write goes where its real path (symlinks followed) says, so that path is what is checked (guard.mjs).
   edit_file: ({ path, old, new: next }) => {
     const { abs, rel } = inRepo(path);
@@ -153,7 +188,12 @@ const tools = {
     rmSync(real);
     return `deleted ${rel}`;
   },
-  run: ({ command, file }) => { const f = RUNS[command]; if (!f) throw new Error(`commands: ${Object.keys(RUNS).join(', ')}`); return f(file); },
+  run: ({ command, file }) => {
+    const name = ALIAS[command] ?? command;
+    const f = Object.hasOwn(RUNS, name) ? RUNS[name] : undefined;
+    if (!f) throw new Error(`commands: ${Object.keys(RUNS).join(', ')}`);
+    return f(file);
+  },
 };
 const fn = (name, description, properties, required = []) => ({ type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } });
 const S = { type: 'string' };
@@ -166,12 +206,18 @@ const TOOLS = [
     fn('write_file', `Create or overwrite a file (${dirs.join('/, ')}/ only).`, { path: S, content: S }, ['path', 'content']),
     fn('delete_file', 'Delete a file you may write (e.g. one the task says to remove).', { path: S }, ['path']),
   ] : []),
-  fn('run', 'Run a whitelisted command: check (typecheck + all tests), typecheck, vitest (with file), diff (vs origin/main), status, validate, dryrun (file: examples/<name>/scripts/<script>.mjs, runs it with --dry-run and no API key).', { command: { type: 'string', enum: Object.keys(RUNS) }, file: S }, ['command']),
+  // Only the commands this project offers are named: a dryrun the extras leave out is not advertised.
+  fn('run', [
+    `Run a whitelisted command: ${Object.keys(RUNS).join(', ')}.`,
+    ...(RUNS.test ? ['test takes a file.'] : []),
+    `diff is vs ${config.base}.`,
+    ...(RUNS.dryrun ? ['dryrun (file: examples/<name>/scripts/<script>.mjs) runs it with --dry-run and no API key.'] : []),
+  ].join(' '), { command: { type: 'string', enum: Object.keys(RUNS) }, file: S }, ['command']),
   fn('finish', 'End with your final report (the format your task asks for).', { report: S }, ['report']),
 ];
 
 const messages = [
-  { role: 'system', content: `You are the ${role} of a dev squad working on the repo Flow Tower (TypeScript, React 19, Vite 8, vitest) at ${REPO}. You work only through the tools. English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines. Never touch secret files. Code passed to Playwright's page.evaluate runs as plain JavaScript in the browser, so keep TypeScript syntax out of it. When done, call finish with your report, and end that report with a \`Known gaps:\` line (or \`Known gaps: none\`).` },
+  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines. Never touch secret files.${config.rules.map((r) => ` ${r}`).join('')} When done, call finish with your report, and end that report with a \`Known gaps:\` line (or \`Known gaps: none\`).` },
   { role: 'user', content: task },
 ];
 let cost = 0;
@@ -182,7 +228,7 @@ let promptTokens = 0, cachedTokens = 0;
 let recorded = false, stepsDone = 0;
 const record = (outcome, steps) => {
   recorded = true;
-  appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: costUnknown ? null : Number(cost.toFixed(6)), ...(costUnknown && { costUnknown: true }), promptTokens, cachedTokens, outcome, mode: paidMode });
+  appendRun(ledgerPath(env), { ts: new Date().toISOString(), project: projectOf(REPO), issue, role, model, steps, cost: costUnknown ? null : Number(cost.toFixed(6)), ...(costUnknown && { costUnknown: true }), promptTokens, cachedTokens, outcome, mode: paidMode });
 };
 // An unhandled throw (two failed fetches, a bad JSON body) ends the process without any explicit record: the exit
 // handler catches those. appendFileSync is synchronous, so the write completes inside the handler.
@@ -231,7 +277,7 @@ emit('agent.start', node, `${role} on ${model}`);
 note(`# ${role} ${model}\n${task}\n`);
 // One request (or one batch) with the task as the whole input: no tool loop, one step, then exit.
 if (mode !== 'loop') {
-  const body = oneshotBody({ model, system: oneshotSystem(role, REPO), task, session });
+  const body = oneshotBody({ model, system: oneshotSystem(role, REPO, config), task, session });
   let answer;
   if (mode === 'oneshot') answer = await oneshotCall(body);
   else {
