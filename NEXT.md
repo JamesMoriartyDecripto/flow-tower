@@ -2,6 +2,22 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Status on 2026-10-18
+
+- **Dev squad kit** (#265, PR #267, merged 2026-10-18): the squad runs on any git project. `flow-tower squad init <project>` copies the runner into `tools/squad/` with a detected `squad.json` (check command, writable and review folders, base branch, models), a task template and a ready squad tower; `flow-tower squad key` stores the OpenRouter key in the user folder; the `flow-tower-squad` skill is the lead's procedure, shipped by `install-skill`. Review and security found that the project's check and test commands saw `OPENROUTER_API_KEY` (fixed: dropped from every child). Checked end to end on a scratch project with a real key. Squad cost $0.21.
+- **Viewer: SQLite databases and SQL schemas as tables** (#264, PR #269, merged 2026-10-18): a database (by its header) opens read-only with `node:sqlite` as a table list and the first 100 rows; a `.sql` file lists each table's columns. Bounded for big files. chief-of-staff ships a sample `ambient.sqlite3` (fictitious cards). Checked in Chrome at desktop and phone width. Squad cost $0.11.
+- **Share and unshare from the interface** (#266, PR #270, merged 2026-10-18): a Share with hub menu on each local library card of a satellite, the Settings › Sharing list with Unshare (and Remove from config only when the hub is down), and the hint for an active project the hub does not light (#206). Behind it `/api/sharing/towers` (loopback only) and `share-actions.ts`, which the CLI calls too. The team-hub tower maps it. Checked on a scratch hub and satellite. Squad cost $0.14.
+- **Benchmark roles** (PR #260, #231): merged with main (main's #262 already had image input; this branch's writer, planner, summarizer and vision task sets run on it), image test adapted. Its results are now `results/2026-10-16-tower-nodes.md` (the pick per node within a harness's family), apart from #262's cross-family role catalogue, and both say where they differ (vision). Merged 2026-10-18; it closes the benchmark part of #231.
+- **Pre-merge review (2026-10-18):** a fresh read-only review of each PR before merge found real defects the step reviews had missed (a recursive SQLite view hanging the server, `-wal` files written beside a read-only database, a share from the card able to overwrite another folder's share, nothing telling a kit user to commit `tools/squad/`); all fixed before merge, triage on each issue.
+- **Working rules set by the maintainer (2026-10-18):** towers first, then code (the tower that maps the change is step 0 of every plan); every PR gets a review before merge; an admin merge (`--admin`) only on the maintainer's explicit OK, after that review.
+- **Squad lessons:**
+  - a task that changes a text an existing test asserts must let the step update that assertion (step 09 of #265 went red on it);
+  - tests that limit `PATH` must keep the running Node's folder: on GitHub Actions node is not in /usr/bin;
+  - under load (a browser, two servers) the full check can fail on 5 s timeouts of unrelated tests: rerun the touched and timed-out files on their own before calling a step red, and commit it by hand once verified.
+  - a step commits the tracked changes it finds, but not new files outside its `Files:` list: after a fix-up step, check `git status` for files the previous step created;
+  - a task that lists a file "only if needed" turns the step red on the `Files:` check when the file needed no change: list only files the step must touch;
+  - stop scratch servers and browsers as soon as a check is done: they slow the laptop and cause the timeouts above. A headless Playwright script that measures and closes is lighter than an open browser.
+
 ## Status on 2026-10-16
 
 - **New example `ai-commercialista`** (#228, PR #255): an AI accountant for Italian companies that cites every source.
@@ -33,8 +49,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 - **e2e anywhere:** headless Chrome renders WebGL in software even with a GPU; on a machine with one use `FLOW_TOWER_E2E_GPU=1`. On the test server (no GPU): 73/89 on a scratch port, the large towers time out in software.
 - **#211 closed (2026-10-15):** the 12 low findings of the second dry run, in #219 (library card titles wrap) and #221; with #220 (explicit timeouts for CLI-spawning tests, which timed out under load on the laptop), #222 (a remote hub view hides the MIC and says why) and #223 (the HUD tooltip measures itself and stays inside the window). Under software WebGL the post-processing drew a dark rectangle: without a GPU the app now starts in eco (not saved as a preference). Targeted e2e 38/38 with the GPU; the full e2e ran green for v0.11.0 (`--workers=1`: two workers ran the 7.4 GB laptop out of memory).
 - **Voice on the command center (maintainer's choice, 2026-10-15):** a hub keeps refusing voice to remote viewers (it runs on and bills the hub's machine); use voice in your own Flow Tower with the tower open locally. Researched alternatives (voice through the viewer's local server: Chrome 142+ / Firefox 151+ local network permission; the hub's key for viewers: OWASP LLM10 limits) are in #222.
-- **Command center:** at v0.11.0 since 2026-10-15 (pulled and restarted, checked over the tailnet); its installed unit has the drop-in `/etc/systemd/system/flow-tower.service.d/stop.conf` with `SuccessExitStatus=130 143`. A pull needs `systemctl restart flow-tower` only when `src/server/` or `src/core/` changed. The checkout belongs to `flowtower`: the maintainer pulls as root (`ssh decripto-root`).
-- **Live hub leftovers (2026-10-13):** one test event (`error`, "fallback test", host `sat188b`) sits in the live hub's history; the hub runs as user `flowtower`, so removing it needs that user (the row and its hourly and daily rollups, with the service stopped). The maintainer agreed to clean it if not needed. A revoked test token `sat188b` is still listed in the lead's own `~/.config/flow-tower/tokens.json` (harmless; `token` has no remove command).
+- **Command center:** at v0.11.0 since 2026-10-15 (pulled and restarted, checked over the tailnet); its installed unit has the drop-in `/etc/systemd/system/flow-tower.service.d/stop.conf` with `SuccessExitStatus=130 143`. A pull needs `systemctl restart flow-tower` only when `src/server/` or `src/core/` changed. The checkout belongs to the service user: the maintainer pulls as that user.
 - **Squad lesson:** coders rewrite an existing test file and drop earlier tests. Task files now say "never rewrite or empty an existing test file"; give each step its own test file.
 - **Squad notes from #181:** OpenRouter can answer 504 or 429 in the middle of a coder step: discard the partial changes and rerun the step. A task that rewords an existing message breaks the test that asserts it: quote the existing text in the task. Worktrees with a symlinked `node_modules` make Vite answer 403 for fonts outside the root, so run e2e checks from the main checkout (detached HEAD) on a scratch port, never against the maintainer's server on 5317.
 - **Squad cost of v0.10.0:** $1.53 (#93 $0.09, #94 $0.13, #187 $0.04, #188 $0.15, #189 $0.21, #190 $0.13, #191 $0.18, #196 $0.10, #192 $0.15, #193 $0.14, #194 $0.08, #206 $0.12), each posted on its issue.
@@ -44,6 +59,8 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Next, in order
 
+0. The squad kit acceptance test on a real project (`squad init`, `squad key`, `install-skill`, one issue end to end)
+0b. #249 audit false positives, then close #231
 1. #181 what needs the Mac: a real tailnet with the v0.10.0 team journeys, the macOS side of #194 (launchd)
 2. #69 tower names as an STT prompt
 3. docs-qa gaps left after #143: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)
