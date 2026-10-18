@@ -2,11 +2,25 @@
 // It lives in the user folder, outside any checkout: costs are not repo content, and a git clean must not erase them.
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { basename, dirname, join, resolve } from 'node:path';
 
 export function ledgerPath(env) {
   if (env.SQUAD_LEDGER) return env.SQUAD_LEDGER;
   return join(env.FLOW_TOWER_HOME || join(homedir(), '.config', 'flow-tower'), 'squad-costs.jsonl');
+}
+
+// The ledger is shared by every project (#265), so each run records its project. A worktree names its main
+// checkout's folder (the parent of the shared git dir), so a squad run in a worktree counts for its project.
+// Outside git the folder's own name is used.
+export function projectOf(repo) {
+  const dir = resolve(String(repo ?? '.'));
+  try {
+    const common = execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    return basename(dirname(resolve(dir, common)));
+  } catch {
+    return basename(dir);
+  }
 }
 
 // An explicit --issue wins; otherwise the branch name (fix/126-bin-split) carries it. Anything else is unknown.

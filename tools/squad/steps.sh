@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# steps.sh <issue> <dir> <write-dirs> <title>: run the coder (Haiku by default, CODER_MODEL overrides) on each step file in order;
-# <write-dirs> is a comma-separated list, same as run.mjs --write, e.g. src,tests;
-# after each, npm run check must pass, then one commit per step. Stops at the first red step.
+# steps.sh <issue> <dir> <write-dirs> <title>: run the coder on each step file in order; the coder is models.coder of the
+# repo's tools/squad/squad.json (CODER_MODEL overrides it); <write-dirs> is a comma-separated list, same as run.mjs --write,
+# e.g. src,tests, and when empty it is the config's "write" list;
+# after each, the project's check (config.mjs check, commands.check in squad.json) must pass, then one commit per step. Stops at the first red step.
 # REPO (default: this checkout) is where the steps run; NODE (default: node) is the Node binary for every node call,
 # since the Linux test server's system Node is 20 and Node 22 can live elsewhere; SQUAD_TRAILERS adds extra commit trailer lines.
 set -u
@@ -13,6 +14,17 @@ issue=$1; dir=$2; write=$3; title=$4
 # below see a dirty tree even when the coder did nothing.
 OUT=$(mktemp -d "${TMPDIR:-/tmp}/squad-$issue-XXXXXX") || exit 1
 echo "outputs in $OUT"
+# The repo's own settings fill in what the caller left out. A bad config stops here, before any step runs:
+# config.mjs prints the reason on stderr, which the terminal shows.
+if [ -z "$write" ]; then
+  write=$("$NODE" "$H/config.mjs" get write "$R") || { echo "RED: bad squad config"; exit 1; }
+fi
+# Default from the 2026-10-11 benchmark and the #126 field trial (skills/flow-tower-costs/reference.md), now the repo's models.coder; CODER_MODEL overrides it.
+if [ -n "${CODER_MODEL:-}" ]; then
+  CODER=$CODER_MODEL
+else
+  CODER=$("$NODE" "$H/config.mjs" get models.coder "$R") || { echo "RED: bad squad config"; exit 1; }
+fi
 # Write dirs are split on commas; the array is what git add and the coder get.
 IFS=, read -ra writeDirs <<< "$write"
 # nullglob: a dir with no step files runs nothing instead of looping over the literal pattern.
@@ -25,8 +37,6 @@ for f in "$dir"/*.md; do
   # The commit base for the files check: the step's changes are everything since this commit.
   base=$(git -C "$R" rev-parse HEAD)
   # A coder run that fails (no key, HTTP error, step cap) must stop the chain: a green check on unchanged code is not a done step.
-  # Default from the 2026-10-11 benchmark and the #126 field trial (skills/flow-tower-costs/reference.md); CODER_MODEL overrides it.
-  CODER=${CODER_MODEL:-anthropic/claude-haiku-5.5}
   "$NODE" "$H/run.mjs" --model "$CODER" --role coder --node specialists.coder --task "$f" --steps 70 --issue "$issue" --repo "$R" --write "$write" > "$OUT/coder-$step.out" 2>&1; rc=$?
   tail -c 700 "$OUT/coder-$step.out"
   if [ "$rc" -ne 0 ] || grep -q "^step cap reached" "$OUT/coder-$step.out"; then echo "RED after step $step: coder run failed (exit $rc)"; exit 1; fi
@@ -38,7 +48,8 @@ for f in "$dir"/*.md; do
   # Take the last such line: the report printed before it can hold diff lines that start with "--- ".
   stepCost=$(grep '^--- ' "$OUT/coder-$step.out" | tail -1 | grep -o '\$[0-9.]*' | tail -1)
   if [ -z "$(git -C "$R" status --porcelain)" ]; then echo "RED after step $step: the coder changed nothing"; exit 1; fi
-  if ! (cd "$R" && npm run check > "$OUT/check-$step.log" 2>&1); then
+  # The check is the project's own (config.mjs check), so a repo with another check command runs the same script.
+  if ! ("$NODE" "$H/config.mjs" check "$R" > "$OUT/check-$step.log" 2>&1); then
     echo "RED after step $step: see $OUT/check-$step.log"; grep -E "error TS|FAIL|✗|×" "$OUT/check-$step.log" | head -8; exit 1
   fi
   # The files check comes after the check: a step whose listed files are missing from its changes is RED even when its own tests pass (#176).
@@ -59,13 +70,15 @@ for f in "$dir"/*.md; do
     cd "$R" || exit 1
     # Probe files the coder left behind are removed before staging, so they never reach the commit.
     git ls-files --others --exclude-standard | grep -E "(^|/)(tmp[-_.]|zz[-_])|probe|scratch" | while read -r junk; do echo "removed coder probe file: $junk"; rm -f -- "$junk"; done
-    git add -u
-    for p in ${writeDirs[@]+"${writeDirs[@]}"}; do [ -e "$p" ] && git add -A -- "$p"; done
+    # git add and git commit run without OPENROUTER_API_KEY: a project's pre-commit hook (husky, lint-staged) may run
+    # the tests the coder wrote, and those must not see the key.
+    env -u OPENROUTER_API_KEY git add -u
+    for p in ${writeDirs[@]+"${writeDirs[@]}"}; do [ -e "$p" ] && env -u OPENROUTER_API_KEY git add -A -- "$p"; done
     git status --short | grep "^??" && echo "UNTRACKED LEFT (outside the write dirs, not committed)"
-    git commit -s -q -m "$title, step $step (#$issue)
+    env -u OPENROUTER_API_KEY git commit -s -q -m "$title, step $step (#$issue)
 
 Coder: $CODER.${trailerPara}" && git log --oneline -1
   )
 done
-"$NODE" "$H/cost.mjs" "$issue"
+"$NODE" "$H/cost.mjs" "$issue" --repo "$R"
 echo "ALL GREEN #$issue"

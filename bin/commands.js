@@ -73,6 +73,13 @@ export const TS_COMMANDS = [
       ...(typedPort(process.argv) ? ['--port', values.port] : []),
     ],
   },
+  // `--check <command>` is stripped from the positionals by parseArgs, so it goes back with its exact value.
+  // `--force` is also a parseArgs option (boolean) and is stripped, so it is appended too.
+  {
+    name: 'squad',
+    script: 'squad.ts',
+    extra: (values) => [...(values.check === undefined ? [] : ['--check', values.check]), ...(values.force ? ['--force'] : [])],
+  },
   // `library` is a TS command only with a subcommand (add/list/remove); see findTsCommand.
   { name: 'library', script: 'library.ts', extra: () => [] },
   // `--port` has a default in parseArgs, so it is passed only when typed: the service then takes the recorded port.
