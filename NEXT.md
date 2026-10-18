@@ -5,8 +5,10 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 ## Status on 2026-10-18
 
 - **Dev squad kit** (#265, PR #267, CI green, waiting for the merge): the squad runs on any git project. `flow-tower squad init <project>` copies the runner into `tools/squad/` with a detected `squad.json` (check command, writable and review folders, base branch, models), a task template and a ready squad tower; `flow-tower squad key` stores the OpenRouter key in the user folder; the `flow-tower-squad` skill is the lead's procedure, shipped by `install-skill`. Review and security found that the project's check and test commands saw `OPENROUTER_API_KEY` (fixed: dropped from every child). Checked end to end on a scratch project with a real key. Squad cost $0.21.
-- **Viewer: SQLite databases and SQL schemas as tables** (#264, branch `feat/264-sqlite-viewer`, no PR yet): steps 01-04 done (read-only `node:sqlite` preview, tolerant `CREATE TABLE` parser, the table view, the review and security fixes on the server). Next: step 05 (viewer fixes from the browser check, task written), a browser check, docs, CHANGELOG, PR.
-- **Opened:** #266, share and unshare a tower with the hub from the interface, and say why the hub stays dark (a satellite's events light only the towers that machine shared, #206).
+- **Viewer: SQLite databases and SQL schemas as tables** (#264, PR #269, CI green, waiting for review): a database (by its header) opens read-only with `node:sqlite` as a table list and the first 100 rows; a `.sql` file lists each table's columns. Bounded for big files. chief-of-staff ships a sample `ambient.sqlite3` (fictitious cards). Checked in Chrome at desktop and phone width. Squad cost $0.11.
+- **Share and unshare from the interface** (#266, PR #270, CI green, waiting for review): a Share with hub menu on each local library card of a satellite, the Settings › Sharing list with Unshare (and Remove from config only when the hub is down), and the hint for an active project the hub does not light (#206). Behind it `/api/sharing/towers` (loopback only) and `share-actions.ts`, which the CLI calls too. The team-hub tower maps it. Checked on a scratch hub and satellite. Squad cost $0.14.
+- **Benchmark roles** (PR #260, #231): merged with main (main's #262 already had image input; this branch's writer, planner, summarizer and vision task sets run on it), image test adapted; waiting for review.
+- **Working rules set by the maintainer (2026-10-18):** towers first, then code (the tower that maps the change is step 0 of every plan); every PR gets a review before merge, no admin bypass.
 - **Squad lessons:**
   - a task that changes a text an existing test asserts must let the step update that assertion (step 09 of #265 went red on it);
   - tests that limit `PATH` must keep the running Node's folder: on GitHub Actions node is not in /usr/bin;
@@ -54,7 +56,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Next, in order
 
-0. Merge #267, then finish #264 (step 05, browser check, PR) and #266
+0. Review and merge #267 (then the squad kit acceptance test on a personal project), #269, #270, #260, #268
 1. #181 what needs the Mac: a real tailnet with the v0.10.0 team journeys, the macOS side of #194 (launchd)
 2. #69 tower names as an STT prompt
 3. docs-qa gaps left after #143: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)
