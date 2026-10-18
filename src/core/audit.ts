@@ -123,9 +123,13 @@ export function auditTower(tower: ResolvedTower, ctx: AuditContext = NO_CONTEXT)
   const widthOf = (key: string): number => {
     const own = fanoutCount(byKey.get(key)?.ops.fanout);
     if (own !== undefined) return own;
+    // A target with its own limits caps its copies, so it adds 1 here, not its full fanout.
     return outOf(key)
       .filter((e) => e.kind === 'spawn')
-      .reduce((sum, e) => sum + (fanoutCount(byKey.get(e.to)?.ops.fanout) ?? 1), 0);
+      .reduce((sum, e) => {
+        const target = byKey.get(e.to);
+        return sum + (target?.ops.limits === undefined ? (fanoutCount(target?.ops.fanout) ?? 1) : 1);
+      }, 0);
   };
   // A sub-tower runs inside its parents' run, so their budget or limits count here too.
   const runBudget = tower.run?.budget !== undefined || ctx.runBudget;

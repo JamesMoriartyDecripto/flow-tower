@@ -82,3 +82,18 @@ describe('AUD01 return that closes a delegation', () => {
     expect(rulesOf(auditTower(t), 'AUD01')).toHaveLength(2);
   });
 });
+
+describe('AUD02 spawn target that bounds its own fan-out', () => {
+  it('a spawn target with its own limits adds 1 to the spawner, quiet on both sides', async () => {
+    const t = await build({
+      nodes: [
+        { id: 'lead', type: 'agent', model: 'm' },
+        { id: 'w', type: 'agent', model: 'm', fanout: { max: 40 }, limits: { concurrency: 8 } },
+      ],
+      edges: ['lead -> w [spawn]'],
+    });
+    const fs = rulesOf(auditTower(t), 'AUD02');
+    expect(fs.filter((f) => f.node === 'l.lead')).toEqual([]);
+    expect(fs.filter((f) => f.node === 'l.w')).toEqual([]);
+  });
+});
