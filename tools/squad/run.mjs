@@ -97,6 +97,12 @@ const inRepo = (p) => {
   if (!rel || rel.startsWith('..') || SECRET.test(rel)) throw new Error(`path not allowed: ${p}`);
   return { abs, rel };
 };
+// Reads follow symlinks, so the real path is checked as well: a link inside the repo must not reach a key file.
+const readRel = (p) => {
+  const r = inRepo(p);
+  if (realRelIfAllowed({ repo: REPO, abs: r.abs, secret: SECRET, writable: /^/ }) === null) throw new Error(`path not allowed: ${p}`);
+  return r;
+};
 // Every write is checked on its real path, so a symlink inside the repo cannot lead the write out of it (#169 review).
 // Returns the real path to write to; the role's writable folders and the secret patterns still apply.
 const writable = (abs, rel) => {
@@ -107,8 +113,9 @@ const writable = (abs, rel) => {
 };
 const git = (...a) => execFileSync('git', a, { cwd: REPO, encoding: 'utf8', maxBuffer: 20e6 });
 const cap = (s, n = 40_000) => (s.length > n ? `${s.slice(0, n)}\n…[cut ${s.length - n} chars]` : s);
+// The project's commands run without the key (#265): the coder writes the tests they run, so a test could read it.
 const sh = (cmd, a) => {
-  try { return cap(execFileSync(cmd, a, { cwd: REPO, encoding: 'utf8', maxBuffer: 50e6, timeout: 600_000, stdio: ['ignore', 'pipe', 'pipe'] }), 20_000); }
+  try { return cap(execFileSync(cmd, a, { cwd: REPO, encoding: 'utf8', maxBuffer: 50e6, timeout: 600_000, stdio: ['ignore', 'pipe', 'pipe'], env: evEnv }), 20_000); }
   catch (e) { return cap(`EXIT ${e.status}\n${e.stdout ?? ''}\n${e.stderr ?? ''}`, 20_000); }
 };
 
@@ -118,15 +125,15 @@ const runCmd = (name, file) => { const av = commandArgv(config.commands[name], f
 const ALIAS = { vitest: 'test' };
 const RUNS = {
   ...Object.fromEntries(['check', 'typecheck', 'lint'].filter((n) => config.commands[n]).map((n) => [n, () => runCmd(n)])),
-  ...(config.commands.test && { test: (f) => runCmd('test', inRepo(f).rel) }),
+  ...(config.commands.test && { test: (f) => runCmd('test', readRel(f).rel) }),
   // The dirs a task may touch (--write) are the ones worth reviewing: a reviewer of tools/ would see nothing otherwise.
   diff: () => cap(git('diff', config.base, '--', ...dirs)),
   status: () => git('status', '--short'),
-  ...(config.extras.includes('validate') && { validate: (f) => sh('node', [config.cli, 'validate', f ? inRepo(f).rel : 'examples', '--json']) }),
+  ...(config.extras.includes('validate') && { validate: (f) => sh('node', [config.cli, 'validate', f ? readRel(f).rel : 'examples', '--json']) }),
   // An example script in dry-run mode (the coder could not verify scripts/*.mjs otherwise, #75). The key is
   // removed from the child environment, so nothing paid can run whatever the script does.
   ...(config.extras.includes('dryrun') && { dryrun: (f) => {
-    const { rel } = inRepo(f);
+    const { rel } = readRel(f);
     if (!/^examples\/[^/]+\/scripts\/[^/]+\.mjs$/.test(rel)) throw new Error('dryrun: file must be examples/<name>/scripts/<script>.mjs');
     const { OPENROUTER_API_KEY: _drop, ...childEnv } = env;
     // The output file goes to the system temp folder: the repo must not collect run leftovers.
@@ -136,13 +143,13 @@ const RUNS = {
   } }),
 };
 const tools = {
-  list_files: ({ dir = '.' }) => cap(git('ls-files', '--', inRepo(dir === '.' ? 'src' : dir).rel)),
+  list_files: ({ dir = '.' }) => cap(git('ls-files', '--', readRel(dir === '.' ? 'src' : dir).rel)),
   read_file: ({ path, from = 1, to = 2000 }) => {
-    const { abs } = inRepo(path);
+    const { abs } = readRel(path);
     const lines = readFileSync(abs, 'utf8').split('\n');
     return cap(lines.slice(from - 1, to).map((l, i) => `${from + i}\t${l}`).join('\n'));
   },
-  grep: ({ pattern, path = '.' }) => { try { return cap(git('grep', '-n', '-I', '-E', String(pattern), '--', path === '.' ? '.' : inRepo(path).rel), 15_000); } catch { return 'no match'; } },
+  grep: ({ pattern, path = '.' }) => { try { return cap(git('grep', '-n', '-I', '-E', String(pattern), '--', path === '.' ? '.' : readRel(path).rel), 15_000); } catch { return 'no match'; } },
   // A write goes where its real path (symlinks followed) says, so that path is what is checked (guard.mjs).
   edit_file: ({ path, old, new: next }) => {
     const { abs, rel } = inRepo(path);
@@ -188,7 +195,13 @@ const TOOLS = [
     fn('write_file', `Create or overwrite a file (${dirs.join('/, ')}/ only).`, { path: S, content: S }, ['path', 'content']),
     fn('delete_file', 'Delete a file you may write (e.g. one the task says to remove).', { path: S }, ['path']),
   ] : []),
-  fn('run', `Run a whitelisted command: ${Object.keys(RUNS).join(', ')}. test takes a file; diff is vs ${config.base}; dryrun (file: examples/<name>/scripts/<script>.mjs) runs it with --dry-run and no API key.`, { command: { type: 'string', enum: Object.keys(RUNS) }, file: S }, ['command']),
+  // Only the commands this project offers are named: a dryrun the extras leave out is not advertised.
+  fn('run', [
+    `Run a whitelisted command: ${Object.keys(RUNS).join(', ')}.`,
+    ...(RUNS.test ? ['test takes a file.'] : []),
+    `diff is vs ${config.base}.`,
+    ...(RUNS.dryrun ? ['dryrun (file: examples/<name>/scripts/<script>.mjs) runs it with --dry-run and no API key.'] : []),
+  ].join(' '), { command: { type: 'string', enum: Object.keys(RUNS) }, file: S }, ['command']),
   fn('finish', 'End with your final report (the format your task asks for).', { report: S }, ['report']),
 ];
 

@@ -8,6 +8,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { argv, exit, stderr, stdout } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.mjs';
+import { realRelIfAllowed } from './guard.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
 const USAGE = 'usage: node tools/squad/pack.mjs --role reviewer|security --issue <n> [--base origin/main] [--repo <path>] [--files a,b] [--brief <file>] [--max-kb 120]';
@@ -40,6 +41,8 @@ const inRepo = (p) => {
   const abs = resolve(REPO, p);
   const rel = relative(REPO, abs);
   if (!rel || rel.startsWith('..') || SECRET.test(rel)) throw new Error(`path not allowed: ${p}`);
+  // readFileSync follows symlinks: a link inside the repo must not lead to a file outside it (guard.mjs).
+  if (realRelIfAllowed({ repo: REPO, abs, secret: SECRET, writable: /^/ }) === null) throw new Error(`path not allowed: ${p}`);
   return { abs, rel };
 };
 

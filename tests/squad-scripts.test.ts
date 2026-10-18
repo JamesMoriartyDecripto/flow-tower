@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, copyFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, copyFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -71,6 +71,42 @@ describe('pack.mjs reads the review folders from squad.json (#265)', () => {
     expect(r.stdout).toContain('+export const a = 2;');
     expect(r.stdout).not.toContain('src/b.js');
     expect(r.stdout).toContain('git diff HEAD -- lib');
+  });
+});
+
+describe('squad keeps the key from project commands (#265 review)', () => {
+  it('config.mjs check runs the project command without OPENROUTER_API_KEY', () => {
+    const repo = join(tmp, 'repo');
+    mkdirSync(join(repo, 'tools', 'squad'), { recursive: true });
+    writeFileSync(join(repo, 'tools', 'squad', 'squad.json'), JSON.stringify({ commands: { check: 'node -e process.exit(process.env.OPENROUTER_API_KEY?7:0)' } }));
+    const r = spawnSync(process.execPath, [join(squad, 'config.mjs'), 'check', repo], {
+      encoding: 'utf8', env: { ...process.env, OPENROUTER_API_KEY: 'x' },
+    });
+    expect(r.status).toBe(0);
+  });
+});
+
+describe('pack.mjs refuses a link that leaves the repo (#265 review)', () => {
+  it('refuses lib/link.txt pointing outside the repo, and names the path', () => {
+    const repo = join(tmp, 'repo');
+    mkdirSync(join(repo, 'lib'), { recursive: true });
+    writeFileSync(join(tmp, 'outside.txt'), 'outside the repo\n');
+    symlinkSync(join(tmp, 'outside.txt'), join(repo, 'lib', 'link.txt'));
+    writeFileSync(join(repo, 'lib', 'a.js'), 'export const a = 1;\n');
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'add', '.');
+    git(repo, 'commit', '-q', '-m', 'base');
+    mkdirSync(join(repo, 'tools', 'squad'), { recursive: true });
+    writeFileSync(join(repo, 'tools', 'squad', 'squad.json'), JSON.stringify({ base: 'HEAD' }));
+    const brief = join(tmp, 'brief.md');
+    writeFileSync(brief, 'Review.\n');
+
+    const r = spawnSync(process.execPath, [join(squad, 'pack.mjs'), '--role', 'reviewer', '--issue', '265', '--repo', repo, '--brief', brief, '--files', 'lib/link.txt'], {
+      encoding: 'utf8', timeout: 20_000,
+    });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('lib/link.txt');
+    expect(r.stdout).not.toContain('outside the repo');
   });
 });
 

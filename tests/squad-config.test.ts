@@ -77,3 +77,21 @@ describe('squad config (#265)', () => {
     expect(r.status).toBe(3);
   });
 });
+
+describe('squad config validation (#265 review)', () => {
+  it('a base that starts with "-" throws naming the key', () => {
+    expect(() => loadConfig(repoWith(JSON.stringify({ base: '--output=/tmp/x' })))).toThrow(/"base"/);
+  });
+
+  it('an empty write array throws naming the key', () => {
+    expect(() => loadConfig(repoWith(JSON.stringify({ write: [] })))).toThrow(/"write"/);
+  });
+
+  it('an empty review array throws naming the key', () => {
+    expect(() => loadConfig(repoWith(JSON.stringify({ review: [] })))).toThrow(/"review"/);
+  });
+
+  it('extras without a cli throws naming the key', () => {
+    expect(() => loadConfig(repoWith(JSON.stringify({ extras: ['validate'], cli: '' })))).toThrow(/"cli"/);
+  });
+});

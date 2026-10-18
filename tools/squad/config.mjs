@@ -51,13 +51,19 @@ export function loadConfig(repo) {
   for (const k of ['project', 'base', 'tower', 'source', 'cli']) if (typeof cfg[k] !== 'string') fail(k, 'must be a string');
   for (const [name, cmd] of Object.entries(cfg.commands)) if (typeof cmd !== 'string') fail(`commands.${name}`, 'must be a string');
   if (!cfg.commands.check.trim()) fail('commands.check', 'must not be empty');
+  // base reaches git diff as an argument: a leading '-' would make it an option (pack.mjs refuses the same).
+  if (cfg.base.startsWith('-')) fail('base', 'must be a revision, not an option');
   // A dir goes through writeDirs, the same check as --write: no absolute path, no "..", and one dir per item.
+  // An empty list would leave the coder with nowhere to write, or the reviewer with no diff, so it is refused.
   for (const k of ['write', 'review']) {
     if (!Array.isArray(cfg[k])) fail(k, 'must be an array');
+    if (cfg[k].length === 0) fail(k, 'must not be empty');
     for (const d of cfg[k]) if (typeof d !== 'string' || writeDirs(d)?.length !== 1) fail(k, `has a bad dir: ${JSON.stringify(d)}`);
   }
   if (!isStrings(cfg.rules)) fail('rules', 'must be an array of strings');
   if (!Array.isArray(cfg.extras) || cfg.extras.some((x) => !EXTRAS.includes(x))) fail('extras', `may only list ${EXTRAS.join(' and ')}`);
+  // Both extras call the project's own CLI (cli), so listing one without it would fail only at run time.
+  if (cfg.extras.length > 0 && !cfg.cli.trim()) fail('cli', 'must be a non-empty string when extras are listed');
   for (const [name, m] of Object.entries(cfg.models)) if (typeof m !== 'string') fail(`models.${name}`, 'must be a string');
   return cfg;
 }
@@ -92,7 +98,9 @@ function main(args) {
   if (cmd === 'check' && args.length === 2) {
     const config = loadConfig(a);
     const av = commandArgv(config.commands.check);
-    const r = spawnSync(av[0], av.slice(1), { cwd: a, stdio: 'inherit' });
+    // The key stays out of the project's command, the same as in run.mjs: a test the coder wrote could read it.
+    const { OPENROUTER_API_KEY: _key, ...env } = process.env;
+    const r = spawnSync(av[0], av.slice(1), { cwd: a, stdio: 'inherit', env });
     if (r.error) console.error(r.error.message);
     return r.status ?? 1;
   }
