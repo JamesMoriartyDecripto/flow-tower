@@ -32,6 +32,7 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 | `src/core/secrets.ts` | The one guard for what no tower may read or serve (loader and `/api/file`): `isSecretPath` (key and credential files, `.git`, `.ssh`, `.aws`…), `userHome()` (`~/.config/flow-tower` or `FLOW_TOWER_HOME`, resolved once), `inUserHome` (symlinks resolved), `isForbidden`, its synchronous twin `isForbiddenSync` (existence probes, folder scans; resolves symlinks too) and `realOrSelf`. Node built-ins only (the demo build imports it). Tested in `tests/server-guards.test.ts` |
 | `src/core/resolve.ts` | Prompts, `from:` agent files, operational fields (`pickOps`) |
 | `src/core/edges.ts` | Edge shorthand parsing |
+| `src/core/dbPreview.ts` | The table preview types shared by server and viewer (#264), and `parseSqlSchema`: a tolerant `CREATE TABLE` parser for `.sql` files (quoted names, schemas, inline and table constraints, foreign keys); no data |
 | `src/core/otlp.ts` | OTLP/HTTP JSON logs → `usage` / `error` events (Claude Code, Codex telemetry) |
 | `src/core/identity.ts` | Who, where and what on every event (#82): picks the first set attribute among the names sources use for user, host, runtime, project and session, and clips them. `bin/identity.js` is the plain-JS twin `emit` loads |
 | `src/core/events.ts`, `adapters.ts`, `claudeCode.ts` | Live event shape, matching (with `!` negation), per-harness adapters (Codex, Pi, Hermes); `claudeCode.ts` maps Claude Code / Agent SDK hooks and remembers subagent roles |
