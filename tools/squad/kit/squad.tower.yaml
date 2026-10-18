@@ -8,7 +8,7 @@ limits: { max_iterations: 70, description: "The coder stops at 70 model calls pe
 description: >-
   The dev squad working on this project. Your coding agent is the lead: it splits an issue into small
   steps and writes one task file per step. A cheap coder writes the code through OpenRouter, a reviewer
-  and a security auditor from two other model families read the diff, and the lead verifies and merges.
+  and a security auditor from two other model families read the diff, the lead verifies, and you merge.
 
 runtimes:
   laptop:

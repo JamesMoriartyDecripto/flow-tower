@@ -11,6 +11,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Model benchmark: `bench.mjs` calls every endpoint a role needs (decisions, embeddings, rerank, image input, images, videos, speech, transcriptions), with checks `wer`, `wer-roundtrip` and `vision-judge` (a judge from another family than the candidate), and 11 new task sets (orchestrator, data, guard, decision, vision, image-gen, video-gen, tts, stt, embeddings, rerank).
 - Example `ai-commercialista`: an AI accountant for Italian companies that cites every source, checks each citation against the text in force for the tax period, scans 2026 levers per profile (SRL, startup, startup innovativa, photovoltaic, employer, forfettario) and leaves every memo to a professional's signature (#228). It ships four benchmark task sets for its model roles (triage, abuse-of-law label, citation support, answers quoted verbatim from Normattiva text), listed in `examples/model-benchmark/categories.md`.
 
+### Changed
+- Dev squad: `tools/squad/cost.mjs` sums the current project only (the ledger records `project`; `--repo <path>`, `--all` for every project; entries from before count for flow-tower), and `ev.sh` finds the flow-tower CLI through `FLOW_TOWER_CLI`, `tools/squad/.cli` or PATH and stays silent without one (#265).
+
+### Security
+- Dev squad: the project's check and test commands no longer receive `OPENROUTER_API_KEY` (the coder writes the tests they run), and the runner refuses reads through symlinks that leave the repository (#265).
+
 ### Fixed
 - Model benchmark: `judge.mjs` runs `check: command` tasks on Node 24, which dropped `--experimental-permission`: it uses `--permission` when the running Node accepts it. Before, every command check failed with "bad option" and was counted as a wrong answer (#256).
 - `flow-tower check-example` no longer reports `ft_` inside a word (`draft_for_professional_review`) as a token, nor a `/home/` or `/Users/` segment inside a URL path as a home folder; a home path after `-` (`${VAR:-/home/x}`), `../` or `file://` is still reported (#229).

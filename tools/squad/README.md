@@ -8,11 +8,14 @@ every field session of this repo, and it runs on **your own project** too (#265)
 node <flow-tower>/bin/flow-tower.js squad init ~/my-project   # runner into tools/squad/, squad.json detected
 node <flow-tower>/bin/flow-tower.js squad key                 # your OpenRouter key, into the user folder
 node <flow-tower>/bin/flow-tower.js install-skill             # the flow-tower-squad skill for your agent
+git -C ~/my-project add tools/squad .gitignore && git -C ~/my-project commit -m "chore: add the dev squad"
 ```
 
-Then ask your agent to work an issue with the squad: the [flow-tower-squad skill](../../skills/flow-tower-squad/SKILL.md)
+Commit what init wrote before the first step: each worktree reads `tools/squad/squad.json` from its branch.
+
+Then ask your agent to work an issue with the squad: the [flow-tower-squad skill](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-squad/SKILL.md)
 is the lead's procedure. `tools/squad/squad.json` holds what is specific to a project (below). The design sample of a
-bigger, unattended squad on the Claude Agent SDK is [`examples/dev-squad`](../../examples/dev-squad/README.md) (meant to be read).
+bigger, unattended squad on the Claude Agent SDK is [`examples/dev-squad`](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/examples/dev-squad/README.md) (meant to be read).
 
 ## squad.json
 
@@ -29,14 +32,14 @@ it from what the project's files say. A missing file gives the defaults.
 | `rules` | extra lines every model sees | none |
 | `extras` | flow-tower-only tools (`validate`, `dryrun`) | none |
 | `models` | `coder`, `reviewer`, `security` | the table below |
-| `tower`, `source`, `cli` | the tower name the live events go to, their source, the flow-tower CLI path | `Dev Squad`, `dev-squad`, found on PATH |
+| `tower`, `source`, `cli` | the tower name the live events go to, their source, the flow-tower CLI path | `Dev Squad`, `dev-squad`; the CLI from `FLOW_TOWER_CLI`, then `tools/squad/.cli` (written by init, git-ignored), then PATH |
 
 ## Roles
 
 | Role | Model | Why | Writes |
 |---|---|---|---|
 | Lead (Claude, you) | the session model | plans, verifies, commits | task files, commits |
-| Coder | `anthropic/claude-haiku-5.5` | cleanest result, 11 steps (#126); `CODER_MODEL` overrides | `src/ tests/ e2e/` (or `--write a,b`) |
+| Coder | `anthropic/claude-haiku-5.5` | cleanest result, 11 steps (#126); `CODER_MODEL` overrides | the `write` folders of squad.json (or `--write a,b`) |
 | Reviewer | `z-ai/glm-5.3-flashx` | 3 steps, cheapest on the same PR | nothing (read-only, JSON verdict) |
 | Security | `deepseek/deepseek-v4.1-flash` | 6/6 in the benchmark, fastest | nothing |
 
@@ -45,13 +48,13 @@ All at low reasoning effort: quick passes, and the review rounds re-check the wo
 ## A task file
 
 One or two items, never a whole issue. The coder has a step budget, and the Flash coder hit it twice on
-multi-item tasks (#75). Small enough that a green `npm run check` means the item is done.
+multi-item tasks (#75). Small enough that a green check (`commands.check`) means the item is done.
 
 ```markdown
 # 113a: the runner takes --repo
 
 Rules: English only; comments explain why; files under ~400 lines; never touch secret files.
-Verify with `npm run check` (via `run check`), then `finish` with the output.
+Verify with the project's check (via `run check`), then `finish` with the output.
 
 - In tools/squad/run.mjs resolve the repo from --repo, default the git root of the current directory.
 - Writable: tools/ only.
@@ -82,7 +85,7 @@ tools/squad/steps.sh 113 tasks/113 tools "keep the squad runner in the repo"
 `<write-dirs>` is a comma-separated list, same as `run.mjs --write` (e.g. `src,tests` or `tools/squad`). `REPO` picks the worktree
 (default: this checkout); `NODE` picks the Node binary (default `node`; e.g. `NODE=/opt/node22/bin/node` where the
 system Node is older than 22). For simple tasks, `CODER_MODEL=openai/gpt-6-luna`. It stops at the first red step: a failed
-coder run, no change at all, a red `npm run check`, or a `Files:` entry the step did not touch. Each commit stages every changed tracked path (`git add -u`),
+coder run, no change at all, a red check, or a `Files:` entry the step did not touch. Each commit stages every changed tracked path (`git add -u`),
 not a fixed list, so files like `package.json` or `NEXT.md` are never left out; new files are staged inside the
 `write-dirs`, and anything untracked outside them is reported as `UNTRACKED LEFT (not committed)`. Probe files the
 coder dropped (`tmp*`, `probe`, `scratch`) are removed first. Trailers are session-specific, so pass them in
@@ -113,7 +116,7 @@ node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --
 ## Pace: how fast versus how cheap
 
 The maintainer sets the pace; the lead picks the review mode from it. The coder always runs the tool loop: it reads,
-writes and runs `npm run check` over many steps, which no single request can do.
+writes and runs the check over many steps, which no single request can do.
 
 | Pace | When | Reviewer and security | Cost | Wait |
 |---|---|---|---|---|
@@ -121,7 +124,7 @@ writes and runs `npm run check` over many steps, which no single request can do.
 | `relaxed` | daytime, no hurry: most issues | `SQUAD_PACE=relaxed`: `--oneshot`, one direct request with the code packed | full price for one request ($0.008–0.011 on #164/#169) | a few minutes |
 | `overnight` | work left to run unattended (overnight, a weekend) | `SQUAD_PACE=overnight`: `--batch`, the same request through the OpenRouter Batch API | about half | median minutes, but the first real run sat `in_progress` for 30+ min; cap 24 h |
 
-**In a hurry, also pick faster models** (benchmark and field numbers in the [cost skill reference](../../skills/flow-tower-costs/reference.md#benchmark-2026-10-11)); the defaults stay, because speed can cost quality:
+**In a hurry, also pick faster models** (benchmark and field numbers in the [cost skill reference](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-costs/reference.md#benchmark-2026-10-11)); the defaults stay, because speed can cost quality:
 
 | Role | Default | Faster | Use the faster one when |
 |---|---|---|---|
@@ -178,7 +181,7 @@ SQUAD_PACE=relaxed node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash
 
 Field trial #126, four coders on one task. Coder: Haiku 5.5 took 11 steps for $0.016 (DeepSeek Flash: 36 steps, $0.048).
 Reviewer: GLM FlashX took 3 steps for $0.007 (DeepSeek: 16 steps, $0.058). The run reports its own total at `finish`
-and the cache hit rate; method and older figures: [skills/flow-tower-costs/reference.md](../../skills/flow-tower-costs/reference.md).
+and the cache hit rate; method and older figures: [skills/flow-tower-costs/reference.md](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-costs/reference.md).
 
 ## Cost per issue
 
@@ -194,6 +197,6 @@ The lead posts that table on the issue when it closes.
 
 ## Where else to look
 
-- `src/server/plugin.ts`, `src/server/secrets.ts`: how the key file and the user folder are found and guarded.
+- In flow-tower: [`src/server/plugin.ts`](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/src/server/plugin.ts) and [`src/core/secrets.ts`](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/src/core/secrets.ts), how the key file and the user folder are found and guarded.
 - `bin/flow-tower.js emit`: the event CLI `ev.sh` calls (never fails, never blocks long).
 - `examples/dev-squad`: the product sample, a full squad in TypeScript, not this harness.

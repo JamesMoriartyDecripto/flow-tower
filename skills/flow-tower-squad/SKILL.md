@@ -28,7 +28,10 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
 3. **Key**: the user runs `{{FLOW_TOWER_CLI}} squad key` themselves (hidden input; stored in the flow-tower user
    folder, mode 600, never in the repo). `squad key status` says whether one is set. Never ask the user to paste a
    key into the chat, never print it, never write it in a file of the project.
-4. **Optional, live view**: `{{FLOW_TOWER_CLI}} <project>/tools/squad/squad.tower.yaml` with Flow Tower running:
+4. **Commit the squad files** on the base branch before any worktree: `git add tools/squad .gitignore && git commit -m "chore: add the dev squad"`.
+   Each worktree reads `tools/squad/squad.json` from its branch: without this commit it falls back to the defaults
+   (`npm run check`, `src` and `tests`), and a project in another language goes red on the first step.
+5. **Optional, live view**: `{{FLOW_TOWER_CLI}} <project>/tools/squad/squad.tower.yaml` with Flow Tower running:
    every coder, reviewer and security run lights its node.
 
 ## Work an issue
@@ -51,9 +54,9 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
 7. **Review and security**, one request each with the code packed:
    ```bash
    node tools/squad/pack.mjs --role reviewer --issue <n> --repo ../wt-<n> --files <changed files> > /tmp/<n>-review.md
-   SQUAD_PACE=relaxed node tools/squad/run.mjs --model <reviewer> --role reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n>
+   SQUAD_PACE=relaxed node tools/squad/run.mjs --model <reviewer> --role reviewer --node specialists.reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n>
    ```
-   Same with `--role security` and the security model; add the guards the change relies on to `--files`. Verify
+   Same with `--role security --node specialists.security` and the security model; add the guards the change relies on to `--files`. Verify
    each finding in the code: keep the real ones, say why the others do not apply.
 8. **Fix steps** for the kept findings (same format, new folder), then verify again.
 9. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.

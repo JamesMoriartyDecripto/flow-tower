@@ -132,10 +132,11 @@ families, your coding agent as the lead) runs on any git project with an [OpenRo
 node $FT/bin/flow-tower.js squad init ~/my-project     # copies the runner into tools/squad/, detects squad.json
 node $FT/bin/flow-tower.js squad key                   # your OpenRouter key, hidden input, kept in the user folder
 node $FT/bin/flow-tower.js install-skill               # the flow-tower-squad skill for your agent
+git -C ~/my-project add tools/squad .gitignore && git -C ~/my-project commit -m "chore: add the dev squad"
 ```
 
-Check `tools/squad/squad.json` (the check command, the folders the coder may write), then ask your agent to work an
-issue with the squad. How the lead splits the work, runs the steps and verifies: the
+Check `tools/squad/squad.json` (the check command, the folders the coder may write) and commit it with the runner:
+each worktree reads it from its branch. Then ask your agent to work an issue with the squad. How the lead splits the work, runs the steps and verifies: the
 [flow-tower-squad skill](../skills/flow-tower-squad/SKILL.md); the runner and squad.json: [tools/squad](../tools/squad/README.md).
 `squad init --force` refreshes the runner after a flow-tower update and keeps your squad.json.
 
