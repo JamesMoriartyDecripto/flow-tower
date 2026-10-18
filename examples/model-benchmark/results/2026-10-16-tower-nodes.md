@@ -1,5 +1,7 @@
 # Model benchmark: roles of the example towers, 2026-10-16
 
+> **Scope.** This is the pick **per node** when the harness fixes the model family (a Claude Code node chooses among Claude models, a Gemini node among Gemini models). The pick **per role across families** is the [role catalogue](../../../skills/flow-tower-costs/catalogue.md), from a separate run the same day ([2026-10-16-roles/](2026-10-16-roles)). Where the two disagree, this page says so.
+
 Phase 4 of the tower optimization (#231): one benchmark per **role**, not per tower, for the models the 22 optimizer reports flagged ("Models to benchmark" in `examples/tower-optimizer/reports/*.compare.md`). Every candidate runs on the node's own harness: the Claude Agent SDK and Claude Code towers only take Claude models, airline-support (OpenAI Agents SDK) only OpenAI models, co-scientist (`google.genai`) only Gemini models.
 
 **Runs.** 409 runs through OpenRouter (`require_parameters`, `data_collection: deny`, effort low, a fresh session per run).
@@ -9,14 +11,14 @@ Phase 4 of the tower optimization (#231): one benchmark per **role**, not per to
 
 Every cell has n ≥ 3 per model and task, so no category is ILLUSTRATIVE.
 
-**Scoring.** Deterministic checks first (`judge.mjs`). The rubric answers were then scored blind, twice (forward, then reverse order), by `z-ai/glm-5.3-flashx`, a family no candidate belongs to. The final score is the lower of the two passes, and pass is 7 or more. Notes per answer are in `2026-10-16-roles-<category>.scores-notes.md`. No answer had a gap above 2 points between the passes. "Correct" below means the deterministic check passed and, for rubric tasks, the score is at least 7.
+**Scoring.** Deterministic checks first (`judge.mjs`). The rubric answers were then scored blind, twice (forward, then reverse order), by `z-ai/glm-5.3-flashx`, a family no candidate belongs to. The final score is the lower of the two passes, and pass is 7 or more. Notes per answer are in `2026-10-16-tower-nodes-<category>.scores-notes.md`. No answer had a gap above 2 points between the passes. "Correct" below means the deterministic check passed and, for rubric tasks, the score is at least 7.
 
 **Retired tasks.** Three keys proved wrong after the first runs, and rubric.md says a wrong key is never edited: it gets a new task id. So `tasks/retired/` holds the three originals for the record, and they are never run again:
 - `tallymoor-landing`: its must-not also matched a note saying a claim was left out;
 - `hub-pause-415`: its pattern missed a correct root cause written with backticks;
 - `ebook-outline-change`: its pattern missed plans that "freeze" drafting.
 
-Each has a v2 that was rerun for every model. Their 49 runs are kept in `2026-10-16-roles-retired.jsonl` and are not counted below.
+Each has a v2 that was rerun for every model. Their 49 runs are kept in `2026-10-16-tower-nodes-retired.jsonl` and are not counted below.
 
 **Results on endpoints.** `openai/gpt-4.1-mini`, airline-support's guard model, has no endpoint that honours the data policy: one smoke run answered HTTP 404 "No endpoints found". `google/gemini-2.0-flash`, co-scientist's model, is no longer listed on OpenRouter, so `gemini-2.5-flash` stands in as the older baseline.
 
@@ -135,7 +137,7 @@ Correct: deterministic check, plus a blind rubric score >= 7 where the task has 
 | Summarizer, long context (summarizer) | **Switch to Haiku.** | all 6/6 on 27-36 KB inputs · Opus $0.026 · Sonnet $0.013 · Haiku $0.0008 |
 | Doc writer, postmortem (doc-writer) | **Switch to Haiku.** | all 6/6 · Haiku $0.0001, 9.8 · Sonnet $0.0020, 9.3 · Opus $0.0039, 10.0 |
 | Router and relevance guard on OpenAI (intent) | **Switch to `gpt-6-luna`.** | gpt-6-luna 12/12, $0.0001, 1.7 s · gpt-5.2 12/12, $0.0013, 1.6 s · gpt-4.1-mini: no endpoint under the data policy |
-| Vision, screenshot and frame QA (vision) | **Frame QA to Haiku; the pre-submit verifier to Sonnet**, keeping a margin because the fixtures are clean renders and a wrong endorsement cannot be undone. | all 20/20, including a one-character licence slip · Haiku $0.0001 · Sonnet $0.0027 · Opus $0.0029 |
+| Vision, screenshot and frame QA (vision) | **Frame QA (spotting a defect) to Haiku; the pre-submit verifier to Sonnet**. Reading exact values off a screen is another job: in the catalogue run Haiku read the node-inspector and tower-overview panels 3/6, so a node that reads values keeps Sonnet or GLM. The verifier keeps a margin because the fixtures are clean renders and a wrong endorsement cannot be undone. | all 20/20, including a one-character licence slip · Haiku $0.0001 · Sonnet $0.0027 · Opus $0.0029 |
 | Research, analysis, computer use, Figma edits | **Not benchmarked: keep.** No task set covers them yet. | - |
 
 ## Per-role recommendation for the example towers
@@ -150,7 +152,8 @@ One row per node flagged in the optimizer reports. "Keep" when a cheaper model l
 | ai-video-studio | `qa.frame_qa` | Sonnet | **Haiku** | vision: Haiku 20/20, $0.0001 / correct |
 | airline-support | `agents.triage` | gpt-5.2 | **gpt-6-luna** | intent: 12/12 both, $0.0001 vs $0.0013 / correct |
 | airline-support | `agents.faq` | gpt-5.2 | keep | not benchmarked (answers from a tool; no FAQ task set) |
-| airline-support | `api.relevance`, `api.jailbreak` | gpt-4.1-mini | **gpt-6-luna** | gpt-4.1-mini has no endpoint under the data policy; gpt-6-luna passed the relevance task 3/3 (jailbreak not tested) |
+| airline-support | `api.relevance` | gpt-4.1-mini | **gpt-6-luna** | gpt-4.1-mini has no endpoint under the data policy; gpt-6-luna passed the relevance task 3/3 |
+| airline-support | `api.jailbreak` | gpt-4.1-mini | keep, re-check | not tested here; gpt-4.1-mini has no endpoint under the data policy, so it needs a replacement: the catalogue's guard pick (`z-ai/glm-5.3-flash`, 6/6) is the candidate for its eval |
 | browser-worker | `verify.verifier` | Opus | **Sonnet** | vision: 20/20 for all; Sonnet keeps a margin over Haiku for an irreversible submit |
 | browser-worker | `worker.worker` | Sonnet | keep | computer use: not benchmarked |
 | chief-of-staff | `harness.reflect` | Opus | **Sonnet** | writer: 15/15, 8.9 |

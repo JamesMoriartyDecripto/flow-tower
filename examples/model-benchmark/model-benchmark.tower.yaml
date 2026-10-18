@@ -75,11 +75,12 @@ layers:
           - { kind: doc, label: "Issue #108", url: "https://github.com/JamesMoriartyDecripto/flow-tower/issues/108" }
       - id: categories
         type: memory
-        label: 10 categories
+        label: Role categories
         description: >-
-          Coder, reviewer, security, lead/planner, doc-writer, voice/chat agent, intent classifier,
-          STT/TTS, long context, vision. One per role a node can have. Each says what the role must do
-          and what its deterministic check is. Pitfall: one "general" leaderboard; a fast classifier
+          Coder, reviewer, security, orchestrator, planner, doc-writer, writer, voice/chat agent, intent,
+          tax advisor, STT, TTS, long context, vision, data, guard, decision, embeddings, rerank, image
+          and video generation. One per role a node can have. Each says what the role must do
+          and its deterministic check. Pitfall: one "general" leaderboard; a fast classifier
           and a careful reviewer are different jobs.
         files: [categories.md]
       - id: ready
@@ -109,7 +110,7 @@ layers:
       - id: reviewer
         type: memory
         label: reviewer tasks
-        description: "A planted bug each: /api/events answering 200 + JSON, a zustand store mutated in place. Check: the expected finding's patterns, then the rubric penalises invented defects."
+        description: "A planted bug each: /api/events answering 200 + JSON, a zustand store mutated in place, a history dedupe key without the event kind (#187). Check: the expected finding's patterns, then the rubric penalises invented defects."
         files: [tasks/reviewer/events-204.md, tasks/reviewer/fixtures/events-route.ts, tasks/reviewer/store-mutation.md, tasks/reviewer/fixtures/live-store.ts, tasks/reviewer/history-dedupe.md, tasks/reviewer/fixtures/history-row.ts]
       - id: security
         type: memory
@@ -129,12 +130,12 @@ layers:
       - id: writer
         type: memory
         label: writer tasks
-        description: "Brand copy from the social-studio and marketing-studio examples: a how-to short against a voice guide and banned claims, a landing section against a claims register. Check: required facts and banned words, then the rubric."
+        description: "Brand copy from the social-studio and marketing-studio examples: a how-to short against a voice guide and banned claims, a landing section against a claims register, a public reply to an upset customer. Check: required facts and banned words, then the rubric."
         files: [tasks/writer/halden-battery-cold.md, tasks/writer/tallymoor-landing-v2.md, tasks/writer/halden-public-reply.md]
       - id: planner
         type: memory
         label: planner tasks
-        description: "A late change request in the web-studio lead's phases, and the plan for the real Admin pause 415 bug (#206). Check: the plan names the right steps and files, then the rubric."
+        description: "A late change request in the web-studio lead's phases, the plan for the real Admin pause 415 bug (#206), and a mid-book change in the ebook-studio phases. Check: the plan names the right steps and files, then the rubric."
         files: [tasks/planner/web-change-request.md, tasks/planner/hub-pause-415-v2.md, tasks/planner/ebook-outline-change-v2.md]
       - id: summarizer
         type: memory
@@ -446,9 +447,9 @@ layers:
           Per category: model, runs, correct, timing, steps, cost, cache, retries, errors, providers.
           First real run: results/2026-10-11.md,
           8 models × 5 categories, n = 3 per model and task, 240 runs, $0.19. Roles of the example towers:
-          results/2026-10-16-roles.md, 409 runs, n = 3-5, with a recommendation per node. Format example
+          results/2026-10-16-tower-nodes.md, 409 runs, n = 3-5, with a recommendation per node. Format example
           labelled ILLUSTRATIVE in results/example.md.
-        files: [results/2026-10-11.md, results/2026-10-16-roles.md, results/example.md]
+        files: [results/2026-10-11.md, results/2026-10-16-tower-nodes.md, results/example.md]
       - id: signoff
         type: human
         label: Sign-off

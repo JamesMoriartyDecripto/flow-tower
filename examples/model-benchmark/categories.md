@@ -8,7 +8,7 @@ One category per role a tower node can have (issue #105). Each needs a task set 
 | reviewer | Real defects, no noise | planted bug: expected finding patterns | `tasks/reviewer/` (3) |
 | security | Exploitable issues, with an input | planted vulnerability + a decoy that must not be flagged | `tasks/security/` (2) |
 | orchestrator (lead / planner) | Orders the steps of a plan by stated rules | exact JSON | `tasks/orchestrator/` (2) |
-| lead / planner | Plans, task files, judgment | plan names the right steps, files and agents, then rubric | `tasks/planner/` (3) |
+| planner (plans, task files) | Plans, task files, judgment | plan names the right steps, files and agents, then rubric | `tasks/planner/` (3) |
 | doc-writer | Accurate, short, verified | required facts as patterns, then rubric | `tasks/doc-writer/` (2) |
 | voice / chat agent | First sentence fast, tool use, spoken style | tool calls and answer facts; no Markdown in speech | planned (the six-model run of #70 is the template) |
 | intent / classifier | Cheap, fast, structured output | exact JSON | `tasks/intent/` (4: voice commands, airline routing and relevance) |
@@ -28,4 +28,6 @@ One category per role a tower node can have (issue #105). Each needs a task set 
 
 A planned category gets a folder in `tasks/` with at least 2 tasks before it gets runs. `bench.mjs` calls every OpenRouter endpoint a role needs (front matter `endpoint:` `chat`, `decisions`, `embeddings`, `rerank`, `images`, `videos`, `speech`, `transcriptions`); media answers are saved under `artifacts/` next to the results file and judged there.
 
-The 2026-10-16 run of every category above, and the pick per role it led to: [results/2026-10-16-roles/](results/2026-10-16-roles) and the [role catalogue](../../skills/flow-tower-costs/catalogue.md).
+Two runs on 2026-10-16:
+- **Across families**, every category except planner, writer and summarizer: [results/2026-10-16-roles/](results/2026-10-16-roles) and the pick per role in the [role catalogue](../../skills/flow-tower-costs/catalogue.md).
+- **Per node, within the harness's family**, for the models the tower optimizer flagged (coder, reviewer, planner, writer, summarizer, doc-writer, intent, vision): [results/2026-10-16-tower-nodes.md](results/2026-10-16-tower-nodes.md).
