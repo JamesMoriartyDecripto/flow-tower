@@ -126,7 +126,7 @@ layers:
         description: >-
           `flow-tower audit`: loops, wide fan-outs, ungated irreversible actions, decisions without a fallback,
           outputs without evals, overloaded agents, dead ends, deep nesting, unpinned models, no system budget,
-          code without an isolating sandbox. Rules read facts the tower states (`effect`, `model_varies`, `status`,
+          unsandboxed code. Rules read facts the tower states (`effect`, `model_varies`, `status`,
           edge conditions), never names; a sub-tower inherits the budget and gate of the towers above.
         runtime: laptop
         resources:
