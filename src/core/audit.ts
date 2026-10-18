@@ -1,3 +1,4 @@
+import { upstreamGate } from './audit-graph.ts';
 import type { ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from './types.ts';
 
 /**
@@ -9,7 +10,7 @@ import type { ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from './typ
 export const RULES = {
   AUD01: 'agent loops on itself (or an agent cycle) with no budget or limits',
   AUD02: 'fan-out or several spawns with no limits',
-  AUD03: 'exactly-once, sensitive or user-credential node with no approval and no human before it',
+  AUD03: 'exactly-once, irreversible, sensitive or user-credential node with no approval and no human before it',
   AUD04: 'decision node with fewer than 2 outgoing edges, or no decision.fail',
   AUD05: 'agent feeds an output directly with no evals on it or on a guard between them',
   AUD06: 'node with more than 15 tools',
@@ -152,12 +153,20 @@ export function auditTower(tower: ResolvedTower): Finding[] {
 
     // AUD03: a sensitive or irreversible step needs a person in the loop, either as a gate on the
     // node or as a human upstream. The human node itself is the gate, so it is exempt.
+    const effect = n.ops.effect;
+    // A read or reversible step can be undone, so sensitivity or user credentials alone do not gate it.
+    const lifted = effect === 'read' || effect === 'reversible';
+    // A guard is the control itself and a memory store does not act, so neither is gated for its data.
+    const holder = n.type === 'guard' || n.type === 'memory';
     const sensitive = SENSITIVE.includes(n.ops.data?.sensitivity ?? '');
-    const userCreds = n.ops.credentials === 'user' && n.type !== 'human';
-    const needsGate = n.ops.exactly_once === true || sensitive || userCreds;
-    const humanBefore = ins.some((e) => byKey.get(e.from)?.type === 'human');
-    if (n.type !== 'human' && needsGate && n.ops.approval === undefined && !humanBefore) {
-      add('AUD03', 'warning', 'sensitive or exactly-once step with no approval: add approval (or a human node before it)', key);
+    const needsGate = n.ops.exactly_once === true || effect === 'irreversible' || ((sensitive || n.ops.credentials === 'user') && !holder && !lifted);
+    if (n.type !== 'human' && needsGate && n.ops.approval === undefined) {
+      const gate = upstreamGate(nodes, edges, key);
+      if (gate?.kind === 'guard') {
+        add('AUD03', 'info', `gated by code (${gate.node}), not a person: fine when the guard covers the risk, else add approval`, key);
+      } else if (gate?.kind !== 'human') {
+        add('AUD03', 'warning', 'sensitive or exactly-once step with no approval: add approval (or a human node before it)', key);
+      }
     }
 
     // AUD04: a decision must branch on every answer and say what happens on error.
