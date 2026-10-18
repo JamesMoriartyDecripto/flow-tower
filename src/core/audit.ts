@@ -19,7 +19,7 @@ export const RULES = {
   AUD08: 'nested towers deeper than 3 levels',
   AUD09: 'agent node with no model',
   AUD10: 'tower with 3+ agents and no tower-level budget or limits',
-  AUD11: 'shell or code-execution tool with no sandbox',
+  AUD11: 'shell or code-execution tool with no sandbox, or one that does not isolate filesystem and network',
 } as const;
 
 export type RuleId = keyof typeof RULES;
@@ -251,10 +251,23 @@ export function auditTower(tower: ResolvedTower, ctx: AuditContext = NO_CONTEXT)
       add('AUD09', 'info', 'no model: set model on the node or its agent', key);
     }
 
-    // AUD11: code execution on the host without a sandbox.
+    // AUD11: code execution on the host needs a sandbox that isolates both the filesystem and the
+    // network. Either side alone still leaks: code with a full disk can rewrite the project, code
+    // with an open network can send it out. An unset field counts as not isolated.
     const risky = n.tools.some((t) => SHELL_TOOLS.has(toolBase(t)));
-    if (risky && n.ops.sandbox === undefined) {
+    const sandbox = n.ops.sandbox;
+    if (risky && sandbox === undefined) {
       add('AUD11', 'warning', 'shell or code tool with no sandbox: add sandbox (network, filesystem)', key);
+    } else if (risky && sandbox !== undefined) {
+      const fsIsolated = sandbox.filesystem !== undefined && sandbox.filesystem !== 'full';
+      const netIsolated = sandbox.network !== undefined && sandbox.network !== 'open';
+      if (!fsIsolated && !netIsolated) {
+        add('AUD11', 'warning', 'sandbox isolates nothing (filesystem full or unset, network open or unset): restrict both', key);
+      } else if (!netIsolated) {
+        add('AUD11', 'info', 'sandbox network is open or unset: an allowlist keeps the code from sending data out', key);
+      } else if (!fsIsolated) {
+        add('AUD11', 'info', 'sandbox filesystem is full or unset: workspace or read-only keeps the code inside the project', key);
+      }
     }
   }
 

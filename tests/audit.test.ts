@@ -144,7 +144,7 @@ describe('AUD11 shell tool with no sandbox', () => {
   it('fires on bash without a sandbox, quiet with one', async () => {
     const bad = await build({ nodes: [{ id: 'a', type: 'agent', model: 'm', tools: ['Bash(git:*)'] }] });
     expect(rulesOf(auditTower(bad), 'AUD11')).toHaveLength(1);
-    const ok = await build({ nodes: [{ id: 'a', type: 'agent', model: 'm', tools: ['Bash(git:*)'], sandbox: { network: 'none' } }] });
+    const ok = await build({ nodes: [{ id: 'a', type: 'agent', model: 'm', tools: ['Bash(git:*)'], sandbox: { network: 'none', filesystem: 'workspace' } }] });
     expect(rulesOf(auditTower(ok), 'AUD11')).toEqual([]);
   });
 });
