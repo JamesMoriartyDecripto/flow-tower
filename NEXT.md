@@ -13,6 +13,9 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   - a task that changes a text an existing test asserts must let the step update that assertion (step 09 of #265 went red on it);
   - tests that limit `PATH` must keep the running Node's folder: on GitHub Actions node is not in /usr/bin;
   - under load (a browser, two servers) the full check can fail on 5 s timeouts of unrelated tests: rerun the touched and timed-out files on their own before calling a step red, and commit it by hand once verified.
+  - a step commits the tracked changes it finds, but not new files outside its `Files:` list: after a fix-up step, check `git status` for files the previous step created;
+  - a task that lists a file "only if needed" turns the step red on the `Files:` check when the file needed no change: list only files the step must touch;
+  - stop scratch servers and browsers as soon as a check is done: they slow the laptop and cause the timeouts above. A headless Playwright script that measures and closes is lighter than an open browser.
 
 ## Status on 2026-10-16
 
