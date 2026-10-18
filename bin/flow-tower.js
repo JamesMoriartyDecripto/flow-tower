@@ -62,7 +62,7 @@ Usage
   flow-tower squad init <dir> [--check "<command>"] [--force]
                                                         set the dev squad up in a git repo: the runner in tools/squad/,
                                                         squad.json (detected check command), the task template and the tower
-  flow-tower squad key                                  store the squad's OpenRouter key (not yet available)
+  flow-tower squad key [status]                         store the squad's OpenRouter key in the user folder; status says whether one is set
   flow-tower guide                                      print the procedure to generate a tower from a codebase
   flow-tower install-skill [--target <t>] [--project]   install the skills for your coding agent
                                                         <t>: claude (default), codex, pi, hermes, cursor, agents
