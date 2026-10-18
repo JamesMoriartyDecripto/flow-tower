@@ -1,0 +1,26 @@
+/* Database viewer (DbView): sits inside the viewer's .code area, which scrolls it both ways. */
+
+.db-view { display: flex; align-items: flex-start; font: 12px/1.5 var(--mono); }
+.db-empty { padding: 20px; }
+
+/* The table list scrolls on its own (capped height), so a database with many tables never pushes the grid away. */
+.db-tables { flex: 0 0 220px; max-height: 70vh; overflow-y: auto; position: sticky; left: 0; border-right: 1px solid var(--line-soft); padding: 4px 0; background: var(--panel-solid); }
+.db-tables button { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; width: 100%; padding: 6px 14px; text-align: left; font: inherit; color: var(--dim); border-left: 2px solid transparent; }
+.db-tables button.on { color: var(--orange); border-left-color: var(--orange); }
+.db-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-meta { flex-shrink: 0; font-size: 11px; white-space: nowrap; }
+
+/* No overflow here on purpose: the grid widens past this box and the .code area takes the scrolling. */
+.db-data { flex: 1 1 auto; min-width: 0; padding: 0 20px 14px; }
+.db-grid { border-collapse: separate; border-spacing: 0; font: 12px/1.5 var(--mono); }
+.db-grid th { position: sticky; top: 0; z-index: 1; background: var(--panel-solid); text-align: left; vertical-align: bottom; padding: 6px 14px 4px 0; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+.db-col { font: 11px var(--display); text-transform: uppercase; letter-spacing: .08em; }
+.db-type { display: block; font: 11px var(--mono); color: var(--dim); text-transform: none; letter-spacing: normal; }
+.db-pk { margin-left: 6px; font-size: 10px; color: var(--orange); }
+.db-ref { margin-left: 6px; font-size: 10px; color: var(--dim); }
+.db-grid td { padding: 3px 14px 3px 0; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.db-grid td.number { text-align: right; font-variant-numeric: tabular-nums; }
+.db-grid td.null { color: var(--dim); font-style: italic; }
+/* A block span is what lets the ellipsis work inside a table cell. */
+.db-cell { display: block; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-note { margin: 10px 0 0; font: 11px var(--mono); color: var(--dim); }
