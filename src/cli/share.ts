@@ -37,7 +37,10 @@ function fail(message: string): never {
   exit(1);
 }
 
-/** The "sharing …" block: what leaves the machine, shown before the hub is asked. */
+/**
+ * The "sharing …" block: what leaves the machine. It is printed after the upload, so the user sees the list
+ * for a share that was recorded, and for a refused one (`sent`), what was sent before the hub answered.
+ */
 function printSending(name: string, files: SharedFile[], skipped: SkippedFile[]) {
   console.log(`sharing ${name}: ${files.length} ${files.length === 1 ? 'file' : 'files'}, ${values.files ? 'YAML and referenced files' : 'YAML only'}`);
   // The user sees exactly what leaves the machine; the list is capped so a big folder stays readable.

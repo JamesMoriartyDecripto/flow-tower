@@ -7,6 +7,7 @@
  * refused, a remote viewer sees an empty list, and a remote POST is refused.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { dirname } from 'node:path';
 import { isJson } from './guard.ts';
 import { localOnly, isMountRoot, readBody, send } from './sharing.ts';
 import { listShares, shareFolder, unshareFolder } from './share-actions.ts';
@@ -29,6 +30,16 @@ export interface SharingTowersOptions {
 
 /** The hub's refusal or silence is a 502; any other unshare failure (e.g. no such share) is a 400. */
 const HUB_FAILURE = /^(the hub refused|cannot reach the hub)/;
+
+/**
+ * The folder of a local library project, or undefined for an unknown id or a tower another machine shared: that
+ * folder is not on this machine, so it can neither be shared from here nor counted as one of its projects.
+ */
+export function localProjectDir(files: Map<string, string>, sources: Record<string, string> | undefined, id: string): string | undefined {
+  const file = files.get(id);
+  if (!file || (sources?.[id] ?? 'local') !== 'local') return undefined;
+  return dirname(file);
+}
 
 export function sharingTowersHandler({ home, hub, sync, dirOf, projectIds }: SharingTowersOptions) {
   /** The recorded shares with the sync state matched by name. Never a token. */
@@ -75,7 +86,8 @@ export function sharingTowersHandler({ home, hub, sync, dirOf, projectIds }: Sha
       const dir = dirOf(body.project);
       if (dir === undefined) return send(res, 404, { error: 'unknown project' });
       const out = await shareFolder(home, dir, { files: body.files });
-      if (!out.ok) return send(res, out.sent ? 502 : 400, { error: out.error }); // `sent` is set only when the hub refused or was unreachable
+      // `sent` is set only when the hub refused or was unreachable; `conflict` is a name another folder's share holds.
+      if (!out.ok) return send(res, out.sent ? 502 : out.conflict ? 409 : 400, { error: out.error });
       await syncAfter();
       // The token never leaves the server: only the sender's id, which the hub already shows.
       return send(res, 200, { name: out.name, files: out.files.length, skipped: out.skipped, sender: out.sender });

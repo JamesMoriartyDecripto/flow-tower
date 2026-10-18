@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { sharingTowersHandler } from '../src/server/sharing-towers';
+import { localProjectDir, sharingTowersHandler } from '../src/server/sharing-towers';
 
 /**
  * The local route behind the Settings list of shared towers (#266). The stub hub, the temp config home and the
@@ -219,5 +219,39 @@ describe('the local shared-towers route (#266)', () => {
     expect(r.status).toBe(502);
     expect(await r.json()).toMatchObject({ unreachable: true });
     expect(readConfig(home).shares).toHaveLength(1); // kept without force
+  });
+
+  it('answers 409 when the derived name belongs to another folder share', { timeout: 5_000 }, async () => {
+    const hub = await stubHub();
+    const dir = projectFolder(); // derives `demo`
+    const other = tempDir('flow-tower-towers-other-');
+    const home = homeWith(hub.url, { shares: [{ dir: other, name: 'demo', files: false }] });
+    const url = await start({ home, dir });
+
+    const r = await post(url, { project: 'demo', files: false });
+    expect(r.status).toBe(409);
+    expect(hub.seen).toHaveLength(0); // the conflict is refused before anything is uploaded
+    expect(readConfig(home).shares).toEqual([{ dir: other, name: 'demo', files: false }]);
+  });
+});
+
+describe('localProjectDir (#266)', () => {
+  const files = new Map([
+    ['mine', '/work/mine/mine.tower.yaml'],
+    ['theirs', '/elsewhere/theirs.tower.yaml'],
+  ]);
+  const sources = { mine: 'local', theirs: 'laptop' };
+
+  it('returns the folder of a local project', () => {
+    expect(localProjectDir(files, sources, 'mine')).toBe('/work/mine');
+    expect(localProjectDir(files, undefined, 'mine')).toBe('/work/mine');
+  });
+
+  it('returns undefined for a tower another machine shared', () => {
+    expect(localProjectDir(files, sources, 'theirs')).toBeUndefined();
+  });
+
+  it('returns undefined for an unknown id', () => {
+    expect(localProjectDir(files, sources, 'nope')).toBeUndefined();
   });
 });

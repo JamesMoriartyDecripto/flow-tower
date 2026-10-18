@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { darkProjects, satTitle, shareMode, shareOf, shareStatus, type SharingState, type TowerShare } from '../src/app/sharing.ts';
+import { darkProjects, namesDark, satTitle, shareMode, shareOf, shareStatus, type SharingState, type TowerShare } from '../src/app/sharing.ts';
 
 const NOW = Date.parse('2026-05-01T12:00:00Z');
 
@@ -92,5 +92,16 @@ describe('satTitle dark projects (#266)', () => {
   it('does not name them when the relay is paused or revoked', () => {
     expect(satTitle({ state: 'paused' }, ['alpha'])).not.toContain('dark');
     expect(satTitle({ state: 'revoked' }, ['alpha'])).not.toContain('dark');
+  });
+});
+
+describe('namesDark (#266)', () => {
+  it('is true only while events leave (online) or pile up (queued)', () => {
+    expect(namesDark({ state: 'online' })).toBe(true);
+    expect(namesDark({ state: 'queued', queued: 1 })).toBe(true);
+    expect(namesDark({ state: 'paused' })).toBe(false);
+    expect(namesDark({ state: 'revoked' })).toBe(false);
+    expect(namesDark({ state: 'held' })).toBe(false);
+    expect(namesDark({ state: 'off' })).toBe(false);
   });
 });

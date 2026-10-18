@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { STATIC } from '../staticData';
-import { agoText, darkProjects, queueText, satClass, satText, satTitle, shareStatus, SHARING_OFF, type SharingState, type TowerShare } from '../sharing';
+import { agoText, darkProjects, namesDark, queueText, satClass, satText, satTitle, shareStatus, SHARING_OFF, type SharingState, type TowerShare } from '../sharing';
 import { usePrefs } from '../settings';
 import { RECENT_HOSTS_MS, sourceOf } from '../library';
 import { useLive, descendants } from '../live';
@@ -173,18 +173,19 @@ interface HubTowers { towers?: string[]; error?: string }
  * after the section opened is not reported as missing. Until the answer for the current names arrives, nothing is
  * known, so the rows do not claim "missing on the hub" from an older list.
  */
-function useHubTowers(names: string[]): HubTowers {
+function useHubTowers(names: string[], satellite: boolean): HubTowers {
   const key = [...names].sort().join(',');
   const [hub, setHub] = useState<HubTowers & { key?: string }>({});
   useEffect(() => {
-    if (STATIC) return;
+    // Only a satellite has a hub to ask: a server that is not one must not reach for the hub's list.
+    if (STATIC || !satellite) return;
     let live = true;
     fetch('/api/sharing/towers?hub=1')
       .then((r) => r.json() as Promise<{ hub?: { ok: boolean; towers?: string[]; error?: string } }>)
       .then((body) => { if (live && body.hub) setHub(body.hub.ok ? { key, towers: body.hub.towers ?? [] } : { key, error: body.hub.error }); })
       .catch(() => { if (live) setHub({ key, error: 'cannot reach the hub' }); });
     return () => { live = false; };
-  }, [key]);
+  }, [key, satellite]);
   return hub.key === key ? hub : {};
 }
 
@@ -258,7 +259,7 @@ export function SharingSection() {
   const sharing = useSharing((s) => s.sharing);
   const shares = useSharing((s) => s.shares);
   const dark = useSharing((s) => s.dark);
-  const hub = useHubTowers(shares.map((s) => s.name));
+  const hub = useHubTowers(shares.map((s) => s.name), sharing.state !== 'off');
   const [test, setTest] = useState<string>();
   const [busy, setBusy] = useState(false);
   // Settings may open before the first poll ever ran (or after a long idle): refresh on mount.
@@ -304,7 +305,7 @@ export function SharingSection() {
       <Row label="Send a test event" hint={test ?? "One minimal event, flushed now, so the hub's answer is immediate."}>
         <button className="btn" onClick={runTest} disabled={busy} title="Send one minimal event to the hub and show what it answered">{busy ? 'Sending…' : 'Send test'}</button>
       </Row>
-      {dark.length > 0 && (
+      {namesDark(sharing) && dark.length > 0 && (
         <div className="sharing-dark">
           <p>Active here but dark on the hub: the hub lights only the towers this machine shared.</p>
           <ul className="sharing-towers">

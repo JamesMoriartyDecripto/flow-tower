@@ -207,6 +207,31 @@ describe('config writes are queued (#266)', () => {
     const shares = configOf().shares as { dir: string; name: string; files: boolean }[];
     expect(shares).toEqual([{ dir, name: 'swap', files: true }]);
   });
+
+  it('a re-share of a renamed tower keeps the recorded name and one entry', { timeout: 30_000 }, async () => {
+    reset();
+    connectedConfig(await stubHub(200));
+    const dir = towerFolder(); // its tower is named Alpha, so the derived name would be `alpha`
+    connectedConfig(configOf().url as string, { shares: [{ dir, name: 'old-name', files: false }] });
+    const r = await shareFolder(home, dir, { files: true });
+
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.name).toBe('old-name');
+    expect(configOf().shares).toEqual([{ dir, name: 'old-name', files: true }]);
+  });
+
+  it('a derived name held by another folder share is a conflict and records nothing', { timeout: 30_000 }, async () => {
+    reset();
+    const other = '/x/other-folder';
+    connectedConfig('http://127.0.0.1:1', { shares: [{ dir: other, name: 'alpha', files: false }] });
+    const dir = towerFolder(); // derives `alpha`, which the other folder holds
+    const r = await shareFolder(home, dir, { files: false });
+
+    expect(r).toMatchObject({ ok: false, recorded: false, conflict: true });
+    expect(r.ok ? '' : r.error).toBe(`the name alpha is already used by ${other}: unshare it first, or share with --name`);
+    expect(configOf().shares).toEqual([{ dir: other, name: 'alpha', files: false }]);
+  });
 });
 
 describe('listShares (#266)', () => {

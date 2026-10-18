@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { STATIC } from '../staticData';
 import { shareMode, shareOf, shareStatus, type TowerShare } from '../sharing';
+import { useStore } from '../store';
 import { shareProject, unshareTower, useSatellite, useShares } from './Sharing';
 
 type Mode = 'off' | 'towers' | 'files';
@@ -13,6 +14,17 @@ const OPTIONS: [Mode, string][] = [
 
 // What leaves the machine, as the user reads it on hover. Secrets and the user folder never leave in either mode.
 const SHARE_TITLE = 'Towers only sends the *.tower.yaml files. Towers and files also sends the files they reference, never secrets or the user folder.';
+
+/**
+ * The stop confirmation names the whole share: one share covers every project in its folder, so the other
+ * projects are named too, since they stop with it.
+ */
+function stopQuestion(share: TowerShare, id: string): string {
+  const ws = useStore.getState().workspace;
+  const others = share.projects.filter((p) => p !== id).map((p) => ws?.towers[p]?.name ?? p);
+  const also = others.length > 0 ? ` It also stops ${others.join(', ')}.` : '';
+  return `Stop sharing ${share.name} with the hub? The hub removes its copy.${also}`;
+}
 
 /**
  * Share control on a library card (#266): share this project with the hub, re-share it in the other mode, or
@@ -35,7 +47,7 @@ export function ShareControl({ id, name, source }: { id: string; name: string; s
     // Stopping is the one destructive step: the hub removes its copy, so the user confirms it first.
     if (next === 'off') {
       if (!share) return;
-      if (!window.confirm(`Stop sharing ${name} with the hub? The hub removes its copy.`)) return;
+      if (!window.confirm(stopQuestion(share, id))) return;
     }
     setBusy(true);
     setError(undefined);

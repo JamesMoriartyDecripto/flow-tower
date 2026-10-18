@@ -20,7 +20,8 @@ export type LibraryOutcome = ReturnType<typeof addToLibrary>;
 export type ShareOutcome =
   | { ok: true; name: string; dir: string; hub: string; files: SharedFile[]; skipped: SkippedFile[]; sender: string; library: LibraryOutcome }
   // `sent` is set when the folder was collected but the hub refused it, so the CLI can still list what was sent.
-  | { ok: false; error: string; recorded: false; sent?: { name: string; files: SharedFile[]; skipped: SkippedFile[] } };
+  // `conflict` is set when the derived name belongs to another folder's share: the route answers it with 409.
+  | { ok: false; error: string; recorded: false; conflict?: true; sent?: { name: string; files: SharedFile[]; skipped: SkippedFile[] } };
 
 export type UnshareOutcome =
   | { ok: true; name: string; gone: boolean; hubReached: boolean }
@@ -68,27 +69,29 @@ function rawSharesNow(home: string): unknown[] {
 }
 
 /**
- * The config writes still to run, per home folder. Each write reads config.json as it is at that moment, so two
- * writes from this server must not interleave; the hub calls before them are not queued and may overlap.
+ * Uploads the folder `dir` to the hub as `opts.name` and records it, only once the hub has accepted it. Without a
+ * name, a folder already recorded keeps its name (its tower may have been renamed since), and a derived name that
+ * another folder's share holds is refused: the hub would overwrite that share and config would drop its entry.
  */
-const configWrites = new Map<string, Promise<unknown>>();
-
-/** Runs `task` after the writes already queued for `home`. The chain swallows failures so one bad write cannot block the next. */
-function queuedWrite<T>(home: string, task: () => T): Promise<T> {
-  const run = (configWrites.get(home) ?? Promise.resolve()).then(task);
-  configWrites.set(home, run.catch(() => {}));
-  return run;
-}
-
-/** Uploads the folder `dir` to the hub as `opts.name` and records it, only once the hub has accepted it. */
 export async function shareFolder(home: string, dir: string, opts: { files: boolean; name?: string }): Promise<ShareOutcome> {
   const conn = connection(home);
   if (!conn) return { ok: false, error: notConnected(), recorded: false };
 
   const absDir = resolve(dir);
-  const name = opts.name ?? towerShareName(absDir) ?? shareName(absDir);
+  const recorded = recordedShares(home);
+  const sameFolder = recorded.find((s) => s.dir === absDir);
+  const name = opts.name ?? sameFolder?.name ?? towerShareName(absDir) ?? shareName(absDir);
   if (!validShareName(name)) {
     return { ok: false, error: `not a share name: "${name}" (a-z, 0-9 and dashes, up to 64 characters)`, recorded: false };
+  }
+  const other = opts.name === undefined ? recorded.find((s) => s.name === name && s.dir !== absDir) : undefined;
+  if (other) {
+    return {
+      ok: false,
+      error: `the name ${name} is already used by ${other.dir}: unshare it first, or share with --name`,
+      recorded: false,
+      conflict: true,
+    };
   }
 
   const collected = await collectTower(absDir, { withFiles: opts.files });
@@ -106,12 +109,10 @@ export async function shareFolder(home: string, dir: string, opts: { files: bool
     };
   }
 
-  // The share and the library entry are both config.json writes: they run in one queued step, so no other write slips in between.
-  const library = await queuedWrite(home, () => {
-    writeUserConfig(home, { shares: withShare(rawSharesNow(home), { dir: absDir, name, files: opts.files }) });
-    // A shared tower is one of the user's own towers: add it to the library so `library` and the sync see it (#164).
-    return addToLibrary(home, absDir);
-  });
+  // Both writes are synchronous read-modify-writes, so no other write of this process can run between them.
+  writeUserConfig(home, { shares: withShare(rawSharesNow(home), { dir: absDir, name, files: opts.files }) });
+  // A shared tower is one of the user's own towers: add it to the library so `library` and the sync see it (#164).
+  const library = addToLibrary(home, absDir);
   return { ok: true, name, dir: absDir, hub: conn.hub, files, skipped, sender: tokenId(conn.token) ?? 'this-machine', library };
 }
 
@@ -142,7 +143,7 @@ export async function unshareFolder(home: string, target: string, opts: { force:
   }
 
   // Dropped from config only after the hub agreed (or had nothing), or on force when it could not be asked.
-  await queuedWrite(home, () => writeUserConfig(home, { shares: withoutShare(rawSharesNow(home), match.name) }));
+  writeUserConfig(home, { shares: withoutShare(rawSharesNow(home), match.name) });
   return { ok: true, name: match.name, gone, hubReached: r.ok || gone };
 }
 

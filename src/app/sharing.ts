@@ -153,13 +153,21 @@ export function darkProjects(
 }
 
 /**
+ * Whether the dark projects are worth naming: only while events are leaving (online) or piling up for the hub
+ * (queued). A paused, revoked or held relay has its own reason on screen, so a dark list would only add noise.
+ */
+export function namesDark(s: SharingState): boolean {
+  return s.state === 'online' || s.state === 'queued';
+}
+
+/**
  * One sentence explaining the state on hover; a failed share adds the names and the first error. `dark` names
  * the active projects the hub does not light (#266): only a sending state says so, since a stopped one has its own reason.
  */
 export function satTitle(s: SharingState, dark: string[] = []): string {
   const host = hubHost(s.hub);
   const base = satBaseTitle(s, host);
-  const withDark = dark.length > 0 && (s.state === 'online' || s.state === 'queued')
+  const withDark = dark.length > 0 && namesDark(s)
     ? `${base} Active here but dark on the hub (not shared): ${dark.join(', ')}.`
     : base;
   const unsent = unsentTowers(s);
