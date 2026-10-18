@@ -43,7 +43,7 @@ const MAX_BODY = 16 * 1024;
  * One JSON body, or undefined when the request carries none or something unparseable. The body is capped
  * at MAX_BODY; a bigger one answers 413 itself and resolves undefined, so the caller answers nothing.
  */
-async function readBody(req: IncomingMessage, res: ServerResponse): Promise<unknown> {
+export async function readBody(req: IncomingMessage, res: ServerResponse): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
@@ -62,26 +62,29 @@ const stateOf = (relay?: Relay, sync?: Pick<ShareSync, 'state'>) => {
 };
 
 /** The path connect left after stripping the mount: a mount root is '' or '/', anything else is another route. */
-const isMountRoot = (url: string | undefined) => {
+export const isMountRoot = (url: string | undefined) => {
   const path = (url ?? '').split('?')[0];
   return path === '' || path === '/';
 };
 
+/**
+ * A local control: another page must not reach it, a remote viewer must not either. A remote viewer's page
+ * may still poll a GET every 5 s: that GET gets the `quiet` body instead of a 403 that fills the console (#166),
+ * so the caller decides what a remote viewer may see. Returns true only for a local, same-site request.
+ */
+export function localOnly(req: IncomingMessage, res: ServerResponse, hub: boolean, quiet: unknown): boolean {
+  if (crossSite(req)) { send(res, 403, { error: 'cross-site requests are refused' }); return false; }
+  if (isRemote(req, { hub })) {
+    if (req.method === 'GET') send(res, 200, quiet);
+    else send(res, 403, { error: 'remote requests are refused' });
+    return false;
+  }
+  return true;
+}
+
 export function sharingHandler({ home, relay, sync, hub }: SharingOptions) {
-  /**
-   * A local control: another page must not reach it, a remote viewer must not either. A remote viewer's
-   * page still polls the state every 5 s: its GET gets a quiet { state: 'off' } (the chip stays hidden and
-   * nothing about this server's relay leaks) instead of a 403 that fills the console (#166).
-   */
-  const allowed = (req: IncomingMessage, res: ServerResponse): boolean => {
-    if (crossSite(req)) { send(res, 403, { error: 'cross-site requests are refused' }); return false; }
-    if (isRemote(req, { hub })) {
-      if (req.method === 'GET') send(res, 200, { state: 'off' });
-      else send(res, 403, { error: 'remote requests are refused' });
-      return false;
-    }
-    return true;
-  };
+  /** The pause and the test switch: a remote GET gets a quiet { state: 'off' } and nothing of this relay leaks. */
+  const allowed = (req: IncomingMessage, res: ServerResponse): boolean => localOnly(req, res, hub, { state: 'off' });
 
   /** POST /api/sharing/test: one probe event, flushed now so the answer is the hub's own. */
   const test = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
@@ -117,7 +120,7 @@ export function sharingHandler({ home, relay, sync, hub }: SharingOptions) {
   return { control, test };
 }
 
-function send(res: ServerResponse, status: number, body: unknown) {
+export function send(res: ServerResponse, status: number, body: unknown) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store');
