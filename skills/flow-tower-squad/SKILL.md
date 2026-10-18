@@ -1,0 +1,82 @@
+---
+name: flow-tower-squad
+description: Set up and drive the Flow Tower dev squad on the user's own project - a cheap coder, a reviewer and a security auditor from three model families through OpenRouter, with the user's coding agent as the lead that plans, writes task files and verifies. Use when the user wants the dev squad / a coding squad / cheaper models to write code in their project, asks to set it up (`squad init`, OpenRouter key), or asks to run, review or check the cost of squad work.
+---
+
+# Flow Tower: the dev squad on your project
+
+You are the **lead**. You plan, write one task file per step, run the squad, and verify. The squad's models write
+the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner reference:
+[tools/squad/README.md](../../tools/squad/README.md) (also copied into the project as `tools/squad/README.md`).
+
+| Role | Default model (squad.json `models`) | Writes |
+|---|---|---|
+| Lead (you) | the session model | task files, commits, the issue |
+| Coder | `anthropic/claude-haiku-5.5` | only the `write` folders of squad.json |
+| Reviewer | `z-ai/glm-5.3-flashx` | nothing (JSON verdict) |
+| Security | `deepseek/deepseek-v4.1-flash` | nothing (JSON findings) |
+
+## Set up (once per project)
+
+1. **Init**: `{{FLOW_TOWER_CLI}} squad init <project>` (a git repository). It copies the runner into
+   `tools/squad/`, detects `tools/squad/squad.json` (check command, writable folders, base branch) and writes the
+   task template and a ready tower. No check detected: `--check "<the command that proves a step works>"`.
+   After a flow-tower update: `squad init <project> --force` refreshes the runner and keeps squad.json.
+2. **Read squad.json with the user**: `project` (one line on the stack, it opens every model's prompt),
+   `commands.check` (must pass after every step), `write` (what the coder may touch), `review`, `base`, `rules`
+   (project rules every model sees). Fix what the detection got wrong before the first step.
+3. **Key**: the user runs `{{FLOW_TOWER_CLI}} squad key` themselves (hidden input; stored in the flow-tower user
+   folder, mode 600, never in the repo). `squad key status` says whether one is set. Never ask the user to paste a
+   key into the chat, never print it, never write it in a file of the project.
+4. **Optional, live view**: `{{FLOW_TOWER_CLI}} <project>/tools/squad/squad.tower.yaml` with Flow Tower running:
+   every coder, reviewer and security run lights its node.
+
+## Work an issue
+
+1. **Track it**: the issue (or a plan file the user keeps) holds the plan and the status; update it after every
+   batch, review and fix.
+2. **Branch**: never on the main branch. `git worktree add ../wt-<n> -b feat/<n>-<slug>` keeps each issue apart.
+3. **Split** into steps of **one or two items** each (the coder has a step cap; multi-item steps fail). Each step
+   small enough that a green check means it is done.
+4. **Write each step** from `tools/squad/tasks/TEMPLATE.md` into its own folder (`tools/squad/tasks/<n>/01-….md`,
+   zero-padded):
+   - Rules line, the files to read first, `Verify: run check`, `finish` with a `Known gaps:` line;
+   - why the step exists, with `file:line` and the **exact current text** of any message to change;
+   - numbered items, then a new test file with the cases and expected results;
+   - the `Files:` line: every file the step must touch (`+` new, `(optional)` may stay untouched). It is checked.
+5. **Run**: `REPO=../wt-<n> bash tools/squad/steps.sh <n> tools/squad/tasks/<n> "" "<title>"` (empty write dirs
+   take squad.json's). One commit per green step; it stops at the first red step (coder failure, no change, red
+   check, a `Files:` entry not touched). Read the known gaps it prints before the next step.
+6. **Verify yourself**: run the tests, run the real thing; for UI, look at it (screenshots). Green is not done.
+7. **Review and security**, one request each with the code packed:
+   ```bash
+   node tools/squad/pack.mjs --role reviewer --issue <n> --repo ../wt-<n> --files <changed files> > /tmp/<n>-review.md
+   SQUAD_PACE=relaxed node tools/squad/run.mjs --model <reviewer> --role reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n>
+   ```
+   Same with `--role security` and the security model; add the guards the change relies on to `--files`. Verify
+   each finding in the code: keep the real ones, say why the others do not apply.
+8. **Fix steps** for the kept findings (same format, new folder), then verify again.
+9. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.
+
+## Pace
+
+Ask how urgent it is. Waiting: the default loop, no batch. No hurry today: `SQUAD_PACE=relaxed` for review and
+security (one request, cents). Unattended: `SQUAD_PACE=overnight` (batch, about half price, can wait hours).
+The coder always runs the loop. Details: [tools/squad § Pace](../../tools/squad/README.md#pace-how-fast-versus-how-cheap).
+
+## Field lessons
+
+- Never let a step rewrite or empty an existing test file: say "append new cases" in the task.
+- A task that rewords a message breaks the test asserting it: quote the current text in the task.
+- OpenRouter 504/429 mid-step: discard the partial changes (`git checkout -- . && git clean -fd` in the worktree)
+  and rerun that step. A security pass that answers empty: rerun once, then use the reviewer model with the
+  security brief.
+- Tests that spawn a CLI or a server need explicit timeouts.
+- A step left red with useful changes: write the next step to finish them ("keep that work") instead of starting over.
+
+## Never
+
+- Write the code yourself instead of a squad step, or skip your own verification.
+- Put keys, tokens or the contents of key files in task files, issues, commits or output.
+- Widen `write` to the runner (`tools/squad/`), CI config or secrets to make a step pass.
+- Work on the main branch, or merge without the user.

@@ -1,9 +1,35 @@
-# tools/squad: the runner behind the dev squad
+# tools/squad: the dev squad runner
 
-The small harness the maintainer drives by hand. Three scripts and a task file, no build step, no
-dependency beyond Node and the flow-tower CLI. It is **not** the product: the product sample of a mixed-model
-squad is [`examples/dev-squad`](../../examples/dev-squad/README.md) (a whole pipeline, meant to be read). This
-folder is what actually ran the field sessions.
+A cheap coder, a reviewer and a security auditor from three model families, driven by your coding agent as the
+lead. A few scripts and a task file, no build step, no dependency beyond Node, git and an OpenRouter key. It ran
+every field session of this repo, and it runs on **your own project** too (#265):
+
+```bash
+node <flow-tower>/bin/flow-tower.js squad init ~/my-project   # runner into tools/squad/, squad.json detected
+node <flow-tower>/bin/flow-tower.js squad key                 # your OpenRouter key, into the user folder
+node <flow-tower>/bin/flow-tower.js install-skill             # the flow-tower-squad skill for your agent
+```
+
+Then ask your agent to work an issue with the squad: the [flow-tower-squad skill](../../skills/flow-tower-squad/SKILL.md)
+is the lead's procedure. `tools/squad/squad.json` holds what is specific to a project (below). The design sample of a
+bigger, unattended squad on the Claude Agent SDK is [`examples/dev-squad`](../../examples/dev-squad/README.md) (meant to be read).
+
+## squad.json
+
+Read by `run.mjs`, `oneshot.mjs`, `pack.mjs` and `steps.sh` from `<repo>/tools/squad/squad.json`; `squad init` writes
+it from what the project's files say. A missing file gives the defaults.
+
+| Key | Meaning | Default |
+|---|---|---|
+| `project` | one line on the stack; it opens every model's system prompt | empty |
+| `commands` | `check` (required: must pass after every step), optional `typecheck`, `test` (`{file}` is the test file), `lint`. Split on spaces and run without a shell: no pipes or quotes (wrap them in a package script) | `check: npm run check` |
+| `write` | folders the coder may write | `src, tests` |
+| `review` | folders the review diff covers | `src` |
+| `base` | the branch diffs are taken against | `origin/main` |
+| `rules` | extra lines every model sees | none |
+| `extras` | flow-tower-only tools (`validate`, `dryrun`) | none |
+| `models` | `coder`, `reviewer`, `security` | the table below |
+| `tower`, `source`, `cli` | the tower name the live events go to, their source, the flow-tower CLI path | `Dev Squad`, `dev-squad`, found on PATH |
 
 ## Roles
 

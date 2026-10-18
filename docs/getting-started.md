@@ -123,6 +123,22 @@ Point your agent's hooks at the local server and the nodes light up as it works:
 - tokens and cost per node: [realtime.md § Tokens and cost](realtime.md#tokens-and-cost-opentelemetry)
 - events map to nodes by agent and tool names: [realtime.md § Matching](realtime.md#matching-events-to-nodes)
 
+## The dev squad on your project
+
+The squad that writes this repo's code (a cheap coder, a reviewer and a security auditor from three model
+families, your coding agent as the lead) runs on any git project with an [OpenRouter](https://openrouter.ai) key:
+
+```bash
+node $FT/bin/flow-tower.js squad init ~/my-project     # copies the runner into tools/squad/, detects squad.json
+node $FT/bin/flow-tower.js squad key                   # your OpenRouter key, hidden input, kept in the user folder
+node $FT/bin/flow-tower.js install-skill               # the flow-tower-squad skill for your agent
+```
+
+Check `tools/squad/squad.json` (the check command, the folders the coder may write), then ask your agent to work an
+issue with the squad. How the lead splits the work, runs the steps and verifies: the
+[flow-tower-squad skill](../skills/flow-tower-squad/SKILL.md); the runner and squad.json: [tools/squad](../tools/squad/README.md).
+`squad init --force` refreshes the runner after a flow-tower update and keeps your squad.json.
+
 ## Your own library
 
 Your towers live in your own projects, never inside the flow-tower checkout or under `examples/` (the
