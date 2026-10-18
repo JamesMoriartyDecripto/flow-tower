@@ -18,8 +18,14 @@
 /* With the control in the footer span, the span wraps: the control takes its own line above Tower and Map, aligned
    right, so the Map button is not pushed out of the card (#266). */
 .lib-open:has(.share-control) { flex-wrap: wrap; justify-content: flex-end; }
+/* styles.css pins .lib-open to flex-shrink: 0, which lets it keep its max-content width (305px) in a 279px footer
+   and clips Map and the status chip. Overriding it here lets the span take the footer's free width and wrap
+   inside it; min-width: 0 is needed so the flex item can shrink below its content size (#266). */
+.lib-foot .lib-open:has(.share-control) { flex: 1 1 auto; min-width: 0; }
 .lib-open .share-control { flex-basis: 100%; justify-content: flex-end; }
-.share-control select { font: 10px var(--mono); padding: 3px 6px; background: transparent; color: var(--white); border: 1px solid var(--line-soft); border-radius: 4px; }
+/* The control wraps too, so the select and the status chip stack in a narrow card instead of overflowing (#266). */
+.share-control { flex-wrap: wrap; min-width: 0; }
+.share-control select { max-width: 100%; font: 10px var(--mono); padding: 3px 6px; background: transparent; color: var(--white); border: 1px solid var(--line-soft); border-radius: 4px; }
 .share-control select:disabled { opacity: .6; }
 .share-chip.on { color: var(--live-done); }
 .share-chip.dim { color: var(--dim); }
