@@ -1,3 +1,4 @@
+import { NO_CONTEXT, type AuditContext } from './audit-context.ts';
 import { upstreamGate } from './audit-graph.ts';
 import type { ResolvedEdge, ResolvedNode, ResolvedTower, Workspace } from './types.ts';
 
@@ -100,14 +101,15 @@ export function inventory(tower: ResolvedTower): Inventory {
 }
 
 /** Lint findings, ordered by rule id, then node key. Stable: same tower, same list. */
-export function auditTower(tower: ResolvedTower): Finding[] {
+export function auditTower(tower: ResolvedTower, ctx: AuditContext = NO_CONTEXT): Finding[] {
   const nodes = nodesOf(tower);
   const edges = edgesOf(tower);
   const byKey = new Map(nodes.map((n) => [n.key, n]));
   const outOf = (key: string) => edges.filter((e) => e.from === key);
   const inOf = (key: string) => edges.filter((e) => e.to === key);
-  const runBudget = tower.run?.budget !== undefined;
-  const runLimits = tower.run?.limits !== undefined;
+  // A sub-tower runs inside its parents' run, so their budget or limits count here too.
+  const runBudget = tower.run?.budget !== undefined || ctx.runBudget;
+  const runLimits = tower.run?.limits !== undefined || ctx.runLimits;
   const findings: Finding[] = [];
   const add = (rule: RuleId, level: Finding['level'], message: string, node?: string) => {
     findings.push({ rule, level, node, message });
@@ -162,9 +164,12 @@ export function auditTower(tower: ResolvedTower): Finding[] {
     const needsGate = n.ops.exactly_once === true || effect === 'irreversible' || ((sensitive || n.ops.credentials === 'user') && !holder && !lifted);
     if (n.type !== 'human' && needsGate && n.ops.approval === undefined) {
       const gate = upstreamGate(nodes, edges, key);
+      // An entry of a sub-tower opened after a human approval is gated by that approval, even though
+      // the approval sits in the parent tower, not in this one.
+      const inheritedGate = ctx.gated && n.type === 'entry';
       if (gate?.kind === 'guard') {
         add('AUD03', 'info', `gated by code (${gate.node}), not a person: fine when the guard covers the risk, else add approval`, key);
-      } else if (gate?.kind !== 'human') {
+      } else if (gate?.kind !== 'human' && !inheritedGate) {
         add('AUD03', 'warning', 'sensitive or exactly-once step with no approval: add approval (or a human node before it)', key);
       }
     }

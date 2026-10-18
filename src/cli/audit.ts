@@ -4,6 +4,7 @@
  * Exit 1 only when a tower fails to load with errors (the same rule as validate); exit 2 on usage.
  */
 import { argv, exit } from 'node:process';
+import { auditContext } from '../core/audit-context.ts';
 import { auditNesting, auditTower, inventory, type Finding, type Inventory } from '../core/audit.ts';
 import { loadLibrary } from '../core/loader.ts';
 import { modelFit, type ModelFit } from '../core/roles.ts';
@@ -34,7 +35,7 @@ const LEVELS = ['warning', 'info'] as const;
  */
 function auditOf(t: ResolvedTower, workspace: Workspace): TowerAudit {
   const root = workspace.projects.includes(t.id);
-  const findings = [...auditTower(t), ...(root ? auditNesting(workspace, t.id) : [])];
+  const findings = [...auditTower(t, auditContext(workspace, t.id)), ...(root ? auditNesting(workspace, t.id) : [])];
   return { id: t.id, name: t.name, inventory: inventory(t), findings, modelFit: modelFit(t) };
 }
 
