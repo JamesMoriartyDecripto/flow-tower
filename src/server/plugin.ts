@@ -157,8 +157,8 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
       // connect() matches a mount by prefix, so /api/sharing would also receive /api/sharing/test (as
       // '/test') and answer it as a pause request. The test is mounted first, and each handler answers
       // only its own mount root (req.url '' or '/'), so neither can shadow the other.
-      // The towers route is mounted before the two above. A shared tower is refused: its folder is another machine's.
-      const towers = sharingTowersHandler({ home: USER_HOME, hub: hubOpts.hub, sync: () => supervisor.sync(), dirOf: (id) => { const file = state?.files.get(id); return file && (state?.workspace.sources?.[id] ?? 'local') === 'local' ? dirname(file) : undefined; } });
+      // Mounted before /api/sharing/test and /api/sharing. A tower another machine shared is refused: its folder is not on this machine.
+      const towers = sharingTowersHandler({ home: USER_HOME, hub: hubOpts.hub, sync: () => supervisor.sync(), dirOf: (id) => { const file = state?.files.get(id); return file && (state?.workspace.sources?.[id] ?? 'local') === 'local' ? dirname(file) : undefined; }, projectIds: () => state?.workspace.projects ?? [] });
       server.middlewares.use('/api/sharing/towers', towers.towers);
       const sharing = sharingHandler({ home: USER_HOME, relay: () => supervisor.current(), sync: () => supervisor.sync(), hub: hubOpts.hub });
       server.middlewares.use('/api/sharing/test', sharing.test);

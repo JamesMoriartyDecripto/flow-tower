@@ -23,16 +23,19 @@ export interface SharingTowersOptions {
   sync: () => Pick<ShareSync, 'state' | 'syncNow'> | undefined;
   /** The folder of a local library project; undefined for an unknown id or a tower another machine shared. */
   dirOf: (projectId: string) => string | undefined;
+  /** Every local project id, so each share can list the projects that live in its folder (#266). Optional: a caller without it gets no project links. */
+  projectIds?: () => string[];
 }
 
 /** The hub's refusal or silence is a 502; any other unshare failure (e.g. no such share) is a 400. */
 const HUB_FAILURE = /^(the hub refused|cannot reach the hub)/;
 
-export function sharingTowersHandler({ home, hub, sync, dirOf }: SharingTowersOptions) {
+export function sharingTowersHandler({ home, hub, sync, dirOf, projectIds = () => [] }: SharingTowersOptions) {
   /** The recorded shares with the sync state matched by name. Never a token. */
   const recorded = () => {
     const states = new Map((sync()?.state() ?? []).map((s) => [s.name, s]));
     const raw = readUserConfig(home).shares;
+    const ids = projectIds();
     return (Array.isArray(raw) ? raw : []).flatMap((entry) => {
       const share = asShare(entry);
       if (!share) return [];
@@ -41,6 +44,8 @@ export function sharingTowersHandler({ home, hub, sync, dirOf }: SharingTowersOp
         name: share.name,
         dir: share.dir,
         files: share.files,
+        // The projects of this share's folder, so the card for each project can show its share state.
+        projects: ids.filter((id) => dirOf(id) === share.dir),
         ...(s?.syncedAt !== undefined ? { syncedAt: s.syncedAt } : {}),
         ...(s?.error !== undefined ? { error: s.error } : {}),
         ...(s?.warning !== undefined ? { warning: s.warning } : {}),

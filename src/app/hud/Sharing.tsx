@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { STATIC } from '../staticData';
-import { agoText, queueText, satClass, satText, satTitle, SHARING_OFF, towerLine, type SharingState } from '../sharing';
+import { agoText, queueText, satClass, satText, satTitle, shareStatus, SHARING_OFF, type SharingState, type TowerShare } from '../sharing';
 import { usePrefs } from '../settings';
 import { Row, Toggle } from './Settings';
+import './shareControl.css';
 
 const POLL_MS = 5000;
 
@@ -13,15 +14,58 @@ async function getSharing(): Promise<SharingState> {
   return (await res.json()) as SharingState;
 }
 
+/** The recorded shares (GET /api/sharing/towers). Only asked for a satellite: a local server has none. */
+async function getShares(hub = false): Promise<TowerShare[]> {
+  const res = await fetch(hub ? '/api/sharing/towers?hub=1' : '/api/sharing/towers');
+  if (!res.ok) return [];
+  return ((await res.json()) as { shares: TowerShare[] }).shares;
+}
+
 /** One shared store: the chip polls it, the Settings section reads it and updates it after each action. */
-const useSharing = create<{ sharing: SharingState; set(sharing: SharingState): void }>()((set) => ({
+const useSharing = create<{ sharing: SharingState; shares: TowerShare[]; set(sharing: SharingState): void; setShares(shares: TowerShare[]): void }>()((set) => ({
   sharing: SHARING_OFF,
+  shares: [],
   set: (sharing) => set({ sharing }),
+  setShares: (shares) => set({ shares }),
 }));
+
+/** The shares of this machine, for the library cards and the Settings list. */
+export function useShares(): TowerShare[] {
+  return useSharing((s) => s.shares);
+}
+
+/** True when this server is a satellite (its relay state is not 'off'): only then can it share with a hub. */
+export function useSatellite(): boolean {
+  return useSharing((s) => s.sharing.state !== 'off');
+}
 
 /** Fetch the state once and put it in the store (also after a pause or a test, to show the result). */
 export function refreshSharing(): Promise<void> {
-  return getSharing().then((s) => useSharing.getState().set(s)).catch(() => {});
+  return getSharing().then(async (s) => {
+    useSharing.getState().set(s);
+    // The shares are read only when there is a relay: a server that is not a satellite has nothing to list.
+    useSharing.getState().setShares(s.state === 'off' ? [] : await getShares());
+  }).catch(() => {});
+}
+
+/** The route's error text, or a fallback when the answer carries none. */
+async function failure(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => ({}))) as { error?: string };
+  return body.error ?? `request failed (${res.status})`;
+}
+
+/** Share a library project with the hub; resolves to undefined on success, or the error text. */
+export async function shareProject(project: string, files: boolean): Promise<string | undefined> {
+  const res = await fetch('/api/sharing/towers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project, files }) });
+  await refreshSharing();
+  return res.ok ? undefined : failure(res);
+}
+
+/** Stop sharing a folder by its share name. `force` drops it from this config even when the hub cannot be told. */
+export async function unshareTower(name: string, force = false): Promise<string | undefined> {
+  const res = await fetch('/api/sharing/towers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ unshare: name, force }) });
+  await refreshSharing();
+  return res.ok ? undefined : failure(res);
 }
 
 /** Poll every 5 s. The chip is always mounted, so the store stays fresh while Settings is closed too. */
@@ -67,9 +111,59 @@ async function postSharing(path: string, body?: unknown): Promise<SharingState |
   return next;
 }
 
+/** The hub's list of tower names, read once when the section opens; undefined until it answers. */
+function useHubTowers(): { towers?: string[]; error?: string } {
+  const [hub, setHub] = useState<{ towers?: string[]; error?: string }>({});
+  useEffect(() => {
+    if (STATIC) return;
+    let live = true;
+    fetch('/api/sharing/towers?hub=1')
+      .then((r) => r.json() as Promise<{ hub?: { ok: boolean; towers?: string[]; error?: string } }>)
+      .then((body) => { if (live && body.hub) setHub(body.hub.ok ? { towers: body.hub.towers ?? [] } : { error: body.hub.error }); })
+      .catch(() => { if (live) setHub({ error: 'cannot reach the hub' }); });
+    return () => { live = false; };
+  }, []);
+  return hub;
+}
+
+/**
+ * One shared tower of the Settings list. The unshare error stays on its row; when the hub could not be reached
+ * the row also offers the forced removal, which drops the share from this config only.
+ */
+function SharedTowerRow({ share, hubNames, now }: { share: TowerShare; hubNames?: string[]; now: number }) {
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const status = shareStatus(share, now);
+  const missing = hubNames !== undefined && !hubNames.includes(share.name);
+  const unshare = (force: boolean) => {
+    if (!window.confirm(`Stop sharing ${share.name} with the hub? The hub removes its copy.`)) return;
+    setBusy(true);
+    void unshareTower(share.name, force)
+      .then((err) => setError(err))
+      .finally(() => setBusy(false));
+  };
+  // Only a hub that cannot be reached can be bypassed: a refusal means the hub is up and must be answered.
+  const unreachable = error !== undefined && /cannot reach the hub/.test(error);
+  return (
+    <li className="sharing-row">
+      <span className="sharing-name">{share.name}</span>
+      <span className="sharing-dir dim" title={share.dir}>{share.dir}</span>
+      <span className="dim">{share.files ? 'YAML and referenced files' : 'YAML only'}</span>
+      <span className={status.tone} title={status.title}>{status.text}</span>
+      {missing && <span className="warn">missing on the hub</span>}
+      {share.warning && <div className="sharing-warn">{share.warning}</div>}
+      <button className="btn" disabled={busy} onClick={() => unshare(false)}>Unshare</button>
+      {unreachable && <button className="btn" disabled={busy} onClick={() => unshare(true)} title="Drop the share from this machine only; the hub keeps its copy">Remove from config only</button>}
+      {error && <span className="err" role="alert">{error}</span>}
+    </li>
+  );
+}
+
 /** Settings section: what a satellite sends, what it never sends, and the two local controls. */
 export function SharingSection() {
   const sharing = useSharing((s) => s.sharing);
+  const shares = useSharing((s) => s.shares);
+  const hub = useHubTowers();
   const [test, setTest] = useState<string>();
   const [busy, setBusy] = useState(false);
   // Settings may open before the first poll ever ran (or after a long idle): refresh on mount.
@@ -115,21 +209,12 @@ export function SharingSection() {
       <Row label="Send a test event" hint={test ?? "One minimal event, flushed now, so the hub's answer is immediate."}>
         <button className="btn" onClick={runTest} disabled={busy} title="Send one minimal event to the hub and show what it answered">{busy ? 'Sending…' : 'Send test'}</button>
       </Row>
-      {sharing.towers && sharing.towers.length > 0 && (
+      {shares.length > 0 && (
         <>
           <h3>Shared towers</h3>
-          {/* One line per tower: the time it last reached the hub, or the error that kept it from there. */}
+          {/* One row per share: where it comes from, what it sends, and whether the hub still has it. */}
           <ul className="sharing-towers">
-            {sharing.towers.map((t) => {
-              const line = towerLine(t, Date.now());
-              // A removed-node warning sits on its own line in amber: the tower is on the hub, but events may not map.
-              return (
-                <li key={t.name} className={`mono ${line.tone}`} title={line.title}>
-                  {line.text}
-                  {t.warning && <div className="sharing-warn">{t.warning}</div>}
-                </li>
-              );
-            })}
+            {shares.map((s) => <SharedTowerRow key={s.name} share={s} hubNames={hub.towers} now={Date.now()} />)}
           </ul>
         </>
       )}

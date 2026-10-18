@@ -1,0 +1,17 @@
+/* Shared-towers rows in Settings (#266): the folder is cut with an ellipsis, the title keeps the full path. */
+.sharing-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 4px 0; }
+.sharing-row .sharing-name { font-weight: 600; }
+.sharing-row .sharing-dir { min-width: 0; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sharing-row .dim { color: var(--dim); }
+.sharing-row .warn { color: var(--warn); }
+.sharing-row .err { color: var(--live-error); }
+.sharing-row .sharing-warn { flex-basis: 100%; color: var(--warn); }
+
+/* The per-project share control on a library card (#266). It sits in the card footer, beside Tower and Map. */
+.share-control { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.share-control select { font: 10px var(--mono); padding: 3px 6px; background: transparent; color: var(--white); border: 1px solid var(--line-soft); border-radius: 4px; }
+.share-control select:disabled { opacity: .6; }
+.share-chip.on { color: var(--live-done); }
+.share-chip.dim { color: var(--dim); }
+.share-chip.err { color: var(--live-error); }
+.share-error { color: var(--live-error); font: 10px var(--mono); }

@@ -95,7 +95,7 @@ describe('the local shared-towers route (#266)', () => {
 
     const r = await fetch(url);
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ shares: [{ name: 'demo', dir, files: false, syncedAt: 1234 }] });
+    expect(await r.json()).toEqual({ shares: [{ name: 'demo', dir, files: false, projects: [], syncedAt: 1234 }] });
     expect(hub.seen).toHaveLength(0); // the 5 s poll never reaches the hub
   });
 

@@ -3,6 +3,38 @@
  * store so it can be unit-tested without a DOM: the UI in hud/Sharing.tsx imports these.
  */
 
+/** One shared tower as GET /api/sharing/towers lists it (#266). `projects` are the library ids in its folder. */
+export interface TowerShare {
+  name: string;
+  dir: string;
+  files: boolean;
+  projects: string[];
+  syncedAt?: number;
+  error?: string;
+  warning?: string;
+}
+
+/** The share that holds a project's folder, if this machine shares it. */
+export function shareOf(shares: TowerShare[], projectId: string): TowerShare | undefined {
+  return shares.find((s) => s.projects.includes(projectId));
+}
+
+/** What a share sends: the tower files only, or the tower files and the files they reference. */
+export function shareMode(share?: TowerShare): 'off' | 'towers' | 'files' {
+  if (!share) return 'off';
+  return share.files ? 'files' : 'towers';
+}
+
+/**
+ * The status of one share. An error wins over an earlier sync: the last try is what the user needs to see.
+ * No sync and no error yet means the first send is still on its way.
+ */
+export function shareStatus(share: TowerShare, now: number): { text: string; tone: 'on' | 'err' | 'dim'; title: string } {
+  if (share.error) return { text: 'not sent', tone: 'err', title: share.error };
+  if (share.syncedAt !== undefined) return { text: `on the hub · ${agoText(share.syncedAt, now)}`, tone: 'on', title: `${share.name} is on the hub` };
+  return { text: 'sending…', tone: 'dim', title: `${share.name} has not reached the hub yet` };
+}
+
 /** The relay state a satellite reports on GET /api/sharing (#91). 'off' = this server is not a satellite. */
 export interface SharingState {
   state: 'off' | 'online' | 'queued' | 'revoked' | 'held' | 'paused';
