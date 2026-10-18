@@ -5,9 +5,23 @@
  */
 
 export interface DbColumn { name: string; type: string; pk: boolean; notNull: boolean; references?: string }
-export interface DbTable { name: string; kind: 'table' | 'view'; columns: DbColumn[]; rowCount?: number; rows?: DbCell[][] }
+export interface DbTable {
+  name: string;
+  kind: 'table' | 'view';
+  columns: DbColumn[];
+  rowCount?: number;
+  /** True when the count reached its cap, so rowCount is a floor, not the real total. */
+  rowCountCapped?: boolean;
+  /** How many columns were left out of the preview because the table is too wide. */
+  columnsCut?: number;
+  rows?: DbCell[][];
+}
 export type DbCell = string | number | null;
-export interface DbPreview { source: 'sqlite' | 'sql'; tables: DbTable[] }
+export interface DbPreview { source: 'sqlite' | 'sql'; tables: DbTable[]; tableCount?: number }
+
+/** Bounds on the SQL parser: a generated or hostile schema must not make the viewer spend forever. */
+const MAX_STATEMENTS = 1_000;
+const MAX_COLUMNS = 500;
 
 /*
  * One identifier: a bare word, or a "double", `backtick` or [bracket] quoted one, optionally dotted
@@ -15,9 +29,16 @@ export interface DbPreview { source: 'sqlite' | 'sql'; tables: DbTable[] }
  * or the body starts.
  */
 const NAME = /(?:"[^"]*"|`[^`]*`|\[[^\]]*\]|[^\s."`\[(),;]+)(?:\s*\.\s*(?:"[^"]*"|`[^`]*`|\[[^\]]*\]|[^\s."`\[(),;]+))*/;
-const NAME_AT = new RegExp(`^${NAME.source}`);
+// Sticky patterns: they match at lastIndex, so the parser never slices the rest of the text per statement.
+const NAME_AT = new RegExp(NAME.source, 'y');
+const SPACE_AT = /\s*/y;
 const CREATE = /\bcreate\s+(?:or\s+replace\s+)?(?:(?:global\s+|local\s+)?(?:temp|temporary|unlogged)\s+)?(table|view)\s+(?:if\s+not\s+exists\s+)?/gi;
-const CONSTRAINT_START = /^(constraint|primary\s+key|foreign\s+key|unique|check|exclude)\b/i;
+/*
+ * A table item is a constraint only when it starts with CONSTRAINT or with the keyword in a constraint form:
+ * `check (`, `unique (`, `exclude (`, `primary key`, `foreign key`. A column may be named `check` or `unique`
+ * (`unique integer`), so a bare keyword does not make the item a constraint.
+ */
+const CONSTRAINT_START = /^(?:constraint\b|(?:primary|foreign)\s+key\b|(?:check|unique|exclude)\s*\()/i;
 const TYPE_STOP = /\b(primary|not|null|default|references|check|unique|constraint|generated|collate|as)\b/gi;
 const REFERENCES = new RegExp(`\\breferences\\s+(${NAME.source})\\s*(?:\\(([^)]*)\\))?`, 'i');
 const FOREIGN_KEY = new RegExp(`^foreign\\s+key\\s*\\(([^)]*)\\)\\s*references\\s+(${NAME.source})\\s*(?:\\(([^)]*)\\))?`, 'i');
@@ -90,12 +111,20 @@ function splitItems(body: string): string[] {
   return items.map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
-const parenDepth = (s: string) => [...s].reduce((d, c) => d + (c === '(' ? 1 : c === ')' ? -1 : 0), 0);
-
-/** Where the type of a column ends: the first constraint keyword outside parentheses (or the end of the item). */
+/*
+ * Where the type of a column ends: the first constraint keyword outside parentheses (or the end of the item).
+ * The depth is carried forward from match to match, so the scan is linear in the item, not one rescan per keyword.
+ */
 function typeEnd(rest: string): number {
+  let depth = 0;
+  let pos = 0;
   for (const m of rest.matchAll(TYPE_STOP)) {
-    if (parenDepth(rest.slice(0, m.index)) === 0) return m.index!;
+    const at = m.index!;
+    for (; pos < at; pos++) {
+      if (rest[pos] === '(') depth++;
+      else if (rest[pos] === ')') depth--;
+    }
+    if (depth === 0) return at;
   }
   return rest.length;
 }
@@ -126,7 +155,7 @@ function tableOf(name: string, body: string): DbTable {
   const constraints: string[] = [];
   for (const item of splitItems(body)) {
     if (CONSTRAINT_START.test(item)) constraints.push(item);
-    else {
+    else if (columns.length < MAX_COLUMNS) {
       const col = columnOf(item);
       if (col) columns.push(col);
     }
@@ -167,12 +196,17 @@ export function parseSqlSchema(sql: string): DbTable[] {
   try {
     const text = maskSql(sql);
     const tables: DbTable[] = [];
+    let statements = 0;
     for (const m of text.matchAll(CREATE)) {
+      if (++statements > MAX_STATEMENTS) break;
       const start = m.index! + m[0].length;
-      const nm = NAME_AT.exec(text.slice(start));
+      NAME_AT.lastIndex = start;
+      const nm = NAME_AT.exec(text);
       if (!nm) continue;
       const name = nameOf(nm[0]);
-      const pos = start + nm[0].length + /^\s*/.exec(text.slice(start + nm[0].length))![0].length;
+      SPACE_AT.lastIndex = start + nm[0].length;
+      SPACE_AT.exec(text);
+      const pos = SPACE_AT.lastIndex;
       if (m[1].toLowerCase() === 'view') {
         tables.push({ name, kind: 'view', columns: [] });
         continue;

@@ -111,3 +111,27 @@ describe('parseSqlSchema comments and garbage', () => {
     expect(parseSqlSchema('create table broken (')).toEqual([]);
   });
 });
+
+describe('parseSqlSchema keeps columns named like constraint keywords', () => {
+  it('reads check and unique as column names, and the real primary key', () => {
+    const [t] = parseSqlSchema('create table t (check text, unique integer, primary key (check))');
+    expect(t.columns.map((c) => c.name)).toEqual(['check', 'unique']);
+    expect(t.columns[0]).toMatchObject({ type: 'text', pk: true, notNull: true });
+    expect(t.columns[1]).toMatchObject({ type: 'integer', pk: false });
+  });
+});
+
+describe('parseSqlSchema bounds its work', () => {
+  it('parses a 1 MB schema of 2,000 tables in under 2 seconds and keeps 1,000 of them', () => {
+    const parts: string[] = [];
+    // Each table carries a 450-character default so the whole schema is about 1 MB, as a real dump can be.
+    const pad = `'${'x'.repeat(450)}'`;
+    for (let i = 0; i < 2000; i++) parts.push(`CREATE TABLE t${i} (id INTEGER PRIMARY KEY, name TEXT DEFAULT ${pad}, note TEXT);`);
+    const sql = parts.join('\n');
+    expect(sql.length).toBeGreaterThan(900_000);
+    const started = Date.now();
+    const tables = parseSqlSchema(sql);
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(tables).toHaveLength(1000);
+  });
+});

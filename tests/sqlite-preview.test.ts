@@ -4,7 +4,18 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { readTowerFile } from '../src/server/files';
+import { tableOf, type SchemaRow } from '../src/server/sqlite-preview';
 import type { DbTable } from '../src/core/dbPreview';
+
+/** Whether this Node can return rows as arrays; the duplicate-column test needs it (Node 24, or a backport). */
+const canReturnArrays = (() => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    return typeof (db.prepare('SELECT 1') as unknown as { setReturnArrays?: unknown }).setReturnArrays === 'function';
+  } finally {
+    db.close();
+  }
+})();
 
 /** A fresh tower root with one database built by `setup`; node:sqlite writes it, the viewer only reads it. */
 function makeDb(name: string, setup: (db: DatabaseSync) => void): { root: string; path: string } {
@@ -126,5 +137,80 @@ describe('SQLite files are previewed, not refused (#264)', () => {
   it('still refuses a database in a secret path', async () => {
     const { root } = makeDb('server.key', (db) => db.exec('CREATE TABLE t (x)'));
     expect((await readTowerFile(root, 'server.key')).status).toBe(403);
+  });
+
+  it('keeps the columns and no rows for a table whose pragmas fail, and the other tables still show', () => {
+    const stub = { prepare: () => { throw new Error('no such module: fts5x'); } } as unknown as DatabaseSync;
+    const row: SchemaRow = { type: 'table', name: 'broken', sql: null };
+    const t = tableOf(stub, row, 100, { cells: 20_000 });
+    expect(t).toEqual({ name: 'broken', kind: 'table', columns: [] });
+    expect(t.rows).toBeUndefined();
+  });
+
+  it('caps the row count at 100,000 and says so', () => {
+    const { path } = makeDb('many.db', (db) => {
+      db.exec('CREATE TABLE many (x INTEGER)');
+      db.exec('WITH RECURSIVE c(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM c WHERE n < 100050) INSERT INTO many SELECT n FROM c');
+    });
+    const db = new DatabaseSync(path, { readOnly: true });
+    try {
+      const t = tableOf(db, { type: 'table', name: 'many', sql: null }, 100, { cells: 20_000 });
+      expect(t.rowCount).toBe(100_000);
+      expect(t.rowCountCapped).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('keeps 100 of 150 columns and reports the 50 left out', () => {
+    const cols = Array.from({ length: 150 }, (_, i) => `c${i} INTEGER`).join(', ');
+    const { path } = makeDb('wide.db', (db) => {
+      db.exec(`CREATE TABLE wide (${cols})`);
+      db.exec(`INSERT INTO wide (c0) VALUES (1)`);
+    });
+    const db = new DatabaseSync(path, { readOnly: true });
+    try {
+      const t = tableOf(db, { type: 'table', name: 'wide', sql: null }, 100, { cells: 20_000 });
+      expect(t.columns).toHaveLength(100);
+      expect(t.columnsCut).toBe(50);
+      expect(t.rows?.[0]).toHaveLength(100);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('counts tables and views in tableCount, before the preview cap', async () => {
+    const { root } = makeDb('count.db', (db) => {
+      db.exec('CREATE TABLE a (x)');
+      db.exec('CREATE TABLE b (x)');
+      db.exec('CREATE VIEW v AS SELECT x FROM a');
+    });
+    const r = await readTowerFile(root, 'count.db');
+    expect(r.status === 200 && r.body.db?.tableCount).toBe(3);
+  });
+
+  it('gives rows as wide as the columns when a view has two columns named id', async () => {
+    if (!canReturnArrays) return;
+    const { root } = makeDb('dup.db', (db) => {
+      db.exec('CREATE TABLE a (id INTEGER, x TEXT)');
+      db.exec('CREATE TABLE b (id INTEGER, y TEXT)');
+      db.exec("INSERT INTO a VALUES (1, 'ax')");
+      db.exec("INSERT INTO b VALUES (1, 'by')");
+      db.exec('CREATE VIEW j AS SELECT a.id, b.id FROM a JOIN b ON a.x IS NOT NULL AND b.id = a.id');
+    });
+    const r = await readTowerFile(root, 'dup.db');
+    const v = r.status === 200 ? table(r.body.db!.tables, 'j') : undefined;
+    expect(v?.columns).toHaveLength(2);
+    expect(v?.rows).toEqual([[1, 1]]);
+  });
+
+  it('answers an error for a corrupt file without the absolute path', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'flow-tower-sqlite-'));
+    const garbage = Buffer.concat([Buffer.from('SQLite format 3\0', 'latin1'), Buffer.alloc(200, 0xff)]);
+    writeFileSync(join(root, 'bad.db'), garbage);
+    const r = await readTowerFile(root, 'bad.db');
+    expect(r.status).toBe(415);
+    if (r.status !== 415) return;
+    expect(r.body.error).not.toContain(root);
   });
 });

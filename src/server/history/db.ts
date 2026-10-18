@@ -29,11 +29,10 @@ export function isSqliteExperimentalWarning(warning: unknown, type?: unknown): b
 }
 
 /**
- * Opens (creating it if needed) the history DB at `path`. WAL so the server can write while the UI reads,
- * and NORMAL is safe enough for telemetry. migrates on open, so every caller sees the current schema.
+ * Loads node:sqlite, or returns undefined when this Node has no usable module. Shared by the history DB and
+ * the file viewer's SQLite preview, so the warning filter below has exactly one copy.
  */
-export async function openHistory(path: string): Promise<HistoryOpen> {
-  let sqlite: typeof import('node:sqlite');
+export async function importSqlite(): Promise<typeof import('node:sqlite') | undefined> {
   // Node 22 flags node:sqlite with an ExperimentalWarning that users read as a failure; Node 24 no longer
   // prints it. Only this one notice is dropped, only while the module loads, and the original is always restored.
   const emitWarning = process.emitWarning;
@@ -43,14 +42,24 @@ export async function openHistory(path: string): Promise<HistoryOpen> {
     if (isSqliteExperimentalWarning(warning, type)) return;
     return (emitWarning as (...a: unknown[]) => void).apply(this, args);
   } as typeof process.emitWarning;
+  let sqlite: typeof import('node:sqlite');
   try {
     sqlite = await import('node:sqlite');
   } catch {
-    return { disabled: DISABLED_MESSAGE };
+    return undefined;
   } finally {
     process.emitWarning = emitWarning;
   }
-  if (typeof sqlite.DatabaseSync !== 'function') return { disabled: DISABLED_MESSAGE };
+  return typeof sqlite.DatabaseSync === 'function' ? sqlite : undefined;
+}
+
+/**
+ * Opens (creating it if needed) the history DB at `path`. WAL so the server can write while the UI reads,
+ * and NORMAL is safe enough for telemetry. migrates on open, so every caller sees the current schema.
+ */
+export async function openHistory(path: string): Promise<HistoryOpen> {
+  const sqlite = await importSqlite();
+  if (!sqlite) return { disabled: DISABLED_MESSAGE };
   // 0700 only on a folder we create: one the user chose is left as it is (src/server/tokens.ts does the same).
   const dir = dirname(path);
   if (!existsSync(dir)) { mkdirSync(dir, { recursive: true, mode: 0o700 }); ownerOnly(dir, 0o700); }
