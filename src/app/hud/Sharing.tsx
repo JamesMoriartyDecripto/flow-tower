@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { STATIC } from '../staticData';
-import { agoText, queueText, satClass, satText, satTitle, shareStatus, SHARING_OFF, type SharingState, type TowerShare } from '../sharing';
+import { agoText, darkProjects, queueText, satClass, satText, satTitle, shareStatus, SHARING_OFF, type SharingState, type TowerShare } from '../sharing';
 import { usePrefs } from '../settings';
+import { RECENT_HOSTS_MS, sourceOf } from '../library';
+import { useLive, descendants } from '../live';
+import { useStore } from '../store';
 import { Row, Toggle } from './Settings';
 import './shareControl.css';
 
 const POLL_MS = 5000;
+
+/** A local project that is active here but whose events the hub does not light (#266). */
+interface DarkProject { id: string; name: string }
 
 async function getSharing(): Promise<SharingState> {
   const res = await fetch('/api/sharing');
@@ -22,12 +28,42 @@ async function getShares(hub = false): Promise<TowerShare[]> {
 }
 
 /** One shared store: the chip polls it, the Settings section reads it and updates it after each action. */
-const useSharing = create<{ sharing: SharingState; shares: TowerShare[]; set(sharing: SharingState): void; setShares(shares: TowerShare[]): void }>()((set) => ({
+const useSharing = create<{
+  sharing: SharingState;
+  shares: TowerShare[];
+  dark: DarkProject[];
+  set(sharing: SharingState): void;
+  setShares(shares: TowerShare[]): void;
+  setDark(dark: DarkProject[]): void;
+}>()((set) => ({
   sharing: SHARING_OFF,
   shares: [],
+  dark: [],
   set: (sharing) => set({ sharing }),
   setShares: (shares) => set({ shares }),
+  setDark: (dark) => set({ dark }),
 }));
+
+/**
+ * The local projects with activity in the last window that no share of this machine lists (#266). Computed on
+ * each poll tick; only a changed list is stored, so a quiet tick does not re-render the chip or the section.
+ */
+function computeDark(shares: TowerShare[]): DarkProject[] {
+  const ws = useStore.getState().workspace;
+  if (!ws) return [];
+  const desc = descendants(ws);
+  const local = ws.projects
+    .filter((id) => sourceOf(ws, id) === 'local')
+    .map((id) => ({ id, towers: new Set([id, ...(desc.get(id) ?? [])]) }));
+  const ids = darkProjects(useLive.getState().nodes, local, shares, Date.now(), RECENT_HOSTS_MS);
+  return ids.map((id) => ({ id, name: ws.towers[id]?.name ?? id }));
+}
+
+function setDarkIfChanged(next: DarkProject[]) {
+  const prev = useSharing.getState().dark;
+  const same = prev.length === next.length && prev.every((p, i) => p.id === next[i].id && p.name === next[i].name);
+  if (!same) useSharing.getState().setDark(next);
+}
 
 /** The shares of this machine, for the library cards and the Settings list. */
 export function useShares(): TowerShare[] {
@@ -44,7 +80,10 @@ export function refreshSharing(): Promise<void> {
   return getSharing().then(async (s) => {
     useSharing.getState().set(s);
     // The shares are read only when there is a relay: a server that is not a satellite has nothing to list.
-    useSharing.getState().setShares(s.state === 'off' ? [] : await getShares());
+    const shares = s.state === 'off' ? [] : await getShares();
+    useSharing.getState().setShares(shares);
+    // A server that is not a satellite has no hub to be dark on, so the list stays empty there.
+    setDarkIfChanged(s.state === 'off' ? [] : computeDark(shares));
   }).catch(() => {});
 }
 
@@ -94,9 +133,10 @@ function openSharingSettings() {
 export function SatChip() {
   useSharingPoll();
   const sharing = useSharing((s) => s.sharing);
+  const dark = useSharing((s) => s.dark);
   if (sharing.state === 'off') return null;
   return (
-    <button className={`chip clickable sat-chip ${satClass(sharing)}`} onClick={openSharingSettings} title={satTitle(sharing)}>
+    <button className={`chip clickable sat-chip ${satClass(sharing)}`} onClick={openSharingSettings} title={satTitle(sharing, dark.map((d) => d.name))}>
       {satText(sharing, Date.now())}
     </button>
   );
@@ -159,10 +199,33 @@ function SharedTowerRow({ share, hubNames, now }: { share: TowerShare; hubNames?
   );
 }
 
+/**
+ * One dark project of the Settings block. Sharing it is the fix, so the button stays here; a failure stays on this line.
+ */
+function DarkProjectRow({ project }: { project: DarkProject }) {
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const share = () => {
+    setBusy(true);
+    setError(undefined);
+    void shareProject(project.id, false)
+      .then((err) => setError(err))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <li className="sharing-row">
+      <span className="sharing-name">{project.name}</span>
+      <button className="btn" disabled={busy} onClick={share}>Share towers</button>
+      {error && <span className="err" role="alert">{error}</span>}
+    </li>
+  );
+}
+
 /** Settings section: what a satellite sends, what it never sends, and the two local controls. */
 export function SharingSection() {
   const sharing = useSharing((s) => s.sharing);
   const shares = useSharing((s) => s.shares);
+  const dark = useSharing((s) => s.dark);
   const hub = useHubTowers();
   const [test, setTest] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -209,6 +272,14 @@ export function SharingSection() {
       <Row label="Send a test event" hint={test ?? "One minimal event, flushed now, so the hub's answer is immediate."}>
         <button className="btn" onClick={runTest} disabled={busy} title="Send one minimal event to the hub and show what it answered">{busy ? 'Sending…' : 'Send test'}</button>
       </Row>
+      {dark.length > 0 && (
+        <div className="sharing-dark">
+          <p>Active here but dark on the hub: the hub lights only the towers this machine shared.</p>
+          <ul className="sharing-towers">
+            {dark.map((d) => <DarkProjectRow key={d.id} project={d} />)}
+          </ul>
+        </div>
+      )}
       {shares.length > 0 && (
         <>
           <h3>Shared towers</h3>

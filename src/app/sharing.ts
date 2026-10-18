@@ -3,6 +3,8 @@
  * store so it can be unit-tested without a DOM: the UI in hud/Sharing.tsx imports these.
  */
 
+import { splitTarget } from '../core/events';
+
 /** One shared tower as GET /api/sharing/towers lists it (#266). `projects` are the library ids in its folder. */
 export interface TowerShare {
   name: string;
@@ -127,14 +129,43 @@ export function satClass(s: SharingState): string {
   return SAT_CLASS[s.state];
 }
 
-/** One sentence explaining the state on hover; a failed share adds the names and the first error. */
-export function satTitle(s: SharingState): string {
+/**
+ * The active projects of this machine that no share lists (#266). A satellite sends events whatever the share
+ * state, but the hub lights only the towers this machine shared, so such a project stays dark there. A node
+ * counts for its project when its tower is the project or one of its sub-towers; the node key's tower comes
+ * from splitTarget, as recentHosts does. Order follows `projects`.
+ */
+export function darkProjects(
+  nodes: Map<string, { lastTs: number }>,
+  projects: { id: string; towers: Set<string> }[],
+  shares: { projects: string[] }[],
+  now: number,
+  windowMs: number,
+): string[] {
+  const shared = new Set(shares.flatMap((s) => s.projects));
+  const active = new Set<string>();
+  for (const [key, n] of nodes) {
+    if (n.lastTs < now - windowMs) continue;
+    const tower = splitTarget(key)[0];
+    for (const p of projects) if (p.towers.has(tower)) active.add(p.id);
+  }
+  return projects.filter((p) => active.has(p.id) && !shared.has(p.id)).map((p) => p.id);
+}
+
+/**
+ * One sentence explaining the state on hover; a failed share adds the names and the first error. `dark` names
+ * the active projects the hub does not light (#266): only a sending state says so, since a stopped one has its own reason.
+ */
+export function satTitle(s: SharingState, dark: string[] = []): string {
   const host = hubHost(s.hub);
   const base = satBaseTitle(s, host);
+  const withDark = dark.length > 0 && (s.state === 'online' || s.state === 'queued')
+    ? `${base} Active here but dark on the hub (not shared): ${dark.join(', ')}.`
+    : base;
   const unsent = unsentTowers(s);
-  if (unsent.length === 0) return base;
+  if (unsent.length === 0) return withDark;
   const names = unsent.map((t) => t.name).join(', ');
-  return `${base} Not sent: ${names}. First error: ${unsent[0].error}`;
+  return `${withDark} Not sent: ${names}. First error: ${unsent[0].error}`;
 }
 
 function satBaseTitle(s: SharingState, host: string): string {

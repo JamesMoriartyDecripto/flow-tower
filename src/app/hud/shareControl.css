@@ -7,6 +7,12 @@
 .sharing-row .err { color: var(--live-error); }
 .sharing-row .sharing-warn { flex-basis: 100%; color: var(--warn); }
 
+/* Active projects the hub does not light (#266): the warn tone, with the same font and spacing as the shared-towers list. */
+.sharing-dark { color: var(--warn); font: 12px/1.6 var(--mono); margin: 4px 0; }
+.sharing-dark p { margin: 0; }
+.sharing-dark .sharing-towers { color: var(--warn); }
+.sharing-dark .err { color: var(--live-error); }
+
 /* The per-project share control on a library card (#266). It sits in the card footer, beside Tower and Map. */
 .share-control { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .share-control select { font: 10px var(--mono); padding: 3px 6px; background: transparent; color: var(--white); border: 1px solid var(--line-soft); border-radius: 4px; }
