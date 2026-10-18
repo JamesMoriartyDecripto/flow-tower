@@ -5,7 +5,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { basename, delimiter, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -63,10 +63,30 @@ function detectNode(project: string, folder: string): Found | undefined {
   return { label, commands, notes: [] };
 }
 
-/** Python: any of the three files that mark a Python project. pytest is the common runner. */
+/**
+ * Whether an executable named `name` is in a PATH folder. Read by hand, no shell: the detector must not run anything.
+ * Windows has no executable bit, so there a file of that name is enough.
+ */
+function onPath(name: string): boolean {
+  return (process.env.PATH ?? '').split(delimiter).some((dir) => {
+    if (!dir) return false;
+    try {
+      const st = statSync(join(dir, name));
+      return st.isFile() && (process.platform === 'win32' || (st.mode & 0o111) !== 0);
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
+ * Python: any of the three files that mark a Python project. pytest is the common runner. `python` is missing on
+ * stock Ubuntu and macOS, where only `python3` exists, so python3 is used whenever it is on PATH.
+ */
 function detectPython(project: string, folder: string): Found | undefined {
   if (!['pyproject.toml', 'setup.py', 'requirements.txt'].some((f) => existsSync(join(project, f)))) return undefined;
-  return { label: `${folder} (Python)`, commands: { check: 'python -m pytest', test: 'python -m pytest {file}' }, notes: [] };
+  const py = onPath('python3') ? 'python3' : 'python';
+  return { label: `${folder} (Python)`, commands: { check: `${py} -m pytest`, test: `${py} -m pytest {file}` }, notes: [] };
 }
 
 function detectRust(project: string, folder: string): Found | undefined {

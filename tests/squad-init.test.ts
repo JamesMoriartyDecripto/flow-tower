@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { detectConfig } from '../src/cli/squad';
 import { cleanEnv } from './fixtures/clean-env';
 
@@ -11,9 +11,20 @@ const CLI = resolve('bin/flow-tower.js');
 const run = (...args: string[]) =>
   spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', timeout: 20_000, env: cleanEnv() });
 
+// Every temp folder a test makes is recorded here and removed after the suite, so the runs leave nothing behind.
+const made: string[] = [];
+const tempDir = (prefix: string): string => {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  made.push(dir);
+  return dir;
+};
+afterAll(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true });
+});
+
 /** A fresh git repository in a temp folder, so every test starts from an empty project. */
 function gitProject(files: Record<string, string> = {}): string {
-  const dir = mkdtempSync(join(tmpdir(), 'squad-init-'));
+  const dir = tempDir('squad-init-');
   spawnSync('git', ['init', '-q', dir], { encoding: 'utf8' });
   for (const [rel, content] of Object.entries(files)) {
     const file = join(dir, rel);
@@ -89,8 +100,9 @@ describe('squad init (#265)', () => {
   it('detects a Python project from pyproject.toml', () => {
     const dir = gitProject({ 'pyproject.toml': '[project]\nname = "x"\n' });
     const { config } = detectConfig(dir) as { config: { commands: Record<string, string>; project: string } };
-    expect(config.commands.check).toBe('python -m pytest');
-    expect(config.commands.test).toBe('python -m pytest {file}');
+    // The interpreter is python3 wherever python3 is on PATH (#265 review): either name is right, the pytest call is the same.
+    expect(config.commands.check).toMatch(/^python3? -m pytest$/);
+    expect(config.commands.test).toMatch(/^python3? -m pytest \{file\}$/);
     expect(config.project).toMatch(/\(Python\)$/);
   });
 
@@ -113,7 +125,7 @@ describe('squad init (#265)', () => {
   });
 
   it('refuses a folder that is not a git repository', { timeout: 30_000 }, () => {
-    const dir = mkdtempSync(join(tmpdir(), 'squad-plain-'));
+    const dir = tempDir('squad-plain-');
     const r = run('squad', 'init', dir);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('not a git repository');
@@ -121,7 +133,7 @@ describe('squad init (#265)', () => {
 
   it('uses the current branch as base when there is no origin', () => {
     // git init -b names the only branch: with no origin, base must follow it, not assume main.
-    const dir = mkdtempSync(join(tmpdir(), 'squad-base-'));
+    const dir = tempDir('squad-base-');
     expect(spawnSync('git', ['init', '-q', '-b', 'master', dir], { encoding: 'utf8' }).status).toBe(0);
     const { config } = detectConfig(dir, 'make ci') as { config: { base: string } };
     expect(config.base).toBe('master');
@@ -137,7 +149,7 @@ describe('squad init (#265)', () => {
 
   it('installs the flow-tower-squad skill with the others for claude', { timeout: 30_000 }, () => {
     // HOME is a temp folder, so install-skill writes to ~/.claude there and never to the developer's home.
-    const fakeHome = mkdtempSync(join(tmpdir(), 'squad-skill-home-'));
+    const fakeHome = tempDir('squad-skill-home-');
     const r = spawnSync(process.execPath, [CLI, 'install-skill', '--target', 'claude'], {
       encoding: 'utf8', timeout: 20_000, env: cleanEnv({ HOME: fakeHome }),
     });
@@ -163,7 +175,7 @@ describe('squad init (#265)', () => {
 
   it('bases the squad on main, not on the feature branch it was set up from', () => {
     // A feature branch as the base would make every diff empty: main (a local branch, no origin) must win.
-    const dir = mkdtempSync(join(tmpdir(), 'squad-main-'));
+    const dir = tempDir('squad-main-');
     const git = (...args: string[]) => spawnSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' });
     expect(spawnSync('git', ['init', '-q', '-b', 'main', dir], { encoding: 'utf8' }).status).toBe(0);
     expect(git('commit', '-q', '--allow-empty', '-m', 'init').status).toBe(0);
@@ -182,7 +194,7 @@ describe('squad init (#265)', () => {
   });
 
   it('reports a missing key after init, without printing a value', { timeout: 30_000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), 'squad-nokey-home-'));
+    const home = tempDir('squad-nokey-home-');
     const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
     // No key in the environment and an empty user folder: init must say the key is missing, and how to set it.
     const env = cleanEnv({ FLOW_TOWER_HOME: home });
@@ -206,13 +218,36 @@ describe('squad init (#265)', () => {
   });
 
   it('does not print the key line when a key is in the environment', { timeout: 30_000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), 'squad-haskey-home-'));
+    const home = tempDir('squad-haskey-home-');
     const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
     const env = cleanEnv({ FLOW_TOWER_HOME: home, OPENROUTER_API_KEY: 'sk-or-test-not-real' });
     const r = spawnSync(process.execPath, [CLI, 'squad', 'init', dir], { encoding: 'utf8', timeout: 20_000, env });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain('key: found (environment)');
     expect(r.stdout).not.toContain('put the key');
+  });
+
+  it('tells the user to commit the squad before the first step (#265 review)', { timeout: 30_000 }, () => {
+    // A worktree reads squad.json from its branch: the next steps must say to commit what init wrote.
+    const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
+    const r = run('squad', 'init', dir);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('git add tools/squad .gitignore');
+  });
+
+  it('detects python3 when only python3 is on PATH (#265 review)', () => {
+    // Stock Ubuntu and macOS have no `python`: the fake PATH holds only an executable python3.
+    const bin = tempDir('squad-py3-bin-');
+    writeFileSync(join(bin, 'python3'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    const dir = gitProject({ 'pyproject.toml': '[project]\nname = "x"\n' });
+    const savedPath = process.env.PATH;
+    process.env.PATH = bin;
+    try {
+      const { config } = detectConfig(dir) as { config: { commands: Record<string, string> } };
+      expect(config.commands.check).toBe('python3 -m pytest');
+    } finally {
+      process.env.PATH = savedPath;
+    }
   });
 });
 

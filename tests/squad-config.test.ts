@@ -67,13 +67,13 @@ describe('squad config (#265)', () => {
   });
 
   it('get prints the default coder model for a repo with no config', () => {
-    const out = execFileSync('node', [CONFIG, 'get', 'models.coder', repoWith()], { encoding: 'utf8' });
+    const out = execFileSync(process.execPath, [CONFIG, 'get', 'models.coder', repoWith()], { encoding: 'utf8' });
     expect(out.trim()).toBe(DEFAULTS.models.coder);
   });
 
   it('check runs the configured command and exits with its code', () => {
     const dir = repoWith(JSON.stringify({ commands: { check: 'node -e process.exit(3)' } }));
-    const r = spawnSync('node', [CONFIG, 'check', dir], { encoding: 'utf8' });
+    const r = spawnSync(process.execPath, [CONFIG, 'check', dir], { encoding: 'utf8' });
     expect(r.status).toBe(3);
   });
 });

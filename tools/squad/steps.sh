@@ -70,10 +70,12 @@ for f in "$dir"/*.md; do
     cd "$R" || exit 1
     # Probe files the coder left behind are removed before staging, so they never reach the commit.
     git ls-files --others --exclude-standard | grep -E "(^|/)(tmp[-_.]|zz[-_])|probe|scratch" | while read -r junk; do echo "removed coder probe file: $junk"; rm -f -- "$junk"; done
-    git add -u
-    for p in ${writeDirs[@]+"${writeDirs[@]}"}; do [ -e "$p" ] && git add -A -- "$p"; done
+    # git add and git commit run without OPENROUTER_API_KEY: a project's pre-commit hook (husky, lint-staged) may run
+    # the tests the coder wrote, and those must not see the key.
+    env -u OPENROUTER_API_KEY git add -u
+    for p in ${writeDirs[@]+"${writeDirs[@]}"}; do [ -e "$p" ] && env -u OPENROUTER_API_KEY git add -A -- "$p"; done
     git status --short | grep "^??" && echo "UNTRACKED LEFT (outside the write dirs, not committed)"
-    git commit -s -q -m "$title, step $step (#$issue)
+    env -u OPENROUTER_API_KEY git commit -s -q -m "$title, step $step (#$issue)
 
 Coder: $CODER.${trailerPara}" && git log --oneline -1
   )

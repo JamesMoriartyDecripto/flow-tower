@@ -283,7 +283,9 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
   console.log(keyLine);
   // The key line is only useful while the key is missing: with a key found, "put the key" would be noise.
   const keyStep = source ? '' : `  put the key:     ${cli} squad key\n`;
+    // A worktree reads squad.json from its branch: until it is committed, every step runs with the defaults.
   console.log(`next steps:
+  commit it:        git add tools/squad .gitignore && git commit -m "chore: add the dev squad"   (worktrees read squad.json from the branch)
 ${keyStep}  open the tower:  ${cli} ${shellPath(towerPath)}
   install skill:   ${cli} install-skill
   first step:      bash tools/squad/steps.sh <issue> tools/squad/tasks/<issue> "" "<title>"

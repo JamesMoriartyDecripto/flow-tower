@@ -62,13 +62,20 @@ const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or
 // FLOW_TOWER_HOME. The git-ignored .env of the checkout is the fallback. Real environment variables win.
 // A worktree has no copy of that ignored file: the main checkout (parent of the shared .git) is tried last.
-const USER_ENV = join(env.FLOW_TOWER_HOME ?? join(homedir(), '.config', 'flow-tower'), DOT);
+// An empty FLOW_TOWER_HOME counts as unset, as it does for squad key, which writes the user folder.
+const USER_ENV = join(env.FLOW_TOWER_HOME || join(homedir(), '.config', 'flow-tower'), DOT);
 const MAIN = dirname(resolve(REPO, execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: REPO, encoding: 'utf8' }).trim()));
 for (const f of [USER_ENV, join(REPO, DOT), join(MAIN, DOT)]) {
   if (!env.OPENROUTER_API_KEY && existsSync(f)) loadEnvFile(f);
 }
 // A user of the kit has no git-ignored key file in the project, so the first fix named is the one that stores the key.
-if (!env.OPENROUTER_API_KEY) { console.error(`no key: run "flow-tower squad key" (it stores the key in ${USER_ENV}), or export OPENROUTER_API_KEY`); exit(1); }
+// The command must work from a clone: the checkout two levels above tools/squad when it has the CLI, else the path init wrote to .cli.
+const checkoutCli = join(resolve(HERE, '..', '..'), 'bin', 'flow-tower.js');
+const cliFromFile = existsSync(join(HERE, '.cli')) ? readFileSync(join(HERE, '.cli'), 'utf8').trim() : '';
+// The same order ev.sh uses: an exported FLOW_TOWER_CLI first, then the path init wrote to .cli.
+const hintCli = existsSync(checkoutCli) ? checkoutCli : env.FLOW_TOWER_CLI || cliFromFile;
+const keyCommand = hintCli ? `node ${hintCli} squad key` : 'flow-tower squad key';
+if (!env.OPENROUTER_API_KEY) { console.error(`no key: run "${keyCommand}" (it stores the key in ${USER_ENV}), or export OPENROUTER_API_KEY`); exit(1); }
 
 const log = join(HERE, `${role}-${Date.now()}.log`);
 // squad.json no longer names the checkout (machine-local, #265): init writes its path to .cli, git-ignored beside this script.
