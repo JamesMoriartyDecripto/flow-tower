@@ -59,7 +59,7 @@ describe('AUD03 gated sensitive steps', () => {
 describe('AUD04 decision branches', () => {
   it('fires on a decision with one outgoing edge', async () => {
     const bad = await build({
-      nodes: [{ id: 'd', type: 'decision', decision: { output: 'binary', fail: 'closed' } }, { id: 'y', type: 'output' }],
+      nodes: [{ id: 'd', type: 'decision', decision: { output: 'binary', fail: 'closed' } }, { id: 'y', type: 'output' }, { id: 'x', type: 'agent', model: 'm' }],
       edges: ['d -> y'],
     });
     expect(rulesOf(auditTower(bad), 'AUD04')).toHaveLength(1);

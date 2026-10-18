@@ -130,6 +130,10 @@ export function auditTower(tower: ResolvedTower, ctx: AuditContext = NO_CONTEXT)
   // A sub-tower runs inside its parents' run, so their budget or limits count here too.
   const runBudget = tower.run?.budget !== undefined || ctx.runBudget;
   const runLimits = tower.run?.limits !== undefined || ctx.runLimits;
+  // A tower with no agent and no model runs no model, so its decisions are design notes (playbooks,
+  // history), not runtime branches: AUD04's edge rule does not apply there.
+  const modelOf = (n: ResolvedNode) => n.model ?? n.agent?.model;
+  const runsModel = nodes.some((n) => n.type === 'agent' || modelOf(n) !== undefined);
   const findings: Finding[] = [];
   const add = (rule: RuleId, level: Finding['level'], message: string, node?: string) => {
     findings.push({ rule, level, node, message });
@@ -200,10 +204,18 @@ export function auditTower(tower: ResolvedTower, ctx: AuditContext = NO_CONTEXT)
     }
 
     // AUD04: a decision must branch on every answer and say what happens on error.
-    if (n.type === 'decision' && outs.length < 2) {
-      add('AUD04', 'warning', `decision with ${outs.length} outgoing edge(s): add one edge per answer`, key);
+    if (n.type === 'decision' && runsModel && outs.length < 2) {
+      // One edge is fine when it carries a condition (the other answers do nothing), or when it leads to
+      // a plain node that branches: the model decides, code acts, so the branching is drawn there.
+      const [only] = outs;
+      const conditioned = outs.length === 1 && (only.condition ?? '').trim() !== '';
+      const branchesOn = outs.length === 1 && byKey.get(only.to)?.type !== 'agent' && outOf(only.to).length >= 2;
+      if (!conditioned && !branchesOn) {
+        add('AUD04', 'warning', `decision with ${outs.length} outgoing edge(s): add one edge per answer, or a condition on the edge when the other answers do nothing`, key);
+      }
     }
-    if (n.ops.decision !== undefined && n.ops.decision.fail === undefined) {
+    // Only a decision that runs a model can fail on low confidence; code (match_format) cannot.
+    if (n.ops.decision !== undefined && n.ops.decision.fail === undefined && (modelOf(n) ?? n.ops.decision.model) !== undefined) {
       add('AUD04', 'warning', 'decision with no fail: set decision.fail to open or closed', key);
     }
 
@@ -226,12 +238,16 @@ export function auditTower(tower: ResolvedTower, ctx: AuditContext = NO_CONTEXT)
 
     // AUD07: a working node that leads nowhere is a dead end, unless it is a called subroutine.
     const isCalled = ins.some((e) => e.kind === 'call');
-    if (WORK_TYPES.has(n.type) && outs.length === 0 && !isCalled) {
+    // A planned, experimental or deprecated node is not wired yet (or is on its way out). A human or a
+    // guard that is reached is the end of its lane: a person finishes the work, a guard stops it.
+    const terminal = (n.type === 'human' || n.type === 'guard') && ins.length > 0;
+    if (WORK_TYPES.has(n.type) && outs.length === 0 && !isCalled && n.status === 'active' && !terminal) {
       add('AUD07', 'info', 'no outgoing edge: connect it, or make it the target of a call', key);
     }
 
-    // AUD09: an agent without a model has no defined behaviour.
-    if (n.type === 'agent' && n.model === undefined) {
+    // AUD09: an agent without a model has no defined behaviour. A nested tower carries its own models,
+    // and a model chosen at run time by design (model_varies) is a stated reason, not a gap.
+    if (n.type === 'agent' && n.model === undefined && !n.tower && n.ops.model_varies === undefined) {
       add('AUD09', 'info', 'no model: set model on the node or its agent', key);
     }
 
