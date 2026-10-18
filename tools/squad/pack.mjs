@@ -1,6 +1,6 @@
 // Packs a review task file for --oneshot and --batch reviews (#169): those runs have no tools, so the file
 // must carry the role's instructions, the brief, the answer format, the diff and the files that matter.
-// node tools/squad/pack.mjs --role reviewer|security --issue <n> [--base origin/main] [--repo <path>] [--files a,b] [--brief <file>] [--max-kb 120]
+// node tools/squad/pack.mjs --role reviewer|security --issue <n> [--base origin/main] [--repo <path>] [--files a,b] [--paths a,b] [--brief <file>] [--max-kb 120]
 // Prints the task on stdout. A warning on stderr says when the output was trimmed to fit --max-kb.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -11,7 +11,7 @@ import { loadConfig } from './config.mjs';
 import { realRelIfAllowed } from './guard.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
-const USAGE = 'usage: node tools/squad/pack.mjs --role reviewer|security --issue <n> [--base origin/main] [--repo <path>] [--files a,b] [--brief <file>] [--max-kb 120]';
+const USAGE = 'usage: node tools/squad/pack.mjs --role reviewer|security --issue <n> [--base origin/main] [--repo <path>] [--files a,b] [--paths a,b] [--brief <file>] [--max-kb 120]';
 if (argv.includes('--help')) { stdout.write(`${USAGE}\n`); exit(0); }
 
 const role = arg('role');
@@ -111,10 +111,24 @@ const head = [
 ].join('\n');
 
 // Tests are left out on purpose: they are large, so the diff covers the review folders only (config.review).
-const diffRaw = git('diff', base, '--', ...config.review);
+// --paths (#249) replaces those folders, so a change under examples/ can be reviewed too. Each path gets the same
+// inRepo check as --files; a leading '-' is refused before it reaches git, where it would read as an option.
+const pathsArg = argv.includes('--paths') ? arg('paths') : undefined;
+if (argv.includes('--paths') && pathsArg === undefined) { stderr.write(`${USAGE}\n`); exit(1); }
+const reviewPaths = pathsArg === undefined
+  ? config.review
+  : pathsArg.split(',').map((s) => s.trim()).filter(Boolean);
+if (pathsArg !== undefined && reviewPaths.length === 0) { stderr.write(`${USAGE}\n`); exit(1); }
+if (pathsArg !== undefined) {
+  for (const p of reviewPaths) {
+    if (p.startsWith('-')) { stderr.write(`path not allowed: ${p}\n`); exit(1); }
+    try { inRepo(p); } catch { stderr.write(`path not allowed: ${p}\n`); exit(1); }
+  }
+}
+const diffRaw = git('diff', base, '--', ...reviewPaths);
 // (the -- above keeps the paths from being read as options; base was checked as a commit already)
 const diffHead = '## Diff\n\nTests are not included (git diff '
-  + `${base} -- ${config.review.join(' ')}).\n\n\`\`\`diff\n`;
+  + `${base} -- ${reviewPaths.join(' ')}).\n\n\`\`\`diff\n`;
 const diffTail = '\n```\n';
 
 const files = arg('files') ? arg('files').split(',').map((s) => s.trim()).filter(Boolean) : [];
