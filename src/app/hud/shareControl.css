@@ -31,3 +31,6 @@
 .share-chip.dim { color: var(--dim); }
 .share-chip.err { color: var(--live-error); }
 .share-error { color: var(--live-error); font: 10px var(--mono); }
+/* The lib-open span now takes the footer's free width, so flex would shrink the age on the left ("37 min" for
+   "37 min ago") in a phone-width card. Keep the age whole; the wider lib-open gives way instead (#266). */
+.lib-foot:has(.share-control) > .mono { flex-shrink: 0; white-space: nowrap; }
