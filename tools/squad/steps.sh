@@ -78,5 +78,5 @@ for f in "$dir"/*.md; do
 Coder: $CODER.${trailerPara}" && git log --oneline -1
   )
 done
-"$NODE" "$H/cost.mjs" "$issue"
+"$NODE" "$H/cost.mjs" "$issue" --repo "$R"
 echo "ALL GREEN #$issue"

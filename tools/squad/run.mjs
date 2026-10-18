@@ -11,7 +11,7 @@ import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { writeDirs } from './args.mjs';
 import { commandArgv, loadConfig, systemLine } from './config.mjs';
-import { appendRun, issueOf, ledgerPath } from './ledger.mjs';
+import { appendRun, issueOf, ledgerPath, projectOf } from './ledger.mjs';
 import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
 import { realRelIfAllowed, realTarget } from './guard.mjs';
 import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './oneshot.mjs';
@@ -221,7 +221,7 @@ let promptTokens = 0, cachedTokens = 0;
 let recorded = false, stepsDone = 0;
 const record = (outcome, steps) => {
   recorded = true;
-  appendRun(ledgerPath(env), { ts: new Date().toISOString(), issue, role, model, steps, cost: costUnknown ? null : Number(cost.toFixed(6)), ...(costUnknown && { costUnknown: true }), promptTokens, cachedTokens, outcome, mode: paidMode });
+  appendRun(ledgerPath(env), { ts: new Date().toISOString(), project: projectOf(REPO), issue, role, model, steps, cost: costUnknown ? null : Number(cost.toFixed(6)), ...(costUnknown && { costUnknown: true }), promptTokens, cachedTokens, outcome, mode: paidMode });
 };
 // An unhandled throw (two failed fetches, a bad JSON body) ends the process without any explicit record: the exit
 // handler catches those. appendFileSync is synchronous, so the write completes inside the handler.

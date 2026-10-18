@@ -63,7 +63,9 @@ describe('squad init (#265)', () => {
 
     const ignore = readFileSync(join(dir, '.gitignore'), 'utf8').split('\n');
     expect(ignore.filter((l) => l === 'tools/squad/*.log')).toHaveLength(1);
-    expect(ignore.filter((l) => l === 'tools/squad/tasks/*.out')).toHaveLength(1);
+    expect(ignore.filter((l) => l === 'tools/squad/.cli')).toHaveLength(1);
+    expect(ignore.filter((l) => l === 'tools/squad/tasks/*')).toHaveLength(1);
+    expect(ignore.filter((l) => l === '!tools/squad/tasks/TEMPLATE.md')).toHaveLength(1);
   });
 
   it('refuses a second init, and --force keeps an edited squad.json', { timeout: 30_000 }, () => {
@@ -189,6 +191,28 @@ describe('squad init (#265)', () => {
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain('key: missing: run "');
     expect(r.stdout).toContain('squad key"');
+  });
+
+  it('leaves task folders out of git status and keeps TEMPLATE.md trackable (#265)', { timeout: 30_000 }, () => {
+    const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
+    expect(run('squad', 'init', dir).status).toBe(0);
+    // A step file in a new task folder must not show as untracked, or steps.sh reports UNTRACKED LEFT.
+    mkdirSync(join(dir, 'tools', 'squad', 'tasks', '1'), { recursive: true });
+    writeFileSync(join(dir, 'tools', 'squad', 'tasks', '1', '01-step.md'), '# step\n');
+    const status = spawnSync('git', ['-C', dir, 'status', '--porcelain', '--untracked-files=all'], { encoding: 'utf8' }).stdout;
+    expect(status).not.toContain('tools/squad/tasks/1/');
+    const template = spawnSync('git', ['-C', dir, 'check-ignore', '-q', 'tools/squad/tasks/TEMPLATE.md'], { encoding: 'utf8' });
+    expect(template.status).toBe(1);
+  });
+
+  it('does not print the key line when a key is in the environment', { timeout: 30_000 }, () => {
+    const home = mkdtempSync(join(tmpdir(), 'squad-haskey-home-'));
+    const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
+    const env = cleanEnv({ FLOW_TOWER_HOME: home, OPENROUTER_API_KEY: 'sk-or-test-not-real' });
+    const r = spawnSync(process.execPath, [CLI, 'squad', 'init', dir], { encoding: 'utf8', timeout: 20_000, env });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('key: found (environment)');
+    expect(r.stdout).not.toContain('put the key');
   });
 });
 

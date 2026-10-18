@@ -23,9 +23,11 @@ const RUNNER = join(pkgRoot, 'tools', 'squad');
 const KIT = join(RUNNER, 'kit');
 const CLI = join(pkgRoot, 'bin', 'flow-tower.js');
 
-/** The lines a squad adds to .gitignore: its run logs, the output of each task, and the checkout's path (.cli). */
+/** The lines a squad adds to .gitignore: its run logs, the task folders, and the checkout's path (.cli). */
+// The task folders (tools/squad/tasks/<n>/) hold per-issue step files that are not committed; ignoring them keeps
+// steps.sh from reporting "UNTRACKED LEFT" on every step (#265). TEMPLATE.md is the one file meant to be tracked.
 // .cli holds this checkout's absolute path, which is machine-local: it must not be committed with squad.json.
-const IGNORE_LINES = ['tools/squad/*.log', 'tools/squad/tasks/*.out', 'tools/squad/.cli'];
+const IGNORE_LINES = ['tools/squad/*.log', 'tools/squad/tasks/*', '!tools/squad/tasks/TEMPLATE.md', 'tools/squad/.cli'];
 
 /** Whether a path is an existing folder (false for a missing path or a file). */
 const isDir = (path: string) => existsSync(path) && statSync(path).isDirectory();
@@ -279,9 +281,10 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
   console.log(`write: ${cfg.write.join(', ')}   review: ${cfg.review.join(', ')}`);
   for (const note of notes) console.log(`note: ${note}`);
   console.log(keyLine);
+  // The key line is only useful while the key is missing: with a key found, "put the key" would be noise.
+  const keyStep = source ? '' : `  put the key:     ${cli} squad key\n`;
   console.log(`next steps:
-  put the key:     ${cli} squad key
-  open the tower:  ${cli} ${shellPath(towerPath)}
+${keyStep}  open the tower:  ${cli} ${shellPath(towerPath)}
   install skill:   ${cli} install-skill
   first step:      bash tools/squad/steps.sh <issue> tools/squad/tasks/<issue> "" "<title>"
                    (empty write dirs take the config's)`);
