@@ -124,13 +124,15 @@ layers:
         type: process
         label: Rules AUD01-AUD11
         description: >-
-          `flow-tower audit`: loops without limits, orchestrators without a cap, irreversible actions without a
-          gate, decisions without a fallback, outputs without evals, overloaded agents, dead ends, deep nesting,
-          unpinned models, no system budget, code without a sandbox. Each rule is a section of best-practices.md.
+          `flow-tower audit`: loops, wide fan-outs, ungated irreversible actions, decisions without a fallback,
+          outputs without evals, overloaded agents, dead ends, deep nesting, unpinned models, no system budget,
+          code without an isolating sandbox. Rules read facts the tower states (`effect`, `model_varies`, `status`,
+          edge conditions), never names; a sub-tower inherits the budget and gate of the towers above.
         runtime: laptop
         resources:
           - { kind: doc, label: "Best practices", url: "https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/docs/best-practices.md" }
           - { kind: script, label: "src/core/audit.ts", url: "https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/src/core/audit.ts" }
+          - { kind: script, label: "src/core/audit-context.ts", url: "https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/src/core/audit-context.ts" }
       - id: review
         agent: reviewer
         label: Pattern review
@@ -140,7 +142,7 @@ layers:
       - id: grounded
         type: guard
         label: Grounded?
-        description: "Drops any finding whose quoted YAML is not at the node it names: a script, not a model."
+        description: "Drops any finding whose quoted YAML is not at the node it names (its own lines, flow-style or not, and the agent it uses): a script, not a model."
         runtime: laptop
         files: [scripts/check-quotes.mjs]
       - id: findings
@@ -161,11 +163,14 @@ layers:
         type: process
         label: Role classes
         description: >-
-          From facts in the tower (node type, model id, tools, spawn edges, then words in id and label): coding,
-          review, orchestrator, router, research, writing, data, voice, vision, image, video, embeddings, guard.
-          Each class lists what it needs and the OpenRouter categories to look in.
+          From facts in the tower, first match wins: node type, model id, role words in id and label (a copywriter
+          with Write is a writer, a lead scorer a router), spawn edges, tools (Edit or Bash code; Write alone does
+          not), description words. Each class (coding, review, writing, router, data...) lists what it needs and
+          the OpenRouter categories to look in.
         runtime: laptop
         files: [categories.md]
+        resources:
+          - { kind: script, label: "src/core/roles.ts", url: "https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/src/core/roles.ts" }
       - id: shortlist
         type: process
         label: Shortlist
