@@ -73,13 +73,13 @@ layers:
         type: process
         label: Share actions
         runtime: laptop
-        description: "shareFolder, unshareFolder and listShares (#266): collect the folder, upload it, record the share in config.json only after the hub accepted it, and add the folder to the library. Unshare drops the entry when the hub agrees or holds nothing (404); an unreachable hub keeps it unless forced. Config writes run one at a time per user folder. No printing, no exit: the CLI and the route share them."
+        description: "shareFolder, unshareFolder and listShares (#266): collect and upload a folder, record the share in config.json only after the hub accepted it, add it to the library. Unshare drops the entry when the hub agrees or holds nothing (404); an unreachable hub keeps it unless forced. A folder already shared keeps its name; a name another folder holds is refused. Shared by the CLI and the route."
         files: [src/server/share-actions.ts, src/server/share-entries.ts]
       - id: share-cli
         type: tool
         label: share CLI
         runtime: laptop
-        description: "flow-tower share <dir> [--files], share --list, unshare <name|dir> [--force] (#164): prints every file that leaves the machine and any it skipped, then calls the share actions."
+        description: "flow-tower share <dir> [--files], share --list, unshare <name|dir> [--force] (#164): lists the files that leave the machine (the first 30, then a count) and any it skipped, then calls the share actions."
         files: [src/cli/share.ts]
       - id: share-ui
         type: entry
@@ -334,7 +334,7 @@ links:
   - { from: senders.relay, to: guard.hub-guard, kind: call, label: /api/events, protocol: http }
   - { from: senders.relay, to: guard.hub-guard, kind: call, label: /api/heartbeat, protocol: http }
   - { from: senders.share-sync, to: guard.hub-guard, kind: call, label: PUT /api/hub/towers, protocol: http }
-  - { from: senders.share-actions, to: guard.hub-guard, kind: call, label: "PUT, DELETE /api/hub/towers", protocol: http }
+  - { from: senders.share-actions, to: guard.hub-guard, kind: call, label: "GET, PUT, DELETE /api/hub/towers", protocol: http }
   - "guard.authorize -> ingest.shared-towers: sender token"
   - "guard.authorize -> ingest.events: authorized"
   - "guard.authorize -> ingest.otlp-route: authorized"
