@@ -63,12 +63,13 @@ export function DbView({ db }: { db: DbPreview }) {
   const showRows = !!table.rows || db.source === 'sql';
   // A .sql file has no rows, so its columns read better as one line each than as an empty grid.
   const schemaOnly = db.source === 'sql';
+  // Rows and columns are keyed by index: a .sql migration can repeat a table or column name, and duplicate keys collide.
 
   return (
     <div className="db-view">
       <nav className="db-tables" aria-label="Tables">
         {db.tables.map((t, i) => (
-          <button key={`${t.kind}:${t.name}`} type="button" className={i === index ? 'on' : ''} aria-pressed={i === index} onClick={() => setSelected(i)}>
+          <button key={i} type="button" className={i === index ? 'on' : ''} aria-pressed={i === index} onClick={() => setSelected(i)}>
             <span className="db-name">{t.name}</span>
             <span className="db-meta">{metaLabel(t)}</span>
           </button>
@@ -87,8 +88,8 @@ export function DbView({ db }: { db: DbPreview }) {
               </tr>
             </thead>
             <tbody>
-              {table.columns.map((c) => (
-                <tr key={c.name}>
+              {table.columns.map((c, i) => (
+                <tr key={i}>
                   <td>{c.name}</td>
                   <td className="dim">{c.type}</td>
                   <td>{c.pk ? 'PK' : ''}</td>

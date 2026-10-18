@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -201,7 +201,60 @@ describe('SQLite files are previewed, not refused (#264)', () => {
     const r = await readTowerFile(root, 'dup.db');
     const v = r.status === 200 ? table(r.body.db!.tables, 'j') : undefined;
     expect(v?.columns).toHaveLength(2);
-    expect(v?.rows).toEqual([[1, 1]]);
+    // A view gets its columns only (it is never run), so no rows are read for it any more.
+    expect(v?.rows).toBeUndefined();
+  });
+
+  it('shows a generated column under its own name, with its own cells', async () => {
+    const { root } = makeDb('gen.db', (db) => {
+      db.exec('CREATE TABLE t (a INT, b INT GENERATED ALWAYS AS (a*10) VIRTUAL, c TEXT)');
+      db.exec("INSERT INTO t (a, c) VALUES (3, 'x')");
+    });
+    const r = await readTowerFile(root, 'gen.db');
+    const t = r.status === 200 ? table(r.body.db!.tables, 't') : undefined;
+    expect(t?.columns.map((c) => c.name)).toEqual(['a', 'b', 'c']);
+    expect(t?.rows).toEqual([[3, 30, 'x']]);
+  });
+
+  it('gives a recursive view its columns at once, with no rows and no count', async () => {
+    const { root } = makeDb('loop.db', (db) => {
+      db.exec('CREATE VIEW forever AS WITH RECURSIVE c(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM c) SELECT n FROM c');
+    });
+    const started = Date.now();
+    const r = await readTowerFile(root, 'loop.db');
+    expect(Date.now() - started).toBeLessThan(5000);
+    const v = r.status === 200 ? table(r.body.db!.tables, 'forever') : undefined;
+    expect(v?.columns.map((c) => c.name)).toEqual(['n']);
+    expect(v).not.toHaveProperty('rows');
+    expect(v).not.toHaveProperty('rowCount');
+  });
+
+  it('leaves no -wal or -shm beside a WAL database that had none', async () => {
+    const { root, path } = makeDb('side.db', (db) => {
+      db.exec('PRAGMA journal_mode = WAL');
+      db.exec('CREATE TABLE t (x)');
+      db.exec('INSERT INTO t VALUES (1)');
+    });
+    // The writer closed cleanly, so its side files are gone; the preview must not bring them back.
+    expect(existsSync(`${path}-wal`)).toBe(false);
+    const r = await readTowerFile(root, 'side.db');
+    expect(r.status).toBe(200);
+    expect(existsSync(`${path}-wal`)).toBe(false);
+    expect(existsSync(`${path}-shm`)).toBe(false);
+  });
+
+  it('cuts a 10,000-character text cell and shows a blob as its size', () => {
+    const { path } = makeDb('cells.db', (db) => {
+      db.exec('CREATE TABLE big (s TEXT, b BLOB)');
+      db.prepare('INSERT INTO big VALUES (?, ?)').run('y'.repeat(10_000), new Uint8Array(2_048));
+    });
+    const db = new DatabaseSync(path, { readOnly: true });
+    try {
+      const t = tableOf(db, { type: 'table', name: 'big', sql: null }, 100, { cells: 20_000 });
+      expect(t.rows).toEqual([['y'.repeat(500) + '…', '<blob 2048 bytes>']]);
+    } finally {
+      db.close();
+    }
   });
 
   it('answers an error for a corrupt file without the absolute path', async () => {

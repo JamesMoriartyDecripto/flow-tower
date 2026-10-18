@@ -4,8 +4,10 @@
  * node:sqlite is imported dynamically (importSqlite, shared with history/db.ts), so a Node without it gets a
  * clear error here instead of failing at load.
  */
+import { existsSync, unlinkSync } from 'node:fs';
 import { open } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { basename, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import type { DbCell, DbColumn, DbPreview, DbTable } from '../core/dbPreview.ts';
 import { importSqlite } from './history/db.ts';
@@ -21,6 +23,11 @@ const MAX_COLUMNS = 100;
 const COUNT_CAP = 100_000;
 /** Cells read across the whole database: once spent, the remaining tables keep columns and counts only. */
 const CELL_BUDGET = 20_000;
+/*
+ * Text characters read across the whole database. The cell budget alone does not bound the payload: 20,000
+ * cells of 500 characters each still come to 10 MB of text. Once this is spent, the rest keep columns and counts.
+ */
+const TEXT_BUDGET = 2_000_000;
 /** The schema text is cut at this length so one huge schema cannot make the payload huge. */
 const SCHEMA_MAX_CHARS = 500_000;
 const NEEDS_NODE = 'SQLite preview needs Node >= 22.13';
@@ -50,9 +57,52 @@ function cellOf(v: unknown): DbCell {
   // A bigint beyond 2^53 cannot survive JSON as a number, so it travels as its exact decimal text.
   // Small integers come back to plain numbers, as the viewer expects.
   if (typeof v === 'bigint') return Number.isSafeInteger(Number(v)) ? Number(v) : v.toString();
-  if (v instanceof Uint8Array) return `<blob ${v.byteLength} bytes>`;
   const s = String(v);
   return s.length > MAX_TEXT ? `${s.slice(0, MAX_TEXT)}…` : s;
+}
+
+/**
+ * One cell from its SELECT value and its typeof(). A blob is selected as its byte length, so its bytes are
+ * never loaded into the process; the size is shown as it always was.
+ */
+function cellAt(v: unknown, type: unknown): DbCell {
+  if (type === 'blob') return `<blob ${Number(v)} bytes>`;
+  return cellOf(v);
+}
+
+/**
+ * Opens one database read-only, and reports the side files this open created (only ever set on the path
+ * fallback). With no -wal beside the file, SQLite is asked to open it immutable as a URI: a read-only open
+ * of a WAL database otherwise creates -wal and -shm next to the user's file. A live -wal keeps the plain
+ * open, so its content is read. A Node whose DatabaseSync cannot take a URI falls back to the path.
+ */
+function openReadOnly(sqlite: typeof import('node:sqlite'), abs: string): { db: DatabaseSync; created: string[] } {
+  if (existsSync(`${abs}-wal`)) return { db: new sqlite.DatabaseSync(abs, { readOnly: true }), created: [] };
+  try {
+    // A URI that this Node does not read names no file, so the open fails here and the path is tried.
+    const uri = `${pathToFileURL(abs).href}?mode=ro&immutable=1`;
+    return { db: new sqlite.DatabaseSync(uri, { readOnly: true }), created: [] };
+  } catch {
+    // Only the side files that are absent now are ours to remove afterwards.
+    const created = [`${abs}-wal`, `${abs}-shm`].filter((p) => !existsSync(p));
+    try {
+      return { db: new sqlite.DatabaseSync(abs, { readOnly: true }), created };
+    } catch (e) {
+      removeFiles(created);
+      throw e;
+    }
+  }
+}
+
+/** Removes files this preview created; a file already gone is not an error. Synchronous, so it can run in a catch. */
+function removeFiles(files: string[]): void {
+  for (const f of files) {
+    try {
+      unlinkSync(f);
+    } catch {
+      // Already gone: nothing to undo.
+    }
+  }
 }
 
 export type SchemaRow = { type: string; name: string; sql: string | null };
@@ -65,12 +115,15 @@ export async function readSqlitePreview(abs: string, maxRows = 100): Promise<{ c
   const sqlite = await importSqlite();
   if (!sqlite) return { error: NEEDS_NODE };
   let db: DatabaseSync | undefined;
+  let created: string[] = [];
   try {
-    db = new sqlite.DatabaseSync(abs, { readOnly: true });
+    const opened = openReadOnly(sqlite, resolve(abs));
+    db = opened.db;
+    created = opened.created;
     const schema = db
       .prepare("SELECT type, name, sql FROM sqlite_schema WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY rowid")
       .all() as SchemaRow[];
-    const budget = { cells: CELL_BUDGET };
+    const budget = { cells: CELL_BUDGET, text: TEXT_BUDGET };
     const tables = schema.slice(0, MAX_TABLES).map((r) => tableOf(db!, r, maxRows, budget));
     // Every statement of the schema, indexes and triggers included, so the text is the whole picture.
     const statements = db.prepare('SELECT sql FROM sqlite_schema WHERE sql IS NOT NULL ORDER BY rowid').all() as { sql: string }[];
@@ -82,6 +135,7 @@ export async function readSqlitePreview(abs: string, maxRows = 100): Promise<{ c
     return { error: message.split(abs).join(basename(abs)) };
   } finally {
     db?.close();
+    removeFiles(created);
   }
 }
 
@@ -110,14 +164,30 @@ function schemaText(sqls: string[], moreTables: boolean): string {
  * joins two tables on `id`) and shift every cell after them, so arrays are used wherever Node offers them.
  * Returns undefined when object rows cannot be trusted; the caller then shows no rows for that table.
  */
-function readRows(select: StatementSync, limit: number, fullWidth: number): unknown[][] | undefined {
+function readRows(select: StatementSync, limit: number, width: number, budget: { text?: number }): DbCell[][] | undefined {
   const arrays = select as unknown as { setReturnArrays?: (on: boolean) => void };
+  let raw: unknown[][];
   if (typeof arrays.setReturnArrays === 'function') {
     arrays.setReturnArrays(true);
-    return select.all(limit) as unknown as unknown[][];
+    raw = select.all(limit) as unknown as unknown[][];
+  } else {
+    raw = (select.all(limit) as Record<string, unknown>[]).map((r) => Object.values(r));
+    if (!raw.every((r) => r.length === width * 2)) return undefined;
   }
-  const rows = (select.all(limit) as Record<string, unknown>[]).map((r) => Object.values(r));
-  return rows.every((r) => r.length === fullWidth) ? rows : undefined;
+  // Each kept column is two values, the value then its typeof(), so the row is read back in pairs.
+  const rows: DbCell[][] = [];
+  for (const r of raw) {
+    const row: DbCell[] = [];
+    for (let i = 0; i < width; i++) {
+      const cell = cellAt(r[2 * i], r[2 * i + 1]);
+      row.push(cell);
+      if (typeof cell === 'string') budget.text = (budget.text ?? 0) - cell.length;
+    }
+    rows.push(row);
+    // Once the text budget is spent the table keeps the rows it has; the next table keeps counts only.
+    if ((budget.text ?? 0) <= 0) break;
+  }
+  return rows;
 }
 
 /**
@@ -125,13 +195,16 @@ function readRows(select: StatementSync, limit: number, fullWidth: number): unkn
  * (a virtual table whose module is missing, say) keeps no columns and no rows: one bad table must not hide
  * the rest of the file. `budget` is shared across tables and counts the cells still allowed to be read.
  */
-export function tableOf(db: DatabaseSync, row: SchemaRow, maxRows: number, budget: { cells: number }): DbTable {
+export function tableOf(db: DatabaseSync, row: SchemaRow, maxRows: number, budget: { cells: number; text?: number }): DbTable {
   const kind = row.type === 'view' ? 'view' : 'table';
   const q = quote(row.name);
-  let info: { name: string; type: string; pk: number; nn: number }[];
+  let info: { name: string; type: string; pk: number; nn: number; hidden: number }[];
   let fks: { tbl: string; from_col: string; to_col: string | null }[];
   try {
-    info = db.prepare('SELECT name, type, pk, "notnull" AS nn FROM pragma_table_info(?) ORDER BY cid').all(row.name) as typeof info;
+    // pragma_table_xinfo, not table_info: table_info omits generated columns, which SELECT * still returns,
+    // so the cells would shift under the wrong names. hidden 1 is a virtual table's hidden column, never shown.
+    const all = db.prepare('SELECT name, type, pk, "notnull" AS nn, hidden FROM pragma_table_xinfo(?) ORDER BY cid').all(row.name) as typeof info;
+    info = all.filter((c) => c.hidden !== 1);
     fks = db.prepare('SELECT "table" AS tbl, "from" AS from_col, "to" AS to_col FROM pragma_foreign_key_list(?)').all(row.name) as typeof fks;
   } catch {
     return { name: row.name, kind, columns: [] };
@@ -145,6 +218,10 @@ export function tableOf(db: DatabaseSync, row: SchemaRow, maxRows: number, budge
   });
   const table: DbTable = { name: row.name, kind, columns };
   if (info.length > MAX_COLUMNS) table.columnsCut = info.length - MAX_COLUMNS;
+  // A view runs its SELECT on every count or read, and a recursive view never ends, which would hang the
+  // synchronous server. So a view gets its columns only: no count and no rows.
+  if (kind === 'view') return table;
+  budget.text ??= TEXT_BUDGET;
   try {
     // Counting stops one past the cap: reaching it is the signal that the real count is larger.
     const counted = Number((db.prepare(`SELECT count(*) AS n FROM (SELECT 1 FROM ${q} LIMIT ${COUNT_CAP + 1})`).get() as { n: number | bigint }).n);
@@ -153,14 +230,21 @@ export function tableOf(db: DatabaseSync, row: SchemaRow, maxRows: number, budge
     // Never read more rows than the remaining cell budget pays for; the cells are the kept columns only.
     const width = Math.max(1, columns.length);
     const limit = Math.min(maxRows, Math.floor(budget.cells / width));
-    if (limit <= 0 || columns.length === 0) return table;
+    if (limit <= 0 || columns.length === 0 || budget.text <= 0) return table;
+    const kept = info.slice(0, MAX_COLUMNS);
+    // Only the kept columns, by name: SELECT * would also return the generated columns that the list omits.
+    // Each column comes as its value (a blob as its length, a long text cut) and its typeof, two values apiece.
+    const picks = kept.map((c, i) => {
+      const x = quote(c.name);
+      return `CASE typeof(${x}) WHEN 'blob' THEN length(${x}) WHEN 'text' THEN substr(${x}, 1, ${MAX_TEXT + 1}) ELSE ${x} END AS v${i}, typeof(${x}) AS t${i}`;
+    });
     // readBigInts: an INTEGER beyond 2^53 would otherwise throw and cost the whole table its rows.
-    const select = db.prepare(`SELECT * FROM ${q} LIMIT ?`);
+    const select = db.prepare(`SELECT ${picks.join(', ')} FROM ${q} LIMIT ?`);
     select.setReadBigInts(true);
-    const rows = readRows(select, limit, info.length);
+    const rows = readRows(select, limit, kept.length, budget);
     if (!rows) return table;
-    table.rows = rows.map((r) => r.slice(0, columns.length).map(cellOf));
-    budget.cells -= table.rows.length * columns.length;
+    table.rows = rows;
+    budget.cells -= rows.length * columns.length;
   } catch {
     // No rows for this one table; its columns above are still shown.
   }

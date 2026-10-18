@@ -44,6 +44,13 @@ const REFERENCES = new RegExp(`\\breferences\\s+(${NAME.source})\\s*(?:\\(([^)]*
 const FOREIGN_KEY = new RegExp(`^foreign\\s+key\\s*\\(([^)]*)\\)\\s*references\\s+(${NAME.source})\\s*(?:\\(([^)]*)\\))?`, 'i');
 const PRIMARY_KEY = /^primary\s+key\s*\(([^)]*)\)/i;
 
+/*
+ * A table constraint may open with a name: `CONSTRAINT a_pkey PRIMARY KEY (id)`. The name is dropped before the
+ * constraint patterns run, since they are anchored at the keyword; the name itself can be quoted in any of the
+ * three styles the identifier pattern accepts.
+ */
+const CONSTRAINT_NAME = /^constraint\s+(?:"[^"]*"|`[^`]*`|\[[^\]]*\]|[^\s"`\[(),;]+)\s*/i;
+
 /** Removes the quotes around one identifier part: "x", `x` and [x] all become x. */
 const unquote = (s: string) => s.trim().replace(/^["`\[]|["`\]]$/g, '');
 
@@ -161,7 +168,8 @@ function tableOf(name: string, body: string): DbTable {
     }
   }
   const byName = (n: string) => columns.find((c) => c.name === n);
-  for (const item of constraints) {
+  for (const raw of constraints) {
+    const item = raw.replace(CONSTRAINT_NAME, '');
     const pk = PRIMARY_KEY.exec(item);
     if (pk) {
       for (const n of pk[1].split(',')) {

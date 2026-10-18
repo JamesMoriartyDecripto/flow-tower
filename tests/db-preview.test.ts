@@ -121,6 +121,16 @@ describe('parseSqlSchema keeps columns named like constraint keywords', () => {
   });
 });
 
+describe('parseSqlSchema reads named table constraints', () => {
+  it('sets pk and references from CONSTRAINT name PRIMARY KEY and CONSTRAINT name FOREIGN KEY', () => {
+    const [t] = parseSqlSchema(
+      'create table m (id int, b int, CONSTRAINT a_pkey PRIMARY KEY (id), CONSTRAINT "fk" FOREIGN KEY (b) REFERENCES c(id))',
+    );
+    expect(t.columns.find((c) => c.name === 'id')).toMatchObject({ pk: true, notNull: true });
+    expect(t.columns.find((c) => c.name === 'b')).toMatchObject({ references: 'c.id' });
+  });
+});
+
 describe('parseSqlSchema bounds its work', () => {
   it('parses a 1 MB schema of 2,000 tables in under 2 seconds and keeps 1,000 of them', () => {
     const parts: string[] = [];
