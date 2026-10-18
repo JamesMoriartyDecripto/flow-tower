@@ -30,6 +30,8 @@ node bin/flow-tower.js examples/chief-of-staff/chief-of-staff.tower.yaml
 The two sides meet at a few points. Cards reach the inbox and the phone over `http`. Her
 answer goes back as `/resume` (`handoff`) and as a feedback event that feeds reflection.
 
+`memory/ambient.sqlite3` is a sample of the worker's database, built with the tables of `ambient/state.py`: ten fictitious cards (open, approved, edited, rejected) and the dedupe keys. Open the `ambient.sqlite3` node's file to see it as tables.
+
 ## Layers
 
 | # | Layer | What it shows |

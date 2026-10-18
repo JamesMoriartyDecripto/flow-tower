@@ -59,6 +59,10 @@ Usage
                                                         check must pass or no file is written. --html alone needs no
                                                         browser (a PDF needs: npx playwright install chromium).
                                                         --list prints the types and their required sections
+  flow-tower squad init <dir> [--check "<command>"] [--force]
+                                                        set the dev squad up in a git repo: the runner in tools/squad/,
+                                                        squad.json (detected check command), the task template and the tower
+  flow-tower squad key [status]                         store the squad's OpenRouter key in the user folder; status says whether one is set
   flow-tower guide                                      print the procedure to generate a tower from a codebase
   flow-tower install-skill [--target <t>] [--project]   install the skills for your coding agent
                                                         <t>: claude (default), codex, pi, hermes, cursor, agents
@@ -182,6 +186,8 @@ const { values, positionals } = parseArgs({
     force: { type: 'boolean', default: false },
     project: { type: 'boolean', default: false },
     target: { type: 'string', default: 'claude' },
+    // squad init (src/cli/squad.ts): --check takes the check command; it is re-appended in commands.js with its value.
+    check: { type: 'string' },
     // hooks (src/cli/hooks.ts): --dry-run writes nothing; --target, --project and --port are re-appended in commands.js.
     'dry-run': { type: 'boolean', default: false },
   },
@@ -256,7 +262,7 @@ or have them run "node ${join(pkgRoot, 'bin', 'flow-tower.js')} guide" and follo
   writeFileSync(join(target, 'procedure.md'), procedure().replaceAll(`](${join(pkgRoot, 'skills', 'flow-tower', 'reference.md')})`, '](reference.md)'));
 
   // Install the other skills next to flow-tower: their `../flow-tower/...` links then resolve as is.
-  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library', 'flow-tower-command-center', 'flow-tower-satellite', 'flow-tower-report', 'flow-tower-optimize'].map((name) => join(base, ...skills, name));
+  const others = ['flow-tower-costs', 'flow-tower-use-example', 'flow-tower-contribute', 'flow-tower-my-library', 'flow-tower-command-center', 'flow-tower-satellite', 'flow-tower-report', 'flow-tower-optimize', 'flow-tower-squad'].map((name) => join(base, ...skills, name));
   for (const dir of others) {
     cpSync(join(pkgRoot, 'skills', basename(dir)), dir, { recursive: true });
     for (const f of readdirSync(dir).filter((f) => f.endsWith('.md'))) {
