@@ -145,6 +145,51 @@ describe('squad init (#265)', () => {
     expect(md).toContain(`node ${CLI} squad init`);
     rmSync(fakeHome, { recursive: true, force: true });
   });
+
+  it('keeps the checkout path out of squad.json: it goes to the git-ignored .cli', { timeout: 30_000 }, () => {
+    const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
+    expect(run('squad', 'init', dir).status).toBe(0);
+
+    const squad = join(dir, 'tools', 'squad');
+    const config = JSON.parse(readFileSync(join(squad, 'squad.json'), 'utf8'));
+    expect(config).not.toHaveProperty('cli');
+    expect(readFileSync(join(squad, '.cli'), 'utf8').trim()).toBe(resolve('bin/flow-tower.js'));
+
+    const ignore = readFileSync(join(dir, '.gitignore'), 'utf8').split('\n');
+    expect(ignore).toContain('tools/squad/.cli');
+  });
+
+  it('bases the squad on main, not on the feature branch it was set up from', () => {
+    // A feature branch as the base would make every diff empty: main (a local branch, no origin) must win.
+    const dir = mkdtempSync(join(tmpdir(), 'squad-main-'));
+    const git = (...args: string[]) => spawnSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' });
+    expect(spawnSync('git', ['init', '-q', '-b', 'main', dir], { encoding: 'utf8' }).status).toBe(0);
+    expect(git('commit', '-q', '--allow-empty', '-m', 'init').status).toBe(0);
+    expect(git('checkout', '-q', '-b', 'feat/x').status).toBe(0);
+    const { config } = detectConfig(dir, 'make ci') as { config: { base: string } };
+    expect(config.base).toBe('main');
+  });
+
+  it('refuses a tools/squad/ that a project owns, and writes nothing into it', { timeout: 30_000 }, () => {
+    const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'tools/squad/deploy.sh': 'echo mine\n' });
+    const r = run('squad', 'init', dir);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('tools/squad/ already exists and is not a squad set up by flow-tower');
+    expect(readFileSync(join(dir, 'tools', 'squad', 'deploy.sh'), 'utf8')).toBe('echo mine\n');
+    expect(existsSync(join(dir, 'tools', 'squad', 'run.mjs'))).toBe(false);
+  });
+
+  it('reports a missing key after init, without printing a value', { timeout: 30_000 }, () => {
+    const home = mkdtempSync(join(tmpdir(), 'squad-nokey-home-'));
+    const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
+    // No key in the environment and an empty user folder: init must say the key is missing, and how to set it.
+    const env = cleanEnv({ FLOW_TOWER_HOME: home });
+    delete env.OPENROUTER_API_KEY;
+    const r = spawnSync(process.execPath, [CLI, 'squad', 'init', dir], { encoding: 'utf8', timeout: 20_000, env });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('key: missing: run "');
+    expect(r.stdout).toContain('squad key"');
+  });
 });
 
 /** Lists a folder, or nothing when it is missing, so a test can assert on file names. */

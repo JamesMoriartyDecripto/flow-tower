@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -71,5 +71,26 @@ describe('squad key (#265)', () => {
     expect(fromEnv.status).toBe(0);
     expect(fromEnv.stdout).toContain('from the environment');
     expect(fromEnv.stdout).not.toContain(FAKE_KEY);
+  });
+
+  it('does not write the key through a symlink planted at the temp path', { timeout: 30_000 }, () => {
+    if (process.platform === 'win32') return;
+    const home = newHome();
+    // A victim file outside the user folder, and a link at the fixed temp name pointing at it.
+    const victim = join(mkdtempSync(join(tmpdir(), 'squad-key-victim-')), 'victim.txt');
+    writeFileSync(victim, 'untouched\n');
+    symlinkSync(victim, join(home, `${DOT}.tmp`));
+    const r = runKey(home, [], `${FAKE_KEY}\n`);
+    expect(r.status).toBe(1);
+    expect(readFileSync(victim, 'utf8')).toBe('untouched\n');
+    expect(r.stdout + r.stderr).not.toContain(FAKE_KEY);
+  });
+
+  it('tightens an existing user folder to 0700', { timeout: 30_000 }, () => {
+    if (process.platform === 'win32') return;
+    const home = newHome();
+    chmodSync(home, 0o755);
+    expect(runKey(home, [], `${FAKE_KEY}\n`).status).toBe(0);
+    expect(statSync(home).mode & 0o777).toBe(0o700);
   });
 });

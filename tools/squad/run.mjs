@@ -71,6 +71,10 @@ for (const f of [USER_ENV, join(REPO, DOT), join(MAIN, DOT)]) {
 if (!env.OPENROUTER_API_KEY) { console.error(`no key: run "flow-tower squad key" (it stores the key in ${USER_ENV}), or export OPENROUTER_API_KEY`); exit(1); }
 
 const log = join(HERE, `${role}-${Date.now()}.log`);
+// squad.json no longer names the checkout (machine-local, #265): init writes its path to .cli, git-ignored beside this script.
+// A squad.json that still has "cli" keeps working, and wins.
+const CLI_FILE = join(HERE, '.cli');
+const cliPath = config.cli || (existsSync(CLI_FILE) ? readFileSync(CLI_FILE, 'utf8').trim() : '');
 const note = (s) => appendFileSync(log, `${s}\n`);
 // Run through sh so the helper needs no executable bit, and drop undefined arguments (a missing --node).
 // The helper finds the tower from its environment (ev.sh): the project's cli, tower and source go in unless the user
@@ -78,7 +82,7 @@ const note = (s) => appendFileSync(log, `${s}\n`);
 const { OPENROUTER_API_KEY: _key, ...evEnv } = env;
 const evChildEnv = {
   ...evEnv,
-  ...(config.cli && !env.FLOW_TOWER_CLI && { FLOW_TOWER_CLI: resolve(REPO, config.cli) }),
+  ...(cliPath && !env.FLOW_TOWER_CLI && { FLOW_TOWER_CLI: resolve(REPO, cliPath) }),
   ...(!env.SQUAD_TOWER && { SQUAD_TOWER: config.tower }),
   ...(!env.SQUAD_SOURCE && { SQUAD_SOURCE: config.source }),
 };
@@ -129,7 +133,7 @@ const RUNS = {
   // The dirs a task may touch (--write) are the ones worth reviewing: a reviewer of tools/ would see nothing otherwise.
   diff: () => cap(git('diff', config.base, '--', ...dirs)),
   status: () => git('status', '--short'),
-  ...(config.extras.includes('validate') && { validate: (f) => sh('node', [config.cli, 'validate', f ? readRel(f).rel : 'examples', '--json']) }),
+  ...(config.extras.includes('validate') && { validate: (f) => sh('node', [resolve(REPO, cliPath), 'validate', f ? readRel(f).rel : 'examples', '--json']) }),
   // An example script in dry-run mode (the coder could not verify scripts/*.mjs otherwise, #75). The key is
   // removed from the child environment, so nothing paid can run whatever the script does.
   ...(config.extras.includes('dryrun') && { dryrun: (f) => {

@@ -6,154 +6,36 @@
  * TypeScript, run with Node's type stripping like copy and validate (see bin/commands.js).
  */
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { appendFileSync, chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { exit, stdin, stderr } from 'node:process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { cliName, shellPath } from '../../bin/cli-name.js';
 import { userHome } from '../core/secrets.ts';
+import { detectConfig } from './squad-detect.ts';
+
+// Re-exported for the tests, which import detectConfig from here.
+export { detectConfig };
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-// config.mjs ships no .d.mts, so a static import fails the typecheck. A dynamic import with its shape
-// written here keeps the model names in one place: the runner's DEFAULTS, never a copy.
-const configUrl = pathToFileURL(join(pkgRoot, 'tools', 'squad', 'config.mjs')).href;
-const { DEFAULTS } = (await import(configUrl)) as { DEFAULTS: { models: Record<string, string> } };
 const RUNNER = join(pkgRoot, 'tools', 'squad');
 const KIT = join(RUNNER, 'kit');
 const CLI = join(pkgRoot, 'bin', 'flow-tower.js');
 
-/** Source folders a squad may write to, in the order the config lists them. */
-// scripts and bin hold the code of many Node and Python projects; tools is left out on purpose: it is the runner's folder.
-const SRC_DIRS = ['src', 'lib', 'app', 'pkg', 'cmd', 'scripts', 'bin', 'internal', 'tests', 'test', '__tests__', 'spec'];
-/** The subset that holds tests: the review reads the code, not the tests. */
-const TEST_DIRS = ['tests', 'test', '__tests__', 'spec'];
-/** What `npm init` writes into scripts.test: a placeholder, not a test suite. */
-const NPM_PLACEHOLDER = 'no test specified';
-/** The lines a squad adds to .gitignore: its run logs and the output of each task. */
-const IGNORE_LINES = ['tools/squad/*.log', 'tools/squad/tasks/*.out'];
+/** The lines a squad adds to .gitignore: its run logs, the output of each task, and the checkout's path (.cli). */
+// .cli holds this checkout's absolute path, which is machine-local: it must not be committed with squad.json.
+const IGNORE_LINES = ['tools/squad/*.log', 'tools/squad/tasks/*.out', 'tools/squad/.cli'];
 
-interface Found {
-  label: string;
-  commands: Record<string, string>;
-  notes: string[];
-}
-
-type Json = Record<string, unknown>;
-
-/** A parsed JSON file, or undefined when it is missing or not valid JSON. */
-function readJson(file: string): Json | undefined {
-  try {
-    const value = JSON.parse(readFileSync(file, 'utf8'));
-    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Json) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
+/** Whether a path is an existing folder (false for a missing path or a file). */
 const isDir = (path: string) => existsSync(path) && statSync(path).isDirectory();
 
-/** Node: package.json. A placeholder test script does not count, so the next detector gets its turn. */
-function detectNode(project: string, folder: string): Found | undefined {
-  const pkg = readJson(join(project, 'package.json'));
-  if (!pkg) return undefined;
-  const scripts = (pkg.scripts ?? {}) as Record<string, string>;
-  const realTest = typeof scripts.test === 'string' && !scripts.test.includes(NPM_PLACEHOLDER);
-  const check = scripts.check ? 'npm run check' : realTest ? 'npm test' : undefined;
-  if (!check) return undefined;
-  const deps = { ...(pkg.dependencies as Json), ...(pkg.devDependencies as Json) };
-  const runner = 'vitest' in deps ? 'vitest' : 'jest' in deps ? 'jest' : undefined;
-  const commands: Record<string, string> = { check };
-  if (scripts.typecheck) commands.typecheck = 'npm run typecheck';
-  if (scripts.lint) commands.lint = 'npm run lint';
-  if (runner === 'vitest') commands.test = 'npx vitest run {file}';
-  if (runner === 'jest') commands.test = 'npx jest {file}';
-  const name = typeof pkg.name === 'string' && pkg.name ? pkg.name : folder;
-  const ts = existsSync(join(project, 'tsconfig.json'));
-  const label = `${name} (Node${ts ? ', TypeScript' : ''}${runner ? `, ${runner}` : ''})`;
-  return { label, commands, notes: [] };
-}
-
-/** Python: any of the three files that mark a Python project. pytest is the common runner. */
-function detectPython(project: string, folder: string): Found | undefined {
-  if (!['pyproject.toml', 'setup.py', 'requirements.txt'].some((f) => existsSync(join(project, f)))) return undefined;
-  return { label: `${folder} (Python)`, commands: { check: 'python -m pytest', test: 'python -m pytest {file}' }, notes: [] };
-}
-
-function detectRust(project: string, folder: string): Found | undefined {
-  if (!existsSync(join(project, 'Cargo.toml'))) return undefined;
-  return { label: `${folder} (Rust)`, commands: { check: 'cargo test' }, notes: [] };
-}
-
-function detectGo(project: string, folder: string): Found | undefined {
-  if (!existsSync(join(project, 'go.mod'))) return undefined;
-  return { label: `${folder} (Go)`, commands: { check: 'go test ./...' }, notes: [] };
-}
-
-/** A Makefile with a test target: `make test` is the only check the project names. */
-function detectMake(project: string, folder: string): Found | undefined {
-  const file = join(project, 'Makefile');
-  if (!existsSync(file) || !/^test:/m.test(readFileSync(file, 'utf8'))) return undefined;
-  return { label: folder, commands: { check: 'make test' }, notes: [] };
-}
-
-const DETECTORS = [detectNode, detectPython, detectRust, detectGo, detectMake];
-
-/**
- * The branch the squad diffs against. The default branch of origin when there is one (origin/main); otherwise
- * the current branch, because a repo with no origin may only have `master` and `git diff main` would fail later.
- * `main` only when git cannot name either.
- */
-function baseBranch(project: string): string {
-  const symbolic = (ref: string) => {
-    const r = spawnSync('git', ['-C', project, 'symbolic-ref', '--short', ref], { encoding: 'utf8' });
-    return r.status === 0 ? r.stdout.trim() : '';
-  };
-  return symbolic('refs/remotes/origin/HEAD') || symbolic('HEAD') || 'main';
-}
-
-/**
- * The squad config for a project, from what its files say. `check` overrides the detected check command, so
- * `--check` always wins. No check at all leaves commands.check unset: the caller turns that into an error.
- */
-export function detectConfig(project: string, check?: string): { config: object; notes: string[] } {
-  const folder = basename(project);
-  const found = DETECTORS.map((detect) => detect(project, folder)).find((f) => f !== undefined);
-  const notes: string[] = [];
-  const commands: Record<string, string> = { ...found?.commands };
-  if (check) commands.check = check;
-
-  // Only the dirs that exist: a squad told to write to a missing dir would fail on its first step.
-  let write = SRC_DIRS.filter((d) => isDir(join(project, d)));
-  if (write.length === 0) {
-    write = ['src', 'tests'];
-    notes.push('no source folder found: edit tools/squad/squad.json to set "write" and "review" to your folders');
-  }
-  // Review reads the code; the test folders are for the coder only.
-  const review = write.filter((d) => !TEST_DIRS.includes(d));
-
-  const config = {
-    project: found?.label ?? folder,
-    commands,
-    write,
-    review: review.length ? review : write,
-    base: baseBranch(project),
-    tower: `${folder} squad`,
-    source: 'dev-squad',
-    cli: CLI,
-    models: { ...DEFAULTS.models },
-  };
-  return { config, notes };
-}
+/** Values go inside the tower's double quotes, so a stray quote or backslash would break its YAML. */
+// Stripping them is simpler than escaping, and no real tower name needs either character.
+const quoteSafe = (value: string) => value.replace(/["\\]/g, '');
 
 /** Runner files: every *.mjs, *.d.mts and *.sh, plus the README. Never logs, squad.json or kit/. */
 const isRunnerFile = (name: string) => /\.(mjs|d\.mts|sh)$/.test(name) || name === 'README.md';
-
-/**
- * Values go inside the tower's double quotes, so a stray quote or backslash would break its YAML.
- * Stripping them is simpler than escaping, and no real tower name needs either character.
- */
-const quoteSafe = (value: string) => value.replace(/["\\]/g, '');
 
 function fillTower(template: string, config: ReturnType<typeof detectConfig>['config']): string {
   const c = config as { tower: string; models: Record<string, string> };
@@ -228,6 +110,8 @@ function saveKey(key: string): string {
   const folder = userHome();
   const file = keyFile();
   mkdirSync(folder, { recursive: true, mode: 0o700 });
+  // An existing folder may be wider than this: tighten it so other users cannot list the key's folder (best effort).
+  try { chmodSync(folder, 0o700); } catch { /* best effort: Windows has no POSIX modes */ }
   const current = existsSync(file) ? readFileSync(file, 'utf8') : '';
   const lines = current === '' ? [] : current.replace(/\r?\n$/, '').split(/\r?\n/);
   const out: string[] = [];
@@ -239,25 +123,42 @@ function saveKey(key: string): string {
   }
   if (!placed) out.push(`${KEY_NAME}=${key}`);
   if (existsSync(file)) { try { chmodSync(file, 0o600); } catch { /* best effort: Windows has no POSIX modes */ } }
-  const tmp = join(folder, `${DOT}.${process.pid}.tmp`);
-  writeFileSync(tmp, `${out.join('\n')}\n`, { mode: 0o600 });
+  // The temp name is fixed, so another process could plant a link at it: the exclusive flag ('wx') then refuses
+  // to write through any existing entry. A stale temp from a crashed run is removed only when it is a plain file,
+  // so a planted link is never deleted or followed.
+  const tmp = join(folder, `${DOT}.tmp`);
+  let stale;
+  try { stale = lstatSync(tmp); } catch { stale = undefined; }
+  if (stale?.isFile()) rmSync(tmp);
+  writeFileSync(tmp, `${out.join('\n')}\n`, { flag: 'wx', mode: 0o600 });
   renameSync(tmp, file);
   return file;
 }
 
-/** Whether a key is set, and from where: the environment wins, as it does in run.mjs. Never prints the value. */
-function checkKey(): number {
-  if (process.env[KEY_NAME]?.trim()) {
-    console.log(`OpenRouter key is set: from the environment (${KEY_NAME}).`);
-    return 0;
-  }
+/**
+ * Where the key comes from, if anywhere: the environment wins, as it does in run.mjs. Returns 'environment',
+ * the key file's path, or undefined. The value itself is never returned, so it cannot be printed by mistake.
+ */
+function keySource(): string | undefined {
+  if (process.env[KEY_NAME]?.trim()) return 'environment';
   const file = keyFile();
   if (existsSync(file)) {
     const m = KEY_LINE.exec(readFileSync(file, 'utf8').split(/\r?\n/).find((l) => KEY_LINE.test(l)) ?? '');
-    if (m?.[1]?.trim()) {
-      console.log(`OpenRouter key is set: in ${file}`);
-      return 0;
-    }
+    if (m?.[1]?.trim()) return file;
+  }
+  return undefined;
+}
+
+/** Whether a key is set, and from where. Never prints the value. */
+function checkKey(): number {
+  const source = keySource();
+  if (source === 'environment') {
+    console.log(`OpenRouter key is set: from the environment (${KEY_NAME}).`);
+    return 0;
+  }
+  if (source) {
+    console.log(`OpenRouter key is set: in ${source}`);
+    return 0;
   }
   console.log(`no OpenRouter key: run ${cliName()} squad key, or export ${KEY_NAME}. Get one at ${KEY_URL}`);
   return 1;
@@ -270,7 +171,14 @@ async function keyCommand(status: boolean): Promise<void> {
     console.error('that does not look like an OpenRouter key (they start with sk-or-)');
     exit(1);
   }
-  const file = saveKey(key);
+  let file: string;
+  try {
+    file = saveKey(key);
+  } catch (e) {
+    // The message names the temp file, never the key. A link left at the temp name must be removed by hand.
+    console.error(`could not save the key: ${(e as Error).message}`);
+    exit(1);
+  }
   console.log(`OpenRouter key saved in ${file} (only you can read it). The squad reads it from there; never put it in a repository.`);
   exit(0);
 }
@@ -295,6 +203,11 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
     console.error(`the squad is already set up in ${dirArg}: use --force to update the runner`);
     exit(1);
   }
+  // A tools/squad/ with files but no squad.json belongs to the project (its own scripts): the runner would overwrite them.
+  if (!existsSync(squadJson) && !force && isDir(squadDir) && readdirSync(squadDir).length > 0) {
+    console.error('tools/squad/ already exists and is not a squad set up by flow-tower: move it, or pass --force to overwrite the runner files');
+    exit(1);
+  }
 
   const { config, notes } = detectConfig(project, check);
   const commands = (config as { commands: Record<string, string> }).commands;
@@ -315,6 +228,11 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
     if (name.endsWith('.sh')) chmodSync(to, statSync(from).mode & 0o777);
     written.push(`tools/squad/${name}`);
   }
+
+  // The checkout's path is machine-local: it goes to .cli (git-ignored), never to squad.json, which the repo commits.
+  // run.mjs reads it when squad.json names no cli. It is rewritten on every init, so a moved checkout is fixed by init.
+  writeFileSync(join(squadDir, '.cli'), `${CLI}\n`);
+  written.push('tools/squad/.cli');
 
   // squad.json, tasks and the tower belong to the repo: --force updates the runner only, so these are
   // written when missing and never overwritten.
@@ -350,11 +268,17 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
   const cli = cliName();
   const towerPath = join(squadDir, 'squad.tower.yaml');
   const cfg = config as { project: string; write: string[]; review: string[] };
+  // The key is reported, never printed: a squad without one fails on its first model call, so say so now.
+  const source = keySource();
+  const keyLine = source === 'environment' ? 'key: found (environment)'
+    : source ? `key: found (${source})`
+      : `key: missing: run "${cli} squad key"`;
   console.log(`squad set up in ${project} (${cfg.project})`);
   console.log(`wrote: ${written.join(', ')}`);
   console.log(`check command: ${commands.check}`);
   console.log(`write: ${cfg.write.join(', ')}   review: ${cfg.review.join(', ')}`);
   for (const note of notes) console.log(`note: ${note}`);
+  console.log(keyLine);
   console.log(`next steps:
   put the key:     ${cli} squad key
   open the tower:  ${cli} ${shellPath(towerPath)}
