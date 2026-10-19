@@ -1161,6 +1161,19 @@
               "user"
             ]
           },
+          "effect": {
+            "description": "What running it changes: read (nothing), reversible (a draft, a paused ad, a change a person can undo), irreversible (a send, a payment, a publish, a delete).",
+            "type": "string",
+            "enum": [
+              "read",
+              "reversible",
+              "irreversible"
+            ]
+          },
+          "model_varies": {
+            "description": "Why no model is pinned: it is chosen at run time by design, e.g. \"benchmark candidate\", \"verifier from another family\", \"the user's own session\".",
+            "type": "string"
+          },
           "sandbox": {
             "type": "object",
             "properties": {
@@ -1187,6 +1200,10 @@
                   "workspace",
                   "full"
                 ]
+              },
+              "description": {
+                "description": "What enforces it, e.g. \"bubblewrap via the Claude Code sandbox\" or \"container with --network none\".",
+                "type": "string"
               }
             },
             "additionalProperties": false
@@ -2070,6 +2087,19 @@
                     "user"
                   ]
                 },
+                "effect": {
+                  "description": "What running it changes: read (nothing), reversible (a draft, a paused ad, a change a person can undo), irreversible (a send, a payment, a publish, a delete).",
+                  "type": "string",
+                  "enum": [
+                    "read",
+                    "reversible",
+                    "irreversible"
+                  ]
+                },
+                "model_varies": {
+                  "description": "Why no model is pinned: it is chosen at run time by design, e.g. \"benchmark candidate\", \"verifier from another family\", \"the user's own session\".",
+                  "type": "string"
+                },
                 "sandbox": {
                   "type": "object",
                   "properties": {
@@ -2096,6 +2126,10 @@
                         "workspace",
                         "full"
                       ]
+                    },
+                    "description": {
+                      "description": "What enforces it, e.g. \"bubblewrap via the Claude Code sandbox\" or \"container with --network none\".",
+                      "type": "string"
                     }
                   },
                   "additionalProperties": false

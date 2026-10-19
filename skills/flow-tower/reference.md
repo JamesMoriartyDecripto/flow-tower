@@ -62,9 +62,11 @@ Operational fields (optional, on agents or nodes; nodes inherit from their agent
         version: v4
         rollout: { strategy: staged, steps: [1, 5, 25, 100], guard: "crash-free < 99.5%" }   # all canary staged ab shadow blue-green rainbow; percent, metric, arms, sample, previous
         credentials: service                                 # service | author | user
-        sandbox: { network: allowlist, allow: [api.github.com], filesystem: workspace }
+        # effect: read                                       # read | reversible | irreversible: what running it changes; read/reversible lift the AUD03 gate
+        sandbox: { network: allowlist, allow: [api.github.com], filesystem: workspace }   # description: what enforces it
         async: { mode: poll, interval: 10s }                 # long external jobs: poll | callback | both
         exactly_once: true                                   # payouts, filings: never repeated
+        # model_varies: "benchmark candidate"               # on an agent with no model: why it is picked at run time
       - id: oncall
         type: human
         approval: { by: on-call SRE, via: [Slack, email], actions: [approve, reject], timeout: 15m, on_timeout: escalate, escalate_to: SRE lead, when: "severity >= 2" }   # per: item, rounds: 2, relayed_by: agent; actions also dismiss takeover

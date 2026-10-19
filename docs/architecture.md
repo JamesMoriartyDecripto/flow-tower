@@ -38,7 +38,7 @@ Voice commands: the browser records a clip, posts it to `/api/voice`, the server
 | `src/core/events.ts`, `adapters.ts`, `claudeCode.ts` | Live event shape, matching (with `!` negation), per-harness adapters (Codex, Pi, Hermes); `claudeCode.ts` maps Claude Code / Agent SDK hooks and remembers subagent roles |
 | `src/core/types.ts` | Resolved model sent to the browser |
 | `src/core/audit.ts` | `flow-tower audit` (#173): `inventory`, the deterministic rules AUD01-AUD11 (`auditTower`, `auditNesting`, `RULES`); each rule is a section of docs/best-practices.md |
-| `src/core/roles.ts` | Role classes for the model fit (#173): `ROLE_CLASSES` (needs, OpenRouter categories, modality), `classifyNode` (first match wins: type, model id, spawn edges or lead words, review words, tools, other words), `modelFit` |
+| `src/core/roles.ts` | Role classes for the model fit (#173): `ROLE_CLASSES` (needs, OpenRouter categories, modality), `classifyNode` (first match wins: type, model id, role words in id or label, spawn edges, tools, other words), `modelFit` |
 
 ## Documents and reports
 

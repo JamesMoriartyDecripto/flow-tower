@@ -138,10 +138,14 @@ Never batch in a hurry: `now` and `relaxed` never touch the Batch API.
 
 ```bash
 node tools/squad/pack.mjs --role security --issue 164 --files src/server/enroll.ts,src/server/shared-towers.ts > tasks/164-security.md
+node tools/squad/pack.mjs --role reviewer --issue 249 --paths src,examples > tasks/249-review.md
 SQUAD_PACE=relaxed node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node specialists.security --task tasks/164-security.md --issue 164
 ```
 
 - **DeepSeek 4.1 Flash can answer empty in `--oneshot`** (2026-10-13: four of five security passes on #189-#194 returned `empty answer`). Re-run it once; if it is empty again, run the same packed task with the reviewer model and the security brief, and say so in the PR.
+- **`--paths a,b` picks what the diff covers** (default: squad.json `review`). A change under `examples/` or `docs/`
+  needs it, or the reviewer gets an empty diff. Paths are read literally (no globs, no `:(magic)`), and a changed file
+  that looks like a secret (`.env*`, `*.pem`, `*.key`, `id_rsa*`...) is left out of the diff and named on stderr.
 - **Pack with `--base <the PR's base branch>` on a stacked PR**: against `origin/main` the diff holds the whole stack and gets cut, and the reviewer never sees the files of this PR.
 - **Not every model has a batch endpoint.** GLM 5.3 FlashX has none on OpenRouter (2026-10-12); DeepSeek 4.1 Flash does.
   `--batch` on such a model prints `has no batch endpoint: falling back to --oneshot (full price)` and runs it as a oneshot.
