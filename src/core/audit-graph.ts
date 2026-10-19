@@ -10,8 +10,9 @@ export type UpstreamGate = { kind: 'human' | 'guard'; node: string };
 /**
  * Breadth-first walk backwards over incoming edges. A human (or any node with an approval) ends the
  * walk at once; a guard is remembered but the walk goes on, since a person may sit further up.
+ * With `gatedEntry`, the entry of a sub-tower opened behind a human gate stands for that gate.
  */
-export function upstreamGate(nodes: ResolvedNode[], edges: ResolvedEdge[], key: string): UpstreamGate | undefined {
+export function upstreamGate(nodes: ResolvedNode[], edges: ResolvedEdge[], key: string, gatedEntry = false): UpstreamGate | undefined {
   const byKey = new Map(nodes.map((n) => [n.key, n]));
   const visited = new Set<string>([key]);
   const queue = [key];
@@ -27,6 +28,8 @@ export function upstreamGate(nodes: ResolvedNode[], edges: ResolvedEdge[], key: 
       if (!p) continue;
       // A person (or an explicit approval on the node) settles the question right here.
       if (p.type === 'human' || p.ops.approval !== undefined) return { kind: 'human', node: p.key };
+      // The parent's approval sits upstream of this entry, so the entry is where the walk meets it.
+      if (gatedEntry && p.type === 'entry') return { kind: 'human', node: p.key };
       // A model can change what was approved upstream, so nothing behind it can be trusted as a gate.
       if (p.type === 'agent') continue;
       // A guard is code, not a person: keep it as a fallback and look for a human further up.

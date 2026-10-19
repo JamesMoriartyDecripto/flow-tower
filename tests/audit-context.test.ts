@@ -68,6 +68,35 @@ describe('AUD03 inherits a human gate from the parent tower', () => {
     expect(rulesOf(auditTower(ws.towers.b, auditContext(ws, 'b')), 'AUD03')).toEqual([]);
     expect(rulesOf(auditTower(ws.towers.b), 'AUD03')).toHaveLength(1);
   });
+
+  const gatedSub = async (prepType: 'process' | 'agent') => {
+    const ws: Workspace = { projects: ['a'], loadedAt: '', towers: {} };
+    ws.towers.a = await build({
+      nodes: [{ id: 'h', type: 'human' }, { id: 'sub', type: 'process', tower: 'b' }],
+      edges: ['h -> sub'],
+    });
+    const prep = prepType === 'agent' ? { id: 'prep', type: 'agent', model: 'm' } : { id: 'prep', type: 'process' };
+    ws.towers.b = await build({
+      nodes: [{ id: 'start', type: 'entry' }, prep, { id: 'pay', type: 'tool', exactly_once: true }],
+      edges: ['start -> prep', 'prep -> pay'],
+    });
+    return ws;
+  };
+
+  it('a step after a gated sub-tower entry is quiet with the context, not without it', async () => {
+    const ws = await gatedSub('process');
+    expect(rulesOf(auditTower(ws.towers.b, auditContext(ws, 'b')), 'AUD03')).toEqual([]);
+    const bare = rulesOf(auditTower(ws.towers.b), 'AUD03');
+    expect(bare).toHaveLength(1);
+    expect(bare[0].node).toBe('l.pay');
+  });
+
+  it('a model between the gated entry and the step keeps the warning', async () => {
+    const ws = await gatedSub('agent');
+    const found = rulesOf(auditTower(ws.towers.b, auditContext(ws, 'b')), 'AUD03');
+    expect(found).toHaveLength(1);
+    expect(found[0].node).toBe('l.pay');
+  });
 });
 
 describe('auditContext', () => {

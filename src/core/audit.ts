@@ -196,7 +196,8 @@ export function auditTower(tower: ResolvedTower, ctx: AuditContext = NO_CONTEXT)
     const sensitive = SENSITIVE.includes(n.ops.data?.sensitivity ?? '');
     const needsGate = n.ops.exactly_once === true || effect === 'irreversible' || ((sensitive || n.ops.credentials === 'user') && !holder && !lifted);
     if (n.type !== 'human' && needsGate && n.ops.approval === undefined) {
-      const gate = upstreamGate(nodes, edges, key);
+      // Behind a gated sub-tower entry, the parent's approval covers the steps after it too, not only the entry.
+      const gate = upstreamGate(nodes, edges, key, ctx.gated);
       // An entry of a sub-tower opened after a human approval is gated by that approval, even though
       // the approval sits in the parent tower, not in this one.
       const inheritedGate = ctx.gated && n.type === 'entry';
