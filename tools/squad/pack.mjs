@@ -128,13 +128,24 @@ if (pathsArg !== undefined) {
 // Paths were checked as written, so git must read them as written: --literal-pathspecs stops a glob or a magic
 // prefix from widening the diff. The file list comes first so SECRET files can be dropped before the diff is built,
 // since a folder in --paths or squad.json would otherwise pull a tracked key or env file into the task.
-const listed = reviewPaths.length
-  ? git('--literal-pathspecs', 'diff', '--name-only', base, '--', ...reviewPaths).split('\n').filter(Boolean)
-  : [];
+// -z keeps names raw (no C-quoting that would hide a '.pem' suffix), and -M with --name-status lists a rename as
+// old + new, so both sides are checked: a key renamed to a plain name must not ride along under its new name.
+const entries = [];
+if (reviewPaths.length) {
+  const tokens = git('--literal-pathspecs', 'diff', '-z', '-M', '--name-status', base, '--', ...reviewPaths).split('\0');
+  for (let i = 0; i < tokens.length && tokens[i] !== ''; ) {
+    const n = /^[RC]/.test(tokens[i]) ? 2 : 1;
+    entries.push({ paths: tokens.slice(i + 1, i + 1 + n) });
+    i += 1 + n;
+  }
+}
 const kept = [];
-for (const p of listed) {
-  if (SECRET.test(p)) { stderr.write(`left out of the diff: ${p}\n`); continue; }
-  kept.push(p);
+for (const { paths } of entries) {
+  if (paths.some((p) => SECRET.test(p))) {
+    for (const p of paths) stderr.write(`left out of the diff: ${p}\n`);
+    continue;
+  }
+  kept.push(...paths);
 }
 const diffRaw = kept.length ? git('--literal-pathspecs', 'diff', base, '--', ...kept) : '';
 // (the -- above keeps the paths from being read as options; base was checked as a commit already)

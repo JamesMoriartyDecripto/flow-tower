@@ -201,9 +201,11 @@ export function auditTower(tower: ResolvedTower, ctx: AuditContext = NO_CONTEXT)
       // An entry of a sub-tower opened after a human approval is gated by that approval, even though
       // the approval sits in the parent tower, not in this one.
       const inheritedGate = ctx.gated && n.type === 'entry';
-      if (gate?.kind === 'guard') {
+      // A parent's human gate covers this entry first: a guard finding would be noise on a step already approved.
+      const covered = gate?.kind === 'human' || inheritedGate;
+      if (!covered && gate?.kind === 'guard') {
         add('AUD03', 'info', `gated by code (${gate.node}), not a person: fine when the guard covers the risk, else add approval`, key);
-      } else if (gate?.kind !== 'human' && !inheritedGate) {
+      } else if (!covered) {
         add('AUD03', 'warning', 'sensitive or exactly-once step with no approval: add approval (or a human node before it)', key);
       }
     }

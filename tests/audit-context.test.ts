@@ -91,6 +91,19 @@ describe('AUD03 inherits a human gate from the parent tower', () => {
     expect(bare[0].node).toBe('l.pay');
   });
 
+  it('a guard-gated step under a human-gated sub-tower gets no AUD03 at all, not even the info', async () => {
+    const ws: Workspace = { projects: ['a'], loadedAt: '', towers: {} };
+    ws.towers.a = await build({
+      nodes: [{ id: 'h', type: 'human' }, { id: 'sub', type: 'process', tower: 'b' }],
+      edges: ['h -> sub'],
+    });
+    ws.towers.b = await build({
+      nodes: [{ id: 'g', type: 'guard' }, { id: 'job', type: 'entry', exactly_once: true }],
+      edges: ['g -> job'],
+    });
+    expect(rulesOf(auditTower(ws.towers.b, auditContext(ws, 'b')), 'AUD03')).toEqual([]);
+  });
+
   it('a model between the gated entry and the step keeps the warning', async () => {
     const ws = await gatedSub('agent');
     const found = rulesOf(auditTower(ws.towers.b, auditContext(ws, 'b')), 'AUD03');

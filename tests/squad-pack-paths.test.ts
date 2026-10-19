@@ -108,3 +108,37 @@ describe('squad pack keeps secret-looking files out of the diff (#249)', () => {
     expect(r.stdout).not.toContain('SECRET-VALUE');
   });
 });
+
+// Git's name list is not enough: a rename shows only the new name, and a non-ASCII name is C-quoted. The keys here
+// are a renamed key (the new name looks harmless) and a key with a non-ASCII name, so both must be dropped.
+describe('squad pack drops renamed and non-ASCII key files (#249)', () => {
+  let renameRepo: string;
+
+  beforeEach(() => {
+    renameRepo = mkdtempSync(join(tmpdir(), 'squad-pack-rename-'));
+    mkdirSync(join(renameRepo, 'src'));
+    writeFileSync(join(renameRepo, 'src', 'a.ts'), 'export const a = 1;\n');
+    writeFileSync(join(renameRepo, 'src', 'old.pem'), 'SECRET-VALUE\n');
+    git(renameRepo, 'init', '-q', '-b', 'main');
+    git(renameRepo, 'add', '.');
+    git(renameRepo, 'commit', '-q', '-m', 'base');
+    git(renameRepo, 'checkout', '-q', '-b', 'feat');
+    writeFileSync(join(renameRepo, 'src', 'a.ts'), 'export const a = 2;\nexport const b = 3;\n');
+    git(renameRepo, 'mv', 'src/old.pem', 'src/notes.txt');
+    writeFileSync(join(renameRepo, 'src', 'kéy.pem'), 'OTHER-SECRET\n');
+    git(renameRepo, 'add', '.');
+    git(renameRepo, 'commit', '-q', '-m', 'rename key and add a non-ASCII key');
+    writeFileSync(join(renameRepo, 'brief.md'), 'Review the change.\n');
+  });
+  afterEach(() => { rmSync(renameRepo, { recursive: true, force: true }); });
+
+  it('keeps the change, drops the renamed key and the non-ASCII key, and names both on stderr', () => {
+    const r = spawnSync(process.execPath, [script, '--role', 'reviewer', '--issue', '249', '--paths', 'src', '--repo', renameRepo, '--base', 'main', '--brief', join(renameRepo, 'brief.md')], { encoding: 'utf8', timeout: 20_000 });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('+export const b = 3;');
+    expect(r.stdout).not.toContain('SECRET-VALUE');
+    expect(r.stdout).not.toContain('OTHER-SECRET');
+    expect(r.stderr).toContain('left out of the diff: src/notes.txt');
+    expect(r.stderr).toContain('left out of the diff: src/kéy.pem');
+  });
+});
