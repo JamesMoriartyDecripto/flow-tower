@@ -2,6 +2,15 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Status on 2026-10-19
+
+- **Audit reads stated facts** (#249, PR #271, merged 2026-10-19; closes #231): `flow-tower audit` reads `effect` (`read` / `reversible` / `irreversible`), `model_varies`, edge conditions, `status`, and what a sub-tower inherits from the towers that open it (run budget and limits, a human gate). AUD03 walks upstream for the gate (a guard is info), AUD02 warns only past a width of 20, AUD11 grades isolation. Example towers state the facts where true: 114 findings before, 33 after, each remaining one explained on #249. On the way: `pack.mjs --paths` (review diffs for `examples/` and `docs/`), secret-looking files and C-quoted or renamed names kept out of the packed diff, and `audit --json` no longer cut at 64 KB in a pipe (it broke the optimizer's `snapshot.mjs`). Squad cost $0.13.
+  - Known audit gaps (on #249): AUD03 accepts a gate on any upstream path, not on every path; in a gated sub-tower every entry counts as gated; `pack.mjs` filters secrets by name only.
+- **Squad lessons:**
+  - after changing an audit rule, re-run `audit examples` and diff against the "before": the width rule silenced 15 findings and wrongly added 3, caught only by the diff;
+  - a rule that tightens a precondition (AUD04 now needs a model in the tower) turns old tests red when their fixture lacks it: say so in the task, or plan a fix-up step;
+  - write the audit JSON to a file, not through a pipe, when an older CLI is in use.
+
 ## Status on 2026-10-18
 
 - **Dev squad kit** (#265, PR #267, merged 2026-10-18): the squad runs on any git project. `flow-tower squad init <project>` copies the runner into `tools/squad/` with a detected `squad.json` (check command, writable and review folders, base branch, models), a task template and a ready squad tower; `flow-tower squad key` stores the OpenRouter key in the user folder; the `flow-tower-squad` skill is the lead's procedure, shipped by `install-skill`. Review and security found that the project's check and test commands saw `OPENROUTER_API_KEY` (fixed: dropped from every child). Checked end to end on a scratch project with a real key. Squad cost $0.21.
@@ -60,7 +69,6 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 ## Next, in order
 
 0. The squad kit acceptance test on a real project (`squad init`, `squad key`, `install-skill`, one issue end to end)
-0b. #249 audit false positives: PR #271 (audit reads `effect`, `model_varies`, conditions, parent budget and gate; examples 114 → 33 findings). After its merge, close #231; known gaps of the audit are listed on #249
 1. #181 what needs the Mac: a real tailnet with the v0.10.0 team journeys, the macOS side of #194 (launchd)
 2. #69 tower names as an STT prompt
 3. docs-qa gaps left after #143: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)
