@@ -14,7 +14,7 @@ than a source says so.
 | Rule | Practice | Level |
 |---|---|---|
 | [AUD01](#aud01) | A loop has a stopping condition | warning |
-| [AUD02](#aud02) | An orchestrator has a cap on workers | warning |
+| [AUD02](#aud02) | A wide fan-out has a cap | warning |
 | [AUD03](#aud03) | An irreversible action has a human gate | warning |
 | [AUD04](#aud04) | A decision has a fallback | warning |
 | [AUD05](#aud05) | A generated output has evals | info |
@@ -36,24 +36,40 @@ than a source says so.
 
 ### AUD02
 
-**An orchestrator has a cap on workers.** A node that fans out or spawns several workers needs `limits` (concurrency,
-workers per run). Effort should scale with the task.
+**A wide fan-out has a cap.** A node that can run more than 20 copies at once needs `limits` (`concurrency`,
+`timeout`), on the node or for the whole run. The width is the node's own `fanout` (its `max`), else the copies its
+spawn edges start: each target counts its `fanout`, or 1 when the target carries its own `limits`. A `fanout` is a
+declared count, so a small one is fine as it is. Entries, humans and outputs start lanes rather than workers and are
+skipped. Effort should scale with the task.
 
 - Anthropic: "Early agents made errors like spawning 50 subagents for simple queries." [S2]
 - Microsoft: "consider limiting group chat orchestration to three or fewer agents." [S8]
+- The threshold (20) is engineering judgement, below the 50 of the runaway example.
 
 ### AUD03
 
-**An irreversible action has a human gate.** Payments, filings, sends, deploys and deletes (`exactly_once`, `pci` or
-`secret` data, the end user's credentials) need `approval`, or a `human` node right before them.
+**An irreversible action has a human gate.** Payments, filings, sends, deploys and deletes need `approval`, or a
+`human` node upstream. The rule reads facts, never names:
+
+- `exactly_once` or `effect: irreversible` always needs a gate.
+- `pci` or `secret` data, or the end user's credentials, need one unless the node says it is undone easily:
+  `effect: read` (it only reads) or `effect: reversible` (it writes something a person can undo, such as a paused
+  campaign or a Figma file with version history). A `guard` or a `memory` that only holds such data is exempt.
+- The gate is searched upstream along the edges (returns skipped): a `human` or a node with `approval` gates; an
+  agent ends the search, since it decides on its own. A `guard` upstream is reported as info, not warning: code is a
+  gate when it covers the risk, a person is the safer one.
+- The entry of a sub-tower is gated when every node that opens it is (an approval or a human upstream in the parent).
 
 - OWASP: "Utilise human-in-the-loop control to require a human to approve high-impact actions before they are taken." [S6]
 - OpenAI rates tools by risk (read-only or write, reversibility, financial impact) and pauses or escalates on high-risk actions. [S5]
 
 ### AUD04
 
-**A decision has a fallback.** A `decision` node has at least two ways out, and, when it declares a typed `decision`,
-what happens on an error or low confidence (`fail: open` or `fail: closed`).
+**A decision has a fallback.** A `decision` node has one edge per answer. A single edge is fine when it carries a
+`condition` (the other answers do nothing) or leads to a plain node that branches (the model decides, code acts). A
+typed `decision` that runs a model also says what happens on an error or low confidence (`fail: open` or
+`fail: closed`); one that only matches a format cannot be unsure. A tower with no agent and no model is a design
+note (a playbook, a history), so its decisions are not checked for edges.
 
 - Microsoft: "define fallback behavior for when the cap is reached." [S8]
 - OpenAI escalates to a human when failure thresholds are crossed. [S5]
@@ -81,7 +97,9 @@ between. Start from real cases; calibrate an LLM judge against people.
 ### AUD07
 
 **No dead ends.** Every working node leads somewhere: a result, an error path, a human. A node with no way out is where
-failures disappear.
+failures disappear. Exempt: the target of a `call` (it answers its caller), a `human` or `guard` that is reached (a
+person finishes the work, a guard stops it), and a node whose `status` is not `active` (not wired yet, or on its way
+out).
 
 - Cemri et al. build a failure taxonomy of multi-agent systems (MAST); unhandled verification and termination are among
   its failure modes. [S7]
@@ -99,7 +117,8 @@ is reported.
 ### AUD09
 
 **Every agent names its model.** A model written in the tower makes cost, evals and benchmarks reproducible and lets
-the optimizer suggest a cheaper one per role.
+the optimizer suggest a cheaper one per role. An agent whose model is picked at run time by design (the model under
+test in a benchmark) says so in `model_varies`; an agent that opens a nested tower carries its models there.
 
 - OpenAI: "try swapping in smaller models to see if they still achieve acceptable results." [S5] Swapping needs a
   known starting point.
@@ -108,14 +127,18 @@ the optimizer suggest a cheaper one per role.
 ### AUD10
 
 **The whole system has a budget.** A tower with three or more agents sets a run-wide `budget` or `limits`, so one
-runaway node cannot spend for all.
+runaway node cannot spend for all. A sub-tower runs inside its parents' run: it inherits their `run` budget and limits
+when every tower that opens it has them, and then AUD01, AUD02 and AUD10 count them too.
 
 - Stopping conditions [S1] and failure thresholds [S5] apply to the system as a whole; a cost cap per run is
   engineering judgement.
 
 ### AUD11
 
-**Code execution runs in a sandbox.** A node with a shell or code tool declares a `sandbox` (filesystem and network).
+**Code execution runs in a sandbox.** A node with a shell or code tool declares a `sandbox` that isolates both the
+filesystem and the network. No sandbox, or one that isolates neither (`filesystem: full` or unset, `network: open` or
+unset), is a warning. One side open is info: an open network can send the project out (an `allowlist` keeps it in), a
+full filesystem can rewrite it (`workspace` or `read-only` keeps it in the project).
 
 - Anthropic: "effective sandboxing requires both filesystem and network isolation." [S9]
 - Anthropic: "extensive testing in sandboxed environments, along with the appropriate guardrails." [S1]
