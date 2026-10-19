@@ -60,12 +60,24 @@ const MODEL_HINTS: [RegExp, RoleId][] = [
   [/video|veo|sora/, 'video-gen'],
 ];
 
-/** Id or label words that say the node leads other agents (checked before review, see classifyNode). */
-const ORCHESTRATOR_WORDS = ['lead', 'orchestrat', 'planner', 'manager'];
-/** Id or label words that say the node judges work. Checked before tools: a reviewer with Bash still reviews. */
-const REVIEW_WORDS = ['review', 'judge', 'critic', 'verif', 'audit'];
-/** Tool names (after "Name(args)" or "mcp__server__") that change files or run commands. */
-const CODING_TOOLS = ['edit', 'write', 'bash'];
+/**
+ * Role words matched against the tokens of id and label, in list order (first list that hits wins).
+ * Matching by token, not substring, is what stops "Progress" from reading as "prog" and "specialist"
+ * from reading as "spec": a substring test would give those words a role they do not name.
+ */
+const ROLE_WORDS: [string[], RoleId][] = [
+  [['review', 'judge', 'critic', 'verif', 'audit'], 'review'],
+  [['classif', 'triage', 'scor', 'tagger', 'route'], 'router'],
+  [['writ', 'copy', 'draft', 'translat', 'locali', 'aso', 'listing', 'metadata', 'designer', 'spec'], 'writing'],
+  [['coder', 'coding', 'programm', 'prog', 'developer', 'engineer'], 'coding'],
+  [['extract', 'parse', 'monitor'], 'data'],
+  [['lead', 'orchestrat', 'planner', 'manager', 'director', 'producer', 'supervis', 'coordinat'], 'orchestrator'],
+];
+/** Role words that must equal a token: as prefixes they would catch "specialist", "progress", "asome". */
+const EXACT = new Set(['spec', 'aso', 'prog']);
+/** Tool names (after "Name(args)" or "mcp__server__") that change files or run commands. Write alone is not
+ * here: a prose agent with Write drafts documents, and its role comes from what the node is for. */
+const CODING_TOOLS = ['edit', 'bash'];
 const RESEARCH_TOOLS = ['web', 'search', 'fetch'];
 const KEYWORDS: [string[], RoleId][] = [
   [['translat', 'write', 'draft', 'copy'], 'writing'],
@@ -82,14 +94,15 @@ const modelOf = (node: ResolvedNode): string | undefined => node.model ?? node.a
 
 /**
  * The role of one node, from facts only. Order (first match wins), and `why` names the fact used.
- * The order follows what the node is *for* before the tools it happens to carry: a reviewer with
- * Bash is still a reviewer, and a lead that spawns agents is an orchestrator, not a coder.
+ * The order follows what the node is *for* before the tools it happens to carry: a writer with
+ * Read and Write is a writer, and a lead that spawns agents is an orchestrator, not a coder.
  *  1. node type: guard → guard, decision → decision (the type says what the node is for).
  *  2. model id hints: a specialised model (whisper, tts, realtime, embed, image, video) names its role.
- *  3. delegation: an outgoing spawn edge, or id/label words lead, orchestrat, planner,
- *     manager → orchestrator. A handoff is not delegation: it is how a worker hands back to the lead.
- *  4. id/label words review, judge, critic, verif, audit → review.
- *  5. tools: file or shell tools → coding, web or fetch tools → research.
+ *  3. role words in id and label, tokenised on non-alphanumerics, in this list order: review → router
+ *     → writing → coding → data → orchestrator (see ROLE_WORDS). A reviewer with Bash still reviews.
+ *  4. delegation: an outgoing spawn edge → orchestrator. A handoff is not delegation: it is how a
+ *     worker hands back to the lead.
+ *  5. tools: file or shell tools (edit, bash) → coding, web or fetch tools → research.
  *  6. other keywords in id, label or description: writing, data, router (see KEYWORDS).
  *  7. nothing matched → general.
  * `delegates` is true when the tower has an outgoing spawn edge from the node, since a node does not
@@ -108,12 +121,15 @@ export function classifyNode(node: ResolvedNode, delegates = false): { role: Rol
   }
 
   const name = [node.id, node.label ?? ''].join(' ').toLowerCase();
-  if (delegates) return { role: 'orchestrator', why: 'has an outgoing spawn edge' };
-  const lead = ORCHESTRATOR_WORDS.find((w) => name.includes(w));
-  if (lead) return { role: 'orchestrator', why: `"${lead}" in id or label` };
+  const tokens = name.split(/[^a-z0-9]+/).filter((t) => t !== '');
+  for (const [words, role] of ROLE_WORDS) {
+    for (const w of words) {
+      const hit = tokens.some((t) => (EXACT.has(w) ? t === w : t.startsWith(w)));
+      if (hit) return { role, why: `"${w}" in id or label` };
+    }
+  }
 
-  const review = REVIEW_WORDS.find((w) => name.includes(w));
-  if (review) return { role: 'review', why: `"${review}" in id or label` };
+  if (delegates) return { role: 'orchestrator', why: 'has an outgoing spawn edge' };
 
   const bases = node.tools.map(toolBase);
   const coding = bases.find((b) => CODING_TOOLS.some((t) => b.includes(t)));

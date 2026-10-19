@@ -92,7 +92,7 @@ layers:
       - runner -> scorer
       - "runner -> judge [call]: one per answer"
       - "judge -> scorer [data]: verdict JSON"
-      - "scorer -> gaps: failures"
+      - { from: scorer, to: gaps, label: failures, condition: "any question fails the majority" }
       - gaps -> doc-writer
       - "doc-writer -> review: doc PR"
 links:

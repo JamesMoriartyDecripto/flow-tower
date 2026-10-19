@@ -113,6 +113,7 @@ agents:
     sandbox: { network: allowlist, allow: [mcp.research.example.com], filesystem: none }
     resources:
       - { kind: log, label: "Searcher log", path: "logs/searchers.log" }
+    effect: reversible
   summarizer:
     name: Page summarizer
     description: Condenses fetched pages over 50k chars before they enter a searcher's context.
@@ -290,6 +291,7 @@ layers:
         tools: [mcp__gdrive__search, mcp__gdrive__read]
         credentials: user
         files: [config/mcp.json, src/client_tools.py]
+        effect: read
       - id: confluence
         type: tool
         runtime: confluence
@@ -298,6 +300,7 @@ layers:
         tools: [mcp__confluence__search]
         credentials: user
         files: [config/mcp.json]
+        effect: read
       - id: summarize
         agent: summarizer
         label: Page summarizer

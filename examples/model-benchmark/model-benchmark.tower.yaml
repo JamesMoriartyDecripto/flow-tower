@@ -46,6 +46,7 @@ agents:
     tools: [read_file, finish]
     files: [scripts/bench.mjs]
     limits: { timeout: 180s, retries: 1, max_iterations: 8, description: "Per call: 180 s, one retry on timeout, 429 or 5xx; never on 404. Steps per task from its front matter (default 8)." }
+    model_varies: "The model under test: each candidate in turn, same prompt and tools."
   verifier:
     name: Blind verifier
     description: >-
@@ -55,6 +56,7 @@ agents:
     prompt: scorer
     runtime: verifier-api
     files: [rubric.md]
+    model_varies: "Another family than every candidate, picked per benchmark (self-preference bias)."
 
 layers:
   # 1 ───────────────────────────────────────────────────────────────
@@ -303,7 +305,7 @@ layers:
       - "loop -> cap"
       - "cap -> loop [return]: tool calls, max steps"
       - "cap -> jsonl [data]: run record"
-      - "loop -> endpoints: non-chat task"
+      - "loop -> endpoints [call]: non-chat task"
 
   # 5 ───────────────────────────────────────────────────────────────
   - id: measure
@@ -387,7 +389,7 @@ layers:
     edges:
       - "check -> sandbox [call]: command checks"
       - "check -> blind [data]: passed rubric runs"
-      - "check -> media: wer, wer-roundtrip, vision-judge"
+      - "check -> media [call]: wer, wer-roundtrip, vision-judge"
       - "blind -> verifier"
       - "verifier -> human: gap > 2"
       - "verifier -> scores [data]"

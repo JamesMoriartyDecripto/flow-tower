@@ -373,6 +373,7 @@ layers:
         label: Private papers
         description: An indexed private publication repository, when the lab provides one.
         credentials: user
+        effect: read
       - id: alphafold
         type: tool
         runtime: alphafold

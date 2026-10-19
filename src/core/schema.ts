@@ -31,6 +31,8 @@ export const APPROVAL_ACTIONS = ['approve', 'edit', 'reject', 'respond', 'snooze
 /** Over what a budget or a quota is counted. */
 export const PER = ['call', 'run', 'session', 'item', 'copy', 'day', 'week', 'month', 'year'] as const;
 export const CREDENTIALS = ['service', 'author', 'user'] as const;
+/** What running a step changes, after OpenAI's tool risk rating (read-only or write, reversibility). */
+export const EFFECTS = ['read', 'reversible', 'irreversible'] as const;
 export const NETWORK = ['none', 'allowlist', 'open'] as const;
 
 const id = z.string().regex(/^[A-Za-z0-9_-]+$/, 'ids may only contain letters, digits, "_" and "-"');
@@ -168,6 +170,7 @@ export const SandboxSchema = z.strictObject({
   network: z.enum(NETWORK).optional(),
   allow: z.array(z.string()).optional().describe('Allowed hosts when network is `allowlist`.'),
   filesystem: z.enum(['none', 'read-only', 'workspace', 'full']).optional(),
+  description: z.string().optional().describe('What enforces it, e.g. "bubblewrap via the Claude Code sandbox" or "container with --network none".'),
 });
 
 /** Operational facts shared by agents and nodes (nodes inherit them from their agent). */
@@ -186,6 +189,8 @@ const ops = {
   exactly_once: z.boolean().optional().describe('Must run at most once per item (payouts, filings): idempotency key, no retries that repeat it.'),
   decision: DecisionSchema.optional().describe('Typed output of a decision (decision models).'),
   credentials: z.enum(CREDENTIALS).optional().describe('Whose credentials the tools use: a service account, the author, or the end user.'),
+  effect: z.enum(EFFECTS).optional().describe('What running it changes: read (nothing), reversible (a draft, a paused ad, a change a person can undo), irreversible (a send, a payment, a publish, a delete).'),
+  model_varies: z.string().optional().describe('Why no model is pinned: it is chosen at run time by design, e.g. "benchmark candidate", "verifier from another family", "the user\'s own session".'),
   sandbox: SandboxSchema.optional(),
 };
 

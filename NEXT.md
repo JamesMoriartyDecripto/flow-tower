@@ -60,7 +60,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 ## Next, in order
 
 0. The squad kit acceptance test on a real project (`squad init`, `squad key`, `install-skill`, one issue end to end)
-0b. #249 audit false positives, then close #231
+0b. #249 audit false positives: PR #271 (audit reads `effect`, `model_varies`, conditions, parent budget and gate; examples 114 → 33 findings). After its merge, close #231; known gaps of the audit are listed on #249
 1. #181 what needs the Mac: a real tailnet with the v0.10.0 team journeys, the macOS side of #194 (launchd)
 2. #69 tower names as an STT prompt
 3. docs-qa gaps left after #143: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)

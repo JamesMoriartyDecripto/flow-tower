@@ -34,9 +34,9 @@ describe('AUD01 agent loops with no budget', () => {
 
 describe('AUD02 fan-out with no limits', () => {
   it('fires on fanout, quiet with tower limits', async () => {
-    const bad = await build({ nodes: [{ id: 'a', type: 'process', fanout: 3 }] });
+    const bad = await build({ nodes: [{ id: 'a', type: 'process', fanout: 21 }] });
     expect(rulesOf(auditTower(bad), 'AUD02')).toHaveLength(1);
-    const ok = await build({ limits: { timeout: '5m' }, nodes: [{ id: 'a', type: 'process', fanout: 3 }] });
+    const ok = await build({ limits: { timeout: '5m' }, nodes: [{ id: 'a', type: 'process', fanout: 21 }] });
     expect(rulesOf(auditTower(ok), 'AUD02')).toEqual([]);
   });
 });
@@ -59,7 +59,7 @@ describe('AUD03 gated sensitive steps', () => {
 describe('AUD04 decision branches', () => {
   it('fires on a decision with one outgoing edge', async () => {
     const bad = await build({
-      nodes: [{ id: 'd', type: 'decision', decision: { output: 'binary', fail: 'closed' } }, { id: 'y', type: 'output' }],
+      nodes: [{ id: 'd', type: 'decision', decision: { output: 'binary', fail: 'closed' } }, { id: 'y', type: 'output' }, { id: 'x', type: 'agent', model: 'm' }],
       edges: ['d -> y'],
     });
     expect(rulesOf(auditTower(bad), 'AUD04')).toHaveLength(1);
@@ -144,7 +144,7 @@ describe('AUD11 shell tool with no sandbox', () => {
   it('fires on bash without a sandbox, quiet with one', async () => {
     const bad = await build({ nodes: [{ id: 'a', type: 'agent', model: 'm', tools: ['Bash(git:*)'] }] });
     expect(rulesOf(auditTower(bad), 'AUD11')).toHaveLength(1);
-    const ok = await build({ nodes: [{ id: 'a', type: 'agent', model: 'm', tools: ['Bash(git:*)'], sandbox: { network: 'none' } }] });
+    const ok = await build({ nodes: [{ id: 'a', type: 'agent', model: 'm', tools: ['Bash(git:*)'], sandbox: { network: 'none', filesystem: 'workspace' } }] });
     expect(rulesOf(auditTower(ok), 'AUD11')).toEqual([]);
   });
 });

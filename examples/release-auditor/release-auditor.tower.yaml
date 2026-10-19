@@ -207,6 +207,7 @@ layers:
         runtime: laptop
         description: Every commit of every branch, redacted output. Mandatory before the repo goes public.
         data: { sensitivity: secret, description: "Matches are redacted; a real hit means rotate first, then rewrite history." }
+        effect: read
       - id: queue
         type: memory
         label: Raw signals

@@ -183,6 +183,7 @@ agents:
     runtime: studio
     files: [.mcp.json]
     credentials: user
+    effect: reversible
 
 layers:
   # 1 ───────────────────────────────────────────────────────────────
@@ -567,6 +568,7 @@ layers:
         runtime: meta-ads
         files: [.mcp.json]
         credentials: user
+        effect: reversible
       - id: report
         type: output
         label: Weekly report

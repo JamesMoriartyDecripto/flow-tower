@@ -95,7 +95,9 @@ export function opsRows(ops: OpsDef): Record<string, string | undefined> {
       r.arms && `arms ${r.arms.join(' vs ')}`, r.metric && `on ${r.metric}`, r.guard && `halt if ${r.guard}`, r.sample !== undefined && `sample ${r.sample}`,
       r.previous && `(from ${r.previous})`])], ' · '),
     credentials: show(ops.credentials),
-    sandbox: s && join([s.network && `network ${s.network}`, s.allow?.length && s.allow.join(', '), s.filesystem && `fs ${s.filesystem}`], ' · '),
+    effect: show(ops.effect),
+    'model varies': ops.model_varies,
+    sandbox: s && join([s.network && `network ${s.network}`, s.allow?.length && s.allow.join(', '), s.filesystem && `fs ${s.filesystem}`, s.description && `— ${s.description}`], ' · '),
   };
 }
 

@@ -3,7 +3,8 @@
  * (phase 3a) and the model-fit table (phase 4). Findings are advice, so they never fail the command.
  * Exit 1 only when a tower fails to load with errors (the same rule as validate); exit 2 on usage.
  */
-import { argv, exit } from 'node:process';
+import { argv, exit, stdout } from 'node:process';
+import { auditContext } from '../core/audit-context.ts';
 import { auditNesting, auditTower, inventory, type Finding, type Inventory } from '../core/audit.ts';
 import { loadLibrary } from '../core/loader.ts';
 import { modelFit, type ModelFit } from '../core/roles.ts';
@@ -34,7 +35,7 @@ const LEVELS = ['warning', 'info'] as const;
  */
 function auditOf(t: ResolvedTower, workspace: Workspace): TowerAudit {
   const root = workspace.projects.includes(t.id);
-  const findings = [...auditTower(t), ...(root ? auditNesting(workspace, t.id) : [])];
+  const findings = [...auditTower(t, auditContext(workspace, t.id)), ...(root ? auditNesting(workspace, t.id) : [])];
   return { id: t.id, name: t.name, inventory: inventory(t), findings, modelFit: modelFit(t) };
 }
 
@@ -80,11 +81,12 @@ const { workspace } = await loadLibrary(entries);
 const towers = Object.values(workspace.towers);
 const failed = towers.some((t) => t.issues.some((i) => i.level === 'error'));
 
+const code = failed ? 1 : 0;
 if (json) {
-  console.log(JSON.stringify({ towers: towers.map((t) => auditOf(t, workspace)) }, null, 2));
-} else if (!towers.length) {
-  console.log('no *.tower.yaml found');
+  // A pipe is written asynchronously: exit() before the flush cuts the JSON at 64 KB, so exit from the callback.
+  stdout.write(`${JSON.stringify({ towers: towers.map((t) => auditOf(t, workspace)) }, null, 2)}\n`, () => exit(code));
 } else {
-  for (const t of towers) printText(t, auditOf(t, workspace));
+  if (!towers.length) console.log('no *.tower.yaml found');
+  else for (const t of towers) printText(t, auditOf(t, workspace));
+  exit(code);
 }
-exit(failed ? 1 : 0);

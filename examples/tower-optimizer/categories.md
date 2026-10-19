@@ -2,7 +2,7 @@
 
 Generated from `ROLE_CLASSES` in [src/core/roles.ts](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/src/core/roles.ts):
 `flow-tower audit` gives each node that runs a model one of these roles, from facts in the tower (first match wins:
-node type, model id, spawn edges or lead words, review words, tools, other words, else general).
+node type, model id, role words in the id or label, spawn edges, tools, other words, else general).
 
 Categories are the OpenRouter slugs seen on [openrouter.ai/models](https://openrouter.ai/models) on 2026-10-12
 (academia, finance, health, legal, marketing, programming, roleplay, seo, translation, trivia). A role with no slug

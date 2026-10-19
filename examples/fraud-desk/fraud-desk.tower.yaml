@@ -287,7 +287,7 @@ layers:
       - "analyst -> human_decision [return]: approve / reject"
       - "senior -> human_decision [return]: approve / reject / declined"
       - human_decision -> override
-      - "override -> labels [data]: yes"
+      - { from: override, to: labels, kind: data, label: "yes", condition: "human_decision != recommended_decision" }
       - "human_decision -> sar: structuring or ring reject"
 
   # 4 ───────────────────────────────────────────────────────────────

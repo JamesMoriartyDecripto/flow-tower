@@ -13,10 +13,47 @@ const norm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
 const indentOf = (line) => line.length - line.trimStart().length;
 
-/** A `- id: x` line, with its indent and id; null for any other line. */
+/**
+ * A `- id: x` line or a flow-style `- { id: x, ... }` line, with its indent and id; null for any other line.
+ * The flow form is common in tower files, so a node written that way must still be found by its id.
+ */
 function idLine(line) {
-  const m = /^(\s*)-\s+id:\s*(.+?)\s*$/.exec(line);
-  return m ? { indent: m[1].length, id: m[2].replace(/^["']|["']$/g, '') } : null;
+  const block = /^(\s*)-\s+id:\s*(.+?)\s*$/.exec(line);
+  if (block) return { indent: block[1].length, id: block[2].replace(/^["']|["']$/g, '') };
+  const flow = /^(\s*)-\s+\{\s*id:\s*["']?([^,}\s"']+)/.exec(line);
+  return flow ? { indent: flow[1].length, id: flow[2] } : null;
+}
+
+/**
+ * The agent a node uses, read from the node's own text: `agent: name` on a block node's line, or
+ * `agent: name` inside the braces of a flow-style node. Null when the node names no agent.
+ */
+function agentOf(text) {
+  const first = text.split('\n', 1)[0];
+  const m = /^\s*-\s+\{/.test(first)
+    ? /[{,]\s*agent:\s*["']?([^,}\s"']+)/.exec(first)
+    : /^\s*(?:-\s+)?agent:\s*(.+?)\s*$/m.exec(text);
+  return m ? m[1].replace(/^["']|["']$/g, '') : null;
+}
+
+/**
+ * The raw text of the `agentId:` entry under the top-level `agents:` map, from its key line to the end of
+ * its block, or null when there is none. Agent fields (limits, model) live here, not in the node's lines.
+ */
+export function agentText(yamlText, agentId) {
+  const lines = yamlText.split(/\r?\n/);
+  const secAt = lines.findIndex((l) => /^agents:\s*$/.test(l));
+  if (secAt < 0) return null;
+  const secEnd = blockEnd(lines, secAt);
+  // Only the map's direct children count: a nested key that happens to share an agent's name is skipped.
+  let childIndent = -1;
+  for (let i = secAt + 1; i < secEnd; i++) {
+    if (lines[i].trim() === '') continue;
+    if (childIndent < 0) childIndent = indentOf(lines[i]);
+    const m = /^(\s*)["']?([^"':]+?)["']?:\s*$/.exec(lines[i]);
+    if (m && m[1].length === childIndent && m[2] === agentId) return lines.slice(i, blockEnd(lines, i)).join('\n');
+  }
+  return null;
 }
 
 /**
@@ -82,8 +119,14 @@ export function checkQuotes(yamlText, findings) {
       continue;
     }
     const text = typeof f?.node === 'string' ? nodeText(yamlText, f.node) : null;
-    if (text === null) dropped.push({ finding: f, reason: `no such node: ${f?.node ?? '(missing)'}` });
-    else if (norm(text).includes(quote)) kept.push(f);
+    if (text === null) {
+      dropped.push({ finding: f, reason: `no such node: ${f?.node ?? '(missing)'}` });
+      continue;
+    }
+    // The node's agent carries fields such as limits, so a quote may come from there instead of the node.
+    const agent = agentOf(text);
+    const agentRaw = agent === null ? null : agentText(yamlText, agent);
+    if (norm(text).includes(quote) || (agentRaw !== null && norm(agentRaw).includes(quote))) kept.push(f);
     else dropped.push({ finding: f, reason: `quote not found in node ${f.node}` });
   }
   return { kept, dropped };

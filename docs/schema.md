@@ -117,6 +117,7 @@ Optional fields on agents and nodes that describe **how a step runs in productio
   version: v4
   rollout: { strategy: canary, percent: 10, previous: v3 }
   credentials: service
+  effect: reversible
   sandbox: { network: allowlist, allow: [api.github.com], filesystem: workspace }
 - id: oncall
   type: human
@@ -139,7 +140,9 @@ Optional fields on agents and nodes that describe **how a step runs in productio
 | `exactly_once` | `true`: must never run twice for an item (payouts, filings); retries are idempotent. Marker `1×` |
 | `decision` | typed output of a decision (decision models): `{ output (**required**): binary / choice / score / ranking, candidates, threshold, confidence, model (pinned version), fail: open / closed, description }` |
 | `credentials` | whose credentials tools use: `service`, `author` or `user` |
-| `sandbox` | `network` (`none` `allowlist` `open`), `allow` (hosts), `filesystem` (`none` `read-only` `workspace` `full`) |
+| `effect` | what running it changes: `read` (nothing), `reversible` (a draft, a paused ad, a change a person can undo), `irreversible` (a send, a payment, a publish, a delete). The audit (AUD03) asks a gate for `irreversible`; `read` and `reversible` lift the gate that sensitive data or user credentials would ask |
+| `model_varies` | why an agent pins no model: it is chosen at run time by design (`benchmark candidate`, `verifier from another family`). The audit (AUD09) accepts it as a stated reason |
+| `sandbox` | `network` (`none` `allowlist` `open`), `allow` (hosts), `filesystem` (`none` `read-only` `workspace` `full`), `description` (what enforces it: `bubblewrap via the Claude Code sandbox`, `container with --network none`) |
 
 Durations are a number plus `ms` `s` `m` `h` `d` `w` `y` (`90s`, `15m`, `72h`, `10y`). Rates are a count per duration (`100/24h`, `300/5m`, `15000/d`). Resources include the `recording` kind (session recordings, browser replays).
 

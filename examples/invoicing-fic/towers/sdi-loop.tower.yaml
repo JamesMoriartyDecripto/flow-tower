@@ -182,7 +182,7 @@ layers:
       - "clock -> accountant [handoff]: day 4 or 3rd scarto"
 
 links:
-  - "send.attempt -> watch.status: left attempt (or 2h passed)"
+  - { from: send.attempt, to: watch.status, label: left attempt (or 2h passed), condition: "ei_status != attempt || waited >= 2h" }
   - "send.verify -> fix.fixer: validation_result"
   - "watch.outcome -> fix.reason: discarded, or rejected by a PA"
   - "fix.clock -> send.verify [return]: resend same number and date"

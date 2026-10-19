@@ -1,6 +1,6 @@
 // Packs a review task file for --oneshot and --batch reviews (#169): those runs have no tools, so the file
 // must carry the role's instructions, the brief, the answer format, the diff and the files that matter.
-// node tools/squad/pack.mjs --role reviewer|security --issue <n> [--base origin/main] [--repo <path>] [--files a,b] [--brief <file>] [--max-kb 120]
+// node tools/squad/pack.mjs --role reviewer|security --issue <n> [--base origin/main] [--repo <path>] [--files a,b] [--paths a,b] [--brief <file>] [--max-kb 120]
 // Prints the task on stdout. A warning on stderr says when the output was trimmed to fit --max-kb.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -11,7 +11,7 @@ import { loadConfig } from './config.mjs';
 import { realRelIfAllowed } from './guard.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
-const USAGE = 'usage: node tools/squad/pack.mjs --role reviewer|security --issue <n> [--base origin/main] [--repo <path>] [--files a,b] [--brief <file>] [--max-kb 120]';
+const USAGE = 'usage: node tools/squad/pack.mjs --role reviewer|security --issue <n> [--base origin/main] [--repo <path>] [--files a,b] [--paths a,b] [--brief <file>] [--max-kb 120]';
 if (argv.includes('--help')) { stdout.write(`${USAGE}\n`); exit(0); }
 
 const role = arg('role');
@@ -111,10 +111,46 @@ const head = [
 ].join('\n');
 
 // Tests are left out on purpose: they are large, so the diff covers the review folders only (config.review).
-const diffRaw = git('diff', base, '--', ...config.review);
+// --paths (#249) replaces those folders, so a change under examples/ can be reviewed too. Each path gets the same
+// inRepo check as --files; a leading '-' is refused before it reaches git, where it would read as an option.
+const pathsArg = argv.includes('--paths') ? arg('paths') : undefined;
+if (argv.includes('--paths') && pathsArg === undefined) { stderr.write(`${USAGE}\n`); exit(1); }
+const reviewPaths = pathsArg === undefined
+  ? config.review
+  : pathsArg.split(',').map((s) => s.trim()).filter(Boolean);
+if (pathsArg !== undefined && reviewPaths.length === 0) { stderr.write(`${USAGE}\n`); exit(1); }
+if (pathsArg !== undefined) {
+  for (const p of reviewPaths) {
+    if (p.startsWith('-')) { stderr.write(`path not allowed: ${p}\n`); exit(1); }
+    try { inRepo(p); } catch { stderr.write(`path not allowed: ${p}\n`); exit(1); }
+  }
+}
+// Paths were checked as written, so git must read them as written: --literal-pathspecs stops a glob or a magic
+// prefix from widening the diff. The file list comes first so SECRET files can be dropped before the diff is built,
+// since a folder in --paths or squad.json would otherwise pull a tracked key or env file into the task.
+// -z keeps names raw (no C-quoting that would hide a '.pem' suffix), and -M with --name-status lists a rename as
+// old + new, so both sides are checked: a key renamed to a plain name must not ride along under its new name.
+const entries = [];
+if (reviewPaths.length) {
+  const tokens = git('--literal-pathspecs', 'diff', '-z', '-M', '--name-status', base, '--', ...reviewPaths).split('\0');
+  for (let i = 0; i < tokens.length && tokens[i] !== ''; ) {
+    const n = /^[RC]/.test(tokens[i]) ? 2 : 1;
+    entries.push({ paths: tokens.slice(i + 1, i + 1 + n) });
+    i += 1 + n;
+  }
+}
+const kept = [];
+for (const { paths } of entries) {
+  if (paths.some((p) => SECRET.test(p))) {
+    for (const p of paths) stderr.write(`left out of the diff: ${p}\n`);
+    continue;
+  }
+  kept.push(...paths);
+}
+const diffRaw = kept.length ? git('--literal-pathspecs', 'diff', base, '--', ...kept) : '';
 // (the -- above keeps the paths from being read as options; base was checked as a commit already)
 const diffHead = '## Diff\n\nTests are not included (git diff '
-  + `${base} -- ${config.review.join(' ')}).\n\n\`\`\`diff\n`;
+  + `${base} -- ${reviewPaths.join(' ')}).\n\n\`\`\`diff\n`;
 const diffTail = '\n```\n';
 
 const files = arg('files') ? arg('files').split(',').map((s) => s.trim()).filter(Boolean) : [];
