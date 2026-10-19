@@ -65,3 +65,46 @@ describe('squad pack --paths (#249)', () => {
     expect(dash.stderr).toContain('path not allowed');
   });
 });
+
+// A tracked key under src/ must never reach the packed task, whether the folder comes from --paths or from squad.json.
+// This block has its own repo so the key sits in the feature commit next to the change of src/a.ts.
+describe('squad pack keeps secret-looking files out of the diff (#249)', () => {
+  let keyRepo: string;
+  const runIn = (args: string[]) => spawnSync(process.execPath, [script, ...args, '--repo', keyRepo, '--base', 'main', '--brief', join(keyRepo, 'brief.md')], { encoding: 'utf8', timeout: 20_000 });
+
+  beforeEach(() => {
+    keyRepo = mkdtempSync(join(tmpdir(), 'squad-pack-key-'));
+    mkdirSync(join(keyRepo, 'src'));
+    writeFileSync(join(keyRepo, 'src', 'a.ts'), 'export const a = 1;\n');
+    git(keyRepo, 'init', '-q', '-b', 'main');
+    git(keyRepo, 'add', '.');
+    git(keyRepo, 'commit', '-q', '-m', 'base');
+    git(keyRepo, 'checkout', '-q', '-b', 'feat');
+    writeFileSync(join(keyRepo, 'src', 'a.ts'), 'export const a = 2;\nexport const b = 3;\n');
+    writeFileSync(join(keyRepo, 'src', 'key.pem'), 'SECRET-VALUE\n');
+    git(keyRepo, 'add', '.');
+    git(keyRepo, 'commit', '-q', '-m', 'change with key');
+    writeFileSync(join(keyRepo, 'brief.md'), 'Review the change.\n');
+  });
+  afterEach(() => { rmSync(keyRepo, { recursive: true, force: true }); });
+
+  it('--paths src keeps the change, drops key.pem and says so on stderr', () => {
+    const r = runIn(['--role', 'reviewer', '--issue', '249', '--paths', 'src']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('+export const b = 3;');
+    expect(r.stdout).not.toContain('SECRET-VALUE');
+    expect(r.stderr).toContain('left out of the diff: src/key.pem');
+  });
+
+  it('the default review folder (src) also leaves key.pem out', () => {
+    const r = runIn(['--role', 'reviewer', '--issue', '249']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).not.toContain('SECRET-VALUE');
+  });
+
+  it('a glob in --paths is read literally, so it names no file and leaks nothing', () => {
+    const r = runIn(['--role', 'reviewer', '--issue', '249', '--paths', 'src/*']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).not.toContain('SECRET-VALUE');
+  });
+});

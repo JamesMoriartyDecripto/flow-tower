@@ -125,7 +125,18 @@ if (pathsArg !== undefined) {
     try { inRepo(p); } catch { stderr.write(`path not allowed: ${p}\n`); exit(1); }
   }
 }
-const diffRaw = git('diff', base, '--', ...reviewPaths);
+// Paths were checked as written, so git must read them as written: --literal-pathspecs stops a glob or a magic
+// prefix from widening the diff. The file list comes first so SECRET files can be dropped before the diff is built,
+// since a folder in --paths or squad.json would otherwise pull a tracked key or env file into the task.
+const listed = reviewPaths.length
+  ? git('--literal-pathspecs', 'diff', '--name-only', base, '--', ...reviewPaths).split('\n').filter(Boolean)
+  : [];
+const kept = [];
+for (const p of listed) {
+  if (SECRET.test(p)) { stderr.write(`left out of the diff: ${p}\n`); continue; }
+  kept.push(p);
+}
+const diffRaw = kept.length ? git('--literal-pathspecs', 'diff', base, '--', ...kept) : '';
 // (the -- above keeps the paths from being read as options; base was checked as a commit already)
 const diffHead = '## Diff\n\nTests are not included (git diff '
   + `${base} -- ${reviewPaths.join(' ')}).\n\n\`\`\`diff\n`;
