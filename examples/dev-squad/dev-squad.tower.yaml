@@ -582,7 +582,7 @@ layers:
         files: [src/hooks/context-loader.ts]
     edges:
       - "session_log -> promote [data]: lessons"
-      - "promote -> patterns [data]: new rule"
+      - { from: promote, to: patterns, kind: data, label: new rule, condition: "finding already in another issue's log" }
       - "patterns -> context_pack [data]: by area"
       - "session_log -> context_pack [data]: last 5"
       - "claude_md -> context_pack [data]: static"

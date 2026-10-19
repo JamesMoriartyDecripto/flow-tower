@@ -746,7 +746,7 @@ layers:
 links:
   - "targeting.target_list -> prospecting.pull [data]: account filters"
   - "targeting.sources -> prospecting.basis [data]: channel rules"
-  - "prospecting.tier -> outreach.sequencer [spawn]: tier A"
+  - { from: prospecting.tier, to: outreach.sequencer, kind: spawn, label: tier A, condition: "score >= 70" }
   - "outreach.route -> qualification.prep [handoff]: interested"
   - "outreach.route -> qualification.booking: booking link sent"
   - { from: qualification.crm, to: proposal.scoping, kind: handoff, protocol: mcp, label: qualified deal }

@@ -60,6 +60,7 @@ layers:
         description: Figma MCP returns the widget frames (small, medium) as structured context; the prompt asks for SwiftUI.
         runtime: figma
         credentials: user
+        effect: read
       - id: contract
         type: memory
         label: Shared contract

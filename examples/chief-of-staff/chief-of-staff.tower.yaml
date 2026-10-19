@@ -271,6 +271,7 @@ layers:
         description: "historyId -> new messages since the cursor (memory/gmail_cursor.json)."
         files: [ambient/gmail_history.py]
         credentials: user
+        effect: read
       - id: from_me
         runtime: worker
         type: decision

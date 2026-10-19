@@ -61,6 +61,7 @@ layers:
         description: Figma MCP context for the Material 3 widget frames (2x1 and 4x2) plus a screenshot for comparison.
         runtime: figma
         credentials: user
+        effect: read
       - id: contract
         type: memory
         label: Shared contract

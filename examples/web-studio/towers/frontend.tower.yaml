@@ -59,6 +59,7 @@ layers:
         description: Structured design context (defaults to React + Tailwind) plus get_screenshot of the frame as the visual reference.
         runtime: figma
         credentials: user
+        effect: read
       - id: code_connect
         type: memory
         label: Code Connect map

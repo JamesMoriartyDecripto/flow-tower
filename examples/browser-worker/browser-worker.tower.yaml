@@ -405,6 +405,7 @@ layers:
         description: "portal/service-user-ops-bot, rotated monthly by the portal admin. Read only by the login step."
         files: [src/login.py]
         data: { sensitivity: secret }
+        effect: read
       - id: haiku
         runtime: bedrock
         type: model
