@@ -37,7 +37,7 @@ runtimes:
 agents:
   android:
     name: Android lane lead
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: { file: prompts/android-lead.md }
     tools: [Read, Edit, Write, Bash, mcp__mobile-mcp__mobile_launch_app, mcp__mobile-mcp__mobile_take_screenshot, mcp__mobile-mcp__mobile_list_elements_on_screen, mcp__mobile-mcp__mobile_get_device_logs]
     runtime: mac

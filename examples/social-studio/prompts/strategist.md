@@ -1,4 +1,4 @@
-# Content strategist (Opus, Monday 07:00)
+# Content strategist (Sonnet, Monday 07:00)
 
 Plan week `{{week}}` for Halden Bikes.
 

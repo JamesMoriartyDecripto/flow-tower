@@ -102,7 +102,7 @@ agents:
     runtime: vps
     name: Architect
     description: Read-only planner. Produces criteria, research questions and steps of at most ~150 lines each.
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: architect
     tools: [Read, Grep, Glob]
     harness: { max_turns: 30 }
@@ -591,8 +591,8 @@ layers:
   - id: models
     title: Models
     description: >-
-      Mixed models. Claude Opus plans, arbitrates and verifies; Haiku codes, DeepSeek audits and GLM reviews
-      through OpenRouter (cross-model review); Sonnet researches and tests, Haiku routes and writes.
+      Mixed models. Claude Opus leads, arbitrates and verifies; Haiku codes, DeepSeek audits and GLM reviews
+      through OpenRouter (cross-model review); Sonnet plans and researches, Haiku routes, tests and writes.
     nodes:
       - id: policy
         runtime: vps
@@ -606,19 +606,19 @@ layers:
         type: model
         label: Opus 5.5
         model: claude-opus-5-5
-        description: Lead, architect, fresh verifier, and the escalated last-round fixer.
+        description: Lead, fresh verifier, and the escalated last-round fixer.
       - id: sonnet
         runtime: anthropic
         type: model
         label: Sonnet 5.5
         model: claude-sonnet-5-5
-        description: Researcher and tester; fallback model for the lead.
+        description: Architect and researcher; fallback model for the lead.
       - id: haiku
         runtime: anthropic
         type: model
         label: Haiku 5.5
         model: claude-haiku-5-5
-        description: Triage router and doc writer. Cents per issue.
+        description: Triage router, tester and doc writer. Cents per issue.
       - id: openrouter
         runtime: openrouter
         resources:
@@ -646,9 +646,9 @@ layers:
         model: z-ai/glm-5.3-flashx
         description: "Reviewer: a different model family from the coder's. $0.37 in / $1.25 out per M tokens (2026-10-10). Review of #70: 6 steps, $0.085, found the blocking bug. Full GLM 5.3 reasoned 1-2.5 min per step and timed out at step 9 ($0.24): too slow for a review loop."
     edges:
-      - "policy -> opus: plan, verify"
-      - "policy -> sonnet: research, test"
-      - "policy -> haiku: route, docs"
+      - "policy -> opus: lead, verify"
+      - "policy -> sonnet: plan, research"
+      - "policy -> haiku: route, test, docs"
       - "policy -> openrouter: code, review"
       - "openrouter -> haiku_openrouter [call]: code"
       - "openrouter -> deepseek [call]: audit"

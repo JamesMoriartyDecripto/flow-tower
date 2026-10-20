@@ -12,8 +12,8 @@ MODELS = {
     "lead": "claude-opus-5-5",
     "searcher": "claude-sonnet-5-5",
     "summarize": "claude-haiku-5-5",   # condenses fetched pages before they hit context
-    "compress": "claude-sonnet-5-5",
-    "writer": "claude-opus-5-5",
+    "compress": "claude-haiku-5-5",
+    "writer": "claude-sonnet-5-5",
     "citations": "claude-sonnet-5-5",
     "verifier": "claude-sonnet-5-5",
     "judge": "claude-opus-5-5",

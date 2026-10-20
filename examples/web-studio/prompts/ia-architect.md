@@ -1,4 +1,4 @@
-# Information architect (Opus)
+# Information architect (Sonnet)
 
 Inputs: brief `{{brief}}`, research synthesis `{{strategy}}`, keyword map `{{keywords}}`.
 

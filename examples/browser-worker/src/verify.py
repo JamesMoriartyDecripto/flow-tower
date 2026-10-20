@@ -9,12 +9,12 @@ import computer_loop
 import submit_guard
 from session import REGION
 
-VERIFIER = "eu.anthropic.claude-opus-5-5"
+VERIFIER = "eu.anthropic.claude-sonnet-5-5"
 PROMPT = Path(__file__).parent.parent.joinpath("prompts/verifier.md").read_text()
 
 
 def verdict(session_id: str, item: dict, request_type: str) -> dict:
-    """Opus sees only the request, the field map and a new screenshot, never the worker's chat."""
+    """The verifier sees only the request, the field map and a new screenshot, never the worker's chat."""
     shot = computer_loop._invoke(session_id, {"screenshot": {"format": "PNG"}})
     fields = submit_guard.FIELD_MAP[request_type]["fields"]
     prompt = PROMPT.replace("{{work_item}}", json.dumps(item)).replace("{{fields}}", json.dumps(fields))

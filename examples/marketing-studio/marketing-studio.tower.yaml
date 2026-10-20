@@ -126,7 +126,7 @@ runtimes:
 
 prompts:
   voc: { file: prompts/voc-miner.md, description: "Haiku. Extract pains, jobs, objections and exact phrases from one source batch." }
-  strategist: { file: prompts/strategist.md, description: "Opus. ICP, personas and the messaging framework from VoC evidence." }
+  strategist: { file: prompts/strategist.md, description: "Sonnet. ICP, personas and the messaging framework from VoC evidence." }
   planner: { file: prompts/planner.md, description: "Opus. Quarterly campaign brief and channel budget split from response curves." }
   seo: { file: prompts/seo-strategist.md, description: "Sonnet. Keyword clusters, briefs, AI-search visibility checks." }
   writer: { file: prompts/writer.md, description: "Sonnet. One article or landing page from one approved brief." }
@@ -149,7 +149,7 @@ agents:
     credentials: service
   strategist:
     name: Positioning strategist
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: strategist
     runtime: orchestrator
     tools: [Read, Write, mcp__ahrefs, mcp__semrush]
@@ -723,13 +723,13 @@ layers:
         label: Opus 5.5
         runtime: anthropic
         model: claude-opus-5-5
-        description: Strategy, planning and the weekly analysis.
+        description: Campaign planning and the weekly analysis.
       - id: sonnet
         type: model
         label: Sonnet 5.5
         runtime: anthropic
         model: claude-sonnet-5-5
-        description: SEO, writing, creative, lifecycle, paid optimization.
+        description: Positioning, SEO, writing, creative, lifecycle, paid optimization.
       - id: haiku
         type: model
         label: Haiku 5.5
@@ -769,7 +769,7 @@ links:
   # models and guardrails
   - "research.voc -> platform.haiku [call]"
   - "conversion.scorer -> platform.haiku [call]"
-  - "research.icp -> platform.opus [call]"
+  - "research.icp -> platform.sonnet [call]"
   - "planning.planner -> platform.opus [call]"
   - "measurement.analyst -> platform.opus [call]"
   - "content.seo -> platform.sonnet [call]"

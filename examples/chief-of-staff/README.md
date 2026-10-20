@@ -38,7 +38,7 @@ answer goes back as `/resume` (`handoff`) and as a feedback event that feeds ref
 |---|---|---|
 | 1 | User-facing: CLI, Inbox & Notifications | The terminal entry, output styles, and the three card kinds with their allowed actions |
 | 2 | Background: Triggers & Triage | Gmail/Calendar push (`event`), three crons, the receiver with retries, dedupe, history cursor, the Haiku triage verdict |
-| 3 | Background: Chief of Staff | Command expansion, the Opus lead (up to 4 runs in parallel), plan mode and plan files, Task dispatch, card choice, execute-after-approval |
+| 3 | Background: Chief of Staff | Command expansion, the Sonnet lead (up to 4 runs in parallel), plan mode and plan files, Task dispatch, card choice, execute-after-approval |
 | 4 | Background: Subagents, Tools & Models | 4 subagents (financial-analyst opens a **sub-tower**), the `inbox` and `workspace` SDK MCP servers, scripts, models |
 | 5 | Background: Hooks, Memory & Learning | The PreToolUse send gate, three PostToolUse audit hooks, CLAUDE.md, preferences.md, the cards DB, reflection |
 

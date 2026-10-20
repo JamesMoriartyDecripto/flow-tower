@@ -1,4 +1,4 @@
-"""Human resolver for `escalate`: case packet (Sonnet), analyst queue, timeout to a senior analyst.
+"""Human resolver for `escalate`: case packet (Haiku), analyst queue, timeout to a senior analyst.
 
 The session stays paused on requires_action until a human decides; no verdict is ever
 invented by the host. AUTO_APPROVE (cookbook demo mode) concurs except for OVERRIDE_IDS.
@@ -28,7 +28,7 @@ def _packet(call: dict) -> str:
     prompt = PACKET_PROMPT
     for k, v in {**ctx, "transaction_id": call["transaction_id"]}.items():
         prompt = prompt.replace("{{" + k + "}}", str(v))
-    msg = client.messages.create(model="claude-sonnet-5-5", max_tokens=600,
+    msg = client.messages.create(model="claude-haiku-5-5", max_tokens=600,
                                  messages=[{"role": "user", "content": prompt}])
     return msg.content[0].text
 

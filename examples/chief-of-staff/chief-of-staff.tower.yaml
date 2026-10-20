@@ -5,7 +5,7 @@ tags: [personal-productivity, ambient-agent, claude-agent-sdk, human-in-the-loop
 description: >-
   An ambient executive assistant on the Claude Agent SDK. A background worker watches
   Gmail and Calendar push events plus a weekday 07:00 cron, triages every email with
-  Haiku, and lets an Opus Chief of Staff delegate to subagents (drafter, scheduler,
+  Haiku, and lets a Sonnet Chief of Staff delegate to subagents (drafter, scheduler,
   financial analyst, recruiter). The user is interrupted only through three inbox card
   kinds: notify, question, review. Nothing is sent without an approved review card,
   enforced by a PreToolUse hook. PostToolUse hooks write the audit trail, and every edit
@@ -59,7 +59,7 @@ runtimes:
   anthropic:
     kind: saas
     label: "Claude API"
-    description: "Opus, Sonnet and Haiku 5.5."
+    description: "Sonnet and Haiku 5.5."
     provider: "anthropic"
     url: "https://console.anthropic.com"
 
@@ -71,8 +71,8 @@ prompts:
 agents:
   cos:
     name: Chief of Staff
-    description: "Opus lead. Expands slash commands, delegates via Task, reaches the user only through inbox cards."
-    model: claude-opus-5-5
+    description: "Sonnet lead. Expands slash commands, delegates via Task, reaches the user only through inbox cards."
+    model: claude-sonnet-5-5
     prompt: chief-of-staff
     tools: [Task, Read, Write, Edit, Bash, WebSearch, mcp__inbox__notify, mcp__inbox__ask_question, mcp__inbox__request_review, mcp__workspace__get_thread, mcp__workspace__free_busy, mcp__workspace__send_email, mcp__workspace__send_invite]
     runtime: worker
@@ -127,7 +127,7 @@ agents:
   reflect:
     name: Reflection
     description: "Rewrites one section of memory/preferences.md from one piece of feedback. Read + Edit only."
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: reflection
     tools: [Read, Edit]
     runtime: worker
@@ -309,7 +309,7 @@ layers:
   - id: orchestration
     title: Background - Chief of Staff
     description: >-
-      One Opus session per thread, up to four in parallel. Risky work is planned first in
+      One Sonnet session per thread, up to four in parallel. Risky work is planned first in
       plan mode (read-only); the plan itself becomes a review card.
     nodes:
       - id: expand
@@ -409,18 +409,12 @@ layers:
         type: tool
         label: WebSearch
         description: "Market rates for the recruiter, comparables for the analyst."
-      - id: opus
-        runtime: anthropic
-        type: model
-        label: Opus 5.5
-        model: claude-opus-5-5
-        description: "Chief of Staff and reflection."
       - id: sonnet
         runtime: anthropic
         type: model
         label: Sonnet 5.5
         model: claude-sonnet-5-5
-        description: "All four subagents."
+        description: "Chief of Staff, reflection and all four subagents."
       - id: haiku
         runtime: anthropic
         type: model
@@ -551,9 +545,9 @@ links:
   - "orchestration.needs_user -> surfaces.review_card: review (via inbox MCP)"
   - "orchestration.needs_user -> surfaces.question_card: question (via inbox MCP)"
   - { from: orchestration.execute, to: specialists.workspace_mcp, kind: call, label: "send_email(review_id)", protocol: mcp }
-  - "orchestration.cos -> specialists.opus [call]"
+  - "orchestration.cos -> specialists.sonnet [call]"
   - "triggers.triage -> specialists.haiku [call]"
-  - "harness.reflect -> specialists.opus [call]"
+  - "harness.reflect -> specialists.sonnet [call]"
   # hooks around tool calls
   - { from: specialists.workspace_mcp, to: harness.send_gate, label: "PreToolUse: send_*", protocol: stdio }
   - { from: specialists.scripts, to: harness.post_bash, label: PostToolUse, protocol: stdio }

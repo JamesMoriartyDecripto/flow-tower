@@ -78,7 +78,7 @@ agents:
   packet:
     name: Case packet writer
     description: One Messages API call per escalation; no tools. Masks account numbers to the last 4 digits.
-    model: claude-sonnet-5-5
+    model: claude-haiku-5-5
     prompt: packet
     runtime: host
     tools: []
@@ -408,13 +408,7 @@ layers:
         type: model
         label: Haiku 5.5
         model: claude-haiku-5-5
-        description: The reviewer. Cheap enough to run every pending payment; COOKBOOK_MODEL overrides it.
-      - id: sonnet
-        runtime: anthropic
-        type: model
-        label: Sonnet 5.5
-        model: claude-sonnet-5-5
-        description: Analyst case packets.
+        description: The reviewer (cheap enough to run every pending payment; COOKBOOK_MODEL overrides it) and the analyst case packets.
     edges:
       - "secrets -> env: no DB credential in sandbox"
       - "audit_role -> trace: same decisions, two records"
@@ -442,5 +436,5 @@ links:
   - "platform.audit_role -> data.audit: insert only"
   - "platform.secrets -> intake.gate_loop [data]: MONGO_URI"
   - "review.reviewer -> platform.haiku [call]"
-  - "desk.packet -> platform.sonnet [call]"
+  - "desk.packet -> platform.haiku [call]"
   - "intake.gate_loop -> platform.trace [data]: events"

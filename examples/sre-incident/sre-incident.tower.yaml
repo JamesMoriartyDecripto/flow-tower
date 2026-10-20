@@ -124,7 +124,7 @@ agents:
   scribe:
     name: Postmortem writer
     description: Drafts the blameless postmortem from the archived session events and the merged PR.
-    model: claude-sonnet-5-5
+    model: claude-haiku-5-5
     prompt: postmortem
     runtime: sandbox
     tools: [read, write_postmortem]
@@ -484,18 +484,12 @@ layers:
         label: Opus 5.5
         model: claude-opus-5-5
         description: Investigator and remediator; judgment on production changes.
-      - id: sonnet
-        runtime: anthropic
-        type: model
-        label: Sonnet 5.5
-        model: claude-sonnet-5-5
-        description: Postmortem drafts.
       - id: haiku
         runtime: anthropic
         type: model
         label: Haiku 5.5
         model: claude-haiku-5-5
-        description: Status page text.
+        description: Status page text and postmortem drafts.
     edges:
       - "event_loop -> permissions [call]: tool events"
       - "budget -> event_loop: over budget"
@@ -522,7 +516,7 @@ links:
   # models
   - "investigation.investigator -> platform.opus [call]"
   - "remediation.remediator -> platform.opus [call]"
-  - "closeout.scribe -> platform.sonnet [call]"
+  - "closeout.scribe -> platform.haiku [call]"
   - "closeout.status_writer -> platform.haiku [call]"
   # trace
   - "remediation.oncall -> platform.trace [data]: decision"

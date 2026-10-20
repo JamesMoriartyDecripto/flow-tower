@@ -23,7 +23,7 @@ async def send_query(
 ) -> tuple[str | None, list]:
     """prompt may be a slash command (/budget-impact ...). plan = think only, no side effects."""
     options = ClaudeAgentOptions(
-        model="claude-opus-5-5",
+        model="claude-sonnet-5-5",
         allowed_tools=["Task", "Read", "Write", "Edit", "Bash", "WebSearch", *(extra_tools or [])],
         continue_conversation=continue_conversation,
         system_prompt=SYSTEM_PROMPT,

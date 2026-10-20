@@ -1296,7 +1296,7 @@ layers:
         type: model
         label: Haiku 5.5
         model: claude-haiku-5-5
-        description: Pitch intake, playtest bots, bug triage, asset tags, standups, release notes.
+        description: Pitch intake, playtest bots, bug triage, asset tags, standups, release notes, the tools engineer.
     edges:
       - "policy -> opus: judge, direct"
       - "policy -> sonnet: produce"

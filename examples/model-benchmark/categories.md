@@ -19,7 +19,7 @@ One category per role a tower node can have (issue #105). Each needs a task set 
 | writer | Brand or marketing copy against a brief, a voice guide and a claims list | required facts and banned claims as patterns, then rubric | `tasks/writer/` (3) |
 | vision | Screenshots and UI checks | exact answer about a known screenshot, exact JSON | `tasks/vision/` (6, images sent with `images:`) |
 | data | Extract fields into a JSON schema | exact JSON | `tasks/data/` (2) |
-| guard | Flag prompt injection and outgoing data leaks | exact JSON labels | `tasks/guard/` (2) |
+| guard | Flag prompt injection, outgoing data leaks and chat jailbreaks | exact JSON labels | `tasks/guard/` (3) |
 | decision | Fixed answers with probabilities (Decisions API) | answers mapped to plain values, exact JSON | `tasks/decision/` (2) |
 | embeddings | Retrieve the right passage for a question (English, Italian) | nearest corpus id per query, exact JSON | `tasks/embeddings/` (2) |
 | rerank | Put the right passage first | top result index, exact JSON | `tasks/rerank/` (2) |

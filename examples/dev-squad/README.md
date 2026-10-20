@@ -43,11 +43,11 @@ arbitrates and verifies; cheaper models code, review and audit through
 
 | Role | Provider | Model | $ in / out per M tokens |
 |---|---|---|---|
-| Lead, architect, fresh verifier, last-round fixer | Claude Agent SDK | `claude-opus-5-5` | Claude account |
+| Lead, fresh verifier, last-round fixer | Claude Agent SDK | `claude-opus-5-5` | Claude account |
 | Coder | OpenRouter | `anthropic/claude-haiku-5.5` | 0.10 / 0.50 |
 | Reviewer (read-only) | OpenRouter | `z-ai/glm-5.3-flashx` | 0.37 / 1.25 |
 | Security auditor (read-only) | OpenRouter | `deepseek/deepseek-v4.1-flash` | 0.30 / 1.20 |
-| Researcher, tester / triage, doc-writer | Claude Agent SDK | Sonnet 5.5 / Haiku 5.5 | Claude account |
+| Architect, researcher / triage, tester, doc-writer | Claude Agent SDK | Sonnet 5.5 / Haiku 5.5 | Claude account |
 
 Prices as of 2026-10-10, from `https://openrouter.ai/api/v1/models`; Haiku's from
 `node skills/flow-tower-costs/models.mjs anthropic/claude-haiku-5.5`. Field numbers from issue #70

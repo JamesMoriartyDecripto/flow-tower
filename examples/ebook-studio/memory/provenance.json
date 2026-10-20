@@ -21,7 +21,7 @@
         { "id": "fig-6-2", "origin": "human", "tool": "SVG from data (build script)" },
         { "id": "fig-6-3", "origin": "human", "tool": "author photo" }
       ],
-      "editing_passes": ["dev-edit:claude-opus-5-5", "line-edit:claude-sonnet-5-5", "copyedit:claude-sonnet-5-5", "author-review"]
+      "editing_passes": ["dev-edit:claude-sonnet-5-5", "line-edit:claude-sonnet-5-5", "copyedit:claude-sonnet-5-5", "author-review"]
     }
   ],
   "book_totals": {

@@ -12,7 +12,7 @@
 2026-10-08T14:08:56Z [lead] round=2 tasks=1
 2026-10-08T14:10:40Z [lead] <- searcher#5 calls=6 sources=4 artifacts=2 conflict_resolved=true
 2026-10-08T14:10:41Z [lead] research_complete rounds=2/6 subagents=5
-2026-10-08T14:12:52Z [writer] model=claude-opus-5-5 draft_tokens=5840
+2026-10-08T14:12:52Z [writer] model=claude-sonnet-5-5 draft_tokens=5840
 2026-10-08T14:13:40Z [citations] claims=63 cited=60 fixed=4 unsupported=3
 2026-10-08T14:14:02Z [verifier] round=1 verified=false blocking=1 minor=2
 2026-10-08T14:15:31Z [verifier] round=2 verified=true blocking=0 minor=1

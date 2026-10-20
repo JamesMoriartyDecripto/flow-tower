@@ -24,7 +24,7 @@ def feedback_event(card: dict, response: dict) -> dict | None:
 
 async def reflect(event: dict) -> str:
     options = ClaudeAgentOptions(
-        model="claude-opus-5-5",
+        model="claude-sonnet-5-5",
         allowed_tools=["Read", "Edit"],          # may only edit the preferences file
         permission_mode="acceptEdits",
         system_prompt=open("prompts/reflection.md", encoding="utf-8").read(),

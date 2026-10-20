@@ -22,7 +22,7 @@ runtimes:
 agents:
   ranking:
     name: Ranking
-    model: gemini-2.0-flash
+    model: gemini-3.8-flash
     prompt: { file: prompts/ranking.md }
     runtime: backend
     files: [src/elo_tournament.py, src/specialists.py]
@@ -83,8 +83,8 @@ layers:
       - id: model
         type: model
         runtime: gemini
-        label: Gemini 2.0
-        model: gemini-2.0-flash
+        label: Gemini 3.8 Flash
+        model: gemini-3.8-flash
     edges:
       - "debate -> winner [data]: rationale"
       - "single -> winner [data]: rationale"

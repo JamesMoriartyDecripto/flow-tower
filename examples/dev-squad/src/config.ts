@@ -32,10 +32,10 @@ const openrouter = (model: string): RoleModel => ({ provider: 'openrouter', mode
 export const ROLE_MODEL = {
   triage: claude(MODELS.haiku),
   lead: claude(MODELS.opus),
-  architect: claude(MODELS.opus),
+  architect: claude(MODELS.sonnet),
   researcher: claude(MODELS.sonnet),
   coder: openrouter(MODELS.haikuOpenRouter),
-  tester: claude(MODELS.sonnet),
+  tester: claude(MODELS.haiku),
   reviewer: openrouter(MODELS.glm),
   'security-auditor': openrouter(MODELS.deepseek),
   verifier: claude(MODELS.opus),

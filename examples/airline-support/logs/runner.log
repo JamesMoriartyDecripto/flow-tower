@@ -1,7 +1,7 @@
 2026-10-08T14:02:11.204Z thread=thr_7c1e  user      "I'm flying Paris to Austin via New York and my first leg is delayed."
-2026-10-08T14:02:11.206Z thread=thr_7c1e  run       agent="Triage Agent" (resumed: current_agent_name) model=gpt-5.2
-2026-10-08T14:02:11.207Z thread=thr_7c1e  guardrail "Relevance Guardrail" model=gpt-4.1-mini started
-2026-10-08T14:02:11.207Z thread=thr_7c1e  guardrail "Jailbreak Guardrail" model=gpt-4.1-mini started
+2026-10-08T14:02:11.206Z thread=thr_7c1e  run       agent="Triage Agent" (resumed: current_agent_name) model=gpt-6-luna
+2026-10-08T14:02:11.207Z thread=thr_7c1e  guardrail "Relevance Guardrail" model=gpt-6-luna started
+2026-10-08T14:02:11.207Z thread=thr_7c1e  guardrail "Jailbreak Guardrail" model=gpt-6-luna started
 2026-10-08T14:02:11.981Z thread=thr_7c1e  guardrail "Relevance Guardrail" passed  reasoning="Flight delay and connection question."
 2026-10-08T14:02:12.034Z thread=thr_7c1e  guardrail "Jailbreak Guardrail" passed  reasoning="Ordinary travel request."
 2026-10-08T14:02:12.410Z thread=thr_7c1e  tool_call  agent="Triage Agent" get_trip_details {"message":"Paris to Austin via New York..."}

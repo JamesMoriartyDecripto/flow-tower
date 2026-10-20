@@ -1,7 +1,7 @@
 2026-10-06T09:12:03Z [session] run=7c41e9a0b2 goal="AML drug repurposing" safety=allowed
 2026-10-06T09:12:40Z [parser] plan_config space=closed candidates=2300 output=nih_specific_aims
 2026-10-06T09:31:17Z [approval] scientist=dr.r edited=constraints(+1) approved
-2026-10-06T09:31:18Z [supervisor] start workers=32 batch=64 model=gemini-2.0-flash
+2026-10-06T09:31:18Z [supervisor] start workers=32 batch=64 model=gemini-3.8-flash
 2026-10-06T09:31:20Z [supervisor] cycle=1 weights gen=0.45 refl=0.25 rank=0.15 evo=0.05 prox=0.05 meta=0.05
 2026-10-06T09:44:52Z [supervisor] cycle=1 done hypotheses=37 rejected_initial=11 safety_blocked=0 matches=4
 2026-10-06T09:44:53Z [context] snapshot cycle-00001 bytes=1.8M

@@ -10,7 +10,7 @@ import os
 from google import genai
 from google.genai import types
 
-MODEL = os.environ.get("COSCI_MODEL", "gemini-2.0-flash")
+MODEL = os.environ.get("COSCI_MODEL", "gemini-3.8-flash")
 EMBED_MODEL = "gemini-embedding-001"
 
 client = genai.Client()  # Vertex AI or Gemini API, picked up from the environment

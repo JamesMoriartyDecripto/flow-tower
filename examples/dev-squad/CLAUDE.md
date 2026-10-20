@@ -31,10 +31,10 @@ Turn a GitHub issue labelled `squad:go` into a reviewed, tested, documented
 | Need | Agent | Model |
 |------|-------|-------|
 | Classify the issue | triage (prompt) | haiku |
-| Plan | architect (prompt) | opus |
+| Plan | architect (prompt) | sonnet |
 | Unknown API / version | researcher | sonnet |
 | Implement one step | coder (`run_coder`) | anthropic/claude-haiku-5.5 (OpenRouter) |
-| Break it | tester | sonnet |
+| Break it | tester | haiku |
 | Grade it | reviewer + security-auditor (parallel) | glm-5.3-flashx + deepseek-v4.1-flash (OpenRouter) |
 | Final check, fresh context | verifier | opus |
 | Changelog, docs, PR body | doc-writer | haiku |

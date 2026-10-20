@@ -29,7 +29,7 @@ model:
   provider: bedrock
   region: eu-central-1
   worker: claude-sonnet-5-5         # computer_20251124 + beta computer-use-2025-11-24 (accepted on Bedrock)
-  verifier: claude-opus-5-5
+  verifier: claude-sonnet-5-5
   classifier: claude-haiku-5-5
   max_steps: 60
 

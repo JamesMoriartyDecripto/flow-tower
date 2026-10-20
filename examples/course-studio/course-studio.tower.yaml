@@ -182,7 +182,7 @@ agents:
   consolidator:
     name: Review consolidator
     description: Dedupes the four reports, assigns severity and writes one revision brief per owner.
-    model: claude-opus-5-5
+    model: claude-haiku-5-5
     prompt: consolidator
     tools: [Read]
     runtime: orchestrator
@@ -1025,19 +1025,19 @@ layers:
         label: Opus 5.5
         model: claude-opus-5-5
         runtime: anthropic
-        description: Director, curriculum architect, pedagogy and rights reviewers, consolidator.
+        description: Director, pedagogy and rights reviewers.
       - id: sonnet
         type: model
         label: Sonnet 5.5
         model: claude-sonnet-5-5
         runtime: anthropic
-        description: Librarian, writers, media, assessment, fact-check, accessibility, simulator, packager, marketing.
+        description: Curriculum architect, librarian, writers, media, assessment, fact-check, accessibility, simulator, packager, marketing.
       - id: haiku
         type: model
         label: Haiku 5.5
         model: claude-haiku-5-5
         runtime: anthropic
-        description: Intake routing, metadata tags, claim extraction, digests.
+        description: Intake routing, review consolidation, metadata tags, claim extraction, digests.
     edges:
       - "session_log -> patterns [data]: seen twice"
       - "policy -> opus: direct, judge"

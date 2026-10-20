@@ -124,7 +124,7 @@ agents:
   compressor:
     name: Compressor
     description: Rewrites one searcher's tool history into cited findings; trims oldest turns on context overflow, 3 attempts.
-    model: claude-sonnet-5-5
+    model: claude-haiku-5-5
     prompt: compress
     runtime: app
     files: [src/compress.py]
@@ -132,7 +132,7 @@ agents:
   writer:
     name: Report writer
     description: Writes the report from compressed findings only; on revision fixes exactly the verifier's blocking issues.
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: writer
     runtime: app
     harness: { effort: high, max_tokens: 32000 }
@@ -428,19 +428,19 @@ layers:
         runtime: anthropic
         label: Opus 5.5
         model: claude-opus-5-5
-        description: Lead, writer, judge.
+        description: Lead, judge.
       - id: sonnet
         type: model
         runtime: anthropic
         label: Sonnet 5.5
         model: claude-sonnet-5-5
-        description: Clarifier, brief, searchers, compressor, CitationAgent, verifier.
+        description: Clarifier, brief, searchers, writer, CitationAgent, verifier.
       - id: haiku
         type: model
         runtime: anthropic
         label: Haiku 5.5
         model: claude-haiku-5-5
-        description: Page summarizer.
+        description: Page summarizer, compressor.
     edges:
       - "judge -> bench [data]: scores"
       - "human_review -> judge [data]: calibration"

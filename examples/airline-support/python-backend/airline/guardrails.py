@@ -7,7 +7,8 @@ from agents import (
     Agent, GuardrailFunctionOutput, RunContextWrapper, Runner, TResponseInputItem, input_guardrail,
 )
 
-GUARDRAIL_MODEL = "gpt-4.1-mini"
+# Upstream used gpt-4.1-mini, which no OpenRouter endpoint serves under a no-training policy.
+SMALL_MODEL = "gpt-6-luna"  # both guardrails and triage: classification, not answers
 PROMPTS = Path(__file__).resolve().parents[2] / "prompts"
 
 
@@ -22,11 +23,11 @@ class JailbreakOutput(BaseModel):
 
 
 guardrail_agent = Agent(
-    name="Relevance Guardrail", model=GUARDRAIL_MODEL, output_type=RelevanceOutput,
+    name="Relevance Guardrail", model=SMALL_MODEL, output_type=RelevanceOutput,
     instructions=(PROMPTS / "relevance-guardrail.md").read_text(encoding="utf-8"),
 )
 jailbreak_guardrail_agent = Agent(
-    name="Jailbreak Guardrail", model=GUARDRAIL_MODEL, output_type=JailbreakOutput,
+    name="Jailbreak Guardrail", model=SMALL_MODEL, output_type=JailbreakOutput,
     instructions=(PROMPTS / "jailbreak-guardrail.md").read_text(encoding="utf-8"),
 )
 

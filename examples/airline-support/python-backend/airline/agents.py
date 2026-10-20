@@ -8,7 +8,7 @@ from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
 from .context import AirlineAgentChatContext
 from .demo_data import apply_itinerary_defaults
-from .guardrails import jailbreak_guardrail, relevance_guardrail
+from .guardrails import SMALL_MODEL, jailbreak_guardrail, relevance_guardrail
 from .prompts import render
 from .tools import (
     assign_special_service_seat, book_new_flight, cancel_flight, display_seat_map,
@@ -16,20 +16,20 @@ from .tools import (
     issue_compensation, update_seat,
 )
 
-MODEL = "gpt-5.2"
+MODEL = "gpt-5.2"  # the specialists
 GUARDS = [relevance_guardrail, jailbreak_guardrail]  # every agent runs both input guardrails
 
 
-def _agent(name: str, prompt: str, desc: str, tools: list) -> Agent[AirlineAgentChatContext]:
+def _agent(name: str, prompt: str, desc: str, tools: list, model: str = MODEL) -> Agent[AirlineAgentChatContext]:
     return Agent[AirlineAgentChatContext](
-        name=name, model=MODEL, handoff_description=desc, tools=tools,
+        name=name, model=model, handoff_description=desc, tools=tools,
         instructions=lambda ctx, agent: RECOMMENDED_PROMPT_PREFIX + "\n" + render(prompt, ctx.context.state),
         input_guardrails=GUARDS,
     )
 
 
 triage_agent = _agent("Triage Agent", "triage",
-    "Delegates requests to the right specialist agent.", [get_trip_details])
+    "Delegates requests to the right specialist agent.", [get_trip_details], SMALL_MODEL)
 flight_information_agent = _agent("Flight Information Agent", "flight-information",
     "Provides flight status, connection impact, and alternate options.",
     [flight_status_tool, get_matching_flights])

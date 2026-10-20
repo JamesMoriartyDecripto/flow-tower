@@ -59,14 +59,14 @@ agents:
   parser:
     name: Goal parser
     description: Parses the natural-language goal into a research plan configuration the scientist reviews.
-    model: gemini-2.0-flash
+    model: gemini-3.8-flash
     prompt: goal-parser
     runtime: backend
     files: [src/research_session.py, config/research_plan.yaml]
   supervisor:
     name: Supervisor
     description: Builds the task queue, weights agents from summary statistics, detects the terminal state. Never writes hypotheses.
-    model: gemini-2.0-flash
+    model: gemini-3.8-flash
     prompt: supervisor
     runtime: backend
     files: [src/supervisor_loop.py, config/agent_weights.yaml]
@@ -75,7 +75,7 @@ agents:
   generation:
     name: Generation
     description: Searches literature, simulates expert debates, chains testable assumptions, expands into unexplored directions.
-    model: gemini-2.0-flash
+    model: gemini-3.8-flash
     prompt: generation
     tools: [google_search]
     runtime: backend
@@ -84,7 +84,7 @@ agents:
   reflection:
     name: Reflection
     description: Peer reviewer. Initial filter, full review with search, deep verification of assumptions, observation and simulation reviews.
-    model: gemini-2.0-flash
+    model: gemini-3.8-flash
     prompt: reflection
     tools: [google_search]
     runtime: backend
@@ -93,7 +93,7 @@ agents:
   ranking:
     name: Ranking
     description: Elo tournament. Multi-turn debates among top hypotheses, single-turn comparisons below.
-    model: gemini-2.0-flash
+    model: gemini-3.8-flash
     prompt: ranking
     runtime: backend
     files: [src/specialists.py, src/elo_tournament.py]
@@ -104,7 +104,7 @@ agents:
   evolution:
     name: Evolution
     description: Produces NEW hypotheses from top-ranked ones; originals stay and must keep winning.
-    model: gemini-2.0-flash
+    model: gemini-3.8-flash
     prompt: evolution
     tools: [google_search]
     runtime: backend
@@ -113,7 +113,7 @@ agents:
   proximity:
     name: Proximity
     description: Goal-aware similarity graph for clustering, de-duplication and tournament pairing.
-    model: gemini-2.0-flash
+    model: gemini-3.8-flash
     prompt: proximity
     runtime: backend
     files: [src/proximity_graph.py]
@@ -121,7 +121,7 @@ agents:
   meta:
     name: Meta-review
     description: Turns recurring review and debate patterns into prompt feedback, and writes the research overview.
-    model: gemini-2.0-flash
+    model: gemini-3.8-flash
     prompt: meta-review
     runtime: backend
     files: [src/specialists.py]
@@ -383,9 +383,9 @@ layers:
       - id: gemini
         type: model
         runtime: gemini
-        label: Gemini 2.0
-        model: gemini-2.0-flash
-        description: The paper runs every agent on Gemini 2.0 and calls the framework model-agnostic. The variant id here is a placeholder.
+        label: Gemini 3.8 Flash
+        model: gemini-3.8-flash
+        description: "The paper runs every agent on Gemini 2.0 and calls the framework model-agnostic. This example uses gemini-3.8-flash: the paper names no variant, and gemini-2.0-flash is no longer served."
       - id: embed
         type: model
         runtime: gemini

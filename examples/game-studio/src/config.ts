@@ -38,7 +38,6 @@ export const ROLE_MODEL = {
   'lighting-artist': MODELS.sonnet,
   'audio-designer': MODELS.sonnet,
   'gameplay-programmer': MODELS.sonnet,
-  'tools-engineer': MODELS.sonnet,
   'perf-profiler': MODELS.sonnet,
   'ui-designer': MODELS.sonnet,
   'ux-researcher': MODELS.sonnet,
@@ -58,6 +57,7 @@ export const ROLE_MODEL = {
   'playtest-bot': MODELS.haiku,
   'standup-summary': MODELS.haiku,
   'release-notes': MODELS.haiku,
+  'tools-engineer': MODELS.haiku, // scoped scripts against the pipeline contracts
 } as const;
 export type Role = keyof typeof ROLE_MODEL;
 

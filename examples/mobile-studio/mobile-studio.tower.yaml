@@ -209,7 +209,7 @@ agents:
     approval: { by: tech lead, via: GitHub PR review, actions: [approve, edit, reject], when: a migration or Edge Function goes to production, description: "Agents write only to the development project (backend-lead rule 7); production ships from the merged PR." }
   app-lead:
     name: App lead (Expo)
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: app-lead
     tools: [Read, Edit, Write, Bash, mcp__expo__search_documentation, mcp__expo__automation_take_screenshot, mcp__figma__get_design_context]
     runtime: mac
@@ -219,7 +219,7 @@ agents:
     sandbox: { network: allowlist, allow: [registry.npmjs.org, mcp.expo.dev, mcp.figma.com, api.github.com], filesystem: workspace }
   ios:
     name: iOS lane lead
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: { file: prompts/ios-lead.md }
     tools: [Read, Edit, Write, Bash, mcp__xcode__BuildProject, mcp__xcode__RenderPreview, mcp__xcode__DocumentationSearch, mcp__mobilebuildmcp__*]
     runtime: mac
@@ -229,7 +229,7 @@ agents:
     sandbox: { network: allowlist, allow: [registry.npmjs.org, cdn.cocoapods.org, mcp.figma.com, api.github.com], filesystem: workspace }
   android:
     name: Android lane lead
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: { file: prompts/android-lead.md }
     tools: [Read, Edit, Write, Bash, mcp__mobile-mcp__mobile_take_screenshot, mcp__mobile-mcp__mobile_list_elements_on_screen]
     runtime: mac

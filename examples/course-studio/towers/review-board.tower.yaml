@@ -46,7 +46,7 @@ agents:
     runtime: orchestrator
   consolidator:
     name: Review consolidator
-    model: claude-opus-5-5
+    model: claude-haiku-5-5
     prompt: consolidator
     tools: [Read]
     runtime: orchestrator
@@ -116,12 +116,12 @@ layers:
       - id: merge
         agent: consolidator
         label: Consolidator
-      - id: opus
+      - id: haiku
         type: model
-        label: Opus 5.5
-        model: claude-opus-5-5
+        label: Haiku 5.5
+        model: claude-haiku-5-5
         runtime: anthropic
-        description: Judgment across conflicting findings (e.g. pedagogy wants more text, reading level wants less).
+        description: Merges the four reports into one list (e.g. pedagogy wants more text, reading level wants less).
       - id: dedupe
         label: Dedupe + rank
         description: Same location + same cause = one finding. Severity blocker / major / minor; only blockers fail the round.
@@ -147,7 +147,7 @@ layers:
         runtime: orchestrator
         files: [prompts/revise-round.md]
     edges:
-      - "merge -> opus [call]: reasoning"
+      - "merge -> haiku [call]: merge"
       - "merge -> dedupe [data]: findings"
       - dedupe -> verdict
       - "verdict -> cap: blockers"

@@ -6,8 +6,10 @@ A Triage Agent routes each chat to five peer specialists. The specialists hand o
 each other directly, with no central orchestrator. Two LLM input guardrails can "trip"
 any message. All agents share one typed context that holds the passenger's booking.
 
-The agents run on **gpt-5.2** and the guardrails on **gpt-4.1-mini**, the same OpenAI
-models the source uses. The Python under `python-backend/` is an abridged mirror of the
+The specialists run on **gpt-5.2**, as in the source. Triage and the two guardrails run on
+**gpt-6-luna**: the source's gpt-4.1-mini has no OpenRouter endpoint under a no-training
+policy, and gpt-6-luna passed the routing, relevance and jailbreak sets at a tenth of
+gpt-5.2's cost ([benchmark](../model-benchmark/results/2026-10-16-tower-nodes.md)). The Python under `python-backend/` is an abridged mirror of the
 upstream code, kept to under 80 lines per file. It is meant to be read, not run.
 
 ```bash
@@ -22,7 +24,7 @@ node bin/flow-tower.js examples/airline-support/airline-support.tower.yaml
 | 2 | API & Guardrails | `backend` server | `POST /chatkit`, `/chatkit/state`, the SSE state stream, `Runner.run_streamed`, relevance and jailbreak guards, the tripwire leading to a refusal |
 | 3 | Agents & Handoffs | `backend` | Triage plus five specialists, `on_handoff` hydration hooks, the return path to Triage, the planned Baggage Agent and escalation ticket |
 | 4 | Function Tools | `backend` | The real tool names (`flight_status_tool`, `book_new_flight`, `issue_compensation`...); payouts over the limit pause for the planned duty-manager approval |
-| 5 | Shared Context, State & Models | `backend`, `openai` saas | `AirlineAgentContext` (PII), `public_context()` filter, in-memory stores, gpt-5.2, gpt-4.1-mini |
+| 5 | Shared Context, State & Models | `backend`, `openai` saas | `AirlineAgentContext` (PII), `public_context()` filter, in-memory stores, gpt-5.2, gpt-6-luna |
 
 **Frontend and backend.** Every edge between the browser and the server is an object-form
 link with `protocol: http`: the chat POST, the SSE reply, the state fetches, the four SSE

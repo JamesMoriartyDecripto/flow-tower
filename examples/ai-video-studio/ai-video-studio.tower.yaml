@@ -151,7 +151,7 @@ agents:
     files: [research/hook-bank.md]
   writer:
     name: Scriptwriter
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: scriptwriter
     tools: [Read, Write]
     runtime: orchestrator
@@ -178,7 +178,7 @@ agents:
     files: [pipeline/remotion/ShortVideo.tsx]
   frame-qa:
     name: Frame QA
-    model: claude-sonnet-5-5
+    model: claude-haiku-5-5
     prompt: frame-qa
     tools: [Read]
     runtime: orchestrator
@@ -291,6 +291,7 @@ layers:
         files: [content/first-ultra-script.md]
       - id: variants
         agent: writer
+        model: claude-haiku-5-5
         label: Platform variants
         description: "45 s 9:16 short (TikTok, Reels, Shorts), 6-8 min 16:9 YouTube, 30 s 1:1 paid cut. Each opens on a different tested hook."
         fanout: { min: 2, max: 4, by: target formats }

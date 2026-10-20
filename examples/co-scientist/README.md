@@ -48,7 +48,7 @@ Eval **values** marked "paper" come from the paper (78.4% GPQA diamond top-1 for
 top-Elo answer; expert preference rank 2.36 across 11 goals; novelty 3.64 and impact
 3.09 of 5; 1,200 adversarial goals rejected). Every **target**, the run limits
 (72h TTL, 400 cycles, 32 workers), budgets and the top-Elo value are illustrative.
-The paper names "Gemini 2.0" without a variant; `gemini-2.0-flash` is a placeholder id.
+The paper names "Gemini 2.0" without a variant; the example uses `gemini-3.8-flash` (gemini-2.0-flash is no longer served; see `examples/model-benchmark/results/2026-10-16-tower-nodes.md`).
 
 ## Sources
 
