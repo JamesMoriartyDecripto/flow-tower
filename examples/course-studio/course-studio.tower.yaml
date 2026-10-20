@@ -978,7 +978,7 @@ layers:
   # 12 ──────────────────────────────────────────────────────────────
   - id: memory
     title: Memory, Config & Models
-    description: Plain files reviewed in PRs. Right-size every call - Opus where judgment compounds, Sonnet for production, Haiku for routing and tags.
+    description: Plain files reviewed in PRs. Right-size every call - Opus where judgment compounds, Sonnet for planning and production, Haiku for routing, tags and merging notes.
     nodes:
       - id: claude_md
         type: memory

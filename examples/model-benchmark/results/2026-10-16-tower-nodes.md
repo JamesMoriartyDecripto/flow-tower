@@ -205,4 +205,4 @@ One row per node flagged in the optimizer reports. "Keep" when a cheaper model l
 | web-studio | `design.copy` | Sonnet | keep | three locales: translation not benchmarked |
 | web-studio | `launch.monitor` | Haiku | keep | already the cheapest; summarizer agrees |
 
-Switch: 30 node rows (the jailbreak guard added on 2026-10-20). Keep: 27, of which 11 are not benchmarked.
+Switch: 30 node rows (the jailbreak guard added on 2026-10-20). Keep: 28, of which 11 are not benchmarked.
