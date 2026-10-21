@@ -14,6 +14,11 @@ The models to start from for each role a tower node can have (`src/core/roles.ts
 **Before trusting a pick:**
 - n = 6 per cell is enough to rank, not to settle. Re-run on the project's own cases (see [SKILL.md](SKILL.md)).
 - Check what is new since this date: `node models.mjs --role <id> --families 2 --since 2026-10-16`.
+- **Re-check 2026-10-21** (#281, $0.03, [results](../../examples/model-benchmark/results/2026-10-21-new-models.md)): the models new on OpenRouter since 2026-10-16, on the same tasks.
+  - research: `deepseek/deepseek-v4.1-flash-1017` replaces `deepseek-v4.1-flash` (6/6, cheaper and faster on our runs).
+  - coding, data, orchestrator: `minimax/minimax-m3.1-flash:free` 6/6 at no cost, under `data_collection: deny`. Not a pick: a free tier is rate-limited and can be withdrawn; re-test when a paid endpoint is listed.
+  - decision: `perplexity/pplx-decider-v1.2` ties v1.1 (6/6, same cost and speed); v1.1 stays.
+  - Not better here: `inception/mercury-3` (router 5/6; guard, data, orchestrator 6/6 but above the picks' cost), `mistralai/voxtral-*-transcribe-3-0` (6/6, about twice mai-transcribe-2's cost).
 
 | Role (`roles.ts`) | Pick | Correct | $/run | s | Alternatives (other families) | Avoid here |
 |---|---|---|---|---|---|---|
@@ -21,9 +26,9 @@ The models to start from for each role a tower node can have (`src/core/roles.ts
 | review | google/gemini-3.8-flash | 6/6 | 0.0021 | 9.8 | anthropic/claude-sonnet-5.5 (5/6), deepseek/deepseek-v4.1-flash (4/6) | openai/gpt-6-luna 1/6 |
 | review (security: exploitable issues) | z-ai/glm-5.3-flash | 6/6 | 0.0005 | 7.7 | anthropic/claude-haiku-5.5 (6/6), deepseek/deepseek-v4.1-flash (6/6) | stepfun/step-5-preview 3/6 |
 | writing (docs) | xiaomi/mimo-v2.6-flash | 6/6 | 0.00007 | 6.0 | anthropic/claude-haiku-5.5 (6/6, 2.0 s), deepseek/deepseek-v4.1-flash (6/6) | gpt-6-luna, glm-5.3-flash, step-5-preview 3/6 |
-| research (answers quoted verbatim from sources) | deepseek/deepseek-v4.1-flash | 6/6 | 0.0006 | 8.7 | z-ai/glm-5.3-flash (5/6), anthropic/claude-haiku-5.5 (5/6) | openai/gpt-6-luna 0/6, google/gemini-3.8-flash 0/6 (prose instead of the asked JSON) |
+| research (answers quoted verbatim from sources) | deepseek/deepseek-v4.1-flash-1017 (2026-10-21) | 6/6 | 0.0005 | 4.9 | z-ai/glm-5.3-flash (5/6), anthropic/claude-haiku-5.5 (5/6) | openai/gpt-6-luna 0/6, google/gemini-3.8-flash 0/6 (prose instead of the asked JSON) |
 | router (intent classes, chat) | xiaomi/mimo-v2.6-flash | 6/6 | 0.00006 | 5.3 | openai/gpt-6-luna (6/6, 2.4 s), anthropic/claude-haiku-5.5 (6/6) | stepfun/step-5-preview 4/6 |
-| decision (fixed answers with probabilities, Decisions API) | perplexity/pplx-decider-v1.1-27b | 6/6 | 0.00002 | 0.4 | inception/mercury-decide (6/6), microsoft/microsoft-decision-1 (6/6), typesafe/jev-1.14 (6/6) | cloudflare/clef-flash 0/6, upstage/solar-decide-flash 0/6 |
+| decision (fixed answers with probabilities, Decisions API) | perplexity/pplx-decider-v1.1-27b | 6/6 | 0.00002 | 0.4 | inception/mercury-decide (6/6), microsoft/microsoft-decision-1 (6/6), typesafe/jev-1.14 (6/6) | cloudflare/clef-flash 0/6, upstage/solar-decide-flash 0/6, perplexity/pplx-decider-flash-v1.2 3/6 |
 | orchestrator (plans and orders steps) | openai/gpt-6-luna | 6/6 | 0.00007 | 3.9 | z-ai/glm-5.3-flash (6/6, 1.9 s), xiaomi/mimo-v2.6-flash (6/6) | — |
 | data (extraction to JSON) | openai/gpt-6-luna | 6/6 | 0.00009 | 2.9 | z-ai/glm-5.3-flash (6/6, 1.6 s), xiaomi/mimo-v2.6-flash (6/6) | — (all 9 at 6/6) |
 | guard (injection, data leaks) | z-ai/glm-5.3-flash | 6/6 | 0.00005 | 0.9 | anthropic/claude-haiku-5.5 (6/6), xiaomi/mimo-v2.6-flash (6/6) | — (all 9 at 6/6) |
