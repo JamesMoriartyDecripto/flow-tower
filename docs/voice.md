@@ -16,6 +16,7 @@ Press **V** or the **MIC** button (top bar or library header) and say where to g
 | "vai al nodo triage", "agente reviewer" | "node triage", "agent reviewer" | Select a node or an agent |
 | "vista mappa", "vista torre" | "map view", "tower view" | Switch view |
 | "panoramica" | "overview" | The whole tower |
+| "panoramica guidata", "spiegami la torre" | "guided tour", "walk me through the tower" | A spoken tour of the tower, layer by layer ([below](#guided-tour)) |
 | "indietro" | "back" | Go back, like Esc |
 | "libreria" | "library" | Project library |
 | "chiudi il file" | "close the file" | Closes only the viewer (the node stays selected) |
@@ -67,6 +68,26 @@ The agent reads the tower on screen through its tools (layers, nodes, connection
 - **Faster first audio (#70).** If the agent has not started its answer 600 ms after you stop speaking, a short cached phrase ("One moment.", "Un attimo.") plays first; first audio drops from 1.9–2.9 s to about 0.6 s.
 - **Cost and speed** (measured once on dev-squad, illustrative): an answer took 1.1–2.9 s and about $0.001, and speaking it about 0.7 s more. Plain commands never reach the agent and stay instant.
 - **Privacy:** the transcript, what is on screen and the tool results go to the model; no audio is kept. Nothing is logged unless you turn on the journal below.
+
+## Guided tour
+
+Say **"panoramica guidata"** (or "spiegami la torre", "fammi il giro della torre", "visita guidata") or **"guided tour"** (or "walk me through the tower", "explain the tower") and the tower on screen is explained layer by layer, from the top: each layer is focused, an intro says what it does, then one sentence per node while that node lights up. The caption shows where you are ("Layer 3 of 14"). "Panoramica" alone still just shows the whole tower.
+
+| Say | Does |
+|---|---|
+| "avanti", "il prossimo" / "next" | The next layer |
+| "indietro" / "previous" | The layer before |
+| "dettagli", "nel dettaglio" / "details", "in detail" | This layer again, every node |
+| "stop", "basta", "fine del giro" / "stop the tour" | Ends the tour; the view stays where it is |
+
+- **When to speak.** While the tour talks, the microphone does not listen (so the speakers cannot drive it), unless **Settings → Voice → Interrupt by voice** is on (with headphones). After each layer there is a short pause, about 1.5 s: say the command then. If you are still speaking when it ends, the next layer waits for you. **Esc** stops the tour at any time.
+- **What ends it.** Esc, mic off, another command ("livello 3", a question) or leaving the tower (another project, a sub-tower, the library).
+- **Big layers.** Up to 10 nodes are named one by one; past 10, the main ones are named and the rest grouped in one sentence. "dettagli" retells the layer with every node.
+- **Language.** The tour speaks the language of the phrase you used: Italian for "panoramica guidata", English for "guided tour".
+- **Text.** The voice agent's model writes the sentences from the tower's own descriptions, never from guesses; each line is checked against the layer's real nodes. If the model fails twice on a layer, the tower's own text is read instead. The next layer is prepared while this one plays, and each layer is asked once per tour, so going back is instant.
+- **Spoken replies off**: the tour runs in the caption, each sentence for its reading time (about 15 characters a second, at least 2 s).
+- **Cost** (measured once on game-studio, illustrative): about $0.001 per layer, so about 1.5 cents for 14 layers.
+- **Privacy:** each layer's titles and descriptions go to the model (zero data retention), as the agent's tool results do; no files are read.
 
 ## Learning from your sessions
 

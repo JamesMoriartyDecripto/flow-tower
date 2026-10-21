@@ -3,12 +3,13 @@ version: 1
 name: Voice Commands
 tags: [voice, speech-to-text, text-to-speech, voice-agent, openrouter, whisper, browser, learning, dogfooding]
 description: >-
-  The voice widget of Flow Tower itself (issues #62, #63, #68 and #72-#74), mapped from its code. Press V (or MIC) and
+  The voice widget of Flow Tower itself (issues #62, #63, #68, #72-#74 and #275), mapped from its code. Press V (or MIC) and
   speak in Italian or English. Navigation ("apri dev squad", "livello 2", "vai al nodo triage") goes to a
   local parser (no LLM) and runs the same store calls as the keyboard. Questions and references to the
   screen ("cosa c'è nel secondo livello?", "a cosa è collegato questo nodo") go to a conversational agent:
   an OpenRouter chat model with 20 tools that run in the page on the tower on screen, whose short reply is
-  streamed into the caption and spoken sentence by sentence. Audio goes to the local flow-tower server and on
+  streamed into the caption and spoken sentence by sentence. "Panoramica guidata" starts a guided tour: each
+  layer narrated in turn, its nodes lit as they are named. Audio goes to the local flow-tower server and on
   to OpenRouter with zero data retention. With "Learn from my sessions" on, each turn is written to a text
   journal in the user's folder; a review proposes aliases for misheard names and notes for the agent, which
   apply only once the user accepts them. The speech engines that were weighed are drawn as planned alternatives; the model choices
@@ -56,16 +57,16 @@ agents:
   narrator:
     name: Layer narrator
     description: >-
-      Planned for the guided tour (#275). One POST /api/voice/chat per layer with a single tool, narrate_layer,
+      narrateLayer() in narrate.ts, for the guided tour (#275). One POST /api/voice/chat per layer with a single tool, narrate_layer,
       whose arguments are the narration: an intro sentence and { node, sentence } pairs, in the language the tour
-      was asked in, written from the layer and node descriptions it is given (never from guesses). Plain spoken
-      text, one short sentence per node. The same chat model as the voice guide; the next layer is asked for
+      was asked in (set by the start phrase), written from the layer and node descriptions it is given (never from
+      guesses). Plain spoken text, one full sentence of at most 20 words per node, nodes in flow order. The same chat model as the voice guide; the next layer is asked for
       while the current one is spoken, so the tour does not pause between layers.
     model: google/gemini-3.5-flash-lite
     tools: [narrate_layer]
     runtime: browser
-    files: [src/app/voice/agent.ts, src/server/voice.ts]
-    limits: { max_iterations: 1, description: "One call per layer, or per 10 nodes with details: no tool loop." }
+    files: [src/app/voice/narrate.ts, src/server/voice.ts]
+    limits: { max_iterations: 2, description: "One call per layer, or per 10 nodes with details, asked again once when the answer has no usable call: no tool loop." }
     data: { retention: none, description: "The layer's titles and descriptions go to OpenRouter (ZDR endpoints); no audio, no file text." }
 
 layers:
@@ -350,50 +351,44 @@ layers:
   # 5 ───────────────────────────────────────────────────────────────
   - id: tour
     title: Guided tour
-    description: "A spoken walk through the tower on screen (#275): each layer from the top, an intro, then one sentence per node while that node lights up. Planned: the design the code will follow."
+    description: "A spoken walk through the tower on screen (#275): each layer from the top, an intro, then one sentence per node while that node lights up."
     nodes:
       - id: start
         type: entry
         label: Tour phrase
         runtime: browser
-        status: planned
-        description: "\"panoramica guidata\", \"spiegami la torre\", \"guided tour\", \"walk me through the tower\": a fixed phrase of the parser, so it never waits for the agent. \"panoramica\" alone keeps its instant camera move."
-        files: [src/app/voice/commands.ts]
+        description: "\"panoramica guidata\", \"spiegami la torre\", \"guided tour\", \"walk me through the tower\": a fixed phrase of the parser, so it never waits for the agent. The phrase sets the language of the narration. \"panoramica\" alone keeps its instant camera move."
+        files: [src/app/voice/commands.ts, src/app/voice/actions.ts, tests/voice-tour-commands.test.ts, tests/voice-tour-language.test.ts]
       - id: driver
         type: process
         label: Tour driver
         runtime: browser
-        status: planned
-        description: "Walks the layers top to bottom: focuses the layer, says its intro, then each node's sentence with that node lit (hover), then the next layer. The next layer's narration is asked for while this one is spoken. The caption shows \"Layer 3 of 8\". Mic off, Esc or another command ends it and leaves the view where it is."
-        files: [src/app/voice/voice.ts, src/app/voice/agent.ts]
+        description: "Walks the layers top to bottom: focuses the layer, says its intro, then each node's sentence with that node lit (hover), then the next layer. The next layer's narration is asked for while this one is spoken. The caption shows \"Layer 3 of 8\". Each narration is kept for the tour's life. Mic off, Esc, another command or leaving the tower ends it."
+        files: [src/app/voice/tour.ts, src/app/voice/voice.ts, tests/voice-tour.test.ts, tests/voice-tour-cache.test.ts, tests/voice-tour-fixes.test.ts, e2e/voice-tour.spec.ts]
       - id: narrator
         agent: narrator
         label: Layer narrator
-        status: planned
         description: "One call per layer, in the language the tour was asked in: an intro sentence and one sentence for each of up to 10 nodes, from the layer's own titles and descriptions; above 10 nodes, the main ones and one sentence for the rest. \"dettagli\" / \"details\" narrates every node of the layer, 10 per call."
       - id: check
         type: guard
         label: Narration check
         runtime: browser
-        status: planned
-        description: "Keeps only sentences whose node key is in the layer, each once, at most 10 per call. A failed or empty call falls back to the tower's own text (layer description, each node's label and first sentence), so the tour never stops on a model error."
-        files: [src/app/voice/agent.ts]
+        description: "Keeps only sentences whose node key is in the layer, each once, at most 10 per call. A failed or empty answer is asked again once, then falls back to the tower's own text (layer description, each node's label and first sentence), so the tour never stops on a model error."
+        files: [src/app/voice/narrate.ts, tests/voice-narrate.test.ts, tests/voice-narrate-retry.test.ts]
       - id: pace
         type: decision
         label: Voice or captions?
         runtime: browser
-        status: planned
         description: "Spoken replies on: a node's sentence lights it when its audio starts, and the layer moves on when the queue drains. Off: each sentence stays in the caption for its reading time, about 15 characters a second."
         decision: { output: binary, candidates: [spoken, captions], fail: closed }
-        files: [src/app/voice/agent.ts, src/app/settings.ts]
+        files: [src/app/voice/tour.ts, src/app/voice/agent.ts, tests/voice-speech-hooks.test.ts]
       - id: controls
         type: decision
         label: Tour command?
         runtime: browser
-        status: planned
         description: "While the tour runs: \"avanti\" / \"next\" skips to the next layer, \"indietro\" / \"previous\" goes back one, \"dettagli\" / \"details\" retells this layer node by node, \"stop\" or Esc ends it. Any other command ends the tour first, then runs."
         decision: { output: choice, candidates: [next, previous, details, stop, other command], fail: closed }
-        files: [src/app/voice/commands.ts, src/app/voice/voice.ts]
+        files: [src/app/voice/commands.ts, src/app/voice/voice.ts, src/app/voice/tour.ts]
     edges:
       - "start -> driver: tower on screen"
       - "driver -> narrator [call]: layer, language"
@@ -667,7 +662,7 @@ links:
   - { from: understanding.ambiguous, to: actions.caption, label: "several: Which one?" }
   - { from: understanding.ambiguous, to: conversation.agent, label: "none: ask agent" }
   - { from: understanding.ambiguous, to: actions.caption, label: "none, no agent" }
-  # The guided tour (#275, planned).
+  # The guided tour (#275).
   - "understanding.parser -> tour.start: tour phrase"
   - "understanding.parser -> tour.controls: during a tour"
   - "capture.esc -> tour.controls: Esc ends it"
