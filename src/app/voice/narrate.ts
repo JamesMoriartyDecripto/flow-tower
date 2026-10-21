@@ -1,5 +1,6 @@
-import type { ResolvedNode, ResolvedTower } from '../../core/types';
+import type { ResolvedLayer, ResolvedNode, ResolvedTower } from '../../core/types';
 import { post } from './agent';
+import { flowOrder } from '../keynav';
 import type { ToolDef } from './tools';
 
 /**
@@ -25,9 +26,16 @@ const firstSentence = (text?: string) => {
   return m ? m[0] : t;
 };
 
+/**
+ * The layer's nodes in the order the lit node travels across the screen (#275), so the tour and the
+ * voice agent's layer_nodes tool agree. Parts are cut from this same order.
+ */
+const nodesInFlow = (tower: ResolvedTower, layer: ResolvedLayer) => flowOrder(tower.id, layer);
+
 /** How many calls "details" needs for a layer: ceil(nodes / PER_CALL), at least 1. */
 export function parts(tower: ResolvedTower, index: number): number {
-  return Math.max(1, Math.ceil((tower.layers[index]?.nodes.length ?? 0) / PER_CALL));
+  const layer = tower.layers[index];
+  return Math.max(1, Math.ceil((layer ? nodesInFlow(tower, layer).length : 0) / PER_CALL));
 }
 
 /**
@@ -36,11 +44,12 @@ export function parts(tower: ResolvedTower, index: number): number {
  */
 export function layerBrief(tower: ResolvedTower, index: number, part?: number) {
   const layer = tower.layers[index];
-  const shown = part === undefined ? layer.nodes : layer.nodes.slice(part * PER_CALL, part * PER_CALL + PER_CALL);
+  const ordered = nodesInFlow(tower, layer);
+  const shown = part === undefined ? ordered : ordered.slice(part * PER_CALL, part * PER_CALL + PER_CALL);
   return {
     title: layer.title,
     description: layer.description || undefined,
-    total: layer.nodes.length,
+    total: ordered.length,
     nodes: shown.map((n) => ({ key: n.key, label: n.label, type: n.type, description: cut(n.description) })),
   };
 }
@@ -81,12 +90,13 @@ const lineOf = (n: ResolvedNode): Line => {
  */
 export function towerNarration(tower: ResolvedTower, index: number, details: boolean, part = 0): Narration {
   const layer = tower.layers[index];
+  const ordered = nodesInFlow(tower, layer);
   const nodes = details
-    ? layer.nodes.slice(part * PER_CALL, part * PER_CALL + PER_CALL)
-    : layer.nodes.slice(0, PER_CALL);
+    ? ordered.slice(part * PER_CALL, part * PER_CALL + PER_CALL)
+    : ordered.slice(0, PER_CALL);
   const first = firstSentence(layer.description);
   const intro = details && part > 0 ? '' : first ? `${layer.title}. ${first}` : layer.title;
-  const more = !details && layer.nodes.length > PER_CALL ? layer.nodes.length - PER_CALL : 0;
+  const more = !details && ordered.length > PER_CALL ? ordered.length - PER_CALL : 0;
   return { intro, lines: nodes.map(lineOf), ...(more ? { rest: `And ${more} more.` } : {}) };
 }
 
