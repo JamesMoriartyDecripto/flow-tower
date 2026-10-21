@@ -12,6 +12,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Role catalogue: the models new on OpenRouter since 2026-10-16 re-checked on the same task sets (#281, 84 runs, $0.03). The research pick is now `deepseek/deepseek-v4.1-flash-1017` (6/6, cheaper and faster than the id it replaces); `minimax/minimax-m3.1-flash:free` passes coding, data and orchestrator but stays a note (free tier); `perplexity/pplx-decider-flash-v1.2` joins the models to avoid for decisions.
 - The voice-commands example tower maps the guided tour, and its voice guide lists `live_status` among its 20 tools (#275).
 
+### Fixed
+- Library cards on a hub: the title no longer shares its row with the chips (machine, updated, MINE/EXAMPLE, live dot), which left it a few letters wide and split words mid-word; the chips sit on their own line under it, and a word breaks only when it alone is wider than the card (#279).
+
 ## [0.12.0] - 2026-10-21
 
 ### Added
