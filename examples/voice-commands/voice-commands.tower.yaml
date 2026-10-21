@@ -293,7 +293,7 @@ layers:
         label: Gemini Flash-Lite
         runtime: openrouter
         model: google/gemini-3.5-flash-lite
-        description: "Chosen by a six-model benchmark on this tool loop (2026-10-10): first sentence 1.8 s on average, against 2.4 s for Gemini 3.1 Flash-Lite, and every answer right in two steps. One chat completion per step, max_tokens 500, routed only to zero-retention endpoints that support tools. FLOW_TOWER_AGENT_MODEL picks another model (see the options page); there is no automatic fallback."
+        description: "Chosen by a six-model benchmark on this tool loop (2026-10-10): first sentence 1.8 s on average, against 2.4 s for Gemini 3.1 Flash-Lite, and every answer right in two steps. One chat completion per step, max_tokens 500 (the tour's narration asks 1200), routed only to zero-retention endpoints that support tools. FLOW_TOWER_AGENT_MODEL picks another (options page); no automatic fallback."
         files: [examples/voice-commands/options/llm-intent.md, src/server/voice.ts]
       - id: step
         type: decision
@@ -589,7 +589,7 @@ layers:
         type: process
         label: Forward to chat
         runtime: server
-        description: "One agent step, forwarded to OpenRouter with max_tokens 500 and ZDR-only routing that requires tool support. The reply is streamed through as it arrives, so the first words reach the caption early. Messages and tools are capped (60 and 20) and checked first."
+        description: "One agent step, forwarded to OpenRouter with max_tokens 500 (a caller may ask up to 1200) and ZDR-only routing that requires tool support. The reply is streamed through as it arrives. Messages, tools and max_tokens are capped (60, 20, 1200) and checked first."
         credentials: service
         limits: { timeout: 30s }
         files: [src/server/voice.ts]
