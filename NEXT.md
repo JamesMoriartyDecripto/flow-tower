@@ -4,7 +4,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Status on 2026-10-20
 
-- **Models per node applied** (PR pending): the 30 switch rows of `examples/model-benchmark/results/2026-10-16-tower-nodes.md` in 18 example towers, with agent files, code, README and sample logs kept in step. co-scientist moves all 9 agents off `gemini-2.0-flash` (no longer served); airline-support's triage and both guardrails run on `gpt-6-luna`, after a new guard task `airline-jailbreak` (gpt-6-luna, gpt-5.2, glm-5.3-flash all 5/5, $0.005). Audit unchanged (33 findings before and after). No model of the towers' families came out after 2026-10-16, so no re-run.
+- **Models per node applied** (PR #274): the 30 switch rows of `examples/model-benchmark/results/2026-10-16-tower-nodes.md` in 18 example towers, with agent files, code, README and sample logs kept in step. co-scientist moves all its agents (8, plus the tournament sub-tower's ranking) off `gemini-2.0-flash` (no longer served); airline-support's triage and both guardrails run on `gpt-6-luna`, after a new guard task `airline-jailbreak` (gpt-6-luna, gpt-5.2, glm-5.3-flash all 5/5, $0.005). Audit unchanged (33 findings before and after). No model of the towers' families came out after 2026-10-16, so no re-run.
   - Nodes with their own evals confirm the switch on them before production: ai-video-studio `qa.frame_qa`, browser-worker `verify.verifier`, airline-support guardrails.
   - Still not benchmarked (11 nodes kept): research, analysis, computer use, Figma edits, translation; a task set per role is the next step for them.
 
