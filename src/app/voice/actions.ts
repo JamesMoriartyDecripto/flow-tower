@@ -104,7 +104,7 @@ export function execute(a: VoiceAction, { stop, tour }: ActionDeps): string {
       return a.only?.length ? `Showing ${a.only.join(', ')}` : 'Showing every type';
     case 'mic-off': setTimeout(stop); return 'Microphone off';
     case 'tour':
-      if (a.op === 'start') return startTour(a.said, tour);
+      if (a.op === 'start') return startTour(a.said, tour, a.lang);
       return tourControl(a.op);
     case 'ambiguous': return `Which one? ${a.options.map((o, i) => `${i + 1}. ${o.label}`).join('  ')}`;
     case 'unknown': return NOT_UNDERSTOOD;

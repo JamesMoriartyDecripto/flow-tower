@@ -117,7 +117,7 @@ export const NARRATE_TOOL: ToolDef = {
             type: 'object',
             properties: {
               node: { type: 'string', description: 'The node key, exactly as given.' },
-              sentence: { type: 'string', description: 'One short sentence, at most 25 words.' },
+              sentence: { type: 'string', description: 'One full spoken sentence, at most 20 words, on what the node does or holds.' },
             },
             required: ['node', 'sentence'],
             additionalProperties: false,
@@ -131,23 +131,25 @@ export const NARRATE_TOOL: ToolDef = {
   },
 };
 
-const NARRATOR = `You narrate one layer of a Flow Tower for a spoken guided tour. Call narrate_layer once. Write in the language of the user's request, given below; keep node and layer names exactly as given. Plain spoken text, no markdown, lists or code. The brief is the layer's title, its description and its nodes (key, label, type, description). Use only the descriptions given: never guess, never add a fact that is not in the brief. intro: one sentence on what the layer does. lines: one short sentence (at most 25 words) per node, in the order given. Summary: the brief lists every node of the layer; write lines for up to 10 of them, all of them when there are 10 or fewer, and when there are more, rest: one sentence grouping the others. Details: the brief lists only one part of the layer's nodes, and the user message says which part; write one line per node of it. The intro is for part 1 only; leave it empty for the other parts.`;
+const NARRATOR = `You narrate one layer of a Flow Tower for a spoken guided tour. Call narrate_layer once. Write every field in the language named by the Language line of the user message, whatever the language of the brief; keep node and layer names exactly as given. Plain spoken text, no markdown, lists or code. The brief is the layer's title, its description and its nodes (key, label, type, description). Use only the descriptions given: never guess, never add a fact that is not in the brief. intro: one sentence on what the layer does. lines: each line is one full spoken sentence (at most 20 words) that says what the node does or holds, taken from its description; never only the node's name or label, in the order given. Summary: the brief lists every node of the layer; write lines for up to 10 of them, all of them when there are 10 or fewer, and when there are more, rest: one sentence grouping the others. Details: the brief lists only one part of the layer's nodes, and the user message says which part; write one line per node of it. The intro is for part 1 only; leave it empty for the other parts.`;
 
 /**
  * One layer (summary), or one slice of PER_CALL nodes (details). Never throws except on abort: a failed,
  * empty or invalid answer gives the tower's own text, with fallback true.
  */
 export async function narrateLayer(
-  tower: ResolvedTower, index: number, opts: { said: string; details?: boolean; part?: number }, signal?: AbortSignal,
+  tower: ResolvedTower, index: number, opts: { said: string; language?: 'it' | 'en'; details?: boolean; part?: number }, signal?: AbortSignal,
 ): Promise<Narration & { cost: number; fallback: boolean }> {
   const details = opts.details === true;
   const part = details ? opts.part ?? 0 : 0;
   const brief = layerBrief(tower, index, details ? part : undefined);
   const keys = brief.nodes.map((n) => n.key);
   const note = details ? `This is part ${part + 1} of ${parts(tower, index)}.${part ? ' Leave the intro empty.' : ''}` : '';
+  // The language comes from the start phrase, not the model's guess: two words are too little for it to tell.
+  const language = opts.language === 'it' ? 'Italian' : 'English';
   const messages = [
     { role: 'system', content: NARRATOR },
-    { role: 'user', content: [`Request: ${opts.said}`, `Layer: ${JSON.stringify(brief)}`, note].filter(Boolean).join('\n') },
+    { role: 'user', content: [`Request: ${opts.said}`, `Language: ${language}`, `Layer: ${JSON.stringify(brief)}`, note].filter(Boolean).join('\n') },
   ];
   // A stopped tour never starts a call: the same error the request would raise when aborted mid-flight.
   if (signal?.aborted) throw new DOMException('The tour was stopped', 'AbortError');

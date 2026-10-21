@@ -35,7 +35,8 @@ export type VoiceAction =
   | { kind: 'types'; only?: NodeType[] }
   | { kind: 'mic-off' }
   // "fammi una panoramica guidata" / "stop the tour": the guided tour (#275). `said` is the transcript as given.
-  | { kind: 'tour'; op: 'start' | 'details' | 'stop'; said: string }
+  // `lang` is set on start only: the language of the phrase that matched, so the narration is written in it.
+  | { kind: 'tour'; op: 'start' | 'details' | 'stop'; said: string; lang?: 'it' | 'en' }
   | { kind: 'ambiguous'; options: { label: string; action: VoiceAction }[] }
   | { kind: 'unknown' };
 
@@ -212,7 +213,9 @@ export function parseCommand(transcript: string, { ws, tower, library }: VoiceCo
   // The guided tour (#275). Anchored, and before `overview`: "panoramica" and "tutta la torre" match that one anywhere,
   // so "panoramica guidata" and "spiegami la torre" must be read here first. "stop" alone is a tour stop; "stop
   // listening" was already caught as mic-off above.
-  if (phrase(text, /^(panoramica guidata|fammi (una|la) panoramica guidata|visita guidata|giro guidato|fammi il giro della torre|facciamo il giro della torre|spiegami (la|tutta la|questa) torre|raccontami la torre|guided tour|start the guided tour|give me a guided tour|a tour of the tower|give me a tour of the tower|walk me through (the|this) tower|explain (the|this|the whole) tower)$/)) return { kind: 'tour', op: 'start', said: transcript };
+  // Split by language, so the narration can be asked in the language the user spoke (the model cannot tell it from two words).
+  if (phrase(text, /^(panoramica guidata|fammi (una|la) panoramica guidata|visita guidata|giro guidato|fammi il giro della torre|facciamo il giro della torre|spiegami (la|tutta la|questa) torre|raccontami la torre)$/)) return { kind: 'tour', op: 'start', said: transcript, lang: 'it' };
+  if (phrase(text, /^(guided tour|start the guided tour|give me a guided tour|a tour of the tower|give me a tour of the tower|walk me through (the|this) tower|explain (the|this|the whole) tower)$/)) return { kind: 'tour', op: 'start', said: transcript, lang: 'en' };
   if (phrase(text, /^(dettagli|piu dettagli|nel dettaglio|in dettaglio|details|more details|in detail)$/)) return { kind: 'tour', op: 'details', said: transcript };
   if (phrase(text, /^(stop|basta|ferma|fermati|ferma il giro|fine del giro|stop the tour|end the tour)$/)) return { kind: 'tour', op: 'stop', said: transcript };
   if (phrase(text, /\b(panoramica|overview|insieme|tutta la torre|whole tower|tutti i livelli|all layers)\b/)) return { kind: 'overview' };

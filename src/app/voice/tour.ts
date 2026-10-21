@@ -29,6 +29,8 @@ export type TourOp = 'next' | 'previous' | 'details' | 'stop';
 interface Tour {
   tower: ResolvedTower;
   said: string;
+  /** The language the tour was started in; the narration is asked in it. */
+  lang: 'it' | 'en';
   deps: TourDeps;
   /** One controller per loop: a control jump aborts the loop and starts a new one. */
   ctl: AbortController;
@@ -93,7 +95,7 @@ const readTime = (sentence: string) => Math.max(2000, (sentence.length / 15) * 1
 function summary(t: Tour, index: number) {
   const cached = t.narrations.get(index);
   if (cached) return cached;
-  const p = Promise.resolve(t.deps.narrate(t.tower, index, { said: t.said }, t.life.signal));
+  const p = Promise.resolve(t.deps.narrate(t.tower, index, { said: t.said, language: t.lang }, t.life.signal));
   t.narrations.set(index, p);
   p.catch((err) => {
     if (t.narrations.get(index) === p && (err as Error).name !== 'AbortError') t.narrations.delete(index);
@@ -169,7 +171,7 @@ async function walk(t: Tour, from: number, details: boolean, signal: AbortSignal
       await speakLayer(t, at, await until(current, signal), signal, true);
     } else {
       for (let part = 0; part < parts(tower, i); part++) {
-        const nar = await deps.narrate(tower, i, { said: t.said, details: true, part }, signal);
+        const nar = await deps.narrate(tower, i, { said: t.said, language: t.lang, details: true, part }, signal);
         await speakLayer(t, at, nar, signal, part === 0);
       }
     }
@@ -218,14 +220,14 @@ function restart(t: Tour, from: number, details: boolean) {
 }
 
 /** Starts the tour of the tower on screen; the loop runs in the background, the caption is returned. */
-export function startTour(said: string, deps: TourDeps): string {
+export function startTour(said: string, deps: TourDeps, lang: 'it' | 'en' = 'en'): string {
   const tower = onScreen();
   if (!tower) return 'No tower on screen';
   stopTour();
   const s = useStore.getState();
   if (s.library) s.showLibrary(false);
   s.select(undefined);
-  const t: Tour = { tower, said, deps, ctl: new AbortController(), life: new AbortController(), at: 0, narrations: new Map() };
+  const t: Tour = { tower, said, lang, deps, ctl: new AbortController(), life: new AbortController(), at: 0, narrations: new Map() };
   tour = t;
   // Subscribed after the library and selection changes above, which are the tour's own. Any later change of
   // the stack (another project, a sub-tower, going up) or opening the library means the tour's layer numbers

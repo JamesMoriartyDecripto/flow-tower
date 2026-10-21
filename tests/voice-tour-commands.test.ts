@@ -16,13 +16,13 @@ const START_EN = ['guided tour', 'start the guided tour', 'give me a guided tour
 describe('voice tour commands (#275)', () => {
   it('starts the guided tour with the phrase as said, in Italian and English', () => {
     for (const phrase of [...START_IT, ...START_EN]) {
-      expect(say(phrase), phrase).toEqual({ kind: 'tour', op: 'start', said: phrase });
+      expect(say(phrase), phrase).toEqual({ kind: 'tour', op: 'start', said: phrase, lang: START_IT.includes(phrase) ? 'it' : 'en' });
       expect(isFixed(say(phrase)), phrase).toBe(true);
     }
   });
 
   it('keeps the transcript as given, not the normalized form', () => {
-    expect(say('Spiegami la torre!')).toEqual({ kind: 'tour', op: 'start', said: 'Spiegami la torre!' });
+    expect(say('Spiegami la torre!')).toEqual({ kind: 'tour', op: 'start', said: 'Spiegami la torre!', lang: 'it' });
   });
 
   it('asks for details and stops the tour', () => {
