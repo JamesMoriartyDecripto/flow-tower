@@ -32,6 +32,13 @@ interface Tour {
   deps: TourDeps;
   /** One controller per loop: a control jump aborts the loop and starts a new one. */
   ctl: AbortController;
+  /**
+   * Lives as long as the tour. A control jump must not cancel a prefetch: the next loop may need it. Only
+   * stopTour() and the end of the tour abort it.
+   */
+  life: AbortController;
+  /** Ends the tour when the user leaves its tower or opens the library. */
+  unsub?: () => void;
   /** The layer being walked now, as the controls see it. */
   at: number;
   /** The next layer's narration, asked while the current layer still plays. */
@@ -145,7 +152,7 @@ async function walk(t: Tour, from: number, details: boolean, signal: AbortSignal
     t.prefetch = undefined;
     // The current layer is asked before the next one, so the model answers this layer first.
     const current = details && i === from ? undefined : (ready ?? ask(t, i, signal));
-    if (i + 1 < n) t.prefetch = { index: i + 1, p: ask(t, i + 1, signal) };
+    if (i + 1 < n) t.prefetch = { index: i + 1, p: ask(t, i + 1, t.life.signal) };
     // newReply() once, before the layer's first sentence: the echo filter compares with this reply only.
     deps.newReply();
     if (current) {
@@ -159,6 +166,17 @@ async function walk(t: Tour, from: number, details: boolean, signal: AbortSignal
   }
 }
 
+/**
+ * Ends the tour's bookkeeping: it is no longer the running tour, the store listener is dropped, and the
+ * prefetches are cancelled. Shared by a normal end, a failure and stopTour().
+ */
+function release(t: Tour) {
+  if (tour === t) tour = undefined;
+  t.unsub?.();
+  t.unsub = undefined;
+  t.life.abort();
+}
+
 /** One loop: walks the tower, and ends the tour when it finishes or fails. A stopped loop ends silently. */
 async function run(t: Tour, from: number, details: boolean) {
   const signal = t.ctl.signal;
@@ -167,21 +185,25 @@ async function run(t: Tour, from: number, details: boolean) {
     if (signal.aborted) return;
     useStore.getState().hover(undefined);
     t.deps.caption('Tour finished');
-    if (tour === t) tour = undefined;
+    release(t);
   } catch (err) {
     if (signal.aborted || (err as Error).name === 'AbortError') return;
-    if (tour === t) tour = undefined;
+    release(t);
     useStore.getState().hover(undefined);
     t.deps.caption(`Tour stopped: ${(err as Error).message}`);
   }
 }
 
-/** A control jump: the current loop is cancelled, its speech stopped, and a new loop starts at `from`. */
+/**
+ * A control jump: the current loop is cancelled, its speech stopped, and a new loop starts at `from`. The
+ * prefetch is kept when it is for `from`: asking the model again for the same layer is wasted time and money.
+ * A details retelling never uses it, since it narrates the layer part by part.
+ */
 function restart(t: Tour, from: number, details: boolean) {
   t.ctl.abort();
   t.deps.stopSpeaking();
   t.ctl = new AbortController();
-  t.prefetch = undefined;
+  if (details || t.prefetch?.index !== from) t.prefetch = undefined;
   void run(t, from, details);
 }
 
@@ -193,8 +215,17 @@ export function startTour(said: string, deps: TourDeps): string {
   const s = useStore.getState();
   if (s.library) s.showLibrary(false);
   s.select(undefined);
-  const t: Tour = { tower, said, deps, ctl: new AbortController(), at: 0 };
+  const t: Tour = { tower, said, deps, ctl: new AbortController(), life: new AbortController(), at: 0 };
   tour = t;
+  // Subscribed after the library and selection changes above, which are the tour's own. Any later change of
+  // the stack (another project, a sub-tower, going up) or opening the library means the tour's layer numbers
+  // no longer match the screen.
+  t.unsub = useStore.subscribe((s, prev) => {
+    if (tour !== t) return;
+    if (s.stack === prev.stack && !(s.library && !prev.library)) return;
+    stopTour();
+    deps.caption('Tour stopped');
+  });
   void run(t, 0, false);
   return `Guided tour · ${tower.name} · ${tower.layers.length} layers`;
 }
@@ -229,7 +260,7 @@ export const isTouring = () => tour !== undefined;
 export function stopTour() {
   const t = tour;
   if (!t) return;
-  tour = undefined;
+  release(t);
   t.ctl.abort();
   t.deps.stopSpeaking();
   useStore.getState().hover(undefined);
