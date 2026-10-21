@@ -133,9 +133,44 @@ export const NARRATE_TOOL: ToolDef = {
 
 const NARRATOR = `You narrate one layer of a Flow Tower for a spoken guided tour. Call narrate_layer once. Write every field in the language named by the Language line of the user message, whatever the language of the brief; keep node and layer names exactly as given. Plain spoken text, no markdown, lists or code. The brief is the layer's title, its description and its nodes (key, label, type, description). Use only the descriptions given: never guess, never add a fact that is not in the brief. intro: one sentence on what the layer does. lines: each line is one full spoken sentence (at most 20 words) that says what the node does or holds, taken from its description; never only the node's name or label, in the order given. Summary: the brief lists every node of the layer; write lines for up to 10 of them, all of them when there are 10 or fewer, and when there are more, rest: one sentence grouping the others. Details: the brief lists only one part of the layer's nodes, and the user message says which part; write one line per node of it. The intro is for part 1 only; leave it empty for the other parts.`;
 
+/** How many asks a layer gets before the tower's own text speaks: the model sometimes answers with no call. */
+const ATTEMPTS = 2;
+
+/**
+ * One call and its reading. The narration is undefined when the answer is unusable or the request failed;
+ * only an abort throws, so the caller can stop instead of retrying.
+ */
+async function ask(
+  messages: { role: string; content: string }[], keys: string[], signal?: AbortSignal,
+): Promise<{ narration?: Narration; cost: number }> {
+  let cost = 0;
+  try {
+    const r = await post('/chat', { messages, tools: [NARRATE_TOOL] }, signal);
+    const json = (await r.json()) as {
+      message?: { tool_calls?: { function: { arguments: string } }[] }; cost?: number;
+    };
+    cost = typeof json.cost === 'number' ? json.cost : 0;
+    // Content without a tool call is a failure too: the model did not follow the shape it was given.
+    const call = json.message?.tool_calls?.[0];
+    if (call) {
+      const args = JSON.parse(call.function.arguments) as {
+        intro?: unknown; lines?: { node?: unknown; sentence?: unknown }[]; rest?: unknown;
+      };
+      const lines = Array.isArray(args.lines) ? args.lines.map((l) => ({ key: l?.node, sentence: l?.sentence })) : undefined;
+      const narration = checkNarration({ intro: args.intro, lines, rest: args.rest }, keys);
+      if (narration) return { narration, cost };
+    }
+  } catch (err) {
+    // A stopped tour is not a failure to narrate around: the caller must see it.
+    if (signal?.aborted || (err as Error).name === 'AbortError') throw err;
+  }
+  return { cost };
+}
+
 /**
  * One layer (summary), or one slice of PER_CALL nodes (details). Never throws except on abort: a failed,
- * empty or invalid answer gives the tower's own text, with fallback true.
+ * empty or invalid answer is asked again once (the same messages), then gives the tower's own text, with
+ * fallback true. The cost is the sum of every call made.
  */
 export async function narrateLayer(
   tower: ResolvedTower, index: number, opts: { said: string; language?: 'it' | 'en'; details?: boolean; part?: number }, signal?: AbortSignal,
@@ -154,25 +189,10 @@ export async function narrateLayer(
   // A stopped tour never starts a call: the same error the request would raise when aborted mid-flight.
   if (signal?.aborted) throw new DOMException('The tour was stopped', 'AbortError');
   let cost = 0;
-  try {
-    const r = await post('/chat', { messages, tools: [NARRATE_TOOL] }, signal);
-    const json = (await r.json()) as {
-      message?: { tool_calls?: { function: { arguments: string } }[] }; cost?: number;
-    };
-    cost = typeof json.cost === 'number' ? json.cost : 0;
-    // Content without a tool call is a failure too: the model did not follow the shape it was given.
-    const call = json.message?.tool_calls?.[0];
-    if (call) {
-      const args = JSON.parse(call.function.arguments) as {
-        intro?: unknown; lines?: { node?: unknown; sentence?: unknown }[]; rest?: unknown;
-      };
-      const lines = Array.isArray(args.lines) ? args.lines.map((l) => ({ key: l?.node, sentence: l?.sentence })) : undefined;
-      const narration = checkNarration({ intro: args.intro, lines, rest: args.rest }, keys);
-      if (narration) return { ...narration, cost, fallback: false };
-    }
-  } catch (err) {
-    // A stopped tour is not a failure to narrate around: the caller must see it.
-    if (signal?.aborted || (err as Error).name === 'AbortError') throw err;
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    const got = await ask(messages, keys, signal);
+    cost += got.cost;
+    if (got.narration) return { ...got.narration, cost, fallback: false };
   }
   return { ...towerNarration(tower, index, details, part), cost, fallback: true };
 }
