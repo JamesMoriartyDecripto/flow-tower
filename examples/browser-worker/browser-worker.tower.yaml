@@ -331,7 +331,7 @@ layers:
   - id: verify
     title: Verification & Review
     description: >-
-      A different model in a fresh context reads the filled form. Only the guard clicks Submit,
+      A fresh context, with no access to the worker's chat, reads the filled form. Only the guard clicks Submit,
       by DOM selector, after every verify:true field is confirmed. Everything else goes to a person.
     nodes:
       - id: verifier

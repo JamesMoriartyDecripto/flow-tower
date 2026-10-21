@@ -67,7 +67,7 @@ runtimes:
   anthropic:
     kind: saas
     label: "Claude API"
-    description: "Managed Agents (beta), Console session traces, Opus / Sonnet / Haiku 5.5."
+    description: "Managed Agents (beta), Console session traces, Opus and Haiku 5.5."
     provider: "anthropic"
     url: "https://platform.claude.com"
 
