@@ -386,7 +386,7 @@ layers:
         type: decision
         label: Tour command?
         runtime: browser
-        description: "While the tour runs: \"avanti\" / \"next\" skips to the next layer, \"indietro\" / \"previous\" goes back one, \"dettagli\" / \"details\" retells this layer node by node, \"stop\" or Esc ends it. Any other command ends the tour first, then runs."
+        description: "While the tour runs: \"avanti\" / \"next\" skips to the next layer, \"indietro\" / \"previous\" goes back one, \"dettagli\" / \"details\" retells this layer node by node, \"stop\" or Esc ends it. Any other command ends the tour first. With Interrupt by voice they work mid-sentence."
         decision: { output: choice, candidates: [next, previous, details, stop, other command], fail: closed }
         files: [src/app/voice/commands.ts, src/app/voice/voice.ts, src/app/voice/tour.ts]
     edges:
@@ -666,6 +666,7 @@ links:
   - "understanding.parser -> tour.start: tour phrase"
   - "understanding.parser -> tour.controls: during a tour"
   - "capture.esc -> tour.controls: Esc ends it"
+  - "understanding.bargein -> tour.controls: tour word mid-sentence"
   - { from: tour.narrator, to: server.route, kind: call, protocol: http, label: POST /chat }
   - "tour.driver -> actions.store [call]: focusLayer, hover"
   - "tour.driver -> actions.idle: re-arm per layer"

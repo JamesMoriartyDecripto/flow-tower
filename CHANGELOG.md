@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- Voice: a guided tour of the tower on screen (#275). "panoramica guidata" / "guided tour" (also "spiegami la torre", "walk me through the tower") explains the tower layer by layer: each layer is focused, an intro says what it does, then one sentence per node while that node lights up. "avanti" / "next", "indietro" / "previous", "dettagli" / "details" (every node of the layer) and "stop" steer it, in the pause between layers or mid-sentence with Interrupt by voice; Esc, another command or leaving the tower end it. The voice agent's model writes the sentences from the tower's own descriptions, in the language of the start phrase, checked against the layer's nodes, asked again once and otherwise replaced by the tower's own text; the next layer is prepared while one plays, and each layer is asked once per tour. About $0.001 per layer (measured once, illustrative). With spoken replies off it runs in the caption. "panoramica" alone still shows the whole tower.
+
+### Changed
+- The voice-commands example tower maps the guided tour, and its voice guide lists `live_status` among its 20 tools (#275).
+
 ## [0.12.0] - 2026-10-21
 
 ### Added

@@ -80,7 +80,7 @@ Say **"panoramica guidata"** (or "spiegami la torre", "fammi il giro della torre
 | "dettagli", "nel dettaglio" / "details", "in detail" | This layer again, every node |
 | "stop", "basta", "fine del giro" / "stop the tour" | Ends the tour; the view stays where it is |
 
-- **When to speak.** While the tour talks, the microphone does not listen (so the speakers cannot drive it), unless **Settings → Voice → Interrupt by voice** is on (with headphones). After each layer there is a short pause, about 1.5 s: say the command then. If you are still speaking when it ends, the next layer waits for you. **Esc** stops the tour at any time.
+- **When to speak.** While the tour talks, the microphone does not listen, so the speakers cannot drive it. After each layer there is a short pause, about 1.5 s: say the command then. If you are still speaking when it ends, the next layer waits for you. With headphones, turn on **Settings → Voice → Interrupt by voice** and the commands above work mid-sentence too, even one word. **Esc** stops the tour at any time.
 - **What ends it.** Esc, mic off, another command ("livello 3", a question) or leaving the tower (another project, a sub-tower, the library).
 - **Big layers.** Up to 10 nodes are named one by one; past 10, the main ones are named and the rest grouped in one sentence. "dettagli" retells the layer with every node.
 - **Language.** The tour speaks the language of the phrase you used: Italian for "panoramica guidata", English for "guided tour".
