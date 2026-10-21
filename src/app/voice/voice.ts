@@ -5,7 +5,9 @@ import { isFixed, norm, parseCommand, type VoiceAction } from './commands';
 import { execute, NOT_UNDERSTOOD } from './actions';
 import { openMic, type Mic } from './mic';
 import { ackLanguage, armAck, warmAck } from './ack';
-import { firstAnswerAudio, firstAudio, converse, forget, isEcho, isSpeaking, newReply, onPlaybackBlocked, say, stopSpeaking, wantsAgent } from './agent';
+import { drained, firstAnswerAudio, firstAudio, converse, forget, isEcho, isSpeaking, newReply, onPlaybackBlocked, say, stopSpeaking, wantsAgent } from './agent';
+import { narrateLayer } from './narrate';
+import { isTourCommand, isTouring, stopTour, tourControl, type TourDeps } from './tour';
 import { clearAgentSearch } from './tools';
 import { voiceUnavailable } from './unavailable';
 import { bargeIn, keepClip, playedDuring, type Recorded } from './duplex';
@@ -85,6 +87,32 @@ function parseNow(text: string): VoiceAction | undefined {
   return parseCommand(text, { ws, tower: ws.towers[s.stack[s.stack.length - 1]], library: s.library });
 }
 
+/** What the guided tour (#275) needs from the session: the same speech, narration and caption as the rest. */
+const tourDeps: TourDeps = {
+  narrate: narrateLayer,
+  say,
+  drained,
+  newReply,
+  stopSpeaking,
+  spoken: () => usePrefs.getState().voiceReplies,
+  caption: (did) => useVoice.setState({ did }),
+  keepAlive: armIdle,
+  busy: () => speaking || pending > 0,
+};
+
+/**
+ * During a tour, the controls mean the tour: "avanti" / "next" jump forward, "indietro" / "previous" back.
+ * Anything else ends the tour, so it runs as it would with no tour. Returns what the tour said, or undefined
+ * when the action is for execute (details, stop, a restarting start, or the tour just ended).
+ */
+function tourRoute(a: VoiceAction): string | undefined {
+  if (!isTouring()) return undefined;
+  if (a.kind === 'step') return tourControl(a.dir === 1 ? 'next' : 'previous');
+  if (a.kind === 'back') return tourControl('previous');
+  if (a.kind !== 'tour') stopTour();
+  return undefined;
+}
+
 export const useVoice = create<VoiceState>((set, get) => ({
   status: 'off',
   toggle() {
@@ -94,7 +122,7 @@ export const useVoice = create<VoiceState>((set, get) => ({
   run(text) {
     const action = parseNow(text);
     if (!action) return '';
-    const did = execute(action, { stop });
+    const did = tourRoute(action) ?? execute(action, { stop, tour: tourDeps });
     set({ heard: text, did, options: action.kind === 'ambiguous' ? action.options : undefined, error: undefined });
     return did;
   },
@@ -104,6 +132,8 @@ export const useVoice = create<VoiceState>((set, get) => ({
     set({ error: undefined, ...(get().status === 'off' && { suggestions: undefined }) });
   },
   hush() {
+    // Esc ends a running tour and does nothing else: the tour's own speech stops with it.
+    if (isTouring()) { stopTour(); set({ did: 'Tour stopped' }); return true; }
     const t = turnNow;
     if (!isSpeaking() && !(t?.spoke && !t.muted)) return false;
     stopSpeaking();
@@ -173,7 +203,11 @@ async function start() {
         // reply played is the reply itself (laptop speakers), unless the user turned on interrupting by voice.
         if (!keepClip(at, usePrefs.getState().voiceBargeIn)) {
           // Started just after the reply ended (not during it): the user was quick, tell them why it was missed.
-          if (!playedDuring(at, 0) && !tailHinted) { tailHinted = true; flash('Wait a moment after the reply, or press Esc to interrupt it.'); }
+          // During a tour the words that matter are the pause between layers, so the hint names that instead.
+          if (!playedDuring(at, 0) && !tailHinted) {
+            tailHinted = true;
+            flash(isTouring() ? 'Speak in the pause after each layer, or press Esc to end the tour.' : 'Wait a moment after the reply, or press Esc to interrupt it.');
+          }
           return;
         }
         pending++;
@@ -210,6 +244,7 @@ function stop() {
   disarmAck();
   stopSpeaking();
   forget(); // one listening session is one conversation
+  stopTour(); // the mic is off: a tour it was narrating ends with it
   clearAgentSearch();
   // Enough new turns in the journal: ask for suggestions now, decided later in Settings.
   void reviewIfDue().then((n) => { if (n) useVoice.setState({ suggestions: n }); });
@@ -245,12 +280,21 @@ async function transcribe(audio: Blob, format: string, mine: number, at: Recorde
     // before anything handles or journals it.
     if (!text || isEcho(text, at) || isHallucination(text)) return;
     if (playedDuring(at, 0, 'audible')) {
+      // A tour command ("avanti", "dettagli") interrupts the narration even though one word is no barge-in:
+      // the tour is walked by these words, so they must land mid-sentence. Handled as any transcript after.
+      const action = isTouring() ? parseNow(text) : undefined;
+      if (action && isTourCommand(action)) {
+        stopSpeaking();
+        await handle(text, mine, { sttMs: out.ms, sttCost: out.cost, language: out.language }, at.to);
+        return;
+      }
       // Barge-in (only with "Interrupt by voice" on), for clips over the reply actually coming out of the
       // speakers (not its tail, not the silent wait for synthesis): real words stop it; a cough or "ok" does not.
       const kind = bargeIn(text);
       if (kind === 'ignore') return;
       if (isSpeaking()) { stopSpeaking(); interrupted(); }
-      if (kind === 'stop') return;
+      // "basta" over a tour's narration ends the tour too, not just the reply.
+      if (kind === 'stop') { stopTour(); return; }
     }
     // What this stage took and cost, the language, and when the speech ended: journaled with the turn,
     // and the end of speech is what the acknowledgement timer counts from (#70).
@@ -295,6 +339,8 @@ async function handle(heard: string, mine: number, stt: Heard = {}, endOfSpeech?
     if (did !== NOT_UNDERSTOOD) return armIdle();
     if (!agent) return;
   }
+  // A question sent to the agent while a tour runs ends the tour first: the agent's reply must not talk over it.
+  stopTour();
   useVoice.setState({ heard: text, did: 'Thinking…', options: undefined });
   newReply();
   clearAgentSearch();

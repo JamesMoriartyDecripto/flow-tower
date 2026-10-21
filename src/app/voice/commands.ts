@@ -34,6 +34,9 @@ export type VoiceAction =
   // "mostra solo gli agenti" / "show only agents": hide every other node type. No `only` shows them all.
   | { kind: 'types'; only?: NodeType[] }
   | { kind: 'mic-off' }
+  // "fammi una panoramica guidata" / "stop the tour": the guided tour (#275). `said` is the transcript as given.
+  // `lang` is set on start only: the language of the phrase that matched, so the narration is written in it.
+  | { kind: 'tour'; op: 'start' | 'details' | 'stop'; said: string; lang?: 'it' | 'en' }
   | { kind: 'ambiguous'; options: { label: string; action: VoiceAction }[] }
   | { kind: 'unknown' };
 
@@ -46,7 +49,7 @@ export interface VoiceContext { ws: Workspace; tower?: ResolvedTower; library?: 
  * keyword anywhere (`overview`, `view`, `mic-off`) would also fire on real questions like "what does
  * the overview show?", so they keep today's routing to the agent, as do the fuzzy name matches.
  */
-export const FIXED_KINDS = new Set<VoiceAction['kind']>(['close-file', 'close', 'back', 'enter', 'its-file', 'step', 'scroll', 'hub', 'types']);
+export const FIXED_KINDS = new Set<VoiceAction['kind']>(['close-file', 'close', 'back', 'enter', 'its-file', 'step', 'scroll', 'hub', 'types', 'tour']);
 
 /** The parser matched a whole fixed phrase: a command, so it must not be sent to the agent. */
 export const isFixed = (action: VoiceAction): boolean => FIXED_KINDS.has(action.kind);
@@ -207,6 +210,14 @@ export function parseCommand(transcript: string, { ws, tower, library }: VoiceCo
   }
   // Reset: every type back on screen.
   if (phrase(text, /^(mostra (tutto|tutti( i nodi)?|ogni tipo)|tutti i nodi|show (everything|all( the nodes| nodes| types)?))$/)) return { kind: 'types' };
+  // The guided tour (#275). Anchored, and before `overview`: "panoramica" and "tutta la torre" match that one anywhere,
+  // so "panoramica guidata" and "spiegami la torre" must be read here first. "stop" alone is a tour stop; "stop
+  // listening" was already caught as mic-off above.
+  // Split by language, so the narration can be asked in the language the user spoke (the model cannot tell it from two words).
+  if (phrase(text, /^(panoramica guidata|fammi (una|la) panoramica guidata|visita guidata|giro guidato|fammi il giro della torre|facciamo il giro della torre|spiegami (la|tutta la|questa) torre|raccontami la torre)$/)) return { kind: 'tour', op: 'start', said: transcript, lang: 'it' };
+  if (phrase(text, /^(guided tour|start the guided tour|give me a guided tour|a tour of the tower|give me a tour of the tower|walk me through (the|this) tower|explain (the|this|the whole) tower)$/)) return { kind: 'tour', op: 'start', said: transcript, lang: 'en' };
+  if (phrase(text, /^(dettagli|piu dettagli|nel dettaglio|in dettaglio|details|more details|in detail)$/)) return { kind: 'tour', op: 'details', said: transcript };
+  if (phrase(text, /^(stop|basta|ferma|fermati|ferma il giro|fine del giro|stop the tour|end the tour)$/)) return { kind: 'tour', op: 'stop', said: transcript };
   if (phrase(text, /\b(panoramica|overview|insieme|tutta la torre|whole tower|tutti i livelli|all layers)\b/)) return { kind: 'overview' };
   if (!saysNode && like(all, 'mappa', 'map')) return { kind: 'view', view: 'map' };
   if (phrase(text, /\b(vista|view|modalita|mode) (torre|tower|3d)\b|\b(torre|tower) (view|3d)\b/)) return { kind: 'view', view: 'tower' };

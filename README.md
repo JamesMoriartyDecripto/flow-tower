@@ -17,7 +17,7 @@
 - **How it runs in production.** Triggers, human approvals with timeouts, budgets, limits, fan-out, data sensitivity, evals, rollouts and SLAs show on the nodes and in the node panel.
 - **Library.** Point it at a folder and browse every project you work on. Switch between a stacked tower and a top-down map.
 - **Keyboard first.** Arrows walk nodes and layers, Enter dives into sub-towers or the node panel, `?` lists every shortcut. Settings cover themes, fonts, interface size and animations.
-- **Voice.** Press V and talk to the tower, in Italian, English or any language: "open dev squad", "explain the flow of the first layer", "show me this node's files", "spiegami questo file". It answers out loud and shows what it talks about ([details](docs/voice.md)).
+- **Voice.** Press V and talk to the tower, in Italian, English or any language: "open dev squad", "explain the flow of the first layer", "show me this node's files", "spiegami questo file". It answers out loud and shows what it talks about; "guided tour" / "panoramica guidata" walks you through every layer and node ([details](docs/voice.md)).
 - **Node list.** Focus a layer and its nodes are listed on the right in flow order, readable however far the cards are.
 - **Live.** Save the YAML, or any referenced file, and the tower updates.
 - **Generate towers with any coding agent.** Claude Code, Codex, Pi, Hermes, Cursor or any other agent reads an agentic codebase and writes a validated tower. It maps Claude Code, the Agent SDK, LangGraph, CrewAI, OpenAI Agents, Pi, Hermes and more.
