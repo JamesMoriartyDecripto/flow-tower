@@ -1,5 +1,4 @@
 import type { ResolvedLayer, ResolvedNode, ResolvedTower } from '../../core/types';
-import { post } from './agent';
 import { flowOrder } from '../keynav';
 import type { ToolDef } from './tools';
 
@@ -17,6 +16,19 @@ export interface Line { key: string; sentence: string }
 export interface Narration { intro: string; lines: Line[]; rest?: string }
 
 const cut = (text?: string) => (text ? text.slice(0, DESCRIPTION_MAX) : undefined);
+
+/**
+ * The most a spoken field may hold: a caption of 300 characters is about a sentence, and the speech route
+ * takes 800 characters at most. A long or injected description cannot hold the tour for minutes.
+ */
+const SPOKEN_MAX = 300;
+/** Cuts at the last word boundary inside the limit, so the speech does not end mid-word. */
+const capSpoken = (text: string) => {
+  if (text.length <= SPOKEN_MAX) return text;
+  const head = text.slice(0, SPOKEN_MAX);
+  const space = head.lastIndexOf(' ');
+  return (space > 0 ? head.slice(0, space) : head).trimEnd();
+};
 
 /** The first sentence of a text: up to the first . ! ? or … that ends a word, or the whole text. */
 const firstSentence = (text?: string) => {
@@ -71,11 +83,11 @@ export function checkNarration(raw: unknown, keys: string[]): Narration | undefi
     if (typeof key !== 'string' || !allowed.has(key) || seen.has(key)) continue;
     if (typeof sentence !== 'string' || !sentence.trim()) continue;
     seen.add(key);
-    lines.push({ key, sentence: sentence.trim() });
+    lines.push({ key, sentence: capSpoken(sentence.trim()) });
   }
-  const intro = typeof r.intro === 'string' ? r.intro.trim() : '';
+  const intro = typeof r.intro === 'string' ? capSpoken(r.intro.trim()) : '';
   if (!intro && !lines.length) return undefined;
-  const rest = typeof r.rest === 'string' ? r.rest.trim() : '';
+  const rest = typeof r.rest === 'string' ? capSpoken(r.rest.trim()) : '';
   return { intro, lines, ...(rest ? { rest } : {}) };
 }
 
@@ -136,16 +148,46 @@ const NARRATOR = `You narrate one layer of a Flow Tower for a spoken guided tour
 /** How many asks a layer gets before the tower's own text speaks: the model sometimes answers with no call. */
 const ATTEMPTS = 2;
 
+/** Pause before a retry: a busy provider or a dropped connection often clears within a moment. */
+const RETRY_WAIT_MS = 500;
+/** The narration needs up to ~500 tokens of tool arguments for 10 Italian sentences: 500 would cut it. */
+const NARRATE_MAX_TOKENS = 1200;
+
+/** The stop error the request would raise when aborted mid-flight: the caller must see it, not a fallback. */
+const stopped = () => new DOMException('The tour was stopped', 'AbortError');
+
+/** Waits `ms`, or rejects at once when the tour is stopped meanwhile. */
+function pause(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(stopped());
+    const onAbort = () => { clearTimeout(timer); reject(stopped()); };
+    const timer = setTimeout(() => { signal?.removeEventListener('abort', onAbort); resolve(); }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 /**
  * One call and its reading. The narration is undefined when the answer is unusable or the request failed;
- * only an abort throws, so the caller can stop instead of retrying.
+ * `retry` says whether asking again can help: a 503 (no key) or another 4xx never will. Only an abort throws,
+ * so the caller can stop instead of retrying.
  */
 async function ask(
   messages: { role: string; content: string }[], keys: string[], signal?: AbortSignal,
-): Promise<{ narration?: Narration; cost: number }> {
+): Promise<{ narration?: Narration; cost: number; retry: boolean }> {
   let cost = 0;
   try {
-    const r = await post('/chat', { messages, tools: [NARRATE_TOOL] }, signal);
+    // Its own request, not agent.ts's post(): that one drops the status, and the retry depends on it.
+    const r = await fetch('/api/voice/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-flow-tower-voice': '1' },
+      body: JSON.stringify({ messages, tools: [NARRATE_TOOL], max_tokens: NARRATE_MAX_TOKENS }),
+      signal,
+    });
+    if (!r.ok) {
+      // A 429 or a 5xx other than 503 may pass; a 503 (no key) or any other 4xx will not.
+      const retry = r.status === 429 || (r.status >= 500 && r.status !== 503);
+      return { cost, retry };
+    }
     const json = (await r.json()) as {
       message?: { tool_calls?: { function: { arguments: string } }[] }; cost?: number;
     };
@@ -158,13 +200,15 @@ async function ask(
       };
       const lines = Array.isArray(args.lines) ? args.lines.map((l) => ({ key: l?.node, sentence: l?.sentence })) : undefined;
       const narration = checkNarration({ intro: args.intro, lines, rest: args.rest }, keys);
-      if (narration) return { narration, cost };
+      if (narration) return { narration, cost, retry: false };
     }
+    return { cost, retry: true };
   } catch (err) {
     // A stopped tour is not a failure to narrate around: the caller must see it.
     if (signal?.aborted || (err as Error).name === 'AbortError') throw err;
+    // A network error or an unreadable answer: worth one more ask.
+    return { cost, retry: true };
   }
-  return { cost };
 }
 
 /**
@@ -187,12 +231,14 @@ export async function narrateLayer(
     { role: 'user', content: [`Request: ${opts.said}`, `Language: ${language}`, `Layer: ${JSON.stringify(brief)}`, note].filter(Boolean).join('\n') },
   ];
   // A stopped tour never starts a call: the same error the request would raise when aborted mid-flight.
-  if (signal?.aborted) throw new DOMException('The tour was stopped', 'AbortError');
+  if (signal?.aborted) throw stopped();
   let cost = 0;
   for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    if (attempt > 0) await pause(RETRY_WAIT_MS, signal);
     const got = await ask(messages, keys, signal);
     cost += got.cost;
     if (got.narration) return { ...got.narration, cost, fallback: false };
+    if (!got.retry) break;
   }
   return { ...towerNarration(tower, index, details, part), cost, fallback: true };
 }

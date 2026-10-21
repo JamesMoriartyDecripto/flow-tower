@@ -23,6 +23,9 @@ const MAX_IN_FLIGHT = 6;
 /** Per route: a spoken command is ~10 KB of Opus; a conversation a few KB of JSON; a reply a few sentences. */
 const LIMITS = { stt: 2_000_000, chat: 256_000, speak: 8_000 } as const;
 const MAX_REPLY_CHARS = 800;
+/** A chat step answers in a few sentences by default; a caller that writes more (the tour's narration) asks up to the cap. */
+const CHAT_MAX_TOKENS = 500;
+const CHAT_MAX_TOKENS_LIMIT = 1200;
 
 export interface VoiceConfig {
   /** OPENROUTER_API_KEY. It stays on this server: the browser never sees it. */
@@ -103,13 +106,17 @@ export function voiceHandler(cfg: VoiceConfig) {
     },
     '/chat': {
       limit: LIMITS.chat,
-      async run(res, { messages, tools, answer, stream }) {
+      async run(res, { messages, tools, answer, stream, max_tokens }) {
         if (!Array.isArray(messages) || !messages.length || messages.length > 60 || !Array.isArray(tools) || tools.length > 20) {
           return json(res, 400, { error: 'send { messages: [...] (max 60), tools: [...] (max 20) }' });
         }
+        // Checked as a whole number: a fraction or a string would reach the provider and fail there, far from the cause.
+        if (max_tokens !== undefined && !(Number.isInteger(max_tokens) && (max_tokens as number) >= 1 && (max_tokens as number) <= CHAT_MAX_TOKENS_LIMIT)) {
+          return json(res, 400, { error: `max_tokens must be an integer from 1 to ${CHAT_MAX_TOKENS_LIMIT}` });
+        }
         const started = Date.now();
         const r = await upstream('/chat/completions', {
-          model: chatModel, messages, tools, max_tokens: 500,
+          model: chatModel, messages, tools, max_tokens: max_tokens ?? CHAT_MAX_TOKENS,
           // The breakpoint trails the last cacheable block and moves forward as the conversation grows (https://openrouter.ai/docs/guides/best-practices/prompt-caching).
           ...cacheControl(chatModel),
           // The last step of a turn must answer with what it has: no more tool calls.
