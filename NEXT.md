@@ -4,7 +4,8 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Status on 2026-10-21
 
-- **Command center** at v0.12.0 plus the guided tour (`35feb53`), pulled and restarted, checked over the tailnet.
+- **Command center** at v0.12.0 plus the guided tour and #279 (`a108515`), pulled, restarted for the server changes, checked over the tailnet.
+- **Library titles on a hub** (#279, PR #283): the chips sit under the title, so names keep whole words; checked live on the command center.
 - **New models re-checked** (#281, PR #282): research pick `deepseek-v4.1-flash-1017`; the rest of the catalogue stands. Artificial Analysis data is not integrated: its terms need AA's written consent.
 - **Voice guided tour** (#275, PR #280): "panoramica guidata" / "guided tour" walks the tower layer by layer, each node lit as its sentence plays; next, previous, details, stop; narration in the phrase's language from the tower's own text, cached per tour, one retry then the tower's text. Checked live on game-studio (14 layers, about $0.001 per layer). The voice-commands tower maps it.
 - **v0.12.0 released** (2026-10-21): the audit that reads stated facts (#249), the example towers optimized and on the models the per-node benchmark picked (#231, #274), the role catalogue (#261), the dev squad kit (#265), SQLite in the viewer (#264), share and unshare from the interface (#266), the ai-commercialista example (#228). Gates and the full e2e with the GPU (96/96, 29.6 min): [report](examples/release-auditor/reports/v0.12.0.md). gitleaks flagged the fake key of `tests/squad-key.test.ts`: kept in `.gitleaksignore` by its fingerprint.
@@ -82,7 +83,6 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Next, in order
 
-0. Pull the command center after #279 merges (no restart needed: only `src/app/` changed)
 1. #181 what needs the Mac: a real tailnet with the v0.10.0 team journeys, the macOS side of #194 (launchd)
 2. #69 tower names as an STT prompt
 3. docs-qa gaps left after #143: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)
