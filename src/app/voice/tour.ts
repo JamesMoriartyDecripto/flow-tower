@@ -33,16 +33,19 @@ interface Tour {
   /** One controller per loop: a control jump aborts the loop and starts a new one. */
   ctl: AbortController;
   /**
-   * Lives as long as the tour. A control jump must not cancel a prefetch: the next loop may need it. Only
-   * stopTour() and the end of the tour abort it.
+   * Lives as long as the tour. A control jump must not cancel a summary: the next visit to that layer reuses
+   * it. Only stopTour() and the end of the tour abort it.
    */
   life: AbortController;
   /** Ends the tour when the user leaves its tower or opens the library. */
   unsub?: () => void;
   /** The layer being walked now, as the controls see it. */
   at: number;
-  /** The next layer's narration, asked while the current layer still plays. */
-  prefetch?: { index: number; p: Promise<Narration & { cost?: number; fallback?: boolean }> };
+  /**
+   * The summary narration of each layer, kept for the tour's life: going back to a layer, or a details
+   * retelling that moves on to the next one, must not ask the model again. Details parts are not cached.
+   */
+  narrations: Map<number, Promise<Narration & { cost?: number; fallback?: boolean }>>;
 }
 
 let tour: Tour | undefined;
@@ -82,10 +85,19 @@ function pause(ms: number, signal: AbortSignal): Promise<void> {
 /** Captions-only reading time: at least 2 s, and about 15 characters a second for longer sentences. */
 const readTime = (sentence: string) => Math.max(2000, (sentence.length / 15) * 1000);
 
-/** Asks for a layer's narration. A prefetch nobody awaits (a stopped tour) must not be an unhandled rejection. */
-function ask(t: Tour, index: number, signal: AbortSignal) {
-  const p = Promise.resolve(t.deps.narrate(t.tower, index, { said: t.said }, signal));
-  p.catch(() => undefined);
+/**
+ * The summary narration of a layer, asked once and then reused. A failed ask is dropped from the cache so a
+ * later visit asks again; an abort is kept, since the tour is over then. The catch also keeps a summary nobody
+ * awaits (a stopped tour) from becoming an unhandled rejection.
+ */
+function summary(t: Tour, index: number) {
+  const cached = t.narrations.get(index);
+  if (cached) return cached;
+  const p = Promise.resolve(t.deps.narrate(t.tower, index, { said: t.said }, t.life.signal));
+  t.narrations.set(index, p);
+  p.catch((err) => {
+    if (t.narrations.get(index) === p && (err as Error).name !== 'AbortError') t.narrations.delete(index);
+  });
   return p;
 }
 
@@ -147,16 +159,14 @@ async function walk(t: Tour, from: number, details: boolean, signal: AbortSignal
     useStore.getState().focusLayer(i);
     const at = `Layer ${i + 1} of ${n}`;
     deps.caption(`${at} · ${tower.layers[i].title}`);
-    // Taken before the next prefetch replaces it; a prefetch for this layer was asked during the last one.
-    const ready = t.prefetch?.index === i ? t.prefetch.p : undefined;
-    t.prefetch = undefined;
-    // The current layer is asked before the next one, so the model answers this layer first.
-    const current = details && i === from ? undefined : (ready ?? ask(t, i, signal));
-    if (i + 1 < n) t.prefetch = { index: i + 1, p: ask(t, i + 1, t.life.signal) };
+    // The current layer is asked before the next one, so the model answers this layer first. The wait races
+    // the loop signal: the summary itself lives as long as the tour, so a jump does not cancel it.
+    const current = details && i === from ? undefined : summary(t, i);
+    if (i + 1 < n) summary(t, i + 1);
     // newReply() once, before the layer's first sentence: the echo filter compares with this reply only.
     deps.newReply();
     if (current) {
-      await speakLayer(t, at, await current, signal, true);
+      await speakLayer(t, at, await until(current, signal), signal, true);
     } else {
       for (let part = 0; part < parts(tower, i); part++) {
         const nar = await deps.narrate(tower, i, { said: t.said, details: true, part }, signal);
@@ -168,7 +178,7 @@ async function walk(t: Tour, from: number, details: boolean, signal: AbortSignal
 
 /**
  * Ends the tour's bookkeeping: it is no longer the running tour, the store listener is dropped, and the
- * prefetches are cancelled. Shared by a normal end, a failure and stopTour().
+ * summaries still being asked are cancelled. Shared by a normal end, a failure and stopTour().
  */
 function release(t: Tour) {
   if (tour === t) tour = undefined;
@@ -196,14 +206,14 @@ async function run(t: Tour, from: number, details: boolean) {
 
 /**
  * A control jump: the current loop is cancelled, its speech stopped, and a new loop starts at `from`. The
- * prefetch is kept when it is for `from`: asking the model again for the same layer is wasted time and money.
- * A details retelling never uses it, since it narrates the layer part by part.
+ * summaries stay cached, so a layer already told is not asked again. The hover is cleared here because the
+ * node lit by the old loop would otherwise stay lit until the new layer's first line.
  */
 function restart(t: Tour, from: number, details: boolean) {
   t.ctl.abort();
   t.deps.stopSpeaking();
+  useStore.getState().hover(undefined);
   t.ctl = new AbortController();
-  if (details || t.prefetch?.index !== from) t.prefetch = undefined;
   void run(t, from, details);
 }
 
@@ -215,7 +225,7 @@ export function startTour(said: string, deps: TourDeps): string {
   const s = useStore.getState();
   if (s.library) s.showLibrary(false);
   s.select(undefined);
-  const t: Tour = { tower, said, deps, ctl: new AbortController(), life: new AbortController(), at: 0 };
+  const t: Tour = { tower, said, deps, ctl: new AbortController(), life: new AbortController(), at: 0, narrations: new Map() };
   tour = t;
   // Subscribed after the library and selection changes above, which are the tour's own. Any later change of
   // the stack (another project, a sub-tower, going up) or opening the library means the tour's layer numbers
