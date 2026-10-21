@@ -18,11 +18,12 @@ async function openLibrary(page: Page) {
 }
 
 /** Tags the real workspace with sources and a recent `sharedAt` for every non-local project. */
-async function injectSources(page: Page) {
+async function injectSources(page: Page, rename?: string) {
   await page.route('**/api/workspace', async (route) => {
     const res = await route.fetch();
     const ws = (await res.json()) as Workspace;
     const [first, second, third, ...rest] = ws.projects;
+    if (rename) ws.towers[first].name = rename;
     ws.sources = {
       [first]: 'local',
       [second]: 'mac-ana',
@@ -85,3 +86,26 @@ for (const width of [1280, 1440, 1920]) {
     for (const c of below) expect(c.chipsTop, c.id ?? '').toBeGreaterThanOrEqual(c.nameBottom - 1);
   });
 }
+
+test('a one-word name wider than the card stays inside it and wraps', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // One long token with no spaces: the case that used to widen the title button past the card.
+  const long = 'claude_code_dev_squad_pipeline';
+  await injectSources(page, long);
+  await openLibrary(page);
+
+  const card = page.locator('[data-card]').filter({ has: page.locator('.lib-name', { hasText: long }) });
+  await expect(card).toHaveCount(1);
+  const m = await card.evaluate((el) => {
+    const name = el.querySelector('.lib-name') as HTMLElement;
+    const body = el.querySelector('.lib-body') as HTMLElement;
+    return {
+      nameRight: name.getBoundingClientRect().right,
+      bodyRight: body.getBoundingClientRect().right,
+      nameHeight: name.getBoundingClientRect().height,
+      lineHeight: parseFloat(getComputedStyle(name).lineHeight),
+    };
+  });
+  expect(m.nameRight).toBeLessThanOrEqual(m.bodyRight + 1);
+  expect(m.nameHeight).toBeGreaterThan(m.lineHeight * 1.5);
+});

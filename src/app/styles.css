@@ -190,8 +190,12 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .lib-card h3 { margin: 0 0 4px; font: 700 20px var(--ui); letter-spacing: .03em; }
 /* Chips wrap in a row under the title: beside it they left the title a few letters wide on hub cards. */
 .lib-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 6px; }
+/* The dot's 8px left margin spaced it from the title; as the first chip it only pushed the row right of the title's edge. */
+.lib-chips .live-dot { margin-left: 0; }
 .lib-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lib-main { all: unset; display: block; flex: 1 1 auto; min-width: 0; overflow: hidden; cursor: pointer; }
+/* The title is a block button, not a flex item any more, so Chrome sizes it to its content: a single long
+   word then widened it past the card. An explicit width keeps it inside the card and lets the word wrap. */
+.lib-main { all: unset; display: block; width: 100%; overflow: hidden; cursor: pointer; }
 /* Long names were cut on one line; they now wrap, capped at 3 lines. break-word splits a word only when it
    alone is wider than the card: `anywhere` broke words mid-word ("Indagi / ne") even when they fit. */
 .lib-main .lib-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; white-space: normal; overflow-wrap: break-word; line-height: 1.2; }
