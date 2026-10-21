@@ -112,29 +112,35 @@ function summary(t: Tour, index: number) {
  */
 async function speakLayer(t: Tour, at: string, nar: Narration, signal: AbortSignal, withIntro: boolean) {
   const { deps } = t;
+  // The 2-minute idle stop counts from the last keepAlive(), and a long retelling of one layer can outlast it:
+  // so it is re-armed before every sentence, not once per layer.
   if (deps.spoken()) {
-    if (withIntro && nar.intro) deps.say(nar.intro);
+    if (withIntro && nar.intro) { deps.keepAlive(); deps.say(nar.intro); }
     for (const line of nar.lines) {
+      deps.keepAlive();
       deps.say(line.sentence, () => {
         useStore.getState().hover(line.key);
         deps.caption(`${at} · ${line.sentence}`);
       });
     }
     // The rest groups the nodes without a line: nothing of them is lit, so the hover is cleared as it plays.
-    if (nar.rest) deps.say(nar.rest, () => useStore.getState().hover(undefined));
+    if (nar.rest) { deps.keepAlive(); deps.say(nar.rest, () => useStore.getState().hover(undefined)); }
     await until(deps.drained(), signal);
   } else {
     if (withIntro && nar.intro) {
+      deps.keepAlive();
       useStore.getState().hover(undefined);
       deps.caption(`${at} · ${nar.intro}`);
       await pause(readTime(nar.intro), signal);
     }
     for (const line of nar.lines) {
+      deps.keepAlive();
       useStore.getState().hover(line.key);
       deps.caption(`${at} · ${line.sentence}`);
       await pause(readTime(line.sentence), signal);
     }
     if (nar.rest) {
+      deps.keepAlive();
       useStore.getState().hover(undefined);
       deps.caption(`${at} · ${nar.rest}`);
       await pause(readTime(nar.rest), signal);
@@ -232,10 +238,14 @@ export function startTour(said: string, deps: TourDeps, lang: 'it' | 'en' = 'en'
   tour = t;
   // Subscribed after the library and selection changes above, which are the tour's own. Any later change of
   // the stack (another project, a sub-tower, going up) or opening the library means the tour's layer numbers
-  // no longer match the screen.
+  // no longer match the screen. A live reload rebuilds the stack array even when nothing moved, so the ids are
+  // compared; and share() keeps an unchanged tower as the same object, so a different object on screen means
+  // the toured tower was really edited.
   t.unsub = useStore.subscribe((s, prev) => {
     if (tour !== t) return;
-    if (s.stack === prev.stack && !(s.library && !prev.library)) return;
+    const sameIds = s.stack.length === prev.stack.length && s.stack.every((id, i) => id === prev.stack[i]);
+    const opened = s.library && !prev.library;
+    if (sameIds && !opened && onScreen() === t.tower) return;
     stopTour();
     deps.caption('Tour stopped');
   });

@@ -60,11 +60,14 @@ describe('guided tour fixes (#275)', () => {
     tour.startTour('tour', deps());
     await vi.advanceTimersByTimeAsync(0);
     expect(tour.isTouring()).toBe(true);
-    // A second project when there is one; otherwise a new stack array, which is what the listener watches.
+    // A second project when there is one. Otherwise: a copy of the stack with the same ids is a live reload and
+    // keeps the tour (#275 M1); an empty stack is a different project's worth of change and ends it.
     if (projects.length > 1) {
       useStore.getState().openProject(projects[1]);
     } else {
       useStore.setState({ stack: [...useStore.getState().stack] });
+      expect(tour.isTouring()).toBe(true);
+      useStore.setState({ stack: [] });
     }
     expect(tour.isTouring()).toBe(false);
     expect(captions.at(-1)).toBe('Tour stopped');
