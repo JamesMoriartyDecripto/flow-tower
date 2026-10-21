@@ -2,6 +2,12 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Status on 2026-10-21
+
+- **v0.12.0 released** (2026-10-21): the audit that reads stated facts (#249), the example towers optimized and on the models the per-node benchmark picked (#231, #274), the role catalogue (#261), the dev squad kit (#265), SQLite in the viewer (#264), share and unshare from the interface (#266), the ai-commercialista example (#228). Gates and the full e2e with the GPU (96/96, 29.6 min): [report](examples/release-auditor/reports/v0.12.0.md). gitleaks flagged the fake key of `tests/squad-key.test.ts`: kept in `.gitleaksignore` by its fingerprint.
+- **The squad kit runs on a real project:** set up there with `squad init`, and issues worked end to end with the squad.
+- **Next feature:** #275, a spoken guided tour of a tower (layer by layer, node by node), after this release.
+
 ## Status on 2026-10-20
 
 - **Models per node applied** (PR #274): the 30 switch rows of `examples/model-benchmark/results/2026-10-16-tower-nodes.md` in 18 example towers, with agent files, code, README and sample logs kept in step. co-scientist moves all its agents (8, plus the tournament sub-tower's ranking) off `gemini-2.0-flash` (no longer served); airline-support's triage and both guardrails run on `gpt-6-luna`, after a new guard task `airline-jailbreak` (gpt-6-luna, gpt-5.2, glm-5.3-flash all 5/5, $0.005). Audit unchanged (33 findings before and after). No model of the towers' families came out after 2026-10-16, so no re-run.
@@ -74,7 +80,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Next, in order
 
-0. The squad kit acceptance test on a real project (`squad init`, `squad key`, `install-skill`, one issue end to end)
+0. #275 the voice guided tour: the voice-commands tower first (it also lacks `live_status`), then the squad
 1. #181 what needs the Mac: a real tailnet with the v0.10.0 team journeys, the macOS side of #194 (launchd)
 2. #69 tower names as an STT prompt
 3. docs-qa gaps left after #143: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)

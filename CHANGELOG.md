@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-21
+
 ### Added
 - Ops fields `effect` (`read`, `reversible`, `irreversible`: what running a step changes) and `model_varies` (why an agent pins no model: picked at run time by design), and a `description` on `sandbox` (what enforces it). The audit reads them (#249).
 - Share and unshare a tower with the hub from the interface (#266). On a satellite, each local library card has a Share with hub menu (not shared, towers only, towers and files); Settings › Sharing lists each share's folder, mode and state with Unshare, and Remove from config only when the hub cannot be reached. A local project with recent events that no share lists is named in Settings › Sharing and in the SAT chip's tooltip, since the hub lights only the towers that machine shared. Behind it, the local route `/api/sharing/towers` (loopback only) and `share-actions.ts`, which the `share` CLI now calls too. `share` without `--name` keeps the name a folder was already shared under (its tower may have been renamed since), and refuses a name another folder's share holds, which it used to overwrite on the hub.
@@ -435,7 +437,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.8.0...v0.9.0
