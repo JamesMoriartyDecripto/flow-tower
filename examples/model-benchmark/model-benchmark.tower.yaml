@@ -448,10 +448,10 @@ layers:
         description: >-
           Per category: model, runs, correct, timing, steps, cost, cache, retries, errors, providers.
           First real run: results/2026-10-11.md,
-          8 models × 5 categories, n = 3 per model and task, 240 runs, $0.19. Roles of the example towers:
-          results/2026-10-16-tower-nodes.md, 409 runs, n = 3-5, with a recommendation per node. Format example
-          labelled ILLUSTRATIVE in results/example.md.
-        files: [results/2026-10-11.md, results/2026-10-16-tower-nodes.md, results/example.md]
+          8 models × 5 categories, 240 runs, $0.19. Roles of the example towers:
+          results/2026-10-16-tower-nodes.md, 409 runs, n = 3-5, with a recommendation per node. New models
+          re-checked on the same tasks: results/2026-10-21-new-models.md. Format example: results/example.md.
+        files: [results/2026-10-11.md, results/2026-10-16-tower-nodes.md, results/2026-10-21-new-models.md, results/example.md]
       - id: signoff
         type: human
         label: Sign-off
@@ -460,7 +460,8 @@ layers:
       - id: skill
         type: output
         label: Cost skill update
-        description: "skills/flow-tower-costs/reference.md: ≥ 5 models per category with the date measured and n; illustrative when n < 3."
+        description: "skills/flow-tower-costs/reference.md (≥ 5 models per category, date and n; illustrative when n < 3) and catalogue.md: the pick per role, re-checked on the same tasks when new models appear."
+        files: [../../skills/flow-tower-costs/catalogue.md]
         resources:
           - { kind: doc, label: Cost skill reference, url: "https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-costs/reference.md" }
       - id: defaults
