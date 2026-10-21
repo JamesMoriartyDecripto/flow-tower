@@ -287,6 +287,11 @@ layers:
         label: Live tower
         description: "The 3D tower lit by live events."
         files: [src/app/live.ts]
+      - id: library
+        type: output
+        label: Hub library
+        description: "The hub view's library: one card per shared tower, with the sending machine's chip and how long ago it changed (a dot within 10 minutes). The chips sit on their own line under the title, so long names keep whole words (#279)."
+        files: [src/app/hud/Library.tsx, src/app/library.ts, src/app/styles.css]
       - id: satellite-list
         type: output
         label: Satellite list
@@ -329,6 +334,7 @@ layers:
       - "alerts -> notify [call]: open, clear"
 
 links:
+  - "ingest.shared-towers -> views.library [data]: shared towers, sender, sharedAt"
   - "senders.hooks -> guard.hub-guard [call]: POST /api/events"
   - "senders.otel -> guard.hub-guard [call]: POST /v1/logs"
   - { from: senders.relay, to: guard.hub-guard, kind: call, label: /api/events, protocol: http }
