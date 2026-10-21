@@ -4,7 +4,7 @@ import { chooseView } from '../settings';
 import { findNode, useStore } from '../store';
 import type { VoiceAction } from './commands';
 import { runItsFile, runStep } from './referents';
-import { startTour, tourControl, type TourDeps } from './tour';
+import { isTouring, startTour, tourControl, type TourDeps } from './tour';
 
 /** The event the viewer listens for; the agent tool dispatches the same one (#145b). */
 export const SCROLL_EVENT = 'flow-tower:viewer-scroll';
@@ -105,6 +105,8 @@ export function execute(a: VoiceAction, { stop, tour }: ActionDeps): string {
     case 'mic-off': setTimeout(stop); return 'Microphone off';
     case 'tour':
       if (a.op === 'start') return startTour(a.said, tour, a.lang);
+      // "dettagli" and "stop" with no tour are plain words: they go on to the agent, as they did before #275.
+      if (!isTouring()) return NOT_UNDERSTOOD;
       return tourControl(a.op);
     case 'ambiguous': return `Which one? ${a.options.map((o, i) => `${i + 1}. ${o.label}`).join('  ')}`;
     case 'unknown': return NOT_UNDERSTOOD;

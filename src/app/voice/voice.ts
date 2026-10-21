@@ -203,7 +203,11 @@ async function start() {
         // reply played is the reply itself (laptop speakers), unless the user turned on interrupting by voice.
         if (!keepClip(at, usePrefs.getState().voiceBargeIn)) {
           // Started just after the reply ended (not during it): the user was quick, tell them why it was missed.
-          if (!playedDuring(at, 0) && !tailHinted) { tailHinted = true; flash('Wait a moment after the reply, or press Esc to interrupt it.'); }
+          // During a tour the words that matter are the pause between layers, so the hint names that instead.
+          if (!playedDuring(at, 0) && !tailHinted) {
+            tailHinted = true;
+            flash(isTouring() ? 'Speak in the pause after each layer, or press Esc to end the tour.' : 'Wait a moment after the reply, or press Esc to interrupt it.');
+          }
           return;
         }
         pending++;

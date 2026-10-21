@@ -2,6 +2,7 @@ import type { ResolvedTower } from '../../core/types';
 import { useStore } from '../store';
 import { type Narration, narrateLayer, parts } from './narrate';
 import type { VoiceAction } from './commands';
+import { TAIL_MS } from './duplex';
 
 /**
  * The guided tour driver (#275): the tower on screen is walked layer by layer. Each layer is focused, its
@@ -147,7 +148,8 @@ async function speakLayer(t: Tour, at: string, nar: Narration, signal: AbortSign
     }
   }
   useStore.getState().hover(undefined);
-  await pause(1500, signal);
+  // The reply's tail (TAIL_MS) is dropped by keepClip, so the pause is that much longer: the user gets the full 1.5 s.
+  await pause(TAIL_MS + 1500, signal);
   // The user may be talking now: the mic is only useful again once they stop, but never wait for ever.
   if (deps.busy()) {
     let waited = 0;
