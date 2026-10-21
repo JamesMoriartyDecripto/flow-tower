@@ -174,22 +174,27 @@ const ProjectCard = memo(function ProjectCard({ id, tower, stats, live, current,
     <article className={`panel lib-card ${current ? 'current' : ''}`} data-card={id} onClick={() => onOpen(id)}>
       <MiniTower tower={tower} />
       <div className="lib-body">
+        {/* Chips sit in their own row under the title: beside it they took the width and split the words. */}
         <h3>
           <button className="lib-main" onClick={open()} title={`Open ${tower.name} (${view} view)`}>
             <span className="lib-name">{tower.name}</span>
           </button>
-          {live !== 'idle' && <span className={`live-dot ${live}`} title={`Live: ${LIVE_LABEL[live]}`} />}
-          {current && <span className="chip lib-current">open</span>}
-          {origin && <span className={`chip lib-origin ${origin}`} title={ORIGIN_TITLE[origin]}>{origin === 'mine' ? 'MINE' : 'EXAMPLE'}</span>}
-          {src && <span className={`chip lib-source ${src.cls}`} title={src.title}>{src.label}</span>}
-          {shared && (
-            <span className="chip lib-shared" title={shared.title}>
-              {shared.dot && <span className="lib-fresh" aria-label="Changed in the last 10 minutes" />}
-              {shared.text}
-            </span>
-          )}
-          {unsent && <span className="chip lib-unsent" title={unsent.title}>{unsent.text}</span>}
         </h3>
+        {(live !== 'idle' || current || origin || src || shared || unsent) && (
+          <div className="lib-chips">
+            {live !== 'idle' && <span className={`live-dot ${live}`} title={`Live: ${LIVE_LABEL[live]}`} />}
+            {current && <span className="chip lib-current">open</span>}
+            {origin && <span className={`chip lib-origin ${origin}`} title={ORIGIN_TITLE[origin]}>{origin === 'mine' ? 'MINE' : 'EXAMPLE'}</span>}
+            {src && <span className={`chip lib-source ${src.cls}`} title={src.title}>{src.label}</span>}
+            {shared && (
+              <span className="chip lib-shared" title={shared.title}>
+                {shared.dot && <span className="lib-fresh" aria-label="Changed in the last 10 minutes" />}
+                {shared.text}
+              </span>
+            )}
+            {unsent && <span className="chip lib-unsent" title={unsent.title}>{unsent.text}</span>}
+          </div>
+        )}
         {/* Focusable so keyboard users can scroll a long description (↑ ↓ while it has the focus). */}
         <p className="dim lib-desc" tabIndex={0} aria-label={`About ${tower.name}`}>{tower.description ?? id}</p>
         {tower.tags.length > 0 && (
