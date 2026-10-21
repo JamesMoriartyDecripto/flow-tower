@@ -36,7 +36,7 @@ const HISTORY = 12;
 const history: Message[] = [];
 const VOICE_HEADER = 'x-flow-tower-voice';
 
-async function post(path: string, body: unknown, signal?: AbortSignal) {
+export async function post(path: string, body: unknown, signal?: AbortSignal) {
   const r = await fetch(`/api/voice${path}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', [VOICE_HEADER]: '1' }, body: JSON.stringify(body), signal,
   });
@@ -222,10 +222,11 @@ const prefetch = (signal: AbortSignal, n: number) => {
   for (const s of queue.slice(0, n)) if (!s.ready) s.blob ??= speak(s.text, signal);
 };
 
-export function say(sentence: string) {
+/** `onPlay` runs when this sentence actually starts playing (a tour lights its node then), never when skipped. */
+export function say(sentence: string, onPlay?: () => void) {
   spokenText += ` ${sentence}`;
   const signal = abort.signal;
-  queue.push({ text: sentence, onPlay: () => firstAnswer.resolve(performance.now()) });
+  queue.push({ text: sentence, onPlay: () => { firstAnswer.resolve(performance.now()); onPlay?.(); } });
   // One player at a time: set before the first blob arrives, or every sentence would start its own.
   // From here until the queue drains the reply is active: the caption, Esc and the half-duplex gate
   // all go by this one state (isSpeaking), synthesis included.
@@ -244,7 +245,7 @@ async function playNext(signal: AbortSignal) {
   // to the whole turn (reset by newReply()/stopSpeaking()) and resolving them here would lose the ack's
   // start when the queue drains before the first real sentence (#70). firstAudio()/firstAnswerAudio()
   // answer "not spoken" themselves when called with nothing draining.
-  if (!next) { draining = false; playing = undefined; playbackOff(); return; }
+  if (!next) { draining = false; playing = undefined; playbackOff(); settleDrained(); return; }
   ahead = 1;
   next.blob ??= next.ready ? Promise.resolve(next.ready) : speak(next.text, signal);
   prefetch(signal, ahead);
@@ -326,6 +327,24 @@ export function stopSpeaking() {
   playing?.pause();
   playing = undefined;
   playbackOff();
+  settleDrained();
+}
+
+/** Callers of drained() waiting for the reply to end; each is resolved once and then forgotten. */
+let drainWaiters: (() => void)[] = [];
+const settleDrained = () => {
+  const waiters = drainWaiters;
+  drainWaiters = [];
+  for (const done of waiters) done();
+};
+
+/**
+ * Resolves once nothing is queued or playing: at once when no reply is active, otherwise when the queue
+ * drains or stopSpeaking() runs. A tour waits on it before it reports the reply as over.
+ */
+export function drained(): Promise<void> {
+  if (!draining) return Promise.resolve();
+  return new Promise((done) => { drainWaiters.push(done); });
 }
 
 /** A reply is active (synthesizing or playing): one definition for the caption, Esc and the half-duplex gate. */
