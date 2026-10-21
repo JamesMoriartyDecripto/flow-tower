@@ -19,5 +19,5 @@
 2026-10-08T08:14:40-07:00 resume       thread=18f2c1c9 cmd="/resume ... edit"
 2026-10-08T08:14:44-07:00 pre_tool     send-gate mcp__workspace__send_email review=review-4f2a91c0 decision=allow
 2026-10-08T08:14:45-07:00 tool         mcp__workspace__send_email sent=19a0f3e2
-2026-10-08T08:14:52-07:00 reflect      section="Scheduling" added="(2026-10-08) With board EAs, offer 45-minute slots, not 30." model=claude-opus-5-5
+2026-10-08T08:14:52-07:00 reflect      section="Scheduling" added="(2026-10-08) With board EAs, offer 45-minute slots, not 30." model=claude-sonnet-5-5
 2026-10-08T09:30:11-07:00 pre_tool     send-gate mcp__workspace__send_invite review=(none) decision=deny reason="No review_id: call mcp__inbox__request_review first."

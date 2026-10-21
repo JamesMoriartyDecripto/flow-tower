@@ -10,5 +10,5 @@
 2026-10-08T14:04:15Z [searcher#3] save_artifact -> art:3f9a1c
 2026-10-08T14:05:02Z [searcher#3] mcp__gdrive__search "AEDT bias audit vendor" -> 2 docs (user scope)
 2026-10-08T14:07:30Z [searcher#3] tool_calls=15/15 stop=budget
-2026-10-08T14:08:01Z [compress] model=claude-sonnet-5-5 attempt=1 in_tokens=148220 out_tokens=3105
+2026-10-08T14:08:01Z [compress] model=claude-haiku-5-5 attempt=1 in_tokens=148220 out_tokens=3105
 2026-10-08T14:08:02Z [searcher#3] done sources=12 unverified=1

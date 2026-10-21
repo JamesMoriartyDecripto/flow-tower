@@ -6,7 +6,7 @@
 2026-10-05T11:14:55Z WARN  consistency supply_agreement VDR 4.2.17 uncapped liability; 41 of 42 peers capped at 12m fees
 2026-10-05T11:14:56Z INFO  shadow v8 vs v7 agreement=0.962 v8_better=31 v7_better=9 (graded on associate edits)
 2026-10-06T16:30:09Z INFO  checkpoint review_table approved by=a.keller cells_edited=142 flags red=6 yellow=31 green=1032
-2026-10-06T17:02:44Z INFO  scoring model=claude-opus-5-5 findings=96 red=7 amber=38 green=51
+2026-10-06T17:02:44Z INFO  scoring model=claude-sonnet-5-5 findings=96 red=7 amber=38 green=51
 2026-10-07T10:21:33Z INFO  rfi drafted=27 approved=24 posted=24 (Datasite Q&A)
 2026-10-07T15:47:20Z INFO  checkpoint flags approved by=m.brandt upgraded=2 downgraded=1 rejected=4
 2026-10-08T18:05:51Z INFO  memo draft v1 sections=5 citations=212 unsupported_sentences=0

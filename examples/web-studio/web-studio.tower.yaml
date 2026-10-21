@@ -165,7 +165,7 @@ agents:
     budget: { usd: 5, on_exceed: stop }
   ia:
     name: Information architect
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: ia-architect
     tools: [Read, Write, mcp__figma__generate_diagram]
     runtime: orchestrator

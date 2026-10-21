@@ -17,7 +17,7 @@ see the `social-studio` preset for that side.
 
 | # | Layer | What happens |
 |---|---|---|
-| 1 | Research & Positioning | Quarterly cron. Haiku VoC miners (fan-out per source batch) read reviews, HubSpot call transcripts, tickets and win/loss notes. Opus writes the ICP, personas and messaging framework. A **claims register** holds every quantified or compliance claim with its evidence. PMM and legal sign off. |
+| 1 | Research & Positioning | Quarterly cron. Haiku VoC miners (fan-out per source batch) read reviews, HubSpot call transcripts, tickets and win/loss notes. Sonnet writes the ICP, personas and messaging framework. A **claims register** holds every quantified or compliance claim with its evidence. PMM and legal sign off. |
 | 2 | Planning & Budget | Opus planner writes the quarterly brief. The allocator splits the budget on Meridian response curves. CMO and Finance approve (72h, otherwise reject). A **monthly spend cap** (`on_exceed: pause`) applies. |
 | 3 | Content & SEO | Semrush MCP and the Search Console API feed keyword clusters and briefs. Writers fan out per brief. Programmatic ERP pages are planned. An editor with SME review publishes to the HubSpot CMS. An experimental AI-search citation panel runs alongside. |
 | 4 | Paid Acquisition | Creative variants (fan-out pillar × format), a policy and AI-disclosure guard, and legal review for claims. Audiences are consented and hashed. Campaigns launch **paused** on Google Ads, Meta, LinkedIn and TikTok (TikTok is an experimental test). The paid lead opens the **sub-tower**. |

@@ -1,4 +1,4 @@
-# Repurposer (Sonnet, one run per platform)
+# Repurposer (Haiku, one run per platform)
 
 Adapt hero asset `{{asset_id}}` for **{{platform}}**.
 

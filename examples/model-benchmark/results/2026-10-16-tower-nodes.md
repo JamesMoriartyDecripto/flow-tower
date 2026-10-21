@@ -153,7 +153,7 @@ One row per node flagged in the optimizer reports. "Keep" when a cheaper model l
 | airline-support | `agents.triage` | gpt-5.2 | **gpt-6-luna** | intent: 12/12 both, $0.0001 vs $0.0013 / correct |
 | airline-support | `agents.faq` | gpt-5.2 | keep | not benchmarked (answers from a tool; no FAQ task set) |
 | airline-support | `api.relevance` | gpt-4.1-mini | **gpt-6-luna** | gpt-4.1-mini has no endpoint under the data policy; gpt-6-luna passed the relevance task 3/3 |
-| airline-support | `api.jailbreak` | gpt-4.1-mini | keep, re-check | not tested here; gpt-4.1-mini has no endpoint under the data policy, so it needs a replacement: the catalogue's guard pick (`z-ai/glm-5.3-flash`, 6/6) is the candidate for its eval |
+| airline-support | `api.jailbreak` | gpt-4.1-mini | **gpt-6-luna** | gpt-4.1-mini has no endpoint under the data policy. Guard set `airline-jailbreak` (2026-10-20, [results](2026-10-20-airline-jailbreak.md)): gpt-6-luna, gpt-5.2 and glm-5.3-flash all 5/5; gpt-6-luna keeps the tower on one provider, $0.0001 / correct |
 | browser-worker | `verify.verifier` | Opus | **Sonnet** | vision: 20/20 for all; Sonnet keeps a margin over Haiku for an irreversible submit |
 | browser-worker | `worker.worker` | Sonnet | keep | computer use: not benchmarked |
 | chief-of-staff | `harness.reflect` | Opus | **Sonnet** | writer: 15/15, 8.9 |
@@ -205,4 +205,4 @@ One row per node flagged in the optimizer reports. "Keep" when a cheaper model l
 | web-studio | `design.copy` | Sonnet | keep | three locales: translation not benchmarked |
 | web-studio | `launch.monitor` | Haiku | keep | already the cheapest; summarizer agrees |
 
-Switch: 29 node rows. Keep: 28, of which 11 are not benchmarked.
+Switch: 30 node rows (the jailbreak guard added on 2026-10-20). Keep: 28, of which 11 are not benchmarked.

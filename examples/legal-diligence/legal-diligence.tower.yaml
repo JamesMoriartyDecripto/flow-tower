@@ -58,7 +58,7 @@ prompts:
   classifier: { file: prompts/classifier.md, description: "Haiku. Page-one classification into the matter taxonomy, privilege flag, amendment links." }
   clause-reviewer: { file: prompts/clause-reviewer.md, description: "Sonnet. One document, one clause family; every answer carries a verbatim quote." }
   consistency: { file: prompts/consistency.md, description: "Opus. Cross-document outliers, conflicts with amendments, missing documents." }
-  red-flag-scorer: { file: prompts/red-flag-scorer.md, description: "Opus. Severity and recommended action per finding against the playbook." }
+  red-flag-scorer: { file: prompts/red-flag-scorer.md, description: "Sonnet. Severity and recommended action per finding against the playbook." }
   rfi-drafter: { file: prompts/rfi-drafter.md, description: "Sonnet. Seller Q&A questions for gaps; never reveals the buyer's assessment." }
   memo-writer: { file: prompts/memo-writer.md, description: "Opus. Red flag report from approved flags only; no citation, no sentence." }
 
@@ -117,7 +117,7 @@ agents:
     budget: { usd: 20, on_exceed: escalate }
   scorer:
     name: Red-flag scorer
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: red-flag-scorer
     tools: [mcp__reviewtable__query, mcp__dms__read_playbook]
     runtime: matter-svc
@@ -441,7 +441,7 @@ links:
   - { from: intake.classifier, to: governance.haiku, kind: call, protocol: http }
   - { from: review.coc, to: governance.sonnet, kind: call, label: all 5 families, protocol: http }
   - { from: review.consistency, to: governance.opus, kind: call, protocol: http }
-  - { from: risk.scorer, to: governance.opus, kind: call, protocol: http }
+  - { from: risk.scorer, to: governance.sonnet, kind: call, protocol: http }
   - { from: report.memo, to: governance.opus, kind: call, protocol: http }
   - "review.dispatch -> governance.region_guard [call]: every tool call"
   - "intake.scope -> governance.audit_log [data]: approval"

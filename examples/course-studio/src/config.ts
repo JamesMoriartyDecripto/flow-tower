@@ -7,7 +7,7 @@ import type { McpServerConfig } from '@anthropic-ai/claude-agent-sdk';
 /** Root of the Syllabus Forge package (prompts, agents, config, memory live here). */
 export const ROOT = resolve(import.meta.dirname, '..');
 
-/** Opus where judgment compounds, Sonnet for production, Haiku for routing and tags. */
+/** Opus where judgment compounds, Sonnet for planning and production, Haiku for routing, tags and merging notes. */
 export const MODELS = {
   opus: 'claude-opus-5-5',
   sonnet: 'claude-sonnet-5-5',
@@ -17,7 +17,7 @@ export const MODELS = {
 export const ROLE_MODEL = {
   intake: MODELS.haiku,
   director: MODELS.opus,
-  'curriculum-architect': MODELS.opus,
+  'curriculum-architect': MODELS.sonnet,
   'research-librarian': MODELS.sonnet,
   'module-writer': MODELS.sonnet,
   localizer: MODELS.sonnet,
@@ -28,7 +28,7 @@ export const ROLE_MODEL = {
   'fact-checker': MODELS.sonnet,
   'accessibility-auditor': MODELS.sonnet,
   'rights-reviewer': MODELS.opus,
-  consolidator: MODELS.opus,
+  consolidator: MODELS.haiku,
   'learner-simulator': MODELS.sonnet,
   'course-packager': MODELS.sonnet,
   'marketing-writer': MODELS.sonnet,

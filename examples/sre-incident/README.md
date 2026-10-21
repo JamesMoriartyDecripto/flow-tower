@@ -19,7 +19,7 @@ node bin/flow-tower.js examples/sre-incident/sre-incident.tower.yaml
 | Alert Intake | PagerDuty V3 webhook, HMAC check, dedupe, `sessions.create`, incident channel |
 | Investigation | investigator + `incident-runbooks` skill, `get_logs` / `get_alerts` / `get_recent_deployments`, signature decision |
 | Remediation | remediator (sub-tower), `open_pull_request`, CI guard, `request_approval`, Slack approval, escalation, merge, rollout watch |
-| Recovery & Postmortem | status page (Haiku), PagerDuty resolve, postmortem writer (Sonnet), 72h review, archive |
+| Recovery & Postmortem | status page (Haiku), PagerDuty resolve, postmortem writer (Haiku), 72h review, archive |
 | Harness, Tools & Models | event loop, tool permissions, budget, host-side secrets, Redis, Console trace, models |
 
 `towers/remediator.tower.yaml` drills into one remediator session (edit, diff, PR, approval, merge).

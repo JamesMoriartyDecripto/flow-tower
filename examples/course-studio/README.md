@@ -38,7 +38,7 @@ and **Review board**; inside the review board, **Fact-check** opens a third leve
 4. **Production**: module writers in parallel (pool of 3, isolated sessions). Hooks gate reading level
    and PII on every write. Media and assessment follow in parallel.
 5. **Review board**: pedagogy, fact-check, accessibility (WCAG 2.2 AA) and rights reviewers grade in
-   fresh parallel sessions; an Opus consolidator dedupes and decides. Max 3 rounds; the revision
+   fresh parallel sessions; a Haiku consolidator dedupes and decides. Max 3 rounds; the revision
    before the last round runs on Opus; then the SME decides. **Checkpoint 2**: SME content sign-off.
 6. **Pilot**: three simulated personas (novice, ESL, screen-reader) take the course in the SCORM Cloud
    sandbox. Finds friction and broken items cheaply; never reported as learner outcomes.

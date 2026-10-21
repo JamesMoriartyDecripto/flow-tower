@@ -2,7 +2,7 @@
 version: 1
 name: Social Media Studio
 description: >-
-  An agentic social media operation for one brand on eight networks. Every Monday an Opus
+  An agentic social media operation for one brand on eight networks. Every Monday a Sonnet
   strategist turns last week's report, the idea backlog and the brand pillars into a content
   calendar that the social manager approves. Sonnet copywriters write one hero asset per brief;
   a visual director generates stills (Nano Banana 2), 8-second vertical clips (Veo 3.1 Fast) and
@@ -82,7 +82,7 @@ runtimes:
     url: https://www.zendesk.com
 
 prompts:
-  strategist: { file: prompts/strategist.md, description: "Opus. Weekly plan: pillars, mix, slots, experiments, from last week's report." }
+  strategist: { file: prompts/strategist.md, description: "Sonnet. Weekly plan: pillars, mix, slots, experiments, from last week's report." }
   trend-scout: { file: prompts/trend-scout.md, description: "Daily trends, competitor posts and news hooks worth reacting to." }
   copywriter: { file: prompts/copywriter.md, description: "One hero asset per brief: hook, body, CTA, script, alt text." }
   visual-director: { file: prompts/visual-director.md, description: "Shot list, image and video prompts, Canva template choice." }
@@ -96,7 +96,7 @@ prompts:
 agents:
   strategist:
     name: Content strategist
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: strategist
     tools: [Read, Write, WebSearch, mcp__studio__request_approval]
     runtime: studio
@@ -136,7 +136,7 @@ agents:
     files: [config/generation.yaml]
   repurposer:
     name: Repurposer
-    model: claude-sonnet-5-5
+    model: claude-haiku-5-5
     prompt: repurposer
     tools: [Read, mcp__studio__save_variant]
     runtime: studio

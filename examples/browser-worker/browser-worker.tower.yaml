@@ -42,7 +42,7 @@ runtimes:
   bedrock:
     kind: cloud
     label: "Amazon Bedrock"
-    description: "Claude Haiku, Sonnet and Opus 5.5 through EU cross-region inference profiles."
+    description: "Claude Haiku and Sonnet 5.5 through EU cross-region inference profiles."
     provider: "aws"
     region: "eu-central-1"
   portal:
@@ -105,7 +105,7 @@ agents:
   verifier:
     name: Pre-submit verifier
     runtime: agentcore
-    model: claude-opus-5-5
+    model: claude-sonnet-5-5
     prompt: verifier
     tools: []
     files: [src/verify.py]
@@ -331,12 +331,12 @@ layers:
   - id: verify
     title: Verification & Review
     description: >-
-      A different model in a fresh context reads the filled form. Only the guard clicks Submit,
+      A fresh context, with no access to the worker's chat, reads the filled form. Only the guard clicks Submit,
       by DOM selector, after every verify:true field is confirmed. Everything else goes to a person.
     nodes:
       - id: verifier
         agent: verifier
-        label: Verifier (Opus)
+        label: Verifier (Sonnet)
       - id: guard
         runtime: agentcore
         type: guard
@@ -417,13 +417,7 @@ layers:
         type: model
         label: Sonnet 5.5
         model: claude-sonnet-5-5
-        description: "Computer-use worker. Median 19 steps, about $0.40 per item with screenshots."
-      - id: opus
-        runtime: bedrock
-        type: model
-        label: Opus 5.5
-        model: claude-opus-5-5
-        description: Pre-submit verifier. One call per item, one screenshot.
+        description: "Computer-use worker (median 19 steps, about $0.40 per item with screenshots) and the pre-submit verifier (one call per item, one screenshot, in a fresh context)."
     edges:
       - "computer_tool -> invoke_browser [call]: action map"
       - "secrets -> cdp [data]: username, password"
@@ -444,7 +438,7 @@ links:
   - "worker.worker -> platform.sonnet [call]: screenshots + actions"
   - "worker.worker -> platform.computer_tool [call]"
   - "worker.screenshot -> platform.invoke_browser [call]: screenshot"
-  - "verify.verifier -> platform.opus [call]: one screenshot"
+  - "verify.verifier -> platform.sonnet [call]: one screenshot"
   - "verify.submit -> platform.cdp [call]: click by selector"
   - "session.login -> platform.cdp [call]: fill by selector"
   - "session.login -> platform.secrets [call]"

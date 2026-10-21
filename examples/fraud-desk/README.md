@@ -15,7 +15,7 @@ node bin/flow-tower.js examples/fraud-desk/fraud-desk.tower.yaml
 |---|---|
 | Case Intake | 5-minute batch of pending transactions, one session per batch, the `requires_action` gate loop |
 | Agent Review | AP2 mandate hard gate, `get_transaction`, hybrid precedent search, fraud-ring check, threshold decision, `escalate`, terminal `record_decision`, exactly-one-terminal guard |
-| Analyst Desk | Sonnet case packet, analyst queue (4h), senior analyst (24h, then decline), override labels, SAR referral (30d) |
+| Analyst Desk | Haiku case packet, analyst queue (4h), senior analyst (24h, then decline), override labels, SAR referral (30d) |
 | MongoDB Atlas | `$vectorSearch` + Atlas Search BM25 fused with `$rankFusion`, optional rerank, `$graphLookup`, decisions, append-only `audit_events`, `mandate_receipts` |
 | Harness & Models | limited network environment, host-side secrets, insert-only audit role, Console trace, models |
 

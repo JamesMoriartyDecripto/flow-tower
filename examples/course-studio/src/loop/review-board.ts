@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { loadAgentFiles } from '../agents';
-import { LIMITS, MODELS, REVIEW, type Run } from '../config';
+import { LIMITS, REVIEW, ROLE_MODEL, type Run } from '../config';
 import type { Intake } from '../intake';
 import { renderPrompt, untrusted } from '../prompts';
 import { lastJson, runAgent } from '../run-agent';
@@ -17,7 +17,7 @@ const REVIEWERS = ['pedagogy-reviewer', 'fact-checker', 'accessibility-auditor',
  * Evaluator-optimizer, hard-capped at REVIEW.maxRounds. Each round:
  *   1. four reviewers grade the same build IN PARALLEL, each in a fresh session (no anchoring,
  *      no reading each other's reports),
- *   2. an Opus consolidator dedupes, resolves conflicts and decides,
+ *   2. a Haiku consolidator dedupes, resolves conflicts and decides,
  *   3. owners fix ONLY the blocking findings; the revision before the last round runs on Opus.
  * After the last round the loop stops and a human (the SME) decides.
  */
@@ -50,7 +50,7 @@ export async function reviewBoard(run: Run, intake: Intake) {
       description: 'Review consolidator',
       prompt: renderPrompt('consolidator', { round, course_title: intake.title, reports: untrusted(reports.join('\n\n'), 'reports', 40_000) }),
       tools: ['Read'],
-      model: MODELS.opus,
+      model: ROLE_MODEL.consolidator,
     };
     const c = await runAgent(consolidator, 'Consolidate this round. JSON only.', { run, maxTurns: 8, maxBudgetUsd: 1, label: `consolidator-r${round}` });
     costUsd += c.costUsd;

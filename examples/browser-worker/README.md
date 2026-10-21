@@ -20,8 +20,8 @@ node bin/flow-tower.js examples/browser-worker/browser-worker.tower.yaml
 | Intake & Triage | SQS → Lambda, DynamoDB idempotency key, Haiku classifier, unsupported items to a review queue, DLQ after 3 receives |
 | Browser Session | `StartBrowserSession` (15 min TTL, 8 h for nightly batches), Playwright login over CDP with Secrets Manager, OTP takeover in Live View (`UpdateBrowserStream` disables automation), S3 recordings |
 | Computer-Use Worker | Sonnet 5.5 with `computer_20251124`, each action mapped to one `InvokeBrowser` call plus a screenshot; outcome decision and SQS retries |
-| Verification & Review | Opus 5.5 verifier in a fresh context, submit guard, Playwright clicks Submit by selector, human exception review, write-back to PolicyCenter |
-| Tools & Models | computer tool, InvokeBrowser, Playwright CDP, Secrets Manager, Haiku / Sonnet / Opus 5.5 on Bedrock |
+| Verification & Review | Sonnet 5.5 verifier in a fresh context, submit guard, Playwright clicks Submit by selector, human exception review, write-back to PolicyCenter |
+| Tools & Models | computer tool, InvokeBrowser, Playwright CDP, Secrets Manager, Haiku / Sonnet 5.5 on Bedrock |
 
 ## Operational fields exercised
 

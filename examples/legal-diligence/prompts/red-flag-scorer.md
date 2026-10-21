@@ -1,4 +1,4 @@
-# Red-flag scorer (Opus)
+# Red-flag scorer (Sonnet)
 
 Score each approved review-table finding against the matter's materiality thresholds in `{{playbook}}`.
 

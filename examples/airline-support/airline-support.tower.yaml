@@ -8,8 +8,8 @@ description: >-
   Triage Agent routes each chat to five peer specialists that hand off to each other
   without a central orchestrator. Every agent runs a relevance and a jailbreak input
   guardrail on the latest message; a tripwire replaces the reply with a refusal. All agents
-  share one typed context holding the passenger's booking. Agents run on gpt-5.2,
-  guardrails on gpt-4.1-mini (OpenAI models, as in the source). Dashed nodes are production
+  share one typed context holding the passenger's booking. Specialists run on gpt-5.2,
+  triage and guardrails on gpt-6-luna (the source used gpt-4.1-mini). Dashed nodes are production
   extensions the demo does not have: payout approval, a human-agent console for
   escalations, and the Baggage Agent its prompts already mention.
 limits: { max_iterations: 10, description: "Per user message: Runner.run_streamed uses the Agents SDK default max_turns (10), and MaxTurnsExceeded ends the reply (airline_server.py)." }
@@ -33,7 +33,7 @@ runtimes:
   openai:
     kind: saas
     label: "OpenAI API"
-    description: "Responses API for gpt-5.2 and gpt-4.1-mini. Tracing disabled for zero data retention orgs."
+    description: "Responses API for gpt-5.2 and gpt-6-luna. Tracing disabled for zero data retention orgs."
     provider: "openai"
     url: "https://platform.openai.com"
   contact_center:
@@ -57,7 +57,7 @@ agents:
   triage:
     name: Triage Agent
     description: "Entry point. Hydrates the trip with get_trip_details if needed, then hands off once."
-    model: gpt-5.2
+    model: gpt-6-luna
     prompt: triage
     tools: [get_trip_details]
     runtime: backend
@@ -117,7 +117,7 @@ agents:
   relevance:
     name: Relevance Guardrail
     description: "Structured output RelevanceOutput { reasoning, is_relevant }. Tripwire when not relevant."
-    model: gpt-4.1-mini
+    model: gpt-6-luna
     prompt: relevance-guardrail
     tools: []
     runtime: backend
@@ -127,7 +127,7 @@ agents:
   jailbreak:
     name: Jailbreak Guardrail
     description: "Structured output JailbreakOutput { reasoning, is_safe }. Tripwire when unsafe."
-    model: gpt-4.1-mini
+    model: gpt-6-luna
     prompt: jailbreak-guardrail
     tools: []
     runtime: backend
@@ -501,15 +501,15 @@ layers:
         type: model
         label: gpt-5.2
         model: gpt-5.2
-        description: "MODEL constant for all six agents."
+        description: "MODEL constant for the five specialists."
         files: [python-backend/airline/agents.py]
-      - id: gpt41mini
+      - id: luna
         runtime: openai
         type: model
-        label: gpt-4.1-mini
-        model: gpt-4.1-mini
-        description: "GUARDRAIL_MODEL: two calls per user message, structured output."
-        files: [python-backend/airline/guardrails.py]
+        label: gpt-6-luna
+        model: gpt-6-luna
+        description: "SMALL_MODEL: triage plus two guardrail calls per user message, structured output."
+        files: [python-backend/airline/guardrails.py, python-backend/airline/agents.py]
     edges:
       - "thread_store -> conversation [data]: thread"
       - "conversation -> airline_ctx [data]: state"
@@ -517,7 +517,7 @@ layers:
       - "airline_ctx -> public_ctx [data]"
       - "no_tracing -> deps: no traces exported"
       - { from: deps, to: gpt52, kind: call, label: Responses API, protocol: http }
-      - { from: deps, to: gpt41mini, kind: call, label: Responses API, protocol: http }
+      - { from: deps, to: luna, kind: call, label: Responses API, protocol: http }
 
 links:
   # frontend <-> backend API (HTTP + server-sent events)
@@ -558,6 +558,11 @@ links:
   - "state.public_ctx -> agents.ticket [data]: ticket context"
   - "state.conversation -> api.runner [data]: input_items"
   # guardrails and agents -> models
-  - "api.relevance -> state.gpt41mini [call]"
-  - "api.jailbreak -> state.gpt41mini [call]"
-  - "agents.triage -> state.gpt52 [call]"
+  - "api.relevance -> state.luna [call]"
+  - "api.jailbreak -> state.luna [call]"
+  - "agents.triage -> state.luna [call]"
+  - "agents.flight_info -> state.gpt52 [call]"
+  - "agents.booking -> state.gpt52 [call]"
+  - "agents.seats -> state.gpt52 [call]"
+  - "agents.faq -> state.gpt52 [call]"
+  - "agents.refunds -> state.gpt52 [call]"

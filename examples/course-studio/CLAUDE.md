@@ -36,11 +36,11 @@ Mayer: one idea per segment, narration + visuals, no redundant on-screen text.
 | Route the brief | intake (prompt) | haiku |
 | Plan, dispatch, integrate | program director (prompt) | opus |
 | Sources + licences | research-librarian | sonnet |
-| Objectives, outline | curriculum-architect | opus |
+| Objectives, outline | curriculum-architect | sonnet |
 | Lessons (one module each) | module-writer | sonnet |
 | Scripts, media | script-writer, media-producer | sonnet |
 | Items, rubric | assessment-designer | sonnet |
-| Review board | pedagogy + rights (opus), fact-checker + accessibility (sonnet), consolidator (opus) | mixed |
+| Review board | pedagogy + rights (opus), fact-checker + accessibility (sonnet), consolidator (haiku) | mixed |
 | Pilot | learner-simulator | sonnet |
 | Package, launch kit, tags | course-packager, marketing-writer, metadata-tagger | sonnet / haiku |
 

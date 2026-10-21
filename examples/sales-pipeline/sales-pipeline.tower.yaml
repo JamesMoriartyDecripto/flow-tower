@@ -110,7 +110,7 @@ prompts:
   scoping: { file: prompts/solution-scoper.md, description: "Opus. Scope, assumptions and effort estimate for a quote." }
   negotiation: { file: prompts/negotiation-assistant.md, description: "Sonnet. Concession plan inside the discount policy." }
   dunning: { file: prompts/payment-followup.md, description: "Haiku. Polite reminder drafts by overdue stage." }
-  analyst: { file: prompts/pipeline-analyst.md, description: "Opus. Weekly digest, win/loss themes, ICP feedback." }
+  analyst: { file: prompts/pipeline-analyst.md, description: "Weekly digest (Opus), win/loss themes (Sonnet), ICP feedback." }
 
 agents:
   icp:
@@ -723,6 +723,7 @@ layers:
       - id: winloss
         agent: analyst
         label: Win/loss review
+        model: claude-sonnet-5-5
         description: Monthly. Reads call notes and lost reasons; proposes ICP, scoring and sequence changes with evidence.
         trigger: { kind: cron, schedule: "0 8 1 * *" }
       - id: data_quality

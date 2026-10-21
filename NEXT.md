@@ -2,6 +2,12 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Status on 2026-10-20
+
+- **Models per node applied** (PR #274): the 30 switch rows of `examples/model-benchmark/results/2026-10-16-tower-nodes.md` in 18 example towers, with agent files, code, README and sample logs kept in step. co-scientist moves all its agents (8, plus the tournament sub-tower's ranking) off `gemini-2.0-flash` (no longer served); airline-support's triage and both guardrails run on `gpt-6-luna`, after a new guard task `airline-jailbreak` (gpt-6-luna, gpt-5.2, glm-5.3-flash all 5/5, $0.005). Audit unchanged (33 findings before and after). No model of the towers' families came out after 2026-10-16, so no re-run.
+  - Nodes with their own evals confirm the switch on them before production: ai-video-studio `qa.frame_qa`, browser-worker `verify.verifier`, airline-support guardrails.
+  - Still not benchmarked (11 nodes kept): research, analysis, computer use, Figma edits, translation; a task set per role is the next step for them.
+
 ## Status on 2026-10-19
 
 - **Audit reads stated facts** (#249, PR #271, merged 2026-10-19; closes #231): `flow-tower audit` reads `effect` (`read` / `reversible` / `irreversible`), `model_varies`, edge conditions, `status`, and what a sub-tower inherits from the towers that open it (run budget and limits, a human gate). AUD03 walks upstream for the gate (a guard is info), AUD02 warns only past a width of 20, AUD11 grades isolation. Example towers state the facts where true: 114 findings before, 33 after, each remaining one explained on #249. On the way: `pack.mjs --paths` (review diffs for `examples/` and `docs/`), secret-looking files and C-quoted or renamed names kept out of the packed diff, and `audit --json` no longer cut at 64 KB in a pipe (it broke the optimizer's `snapshot.mjs`). Squad cost $0.13.

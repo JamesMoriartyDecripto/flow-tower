@@ -12,7 +12,7 @@
 2026-10-08T07:43:04.550Z INFO  portal.worker    step=12 zoom [700,480,1100,520] reads "27/03/1994" after typing
 2026-10-08T07:43:19.330Z INFO  portal.worker    step=16 left_click [902,566] "Attach" -> licence.pdf green tick
 2026-10-08T07:43:21.004Z INFO  portal.worker    ready_to_submit entered=[date_of_birth,first_name,last_name,licence_number,relationship] steps=17 cost_usd=0.41
-2026-10-08T07:43:27.618Z INFO  portal.verify    verifier=claude-opus-5-5 verdict=pass fields=4/4 page_warnings=0
+2026-10-08T07:43:27.618Z INFO  portal.verify    verifier=claude-sonnet-5-5 verdict=pass fields=4/4 page_warnings=0
 2026-10-08T07:43:27.620Z INFO  portal.guard     guard pass type=add_driver fields=[date_of_birth, first_name, last_name, licence_number]
 2026-10-08T07:43:31.912Z INFO  portal.guard     submitted ref=END-2026-118402
 2026-10-08T07:43:32.300Z INFO  portal.writeback PolicyCenter activity updated wi_20261008_4f21 ref=END-2026-118402
