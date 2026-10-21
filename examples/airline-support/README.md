@@ -7,8 +7,8 @@ each other directly, with no central orchestrator. Two LLM input guardrails can 
 any message. All agents share one typed context that holds the passenger's booking.
 
 The specialists run on **gpt-5.2**, as in the source. Triage and the two guardrails run on
-**gpt-6-luna**: the source's gpt-4.1-mini has no OpenRouter endpoint under a no-training
-policy, and gpt-6-luna passed the routing, relevance and jailbreak sets at a tenth of
+**gpt-6-luna**: the source's gpt-4.1-mini could not be benchmarked (no OpenRouter endpoint
+served it under the benchmark's no-training policy), and gpt-6-luna passed the routing, relevance and jailbreak sets at a tenth of
 gpt-5.2's cost ([benchmark](../model-benchmark/results/2026-10-16-tower-nodes.md)). The Python under `python-backend/` is an abridged mirror of the
 upstream code, kept to under 80 lines per file. It is meant to be read, not run.
 

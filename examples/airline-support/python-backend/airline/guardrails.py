@@ -7,7 +7,7 @@ from agents import (
     Agent, GuardrailFunctionOutput, RunContextWrapper, Runner, TResponseInputItem, input_guardrail,
 )
 
-# Upstream used gpt-4.1-mini, which no OpenRouter endpoint serves under a no-training policy.
+# Upstream used gpt-4.1-mini; the benchmark could not run it under its no-training policy, gpt-6-luna passed.
 SMALL_MODEL = "gpt-6-luna"  # both guardrails and triage: classification, not answers
 PROMPTS = Path(__file__).resolve().parents[2] / "prompts"
 

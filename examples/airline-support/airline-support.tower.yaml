@@ -561,3 +561,8 @@ links:
   - "api.relevance -> state.luna [call]"
   - "api.jailbreak -> state.luna [call]"
   - "agents.triage -> state.luna [call]"
+  - "agents.flight_info -> state.gpt52 [call]"
+  - "agents.booking -> state.gpt52 [call]"
+  - "agents.seats -> state.gpt52 [call]"
+  - "agents.faq -> state.gpt52 [call]"
+  - "agents.refunds -> state.gpt52 [call]"
