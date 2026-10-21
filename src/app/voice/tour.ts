@@ -46,6 +46,11 @@ interface Tour {
   /** The layer being walked now, as the controls see it. */
   at: number;
   /**
+   * Set when a layer's speech played nothing (synthesis failed, or autoplay is blocked). Speech is not working
+   * then, so the rest of the tour is captions only instead of waiting on drained() for every layer.
+   */
+  silent: boolean;
+  /**
    * The summary narration of each layer, kept for the tour's life: going back to a layer, or a details
    * retelling that moves on to the next one, must not ask the model again. Details parts are not cached.
    */
@@ -106,6 +111,32 @@ function summary(t: Tour, index: number) {
 }
 
 /**
+ * The captions-only way of one layer: the same sentences one at a time, each for its reading time. Used when
+ * speech is off, and when speech failed to play this layer.
+ */
+async function captionLayer(t: Tour, at: string, nar: Narration, signal: AbortSignal, withIntro: boolean) {
+  const { deps } = t;
+  if (withIntro && nar.intro) {
+    deps.keepAlive();
+    useStore.getState().hover(undefined);
+    deps.caption(`${at} · ${nar.intro}`);
+    await pause(readTime(nar.intro), signal);
+  }
+  for (const line of nar.lines) {
+    deps.keepAlive();
+    useStore.getState().hover(line.key);
+    deps.caption(`${at} · ${line.sentence}`);
+    await pause(readTime(line.sentence), signal);
+  }
+  if (nar.rest) {
+    deps.keepAlive();
+    useStore.getState().hover(undefined);
+    deps.caption(`${at} · ${nar.rest}`);
+    await pause(readTime(nar.rest), signal);
+  }
+}
+
+/**
  * Says one layer's narration (or one part of a details retelling). Spoken: the sentences are queued and
  * the loop waits for the queue to drain, each line lighting its node as it plays. Captions only: the same
  * sentences one at a time, each for its reading time. Then a short pause, the moment the mic can hear a
@@ -115,37 +146,31 @@ async function speakLayer(t: Tour, at: string, nar: Narration, signal: AbortSign
   const { deps } = t;
   // The 2-minute idle stop counts from the last keepAlive(), and a long retelling of one layer can outlast it:
   // so it is re-armed before every sentence, not once per layer.
-  if (deps.spoken()) {
+  if (deps.spoken() && !t.silent) {
+    let sent = 0;
+    let played = 0;
+    const onPlay = () => { played++; };
     if (withIntro && nar.intro) { deps.keepAlive(); deps.say(nar.intro); }
     for (const line of nar.lines) {
       deps.keepAlive();
+      sent++;
       deps.say(line.sentence, () => {
+        onPlay();
         useStore.getState().hover(line.key);
         deps.caption(`${at} · ${line.sentence}`);
       });
     }
     // The rest groups the nodes without a line: nothing of them is lit, so the hover is cleared as it plays.
-    if (nar.rest) { deps.keepAlive(); deps.say(nar.rest, () => useStore.getState().hover(undefined)); }
+    if (nar.rest) { deps.keepAlive(); sent++; deps.say(nar.rest, () => { onPlay(); useStore.getState().hover(undefined); }); }
     await until(deps.drained(), signal);
+    // Autoplay blocked or every synthesis failed: nothing played, so no line was lit or captioned. The layer is
+    // then shown in captions, and speech is not tried again for the rest of the tour, since it is not working.
+    if (sent > 0 && played === 0) {
+      t.silent = true;
+      await captionLayer(t, at, nar, signal, withIntro);
+    }
   } else {
-    if (withIntro && nar.intro) {
-      deps.keepAlive();
-      useStore.getState().hover(undefined);
-      deps.caption(`${at} · ${nar.intro}`);
-      await pause(readTime(nar.intro), signal);
-    }
-    for (const line of nar.lines) {
-      deps.keepAlive();
-      useStore.getState().hover(line.key);
-      deps.caption(`${at} · ${line.sentence}`);
-      await pause(readTime(line.sentence), signal);
-    }
-    if (nar.rest) {
-      deps.keepAlive();
-      useStore.getState().hover(undefined);
-      deps.caption(`${at} · ${nar.rest}`);
-      await pause(readTime(nar.rest), signal);
-    }
+    await captionLayer(t, at, nar, signal, withIntro);
   }
   useStore.getState().hover(undefined);
   // The reply's tail (TAIL_MS) is dropped by keepClip, so the pause is that much longer: the user gets the full 1.5 s.
@@ -236,7 +261,7 @@ export function startTour(said: string, deps: TourDeps, lang: 'it' | 'en' = 'en'
   const s = useStore.getState();
   if (s.library) s.showLibrary(false);
   s.select(undefined);
-  const t: Tour = { tower, said, lang, deps, ctl: new AbortController(), life: new AbortController(), at: 0, narrations: new Map() };
+  const t: Tour = { tower, said, lang, deps, ctl: new AbortController(), life: new AbortController(), at: 0, silent: false, narrations: new Map() };
   tour = t;
   // Subscribed after the library and selection changes above, which are the tour's own. Any later change of
   // the stack (another project, a sub-tower, going up) or opening the library means the tour's layer numbers
