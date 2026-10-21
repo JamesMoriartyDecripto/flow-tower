@@ -1,6 +1,7 @@
 import type { ResolvedTower } from '../../core/types';
 import { useStore } from '../store';
 import { type Narration, narrateLayer, parts } from './narrate';
+import type { VoiceAction } from './commands';
 
 /**
  * The guided tour driver (#275): the tower on screen is walked layer by layer. Each layer is focused, its
@@ -267,6 +268,16 @@ export function tourControl(op: TourOp): string {
 }
 
 export const isTouring = () => tour !== undefined;
+
+/**
+ * The actions that mean the tour while it runs: next / previous, back, details, stop. Start and the
+ * layer / node / overview commands are not tour controls: they end the tour, or go to the parser as usual.
+ * One place decides it, so the route in voice.ts and the mid-sentence interrupt never disagree.
+ */
+export function isTourCommand(a: VoiceAction): boolean {
+  if (a.kind === 'step' || a.kind === 'back') return true;
+  return a.kind === 'tour' && (a.op === 'details' || a.op === 'stop');
+}
 
 /** Ends the tour quietly: mic off, Esc, or another command. Speech stops and the highlight clears. */
 export function stopTour() {

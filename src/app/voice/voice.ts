@@ -7,7 +7,7 @@ import { openMic, type Mic } from './mic';
 import { ackLanguage, armAck, warmAck } from './ack';
 import { drained, firstAnswerAudio, firstAudio, converse, forget, isEcho, isSpeaking, newReply, onPlaybackBlocked, say, stopSpeaking, wantsAgent } from './agent';
 import { narrateLayer } from './narrate';
-import { isTouring, stopTour, tourControl, type TourDeps } from './tour';
+import { isTourCommand, isTouring, stopTour, tourControl, type TourDeps } from './tour';
 import { clearAgentSearch } from './tools';
 import { voiceUnavailable } from './unavailable';
 import { bargeIn, keepClip, playedDuring, type Recorded } from './duplex';
@@ -276,6 +276,14 @@ async function transcribe(audio: Blob, format: string, mine: number, at: Recorde
     // before anything handles or journals it.
     if (!text || isEcho(text, at) || isHallucination(text)) return;
     if (playedDuring(at, 0, 'audible')) {
+      // A tour command ("avanti", "dettagli") interrupts the narration even though one word is no barge-in:
+      // the tour is walked by these words, so they must land mid-sentence. Handled as any transcript after.
+      const action = isTouring() ? parseNow(text) : undefined;
+      if (action && isTourCommand(action)) {
+        stopSpeaking();
+        await handle(text, mine, { sttMs: out.ms, sttCost: out.cost, language: out.language }, at.to);
+        return;
+      }
       // Barge-in (only with "Interrupt by voice" on), for clips over the reply actually coming out of the
       // speakers (not its tail, not the silent wait for synthesis): real words stop it; a cough or "ok" does not.
       const kind = bargeIn(text);
