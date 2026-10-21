@@ -4,6 +4,7 @@ import { chooseView } from '../settings';
 import { findNode, useStore } from '../store';
 import type { VoiceAction } from './commands';
 import { runItsFile, runStep } from './referents';
+import { startTour, tourControl, type TourDeps } from './tour';
 
 /** The event the viewer listens for; the agent tool dispatches the same one (#145b). */
 export const SCROLL_EVENT = 'flow-tower:viewer-scroll';
@@ -18,10 +19,12 @@ export const NOT_UNDERSTOOD = 'Not understood';
 export interface ActionDeps {
   /** Turns the microphone off ("spegni il microfono"). */
   stop(): void;
+  /** The guided tour's outside effects (speech, narration, caption), wired by voice.ts (#275). */
+  tour: TourDeps;
 }
 
 /** Applies an action with the same store calls as the keyboard; returns what it did, for the widget. */
-export function execute(a: VoiceAction, { stop }: ActionDeps): string {
+export function execute(a: VoiceAction, { stop, tour }: ActionDeps): string {
   const s = useStore.getState();
   const ws = s.workspace!;
   const tower = ws.towers[s.stack[s.stack.length - 1]];
@@ -100,6 +103,9 @@ export function execute(a: VoiceAction, { stop }: ActionDeps): string {
       s.showOnlyTypes(a.only);
       return a.only?.length ? `Showing ${a.only.join(', ')}` : 'Showing every type';
     case 'mic-off': setTimeout(stop); return 'Microphone off';
+    case 'tour':
+      if (a.op === 'start') return startTour(a.said, tour);
+      return tourControl(a.op);
     case 'ambiguous': return `Which one? ${a.options.map((o, i) => `${i + 1}. ${o.label}`).join('  ')}`;
     case 'unknown': return NOT_UNDERSTOOD;
   }
