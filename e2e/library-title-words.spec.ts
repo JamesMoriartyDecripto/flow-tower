@@ -50,7 +50,9 @@ for (const width of [1280, 1440, 1920]) {
     // Every card has a machine chip and an updated chip, so the chip row is present on each card.
     const cards = await page.locator('[data-card]').count();
     await expect(page.locator('[data-card] .lib-chips .lib-source')).toHaveCount(cards);
-    await expect(page.locator('[data-card] .lib-chips .lib-shared')).toHaveCount(cards);
+    // Only shared projects carry an updated chip. injectSources makes the first project local (this hub's own),
+    // and a local project has no shared time, so exactly one card is expected to lack it.
+    await expect(page.locator('[data-card] .lib-chips .lib-shared')).toHaveCount(cards - 1);
 
     // A word is whole when its DOM Range has exactly one client rect (a split word has one per line).
     const split = await page.$$eval('.lib-name', (names) => {
