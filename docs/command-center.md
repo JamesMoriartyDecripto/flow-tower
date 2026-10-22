@@ -109,6 +109,15 @@ flow-tower share ~/my-project                      # the hub gets the tower (YAM
 flow-tower ~/my-project                            # run your library as usual: accepted events are relayed
 ```
 
+**A teammate on a tailnet hub.** Share only the hub machine with them, not your whole tailnet: Tailscale admin
+console → Machines → the hub → **Share…**, to the email of their Tailscale account (a Gmail or Microsoft account
+works; some company domains are refused by Tailscale). They accept the share with that account, and only the hub
+shows in their machine list. Then add that same login to `viewers` in the hub's `config.json` (read live, no restart).
+Tailscale serve still sends their login to the hub ([Serve identity headers](https://tailscale.com/kb/1312/serve)), so
+`connect` mints their token as above. The first page load over the tailnet can stay blank for about a minute while
+the app's modules arrive; after that the browser's cache makes it quick. They open the files of a shared tower only
+when its satellite ran `share --files` ([what a viewer can read](hub-reference.md#security-model)).
+
 Without `--token`, `connect` asks the hub (`POST /api/hub/enroll`) for a token named after this machine
 (the hostname, or `--machine`). That works only on a tailnet hub (`*.ts.net`, behind `tailscale serve`) and
 only for a tailnet login in its `viewers`; the same login connecting the same machine again gets a new
