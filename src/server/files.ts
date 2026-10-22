@@ -89,8 +89,8 @@ export async function remoteReadAllowed(root: string, path: string, library: str
  * so the hint never reveals what a private project holds. `lstat` decides existence, so a dangling symlink counts as present.
  */
 export async function remoteReadRefusal(root: string, path: string, library: string | undefined, referenced: Set<string>): Promise<{ status: number; error: string } | undefined> {
-  // Absence is checked before the referenced set: the loader lists a referenced path even when the satellite
-  // never sent it, so `remoteReadAllowed` alone would call it readable and the hint would never be reached.
+  // Absence is checked first because a file the satellite never sent is not in `referenced` (it holds only
+  // files that exist), so `remoteReadAllowed` alone would answer the bare 403 and the hint would never be reached.
   if (library && await insideLibrary(root, join(library, 'towers')) && safeJoin(root, path)) {
     try {
       await lstat(resolve(root, path));
