@@ -15,6 +15,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 - Library cards on a hub: the title no longer shares its row with the chips (machine, updated, MINE/EXAMPLE, live dot), which left it a few letters wide and split words mid-word; the chips sit on their own line under it, and a word breaks only when it alone is wider than the card (#279).
 
+### Security
+- Hub: a viewer listed in `viewers` can open the files of a tower in the hub's library folder (#286, PR #285). Before, `/api/file` was refused to every remote request, so a teammate on the command center saw the map but not the prompts and scripts, even after `share --files`. A remote read is confined to towers whose real root lies inside the library folder (a symlink out of it is refused), never a secret or the user folder; requests on the hub machine itself are unchanged; voice and `/@fs` stay refused.
+
 ## [0.12.0] - 2026-10-21
 
 ### Added
