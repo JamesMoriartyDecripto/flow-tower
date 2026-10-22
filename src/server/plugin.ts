@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env, loadEnvFile } from 'node:process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -150,7 +150,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         if (!state?.workspace.projects.length) return send(res, 404, { error: 'no tower files found: run `flow-tower <file.tower.yaml | dir>`' });
         send(res, 200, state.workspace);
       });
-      server.middlewares.use('/api/file', (req, res) => void serveFile(req, res, state));
+      server.middlewares.use('/api/file', (req, res) => void serveFile(req, res, state, { library, hub: hubOpts.hub }));
 
       // Sharing (#91): reads what a satellite is relaying, and the two local controls — pause and the
       // hub test. state() never carries the token; a local server answers { state: 'off' }.
@@ -386,13 +386,20 @@ function existingDirs(files: Set<string>): string[] {
   return [...dirs];
 }
 
-async function serveFile(req: IncomingMessage, res: ServerResponse, state?: LoadResult) {
+async function serveFile(req: IncomingMessage, res: ServerResponse, state?: LoadResult, hub?: { library?: string; hub: boolean }) {
   if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
   const url = new URL(req.url ?? '', 'http://local');
   const tower = url.searchParams.get('tower') ?? '';
   const path = url.searchParams.get('path') ?? '';
   const root = state?.roots.get(tower);
   if (!root || !path) return send(res, 400, { error: 'missing or unknown tower/path' });
+  // In hub mode a remote viewer may read files only of towers under the shared library folder: a tower whose
+  // root is elsewhere (a live local project on the hub machine) is never served, so no host path leaks out.
+  if (hub?.hub) {
+    const base = hub.library && resolve(hub.library);
+    const abs = resolve(root);
+    if (!base || !(abs === base || abs.startsWith(base + sep))) return send(res, 403, { error: 'file not in the shared library' });
+  }
   const { status, body } = await readTowerFile(root, path);
   send(res, status, body);
 }

@@ -112,8 +112,13 @@ describe('hub guard: path normalisation (#83)', () => {
   });
 
   it('refuses a remote viewer on the sensitive routes however they are spelled', () => {
-    for (const p of ['/API/file', '/api//file', '/api/file.', '/api%2Ffile', '/@fs/etc/passwd']) {
+    for (const p of ['/api/voice/agent', '/@fs/etc/passwd']) {
       expect(run(opts, forwarded('GET', p, { 'tailscale-user-login': 'alice@example.com' })).status, p).toBe(403);
+    }
+    // A shared library tower's files now reach a listed viewer (the command center's job); serveFile confines
+    // the read to the library folder and refuses secrets. Every spelling normalises to the same file route.
+    for (const p of ['/api/file?tower=t&path=x', '/API/file?tower=t&path=x', '/api//file?tower=t&path=x', '/api%2Ffile?tower=t&path=x']) {
+      expect(run(opts, forwarded('GET', p, { 'tailscale-user-login': 'alice@example.com' })).status, p).toBe(200);
     }
     // The UI and its assets still reach a listed viewer.
     for (const p of ['/', '/index.html', '/@vite/client', '/src/main.tsx', '/node_modules/.vite/deps/x.js', '/@id/foo']) {
