@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - The voice-commands example tower maps the guided tour, and its voice guide lists `live_status` among its 20 tools (#275).
 
 ### Fixed
+- Hub: a viewer opening a shared tower's file that its satellite did not send now reads `this file was not sent by the satellite: share the tower with --files` (404) instead of `file not shared with viewers`, which said nothing about the fix (#289).
 - Library cards on a hub: the title no longer shares its row with the chips (machine, updated, MINE/EXAMPLE, live dot), which left it a few letters wide and split words mid-word; the chips sit on their own line under it, and a word breaks only when it alone is wider than the card (#279).
 
 ### Security

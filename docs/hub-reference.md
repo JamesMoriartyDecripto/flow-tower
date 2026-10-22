@@ -31,7 +31,8 @@ too). What it may do:
 - **read the files a shared tower references**, for that same listed viewer (#286): `/api/file` serves only towers
   a satellite shared (real root under `towers/` in the hub's library folder; a symlink out is refused), and of
   those only the files the tower points to, never a secret. The hub's own towers and any other project it serves
-  stay unreadable remotely. A shared tower carries files only when its satellite ran `share --files`;
+  stay unreadable remotely. A shared tower carries files only when its satellite ran `share --files`: a file it did
+  not send answers 404 `this file was not sent by the satellite: share the tower with --files` (#289);
 - **nothing else**. Voice (`/api/voice`), Vite's `/@fs/` and every write are refused for remote requests: they
   act on the machine that runs Flow Tower, not on the sender's.
 
