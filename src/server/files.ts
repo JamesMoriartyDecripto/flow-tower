@@ -1,4 +1,4 @@
-import { open, readFile, realpath, stat } from 'node:fs/promises';
+import { lstat, open, readFile, realpath, stat } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { safeJoin } from '../core/loader.ts';
 import { parseSqlSchema, type DbPreview } from '../core/dbPreview.ts';
@@ -80,6 +80,26 @@ export async function remoteReadAllowed(root: string, path: string, library: str
   // safeJoin refuses a path that climbs out of the root (`../`), before any lookup in `referenced`.
   if (!safeJoin(root, path)) return false;
   return referenced.has(resolve(root, path));
+}
+
+/**
+ * Why a remote read is refused, or undefined when it may go on. A satellite that shared its tower WITHOUT
+ * `--files` sends only the YAML, so a referenced file missing from the hub is a 404 with the fix in the message,
+ * not a bare 403 the viewer cannot act on. Only a share root qualifies: a private tower or a `../` path keeps the 403,
+ * so the hint never reveals what a private project holds. `lstat` decides existence, so a dangling symlink counts as present.
+ */
+export async function remoteReadRefusal(root: string, path: string, library: string | undefined, referenced: Set<string>): Promise<{ status: number; error: string } | undefined> {
+  // Absence is checked before the referenced set: the loader lists a referenced path even when the satellite
+  // never sent it, so `remoteReadAllowed` alone would call it readable and the hint would never be reached.
+  if (library && await insideLibrary(root, join(library, 'towers')) && safeJoin(root, path)) {
+    try {
+      await lstat(resolve(root, path));
+    } catch {
+      return { status: 404, error: 'this file was not sent by the satellite: share the tower with --files' };
+    }
+  }
+  if (await remoteReadAllowed(root, path, library, referenced)) return undefined;
+  return { status: 403, error: 'file not shared with viewers' };
 }
 
 async function readTail(path: string, bytes: number): Promise<string> {
