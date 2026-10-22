@@ -140,13 +140,13 @@ layers:
         type: guard
         label: hubGuard
         runtime: hub
-        description: "Remote requests may ingest with a token; a listed viewer may also view the UI and read a library tower's files (#286). The tailscale viewer header is trusted only from a loopback socket. Voice and /@fs are always 403 remote; WebSocket upgrades are gated the same way."
+        description: "Remote requests may ingest with a token; a listed viewer may also view the UI and read the referenced files of a shared tower (#286). The tailscale viewer header is trusted only from a loopback socket. Voice and /@fs are always 403 remote; WebSocket upgrades are gated the same way."
         files: [src/server/hub.ts, src/server/guard.ts]
       - id: file-scope
         type: guard
         label: Viewer file reads
         runtime: hub
-        description: "GET /api/file for a remote viewer (#286): only towers whose real root lies inside the hub's library folder (shared towers and the hub's own); a symlink out of it is refused. Local requests on the hub machine are unchanged. Inside the tower root, secrets and the user folder are never served."
+        description: "GET /api/file for a remote viewer (#286): only towers satellites shared (real root under <library>/towers/, a symlink out refused) and only the files such a tower references, never a secret. The hub's own towers and local projects stay unreadable remotely; local requests on the hub machine are unchanged."
         files: [src/server/plugin.ts, src/server/files.ts, src/server/hub.ts]
       - id: authorize
         type: guard
