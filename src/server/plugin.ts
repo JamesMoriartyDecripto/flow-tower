@@ -398,7 +398,7 @@ async function serveFile(req: IncomingMessage, res: ServerResponse, state?: Load
   // a live project there is never served, and neither is an unreferenced file such as a config with secrets.
   // The owner on the hub machine is local and keeps reading any tower; only a remote request is confined.
   if (hub?.hub && isRemote(req, { hub: true })) {
-    const refusal = await remoteReadRefusal(root, path, hub.library, state?.referenced ?? new Set());
+    const refusal = await remoteReadRefusal(root, path, hub.library, state?.referenced ?? new Set(), state?.missing ?? new Set());
     if (refusal) return send(res, refusal.status, { error: refusal.error });
   }
   const { status, body } = await readTowerFile(root, path);
