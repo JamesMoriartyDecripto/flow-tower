@@ -140,8 +140,14 @@ layers:
         type: guard
         label: hubGuard
         runtime: hub
-        description: "Remote requests may only ingest, and ingest needs a token. The tailscale viewer header is trusted only from a loopback socket. Files, voice and /@fs are always 403 remote; WebSocket upgrades are gated the same way."
+        description: "Remote requests may ingest with a token; a listed viewer may also view the UI and read a library tower's files (#286). The tailscale viewer header is trusted only from a loopback socket. Voice and /@fs are always 403 remote; WebSocket upgrades are gated the same way."
         files: [src/server/hub.ts, src/server/guard.ts]
+      - id: file-scope
+        type: guard
+        label: Viewer file reads
+        runtime: hub
+        description: "GET /api/file for a remote viewer (#286): only towers whose real root lies inside the hub's library folder (shared towers and the hub's own); a symlink out of it is refused. Local requests on the hub machine are unchanged. Inside the tower root, secrets and the user folder are never served."
+        files: [src/server/plugin.ts, src/server/files.ts, src/server/hub.ts]
       - id: authorize
         type: guard
         label: authorize
@@ -167,6 +173,7 @@ layers:
     edges:
       - "exposure -> hub-guard: remote traffic"
       - "hub-guard -> authorize [call]: ingest route"
+      - "hub-guard -> file-scope: viewer reads a file"
       - "authorize -> tokens [data]: sha256 lookup"
       - "token-cli -> tokens [data]: create, revoke"
 
@@ -334,6 +341,7 @@ layers:
       - "alerts -> notify [call]: open, clear"
 
 links:
+  - "views.library -> guard.file-scope [call]: open a file"
   - "ingest.shared-towers -> views.library [data]: shared towers, sender, sharedAt"
   - "senders.hooks -> guard.hub-guard [call]: POST /api/events"
   - "senders.otel -> guard.hub-guard [call]: POST /v1/logs"
