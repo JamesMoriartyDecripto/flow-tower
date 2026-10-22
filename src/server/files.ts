@@ -82,6 +82,23 @@ export async function remoteReadAllowed(root: string, path: string, library: str
   return referenced.has(resolve(root, path));
 }
 
+/**
+ * Why a remote read is refused, or undefined when it may go on. A satellite that shared its tower WITHOUT
+ * `--files` sends only the YAML, so a referenced file missing from the hub is a 404 with the fix in the message,
+ * not a bare 403 the viewer cannot act on. The hint needs both a share root and a path in `missing` (the loader's
+ * referenced-but-absent set, absolute, secrets excluded): an unreferenced absent name stays a 403, so a viewer
+ * cannot probe which files exist. Every other refusal, a private tower or a `../` path included, keeps the 403.
+ */
+export async function remoteReadRefusal(root: string, path: string, library: string | undefined, referenced: Set<string>, missing: Set<string>): Promise<{ status: number; error: string } | undefined> {
+  // A file the satellite never sent is not in `referenced` (it holds only files that exist), so the absent
+  // case is answered from `missing` before `remoteReadAllowed` would give the bare 403.
+  if (library && await insideLibrary(root, join(library, 'towers')) && safeJoin(root, path) && missing.has(resolve(root, path))) {
+    return { status: 404, error: 'this file was not sent by the satellite: share the tower with --files' };
+  }
+  if (await remoteReadAllowed(root, path, library, referenced)) return undefined;
+  return { status: 403, error: 'file not shared with viewers' };
+}
+
 async function readTail(path: string, bytes: number): Promise<string> {
   const fh = await open(path, 'r');
   try {

@@ -6,7 +6,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
 import type { Plugin, ViteDevServer } from 'vite';
 import { loadLibrary, type LoadResult } from '../core/loader.ts';
-import { readTowerFile, remoteReadAllowed } from './files.ts';
+import { readTowerFile, remoteReadRefusal } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
 import { createSatellites } from './satellites.ts';
 import { checkForUpdate, updateCheckDisabled, versionPayload, UPDATE_COMMAND, type UpdateInfo } from './update.ts';
@@ -398,7 +398,8 @@ async function serveFile(req: IncomingMessage, res: ServerResponse, state?: Load
   // a live project there is never served, and neither is an unreferenced file such as a config with secrets.
   // The owner on the hub machine is local and keeps reading any tower; only a remote request is confined.
   if (hub?.hub && isRemote(req, { hub: true })) {
-    if (!(await remoteReadAllowed(root, path, hub.library, state?.referenced ?? new Set()))) return send(res, 403, { error: 'file not shared with viewers' });
+    const refusal = await remoteReadRefusal(root, path, hub.library, state?.referenced ?? new Set(), state?.missing ?? new Set());
+    if (refusal) return send(res, refusal.status, { error: refusal.error });
   }
   const { status, body } = await readTowerFile(root, path);
   send(res, status, body);

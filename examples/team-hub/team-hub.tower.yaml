@@ -146,7 +146,7 @@ layers:
         type: guard
         label: Viewer file reads
         runtime: hub
-        description: "GET /api/file for a remote viewer (#286): only towers satellites shared (real root under <library>/towers/, a symlink out refused) and only the files such a tower references, never a secret. The hub's own towers and local projects stay unreadable remotely; local requests on the hub machine are unchanged."
+        description: "GET /api/file for a remote viewer (#286): only towers satellites shared (real root under <library>/towers/, a symlink out refused) and only the files such a tower references, never a secret. A file the satellite did not send answers 404 with a hint to share with --files (#289); the hub's own towers stay unreadable remotely."
         files: [src/server/plugin.ts, src/server/files.ts, src/server/hub.ts]
       - id: authorize
         type: guard
