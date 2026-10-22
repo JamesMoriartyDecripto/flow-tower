@@ -6,7 +6,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
 import type { Plugin, ViteDevServer } from 'vite';
 import { loadLibrary, type LoadResult } from '../core/loader.ts';
-import { insideLibrary, readTowerFile } from './files.ts';
+import { readTowerFile, remoteReadAllowed } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
 import { createSatellites } from './satellites.ts';
 import { checkForUpdate, updateCheckDisabled, versionPayload, UPDATE_COMMAND, type UpdateInfo } from './update.ts';
@@ -393,11 +393,12 @@ async function serveFile(req: IncomingMessage, res: ServerResponse, state?: Load
   const path = url.searchParams.get('path') ?? '';
   const root = state?.roots.get(tower);
   if (!root || !path) return send(res, 400, { error: 'missing or unknown tower/path' });
-  // In hub mode a remote viewer may read files only of towers under the shared library folder: a tower whose
-  // root is elsewhere (a live local project on the hub machine) is never served, so no host path leaks out.
+  // In hub mode a remote viewer may read only the files a shared tower references, and only of towers under
+  // `<library>/towers/` (where satellites' shares are written). The library itself holds private projects, so
+  // a live project there is never served, and neither is an unreferenced file such as a config with secrets.
   // The owner on the hub machine is local and keeps reading any tower; only a remote request is confined.
   if (hub?.hub && isRemote(req, { hub: true })) {
-    if (!(await insideLibrary(root, hub.library))) return send(res, 403, { error: 'file not in the shared library' });
+    if (!(await remoteReadAllowed(root, path, hub.library, state?.referenced ?? new Set()))) return send(res, 403, { error: 'file not shared with viewers' });
   }
   const { status, body } = await readTowerFile(root, path);
   send(res, status, body);

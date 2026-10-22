@@ -1,5 +1,5 @@
 import { open, readFile, realpath, stat } from 'node:fs/promises';
-import { extname, sep } from 'node:path';
+import { extname, join, resolve, sep } from 'node:path';
 import { safeJoin } from '../core/loader.ts';
 import { parseSqlSchema, type DbPreview } from '../core/dbPreview.ts';
 import { isForbidden, isSecretPath } from '../core/secrets.ts';
@@ -65,6 +65,21 @@ export async function insideLibrary(root: string, library: string | undefined): 
   }
   const prefix = base.endsWith(sep) ? base : base + sep;
   return real === base || real.startsWith(prefix);
+}
+
+/**
+ * Decides whether a REMOTE viewer may read `path` of the tower at `root` in hub mode. Two rules must both hold.
+ * The root must lie under `<library>/towers/`, where satellites' shares are written (sources.ts): the library
+ * itself holds private projects, so a tower there is never shared. And the file must be one the tower
+ * references, so `config/prod.json` next to `notes.md` stays private. Both sides are compared as resolved
+ * absolute paths, since `referenced` holds the absolute paths the loader resolved.
+ */
+export async function remoteReadAllowed(root: string, path: string, library: string | undefined, referenced: Set<string>): Promise<boolean> {
+  if (!library) return false;
+  if (!(await insideLibrary(root, join(library, 'towers')))) return false;
+  // safeJoin refuses a path that climbs out of the root (`../`), before any lookup in `referenced`.
+  if (!safeJoin(root, path)) return false;
+  return referenced.has(resolve(root, path));
 }
 
 async function readTail(path: string, bytes: number): Promise<string> {
