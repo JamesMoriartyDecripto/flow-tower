@@ -2,6 +2,12 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Status on 2026-10-22
+
+- **Viewers read the files of shared towers** (#286, PR #285): a listed viewer opens the files a shared tower references; the hub's own towers and other projects stay unreadable remotely. The first version (from another session) exposed any file under a tower root and the first served folder: caught by the security review, fixed before merge. The command center runs `8c141a1` (pulled, restarted, checked live).
+- **First teammate connected** to the command center: the hub machine shared on its own through Tailscale (not the whole tailnet), the teammate's login in `viewers`, `connect` minted the token. Steps now in docs/command-center.md § Connect to it.
+- **Open from the review:** #287, Vite static serving answers a viewer some files of the flow-tower checkout.
+
 ## Status on 2026-10-21
 
 - **Command center** at v0.12.0 plus the guided tour and #279 (`a108515`), pulled, restarted for the server changes, checked over the tailnet.
@@ -83,6 +89,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 ## Next, in order
 
+0. #287 the hub serves a remote viewer only the app's own assets
 1. #181 what needs the Mac: a real tailnet with the v0.10.0 team journeys, the macOS side of #194 (launchd)
 2. #69 tower names as an STT prompt
 3. docs-qa gaps left after #143: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)
