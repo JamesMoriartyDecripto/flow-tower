@@ -1,5 +1,5 @@
 import { open, readFile, realpath, stat } from 'node:fs/promises';
-import { extname } from 'node:path';
+import { extname, sep } from 'node:path';
 import { safeJoin } from '../core/loader.ts';
 import { parseSqlSchema, type DbPreview } from '../core/dbPreview.ts';
 import { isForbidden, isSecretPath } from '../core/secrets.ts';
@@ -47,6 +47,24 @@ export async function readTowerFile(root: string, path: string): Promise<FileRes
   } catch {
     return { status: 404, body: { error: `file not found: ${path}` } };
   }
+}
+
+/**
+ * True when the tower root is the library folder or lies under it, with both paths resolved by realpath: a
+ * symlink inside the library that points elsewhere is outside. A missing path is outside too, since there is
+ * nothing to confine. The separator is appended before the prefix test, so `/srv/lib-other` is not under `/srv/lib`.
+ */
+export async function insideLibrary(root: string, library: string | undefined): Promise<boolean> {
+  if (!library) return false;
+  let real: string;
+  let base: string;
+  try {
+    [real, base] = await Promise.all([realpath(root), realpath(library)]);
+  } catch {
+    return false;
+  }
+  const prefix = base.endsWith(sep) ? base : base + sep;
+  return real === base || real.startsWith(prefix);
 }
 
 async function readTail(path: string, bytes: number): Promise<string> {
