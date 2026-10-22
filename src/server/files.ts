@@ -1,5 +1,5 @@
 import { open, readFile, realpath, stat } from 'node:fs/promises';
-import { extname } from 'node:path';
+import { extname, join, resolve, sep } from 'node:path';
 import { safeJoin } from '../core/loader.ts';
 import { parseSqlSchema, type DbPreview } from '../core/dbPreview.ts';
 import { isForbidden, isSecretPath } from '../core/secrets.ts';
@@ -47,6 +47,39 @@ export async function readTowerFile(root: string, path: string): Promise<FileRes
   } catch {
     return { status: 404, body: { error: `file not found: ${path}` } };
   }
+}
+
+/**
+ * True when the tower root is the library folder or lies under it, with both paths resolved by realpath: a
+ * symlink inside the library that points elsewhere is outside. A missing path is outside too, since there is
+ * nothing to confine. The separator is appended before the prefix test, so `/srv/lib-other` is not under `/srv/lib`.
+ */
+export async function insideLibrary(root: string, library: string | undefined): Promise<boolean> {
+  if (!library) return false;
+  let real: string;
+  let base: string;
+  try {
+    [real, base] = await Promise.all([realpath(root), realpath(library)]);
+  } catch {
+    return false;
+  }
+  const prefix = base.endsWith(sep) ? base : base + sep;
+  return real === base || real.startsWith(prefix);
+}
+
+/**
+ * Decides whether a REMOTE viewer may read `path` of the tower at `root` in hub mode. Two rules must both hold.
+ * The root must lie under `<library>/towers/`, where satellites' shares are written (sources.ts): the library
+ * itself holds private projects, so a tower there is never shared. And the file must be one the tower
+ * references, so `config/prod.json` next to `notes.md` stays private. Both sides are compared as resolved
+ * absolute paths, since `referenced` holds the absolute paths the loader resolved.
+ */
+export async function remoteReadAllowed(root: string, path: string, library: string | undefined, referenced: Set<string>): Promise<boolean> {
+  if (!library) return false;
+  if (!(await insideLibrary(root, join(library, 'towers')))) return false;
+  // safeJoin refuses a path that climbs out of the root (`../`), before any lookup in `referenced`.
+  if (!safeJoin(root, path)) return false;
+  return referenced.has(resolve(root, path));
 }
 
 async function readTail(path: string, bytes: number): Promise<string> {

@@ -7,8 +7,9 @@ import { userHome } from '../core/secrets.ts';
 /**
  * Hub mode (#83): when this dev server is reachable from outside the machine (a non-loopback --host, or
  * tailscale serve / any proxy forwarding to it), a remote request must be checked before it reaches a
- * route: it may ingest events with a token, may read the UI only when its tailnet identity is a viewer,
- * and may touch nothing else. Remote file reads and voice are refused outright: they act on the host.
+ * route: it may ingest events with a token, may read the UI (and the files of a shared library tower) only
+ * when its tailnet identity is a viewer, and may touch nothing else. Voice and raw host reads (/@fs) are
+ * refused outright; a file read is confined by serveFile to the shared library folder, secrets excluded.
  */
 export interface HubOptions {
   hub: boolean;
@@ -49,8 +50,10 @@ export function normalizePath(raw: string): string {
 const isIngest = (method: string | undefined, path: string) =>
   method === 'POST' && (path === '/api/events' || path === '/api/heartbeat' || /^\/v1\/(logs|metrics|traces)\/?$/.test(path));
 
-/** Routes a remote viewer must never reach, whatever the method: they read host files or drive the mic. */
-const SENSITIVE = /^\/api\/(file|voice)(\/|\.|$)/;
+/** Routes a remote viewer must never reach, whatever the method: /api/voice drives the mic, and /@fs reads
+ * any host path. /api/file is NOT here: a viewer may read a file of a shared library tower (serveFile confines
+ * it to the library folder and refuses secrets), which is what the command center is for. */
+const SENSITIVE = /^\/api\/(voice)(\/|\.|$)/;
 /** Vite's own file serving: /@fs/<abs path> reads any file on the host, so a remote viewer gets nothing. */
 const isViteFs = (path: string) => path === '/@fs' || path.startsWith('/@fs/');
 const isSensitive = (path: string) => SENSITIVE.test(path) || isViteFs(path);

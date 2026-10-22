@@ -28,8 +28,12 @@ too). What it may do:
 - **ingest events** with a valid token — the token id becomes the sender, and events are attributed to it;
 - **view** the UI (read-only) only when its tailnet login is listed in `viewers`
   (`hub.json` still works, with a deprecation warning);
-- **nothing else**. Files (`/api/file`), voice (`/api/voice`) and every write are refused for remote
-  requests: they act on the machine that runs Flow Tower, not on the sender's.
+- **read the files a shared tower references**, for that same listed viewer (#286): `/api/file` serves only towers
+  a satellite shared (real root under `towers/` in the hub's library folder; a symlink out is refused), and of
+  those only the files the tower points to, never a secret. The hub's own towers and any other project it serves
+  stay unreadable remotely. A shared tower carries files only when its satellite ran `share --files`;
+- **nothing else**. Voice (`/api/voice`), Vite's `/@fs/` and every write are refused for remote requests: they
+  act on the machine that runs Flow Tower, not on the sender's.
 
 Hub mode needs at least one token to start: a shared hub must never accept an unsigned event. Rate limits,
 dedupe and a ±24 h timestamp window apply to remote senders (see **Security model** below). Recipes live
@@ -204,8 +208,9 @@ Hub mode changes what the server accepts; this is the one place it is stated:
   never a secret guarding this server: a revoked token pasted into `config.json` must not authenticate here.
   The server's own secrets are `FLOW_TOWER_TOKEN` and `tokens.json` (`bin/flow-tower.js`).
 - **What a remote request can do.** Ingest an event with a token, and — for a tailnet user listed in
-  `viewers` (config.json) — view the UI read-only. It can never read files, drive voice or make any other
-  write: those routes answer 403 to a remote request. Anything the socket or the proxy headers say came
+  `viewers` (config.json) — view the UI read-only and read the files a shared tower references
+  (#286). It can never read any other file, drive voice or make any other write: those routes answer 403 to a
+  remote request. Anything the socket or the proxy headers say came
   from off the machine is treated as remote.
 - **Public fallback.** `--ingest-only` serves only `/api/events` and `/v1/*`, to anyone, and 404s
   everything else including locally. It needs a token for **every** request, like hub mode: the CLI exits 1
@@ -214,7 +219,8 @@ Hub mode changes what the server accepts; this is the one place it is stated:
 - **Viewing is gated everywhere it reaches the host.** A WebSocket upgrade (Vite HMR/ws) is checked the
   same way as a page view: only loopback, or a listed viewer through the local proxy, may open it, so a
   remote stranger cannot subscribe to the live event stream. A remote viewer also never reaches Vite's
-  `/@fs/` (which would read any file on the host) nor the file and voice routes (`/api/file`, `/api/voice`).
+  `/@fs/` (which would read any file on the host) nor voice (`/api/voice`); `/api/file` answers it only for the files a
+  shared tower references (#286).
 - **Abuse limits.** Per-sender token bucket (20 events/s, burst 200; 429 with `Retry-After`), an LRU
   dedupe of event ids (50,000) so a retrying sender cannot replay the same event, and a ±24 h window around
   now so a skewed or backdated timestamp is dropped. All in memory: a restart forgets them.

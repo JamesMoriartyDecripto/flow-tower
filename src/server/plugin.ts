@@ -6,7 +6,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
 import type { Plugin, ViteDevServer } from 'vite';
 import { loadLibrary, type LoadResult } from '../core/loader.ts';
-import { readTowerFile } from './files.ts';
+import { readTowerFile, remoteReadAllowed } from './files.ts';
 import { createEventHub, EVENTS_EVENT } from './events.ts';
 import { createSatellites } from './satellites.ts';
 import { checkForUpdate, updateCheckDisabled, versionPayload, UPDATE_COMMAND, type UpdateInfo } from './update.ts';
@@ -150,7 +150,7 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
         if (!state?.workspace.projects.length) return send(res, 404, { error: 'no tower files found: run `flow-tower <file.tower.yaml | dir>`' });
         send(res, 200, state.workspace);
       });
-      server.middlewares.use('/api/file', (req, res) => void serveFile(req, res, state));
+      server.middlewares.use('/api/file', (req, res) => void serveFile(req, res, state, { library, hub: hubOpts.hub }));
 
       // Sharing (#91): reads what a satellite is relaying, and the two local controls — pause and the
       // hub test. state() never carries the token; a local server answers { state: 'off' }.
@@ -386,13 +386,20 @@ function existingDirs(files: Set<string>): string[] {
   return [...dirs];
 }
 
-async function serveFile(req: IncomingMessage, res: ServerResponse, state?: LoadResult) {
+async function serveFile(req: IncomingMessage, res: ServerResponse, state?: LoadResult, hub?: { library?: string; hub: boolean }) {
   if (crossSite(req)) return send(res, 403, { error: 'cross-site requests are refused' });
   const url = new URL(req.url ?? '', 'http://local');
   const tower = url.searchParams.get('tower') ?? '';
   const path = url.searchParams.get('path') ?? '';
   const root = state?.roots.get(tower);
   if (!root || !path) return send(res, 400, { error: 'missing or unknown tower/path' });
+  // In hub mode a remote viewer may read only the files a shared tower references, and only of towers under
+  // `<library>/towers/` (where satellites' shares are written). The library itself holds private projects, so
+  // a live project there is never served, and neither is an unreferenced file such as a config with secrets.
+  // The owner on the hub machine is local and keeps reading any tower; only a remote request is confined.
+  if (hub?.hub && isRemote(req, { hub: true })) {
+    if (!(await remoteReadAllowed(root, path, hub.library, state?.referenced ?? new Set()))) return send(res, 403, { error: 'file not shared with viewers' });
+  }
   const { status, body } = await readTowerFile(root, path);
   send(res, status, body);
 }
