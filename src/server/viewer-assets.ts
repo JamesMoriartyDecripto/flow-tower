@@ -26,11 +26,13 @@ const endsWithAny = (path: string, exts: string[]) => exts.some((ext) => path.en
 /**
  * The decoded path must be plain: Vite resolves dot segments, doubled slashes and stray separators itself,
  * so a path that needs them would be judged by the guard one way and read by Vite another way.
+ * A segment ending in a dot or a space is refused too: Windows strips trailing dots and spaces from a
+ * name, so `main.tsx.` would pass the guard and open `main.tsx`. This also covers `.` and `..`.
  */
 function isPlainPath(path: string): boolean {
   if (!path.startsWith('/')) return false;
   if (/[\\\u0000?#]/.test(path) || path.includes('//')) return false;
-  return !path.split('/').some((segment) => segment === '.' || segment === '..');
+  return !path.split('/').some((segment) => /[. ]$/.test(segment));
 }
 
 /** Whether the decoded path is one of the app's own assets, given the query keys already vetted. */

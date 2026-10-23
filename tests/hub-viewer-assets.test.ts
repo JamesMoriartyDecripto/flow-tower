@@ -75,6 +75,26 @@ describe('isViewerRequest: what a remote viewer may load', () => {
 });
 
 /**
+ * Windows drops trailing dots and spaces from a file name, so a segment ending in one must not pass the guard.
+ */
+describe('isViewerRequest: a segment ending in a dot or a space', () => {
+  it.each([
+    ['/src/app/main.tsx.'],
+    ['/src/app/main.tsx%20'],
+    ['/src/app/.../main.tsx'],
+    ['/src/app./main.tsx'],
+    ['/package.json.?import'],
+    ['/node_modules/.vite/port-5317/deps/react.js.?v=1'],
+  ])('refuses %s', (url) => {
+    expect(isViewerRequest(url)).toBe(false);
+  });
+
+  it('still allows a segment that starts with a dot', () => {
+    expect(isViewerRequest('/node_modules/.vite/port-5317/deps/react.js?v=1')).toBe(true);
+  });
+});
+
+/**
  * Hub mode (#287): the guard lets a listed viewer through only for the app's own assets and the read routes.
  * Same fake req/res as hub-mode.test.ts: no server, no route unless the guard passes the request.
  */
