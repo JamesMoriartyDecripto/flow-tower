@@ -55,13 +55,13 @@ layers:
         type: agent
         runtime: laptop
         label: Lead
-        description: Writes one task file per step (Rules, Verify, Files), runs steps.sh in a worktree, reads the known gaps.
+        description: "Updates the tower of the part it changes first (validated, committed), then writes one task file per step (Rules, Verify, Files), runs steps.sh in a worktree, reads the known gaps."
         files: [tasks/TEMPLATE.md, steps.sh, squad.json]
       - id: verify
         type: decision
         runtime: laptop
         label: Verified?
-        description: The lead runs the tests and the real thing (screenshots for UI), then commits or writes a fix step.
+        description: "The lead runs the tests and the real thing (screenshots for UI) and checks the tower still matches the code, then commits or writes a fix step."
       - id: merge
         type: human
         label: You merge
