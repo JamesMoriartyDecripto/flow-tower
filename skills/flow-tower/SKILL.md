@@ -11,7 +11,7 @@ CLI: `{{FLOW_TOWER_CLI}}`. If this still shows a placeholder, use `flow-tower` i
 
 **Read and follow [the full procedure](../../docs/generate-a-tower.md)** before starting. Load the rest only when needed: [reference.md](reference.md) for the schema cheat sheet, layer playbook and per-framework signals; the flow-tower repo's `examples/README.md` to copy the closest example; `docs/schema.md` for every field.
 
-Companion skills (asked for by name, not part of this procedure): the [command-center skill](../flow-tower-command-center/SKILL.md) runs the shared hub and the [satellite skill](../flow-tower-satellite/SKILL.md) connects a machine to it.
+Companion skills: the [command-center skill](../flow-tower-command-center/SKILL.md) runs the shared hub and the [satellite skill](../flow-tower-satellite/SKILL.md) connects a machine to it (asked for by name, not part of this procedure); the [optimize skill](../flow-tower-optimize/SKILL.md) improves a finished tower (offered at step 7); the [squad skill](../flow-tower-squad/SKILL.md) has the dev squad write code changes, for users who run it.
 
 ## Checklist
 
@@ -21,11 +21,12 @@ Companion skills (asked for by name, not part of this procedure): the [command-c
 4. **Write** the YAML with the `# yaml-language-server: $schema=…` header. Quote values containing `: ` or ` #`, and in one-line maps also `,` `{` `}` `[` `]`.
 5. **Validate** until no errors and no warnings: `{{FLOW_TOWER_CLI}} validate <tower-file> --json`.
 6. **Verify against the code:** `validate` proves the file is consistent, not true. Prove each edge's order and direction with a line of code, check every node's exits, trace one full run per entry point; on big systems use fresh-context read-only reviewers per area. Fix, validate again.
-7. **Offer live wiring** (`match:` rules, `docs/realtime.md`, `integrations/` in the flow-tower repo).
-8. **Report:** files, layers/nodes/nested towers, what was traced vs only inferred, source conflicts, how to open: `{{FLOW_TOWER_CLI}} <tower-file>`.
+7. **Audit against best practices:** `{{FLOW_TOWER_CLI}} audit <tower-file>` (rules AUD01-AUD11 and the model fit per role). Fix a finding only when the code shows the missing fact (a loop cap, a gate, a budget); otherwise list it in the report. Offer the [optimize skill](../flow-tower-optimize/SKILL.md) for the full pass (pattern review, model fit, proposals the user approves).
+8. **Offer live wiring** (`match:` rules, `docs/realtime.md`, `integrations/` in the flow-tower repo).
+9. **Report:** files, layers/nodes/nested towers, what was traced vs only inferred, source conflicts, the audit findings left open, how to open: `{{FLOW_TOWER_CLI}} <tower-file>`.
 
 ## Never
 
 - Invent agents, files, prompts, URLs or metrics that the code does not show.
 - Put secrets, tokens or `.env` values in the tower.
-- Edit the system's code: only read code and write tower files.
+- Edit the system's code: only read code and write tower files. When the user then wants the code changed, the tower changes first (the planned design, validated), then the code (if the user runs the dev squad, through the [squad skill](../flow-tower-squad/SKILL.md)).

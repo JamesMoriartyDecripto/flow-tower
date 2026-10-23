@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Changed
 - Role catalogue: the models new on OpenRouter since 2026-10-16 re-checked on the same task sets (#281, 84 runs, $0.03). The research pick is now `deepseek/deepseek-v4.1-flash-1017` (6/6, cheaper and faster than the id it replaces); `minimax/minimax-m3.1-flash:free` passes coding, data and orchestrator but stays a note (free tier); `perplexity/pplx-decider-flash-v1.2` joins the models to avoid for decisions.
 - The voice-commands example tower maps the guided tour, and its voice guide lists `live_status` among its 20 tools (#275).
+- Skills: tower first, then code (#291). The `flow-tower-squad` lead updates the tower that models the change (validated, committed) before the first task file, and checks it still matches after verifying; the kit's squad tower draws it. `flow-tower` and the full procedure end a new tower with `flow-tower audit` (findings fixed from the code or listed in the report) and offer `flow-tower-optimize`; a code change the user asks for afterwards starts from the tower, through the squad skill with the dev squad.
 
 ### Fixed
 - Hub: a viewer opening a shared tower's file that its satellite did not send now reads `this file was not sent by the satellite: share the tower with --files` (404) instead of `file not shared with viewers`, which said nothing about the fix (#289).

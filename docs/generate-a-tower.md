@@ -102,7 +102,17 @@ node <flow-tower>/bin/flow-tower.js validate <tower-file> --json
 
 Fix what the check finds, validate again, and keep two lists for the report: what you **traced** in the code and what you only **inferred**.
 
-### 7. Live wiring (offer, don't force)
+### 7. Audit against best practices
+
+```bash
+node <flow-tower>/bin/flow-tower.js audit <tower-file>
+```
+
+The audit runs the rules AUD01-AUD11 of [best-practices.md](best-practices.md) (a loop with no stopping condition, an irreversible action with no human gate, a wide fan-out with no cap…) and prints the model fit of each node that runs a model. It is local and costs nothing. Fix a finding only when the code shows the missing fact (a cap, a gate, a budget the tower left out); never add a field the code does not have to silence a rule. List the findings that stay open in the report: they describe the system, not the tower.
+
+Then offer the `flow-tower-optimize` skill (installed by `install-skill`) for the full pass: pattern review, model fit per role, proposals the user approves one by one, a before/after check. Offer it, don't run it unasked: it asks questions and reads more code.
+
+### 8. Live wiring (offer, don't force)
 
 If the system runs on a supported harness, add `match:` rules where node names differ from runtime agent or tool names, and point the user to the ready-made config:
 
@@ -117,13 +127,14 @@ If the system runs on a supported harness, add `match:` rules where node names d
 
 Event format and matching rules: [realtime.md](realtime.md).
 
-### 8. Report
+### 9. Report
 
 Tell the user, briefly:
 
 - files written;
 - layers, nodes and nested towers;
 - what was traced in the code, what was only inferred, and where the sources disagree;
+- the audit findings left open;
 - how to open it: `node <flow-tower>/bin/flow-tower.js <tower-file>` (or a folder, for the library view). It serves on `http://127.0.0.1:5317` and opens a browser; add `--no-open` in headless environments, and `--port 5318` if another tower is already open (live events go to the port the hooks point at).
 
 ## Updating an existing tower
@@ -136,4 +147,4 @@ Tell the user, briefly:
 
 - Invent agents, files, prompts, URLs or metrics that the code does not show.
 - Put secrets, tokens or `.env` values in the tower. Reference secret **names** in `meta` if useful.
-- Edit the system's code. This procedure only reads code and writes tower files.
+- Edit the system's code. This procedure only reads code and writes tower files. A code change the user asks for afterwards starts from the tower: update it with the planned design and validate it, then change the code (if the user runs the dev squad, through the `flow-tower-squad` skill).

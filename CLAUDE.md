@@ -29,6 +29,9 @@
 - English only, everywhere: code, docs, examples, commits. Exception: customer-facing sample documents for Italian customers (sales-pipeline quote/contract, invoicing-fic dunning letters), declared in their README.
 - Never work on `main`: one branch per feature or issue (`feat/…`, `fix/…`) from an up-to-date `main`. The user merges, or asks Claude to. `main` is protected by the "Protect main" ruleset (PR + CI + CODEOWNERS review; the admin can merge their own PRs, nobody can push or force-push).
 - Stacked PRs: merge bottom-up with merge commits; retarget the next PR to `main` *before* deleting a merged base branch (GitHub closes PRs whose base disappears).
+- Towers before code: the first step of an issue updates the tower that models the part it changes (`examples/team-hub` for hub, satellite and sharing code; the example tower of a feature it shows; a tower mapping a changed doc, skill or catalogue) with the planned design, validated 0/0 and committed. After the code lands, check the tower still matches.
+- Code goes through the dev squad ([skills/flow-tower-squad](skills/flow-tower-squad/SKILL.md)): Claude plans, writes the tower and the task files, and verifies; the squad writes every code change, even a one-liner. Docs and towers are written by Claude.
+- A new tower ends with `flow-tower audit` (findings fixed from the code or listed in the report) and an offer of [flow-tower-optimize](skills/flow-tower-optimize/SKILL.md).
 - Commit and push after every completed piece of work; then check CI (`gh pr checks`): local runs can pass on files git ignores.
 - Commits follow Conventional Commits and are signed off (`git commit -s`, DCO; CI rejects unsigned commits). Contribution rules: [CONTRIBUTING.md](CONTRIBUTING.md).
 - Update `CHANGELOG.md` under `[Unreleased]` (Added / Changed / Fixed / Security).
