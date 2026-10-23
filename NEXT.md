@@ -2,7 +2,14 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Status on 2026-10-23
+
+- **Tower first, then code, in the skills** (#291, PR #292): the `flow-tower-squad` lead updates the tower that models the change (validated 0/0, committed) before the first task file, and checks it still matches after verifying; the kit's `squad.tower.yaml` draws it. `flow-tower` and `docs/generate-a-tower.md` gain step 7, `flow-tower audit` (a finding fixed only when the code shows the missing fact, otherwise listed in the report), and offer `flow-tower-optimize` (offered, not mandatory: it has an intake and proposals to approve). A code change asked for after mapping starts from the tower, through the squad skill if the user runs the squad. `CLAUDE.md` Conventions carry the three rules; `AGENTS.md` lists verify and audit. A fresh pre-merge review found 4 should-fix and 3 nits, all fixed before merge (triage on #291). Docs only, squad cost $0.
+- **Model sources:** the optimizer and the cost skill read OpenRouter (`models.mjs`, categories) and our own benchmark; Artificial Analysis stays a source quoted by hand in research issues (#281), never in the tools (its terms).
+
 ## Status on 2026-10-22
+
+- **Not-sent message** (#289, PR #290): a viewer opening a shared tower's file its satellite did not send reads `this file was not sent by the satellite: share the tower with --files` (404).
 
 - **Viewers read the files of shared towers** (#286, PR #285): a listed viewer opens the files a shared tower references; the hub's own towers and other projects stay unreadable remotely. The first version (from another session) exposed any file under a tower root and the first served folder: caught by the security review, fixed before merge. The command center runs `8c141a1` (pulled, restarted, checked live).
 - **First teammate connected** to the command center: the hub machine shared on its own through Tailscale (not the whole tailnet), the teammate's login in `viewers`, `connect` minted the token. Steps now in docs/command-center.md § Connect to it.
