@@ -4,7 +4,7 @@ Flow Tower renders AI agents and multi-agent systems as an interactive 3D tower 
 
 ## Using Flow Tower to map YOUR agent system
 
-Follow **[docs/generate-a-tower.md](docs/generate-a-tower.md)**: scope → inventory → model layers → write YAML → validate until clean → offer live wiring → report. Never invent components; never copy secrets. Start from the closest example in **[examples/README.md](examples/README.md)**.
+Follow **[docs/generate-a-tower.md](docs/generate-a-tower.md)**: scope → inventory → model layers → write YAML → validate until clean → verify against the code → audit → offer live wiring → report. Never invent components; never copy secrets. Start from the closest example in **[examples/README.md](examples/README.md)**.
 
 ```bash
 npm install                                                # once, Node >= 22.12

@@ -110,7 +110,7 @@ node <flow-tower>/bin/flow-tower.js audit <tower-file>
 
 The audit runs the rules AUD01-AUD11 of [best-practices.md](best-practices.md) (a loop with no stopping condition, an irreversible action with no human gate, a wide fan-out with no cap…) and prints the model fit of each node that runs a model. It is local and costs nothing. Fix a finding only when the code shows the missing fact (a cap, a gate, a budget the tower left out); never add a field the code does not have to silence a rule. List the findings that stay open in the report: they describe the system, not the tower.
 
-Then offer the [optimize skill](../skills/flow-tower-optimize/SKILL.md) for the full pass: pattern review, model fit per role, proposals the user approves one by one, a before/after check. Offer it, don't run it unasked: it asks questions and reads more code.
+Then offer the `flow-tower-optimize` skill (installed by `install-skill`) for the full pass: pattern review, model fit per role, proposals the user approves one by one, a before/after check. Offer it, don't run it unasked: it asks questions and reads more code.
 
 ### 8. Live wiring (offer, don't force)
 
@@ -147,4 +147,4 @@ Tell the user, briefly:
 
 - Invent agents, files, prompts, URLs or metrics that the code does not show.
 - Put secrets, tokens or `.env` values in the tower. Reference secret **names** in `meta` if useful.
-- Edit the system's code. This procedure only reads code and writes tower files. A code change the user asks for afterwards starts from the tower: update it with the planned design and validate it, then change the code (with the dev squad: the [squad skill](../skills/flow-tower-squad/SKILL.md)).
+- Edit the system's code. This procedure only reads code and writes tower files. A code change the user asks for afterwards starts from the tower: update it with the planned design and validate it, then change the code (if the user runs the dev squad, through the `flow-tower-squad` skill).

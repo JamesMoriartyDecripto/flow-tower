@@ -11,7 +11,7 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
 
 | Role | Default model (squad.json `models`) | Writes |
 |---|---|---|
-| Lead (you) | the session model | task files, commits, the issue |
+| Lead (you) | the session model | the tower, task files, commits, the issue |
 | Coder | `anthropic/claude-haiku-5.5` | only the `write` folders of squad.json |
 | Reviewer | `z-ai/glm-5.3-flashx` | nothing (JSON verdict) |
 | Security | `deepseek/deepseek-v4.1-flash` | nothing (JSON findings) |
@@ -86,7 +86,7 @@ The coder always runs the loop. Details: [tools/squad § Pace](../../tools/squad
 ## Never
 
 - Write the code yourself instead of a squad step, or skip your own verification.
-- Write a task file before the tower that models the change is updated and valid.
+- Write a task file before the tower that models the change, if one exists, is updated and valid.
 - Put keys, tokens or the contents of key files in task files, issues, commits or output.
 - Widen `write` to the runner (`tools/squad/`), CI config or secrets to make a step pass.
 - Work on the main branch, or merge without the user.

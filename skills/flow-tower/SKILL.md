@@ -11,7 +11,7 @@ CLI: `{{FLOW_TOWER_CLI}}`. If this still shows a placeholder, use `flow-tower` i
 
 **Read and follow [the full procedure](../../docs/generate-a-tower.md)** before starting. Load the rest only when needed: [reference.md](reference.md) for the schema cheat sheet, layer playbook and per-framework signals; the flow-tower repo's `examples/README.md` to copy the closest example; `docs/schema.md` for every field.
 
-Companion skills (asked for by name, not part of this procedure): the [command-center skill](../flow-tower-command-center/SKILL.md) runs the shared hub and the [satellite skill](../flow-tower-satellite/SKILL.md) connects a machine to it; the [optimize skill](../flow-tower-optimize/SKILL.md) improves a finished tower; the [squad skill](../flow-tower-squad/SKILL.md) has the dev squad write code changes.
+Companion skills: the [command-center skill](../flow-tower-command-center/SKILL.md) runs the shared hub and the [satellite skill](../flow-tower-satellite/SKILL.md) connects a machine to it (asked for by name, not part of this procedure); the [optimize skill](../flow-tower-optimize/SKILL.md) improves a finished tower (offered at step 7); the [squad skill](../flow-tower-squad/SKILL.md) has the dev squad write code changes, for users who run it.
 
 ## Checklist
 
@@ -29,4 +29,4 @@ Companion skills (asked for by name, not part of this procedure): the [command-c
 
 - Invent agents, files, prompts, URLs or metrics that the code does not show.
 - Put secrets, tokens or `.env` values in the tower.
-- Edit the system's code: only read code and write tower files. When the user then wants the code changed, the tower changes first (the planned design, validated), then the code; with the dev squad, through the [squad skill](../flow-tower-squad/SKILL.md).
+- Edit the system's code: only read code and write tower files. When the user then wants the code changed, the tower changes first (the planned design, validated), then the code (if the user runs the dev squad, through the [squad skill](../flow-tower-squad/SKILL.md)).
