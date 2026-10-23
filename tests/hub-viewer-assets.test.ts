@@ -95,6 +95,39 @@ describe('isViewerRequest: a segment ending in a dot or a space', () => {
 });
 
 /**
+ * Vite reads its query flags from anywhere in the raw URL, so a second `?` or a flag on a page must not pass.
+ * Only the pre-bundled deps under .vite are the app's; the other folders there are not served.
+ */
+describe('isViewerRequest: Vite flags and .vite folders', () => {
+  it.each([
+    ['/src/app/main.tsx?v=1?raw'],
+    ['/src/app/main.tsx?import=?raw'],
+    ['/package.json?import&v=?raw'],
+    ['/@vite/client?v=?raw'],
+    ['/src/core/schema.ts?v=x?url'],
+    ['/src/app/styles.css?v=?inline'],
+    ['/src/app/main.tsx?t=?worker'],
+    ['/index.html?raw'],
+    ['/?import'],
+    ['/?raw'],
+    ['/index.html?html-proxy&index=0.js'],
+    ['/node_modules/.vite/vitest/abc/results.json'],
+    ['/node_modules/.vite/port-5317/_metadata.json'],
+  ])('refuses %s', (url) => {
+    expect(isViewerRequest(url)).toBe(false);
+  });
+
+  it.each([
+    ['/node_modules/.vite/deps/react.js?v=1'],
+    ['/node_modules/.vite/port-5391/deps/chunk-ABC.js?v=2'],
+    ['/?tower=team-hub&doc=x'],
+    ['/api/file?path=a?b'],
+  ])('allows %s', (url) => {
+    expect(isViewerRequest(url)).toBe(true);
+  });
+});
+
+/**
  * Hub mode (#287): the guard lets a listed viewer through only for the app's own assets and the read routes.
  * Same fake req/res as hub-mode.test.ts: no server, no route unless the guard passes the request.
  */

@@ -12,8 +12,19 @@ const API_PREFIX = '/api/';
 const APP_PAGES = ['/', '/index.html'];
 /** The Vite client, its env module and the React refresh runtime. */
 const APP_EXACT = ['/@vite/client', '/@vite/env', '/@react-refresh'];
-/** The app's own modules and Vite's pre-bundled dependencies. Vite's client files live under vite/dist/client. */
-const APP_PREFIXES = ['/src/app/', '/src/core/', '/node_modules/.vite/', '/node_modules/vite/dist/client/'];
+/** The app's own modules and Vite's client files. Vite's client files live under vite/dist/client. */
+const APP_PREFIXES = ['/src/app/', '/src/core/', '/node_modules/vite/dist/client/'];
+/**
+ * Vite's pre-bundled dependencies. The CLI gives each port its own cache (node_modules/.vite/port-<port>/deps/),
+ * a plain `vite` run uses node_modules/.vite/deps/. Other folders under .vite (vitest results, _metadata.json)
+ * are not the app's and are not served.
+ */
+const VITE_DEPS_PATH = /^\/node_modules\/\.vite\/(port-\d+\/)?deps\//;
+/**
+ * Query flags Vite reads from anywhere in the raw URL (`/[?&]raw\b/` and the like). The pages take no Vite
+ * flag, so a page whose URL carries one is refused.
+ */
+const VITE_FLAGS = /[?&](raw|url|inline|worker|sharedworker|worker_file|html-proxy|import|direct)\b/;
 const NODE_MODULES_PREFIX = '/node_modules/';
 /** Style sheets and fonts under node_modules (@fontsource, katex): nothing else there is a viewer's business. */
 const NODE_MODULES_ASSET_EXTS = ['.css', '.woff', '.woff2', '.ttf', '.otf', '.eot'];
@@ -39,6 +50,7 @@ function isPlainPath(path: string): boolean {
 function isAppAsset(path: string, query: URLSearchParams): boolean {
   if (APP_EXACT.includes(path)) return true;
   if (APP_PREFIXES.some((prefix) => path.startsWith(prefix))) return true;
+  if (VITE_DEPS_PATH.test(path)) return true;
   // The document page imports the version from package.json; a plain read of it is not an app asset.
   if (path === '/package.json') return query.has('import');
   return path.startsWith(NODE_MODULES_PREFIX) && endsWithAny(path, NODE_MODULES_ASSET_EXTS);
@@ -60,7 +72,9 @@ export function isViewerRequest(url: string): boolean {
 
   // Connect matches mounts case-insensitively, so /API/file reaches the route too.
   if (path.toLowerCase().startsWith(API_PREFIX)) return true;
-  if (APP_PAGES.includes(path)) return true;
+  // Vite looks for its flags anywhere in the URL, so `?v=1?raw` would read as raw there; no real query has a second `?`.
+  if (rawQuery.includes('?')) return false;
+  if (APP_PAGES.includes(path)) return !VITE_FLAGS.test(url);
 
   const query = new URLSearchParams(rawQuery);
   for (const key of query.keys()) {
