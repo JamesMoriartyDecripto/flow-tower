@@ -3,13 +3,15 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { authorize, hubMode, isLoopback, isRemote, refusal } from './auth.ts';
 import { configPaths, loadConfig } from './config.ts';
 import { userHome } from '../core/secrets.ts';
+import { isViewerRequest } from './viewer-assets.ts';
 
 /**
  * Hub mode (#83): when this dev server is reachable from outside the machine (a non-loopback --host, or
  * tailscale serve / any proxy forwarding to it), a remote request must be checked before it reaches a
  * route: it may ingest events with a token, may read the UI (and the files of a shared library tower) only
- * when its tailnet identity is a viewer, and may touch nothing else. Voice and raw host reads (/@fs) are
- * refused outright; a file read is confined by serveFile to the shared library folder, secrets excluded.
+ * when its tailnet identity is a viewer, and may touch nothing else. A viewer may load only the app's own
+ * assets and the read routes (see viewer-assets.ts), not the rest of the checkout (#287). Voice and raw host
+ * reads (/@fs) are refused outright; a file read is confined by serveFile to the shared library folder, secrets excluded.
  */
 export interface HubOptions {
   hub: boolean;
@@ -147,7 +149,10 @@ export function hubGuard(opts: HubOptions) {
       return next();
     }
     if (isViewing(req.method, path)) {
-      if (isViewer(req, opts.home)) return next();
+      // Outside the routes Vite serves the whole checkout, so only the app's own assets get through (#287).
+      const viewer = isViewer(req, opts.home);
+      if (viewer && isViewerRequest(req.url ?? '')) return next();
+      if (viewer) return deny(res, 403, { error: 'a remote viewer may load only the app and its API' });
       return deny(res, 403, { error: 'remote viewing is not allowed for this user (see viewers in config.json on the hub; hub.json is only a deprecated fallback)' });
     }
     return deny(res, 403, { error: 'remote requests may only ingest events' });

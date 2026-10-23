@@ -117,12 +117,21 @@ describe('hub guard: path normalisation (#83)', () => {
     }
     // A shared library tower's files now reach a listed viewer (the command center's job); serveFile confines
     // the read to the library folder and refuses secrets. Every spelling normalises to the same file route.
-    for (const p of ['/api/file?tower=t&path=x', '/API/file?tower=t&path=x', '/api//file?tower=t&path=x', '/api%2Ffile?tower=t&path=x']) {
+    for (const p of ['/api/file?tower=t&path=x', '/API/file?tower=t&path=x', '/api%2Ffile?tower=t&path=x']) {
       expect(run(opts, forwarded('GET', p, { 'tailscale-user-login': 'alice@example.com' })).status, p).toBe(200);
     }
+    // A doubled slash is refused for a remote viewer since #287 (Vite resolves such paths itself, so the
+    // guard would judge one file and Vite read another).
+    for (const p of ['/api//file?tower=t&path=x']) {
+      expect(run(opts, forwarded('GET', p, { 'tailscale-user-login': 'alice@example.com' })).status, p).toBe(403);
+    }
     // The UI and its assets still reach a listed viewer.
-    for (const p of ['/', '/index.html', '/@vite/client', '/src/main.tsx', '/node_modules/.vite/deps/x.js', '/@id/foo']) {
+    for (const p of ['/', '/index.html', '/@vite/client', '/src/app/main.tsx', '/node_modules/.vite/deps/x.js']) {
       expect(run(opts, forwarded('GET', p, { 'tailscale-user-login': 'alice@example.com' })).status, p).toBe(200);
+    }
+    // Only the app's own assets reach a viewer since #287 (viewer-assets.ts).
+    for (const p of ['/src/main.tsx', '/@id/foo', '/package.json']) {
+      expect(run(opts, forwarded('GET', p, { 'tailscale-user-login': 'alice@example.com' })).status, p).toBe(403);
     }
   });
 });

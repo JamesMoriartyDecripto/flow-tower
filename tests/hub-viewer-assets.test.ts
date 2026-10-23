@@ -1,5 +1,10 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { describe, expect, it } from 'vitest';
 import { isViewerRequest } from '../src/server/viewer-assets';
+import { hubGuard, type HubOptions } from '../src/server/hub';
 
 /**
  * Hub mode (#287): a remote viewer may load the app and nothing else. The tables are the requests the app
@@ -66,5 +71,79 @@ describe('isViewerRequest: what a remote viewer may load', () => {
     ['src/app/main.tsx'],
   ])('refuses %s', (url) => {
     expect(isViewerRequest(url)).toBe(false);
+  });
+});
+
+/**
+ * Hub mode (#287): the guard lets a listed viewer through only for the app's own assets and the read routes.
+ * Same fake req/res as hub-mode.test.ts: no server, no route unless the guard passes the request.
+ */
+type Req = { method: string; url: string; headers: Record<string, string>; socket: { remoteAddress: string } };
+
+const forwarded = (method: string, url: string, headers: Record<string, string> = {}) => ({ method, url, headers: { 'x-forwarded-for': '100.64.0.9', ...headers }, socket: { remoteAddress: '127.0.0.1' } });
+
+function run(opts: HubOptions, req: Req) {
+  const sent = { status: 0, body: '' };
+  const res = {
+    headersSent: false,
+    statusCode: 0,
+    setHeader() { /* recorded status/body are enough */ },
+    end(this: { headersSent: boolean; statusCode: number }, body?: string) {
+      this.headersSent = true;
+      sent.status = this.statusCode;
+      sent.body = body ?? '';
+    },
+  } as unknown as ServerResponse;
+  const next = () => { sent.status = 200; };
+  hubGuard(opts)(req as unknown as IncomingMessage, res, next);
+  return sent;
+}
+
+const viewerHome = mkdtempSync(join(tmpdir(), 'flow-tower-viewer-'));
+writeFileSync(join(viewerHome, 'hub.json'), JSON.stringify({ viewers: ['alice@example.com'] }));
+const opts: HubOptions = { hub: true, ingestOnly: false, home: viewerHome };
+const alice = { 'tailscale-user-login': 'alice@example.com' };
+
+describe('hubGuard, remote viewer (#287)', () => {
+  it.each([
+    ['/'],
+    ['/?tower=team-hub'],
+    ['/src/app/main.tsx'],
+    ['/node_modules/.vite/port-5317/deps/react.js?v=1'],
+    ['/api/workspace'],
+  ])('lets a viewer load %s', (url) => {
+    expect(run(opts, forwarded('GET', url, alice)).status).toBe(200);
+  });
+
+  it('answers a viewer asking for a file outside the app with a 403 naming the rule', () => {
+    const sent = run(opts, forwarded('GET', '/NEXT.md', alice));
+    expect(sent.status).toBe(403);
+    expect(JSON.parse(sent.body).error).toBe('a remote viewer may load only the app and its API');
+  });
+
+  it.each([
+    ['GET', '/src/server/hub.ts?raw'],
+    ['GET', '/node_modules/.vite/../../package.json'],
+    ['HEAD', '/package.json'],
+    ['GET', '/api/..%2fpackage.json'],
+    ['GET', '/@fs/etc/passwd'],
+  ])('refuses a viewer %s %s', (method, url) => {
+    expect(run(opts, forwarded(method, url, alice)).status).toBe(403);
+  });
+
+  it('still refuses a stranger on the app itself', () => {
+    const sent = run(opts, forwarded('GET', '/src/app/main.tsx', { 'tailscale-user-login': 'mallory@example.com' }));
+    expect(sent.status).toBe(403);
+    expect(JSON.parse(sent.body).error.startsWith('remote viewing is not allowed')).toBe(true);
+  });
+
+  it('leaves the machine\'s own browser unchanged', () => {
+    const local: Req = { method: 'GET', url: '/NEXT.md', headers: {}, socket: { remoteAddress: '127.0.0.1' } };
+    expect(run(opts, local).status).toBe(200);
+  });
+
+  it('keeps the checkout config out of the Vite file server', async () => {
+    const config = (await import('../vite.config.ts')).default;
+    expect(config.server?.fs?.deny).toContain('flow-tower.local.json');
   });
 });
