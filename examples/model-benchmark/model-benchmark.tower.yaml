@@ -461,9 +461,9 @@ layers:
         type: output
         label: Cost skill update
         description: "skills/flow-tower-costs/reference.md (≥ 5 models per category, date and n; illustrative when n < 3) and catalogue.md: the pick per role, re-checked on the same tasks when new models appear."
-        files: [../../skills/flow-tower-costs/catalogue.md]
         resources:
           - { kind: doc, label: Cost skill reference, url: "https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-costs/reference.md" }
+          - { kind: doc, label: Role catalogue, url: "https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-costs/catalogue.md" }
       - id: defaults
         type: output
         label: Tower defaults

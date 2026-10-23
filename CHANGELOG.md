@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-23
+
 ### Added
 - Voice: a guided tour of the tower on screen (#275). "panoramica guidata" / "guided tour" (also "spiegami la torre", "walk me through the tower") explains the tower layer by layer: each layer is focused, an intro says what it does, then one sentence per node while that node lights up. "avanti" / "next", "indietro" / "previous", "dettagli" / "details" (every node of the layer) and "stop" steer it, in the pause between layers or mid-sentence with Interrupt by voice; Esc, another command or leaving the tower end it. The voice agent's model writes the sentences from the tower's own descriptions, in the language of the start phrase, checked against the layer's nodes, asked again once and otherwise replaced by the tower's own text; the next layer is prepared while one plays, and each layer is asked once per tour. About $0.001 per layer (measured once, illustrative). With spoken replies off it runs in the caption. "panoramica" alone still shows the whole tower.
 
@@ -12,12 +14,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Role catalogue: the models new on OpenRouter since 2026-10-16 re-checked on the same task sets (#281, 84 runs, $0.03). The research pick is now `deepseek/deepseek-v4.1-flash-1017` (6/6, cheaper and faster than the id it replaces); `minimax/minimax-m3.1-flash:free` passes coding, data and orchestrator but stays a note (free tier); `perplexity/pplx-decider-flash-v1.2` joins the models to avoid for decisions.
 - The voice-commands example tower maps the guided tour, and its voice guide lists `live_status` among its 20 tools (#275).
 - Skills: tower first, then code (#291). The `flow-tower-squad` lead updates the tower that models the change (validated, committed) before the first task file, and checks it still matches after verifying; the kit's squad tower draws it. `flow-tower` and the full procedure end a new tower with `flow-tower audit` (findings fixed from the code or listed in the report) and offer `flow-tower-optimize`; a code change the user asks for afterwards starts from the tower, through the squad skill with the dev squad.
+- Docs: onboard a teammate by sharing only the hub machine (PR #288). `docs/command-center.md` § Connect to it covers sharing one machine through Tailscale instead of the whole tailnet, the email Tailscale accepts, the login in `viewers`, the identity headers for shared-in users, the slow first page and that files show only with `share --files`; the satellite skill now says a teammate signs in with their own account and accepts the share (it said "the same account").
 
 ### Fixed
 - Hub: a viewer opening a shared tower's file that its satellite did not send now reads `this file was not sent by the satellite: share the tower with --files` (404) instead of `file not shared with viewers`, which said nothing about the fix (#289).
 - Library cards on a hub: the title no longer shares its row with the chips (machine, updated, MINE/EXAMPLE, live dot), which left it a few letters wide and split words mid-word; the chips sit on their own line under it, and a word breaks only when it alone is wider than the card (#279).
 
 ### Security
+- Dependencies: zod 4.6.5 → 4.6.7 for [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) (high: validating an oversized constrained collection could exhaust memory), found by `npm audit` in the release gates.
 - Hub: a remote viewer loads only the app's own assets (#287). The guard let a listed viewer's GET through to Vite, which served any file of the flow-tower checkout (`/package.json`, `/NEXT.md`, `/src/server/hub.ts?raw`, `/node_modules/.vite/../../package.json`). Now `src/server/viewer-assets.ts` allows the page, Vite's client, the `src/app` and `src/core` modules, the pre-bundled dependencies, style sheets and fonts, refuses `?raw` / `?url` reads of a source (also when hidden behind a second `?`, which Vite still reads as a flag) and any path with a dot segment, backslash or doubled slash, and answers the rest 403. `vite.config.ts` `fs.deny` also lists `flow-tower.local.json`, the checkout config that can hold a sender token.
 - Hub: a viewer listed in `viewers` can open the files a shared tower references (#286, PR #285). Before, `/api/file` was refused to every remote request, so a teammate on the command center saw the map but not the prompts and scripts, even after `share --files`. A remote read is allowed only for towers a satellite shared (real root under the library's `towers/`, a symlink out refused) and only for the files such a tower points to, never a secret; the hub's own towers and other projects it serves stay unreadable remotely; requests on the hub machine itself are unchanged; voice and `/@fs` stay refused.
 
@@ -453,7 +457,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.9.0...v0.10.0
