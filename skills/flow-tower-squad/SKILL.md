@@ -39,27 +39,33 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
 1. **Track it**: the issue (or a plan file the user keeps) holds the plan and the status; update it after every
    batch, review and fix.
 2. **Branch**: never on the main branch. `git worktree add ../wt-<n> -b feat/<n>-<slug>` keeps each issue apart.
-3. **Split** into steps of **one or two items** each (the coder has a step cap; multi-item steps fail). Each step
+3. **Tower first**: if a tower (`*.tower.yaml`) models the part you change, update it before any task file, with
+   the planned design: new or changed nodes, edges, `files` and descriptions. Validate it
+   (`{{FLOW_TOWER_CLI}} validate <tower> --json`: 0 errors, 0 warnings), commit it, then write the steps from it.
+   The tower is the design the user reads; YAML, so you write it, not the squad. No tower yet: offer one
+   ([flow-tower skill](../flow-tower/SKILL.md)).
+4. **Split** into steps of **one or two items** each (the coder has a step cap; multi-item steps fail). Each step
    small enough that a green check means it is done.
-4. **Write each step** from `tools/squad/tasks/TEMPLATE.md` into its own folder (`tools/squad/tasks/<n>/01-….md`,
+5. **Write each step** from `tools/squad/tasks/TEMPLATE.md` into its own folder (`tools/squad/tasks/<n>/01-….md`,
    zero-padded):
    - Rules line, the files to read first, `Verify: run check`, `finish` with a `Known gaps:` line;
    - why the step exists, with `file:line` and the **exact current text** of any message to change;
    - numbered items, then a new test file with the cases and expected results;
    - the `Files:` line: every file the step must touch (`+` new, `(optional)` may stay untouched). It is checked.
-5. **Run**: `REPO=../wt-<n> bash tools/squad/steps.sh <n> tools/squad/tasks/<n> "" "<title>"` (empty write dirs
+6. **Run**: `REPO=../wt-<n> bash tools/squad/steps.sh <n> tools/squad/tasks/<n> "" "<title>"` (empty write dirs
    take squad.json's). One commit per green step; it stops at the first red step (coder failure, no change, red
    check, a `Files:` entry not touched). Read the known gaps it prints before the next step.
-6. **Verify yourself**: run the tests, run the real thing; for UI, look at it (screenshots). Green is not done.
-7. **Review and security**, one request each with the code packed:
+7. **Verify yourself**: run the tests, run the real thing; for UI, look at it (screenshots). Green is not done.
+   Check the tower still matches what landed (its files exist, its descriptions are true) and validate it again.
+8. **Review and security**, one request each with the code packed:
    ```bash
    node tools/squad/pack.mjs --role reviewer --issue <n> --repo ../wt-<n> --files <changed files> > /tmp/<n>-review.md
    SQUAD_PACE=relaxed node tools/squad/run.mjs --model <reviewer> --role reviewer --node specialists.reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n>
    ```
    Same with `--role security --node specialists.security` and the security model; add the guards the change relies on to `--files`. Verify
    each finding in the code: keep the real ones, say why the others do not apply.
-8. **Fix steps** for the kept findings (same format, new folder), then verify again.
-9. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.
+9. **Fix steps** for the kept findings (same format, new folder), then verify again.
+10. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.
 
 ## Pace
 
@@ -80,6 +86,7 @@ The coder always runs the loop. Details: [tools/squad § Pace](../../tools/squad
 ## Never
 
 - Write the code yourself instead of a squad step, or skip your own verification.
+- Write a task file before the tower that models the change is updated and valid.
 - Put keys, tokens or the contents of key files in task files, issues, commits or output.
 - Widen `write` to the runner (`tools/squad/`), CI config or secrets to make a step pass.
 - Work on the main branch, or merge without the user.
