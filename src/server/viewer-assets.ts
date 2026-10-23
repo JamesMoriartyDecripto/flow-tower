@@ -8,7 +8,7 @@
 
 /** The routes check their own access; the guard only lets them through. */
 const API_PREFIX = '/api/';
-/** The app reads its state from the query (?tower=, ?doc=, ?snap=), so any query is fine on these. */
+/** The app reads its state from the query (?tower=, ?doc=, ?snap=), so these take any key of the app's own, never a Vite flag. */
 const APP_PAGES = ['/', '/index.html'];
 /** The Vite client, its env module and the React refresh runtime. */
 const APP_EXACT = ['/@vite/client', '/@vite/env', '/@react-refresh'];
