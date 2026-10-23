@@ -146,9 +146,8 @@ layers:
         type: guard
         label: Viewer assets
         runtime: hub
-        status: planned
         description: "What a remote viewer may load outside /api (#287): the page, Vite's client, /src/app and /src/core modules, deps under node_modules/.vite, style sheets and fonts, package.json as an import. No ?raw or ?url of a source; a dot segment, backslash or double slash after decoding is refused. The rest of the checkout is 403; fs.deny also lists flow-tower.local.json."
-        files: [src/server/hub.ts, vite.config.ts]
+        files: [src/server/viewer-assets.ts, src/server/hub.ts, vite.config.ts]
       - id: file-scope
         type: guard
         label: Viewer file reads

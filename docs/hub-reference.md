@@ -27,7 +27,11 @@ too). What it may do:
 
 - **ingest events** with a valid token — the token id becomes the sender, and events are attributed to it;
 - **view** the UI (read-only) only when its tailnet login is listed in `viewers`
-  (`hub.json` still works, with a deprecation warning);
+  (`hub.json` still works, with a deprecation warning). Outside the `/api` routes a viewer loads only the app
+  itself (#287): the page, Vite's client, the `src/app` and `src/core` modules, the pre-bundled dependencies,
+  style sheets and fonts. Any other file of the flow-tower checkout (`package.json`, docs, server code, a
+  `?raw` or `?url` read of a module, a path with `..` in it) answers 403
+  `a remote viewer may load only the app and its API`;
 - **read the files a shared tower references**, for that same listed viewer (#286): `/api/file` serves only towers
   a satellite shared (real root under `towers/` in the hub's library folder; a symlink out is refused), and of
   those only the files the tower points to, never a secret. The hub's own towers and any other project it serves
@@ -211,7 +215,10 @@ Hub mode changes what the server accepts; this is the one place it is stated:
 - **What a remote request can do.** Ingest an event with a token, and — for a tailnet user listed in
   `viewers` (config.json) — view the UI read-only and read the files a shared tower references
   (#286). It can never read any other file, drive voice or make any other write: those routes answer 403 to a
-  remote request. Anything the socket or the proxy headers say came
+  remote request. The hub is a Vite dev server, which serves the files of the checkout it runs from: the guard
+  passes a viewer's request outside `/api` only when it is one of the app's own assets
+  (`src/server/viewer-assets.ts`, #287), judged on the raw URL so a `..`, a backslash or a doubled slash that
+  Vite would resolve to another file is refused first. Anything the socket or the proxy headers say came
   from off the machine is treated as remote.
 - **Public fallback.** `--ingest-only` serves only `/api/events` and `/v1/*`, to anyone, and 404s
   everything else including locally. It needs a token for **every** request, like hub mode: the CLI exits 1
@@ -220,8 +227,10 @@ Hub mode changes what the server accepts; this is the one place it is stated:
 - **Viewing is gated everywhere it reaches the host.** A WebSocket upgrade (Vite HMR/ws) is checked the
   same way as a page view: only loopback, or a listed viewer through the local proxy, may open it, so a
   remote stranger cannot subscribe to the live event stream. A remote viewer also never reaches Vite's
-  `/@fs/` (which would read any file on the host) nor voice (`/api/voice`); `/api/file` answers it only for the files a
-  shared tower references (#286).
+  `/@fs/` (which would read any file on the host), any other file of the checkout (#287), nor voice
+  (`/api/voice`); `/api/file` answers it only for the files a shared tower references (#286). Vite's `fs.deny`
+  (`vite.config.ts`) also refuses the checkout config `flow-tower.local.json`, which can hold a sender token, to
+  every request, local ones included.
 - **Abuse limits.** Per-sender token bucket (20 events/s, burst 200; 429 with `Retry-After`), an LRU
   dedupe of event ids (50,000) so a retrying sender cannot replay the same event, and a ±24 h window around
   now so a skewed or backdated timestamp is dropped. All in memory: a restart forgets them.
