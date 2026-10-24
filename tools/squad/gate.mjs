@@ -1,7 +1,13 @@
 // The merge gate's rules (#299): before a merge, the lead checks CI, the reviews and the findings. This file holds
-// only those rules as pure functions, so the same facts always give the same answer. The gate never merges or
-// approves anything, and it uses no model: a finding counts only when its quote is really in the file.
-// The command line that gathers the facts (git, gh, file reads) lives in its own step and passes them in here.
+// the rules as pure functions, so the same facts always give the same answer. The gate never merges or approves
+// anything, and it uses no model: a finding counts only when its quote is really in the file.
+// The command line at the bottom gathers the facts (git, gh, file reads) and passes them to those functions.
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
+import { argv, exit, stderr, stdout } from 'node:process';
+import { fileURLToPath } from 'node:url';
+import { realRelIfAllowed } from './guard.mjs';
 
 // A run's output is a header line, the model's answer and a footer starting with "--- ". The JSON is cut out between
 // the first '{' and the last '}', so a ```json fence or a prefix line does not break the parse.
@@ -72,4 +78,95 @@ export function readiness(facts) {
     }
   }
   return { ready: reasons.length === 0, reasons };
+}
+
+// ---- command line (#299-04) ----
+// Only reads: gh pr checks, gh pr view and git rev-parse. It never runs gh pr merge or gh pr review, so a run cannot
+// change the PR; the lead does that by hand once the gate says READY.
+const USAGE = 'usage: node tools/squad/gate.mjs --pr <n> --review <file> --security <file> [--repo <path>]';
+// The same secret rule as pack.mjs: a finding may not make the gate read an env file, a key or git internals.
+const SECRET = /(^|\/)(\.env[^/]*|.*\.(key|pem|p12|pfx|crt)|id_rsa[^/]*|\.npmrc|\.git|node_modules|\.ssh|\.config\/flow-tower)(\/|$)/i;
+const arg = (k) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : undefined; };
+const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+
+// gh pr checks exits non-zero when a check fails or is pending, but it still prints the JSON on stdout: read that.
+// Anything else that cannot be read counts as no checks, which the readiness rules then refuse.
+function ciChecks(n, repo) {
+  let out;
+  try { out = run('gh', ['pr', 'checks', n, '--json', 'name,bucket'], repo); } catch (e) { out = e.stdout; }
+  try {
+    const list = JSON.parse(String(out ?? ''));
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+}
+
+// A file is read only when its real path (symlinks followed) stays inside the repo and is not secret (guard.mjs).
+const readInRepo = (repo) => (p) => {
+  try {
+    const abs = resolve(repo, p);
+    const rel = relative(repo, abs);
+    if (!rel || rel.startsWith('..') || SECRET.test(rel)) return null;
+    if (realRelIfAllowed({ repo, abs, secret: SECRET, writable: /^/ }) === null) return null;
+    return readFileSync(abs, 'utf8');
+  } catch { return null; }
+};
+
+// Throws when the file holds no usable verdict; the caller turns that into a reason.
+function verdictOf(role, file, readFile) {
+  const parsed = parseVerdict(readFileSync(file, 'utf8'));
+  return {
+    role,
+    verdict: parsed.verdict,
+    at: statSync(file).mtimeMs,
+    findings: parsed.findings.map((f) => checkFinding(f, readFile)),
+  };
+}
+
+// Returns the exit code: 0 ready, 1 not ready, 2 bad usage.
+function main() {
+  if (argv.includes('--help')) { stdout.write(`${USAGE}\n`); return 0; }
+  const n = arg('pr');
+  const review = arg('review');
+  const security = arg('security');
+  // The PR number goes into the gh call: digits only, so nothing else can ride along.
+  if (!/^\d+$/.test(String(n ?? '')) || !review || !security || !existsSync(review) || !existsSync(security)) {
+    stderr.write(`${USAGE}\n`);
+    return 2;
+  }
+  const repo = resolve(arg('repo') ?? run('git', ['rev-parse', '--show-toplevel'], process.cwd()).trim());
+  const head = run('git', ['rev-parse', 'HEAD'], repo).trim();
+  const view = JSON.parse(run('gh', ['pr', 'view', n, '--json', 'mergeable,isDraft,headRefOid,commits'], repo));
+  const commits = Array.isArray(view.commits) ? view.commits : [];
+  const committed = Date.parse(commits.at(-1)?.committedDate);
+
+  const readFile = readInRepo(repo);
+  const verdicts = [];
+  const errors = [];
+  for (const [role, file] of [['reviewer', review], ['security', security]]) {
+    try { verdicts.push(verdictOf(role, file, readFile)); } catch (e) { errors.push(`${role}: ${e.message}`); }
+  }
+  const result = readiness({
+    checks: ciChecks(n, repo),
+    pr: { mergeable: view.mergeable, isDraft: view.isDraft, headRefOid: view.headRefOid },
+    localHead: head,
+    lastCommitAt: Number.isNaN(committed) ? 0 : committed,
+    verdicts,
+  });
+  const reasons = [...errors, ...result.reasons];
+  const lines = [result.ready && reasons.length === 0 ? `READY: #${n} can be merged` : `NOT READY: #${n}`];
+  for (const r of reasons) lines.push(`- ${r}`);
+  const unverified = verdicts.flatMap((v) => v.findings
+    .filter((f) => f.status === 'unverified')
+    .map((f) => `- ${v.role} ${f.file}: ${f.reason}`));
+  if (unverified.length > 0) lines.push('Unverified findings (check them in the code before acting):', ...unverified);
+  stdout.write(`${lines.join('\n')}\n`);
+  return reasons.length === 0 ? 0 : 1;
+}
+
+// Run directly, not imported: the realpath check means a symlinked path to this file still counts as the script.
+const isMain = (() => {
+  try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; }
+})();
+if (isMain) {
+  try { process.exitCode = main(); } catch (e) { stderr.write(`${e.message}\n`); process.exitCode = 1; }
 }

@@ -132,3 +132,31 @@ describe('readiness', () => {
     expect(readiness(with_({ verdicts }))).toEqual({ ready: true, reasons: [] });
   });
 });
+
+// The command line is run as a child process, so the test checks the real exit codes and text. Each case exits
+// before it reads git or gh, so the test needs no network and no GitHub login.
+describe('gate command line', () => {
+  const GATE = 'tools/squad/gate.mjs';
+  const runGate = async (args: string[]) => {
+    const { spawnSync } = await import('node:child_process');
+    return spawnSync(process.execPath, [GATE, ...args], { encoding: 'utf8', timeout: 30_000 });
+  };
+
+  it('--help prints the usage and exits 0', { timeout: 30_000 }, async () => {
+    const r = await runGate(['--help']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('usage: node tools/squad/gate.mjs --pr <n> --review <file> --security <file>');
+  });
+
+  it('no arguments print the usage to stderr and exit 2', { timeout: 30_000 }, async () => {
+    const r = await runGate([]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('usage: node tools/squad/gate.mjs');
+  });
+
+  it('a non-numeric --pr exits 2 before any fact is read', { timeout: 30_000 }, async () => {
+    const r = await runGate(['--pr', 'abc', '--review', 'x', '--security', 'y']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('usage: node tools/squad/gate.mjs');
+  });
+});
