@@ -118,16 +118,37 @@ const offsetX = (page: Page) => page.evaluate(() => {
   return w.__flowTower.three.get().camera.view?.offsetX ?? 0;
 });
 
+/**
+ * Waits until the projection offset has stopped easing (two reads 250 ms apart agree) and returns it.
+ * The offset glides toward its goal for a few hundred ms, so a single read can land mid-animation.
+ */
+async function settledOffset(page: Page): Promise<number> {
+  let last = 0;
+  await expect
+    .poll(async () => {
+      const first = await offsetX(page);
+      await page.waitForTimeout(250);
+      last = await offsetX(page);
+      return Math.abs(last - first);
+    })
+    .toBeLessThan(1);
+  return last;
+}
+
 test('reducing the card re-frames the scene', async ({ page }) => {
   await openTowerInfo(page);
-  let open = 0;
-  await expect.poll(async () => (open = await offsetX(page))).not.toBe(0);
+  const toggle = page.locator('.towerinfo-toggle');
 
-  await page.locator('.towerinfo-toggle').click();
-  await expect.poll(async () => Math.abs(await offsetX(page))).toBeLessThanOrEqual(Math.abs(open) - 50);
+  const open = await settledOffset(page);
 
-  await page.locator('.towerinfo-toggle').click();
-  await expect.poll(async () => Math.abs((await offsetX(page)) - open)).toBeLessThanOrEqual(20);
+  // Only the offset's change is checked, not its size: the Layers panel and the open card balance each other.
+  await toggle.click();
+  const reduced = await settledOffset(page);
+  expect(Math.abs(reduced - open), 'offset moves when the card is reduced').toBeGreaterThanOrEqual(50);
+
+  await toggle.click();
+  const back = await settledOffset(page);
+  expect(Math.abs(back - open), 'offset returns when the card reopens').toBeLessThanOrEqual(20);
 });
 
 test('keyboard: Esc on the card\'s toggle returns focus to the scene', async ({ page }) => {
