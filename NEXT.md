@@ -7,14 +7,12 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 - **v0.13.0 released** (2026-10-24, PR #296; [report](examples/release-auditor/reports/v0.13.0.md)). It holds hub security #286 and #287, the voice guided tour #275, the catalogue re-check #281, #279, #289, the onboarding docs and #291.
   - Gates and the full e2e on the GPU: 103/103.
   - Two fixes on the release branch: the `model-benchmark` tower linked a file outside `examples/`, which `validate` does not flag; and zod went to 4.6.7 for GHSA-mrhx-c7xc-m3w5, an advisory that appeared between gate runs.
-  - **The command center still runs `8c141a1`.** Pull v0.13.0 and restart `flowtower` to get the #287 fix.
 - **Viewers load only the app** (#287, PR #294). In hub mode a listed viewer's request outside `/api` passes only for the app's own assets (`src/server/viewer-assets.ts`). Everything else of the checkout is 403, including `?raw` / `?url` reads, also when hidden behind a second `?`. `flow-tower.local.json` is in `fs.deny`.
   - The pre-merge review found the second-`?` bypass; it was fixed and probed live.
   - Left out, pre-existing: Vite's 500 page shows absolute host paths to a viewer.
   - Squad $0.042.
 - **Tower card in the tower view** (#295, PR pending). At Tower overview the right panel shows the tower's card (the library card's facts); it can be reduced, and the choice is remembered.
   - The fresh review found three defects, all fixed: no re-framing when the card toggles, not a keyboard panel, hidden under Issues.
-- **Lab lesson:** the user's own library runs on 5317 from the main checkout. Never detach that checkout for e2e. Give the worktree its own `node_modules` (`npm ci`) and use a scratch Playwright config on another port with no server reuse.
 - **Open follow-ups to decide:** `validate` does not flag node files outside the served folder (the release found one by e2e); Vite's 500 page to remote viewers.
 
 ## Status on 2026-10-23

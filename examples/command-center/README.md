@@ -58,6 +58,8 @@ Tailscale (recommended: viewers are recognised by their tailnet login):
 
 ```bash
 sudo tailscale serve --bg --https=443 http://127.0.0.1:5317   # never `tailscale funnel`
+# A web server already on 0.0.0.0:443 (nginx for a site) takes the tailnet IP's 443 too: pick another port, e.g. --https=8443,
+# and open https://hub.example.ts.net:8443.
 ```
 
 The first time, Serve needs a one-time admin step: the command answers "Serve is not enabled on your tailnet" with a link. Open it as a tailnet admin to enable Serve and HTTPS certificates, then run the command again.
@@ -104,6 +106,19 @@ ls /srv/command-center/towers/*                    # on the hub: the towers each
 ```
 
 The service transforms the app right after it starts listening (Vite `server.warmup`): give it a minute before the first viewer opens the page. Without the warmup, the first load over the tailnet took about 45 s on a cold cache.
+
+## 7. Update
+
+```bash
+cd /home/flowtower/flow-tower && sudo -u flowtower git pull --ff-only
+# Only when package-lock.json changed. npm ci deletes node_modules, Vite's cache folders included, and the unit
+# then fails before it starts (status=226/NAMESPACE: a ReadWritePaths entry is missing): recreate them.
+sudo -u flowtower sh -c 'PATH=/opt/node22/bin:$PATH npm ci'
+sudo -u flowtower install -d node_modules/.vite node_modules/.vite-temp
+# Only when src/server/, src/core/ or vite.config.ts changed: the app (src/app/) is served from disk, a reload is enough.
+sudo systemctl restart flow-tower && systemctl is-active flow-tower
+curl -s http://127.0.0.1:5317/api/version          # "current" is the version just pulled
+```
 
 ## Sources
 
