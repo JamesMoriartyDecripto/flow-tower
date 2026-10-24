@@ -197,3 +197,43 @@ describe('gate command line', () => {
     expect(r.stderr).toContain('usage: node tools/squad/gate.mjs');
   });
 });
+
+// @ts-expect-error plain .mjs without declarations
+import { reviewedCommit } from '../tools/squad/gate.mjs';
+
+const SHA = 'a'.repeat(40);
+const OTHER = 'b'.repeat(40);
+
+describe('reviewedCommit', () => {
+  it('finds the sha of the reviewed: line', () => {
+    expect(reviewedCommit(`mode: oneshot\nreviewed: ${SHA}\n{"verdict":"approve"}`)).toBe(SHA);
+  });
+
+  it('gives null when there is no reviewed: line', () => {
+    expect(reviewedCommit('mode: oneshot\n{"verdict":"approve"}')).toBeNull();
+  });
+});
+
+describe('readiness with the reviewed commit', () => {
+  it('a verdict on the pull request head is ready even when older than the last commit', () => {
+    const pr = { ...green.pr, headRefOid: SHA };
+    const verdicts = [
+      { ...green.verdicts[0], commit: SHA, at: 500 },
+      { ...green.verdicts[1], commit: SHA, at: 500 },
+    ];
+    expect(readiness(with_({ pr, localHead: SHA, verdicts }))).toEqual({ ready: true, reasons: [] });
+  });
+
+  it('a verdict on another commit gives the exact reason', () => {
+    const pr = { ...green.pr, headRefOid: SHA };
+    const verdicts = [{ ...green.verdicts[0], commit: OTHER }, green.verdicts[1]];
+    expect(readiness(with_({ pr, localHead: SHA, verdicts })).reasons)
+      .toEqual([`reviewer: reviewed bbbbbbb, not the pull request head, run it again`]);
+  });
+
+  it('a verdict with no commit and an old time still gives the time reason', () => {
+    const verdicts = [{ ...green.verdicts[0], commit: null, at: 500 }, green.verdicts[1]];
+    expect(readiness(with_({ verdicts })).reasons)
+      .toEqual(['reviewer: older than the last commit, run it again']);
+  });
+});

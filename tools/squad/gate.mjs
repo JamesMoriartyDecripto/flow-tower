@@ -28,6 +28,13 @@ export function clean(s) {
   return String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 200);
 }
 
+// The sha of the pull request head the run reviewed, written by pack.mjs as a "reviewed:" line. A run without that
+// line (a tool-loop review) gives null, and the gate falls back to the time rule for it.
+export function reviewedCommit(text) {
+  const m = String(text ?? '').match(/^reviewed: ([0-9a-f]{40})$/m);
+  return m ? m[1] : null;
+}
+
 // Whitespace is collapsed on both sides, so a quote that differs only in spacing still matches the file.
 const norm = (s) => s.trim().replace(/\s+/g, ' ');
 
@@ -78,7 +85,13 @@ export function readiness(facts) {
   }
   for (const v of verdicts) {
     if (v.verdict === 'changes') reasons.push(`${v.role}: changes requested`);
-    if (v.at < facts.lastCommitAt) reasons.push(`${v.role}: older than the last commit, run it again`);
+    // A packed review names the commit it read, so that commit decides: a file's age says nothing about what it
+    // reviewed. A review with no commit keeps the time rule, since its mtime is the only evidence it has.
+    if (v.commit) {
+      if (v.commit !== pr.headRefOid) reasons.push(`${v.role}: reviewed ${v.commit.slice(0, 7)}, not the pull request head, run it again`);
+    } else if (v.at < facts.lastCommitAt) {
+      reasons.push(`${v.role}: older than the last commit, run it again`);
+    }
     for (const f of v.findings ?? []) {
       if (f.status === 'verified' && BLOCKING_SEVERITY.includes(f.severity)) {
         reasons.push(`${v.role}: ${clean(f.severity)} finding at ${clean(f.file)}`);
@@ -131,10 +144,12 @@ const readInRepo = (repo) => {
 
 // Throws when the file holds no usable verdict; the caller turns that into a reason.
 function verdictOf(role, file, readFile) {
-  const parsed = parseVerdict(readFileSync(file, 'utf8'));
+  const text = readFileSync(file, 'utf8');
+  const parsed = parseVerdict(text);
   return {
     role,
     verdict: parsed.verdict,
+    commit: reviewedCommit(text),
     at: statSync(file).mtimeMs,
     findings: parsed.findings.map((f) => checkFinding(f, readFile)),
   };
