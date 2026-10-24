@@ -10,7 +10,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { writeDirs } from './args.mjs';
-import { commandArgv, loadConfig, systemLine } from './config.mjs';
+import { STYLE_RULES, commandArgv, loadConfig, systemLine } from './config.mjs';
 import { appendRun, issueOf, ledgerPath, projectOf } from './ledger.mjs';
 import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
 import { realRelIfAllowed, realTarget } from './guard.mjs';
@@ -217,7 +217,7 @@ const TOOLS = [
 ];
 
 const messages = [
-  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines. Never touch secret files.${config.rules.map((r) => ` ${r}`).join('')} When done, call finish with your report, and end that report with a \`Known gaps:\` line (or \`Known gaps: none\`).` },
+  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${STYLE_RULES}${config.rules.map((r) => ` ${r}`).join('')} When done, call finish with your report, and end that report with a \`Known gaps:\` line (or \`Known gaps: none\`).` },
   { role: 'user', content: task },
 ];
 let cost = 0;
