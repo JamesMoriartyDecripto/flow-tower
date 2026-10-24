@@ -1,5 +1,5 @@
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,12 +42,32 @@ describe('squad pack answer format', () => {
 });
 
 describe('squad pack reviewed commit', () => {
-  it('names the commit the task was packed from', { timeout: 30_000 }, () => {
-    // The merge gate compares this line with the pull request head, so it must be the exact HEAD sha.
-    const out = pack('reviewer');
-    const m = /^Reviewed commit: ([0-9a-f]{40})$/m.exec(out);
-    expect(m).not.toBeNull();
-    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim();
-    expect(m?.[1]).toBe(head);
+  it('omits the commit line when the tree has uncommitted changes', { timeout: 60_000 }, () => {
+    // Runs on a temp repo: the repo this suite runs in may be dirty while tests run.
+    const repo = mkdtempSync(join(tmpdir(), 'pack-reviewed-'));
+    const git = (...a: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=squad-test', '-c', 'user.email=squad-test@example.invalid', ...a], { encoding: 'utf8' });
+    git('init', '-q');
+    mkdirSync(join(repo, 'tools'));
+    writeFileSync(join(repo, 'tools', 'a.txt'), 'one\n');
+    git('add', 'tools/a.txt');
+    git('commit', '-q', '-m', 'init');
+    const head = git('rev-parse', 'HEAD').trim();
+    const brief = join(repo, 'brief.md');
+    writeFileSync(brief, 'Check the reviewed commit.\n');
+    const run = () => spawnSync(
+      'node',
+      [join(REPO, 'tools/squad/pack.mjs'), '--role', 'reviewer', '--issue', '1', '--repo', repo, '--base', 'HEAD', '--paths', 'tools', '--brief', brief],
+      { cwd: REPO, encoding: 'utf8', timeout: 30_000 },
+    );
+
+    const clean = run();
+    expect(clean.status).toBe(0);
+    expect(clean.stdout.split('\n')[2]).toBe(`Reviewed commit: ${head}`);
+
+    writeFileSync(join(repo, 'tools', 'a.txt'), 'two\n');
+    const dirty = run();
+    expect(dirty.status).toBe(0);
+    expect(dirty.stdout).not.toMatch(/^Reviewed commit:/m);
+    expect(dirty.stderr).toContain('uncommitted changes');
   });
 });

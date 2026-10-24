@@ -59,7 +59,9 @@ const mode = flagBatch ? 'batch' : flagOneshot ? 'oneshot' : fromPace ?? 'loop';
 let paidMode = mode;
 console.log(`mode: ${mode}${fromPace ? ` (SQUAD_PACE=${PACE})` : ''}`);
 // A packed review names the commit it was made from; the merge gate reads it from this output, not from the file's mtime.
-const reviewed = /^Reviewed commit: ([0-9a-f]{40})$/m.exec(task);
+// Only the third line counts: pack.mjs writes it there, and a quoted diff or issue body could carry the same text
+// further down, which must not supply a commit.
+const reviewed = /^Reviewed commit: ([0-9a-f]{40})$/.exec(task.split('\n')[2] ?? '');
 if (reviewed) console.log(`reviewed: ${reviewed[1]}`);
 const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or

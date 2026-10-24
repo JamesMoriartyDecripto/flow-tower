@@ -97,13 +97,16 @@ function fileBlocks(list) {
 
 // The commit this task was packed from: the merge gate compares it with the pull request head, so a rerun of an
 // old task after a new commit cannot pass as a fresh review of the new code (its output file is newer, its code is not).
-const reviewedCommit = git('rev-parse', 'HEAD').trim();
+// The diff is taken from the working tree, so a dirty tree would be reviewed under a commit that does not hold its edits:
+// the Reviewed commit line is left out then, and the merge gate refuses a review that has no such line.
+const dirty = git('status', '--porcelain', '--untracked-files=no').trim() !== '';
+if (dirty) stderr.write('pack: uncommitted changes, so no Reviewed commit line (the merge gate will not accept this review)\n');
+const reviewedLines = dirty ? [] : [`Reviewed commit: ${git('rev-parse', 'HEAD').trim()}`, ''];
 
 const head = [
   `# ${issue} ${role} review`,
   '',
-  `Reviewed commit: ${reviewedCommit}`,
-  '',
+  ...reviewedLines,
   'Rules: read-only review. You have no tools; answer only from what follows. Do not invent files or lines that are not shown.',
   '',
   ...FOCUS[role],
