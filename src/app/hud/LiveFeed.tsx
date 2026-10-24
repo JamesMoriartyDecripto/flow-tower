@@ -4,6 +4,7 @@ import { towerPath } from '../graph';
 import { glyph } from '../hub';
 import { formatUsage, useLive, usageOf, declaredRuntime, towerScope } from '../live';
 import { useDescendants } from '../liveHooks';
+import { usePrefs } from '../settings';
 import { findNode, useStore, useTower } from '../store';
 
 type Filter = 'all' | 'run' | 'error';
@@ -27,7 +28,9 @@ function FeedPanel() {
   const tower = useTower();
   const ws = useStore((s) => s.workspace);
   const inspecting = useStore((s) => !!s.selected);
-  const listing = useStore((s) => !s.selected && s.focusedLayer !== undefined);
+  // At Tower overview the tower card takes the right panel's place (when open), so the feed sits beside it too.
+  const towerInfo = usePrefs((s) => s.towerInfo);
+  const listing = useStore((s) => !s.selected && (s.focusedLayer !== undefined || towerInfo));
   const [scope, setScope] = useState<'tower' | 'all'>('tower');
   const usageMap = useLive((s) => s.usage);
   const desc = useDescendants();

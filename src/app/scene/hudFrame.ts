@@ -23,8 +23,9 @@ const MARGIN = 16;
 export function freeRect(width: number, height: number): FreeRect {
   const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect();
   const nav = box('.layernav');
-  // The node list holds the inspector's place on the right while no node is selected.
-  const inspector = box('.inspector') ?? box('.nodelist');
+  // The node list holds the inspector's place on the right while no node is selected, and the open tower
+  // card holds it at Tower overview. A reduced card is only a title bar, so the scene keeps the full width.
+  const inspector = box('.inspector') ?? box('.nodelist') ?? box('.towerinfo:not(.reduced)');
   const feed = box('.livefeed');
   // The live feed docks on the right; with the inspector open it moves next to it, low on the screen:
   // then it only limits the area from below.
