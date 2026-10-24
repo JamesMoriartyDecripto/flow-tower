@@ -125,12 +125,15 @@ node tools/squad/gate.mjs --pr 300 --review /tmp/299-review.out --security /tmp/
 The last check before you merge, and a script, not a model, so it cannot hallucinate. It reads `gh pr checks`,
 `gh pr view` and `git rev-parse HEAD`, parses the two passes' answers and prints `READY` (exit 0) or `NOT READY`
 (exit 1) with one line per reason: a CI check not passed, a draft, a pull request that is not mergeable, a worktree not
-at the pull request head, a missing or `changes` verdict, a pass older than the last commit, a verified critical or high
-finding. It never merges and never approves.
+at the pull request head, a missing or `changes` verdict, a pass that did not review the pull request head, a verified critical or high
+finding. It never merges and never approves. A packed task carries `Reviewed commit: <sha>` and the run prints it
+back as `reviewed: <sha>`, so the gate compares commits; a tool-loop review has no such line and falls back to the
+output file's age, which is weaker (prefer packed reviews before a merge).
 
 Every finding must quote its line (`pack.mjs` asks for it). The gate looks for the quote within 3 lines of the cited
 `file:line`, ignoring spacing and a copied `+`/`-` diff marker, reading only files inside the repo and never secret
-ones. A finding whose quote is not there is listed as **unverified**: a line the model may have made up. Unverified
+ones. A quote under 8 characters, or with no letter or digit, proves nothing (`}` matches anywhere) and counts as
+unverified too. A finding whose quote is not there is listed as **unverified**: a line the model may have made up. Unverified
 findings do not block, because a wrong quote should not stop a good change, but nobody acts on one before checking it
 in the code.
 
