@@ -131,8 +131,9 @@ pull request head, a critical or high finding. It never merges and never approve
 Only a packed review counts. `pack.mjs` writes `Reviewed commit: <sha>` on the task's third line when the tree is
 clean (it leaves the line out, with a warning, when it is not: the diff would hold uncommitted edits). `run.mjs`
 prints it back as the second line of its output, `reviewed: <sha>`, right after `mode:`. The gate reads that line
-only there, so a `reviewed:` line a model writes in its answer counts for nothing. A tool-loop review has no such
-line and does not pass the gate: a file's age proves nothing about what it reviewed.
+only there, so a `reviewed:` line a model writes in its answer counts for nothing. Without a commit (a tool-loop
+review, a pack from a dirty tree) the runner prints `reviewed: none`, so line 2 is never the model's, and the gate
+refuses that review: a file's age proves nothing about what it reviewed.
 
 Every finding must quote its line (`pack.mjs` asks for it). The gate looks for the quote within 3 lines of the cited
 `file:line`, ignoring spacing and a copied `+`/`-` diff marker, reading only files inside the repo and never secret
