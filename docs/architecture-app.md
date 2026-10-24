@@ -57,7 +57,8 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 |---|---|
 | `hud/Chrome.tsx` | Top bar (validation chips `YAML n ERR/WARN`, the live `LIVE n ERR` chip, #192), Layers panel (with sub-towers list), legend, bottom controls |
 | `hud/Inspector.tsx`, `Connections.tsx`, `OpsInfo.tsx` | Node panel: overview, connections, operations / data / evals, prompt, tools, files |
-| `hud/NodeList.tsx` | Right panel while no node is selected: the nodes of the focused layer in flow order |
+| `hud/NodeList.tsx` | Right panel while a layer is focused and no node is selected: the nodes of that layer in flow order |
+| `hud/TowerInfo.tsx` | Right panel at Tower overview (#295): the tower's card, with the facts of its library card from `projectStats` (`library.ts`) and the live usage computed the same way. Reduced to its title bar with the `towerInfo` preference; `scene/hudFrame.ts` frames the scene beside it only while it is open, and the live feed sits beside it like beside the node list |
 | `hud/Library.tsx` | Project gallery |
 | `src/app/libraryHint.ts` | The library footer's "add towers" hint for a plain serve, a library serve or a hub (#193) |
 | `hud/LiveFeed.tsx`, `LiveChips.tsx` | Live feed and chips |

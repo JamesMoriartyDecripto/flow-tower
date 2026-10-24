@@ -19,6 +19,7 @@
 - **Keyboard first.** Arrows walk nodes and layers, Enter dives into sub-towers or the node panel, `?` lists every shortcut. Settings cover themes, fonts, interface size and animations.
 - **Voice.** Press V and talk to the tower, in Italian, English or any language: "open dev squad", "explain the flow of the first layer", "show me this node's files", "spiegami questo file". It answers out loud and shows what it talks about; "guided tour" / "panoramica guidata" walks you through every layer and node ([details](docs/voice.md)).
 - **Node list.** Focus a layer and its nodes are listed on the right in flow order, readable however far the cards are.
+- **Tower card.** At Tower overview the right panel shows the tower's own card, as in the library: description, tags, layers, nodes, agents, sub-towers, models, runtimes, errors and live usage. Inside a sub-tower it is that sub-tower's card; `–` reduces it to its title, and the choice is remembered.
 - **Live.** Save the YAML, or any referenced file, and the tower updates.
 - **Generate towers with any coding agent.** Claude Code, Codex, Pi, Hermes, Cursor or any other agent reads an agentic codebase and writes a validated tower. It maps Claude Code, the Agent SDK, LangGraph, CrewAI, OpenAI Agents, Pi, Hermes and more.
 - **Realtime agents.** Connect Claude Code, the Agent SDK, Codex, Pi, Hermes or your own loops. Active nodes light up, errors flash, and a live feed shows every step. See [docs/realtime.md](docs/realtime.md).
