@@ -25,6 +25,11 @@ node bin/flow-tower.js install-skill --target <claude|codex|pi|hermes|cursor|age
 Conventions and gotchas: [CLAUDE.md](CLAUDE.md). Code map: [docs/architecture.md](docs/architecture.md). Handoff: [NEXT.md](NEXT.md). GitHub issues are the source of truth.
 
 - English only. Never work on `main`: one branch per feature (`feat/…`, `fix/…`).
+- The issue is the live record: plan, status per step, review findings kept or dropped and why.
+- Review before merge: review and security passes, then the merge gate (`tools/squad/gate.mjs`) says READY. The maintainer merges.
+- Check before proposing: count the real cases in the examples, docs, code and open issues first (KISS, DRY, YAGNI).
+- Nothing private in the repo or on GitHub: never name a contributor's private projects, plans, machines or servers.
+- Leave nothing behind: worktrees, scratch servers and their folders go away after the merge (`git worktree remove`, delete the local branch). Before removing one, check it for uncommitted or unpushed work, and ask if it has any.
 - `npm run check` (typecheck + tests) must pass; every tower in `examples/` loads with 0 errors and 0 warnings. UI changes: `npm run e2e`.
 - Schema change: `npm run schema`, then docs/schema.md and the skill reference. Update `CHANGELOG.md` under `[Unreleased]`.
 - Files under ~400 lines; plain functions over classes; comments explain *why*.

@@ -79,6 +79,9 @@ lead reads them before the next step: gaps never stop the chain.
 ```bash
 git worktree add ../wt-113 -b fix/113-tools      # one worktree per task: two coders never share a checkout
 tools/squad/steps.sh 113 tasks/113 tools "keep the squad runner in the repo"
+# after the merge, from the main checkout: nothing stays behind (stop any scratch server by the PID on its port too)
+git -C ../wt-113 status -s && git -C ../wt-113 log @{u}..   # both empty, or ask before going on
+git worktree remove ../wt-113 && git branch -d fix/113-tools
 ```
 
 `steps.sh <issue> <dir> <write-dirs> <title>` (bash) runs `run.mjs` on every `dir/*.md` in order, one commit per step.
