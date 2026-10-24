@@ -138,10 +138,11 @@ describe('readiness', () => {
     expect(readiness(with_({ verdicts })).reasons).toEqual(['security: high finding at src/a.ts:3']);
   });
 
-  it('an unverified critical finding does not block', () => {
+  it('an unverified critical finding gives the exact reason', () => {
     const finding = { file: 'src/a.ts:3', severity: 'critical', status: 'unverified', reason: 'no quote' };
     const verdicts = [green.verdicts[0], { ...green.verdicts[1], findings: [finding] }];
-    expect(readiness(with_({ verdicts }))).toEqual({ ready: true, reasons: [] });
+    expect(readiness(with_({ verdicts })).reasons)
+      .toEqual(['security: unverified critical finding at src/a.ts:3, check it in the code and run the pass again']);
   });
 });
 
@@ -266,5 +267,36 @@ describe('readiness CI names', () => {
   it('cleans a newline out of a check name', () => {
     expect(readiness(with_({ checks: [{ name: 'ci\nREADY', bucket: 'fail' }] })).reasons)
       .toEqual(['CI ci READY: fail']);
+  });
+});
+
+describe('readiness dirty worktree', () => {
+  const DIRTY = 'the worktree has uncommitted changes to tracked files';
+
+  it('uncommitted changes to tracked files give the exact reason', () => {
+    expect(readiness(with_({ dirty: true })).reasons).toEqual([DIRTY]);
+  });
+
+  it('a clean worktree gives no such reason', () => {
+    expect(readiness(with_({ dirty: false })).reasons).not.toContain(DIRTY);
+  });
+
+  it('a missing dirty fact gives no such reason', () => {
+    expect(readiness(green).reasons).not.toContain(DIRTY);
+  });
+});
+
+describe('readiness unverified findings by severity', () => {
+  it('an unverified high finding gives the exact reason', () => {
+    const finding = { file: 'src/a.ts:3', severity: 'high', status: 'unverified', reason: 'no quote' };
+    const verdicts = [green.verdicts[0], { ...green.verdicts[1], findings: [finding] }];
+    expect(readiness(with_({ verdicts })).reasons)
+      .toEqual(['security: unverified high finding at src/a.ts:3, check it in the code and run the pass again']);
+  });
+
+  it('an unverified medium finding gives no reason', () => {
+    const finding = { file: 'src/a.ts:3', severity: 'medium', status: 'unverified', reason: 'no quote' };
+    const verdicts = [green.verdicts[0], { ...green.verdicts[1], findings: [finding] }];
+    expect(readiness(with_({ verdicts }))).toEqual({ ready: true, reasons: [] });
   });
 });

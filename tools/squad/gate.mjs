@@ -73,8 +73,10 @@ const ROLES = ['reviewer', 'security'];
 const PASSING = ['pass', 'skipping'];
 const BLOCKING_SEVERITY = ['critical', 'high'];
 
-// Returns the list of reasons the PR is not ready; it is ready only when that list is empty. Unverified findings are
-// not reasons: they are listed for the lead to check by hand, since a wrong quote should not block a good change.
+// Returns the list of reasons the PR is not ready; it is ready only when that list is empty. Unverified findings below
+// high are not reasons: they are listed for the lead to check by hand, since a wrong quote should not block a good
+// change. Unverified critical and high findings do block: failing closed on the findings that matter means a real one
+// cannot pass just because its quote sits too far from its line. A hallucinated one goes away on a rerun.
 export function readiness(facts) {
   const reasons = [];
   const checks = Array.isArray(facts?.checks) ? facts.checks : [];
@@ -87,6 +89,8 @@ export function readiness(facts) {
   if (pr.isDraft) reasons.push('the pull request is a draft');
   if (pr.mergeable !== 'MERGEABLE') reasons.push(`not mergeable: ${pr.mergeable}`);
   if (facts.localHead !== pr.headRefOid) reasons.push('the worktree is not at the pull request head');
+  // Cited files are read from the working copy, so uncommitted edits could hide a finding's line or fake a quote.
+  if (facts.dirty === true) reasons.push('the worktree has uncommitted changes to tracked files');
   const verdicts = Array.isArray(facts.verdicts) ? facts.verdicts : [];
   for (const role of ROLES) {
     if (!verdicts.some((v) => v.role === role)) reasons.push(`${role}: no verdict`);
@@ -103,6 +107,8 @@ export function readiness(facts) {
     for (const f of v.findings ?? []) {
       if (f.status === 'verified' && BLOCKING_SEVERITY.includes(f.severity)) {
         reasons.push(`${v.role}: ${clean(f.severity)} finding at ${clean(f.file)}`);
+      } else if (f.status === 'unverified' && BLOCKING_SEVERITY.includes(f.severity)) {
+        reasons.push(`${v.role}: unverified ${clean(f.severity)} finding at ${clean(f.file)}, check it in the code and run the pass again`);
       }
     }
   }
@@ -180,6 +186,8 @@ function main() {
   const commits = Array.isArray(view.commits) ? view.commits : [];
   const committed = Date.parse(commits.at(-1)?.committedDate);
 
+  // Only tracked files count: untracked scratch files do not change what the review read from git.
+  const dirty = run('git', ['status', '--porcelain', '--untracked-files=no'], repo).trim() !== '';
   const readFile = readInRepo(repo);
   const verdicts = [];
   const errors = [];
@@ -190,6 +198,7 @@ function main() {
     checks: ciChecks(n, repo),
     pr: { mergeable: view.mergeable, isDraft: view.isDraft, headRefOid: view.headRefOid },
     localHead: head,
+    dirty,
     lastCommitAt: Number.isNaN(committed) ? 0 : committed,
     verdicts,
   });
