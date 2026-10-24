@@ -161,3 +161,33 @@ test('keyboard: Esc on the card\'s toggle returns focus to the scene', async ({ 
   await expect(page.locator('.towerinfo')).toBeVisible();
   expect((await state(page)).focusedLayer).toBeUndefined();
 });
+
+test('a long tower name wraps whole, with the toggle on its first line (#301)', async ({ page }) => {
+  await page.goto('/?tower=history-notes&quality=eco');
+  await expect(page.locator('.towerinfo')).toBeVisible();
+  const name = page.locator('.towerinfo-name');
+  // CSS uppercases the display only; the text itself stays as written.
+  await expect(name).toHaveText('History Notes: The French Revolution');
+
+  // Nothing is cut: the name is not wider than its box, and it wraps to two lines or more.
+  const metrics = await name.evaluate((el) => {
+    const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+    return {
+      overflowX: el.scrollWidth - el.clientWidth,
+      height: el.getBoundingClientRect().height,
+      lineHeight,
+    };
+  });
+  expect(metrics.overflowX, 'name is not cut off sideways').toBeLessThanOrEqual(0);
+  expect(metrics.height, 'name wraps to two lines or more').toBeGreaterThan(metrics.lineHeight * 1.5);
+
+  // The toggle stays on the name's first line and inside the card.
+  const nameBox = await name.boundingBox();
+  const toggleBox = await page.locator('.towerinfo-toggle').boundingBox();
+  const cardBox = await page.locator('.towerinfo').boundingBox();
+  expect(nameBox, 'name box').not.toBeNull();
+  expect(toggleBox, 'toggle box').not.toBeNull();
+  expect(cardBox, 'tower card box').not.toBeNull();
+  expect(Math.abs(toggleBox!.y - nameBox!.y), 'toggle sits on the first line of the name').toBeLessThanOrEqual(6);
+  expect(toggleBox!.x + toggleBox!.width, 'toggle right edge inside the card').toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
+});

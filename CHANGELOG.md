@@ -13,6 +13,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Dev squad merge gate (#299): `tools/squad/gate.mjs` is a script, with no model, that says READY or NOT READY for a pull request. It checks CI, mergeable state, draft, a clean worktree at the pull request head, both review verdicts, critical or high findings, and that both passes reviewed the head commit. `pack.mjs` writes that commit only for a clean tree, and the gate reads it only from the run's header. It never merges or approves. Review and security findings now quote their line (`pack.mjs`). The gate checks each quote against the real file and lists the ones it cannot find, or whose quote is too short to prove anything, as unverified: possible hallucinations. An unverified critical or high finding still blocks. The kit's squad tower adds the pull request, CI and the gate before your merge.
 - Command-center kit: README § 7 Update covers pulling, `npm ci` only when the lock changed, then recreating Vite's cache folders. Without them the unit fails before it starts (`status=226/NAMESPACE`). It also covers restarting only for server changes and checking `/api/version`. A note covers Tailscale Serve when a web server already holds port 443. The tower's service node says the same.
 
+### Fixed
+- Tower card: a long tower name is shown whole, wrapped on more lines, instead of cut with an ellipsis; the reduce toggle stays on its first line (#301).
+
 ## [0.13.0] - 2026-10-23
 
 ### Added
