@@ -78,3 +78,36 @@ test('on a phone-sized window the open card stays inside the window', async ({ p
   expect(box, 'tower card box').not.toBeNull();
   expect(box!.x + box!.width, 'right edge of the tower card').toBeLessThanOrEqual(390);
 });
+
+test("the card's content clears the corner marks, open and reduced", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openTowerInfo(page);
+  const card = page.locator('.towerinfo');
+  const toggle = page.locator('.towerinfo-toggle');
+  const name = page.locator('.towerinfo-name');
+
+  // The corner marks are 14px squares 3px from the edges: content keeps 18px clear of them.
+  const panel = await card.boundingBox();
+  expect(panel, 'tower card box').not.toBeNull();
+  const toggleBox = await toggle.boundingBox();
+  const nameBox = await name.boundingBox();
+  expect(toggleBox, 'toggle box').not.toBeNull();
+  expect(nameBox, 'name box').not.toBeNull();
+  expect(toggleBox!.x + toggleBox!.width, 'toggle clears the top-right mark').toBeLessThanOrEqual(panel!.x + panel!.width - 18);
+  expect(nameBox!.x, 'name clears the bottom-left mark').toBeGreaterThanOrEqual(panel!.x + 18);
+  const paddingBottom = await page.locator('.towerinfo > .panel-scroll').evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom));
+  expect(paddingBottom, 'last row clears the bottom-left mark').toBeGreaterThanOrEqual(18);
+
+  // Reduced: only the title row is left, and it must clear the marks too.
+  await toggle.click();
+  await expect(card).toHaveClass(/reduced/);
+  const reducedPanel = await card.boundingBox();
+  const reducedToggle = await toggle.boundingBox();
+  const reducedName = await name.boundingBox();
+  expect(reducedName!.x, 'reduced name clears the bottom-left mark').toBeGreaterThanOrEqual(reducedPanel!.x + 18);
+  expect(reducedToggle!.x + reducedToggle!.width, 'reduced toggle clears the top-right mark').toBeLessThanOrEqual(reducedPanel!.x + reducedPanel!.width - 18);
+
+  // Leave the card open for later tests, as the toggle test does.
+  await toggle.click();
+  await expect(card).not.toHaveClass(/reduced/);
+});
