@@ -57,11 +57,13 @@ const FOCUS = {
     'tokens in logs; CSRF. Give a severity per finding (critical, high, medium, low).',
   ],
 };
+// The quote lets a script check each finding against the real file, so a line the model made up is caught.
 const FORMAT = [
   'Answer with JSON only, no prose around it:',
   '{"verdict":"approve"|"changes","findings":[{'
     + (role === 'security' ? '"severity":"critical|high|medium|low", ' : '')
-    + '"file":"path:line","what":"...","why":"...","fix":"..."}]}',
+    + '"file":"path:line","quote":"...","what":"...","why":"...","fix":"..."}]}',
+  'quote is the exact text of that line as shown in the diff or the files below, copied character by character, without the line number and without the leading + or - of a diff line. A finding whose quote is not at that line is dropped as unverified, so never paraphrase it and never cite a line you were not shown.',
 ];
 
 const git = (...a) => execFileSync('git', a, { cwd: REPO, encoding: 'utf8', maxBuffer: 50e6 });
@@ -93,9 +95,18 @@ function fileBlocks(list) {
   });
 }
 
+// The commit this task was packed from: the merge gate compares it with the pull request head, so a rerun of an
+// old task after a new commit cannot pass as a fresh review of the new code (its output file is newer, its code is not).
+// The diff is taken from the working tree, so a dirty tree would be reviewed under a commit that does not hold its edits:
+// the Reviewed commit line is left out then, and the merge gate refuses a review that has no such line.
+const dirty = git('status', '--porcelain', '--untracked-files=no').trim() !== '';
+if (dirty) stderr.write('pack: uncommitted changes, so no Reviewed commit line (the merge gate will not accept this review)\n');
+const reviewedLines = dirty ? [] : [`Reviewed commit: ${git('rev-parse', 'HEAD').trim()}`, ''];
+
 const head = [
   `# ${issue} ${role} review`,
   '',
+  ...reviewedLines,
   'Rules: read-only review. You have no tools; answer only from what follows. Do not invent files or lines that are not shown.',
   '',
   ...FOCUS[role],

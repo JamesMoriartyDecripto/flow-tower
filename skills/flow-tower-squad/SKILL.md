@@ -57,15 +57,27 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
    check, a `Files:` entry not touched). Read the known gaps it prints before the next step.
 7. **Verify yourself**: run the tests, run the real thing; for UI, look at it (screenshots). Green is not done.
    Check the tower still matches what landed (its files exist, its descriptions are true) and validate it again.
-8. **Review and security**, one request each with the code packed:
+8. **Review and security**, one request each with the code packed, **started together**: they are independent and
+   read-only, so you wait for the slower one, not for both in a row. Each run has its own log and ledger line.
    ```bash
    node tools/squad/pack.mjs --role reviewer --issue <n> --repo ../wt-<n> --files <changed files> > /tmp/<n>-review.md
-   SQUAD_PACE=relaxed node tools/squad/run.mjs --model <reviewer> --role reviewer --node specialists.reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n>
+   node tools/squad/pack.mjs --role security --issue <n> --repo ../wt-<n> --files <changed files>,<guards it relies on> > /tmp/<n>-security.md
+   SQUAD_PACE=relaxed node tools/squad/run.mjs --model <reviewer> --role reviewer --node specialists.reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n> > /tmp/<n>-review.out 2>&1 &
+   SQUAD_PACE=relaxed node tools/squad/run.mjs --model <security> --role security --node specialists.security --task /tmp/<n>-security.md --issue <n> --repo ../wt-<n> > /tmp/<n>-security.out 2>&1 &
+   wait
    ```
-   Same with `--role security --node specialists.security` and the security model; add the guards the change relies on to `--files`. Verify
-   each finding in the code: keep the real ones, say why the others do not apply.
+   Every finding quotes its line. Verify each one in the code: keep the real ones, say why the others do not apply.
 9. **Fix steps** for the kept findings (same format, new folder), then verify again.
-10. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.
+10. **Merge gate**: push, open the pull request, wait for CI, then
+    `node tools/squad/gate.mjs --pr <PR> --review /tmp/<n>-review.out --security /tmp/<n>-security.out --repo ../wt-<n>`.
+    A script, no model: READY only when every CI check passed, the pull request is mergeable and not a draft, the
+    worktree is clean and at the pull request head, and both passes approve that head commit with no critical or high
+    finding. Pack the passes from a clean tree (only then does `pack.mjs` write the commit the gate checks); after a
+    fix step, pack and run them again. It lists **unverified findings** (the quote is not at that `file:line`, or too
+    short to prove anything): treat them as possible hallucinations and check them in the code before acting. An
+    unverified critical or high one still blocks: if it is not real, run that pass again. The gate never merges or
+    approves: on READY, tell the user; the user merges.
+11. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.
 
 ## Pace
 

@@ -29,7 +29,7 @@ it from what the project's files say. A missing file gives the defaults.
 | `write` | folders the coder may write | `src, tests` |
 | `review` | folders the review diff covers | `src` |
 | `base` | the branch diffs are taken against | `origin/main` |
-| `rules` | extra lines every model sees | none |
+| `rules` | extra lines every model sees, after the shared style line (`STYLE_RULES` in `config.mjs`: language, comments, file size, efficiency without added complexity) | none |
 | `extras` | flow-tower-only tools (`validate`, `dryrun`) | none |
 | `models` | `coder`, `reviewer`, `security` | the table below |
 | `tower`, `source`, `cli` | the tower name the live events go to, their source, the flow-tower CLI path | `Dev Squad`, `dev-squad`; the CLI from `FLOW_TOWER_CLI`, then `tools/squad/.cli` (written by init, git-ignored), then PATH |
@@ -112,6 +112,36 @@ every call.
 node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node specialists.security \
   --task tasks/113-security.md --steps 10 --repo ../wt-113
 ```
+
+Start the review and the security pass together (each in the background, then `wait`): both are read-only and
+independent, so the wait is the slower of the two. Each run writes its own `role-*.log` and its own ledger line.
+
+## The merge gate
+
+```bash
+node tools/squad/gate.mjs --pr 300 --review /tmp/299-review.out --security /tmp/299-security.out --repo ../wt-299
+```
+
+The last check before you merge, and a script, not a model, so it cannot hallucinate. It reads `gh pr checks`,
+`gh pr view` and `git rev-parse HEAD`, parses the two passes' answers and prints `READY` (exit 0) or `NOT READY`
+(exit 1) with one line per reason: a CI check not passed, a draft, a pull request that is not mergeable, a worktree not
+at the pull request head or with uncommitted changes, a missing or `changes` verdict, a pass that did not review the
+pull request head, a critical or high finding. It never merges and never approves.
+
+Only a packed review counts. `pack.mjs` writes `Reviewed commit: <sha>` on the task's third line when the tree is
+clean (it leaves the line out, with a warning, when it is not: the diff would hold uncommitted edits). `run.mjs`
+prints it back as the second line of its output, `reviewed: <sha>`, right after `mode:`. The gate reads that line
+only there, so a `reviewed:` line a model writes in its answer counts for nothing. Without a commit (a tool-loop
+review, a pack from a dirty tree) the runner prints `reviewed: none`, so line 2 is never the model's, and the gate
+refuses that review: a file's age proves nothing about what it reviewed.
+
+Every finding must quote its line (`pack.mjs` asks for it). The gate looks for the quote within 3 lines of the cited
+`file:line`, ignoring spacing and a copied `+`/`-` diff marker, reading only files inside the repo and never secret
+ones. A quote under 8 characters, or with no letter or digit, proves nothing (`}` matches anywhere) and counts as
+unverified too. A finding whose quote is not there is listed as **unverified**: a line the model may have made up.
+Nobody acts on one before checking it in the code. Below high it does not block, since a wrong quote should not stop a
+good change. A critical or high one blocks even unverified: check it, and if it is not real, run the pass again (a
+made-up finding rarely comes back).
 
 ## Pace: how fast versus how cheap
 
