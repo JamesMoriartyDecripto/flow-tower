@@ -11,9 +11,16 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   - The pre-merge review found the second-`?` bypass; it was fixed and probed live.
   - Left out, pre-existing: Vite's 500 page shows absolute host paths to a viewer.
   - Squad $0.042.
-- **Tower card in the tower view** (#295, PR pending). At Tower overview the right panel shows the tower's card (the library card's facts); it can be reduced, and the choice is remembered.
+- **Tower card in the tower view** (#295, PR #297, merged). At Tower overview the right panel shows the tower's card (the library card's facts); it can be reduced, and the choice is remembered.
   - The fresh review found three defects, all fixed: no re-framing when the card toggles, not a keyboard panel, hidden under Issues.
-- **Open follow-ups to decide:** `validate` does not flag node files outside the served folder (the release found one by e2e); Vite's 500 page to remote viewers.
+  - A long tower name was cut with an ellipsis: it now wraps whole, the toggle on its first line (#301, PR #302, merged; e2e in `tower-info.spec.ts`).
+- **Dev squad: efficiency rule, parallel review, merge gate** (#299, PR #300, merged). Every squad prompt shares `STYLE_RULES` (`tools/squad/config.mjs`), which asks for the efficient approach when it adds no complexity. Review and security start together. `tools/squad/gate.mjs` is a script, no model: READY only with CI green, a mergeable PR, a clean worktree at its head, and both passes approving that head commit with no critical or high finding. Findings quote their line, and the gate marks a quote it cannot find as unverified.
+  - Six review rounds on the PR itself, each kept finding a squad step (06-14). Kept and dropped findings on #299.
+  - A quote proves the line exists, not that the finding is right: the lead still checks each one (one round had a real quote and a wrong claim).
+  - DeepSeek 4.1 Flash answered empty in `--oneshot` on two rounds out of six: the security brief then ran on GLM, as the README says.
+  - Squad $0.20.
+- **Merging:** `main` needs a CODEOWNERS review. The maintainer cannot approve their own PRs, so they merge with `gh pr merge <n> --merge --admin`. Claude Code's auto mode refuses that command from Claude ("Merge Without Review"): the maintainer runs it with `!`.
+- **Open follow-ups to decide:** `validate` does not flag node files outside the served folder (the release found one by e2e); Vite's 500 page to remote viewers; squad hardening #303; vitest `isolate: false` #304; a security check between releases (dependencies, semgrep, gitleaks, attack surface, a dependency check in CI) #305.
 
 ## Status on 2026-10-23
 
