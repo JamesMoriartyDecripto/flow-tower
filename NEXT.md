@@ -19,7 +19,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   - A quote proves the line exists, not that the finding is right: the lead still checks each one (one round had a real quote and a wrong claim).
   - DeepSeek 4.1 Flash answered empty in `--oneshot` on two rounds out of six: the security brief then ran on GLM, as the README says.
   - Squad $0.20.
-- **Merging:** `main` needs a CODEOWNERS review. The maintainer cannot approve their own PRs, so they merge with `gh pr merge <n> --merge --admin`. Claude Code's auto mode refuses that command from Claude ("Merge Without Review"): the maintainer runs it with `!`.
+- **Merging:** `main` needs a CODEOWNERS review. The maintainer cannot approve their own PRs, so they merge with `gh pr merge <n> --merge --admin`, only after the review and the merge gate's READY, and only when they say so. Claude Code's auto mode refuses that command from Claude ("Merge Without Review"): the maintainer runs it with `!`.
 - **Open follow-ups to decide:** `validate` does not flag node files outside the served folder (the release found one by e2e); Vite's 500 page to remote viewers; squad hardening #303; vitest `isolate: false` #304; a security check between releases (dependencies, semgrep, gitleaks, attack surface, a dependency check in CI) #305.
 
 ## Status on 2026-10-23

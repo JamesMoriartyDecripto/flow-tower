@@ -29,7 +29,7 @@ Conventions and gotchas: [CLAUDE.md](CLAUDE.md). Code map: [docs/architecture.md
 - Review before merge: review and security passes, then the merge gate (`tools/squad/gate.mjs`) says READY. The maintainer merges.
 - Check before proposing: count the real cases in the examples, docs, code and open issues first (KISS, DRY, YAGNI).
 - Nothing private in the repo or on GitHub: never name a contributor's private projects, plans, machines or servers.
-- Leave nothing behind: worktrees, scratch servers and their folders go away after the merge (`git worktree remove`, delete the local branch). Check a folder you did not create for uncommitted or unpushed work before removing it.
+- Leave nothing behind: worktrees, scratch servers and their folders go away after the merge (`git worktree remove`, delete the local branch). Before removing one, check it for uncommitted or unpushed work, and ask if it has any.
 - `npm run check` (typecheck + tests) must pass; every tower in `examples/` loads with 0 errors and 0 warnings. UI changes: `npm run e2e`.
 - Schema change: `npm run schema`, then docs/schema.md and the skill reference. Update `CHANGELOG.md` under `[Unreleased]`.
 - Files under ~400 lines; plain functions over classes; comments explain *why*.

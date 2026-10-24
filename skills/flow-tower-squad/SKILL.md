@@ -78,8 +78,10 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
     unverified critical or high one still blocks: if it is not real, run that pass again. The gate never merges or
     approves: on READY, tell the user; the user merges.
 11. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.
-12. **Clean up** after the merge (or when the work is dropped): `git worktree remove ../wt-<n>`, delete the local branch,
-    stop any scratch server. Nothing of the issue stays on the user's disk.
+12. **Clean up** after the merge (or when the work is dropped), from the main checkout: check the worktree has no
+    uncommitted or unpushed work (`git -C ../wt-<n> status -s`, `git -C ../wt-<n> log @{u}..`) and ask if it has, then
+    `git worktree remove ../wt-<n>` (it refuses a dirty one: never `--force` it away), delete the local branch and
+    stop any scratch server by the PID on its port. Nothing of the issue stays on the user's disk.
 
 ## Pace
 
