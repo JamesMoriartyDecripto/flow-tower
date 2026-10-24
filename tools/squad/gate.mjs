@@ -41,6 +41,10 @@ const norm = (s) => s.trim().replace(/\s+/g, ' ');
 // A model often cites a line or two off, so the quote may sit within 3 lines of the cited one.
 const WINDOW = 3;
 
+// A short quote such as `}` or `const` matches almost any window, so it proves nothing: the quote must be long enough
+// and carry a letter or digit to count as evidence.
+export const MIN_QUOTE = 8;
+
 // readFile(path) gives the file's text, or null when it is missing or not allowed. The check is not trusted to
 // the model: a finding whose quote is not near its line is reported as unverified, with the reason.
 export function checkFinding(finding, readFile) {
@@ -51,13 +55,16 @@ export function checkFinding(finding, readFile) {
   if (!quote) return fail('no quote');
   const text = readFile(m[1]);
   if (text === null || text === undefined) return fail('file not found');
+  // Models often copy the diff marker of a + or - line, so one leading marker may be dropped before the check. The
+  // length test uses the text without that marker, so "+ x = 1" is measured as "x = 1".
+  const bare = /^[+-]/.test(quote) ? norm(quote.slice(1)) : '';
+  const core = bare || quote;
+  if (core.length < MIN_QUOTE || !/[A-Za-z0-9]/.test(core)) return fail('quote too short to verify');
   const lines = String(text).split('\n');
   const line = Number(m[2]);
   const from = Math.max(1, line - WINDOW);
   const to = Math.min(lines.length, line + WINDOW);
   const around = norm(lines.slice(from - 1, to).join(' '));
-  // Models often copy the diff marker of a + or - line, so one leading marker may be dropped before the check.
-  const bare = /^[+-]/.test(quote) ? norm(quote.slice(1)) : '';
   if (!around.includes(quote) && !(bare && around.includes(bare))) return fail('quote not at that line');
   return { ...finding, status: 'verified' };
 }
@@ -73,7 +80,8 @@ export function readiness(facts) {
   const checks = Array.isArray(facts?.checks) ? facts.checks : [];
   if (checks.length === 0) reasons.push('no CI checks reported');
   for (const c of checks) {
-    if (!PASSING.includes(c.bucket)) reasons.push(`CI ${c.name}: ${c.bucket}`);
+    // Check names and buckets come from gh, so they are cleaned like any other printed text.
+    if (!PASSING.includes(c.bucket)) reasons.push(`CI ${clean(c.name)}: ${clean(c.bucket)}`);
   }
   const pr = facts.pr ?? {};
   if (pr.isDraft) reasons.push('the pull request is a draft');

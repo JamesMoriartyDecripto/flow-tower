@@ -237,3 +237,34 @@ describe('readiness with the reviewed commit', () => {
       .toEqual(['reviewer: older than the last commit, run it again']);
   });
 });
+
+describe('checkFinding quote length', () => {
+  const check = (quote: string) => checkFinding({ file: 'src/a.ts:3', quote }, readA);
+
+  it('rejects a one-character quote that matches almost any line', () => {
+    expect(check('}')).toMatchObject({ status: 'unverified', reason: 'quote too short to verify' });
+  });
+
+  it('rejects a keyword quote shorter than 8 characters', () => {
+    expect(check('const')).toMatchObject({ status: 'unverified', reason: 'quote too short to verify' });
+  });
+
+  it('measures the length after the diff marker is removed', () => {
+    expect(check('+ x = 1')).toMatchObject({ status: 'unverified', reason: 'quote too short to verify' });
+  });
+
+  it('rejects a quote with no letter or digit', () => {
+    expect(check('--------')).toMatchObject({ status: 'unverified', reason: 'quote too short to verify' });
+  });
+
+  it('still verifies a full line of code', () => {
+    expect(check('const x = 1;').status).toBe('verified');
+  });
+});
+
+describe('readiness CI names', () => {
+  it('cleans a newline out of a check name', () => {
+    expect(readiness(with_({ checks: [{ name: 'ci\nREADY', bucket: 'fail' }] })).reasons)
+      .toEqual(['CI ci READY: fail']);
+  });
+});
