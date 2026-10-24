@@ -26,19 +26,19 @@ agents:
   coder:
     runtime: openrouter
     name: Coder
-    description: Writes one step through a tool loop (read, edit, run the project's check), then reports its known gaps.
+    description: "Writes one step through a tool loop (read, edit, run the project's check), then reports its known gaps. Its prompt asks for the efficient approach when it adds no complexity: batches over item-by-item work, no repeated work, independent I/O run concurrently, no premature optimization."
     model: "{{CODER}}"
     files: [run.mjs, guard.mjs, args.mjs]
   reviewer:
     runtime: openrouter
     name: Reviewer
-    description: Read-only review of the diff against the issue, from another model family than the coder.
+    description: Read-only review of the diff against the issue, from another model family than the coder. Runs at the same time as the security pass.
     model: "{{REVIEWER}}"
     files: [pack.mjs, oneshot.mjs]
   security:
     runtime: openrouter
     name: Security auditor
-    description: Read-only security pass on the same diff, from a third model family.
+    description: Read-only security pass on the same diff, from a third model family. Runs at the same time as the review.
     model: "{{SECURITY}}"
     files: [pack.mjs, oneshot.mjs]
 
@@ -55,7 +55,7 @@ layers:
         type: agent
         runtime: laptop
         label: Lead
-        description: "Updates the tower of the part it changes first (validated, committed), then writes one task file per step (Rules, Verify, Files), runs steps.sh in a worktree, reads the known gaps."
+        description: "Updates the tower of the part it changes first (validated, committed), then writes one task file per step (Rules, Verify, Files), runs steps.sh in a worktree, reads the known gaps, then starts the review and the security pass together (independent, read-only requests) and waits for both. Project rules every model sees go in squad.json `rules`."
         files: [tasks/TEMPLATE.md, steps.sh, squad.json]
       - id: verify
         type: decision
@@ -101,8 +101,8 @@ layers:
         files: [ledger.mjs, cost.mjs]
     edges:
       - coder -> check
-      - "check -> reviewer: step commits"
-      - "check -> security: step commits"
+      - "check -> reviewer: step commits, in parallel"
+      - "check -> security: step commits, in parallel"
       - "coder -> costs [data]"
 
 links:
