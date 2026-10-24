@@ -12,8 +12,8 @@ const green = {
   localHead: 'abc',
   lastCommitAt: 1000,
   verdicts: [
-    { role: 'reviewer', verdict: 'approve', findings: [], at: 2000 },
-    { role: 'security', verdict: 'approve', findings: [], at: 2000 },
+    { role: 'reviewer', verdict: 'approve', findings: [], at: 2000, commit: 'abc' },
+    { role: 'security', verdict: 'approve', findings: [], at: 2000, commit: 'abc' },
   ],
 };
 
@@ -126,10 +126,10 @@ describe('readiness', () => {
     expect(readiness(with_({ verdicts })).reasons).toEqual(['reviewer: changes requested']);
   });
 
-  it('a verdict older than the last commit is a reason', () => {
-    const verdicts = [{ ...green.verdicts[0], at: 500 }, green.verdicts[1]];
+  it('a verdict with no commit, however new its file, is a reason', () => {
+    const verdicts = [{ ...green.verdicts[0], commit: null, at: 5000 }, green.verdicts[1]];
     expect(readiness(with_({ verdicts })).reasons)
-      .toEqual(['reviewer: older than the last commit, run it again']);
+      .toEqual(['reviewer: no reviewed commit (pack the review from a clean tree with pack.mjs), run it again']);
   });
 
   it('a verified high finding is a reason', () => {
@@ -243,15 +243,22 @@ describe('readiness with the reviewed commit', () => {
 
   it('a verdict on another commit gives the exact reason', () => {
     const pr = { ...green.pr, headRefOid: SHA };
-    const verdicts = [{ ...green.verdicts[0], commit: OTHER }, green.verdicts[1]];
+    const verdicts = [{ ...green.verdicts[0], commit: OTHER }, { ...green.verdicts[1], commit: SHA }];
     expect(readiness(with_({ pr, localHead: SHA, verdicts })).reasons)
       .toEqual([`reviewer: reviewed bbbbbbb, not the pull request head, run it again`]);
   });
 
-  it('a verdict with no commit and an old time still gives the time reason', () => {
+  it('a verdict with no commit and an old time gives the no-commit reason', () => {
     const verdicts = [{ ...green.verdicts[0], commit: null, at: 500 }, green.verdicts[1]];
     expect(readiness(with_({ verdicts })).reasons)
-      .toEqual(['reviewer: older than the last commit, run it again']);
+      .toEqual(['reviewer: no reviewed commit (pack the review from a clean tree with pack.mjs), run it again']);
+  });
+
+  it('a verdict without a commit gives the exact no-commit reason', () => {
+    const pr = { ...green.pr, headRefOid: SHA };
+    const verdicts = [{ role: 'reviewer', verdict: 'approve', findings: [] }, { ...green.verdicts[1], commit: SHA }];
+    expect(readiness(with_({ pr, localHead: SHA, verdicts })).reasons)
+      .toEqual(['reviewer: no reviewed commit (pack the review from a clean tree with pack.mjs), run it again']);
   });
 });
 

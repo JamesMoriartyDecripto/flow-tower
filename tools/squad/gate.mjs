@@ -3,7 +3,7 @@
 // anything, and it uses no model: a finding counts only when its quote is really in the file.
 // The command line at the bottom gathers the facts (git, gh, file reads) and passes them to those functions.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { argv, exit, stderr, stdout } from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -31,7 +31,7 @@ export function clean(s) {
 // The sha of the pull request head the run reviewed. run.mjs prints its header first: line 1 "mode: ", then line 2
 // "reviewed: <sha>" when the task was packed. Only that header counts. The model's answer follows it, so a "reviewed:"
 // line the model prints there must not be trusted, and the sha is read from line 2 only. A run without that header
-// (a tool-loop review) gives null, and the gate falls back to the time rule for it.
+// (a tool-loop review) gives null, and the gate refuses it: a file's age or mtime proves nothing about what it read.
 export function reviewedCommit(text) {
   const lines = String(text ?? '').split('\n').map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l));
   if (!lines[0]?.startsWith('mode: ')) return null;
@@ -101,12 +101,13 @@ export function readiness(facts) {
   }
   for (const v of verdicts) {
     if (v.verdict === 'changes') reasons.push(`${v.role}: changes requested`);
-    // A packed review names the commit it read, so that commit decides: a file's age says nothing about what it
-    // reviewed. A review with no commit keeps the time rule, since its mtime is the only evidence it has.
+    // A packed review names the commit it read, so that commit decides. A review with no commit is refused: its file's
+    // age or mtime says nothing about what it reviewed (a rerun of an old task, or a touch), so only a pack from a
+    // clean tree, which writes the commit, counts before a merge.
     if (v.commit) {
       if (v.commit !== pr.headRefOid) reasons.push(`${v.role}: reviewed ${v.commit.slice(0, 7)}, not the pull request head, run it again`);
-    } else if (v.at < facts.lastCommitAt) {
-      reasons.push(`${v.role}: older than the last commit, run it again`);
+    } else {
+      reasons.push(`${v.role}: no reviewed commit (pack the review from a clean tree with pack.mjs), run it again`);
     }
     for (const f of v.findings ?? []) {
       if (f.status === 'verified' && BLOCKING_SEVERITY.includes(f.severity)) {
@@ -168,7 +169,6 @@ function verdictOf(role, file, readFile) {
     role,
     verdict: parsed.verdict,
     commit: reviewedCommit(text),
-    at: statSync(file).mtimeMs,
     findings: parsed.findings.map((f) => checkFinding(f, readFile)),
   };
 }
@@ -186,9 +186,7 @@ function main() {
   }
   const repo = resolve(arg('repo') ?? run('git', ['rev-parse', '--show-toplevel'], process.cwd()).trim());
   const head = run('git', ['rev-parse', 'HEAD'], repo).trim();
-  const view = JSON.parse(run('gh', ['pr', 'view', n, '--json', 'mergeable,isDraft,headRefOid,commits'], repo));
-  const commits = Array.isArray(view.commits) ? view.commits : [];
-  const committed = Date.parse(commits.at(-1)?.committedDate);
+  const view = JSON.parse(run('gh', ['pr', 'view', n, '--json', 'mergeable,isDraft,headRefOid'], repo));
 
   // Only tracked files count: untracked scratch files do not change what the review read from git.
   const dirty = run('git', ['status', '--porcelain', '--untracked-files=no'], repo).trim() !== '';
@@ -203,7 +201,6 @@ function main() {
     pr: { mergeable: view.mergeable, isDraft: view.isDraft, headRefOid: view.headRefOid },
     localHead: head,
     dirty,
-    lastCommitAt: Number.isNaN(committed) ? 0 : committed,
     verdicts,
   });
   const reasons = [...errors, ...result.reasons];
