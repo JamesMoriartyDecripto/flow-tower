@@ -70,11 +70,13 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
 9. **Fix steps** for the kept findings (same format, new folder), then verify again.
 10. **Merge gate**: push, open the pull request, wait for CI, then
     `node tools/squad/gate.mjs --pr <PR> --review /tmp/<n>-review.out --security /tmp/<n>-security.out --repo ../wt-<n>`.
-    A script, no model: READY only when every CI check passed, the pull request is mergeable and not a draft, both
-    passes approve with no verified critical or high finding, the worktree is at the pull request head and no commit
-    is newer than the two passes (after a fix step, run them again). It lists **unverified findings** (the quote is
-    not at that `file:line`): treat them as possible hallucinations and check them in the code before acting. The
-    gate never merges or approves: on READY, tell the user; the user merges.
+    A script, no model: READY only when every CI check passed, the pull request is mergeable and not a draft, the
+    worktree is clean and at the pull request head, and both passes approve that head commit with no critical or high
+    finding. Pack the passes from a clean tree (only then does `pack.mjs` write the commit the gate checks); after a
+    fix step, pack and run them again. It lists **unverified findings** (the quote is not at that `file:line`, or too
+    short to prove anything): treat them as possible hallucinations and check them in the code before acting. An
+    unverified critical or high one still blocks: if it is not real, run that pass again. The gate never merges or
+    approves: on READY, tell the user; the user merges.
 11. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.
 
 ## Pace

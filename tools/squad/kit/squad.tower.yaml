@@ -71,7 +71,7 @@ layers:
         type: guard
         runtime: laptop
         label: Merge gate
-        description: "A script, no model, so nothing to hallucinate: READY only when every CI check passed, the pull request is mergeable and not a draft, the review and the security pass both approve, and no commit is newer than them. Each finding must quote its line: a quote not found at that file:line marks the finding unverified. It never merges and never approves: it tells you the pull request is ready."
+        description: "A script, no model, so nothing to hallucinate: READY only when every CI check passed, the pull request is mergeable and not a draft, the worktree is clean and at the pull request head, and the review and the security pass both approve that head commit (packed from a clean tree, which writes the commit). Each finding must quote its line: a quote not found at that file:line, or too short to prove anything, marks the finding unverified; an unverified critical or high finding still blocks until it is checked and the pass rerun. It never merges and never approves: it tells you the pull request is ready."
         files: [gate.mjs]
       - id: merge
         type: human

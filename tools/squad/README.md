@@ -125,17 +125,22 @@ node tools/squad/gate.mjs --pr 300 --review /tmp/299-review.out --security /tmp/
 The last check before you merge, and a script, not a model, so it cannot hallucinate. It reads `gh pr checks`,
 `gh pr view` and `git rev-parse HEAD`, parses the two passes' answers and prints `READY` (exit 0) or `NOT READY`
 (exit 1) with one line per reason: a CI check not passed, a draft, a pull request that is not mergeable, a worktree not
-at the pull request head, a missing or `changes` verdict, a pass that did not review the pull request head, a verified critical or high
-finding. It never merges and never approves. A packed task carries `Reviewed commit: <sha>` and the run prints it
-back as `reviewed: <sha>`, so the gate compares commits; a tool-loop review has no such line and falls back to the
-output file's age, which is weaker (prefer packed reviews before a merge).
+at the pull request head or with uncommitted changes, a missing or `changes` verdict, a pass that did not review the
+pull request head, a critical or high finding. It never merges and never approves.
+
+Only a packed review counts. `pack.mjs` writes `Reviewed commit: <sha>` on the task's third line when the tree is
+clean (it leaves the line out, with a warning, when it is not: the diff would hold uncommitted edits). `run.mjs`
+prints it back as the second line of its output, `reviewed: <sha>`, right after `mode:`. The gate reads that line
+only there, so a `reviewed:` line a model writes in its answer counts for nothing. A tool-loop review has no such
+line and does not pass the gate: a file's age proves nothing about what it reviewed.
 
 Every finding must quote its line (`pack.mjs` asks for it). The gate looks for the quote within 3 lines of the cited
 `file:line`, ignoring spacing and a copied `+`/`-` diff marker, reading only files inside the repo and never secret
 ones. A quote under 8 characters, or with no letter or digit, proves nothing (`}` matches anywhere) and counts as
-unverified too. A finding whose quote is not there is listed as **unverified**: a line the model may have made up. Unverified
-findings do not block, because a wrong quote should not stop a good change, but nobody acts on one before checking it
-in the code.
+unverified too. A finding whose quote is not there is listed as **unverified**: a line the model may have made up.
+Nobody acts on one before checking it in the code. Below high it does not block, since a wrong quote should not stop a
+good change. A critical or high one blocks even unverified: check it, and if it is not real, run the pass again (a
+made-up finding rarely comes back).
 
 ## Pace: how fast versus how cheap
 
