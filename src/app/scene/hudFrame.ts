@@ -4,6 +4,7 @@ import { Vector3, type PerspectiveCamera } from 'three';
 import type { CameraControls } from '@react-three/drei';
 import type { TowerLayout } from '../layout';
 import { useLive } from '../live';
+import { useHub } from '../hud/Hub';
 import { usePrefs } from '../settings';
 import { useStore } from '../store';
 import { layerGroups } from './chips';
@@ -23,8 +24,9 @@ const MARGIN = 16;
 export function freeRect(width: number, height: number): FreeRect {
   const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect();
   const nav = box('.layernav');
-  // The node list holds the inspector's place on the right while no node is selected.
-  const inspector = box('.inspector') ?? box('.nodelist');
+  // The node list holds the inspector's place on the right while no node is selected, and the open tower
+  // card holds it at Tower overview. A reduced card is only a title bar, so the scene keeps the full width.
+  const inspector = box('.inspector') ?? box('.nodelist') ?? box('.towerinfo:not(.reduced)');
   const feed = box('.livefeed');
   // The live feed docks on the right; with the inspector open it moves next to it, low on the screen:
   // then it only limits the area from below.
@@ -76,6 +78,12 @@ export function useHudFrame(controls: React.RefObject<CameraControls | null>, la
   const invalidate = useThree((s) => s.invalidate);
   const selected = useStore((s) => s.selected);
   const listing = useStore((s) => !s.selected && s.focusedLayer !== undefined);
+  // The open tower card at overview is a right panel too: opening, reducing or hiding it re-frames.
+  // Hooks are all called up front so the combined value stays a plain boolean.
+  const overviewCard = useStore((s) => !s.selected && s.focusedLayer === undefined);
+  const towerInfo = usePrefs((s) => s.towerInfo);
+  const hubOpen = useHub((s) => s.open);
+  const card = overviewCard && towerInfo && !hubOpen;
   const feedOpen = useLive((s) => s.feedOpen);
   const scale = usePrefs((s) => s.uiScale);
   const goal = useRef({ x: 0, y: 0 });
@@ -101,7 +109,7 @@ export function useHudFrame(controls: React.RefObject<CameraControls | null>, la
       // Only a panel opening or closing (or a resize) re-fits the zoom: moving between nodes keeps the
       // distance the user zoomed to. Keyed on which panels are open, not on their measured boxes, which
       // are still moving while a panel slides in.
-      const key = `${size.width}x${size.height}@${scale}|${selected ? 'inspector' : listing ? 'nodes' : ''}|${feedOpen ? 'feed' : ''}`;
+      const key = `${size.width}x${size.height}@${scale}|${selected ? 'inspector' : listing ? 'nodes' : card ? 'card' : ''}|${feedOpen ? 'feed' : ''}`;
       const changed = settled && key !== lastRect.current;
       if (settled) lastRect.current = key;
       // With a node selected, the selection framing below sets the distance.
@@ -123,7 +131,7 @@ export function useHudFrame(controls: React.RefObject<CameraControls | null>, la
     // Panels mount (and slide in) after this render: measure once they are laid out.
     const t = [setTimeout(() => measure(false), 0), setTimeout(() => measure(true), 300)];
     return () => t.forEach(clearTimeout);
-  }, [size.width, size.height, selected, listing, feedOpen, scale, invalidate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [size.width, size.height, selected, listing, card, feedOpen, scale, invalidate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useFrame((_, dt) => {
     const k = 1 - Math.exp(-dt * 8);

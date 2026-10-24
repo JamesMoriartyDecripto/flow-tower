@@ -15,6 +15,7 @@ import { cycleConnection, jumpBack } from './hud/Connections';
 import { focusInspector, panelKey, panelOf } from './hud/focusNav';
 import { Tooltip } from './hud/Tooltip';
 import { NodeList } from './hud/NodeList';
+import { TowerInfo } from './hud/TowerInfo';
 import { VoiceCaption } from './hud/Voice';
 import { useVoice } from './voice/voice';
 import { converse } from './voice/agent';
@@ -83,6 +84,8 @@ export function App() {
         {/* The Hub panel takes the Inspector's place: the node panel and the layer list would fight it for the right edge. */}
         {!hubOpen && <Inspector />}
         {!hubOpen && <NodeList />}
+        {/* Issues takes the same top-right place as the card, so the card waits until Issues is closed. */}
+        {!hubOpen && !(showIssues || broken) && <TowerInfo />}
         <LiveFeed />
         {(showIssues || broken) && <Issues onClose={() => setShowIssues(false)} />}
       </div>

@@ -562,6 +562,25 @@ kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); bo
   .hud:has(.livefeed) .nodelist { max-height: calc(100 * var(--vh) - 76px - 42 * var(--vh) - 12px - 80px); }
 }
 
+/* The tower's card at Tower overview: the node list's place and size; reduced it is just the title row. */
+.towerinfo { top: 80px; right: 14px; width: 280px; max-height: calc(100% - 170px); display: flex; flex-direction: column; overflow: hidden; animation: slidein .25s ease-out; }
+/* The corner marks are 14px squares 3px from the edges, so content stays 18px or more away from them. */
+.towerinfo .title { display: flex; align-items: center; gap: 6px; padding: 12px 26px 8px 20px; min-width: 0; }
+.towerinfo-name { flex: 1; min-width: 0; font: 600 14px var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.towerinfo-toggle { margin-left: auto; flex: none; font: 18px var(--mono); color: var(--dim); line-height: 1; }
+.towerinfo-toggle:hover, .towerinfo-toggle:focus-visible { color: var(--orange); }
+.towerinfo.reduced { max-height: none; }
+.towerinfo > .panel-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line) transparent; padding: 0 14px 20px; }
+/* Long descriptions scroll inside the card; the footer line stays with the card's bottom. */
+.towerinfo-desc { margin: 0 0 8px; font-size: 13px; max-height: calc(30 * var(--vh)); overflow: auto; padding-right: 4px; }
+.towerinfo .lib-cardtags { margin: 0 0 8px; }
+.towerinfo .lib-stats { margin: 0 0 8px; }
+.towerinfo .lib-meta { margin: 0 0 8px; }
+.towerinfo-foot { margin: 0 0 6px; font: 11px var(--mono); color: var(--dim); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+@media (max-width: 760px) {
+  .hud:has(.livefeed) .towerinfo { max-height: calc(100 * var(--vh) - 76px - 42 * var(--vh) - 12px - 80px); }
+}
+
 /* Hub panel (#92): the Now and Machines tabs, in the Inspector's place. */
 .hub .hub-hint { margin-top: 6px; font-size: 11px; }
 .hub .tabs button { cursor: pointer; }

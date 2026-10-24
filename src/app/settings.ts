@@ -44,6 +44,8 @@ interface Prefs {
   show: Visibility;
   chips: boolean;
   hints: boolean;
+  /** The tower's card in the right panel at Tower overview: open (true) or reduced to its title bar. */
+  towerInfo: boolean;
   /** File viewer: wrap long lines; show Markdown as source instead of formatted. */
   viewerWrap: boolean;
   markdownSource: boolean;
@@ -74,7 +76,7 @@ interface Prefs {
 const KEY = 'flow-tower:prefs';
 
 interface Saved {
-  theme?: string; bloom?: number; plateOpacity?: number; flowNodes?: Partial<Flow>; flowLayers?: Partial<Flow>; show?: Partial<Visibility>; chips?: boolean; hints?: boolean; viewerWrap?: boolean; markdownSource?: boolean; defaultView?: DefaultView; voiceLanguage?: VoiceLanguage; voiceReplies?: boolean; voiceJournal?: boolean; voiceBargeIn?: boolean; voiceSensitivity?: VoiceSensitivity; uiScale?: number; textFont?: TextFont; titleFont?: TitleFont;
+  theme?: string; bloom?: number; plateOpacity?: number; flowNodes?: Partial<Flow>; flowLayers?: Partial<Flow>; show?: Partial<Visibility>; chips?: boolean; hints?: boolean; towerInfo?: boolean; viewerWrap?: boolean; markdownSource?: boolean; defaultView?: DefaultView; voiceLanguage?: VoiceLanguage; voiceReplies?: boolean; voiceJournal?: boolean; voiceBargeIn?: boolean; voiceSensitivity?: VoiceSensitivity; uiScale?: number; textFont?: TextFont; titleFont?: TitleFont;
   quality?: Quality; animations?: boolean; particles?: boolean; explode?: number; spotlight?: boolean; follow?: boolean;
 }
 
@@ -99,6 +101,7 @@ export const usePrefs = create<Prefs>()((set, get) => ({
   show: { ...DEFAULT_VISIBILITY, ...saved.show },
   chips: saved.chips ?? true,
   hints: saved.hints ?? true,
+  towerInfo: saved.towerInfo ?? true,
   viewerWrap: saved.viewerWrap ?? false,
   markdownSource: saved.markdownSource ?? false,
   defaultView: saved.defaultView ?? 'auto',
@@ -158,7 +161,7 @@ export function initPrefs() {
     const ui = useStore.getState();
     const live = useLive.getState();
     const data: Saved = {
-      theme: p.theme, bloom: p.bloom, plateOpacity: p.plateOpacity, flowNodes: p.flowNodes, flowLayers: p.flowLayers, show: p.show, chips: p.chips, hints: p.hints, viewerWrap: p.viewerWrap, markdownSource: p.markdownSource, defaultView: p.defaultView, voiceLanguage: p.voiceLanguage, voiceReplies: p.voiceReplies, voiceJournal: p.voiceJournal, voiceBargeIn: p.voiceBargeIn, voiceSensitivity: p.voiceSensitivity, uiScale: p.uiScale, textFont: p.textFont, titleFont: p.titleFont,
+      theme: p.theme, bloom: p.bloom, plateOpacity: p.plateOpacity, flowNodes: p.flowNodes, flowLayers: p.flowLayers, show: p.show, chips: p.chips, hints: p.hints, towerInfo: p.towerInfo, viewerWrap: p.viewerWrap, markdownSource: p.markdownSource, defaultView: p.defaultView, voiceLanguage: p.voiceLanguage, voiceReplies: p.voiceReplies, voiceJournal: p.voiceJournal, voiceBargeIn: p.voiceBargeIn, voiceSensitivity: p.voiceSensitivity, uiScale: p.uiScale, textFont: p.textFont, titleFont: p.titleFont,
       quality: qualityToSave(qualityChosen, ui.quality), animations: ui.animations, particles: ui.particles, explode: ui.explode,
       spotlight: live.spotlight, follow: live.follow,
     };

@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- Tower card in the tower view (#295). At Tower overview (no layer focused, no node selected) the right panel shows the tower's card, which until now only the library showed: description, tags, layers, nodes, agents, sub-towers, models, runtimes, errors and warnings, live usage. It uses the same facts as the library card. Inside a sub-tower it shows that sub-tower. `–` reduces it to its title bar and `+` brings it back; the choice is remembered. The scene is framed beside the open card, and the live feed sits next to it.
+
 ## [0.13.0] - 2026-10-23
 
 ### Added
