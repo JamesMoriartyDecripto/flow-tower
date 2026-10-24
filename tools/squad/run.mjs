@@ -58,6 +58,9 @@ const mode = flagBatch ? 'batch' : flagOneshot ? 'oneshot' : fromPace ?? 'loop';
 // The mode that was paid for: a batch that has no endpoint for the model falls back to oneshot, and the ledger says so.
 let paidMode = mode;
 console.log(`mode: ${mode}${fromPace ? ` (SQUAD_PACE=${PACE})` : ''}`);
+// A packed review names the commit it was made from; the merge gate reads it from this output, not from the file's mtime.
+const reviewed = /^Reviewed commit: ([0-9a-f]{40})$/m.exec(task);
+if (reviewed) console.log(`reviewed: ${reviewed[1]}`);
 const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or
 // FLOW_TOWER_HOME. The git-ignored .env of the checkout is the fallback. Real environment variables win.

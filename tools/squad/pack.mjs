@@ -95,8 +95,14 @@ function fileBlocks(list) {
   });
 }
 
+// The commit this task was packed from: the merge gate compares it with the pull request head, so a rerun of an
+// old task after a new commit cannot pass as a fresh review of the new code (its output file is newer, its code is not).
+const reviewedCommit = git('rev-parse', 'HEAD').trim();
+
 const head = [
   `# ${issue} ${role} review`,
+  '',
+  `Reviewed commit: ${reviewedCommit}`,
   '',
   'Rules: read-only review. You have no tools; answer only from what follows. Do not invent files or lines that are not shown.',
   '',

@@ -40,3 +40,14 @@ describe('squad pack answer format', () => {
     expect(format).not.toContain('as shown above');
   });
 });
+
+describe('squad pack reviewed commit', () => {
+  it('names the commit the task was packed from', { timeout: 30_000 }, () => {
+    // The merge gate compares this line with the pull request head, so it must be the exact HEAD sha.
+    const out = pack('reviewer');
+    const m = /^Reviewed commit: ([0-9a-f]{40})$/m.exec(out);
+    expect(m).not.toBeNull();
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim();
+    expect(m?.[1]).toBe(head);
+  });
+});
