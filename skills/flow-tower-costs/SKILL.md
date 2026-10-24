@@ -21,7 +21,7 @@ Pick the cheapest model per role **that still does the job**, measured on the sy
    - **Never batched**: roles that need tools across turns (a coder, an agent that reads files). Keep their cost down with the other levers.
    Rule and field numbers: [reference.md § Levers](reference.md#levers) (Batch, Pace); a working example: the repo's squad (`SQUAD_PACE=now|relaxed|overnight`, [tools/squad § Pace](../../tools/squad/README.md#pace-how-fast-versus-how-cheap)).
 6. **Levers** beyond swapping the model: caching, reasoning effort, step caps, escalation, fewer turns ([reference.md § Levers](reference.md#levers)).
-7. **Decide per role and record it**: model nodes with price + date, the pace each role runs at (batch or sync), `budget`, `evals` with the measured numbers labelled illustrative, an options page with the benchmark table, the changelog. Keep `FLOW_TOWER_*`-style env overrides so users can switch back.
+7. **Decide per role and record it**. Among the models with the same result, take the cheapest per correct answer, then the fastest, from any provider; still name the constraints the benchmark did not measure (a provider-only API the design relies on, a new data processor under GDPR) and let the user decide. Record model nodes with price + date, the pace each role runs at (batch or sync), `budget`, `evals` with the measured numbers labelled illustrative, an options page with the benchmark table, the changelog. Keep `FLOW_TOWER_*`-style env overrides so users can switch back.
 8. **Report**: before/after cost and latency per role, and the pace chosen (what batching saves and what it costs in wait); what was measured vs assumed.
 
 ## Never
