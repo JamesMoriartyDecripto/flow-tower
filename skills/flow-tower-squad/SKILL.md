@@ -66,9 +66,16 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
    SQUAD_PACE=relaxed node tools/squad/run.mjs --model <security> --role security --node specialists.security --task /tmp/<n>-security.md --issue <n> --repo ../wt-<n> > /tmp/<n>-security.out 2>&1 &
    wait
    ```
-   Verify each finding in the code: keep the real ones, say why the others do not apply.
+   Every finding quotes its line. Verify each one in the code: keep the real ones, say why the others do not apply.
 9. **Fix steps** for the kept findings (same format, new folder), then verify again.
-10. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.
+10. **Merge gate**: push, open the pull request, wait for CI, then
+    `node tools/squad/gate.mjs --pr <PR> --review /tmp/<n>-review.out --security /tmp/<n>-security.out --repo ../wt-<n>`.
+    A script, no model: READY only when every CI check passed, the pull request is mergeable and not a draft, both
+    passes approve with no verified critical or high finding, the worktree is at the pull request head and no commit
+    is newer than the two passes (after a fix step, run them again). It lists **unverified findings** (the quote is
+    not at that `file:line`): treat them as possible hallucinations and check them in the code before acting. The
+    gate never merges or approves: on READY, tell the user; the user merges.
+11. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.
 
 ## Pace
 

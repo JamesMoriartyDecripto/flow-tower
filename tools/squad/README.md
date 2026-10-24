@@ -116,6 +116,24 @@ node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --
 Start the review and the security pass together (each in the background, then `wait`): both are read-only and
 independent, so the wait is the slower of the two. Each run writes its own `role-*.log` and its own ledger line.
 
+## The merge gate
+
+```bash
+node tools/squad/gate.mjs --pr 300 --review /tmp/299-review.out --security /tmp/299-security.out --repo ../wt-299
+```
+
+The last check before you merge, and a script, not a model, so it cannot hallucinate. It reads `gh pr checks`,
+`gh pr view` and `git rev-parse HEAD`, parses the two passes' answers and prints `READY` (exit 0) or `NOT READY`
+(exit 1) with one line per reason: a CI check not passed, a draft, a pull request that is not mergeable, a worktree not
+at the pull request head, a missing or `changes` verdict, a pass older than the last commit, a verified critical or high
+finding. It never merges and never approves.
+
+Every finding must quote its line (`pack.mjs` asks for it). The gate looks for the quote within 3 lines of the cited
+`file:line`, ignoring spacing and a copied `+`/`-` diff marker, reading only files inside the repo and never secret
+ones. A finding whose quote is not there is listed as **unverified**: a line the model may have made up. Unverified
+findings do not block, because a wrong quote should not stop a good change, but nobody acts on one before checking it
+in the code.
+
 ## Pace: how fast versus how cheap
 
 The maintainer sets the pace; the lead picks the review mode from it. The coder always runs the tool loop: it reads,
