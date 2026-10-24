@@ -111,3 +111,32 @@ test("the card's content clears the corner marks, open and reduced", async ({ pa
   await toggle.click();
   await expect(card).not.toHaveClass(/reduced/);
 });
+
+/** Horizontal projection offset of the camera (nonzero when the scene is shifted for a panel). */
+const offsetX = (page: Page) => page.evaluate(() => {
+  const w = window as unknown as { __flowTower: { three: { get(): { camera: { view?: { offsetX: number } } } } } };
+  return w.__flowTower.three.get().camera.view?.offsetX ?? 0;
+});
+
+test('reducing the card re-frames the scene', async ({ page }) => {
+  await openTowerInfo(page);
+  let open = 0;
+  await expect.poll(async () => (open = await offsetX(page))).not.toBe(0);
+
+  await page.locator('.towerinfo-toggle').click();
+  await expect.poll(async () => Math.abs(await offsetX(page))).toBeLessThanOrEqual(Math.abs(open) - 50);
+
+  await page.locator('.towerinfo-toggle').click();
+  await expect.poll(async () => Math.abs((await offsetX(page)) - open)).toBeLessThanOrEqual(20);
+});
+
+test('keyboard: Esc on the card\'s toggle returns focus to the scene', async ({ page }) => {
+  await openTowerInfo(page);
+  await page.locator('.towerinfo-toggle').focus();
+  await page.keyboard.press('Escape');
+
+  const inCard = await page.evaluate(() => !!document.activeElement?.closest('.towerinfo'));
+  expect(inCard, 'focus left the tower card').toBe(false);
+  await expect(page.locator('.towerinfo')).toBeVisible();
+  expect((await state(page)).focusedLayer).toBeUndefined();
+});

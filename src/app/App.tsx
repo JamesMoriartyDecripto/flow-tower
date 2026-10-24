@@ -84,7 +84,8 @@ export function App() {
         {/* The Hub panel takes the Inspector's place: the node panel and the layer list would fight it for the right edge. */}
         {!hubOpen && <Inspector />}
         {!hubOpen && <NodeList />}
-        {!hubOpen && <TowerInfo />}
+        {/* Issues takes the same top-right place as the card, so the card waits until Issues is closed. */}
+        {!hubOpen && !(showIssues || broken) && <TowerInfo />}
         <LiveFeed />
         {(showIssues || broken) && <Issues onClose={() => setShowIssues(false)} />}
       </div>
