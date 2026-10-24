@@ -22,6 +22,12 @@ export function parseVerdict(text) {
   return { verdict: raw.verdict, findings: Array.isArray(raw.findings) ? raw.findings : [] };
 }
 
+// Model-derived text is printed into the gate's output, so it must not carry control characters: a newline or an
+// ANSI escape in a file name could otherwise forge a READY line. Every control character becomes one space.
+export function clean(s) {
+  return String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 200);
+}
+
 // Whitespace is collapsed on both sides, so a quote that differs only in spacing still matches the file.
 const norm = (s) => s.trim().replace(/\s+/g, ' ');
 
@@ -75,7 +81,7 @@ export function readiness(facts) {
     if (v.at < facts.lastCommitAt) reasons.push(`${v.role}: older than the last commit, run it again`);
     for (const f of v.findings ?? []) {
       if (f.status === 'verified' && BLOCKING_SEVERITY.includes(f.severity)) {
-        reasons.push(`${v.role}: ${f.severity} finding at ${f.file}`);
+        reasons.push(`${v.role}: ${clean(f.severity)} finding at ${clean(f.file)}`);
       }
     }
   }
@@ -103,14 +109,24 @@ function ciChecks(n, repo) {
 }
 
 // A file is read only when its real path (symlinks followed) stays inside the repo and is not secret (guard.mjs).
-const readInRepo = (repo) => (p) => {
-  try {
-    const abs = resolve(repo, p);
-    const rel = relative(repo, abs);
-    if (!rel || rel.startsWith('..') || SECRET.test(rel)) return null;
-    if (realRelIfAllowed({ repo, abs, secret: SECRET, writable: /^/ }) === null) return null;
-    return readFileSync(abs, 'utf8');
-  } catch { return null; }
+// The file is read at its resolved path, not the path it was named by, so a symlink swapped in after the check
+// cannot redirect the read. Each path is read at most once per run: many findings often cite the same file.
+const readInRepo = (repo) => {
+  const cache = new Map();
+  return (p) => {
+    if (cache.has(p)) return cache.get(p);
+    let text = null;
+    try {
+      const abs = resolve(repo, p);
+      const rel = relative(repo, abs);
+      if (rel && !rel.startsWith('..') && !SECRET.test(rel)) {
+        const real = realRelIfAllowed({ repo, abs, secret: SECRET, writable: /^/ });
+        if (real !== null) text = readFileSync(resolve(realpathSync(repo), real), 'utf8');
+      }
+    } catch { text = null; }
+    cache.set(p, text);
+    return text;
+  };
 };
 
 // Throws when the file holds no usable verdict; the caller turns that into a reason.
@@ -145,7 +161,7 @@ function main() {
   const verdicts = [];
   const errors = [];
   for (const [role, file] of [['reviewer', review], ['security', security]]) {
-    try { verdicts.push(verdictOf(role, file, readFile)); } catch (e) { errors.push(`${role}: ${e.message}`); }
+    try { verdicts.push(verdictOf(role, file, readFile)); } catch (e) { errors.push(`${role}: ${clean(e.message)}`); }
   }
   const result = readiness({
     checks: ciChecks(n, repo),
@@ -159,7 +175,7 @@ function main() {
   for (const r of reasons) lines.push(`- ${r}`);
   const unverified = verdicts.flatMap((v) => v.findings
     .filter((f) => f.status === 'unverified')
-    .map((f) => `- ${v.role} ${f.file}: ${f.reason}`));
+    .map((f) => `- ${v.role} ${clean(f.file)}: ${clean(f.reason)}`));
   if (unverified.length > 0) lines.push('Unverified findings (check them in the code before acting):', ...unverified);
   stdout.write(`${lines.join('\n')}\n`);
   return reasons.length === 0 ? 0 : 1;
