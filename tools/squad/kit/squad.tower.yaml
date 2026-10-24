@@ -32,13 +32,13 @@ agents:
   reviewer:
     runtime: openrouter
     name: Reviewer
-    description: Read-only review of the diff against the issue, from another model family than the coder. Runs at the same time as the security pass.
+    description: Read-only review of the diff against the issue, from another model family than the coder. Runs at the same time as the security pass. Every finding quotes its line, so the merge gate can check it is real.
     model: "{{REVIEWER}}"
     files: [pack.mjs, oneshot.mjs]
   security:
     runtime: openrouter
     name: Security auditor
-    description: Read-only security pass on the same diff, from a third model family. Runs at the same time as the review.
+    description: Read-only security pass on the same diff, from a third model family. Runs at the same time as the review. Every finding quotes its line, so the merge gate can check it is real.
     model: "{{SECURITY}}"
     files: [pack.mjs, oneshot.mjs]
 
@@ -61,7 +61,17 @@ layers:
         type: decision
         runtime: laptop
         label: Verified?
-        description: "The lead runs the tests and the real thing (screenshots for UI) and checks the tower still matches the code, then commits or writes a fix step."
+        description: "The lead runs the tests and the real thing (screenshots for UI) and checks the tower still matches the code, then opens the pull request or writes a fix step."
+      - id: pr
+        type: process
+        runtime: laptop
+        label: Pull request + CI
+        description: "The branch is pushed and the pull request opened; the project's CI runs on it."
+      - id: gate
+        type: guard
+        runtime: laptop
+        label: Merge gate
+        description: "A script, no model, so nothing to hallucinate: READY only when every CI check passed, the pull request is mergeable and not a draft, the review and the security pass both approve, and no commit is newer than them. Each finding must quote its line: a quote not found at that file:line marks the finding unverified. It never merges and never approves: it tells you the pull request is ready."
       - id: merge
         type: human
         label: You merge
@@ -72,8 +82,11 @@ layers:
         description: The merged work.
     edges:
       - issue -> lead
-      - "verify -> merge: green"
+      - "verify -> pr: green"
       - "verify -> lead [return]: fix step"
+      - "pr -> gate: checks"
+      - "gate -> merge: ready"
+      - "gate -> lead [return]: not ready"
       - merge -> main
 
   - id: specialists
@@ -109,3 +122,5 @@ links:
   - "lead.lead -> specialists.coder [spawn]: task file"
   - "specialists.reviewer -> lead.verify [return]: verdict"
   - "specialists.security -> lead.verify [return]: findings"
+  - "specialists.reviewer -> lead.gate [data]: verdict + quoted findings"
+  - "specialists.security -> lead.gate [data]: verdict + quoted findings"
