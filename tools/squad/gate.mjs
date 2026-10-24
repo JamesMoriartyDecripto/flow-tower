@@ -43,7 +43,9 @@ export function checkFinding(finding, readFile) {
   const from = Math.max(1, line - WINDOW);
   const to = Math.min(lines.length, line + WINDOW);
   const around = norm(lines.slice(from - 1, to).join(' '));
-  if (!around.includes(quote)) return fail('quote not at that line');
+  // Models often copy the diff marker of a + or - line, so one leading marker may be dropped before the check.
+  const bare = /^[+-]/.test(quote) ? norm(quote.slice(1)) : '';
+  if (!around.includes(quote) && !(bare && around.includes(bare))) return fail('quote not at that line');
   return { ...finding, status: 'verified' };
 }
 

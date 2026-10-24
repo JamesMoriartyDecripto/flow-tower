@@ -30,4 +30,13 @@ describe('squad pack answer format', () => {
     const out = pack('security');
     expect(out).toContain('"severity":"critical|high|medium|low", "file":"path:line","quote":"..."');
   });
+
+  it('points the quote at the diff or the files below, not above the answer format', { timeout: 30_000 }, () => {
+    // Only the answer-format section is checked: the diff below may quote the old wording of this very rule.
+    const out = pack('reviewer');
+    const format = out.slice(out.indexOf('## Answer format'), out.indexOf('## Diff'));
+    expect(format).toContain('as shown in the diff or the files below');
+    expect(format).toContain('without the leading + or - of a diff line');
+    expect(format).not.toContain('as shown above');
+  });
 });

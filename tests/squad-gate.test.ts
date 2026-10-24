@@ -61,6 +61,18 @@ describe('checkFinding', () => {
     expect(checkFinding({ file: 'src/a.ts:3', quote: 'const   x = 1;' }, readA).status).toBe('verified');
   });
 
+  it('verifies a quote that keeps the diff + marker of its line', () => {
+    expect(checkFinding({ file: 'src/a.ts:3', quote: '+const x = 1;' }, readA).status).toBe('verified');
+  });
+
+  it('verifies a quote that keeps the diff - marker of its line', () => {
+    expect(checkFinding({ file: 'src/a.ts:3', quote: '-  const x = 1;' }, readA).status).toBe('verified');
+  });
+
+  it('rejects a + quote whose text is not on the line', () => {
+    expect(checkFinding({ file: 'src/a.ts:3', quote: '+nothing here' }, readA).reason).toBe('quote not at that line');
+  });
+
   it('reports a missing quote', () => {
     expect(checkFinding({ file: 'src/a.ts:3' }, readA).reason).toBe('no quote');
   });

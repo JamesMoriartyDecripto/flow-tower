@@ -63,7 +63,7 @@ const FORMAT = [
   '{"verdict":"approve"|"changes","findings":[{'
     + (role === 'security' ? '"severity":"critical|high|medium|low", ' : '')
     + '"file":"path:line","quote":"...","what":"...","why":"...","fix":"..."}]}',
-  'quote is the exact text of that line as shown above (without the line number), copied character by character. A finding whose quote is not at that line is dropped as unverified, so never paraphrase it and never cite a line you were not shown.',
+  'quote is the exact text of that line as shown in the diff or the files below, copied character by character, without the line number and without the leading + or - of a diff line. A finding whose quote is not at that line is dropped as unverified, so never paraphrase it and never cite a line you were not shown.',
 ];
 
 const git = (...a) => execFileSync('git', a, { cwd: REPO, encoding: 'utf8', maxBuffer: 50e6 });
