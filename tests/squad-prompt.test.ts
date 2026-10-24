@@ -43,3 +43,13 @@ describe('loop system prompt', () => {
     expect(text).not.toContain('files under ~400 lines. Never touch secret files.');
   });
 });
+
+describe('reviewed line header', () => {
+  it('always prints the reviewed line, with none when the task has no commit', () => {
+    const text = readFileSync(RUN, 'utf8');
+    const line = text.split('\n').find((l) => l.includes('console.log(`reviewed: '));
+    expect(line).toBeDefined();
+    expect(line).toContain(`?? 'none'`);
+    expect(text).not.toContain('if (reviewed) console.log(`');
+  });
+});

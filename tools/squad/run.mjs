@@ -61,8 +61,10 @@ console.log(`mode: ${mode}${fromPace ? ` (SQUAD_PACE=${PACE})` : ''}`);
 // A packed review names the commit it was made from; the merge gate reads it from this output, not from the file's mtime.
 // Only the third line counts: pack.mjs writes it there, and a quoted diff or issue body could carry the same text
 // further down, which must not supply a commit.
+// Line 2 is always the runner's, even when the task has no commit (then "none"). Otherwise the model's answer would
+// start on line 2, where the gate reads the commit, and the model could print a forged "reviewed:" line there.
 const reviewed = /^Reviewed commit: ([0-9a-f]{40})$/.exec(task.split('\n')[2] ?? '');
-if (reviewed) console.log(`reviewed: ${reviewed[1]}`);
+console.log(`reviewed: ${reviewed?.[1] ?? 'none'}`);
 const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or
 // FLOW_TOWER_HOME. The git-ignored .env of the checkout is the fallback. Real environment variables win.
