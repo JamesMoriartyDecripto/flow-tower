@@ -24,6 +24,9 @@ export const DEFAULTS = {
 // The two tools that exist only in Flow Tower's own CLI; a project opts in by listing them under extras.
 const EXTRAS = ['validate', 'dryrun'];
 
+// The style sentence is shared on purpose: the loop's system prompt and the one-request prompts must say the same thing.
+export const STYLE_RULES = 'English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines; prefer the efficient approach when it adds no complexity: batch work instead of handling items one by one, do not repeat work, run independent I/O concurrently (e.g. Promise.all); no premature optimization. Never touch secret files.';
+
 export function configPath(repo) {
   return join(repo, 'tools', 'squad', 'squad.json');
 }

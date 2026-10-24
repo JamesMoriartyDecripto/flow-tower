@@ -29,7 +29,7 @@ it from what the project's files say. A missing file gives the defaults.
 | `write` | folders the coder may write | `src, tests` |
 | `review` | folders the review diff covers | `src` |
 | `base` | the branch diffs are taken against | `origin/main` |
-| `rules` | extra lines every model sees | none |
+| `rules` | extra lines every model sees, after the shared style line (`STYLE_RULES` in `config.mjs`: language, comments, file size, efficiency without added complexity) | none |
 | `extras` | flow-tower-only tools (`validate`, `dryrun`) | none |
 | `models` | `coder`, `reviewer`, `security` | the table below |
 | `tower`, `source`, `cli` | the tower name the live events go to, their source, the flow-tower CLI path | `Dev Squad`, `dev-squad`; the CLI from `FLOW_TOWER_CLI`, then `tools/squad/.cli` (written by init, git-ignored), then PATH |
@@ -112,6 +112,9 @@ every call.
 node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node specialists.security \
   --task tasks/113-security.md --steps 10 --repo ../wt-113
 ```
+
+Start the review and the security pass together (each in the background, then `wait`): both are read-only and
+independent, so the wait is the slower of the two. Each run writes its own `role-*.log` and its own ledger line.
 
 ## Pace: how fast versus how cheap
 

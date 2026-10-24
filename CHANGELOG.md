@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Tower card in the tower view (#295). At Tower overview (no layer focused, no node selected) the right panel shows the tower's card, which until now only the library showed: description, tags, layers, nodes, agents, sub-towers, models, runtimes, errors and warnings, live usage. It uses the same facts as the library card. Inside a sub-tower it shows that sub-tower. `–` reduces it to its title bar and `+` brings it back; the choice is remembered. The scene is framed beside the open card, and the live feed sits next to it.
 
 ### Changed
+- Dev squad (#299): every squad prompt (tool loop and one-request) shares one style line (`STYLE_RULES` in `tools/squad/config.mjs`), which now asks for the efficient approach when it adds no complexity (batches, no repeated work, independent I/O run concurrently, no premature optimization). The `flow-tower-squad` lead starts the review and the security pass together and waits for both. This repo's `squad.json` gives every model the batched-rendering rule. The kit's squad tower shows both.
 - Command-center kit: README § 7 Update covers pulling, `npm ci` only when the lock changed, then recreating Vite's cache folders. Without them the unit fails before it starts (`status=226/NAMESPACE`). It also covers restarting only for server changes and checking `/api/version`. A note covers Tailscale Serve when a web server already holds port 443. The tower's service node says the same.
 
 ## [0.13.0] - 2026-10-23

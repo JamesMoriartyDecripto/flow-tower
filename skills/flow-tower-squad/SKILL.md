@@ -57,13 +57,16 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
    check, a `Files:` entry not touched). Read the known gaps it prints before the next step.
 7. **Verify yourself**: run the tests, run the real thing; for UI, look at it (screenshots). Green is not done.
    Check the tower still matches what landed (its files exist, its descriptions are true) and validate it again.
-8. **Review and security**, one request each with the code packed:
+8. **Review and security**, one request each with the code packed, **started together**: they are independent and
+   read-only, so you wait for the slower one, not for both in a row. Each run has its own log and ledger line.
    ```bash
    node tools/squad/pack.mjs --role reviewer --issue <n> --repo ../wt-<n> --files <changed files> > /tmp/<n>-review.md
-   SQUAD_PACE=relaxed node tools/squad/run.mjs --model <reviewer> --role reviewer --node specialists.reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n>
+   node tools/squad/pack.mjs --role security --issue <n> --repo ../wt-<n> --files <changed files>,<guards it relies on> > /tmp/<n>-security.md
+   SQUAD_PACE=relaxed node tools/squad/run.mjs --model <reviewer> --role reviewer --node specialists.reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n> > /tmp/<n>-review.out 2>&1 &
+   SQUAD_PACE=relaxed node tools/squad/run.mjs --model <security> --role security --node specialists.security --task /tmp/<n>-security.md --issue <n> --repo ../wt-<n> > /tmp/<n>-security.out 2>&1 &
+   wait
    ```
-   Same with `--role security --node specialists.security` and the security model; add the guards the change relies on to `--files`. Verify
-   each finding in the code: keep the real ones, say why the others do not apply.
+   Verify each finding in the code: keep the real ones, say why the others do not apply.
 9. **Fix steps** for the kept findings (same format, new folder), then verify again.
 10. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.
 

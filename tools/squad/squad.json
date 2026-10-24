@@ -8,7 +8,8 @@
   "write": ["src", "tests", "e2e"],
   "review": ["src", "bin", "tools"],
   "rules": [
-    "Code passed to Playwright's page.evaluate runs as plain JavaScript in the browser, so keep TypeScript syntax out of it."
+    "Code passed to Playwright's page.evaluate runs as plain JavaScript in the browser, so keep TypeScript syntax out of it.",
+    "Rendering is batched per layer (instanced meshes, LineSegments2, troika BatchedText): never add a mesh or a <Text> per node; one per node dropped 55 nodes to 14 FPS."
   ],
   "extras": ["validate", "dryrun"],
   "cli": "bin/flow-tower.js"
