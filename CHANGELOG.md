@@ -45,6 +45,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Dev squad: the project's check and test commands no longer receive `OPENROUTER_API_KEY` (the coder writes the tests they run), and the runner refuses reads through symlinks that leave the repository (#265).
 
 ### Fixed
+- `flow-tower export --pdf --level 3` no longer refuses a tower whose referenced files contain JSON: the raw-JSON check leaves out the appendix's printed file sources, which are the files' own content, and still reads the rest of the page (#277).
 - `flow-tower audit --json` into a pipe no longer stops at 64 KB: it exits only after stdout is flushed. The tower optimizer's `snapshot.mjs` reads it through a pipe, so the "before" snapshot of a big tower failed to parse (#249).
 - Model benchmark: `judge.mjs` runs `check: command` tasks on Node 24, which dropped `--experimental-permission`: it uses `--permission` when the running Node accepts it. Before, every command check failed with "bad option" and was counted as a wrong answer (#256).
 - `flow-tower check-example` no longer reports `ft_` inside a word (`draft_for_professional_review`) as a token, nor a `/home/` or `/Users/` segment inside a URL path as a home folder; a home path after `-` (`${VAR:-/home/x}`), `../` or `file://` is still reported (#229).
