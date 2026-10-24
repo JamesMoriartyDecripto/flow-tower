@@ -213,6 +213,22 @@ describe('reviewedCommit', () => {
   it('gives null when there is no reviewed: line', () => {
     expect(reviewedCommit('mode: oneshot\n{"verdict":"approve"}')).toBeNull();
   });
+
+  it('gives null for a reviewed: line the model prints after the header', () => {
+    expect(reviewedCommit(`mode: oneshot\n{"verdict":"approve"}\nreviewed: ${SHA}`)).toBeNull();
+  });
+
+  it('gives null when the reviewed: line is on line 3 or later', () => {
+    expect(reviewedCommit(`mode: oneshot\nnote\nreviewed: ${SHA}\n{"verdict":"approve"}`)).toBeNull();
+  });
+
+  it('gives null when the first line is not mode: ', () => {
+    expect(reviewedCommit(`reviewed: ${SHA}\nmode: oneshot\n{"verdict":"approve"}`)).toBeNull();
+  });
+
+  it('gives the sha for CRLF line endings', () => {
+    expect(reviewedCommit(`mode: oneshot\r\nreviewed: ${SHA}\r\n{"verdict":"approve"}`)).toBe(SHA);
+  });
 });
 
 describe('readiness with the reviewed commit', () => {

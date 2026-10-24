@@ -28,10 +28,14 @@ export function clean(s) {
   return String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 200);
 }
 
-// The sha of the pull request head the run reviewed, written by pack.mjs as a "reviewed:" line. A run without that
-// line (a tool-loop review) gives null, and the gate falls back to the time rule for it.
+// The sha of the pull request head the run reviewed. run.mjs prints its header first: line 1 "mode: ", then line 2
+// "reviewed: <sha>" when the task was packed. Only that header counts. The model's answer follows it, so a "reviewed:"
+// line the model prints there must not be trusted, and the sha is read from line 2 only. A run without that header
+// (a tool-loop review) gives null, and the gate falls back to the time rule for it.
 export function reviewedCommit(text) {
-  const m = String(text ?? '').match(/^reviewed: ([0-9a-f]{40})$/m);
+  const lines = String(text ?? '').split('\n').map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l));
+  if (!lines[0]?.startsWith('mode: ')) return null;
+  const m = lines[1]?.match(/^reviewed: ([0-9a-f]{40})$/);
   return m ? m[1] : null;
 }
 
