@@ -1,0 +1,15 @@
+{
+  "name": "tutorial-studio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dry": "node scripts/run.mjs flow-tower --dry",
+    "pilot": "node scripts/run.mjs flow-tower --pilot",
+    "render": "node scripts/run.mjs flow-tower",
+    "sheet": "node scripts/sheet.mjs"
+  },
+  "devDependencies": {
+    "@argo-video/cli": "0.41.0",
+    "@playwright/test": "1.64.0"
+  }
+}
