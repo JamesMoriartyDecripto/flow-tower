@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { silence, wavFromPcm } from '../examples/tutorial-studio/tts/wav.mjs';
+import { silence, wavFromFloat } from '../examples/tutorial-studio/tts/wav.mjs';
 import { estimateSeconds, silent } from '../examples/tutorial-studio/tts/silent.mjs';
 import {
   SPEECH_URL,
@@ -13,22 +13,33 @@ import {
 
 const LONG_TEXT = Array.from({ length: 25 }, (_, i) => `word${i}`).join(' ');
 
-describe('wavFromPcm', () => {
-  it('writes a canonical 44-byte header before the samples', () => {
-    const wav = wavFromPcm(Buffer.alloc(8));
+describe('wavFromFloat', () => {
+  it('writes a canonical 44-byte float header before the samples', () => {
+    const wav = wavFromFloat(Buffer.alloc(8));
     expect(wav.length).toBe(52);
     expect(wav.toString('ascii', 0, 4)).toBe('RIFF');
     expect(wav.readUInt32LE(4)).toBe(36 + 8);
     expect(wav.toString('ascii', 8, 12)).toBe('WAVE');
+    expect(wav.readUInt16LE(20)).toBe(3);
     expect(wav.readUInt32LE(24)).toBe(24000);
+    expect(wav.readUInt32LE(28)).toBe(96000);
+    expect(wav.readUInt16LE(32)).toBe(4);
+    expect(wav.readUInt16LE(34)).toBe(32);
     expect(wav.toString('ascii', 36, 40)).toBe('data');
     expect(wav.readUInt32LE(40)).toBe(8);
+  });
+
+  it('keeps float samples readable by Argo', () => {
+    const samples = Buffer.from(Float32Array.of(0.5, -0.25).buffer);
+    const wav = wavFromFloat(samples);
+    expect(wav.readFloatLE(44)).toBe(0.5);
+    expect(wav.readFloatLE(48)).toBe(-0.25);
   });
 });
 
 describe('silence', () => {
-  it('holds one second of 16-bit mono samples at 24 kHz', () => {
-    expect(silence(1).length).toBe(44 + 48000);
+  it('holds one second of 32-bit mono samples at 24 kHz', () => {
+    expect(silence(1).length).toBe(44 + 96000);
   });
 });
 
@@ -53,7 +64,7 @@ describe('silent engine', () => {
 
   it('generates a clip of 10 seconds for 25 words', async () => {
     const wav = await silent.generate(LONG_TEXT);
-    expect(wav.readUInt32LE(40)).toBe(10 * 48000);
+    expect(wav.readUInt32LE(40)).toBe(10 * 96000);
   });
 });
 
@@ -97,10 +108,10 @@ describe('openrouter speech engine', () => {
     });
   });
 
-  it('posts the request and returns a WAV built from the PCM', async () => {
+  it('posts the request and returns a WAV built from the float samples', async () => {
     const fetchImpl = vi.fn(async () => new Response(new Uint8Array([1, 2])));
-    const toPcm = vi.fn(async () => Buffer.alloc(4));
-    const engine = openrouter({ model: 'm', voice: 'v', key: 'sk-test', fetchImpl, toPcm });
+    const toFloat = vi.fn(async () => Buffer.alloc(4));
+    const engine = openrouter({ model: 'm', voice: 'v', key: 'sk-test', fetchImpl, toFloat });
 
     const wav = await engine.generate('hello');
 

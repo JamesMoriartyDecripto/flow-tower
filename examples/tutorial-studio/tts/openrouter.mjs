@@ -1,12 +1,12 @@
 // OpenRouter speech engine: one POST per scene, MP3 back, converted to the 24 kHz
-// mono PCM that wav.mjs wraps. MP3 is requested because the PCM sample rate is not
+// mono float samples that wav.mjs wraps. MP3 is requested because the PCM sample rate is not
 // documented for every provider, so ffmpeg fixes the rate on our side.
 
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { RATE, wavFromPcm } from './wav.mjs';
+import { RATE, wavFromFloat } from './wav.mjs';
 
 export const SPEECH_URL = 'https://openrouter.ai/api/v1/audio/speech';
 
@@ -47,12 +47,12 @@ export function speechRequest({ model, voice, text }) {
   return { model, voice, input: text, response_format: 'mp3' };
 }
 
-/** Converts an MP3 buffer to 16-bit signed little-endian mono PCM at RATE. */
-export function mp3ToPcm(mp3) {
+/** Converts an MP3 buffer to 32-bit float little-endian mono samples at RATE. */
+export function mp3ToFloat(mp3) {
   return new Promise((resolve, reject) => {
     const ff = spawn('ffmpeg', [
       '-hide_banner', '-loglevel', 'error',
-      '-i', 'pipe:0', '-f', 's16le', '-ac', '1', '-ar', String(RATE), 'pipe:1',
+      '-i', 'pipe:0', '-f', 'f32le', '-ac', '1', '-ar', String(RATE), 'pipe:1',
     ]);
     const out = [];
     let err = '';
@@ -72,7 +72,7 @@ export function mp3ToPcm(mp3) {
  * The engine always uses its own voice: Argo passes its default voice name in the
  * options otherwise, which OpenRouter does not know for this model.
  */
-export function openrouter({ model, voice, key, fetchImpl = fetch, toPcm = mp3ToPcm }) {
+export function openrouter({ model, voice, key, fetchImpl = fetch, toFloat = mp3ToFloat }) {
   return {
     describe() {
       return { engine: 'openrouter', model, voice };
@@ -95,7 +95,7 @@ export function openrouter({ model, voice, key, fetchImpl = fetch, toPcm = mp3To
         const body = (await res.text()).slice(0, ERROR_BODY_CHARS);
         throw new Error(`speech request failed (${res.status}): ${body}`);
       }
-      return wavFromPcm(await toPcm(Buffer.from(await res.arrayBuffer())));
+      return wavFromFloat(await toFloat(Buffer.from(await res.arrayBuffer())));
     },
   };
 }

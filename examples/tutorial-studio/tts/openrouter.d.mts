@@ -14,7 +14,7 @@ export declare function readKey(options?: {
 
 export declare function speechRequest(options: { model: string; voice: string; text: string }): SpeechRequest;
 
-export declare function mp3ToPcm(mp3: Buffer): Promise<Buffer>;
+export declare function mp3ToFloat(mp3: Buffer): Promise<Buffer>;
 
 export interface OpenRouterEngine {
   describe(): { engine: 'openrouter'; model: string; voice: string };
@@ -26,5 +26,5 @@ export declare function openrouter(options: {
   voice: string;
   key?: string;
   fetchImpl?: typeof fetch;
-  toPcm?: (mp3: Buffer) => Promise<Buffer>;
+  toFloat?: (mp3: Buffer) => Promise<Buffer>;
 }): OpenRouterEngine;
