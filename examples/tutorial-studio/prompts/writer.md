@@ -39,7 +39,8 @@ Action rules:
 
 Run the scene check after writing (in the sample: `argo validate <demo>`): every scene in the manifest has a mark in
 the actions, and every mark has a scene. Fix and run it again, at most three times; if it still fails, stop and report
-the mismatch instead of guessing.
+the mismatch instead of guessing. The silent dry run that follows (every action against the scratch instance, silent
+clips of estimated length) gets the same three attempts.
 
 ## Finish
 

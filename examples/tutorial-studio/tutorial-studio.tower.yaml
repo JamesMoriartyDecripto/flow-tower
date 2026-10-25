@@ -106,12 +106,20 @@ layers:
         description: "Every scene of the manifest has a mark in the actions and the other way round. No voice, no recording. In the sample: argo validate."
         runtime: laptop
         status: planned
+      - id: dryrun
+        type: process
+        label: Silent dry run
+        description: "Every action runs against a scratch instance with silent clips of estimated length (about 150 words a minute): a broken selector or a key that does nothing shows up in any chapter before voice and review."
+        runtime: laptop
+        status: planned
     edges:
       - outline -> approve
       - "approve -> outline [return]: changes, max 2"
       - "approve -> write: approved"
       - write -> check
       - "check -> write [return]: mismatch, max 3"
+      - check -> dryrun
+      - "dryrun -> write [return]: action failed, max 3"
 
   # 3 ───────────────────────────────────────────────────────────────
   - id: voice
@@ -134,13 +142,13 @@ layers:
       - id: pilot
         type: process
         label: Pilot render
-        description: "The first chapter only (about 60 s), recorded and exported like the full video."
+        description: "The first chapter only (about 60 s), recorded and exported like the full video, once per candidate voice: the brief's choice and the two alternatives it names."
         runtime: laptop
         status: planned
       - id: listen
         type: human
         label: Voice sign-off
-        description: "Voice, pace and pronunciation of names, on the pilot. A wrong name is fixed in the text, spelled for the voice. Three rounds; then the brief picks another voice."
+        description: "Picks the voice by ear among the pilot renders, then checks pace and pronunciation of names. A wrong name is fixed in the text, spelled for the voice. Three rounds; then the brief picks another voice."
         approval: { by: maintainer, actions: [approve, edit, reject], rounds: 3 }
     edges:
       - tts -> clips
@@ -278,7 +286,7 @@ layers:
       - id: speech
         type: tool
         label: OpenRouter speech
-        description: "POST /audio/speech with model, voice and text; returns audio. ElevenLabs Flash v2.5 costs $20 per million characters (2026-10-10)."
+        description: "POST /audio/speech with model, voice and text; returns audio. ElevenLabs Flash v2.5 costs $40 per million characters on OpenRouter (2026-10-25)."
         runtime: openrouter
         credentials: service
         resources:
@@ -289,7 +297,7 @@ links:
   - "brief.brief -> script.outline [data]: audience, sources"
   - "brief.sources -> script.write [data]: every claim"
   - "script.approve -> brief.signoff [return]: after 2 rounds"
-  - script.check -> voice.tts
+  - script.dryrun -> voice.tts
   - "voice.listen -> script.write [return]: pace, names; max 3"
   - "voice.listen -> brief.signoff [return]: after 3 rounds"
   - "voice.listen -> record.app: approved"

@@ -17,8 +17,8 @@ node bin/flow-tower.js examples/tutorial-studio
 | Layer | What happens there |
 |---|---|
 | 1 · Brief | Audience, goal, length, voice, the sources of truth, what must never appear on screen, the rounds of every sign-off ([brief.md](brief.md)); signed off by the maintainer, or no video |
-| 2 · Outline and script | The coding agent drafts the outline ([outline.md](outline.md)) with the [writer prompt](prompts/writer.md); after sign-off (two rounds, then back to the brief), the narration per scene and the browser actions; a scene check (in the sample `argo validate`) proves every scene has its mark, at most three fixes |
-| 3 · Voice | One clip per scene through OpenRouter's speech endpoint, cached by content; a 60 s pilot for voice, pace and names (three rounds, then another voice) |
+| 2 · Outline and script | The coding agent drafts the outline ([outline.md](outline.md)) with the [writer prompt](prompts/writer.md); after sign-off (two rounds, then back to the brief), the narration per scene and the browser actions; a scene check (in the sample `argo validate`) proves every scene has its mark, then a silent dry run runs every action before any voice is paid; at most three fixes each |
+| 3 · Voice | One clip per scene through OpenRouter's speech endpoint, cached by content; a 60 s pilot rendered with the brief's voice and two alternatives, picked by ear, then pace and names (three rounds, then another voice) |
 | 4 · Recording | A scratch instance of the app (own port, empty user folder), a clean-screen check, then the actions in a headed Chrome with the GPU, waiting at each mark for its clip; a failed action, speech request or encode stops the run at its scene |
 | 5 · Assembly | Clips aligned to the marks, narration normalised to EBU R128, MP4 with SRT/VTT captions and chapters |
 | 6 · Review and publish | A contact sheet with one frame per scene, the [review checklist](review.md), then publish, fix the script or re-record (three rounds, then back to the outline); a release that changes the UI makes the video stale |
@@ -40,9 +40,12 @@ node bin/flow-tower.js examples/tutorial-studio
 - Argo, `@argo-video/cli` 0.41 (MIT): [github.com/shreyaskarnik/argo](https://github.com/shreyaskarnik/argo), checked 2026-10-25.
 - Playwright screencast API (1.59+, `fps` since 1.64): [playwright.dev/docs/api/class-screencast](https://playwright.dev/docs/api/class-screencast).
 - OpenRouter text to speech: [openrouter.ai/docs/api-reference/audio/create-speech](https://openrouter.ai/docs/api-reference/audio/create-speech).
-- ElevenLabs Flash v2.5 on OpenRouter at $20 per million characters, as recorded in [voice-commands/options/tts.md](../voice-commands/options/tts.md) (2026-10-10).
+- Speech prices as listed by OpenRouter on 2026-10-25 (`skills/flow-tower-costs/models.mjs --role voice-tts`): ElevenLabs Flash v2.5
+  $40, Eleven v4 $80, MAI-Voice-2.1 $22 per million characters. Flash v2.5 was chosen for live replies in
+  [voice-commands/options/tts.md](../voice-commands/options/tts.md); a narration is offline, so the pilot compares it with the other two.
 - ffmpeg `loudnorm` (EBU R128): [ffmpeg.org/ffmpeg-filters.html#loudnorm](https://ffmpeg.org/ffmpeg-filters.html#loudnorm).
 - Alternatives weighed: [playwright-recast](https://github.com/ThePatriczek/playwright-recast) (MIT, post-produces
   Playwright traces with an SRT) and [tutorial-forge](https://github.com/jbrecht/tutorial-forge) (PolyForm license, not open source).
 
-The $2 run budget, the 8-minute length target and the 100 % sync target in the tower are illustrative.
+The $2 run budget in the tower is illustrative. The length target (the 9-minute cap) and the sync target (every scene)
+come from the brief and the review checklist.
