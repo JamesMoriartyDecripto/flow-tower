@@ -35,6 +35,12 @@ Action rules:
 - Move the cursor to what the narration names, even when a key does the work, so the eye knows where to look.
 - Nothing personal on screen: a scratch instance with an empty user folder, sample data only.
 
+## Scene check
+
+Run the scene check after writing (in the sample: `argo validate <demo>`): every scene in the manifest has a mark in
+the actions, and every mark has a scene. Fix and run it again, at most three times; if it still fails, stop and report
+the mismatch instead of guessing.
+
 ## Finish
 
 List each scene with its source, the estimated length per chapter, and anything you could not verify.

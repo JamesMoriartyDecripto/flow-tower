@@ -1,7 +1,8 @@
 # Review checklist
 
 The reviewer watches the full video once, then goes through the contact sheet (one frame per scene). Each line is
-pass or fail; a fail names the scene and goes back to the script or to the recording.
+pass or fail; a fail names the scene and goes back to the script (a wrong claim, bad sync) or to the recording (a
+frame problem, a flaky render). At most three rounds; then back to the outline ([brief.md](brief.md), sign-offs).
 
 ## Accuracy
 
@@ -18,7 +19,7 @@ pass or fail; a fail names the scene and goes back to the script or to the recor
 ## Screen
 
 - [ ] No personal path, user name, token, machine name or private project anywhere, in any frame.
-- [ ] Text is readable at 1080p; overlays do not hide what the narration points at.
+- [ ] Text is readable at the recorded size; overlays do not hide what the narration points at.
 - [ ] The 3D view renders smoothly (GPU), with no loading spinner left on screen.
 
 ## Audio and captions
