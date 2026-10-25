@@ -19,7 +19,7 @@ node bin/flow-tower.js examples/tutorial-studio
 | 1 · Brief | Audience, goal, length, voice, the sources of truth, what must never appear on screen, the rounds of every sign-off ([brief.md](brief.md)); signed off by the maintainer, or no video |
 | 2 · Outline and script | The coding agent drafts the outline ([outline.md](outline.md)) with the [writer prompt](prompts/writer.md); after sign-off (two rounds, then back to the brief), the narration per scene and the browser actions; a scene check (in the sample `argo validate`) proves every scene has its mark, then a silent dry run runs every action before any voice is paid; at most three fixes each |
 | 3 · Voice | One clip per scene through OpenRouter's speech endpoint, cached by content; a 60 s pilot rendered with the brief's voice and two alternatives, picked by ear, then pace and names (three rounds, then another voice) |
-| 4 · Recording | A scratch instance of the app (own port, empty user folder), a clean-screen check, then the actions in a headed Chrome with the GPU, waiting at each mark for its clip; a failed action, speech request or encode stops the run at its scene |
+| 4 · Recording | A scratch instance of the app (own port, empty user folder), a clean-screen check, then the actions in a headless Chrome on the GPU, waiting at each mark for its clip; a failed action, speech request or encode stops the run at its scene |
 | 5 · Assembly | Clips aligned to the marks, narration normalised to EBU R128, MP4 with SRT/VTT captions and chapters |
 | 6 · Review and publish | A contact sheet with one frame per scene, the [review checklist](review.md), then publish, fix the script or re-record (three rounds, then back to the outline); a release that changes the UI makes the video stale |
 | 7 · Tools | Argo, Playwright, ffmpeg, OpenRouter speech: the sample's tools, behind steps that do not depend on them |
@@ -30,9 +30,11 @@ node bin/flow-tower.js examples/tutorial-studio
   narration stay in sync without hand editing.
 - **Argo instead of a custom recorder.** It already does the scenes manifest, the scene marks, the alignment, the
   export with captions and a human-like cursor; the method adds a brief, a review and one TTS engine.
-- **Headed Chrome.** Headless Chrome renders WebGL in software, too slow for a 3D app; a headed window uses the GPU.
-  Its viewport must fit the screen with Chrome's own bars: on a 1080p laptop 1600x900 got 771 pixels of height and an
-  odd frame height the encoder refused, so the sample records at 1280x720, a size the app's layout tests cover.
+- **Headless Chrome on the GPU.** Headless Chrome renders WebGL in software unless told otherwise, too slow for a 3D
+  app. A headed window uses the GPU but is capped and rescaled by the screen: on a 1080p laptop with 1.3x scaling the
+  frames came out 1280x617 with a black band, and the encoder refused the odd height. So the sample runs headless
+  with the GPU flags flow-tower's own tests use (`GPU_ARGS` in `src/cli/browser.ts`), passed through Argo's
+  `contextOptions`, and records at 1920x1080 whatever the screen.
 - **A scratch instance.** An empty user folder and sample data keep personal paths, tokens and private projects out
   of every frame.
 
