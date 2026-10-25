@@ -47,5 +47,4 @@ node bin/flow-tower.js examples/tutorial-studio
 - Alternatives weighed: [playwright-recast](https://github.com/ThePatriczek/playwright-recast) (MIT, post-produces
   Playwright traces with an SRT) and [tutorial-forge](https://github.com/jbrecht/tutorial-forge) (PolyForm license, not open source).
 
-The $2 run budget in the tower is illustrative. The length target (the 9-minute cap) and the sync target (every scene)
-come from the brief and the review checklist.
+The $2 run budget in the tower is illustrative. The sync target (every scene) comes from the review checklist.

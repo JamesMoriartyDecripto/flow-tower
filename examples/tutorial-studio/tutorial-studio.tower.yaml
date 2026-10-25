@@ -217,7 +217,6 @@ layers:
         description: "MP4, captions and a scene report with the start and length of every scene. Kept out of the repository."
         evals:
           - { name: scenes in sync, target: 100, unit: "%", description: "Every scene passes the sync lines of review.md." }
-          - { name: length, target: 9, unit: min, higher_is_better: false, description: "The cap in the brief." }
     edges:
       - align -> export
       - export -> video

@@ -13,7 +13,7 @@ narration and the on-screen actions. You work inside the product's repository an
 
 - Chapters in the order a viewer needs them: why, how it works, when to use it, how to start.
 - One row per scene: id, what is on screen, the gist of the narration, the source (file and section).
-- A time budget per chapter at about 150 words a minute; the sum stays under the brief's cap.
+- A time estimate per chapter at about 150 words a minute; no padding to reach a length.
 
 ## Script (after the outline is approved)
 

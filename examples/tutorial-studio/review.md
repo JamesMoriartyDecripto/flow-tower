@@ -30,4 +30,4 @@ frame problem, a flaky render). At most three rounds; then back to the outline (
 
 ## Length
 
-- [ ] Total length within the brief's target, under its cap.
+- [ ] No scene longer than its point needs, nothing padded; under the brief's cap when it sets one.

@@ -1,0 +1,70 @@
+[
+  {
+    "scene": "why-problem",
+    "text": "An agent system is more than one prompt. It has an orchestrator, subagents, tools, hooks, memory, and the models behind them, spread across many files. Reading the code, nobody sees the whole system at once."
+  },
+  {
+    "scene": "why-tower",
+    "text": "Flow Tower draws that system as a tower you can walk through. This is the dev squad example: eight layers, from intake and orchestration down to tools, guardrails, memory and models. Every piece on screen opens the file behind it."
+  },
+  {
+    "scene": "how-layers",
+    "text": "Each layer is one stage of a run, or one concern that many stages share, like tools or memory. Stages go from top to bottom, in the order a run reaches them. Page Down walks through them."
+  },
+  {
+    "scene": "how-nodes",
+    "text": "Inside a layer, the flow reads from left to right. Each node is one thing that does one step: an agent, a tool, a model, a decision, a human approval, a guard, a hook, or a memory store."
+  },
+  {
+    "scene": "how-edges",
+    "text": "Select a node, and its paths light up. Edges say what passes between two steps, and how: a flow, a call that waits for an answer, a spawned subagent, a handoff, a result coming back, or data being read and written. Links do the same across layers."
+  },
+  {
+    "scene": "how-files",
+    "text": "The panel shows what the node is: its model, its prompt, its tools and its limits. And every node points at real files. Open one, and you read the prompt or the code that the step runs."
+  },
+  {
+    "scene": "how-subtower",
+    "text": "When one node has a whole flow of its own, like the coder, which gathers context, edits and runs the tests, it opens a nested tower. Press Enter to go inside, and Escape to come back."
+  },
+  {
+    "scene": "how-yaml",
+    "text": "All of this is one YAML file: layers, nodes, edges and links, in plain text that you read, diff and review like code. The open tower reloads the moment you save it."
+  },
+  {
+    "scene": "when-design",
+    "text": "So, when is a tower worth it? First, to design a system before you build it. Press M for the map view: every layer side by side, the whole plan on one screen, for the people who will review it."
+  },
+  {
+    "scene": "when-review",
+    "text": "Second, to review it. The audit command checks a tower against best practices: a loop without a cap, an irreversible action without a human gate, a decision with no way out, a model that is not pinned."
+  },
+  {
+    "scene": "when-live",
+    "text": "Third, to watch it run. Point your agent's hooks at Flow Tower, and each node lights up while it works. Here, the simulator plays a run of the dev squad."
+  },
+  {
+    "scene": "when-not",
+    "text": "And when not? A single prompt, or a script that makes one model call, does not need a tower. Draw only what exists: a small, true tower beats a big, invented one."
+  },
+  {
+    "scene": "start-gallery",
+    "text": "To start yours, open the library and pick the example closest to your pattern. There are short starters, full agent systems, and towers for operations and playbooks."
+  },
+  {
+    "scene": "start-copy",
+    "text": "Copy it into your project with the copy command. It brings the whole folder, prompts and scripts included, and validates the copy. Then rename the layers and nodes, and point each file at your own code."
+  },
+  {
+    "scene": "start-agent",
+    "text": "Or let your coding agent write it. Install the Flow Tower skill, then ask your agent to map your project as a tower. It reads your code, and every node it writes comes from a real file."
+  },
+  {
+    "scene": "start-validate",
+    "text": "Either way, validate after every edit. Zero errors and zero warnings means every reference resolves. Then open it, and keep it next to your code."
+  },
+  {
+    "scene": "close",
+    "text": "That is a tower: what it shows, when it helps, and how to start one. The getting started guide and the examples gallery are in the repository. Thanks for watching."
+  }
+]

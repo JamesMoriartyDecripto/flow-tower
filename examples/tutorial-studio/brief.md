@@ -11,7 +11,7 @@ the outline and the script are checked against it.
 | Audience | Who watches, and what they already know |
 | Goal | After watching, the viewer can… (one or two verbs: explain, decide, do) |
 | Out of scope | What the video leaves to the docs, on purpose |
-| Length | Target and hard cap, in minutes |
+| Length | What the content needs; a hard cap only when the channel imposes one |
 | Language and voice | Narration language, TTS model and voice, and two alternatives for the pilot |
 | Sources of truth | The docs every claim must come from: no feature, key or command that is not in them |
 | Screen | Resolution, theme, what must never appear (personal paths, tokens, private projects) |
@@ -37,7 +37,7 @@ Every gate has a cap, so a tutorial that does not converge goes back one step in
 | Audience | A developer who has just cloned the repo. Knows agents, prompts and tools; has never seen a tower |
 | Goal | The viewer can explain what a tower shows, decide whether their project needs one, and start their own from the closest example |
 | Out of scope | The team hub, live wiring of each harness, reports, the dev squad, voice commands |
-| Length | 6-8 minutes, cap 9 |
+| Length | As long as the content needs: a presentation, not a documentary (the narration runs about 4 minutes) |
 | Language and voice | English through OpenRouter: `elevenlabs/eleven-flash-v2.5`, the voice the app already uses for spoken replies; pilot alternatives `elevenlabs/eleven-v4` and `microsoft/mai-voice-2.1`; voices `alice` (both ElevenLabs models) and `en-US-Harper:MAI-Voice-2.1` (from `supported_voices`) |
 | Sources of truth | `README.md` (controls), `docs/what-goes-where.md`, `docs/getting-started.md`, `docs/best-practices.md`, `examples/README.md` |
 | Screen | A 1600x900 window, dark theme, the examples gallery only; no user folder, no personal towers |
