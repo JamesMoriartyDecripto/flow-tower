@@ -22,7 +22,7 @@ describe('tutorial demo helpers', () => {
   it('renders a card with the escaped title and the lines in a pre block', () => {
     const html = codeCard('t<', ['a & b']);
     expect(html).toContain('t&lt;');
-    expect(html).toContain('<pre>');
+    expect(html).toContain('<pre style=');
     expect(html).toContain('a &amp; b');
   });
 
@@ -35,6 +35,10 @@ describe('tutorial demo helpers', () => {
     expect(() => runShown('node', ['-e', script], process.cwd(), () => true, ['secret-box'])).toThrow(
       'clean screen',
     );
+  });
+
+  it('wraps the code card lines inside the card', () => {
+    expect(codeCard('t', ['x'])).toContain('white-space:pre-wrap');
   });
 
   it('returns the kept lines when none holds a forbidden string', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSheet, mmss } from '../examples/tutorial-studio/scripts/sheet.mjs';
+import { buildSheet, mmss, parseChapters } from '../examples/tutorial-studio/scripts/sheet.mjs';
 
 describe('mmss', () => {
   it('formats m:ss with zero-padded seconds', () => {
@@ -40,5 +40,38 @@ describe('buildSheet', () => {
 
   it('keeps scene order', () => {
     expect(html.indexOf('<h2>a</h2>')).toBeLessThan(html.indexOf('<h2>b</h2>'));
+  });
+});
+
+describe('parseChapters', () => {
+  const text = [
+    ';FFMETADATA1',
+    '[CHAPTER]',
+    'TIMEBASE=1/1000',
+    'START=101',
+    'END=8193',
+    'title=a',
+    '[CHAPTER]',
+    'TIMEBASE=1/1000',
+    'START=8193',
+    'END=13577',
+    'title=b',
+    '',
+  ].join('\n');
+
+  it('returns each chapter as a scene with its duration', () => {
+    const parsed = parseChapters(text);
+    expect(parsed.scenes).toEqual([
+      { scene: 'a', startMs: 101, endMs: 8193, durationMs: 8092 },
+      { scene: 'b', startMs: 8193, endMs: 13577, durationMs: 5384 },
+    ]);
+  });
+
+  it('takes the total from the last chapter end', () => {
+    expect(parseChapters(text).totalDurationMs).toBe(13577);
+  });
+
+  it('returns no scenes and a zero total for an empty text', () => {
+    expect(parseChapters('')).toEqual({ totalDurationMs: 0, scenes: [] });
   });
 });

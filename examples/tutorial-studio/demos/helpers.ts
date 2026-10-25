@@ -24,7 +24,9 @@ export function escapeHtml(s: string): string {
 
 /** Inner HTML of an overlay card: the title, then the lines in a pre block. Everything is escaped. */
 export function codeCard(title: string, lines: string[]): string {
-  return `<div class="tutorial-card-title">${escapeHtml(title)}</div><pre>${escapeHtml(lines.join('\n'))}</pre>`;
+  // The wrap style sits on the pre itself, not on a wrapper div: the browser's default stylesheet sets
+  // `pre { white-space: pre }`, which beats any value inherited from an ancestor, so long lines would not wrap.
+  return `<div class="tutorial-card-title">${escapeHtml(title)}</div><pre style="white-space:pre-wrap;overflow-wrap:anywhere;margin:0">${escapeHtml(lines.join('\n'))}</pre>`;
 }
 
 /** Shows command output relative to its working folder, so the absolute path never reaches the screen. */

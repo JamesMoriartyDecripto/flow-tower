@@ -70,6 +70,61 @@ ${cards.join('\n')}
 `;
 }
 
+/**
+ * Parses an FFMETADATA chapters text (one [CHAPTER] block per scene). TIMEBASE 1/1000 is
+ * assumed, so START and END are milliseconds. Returns the scenes in file order.
+ */
+export function parseChapters(text) {
+  const scenes = [];
+  let current = null;
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (line === '[CHAPTER]') {
+      current = {};
+      scenes.push(current);
+      continue;
+    }
+    const eq = line.indexOf('=');
+    if (current === null || eq < 0) continue;
+    const key = line.slice(0, eq);
+    const value = line.slice(eq + 1);
+    if (key === 'START') current.startMs = Number(value);
+    else if (key === 'END') current.endMs = Number(value);
+    else if (key === 'title') current.scene = value;
+  }
+  const done = scenes.map(({ scene, startMs, endMs }) => ({
+    scene,
+    startMs,
+    endMs,
+    durationMs: endMs - startMs,
+  }));
+  const totalDurationMs = done.length === 0 ? 0 : done[done.length - 1].endMs;
+  return { totalDurationMs, scenes: done };
+}
+
+/** Reads a missing-file-tolerant text file: null when it does not exist. */
+async function readIfExists(path) {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
+  }
+}
+
+/**
+ * The scene report when Argo wrote one; otherwise the chapters, which Argo always writes.
+ * A retried encode can stop before the report exists, so the chapters are the fallback.
+ * Returns null when neither file exists.
+ */
+async function readReport(argoDir, demo) {
+  const json = await readIfExists(join(argoDir, 'scene-report.json'));
+  if (json !== null) return JSON.parse(json);
+  const chapters = await readIfExists(join(argoDir, 'chapters.txt'));
+  if (chapters === null) return null;
+  return { demo, ...parseChapters(chapters) };
+}
+
 async function main([runDir, demo]) {
   if (!runDir || !demo) {
     console.error('usage: node scripts/sheet.mjs <run-dir> <demo>');
@@ -77,10 +132,14 @@ async function main([runDir, demo]) {
   }
   const argoDir = join(runDir, '.argo', demo);
   const [report, scenes, files] = await Promise.all([
-    readFile(join(argoDir, 'scene-report.json'), 'utf8').then(JSON.parse),
+    readReport(argoDir, demo),
     readFile(join(runDir, 'demos', `${demo}.scenes.json`), 'utf8').then(JSON.parse),
     readdir(join(argoDir, 'thumbs')).catch(() => []),
   ]);
+  if (report === null) {
+    console.error(`no scene report or chapters in ${argoDir}`);
+    process.exit(1);
+  }
   const thumbs = new Set(files.filter((f) => f.endsWith('.jpg')).map((f) => f.slice(0, -4)));
   const out = join(runDir, 'sheet.html');
   await writeFile(out, buildSheet({ demo, report, scenes, thumbs }));

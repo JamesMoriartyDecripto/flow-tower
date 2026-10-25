@@ -199,7 +199,12 @@ test('flow-tower', async ({ page, narration }) => {
   // when-not: back to the library, and the single-agent starter as the small, true case.
   narration.mark('when-not');
   await page.keyboard.press('l');
-  await cursor.click(page.locator(`[data-card="${SINGLE_AGENT}"]`));
+  // The single-agent card sits at the bottom of the library: scroll it into view and travel to it
+  // at once, so the tower opens while the narration is still saying it is the small case.
+  const singleCard = page.locator(`[data-card="${SINGLE_AGENT}"]`);
+  await singleCard.scrollIntoViewIfNeeded();
+  await cursor.moveTo(singleCard, { durationMs: 600 });
+  await cursor.click(singleCard);
   await waitState(page, `${STATE}.stack[0] === '${SINGLE_AGENT}'`);
   await page.locator('canvas').first().waitFor({ state: 'visible' });
   await page.waitForTimeout(narration.durationFor('when-not'));
