@@ -9,7 +9,7 @@ import {
   slug,
 } from '../examples/tutorial-studio/scripts/plan.mjs';
 
-const USAGE = 'usage: node scripts/run.mjs <demo> [--dry | --pilot] [--headless]';
+const USAGE = 'usage: node scripts/run.mjs <demo> [--dry | --pilot] [--headed]';
 
 const tutorial = {
   app: { command: ['node', 'bin/x.js'], url: 'http://localhost:3000' },
@@ -21,16 +21,20 @@ const tutorial = {
 };
 
 describe('parseArgs', () => {
-  it('defaults to a final run with a visible browser', () => {
-    expect(parseArgs(['flow-tower'])).toEqual({ demo: 'flow-tower', mode: 'final', headless: false });
+  it('defaults to a final run with a headless browser', () => {
+    expect(parseArgs(['flow-tower'])).toEqual({ demo: 'flow-tower', mode: 'final', headed: false });
   });
 
-  it('reads --pilot and --headless in any order', () => {
-    expect(parseArgs(['flow-tower', '--pilot', '--headless'])).toEqual({
+  it('reads --pilot and --headed in any order', () => {
+    expect(parseArgs(['flow-tower', '--pilot', '--headed'])).toEqual({
       demo: 'flow-tower',
       mode: 'pilot',
-      headless: true,
+      headed: true,
     });
+  });
+
+  it('rejects the old --headless flag', () => {
+    expect(() => parseArgs(['a', '--headless'])).toThrow(USAGE);
   });
 
   it('accepts the demo name after a flag', () => {

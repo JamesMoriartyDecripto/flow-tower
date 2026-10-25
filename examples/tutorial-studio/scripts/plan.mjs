@@ -2,8 +2,8 @@
 // list of Argo runs. Nothing here spawns a process or touches the disk, so the
 // rules can be tested without a browser or an API key.
 
-const USAGE = 'usage: node scripts/run.mjs <demo> [--dry | --pilot] [--headless]';
-const FLAGS = new Set(['--dry', '--pilot', '--headless']);
+const USAGE = 'usage: node scripts/run.mjs <demo> [--dry | --pilot] [--headed]';
+const FLAGS = new Set(['--dry', '--pilot', '--headed']);
 
 export function parseArgs(argv) {
   let demo;
@@ -21,7 +21,7 @@ export function parseArgs(argv) {
   if (demo === undefined) throw new Error(USAGE);
   if (flags.has('--dry') && flags.has('--pilot')) throw new Error(USAGE);
   const mode = flags.has('--dry') ? 'dry' : flags.has('--pilot') ? 'pilot' : 'final';
-  return { demo, mode, headless: flags.has('--headless') };
+  return { demo, mode, headed: flags.has('--headed') };
 }
 
 const isNonEmptyString = (v) => typeof v === 'string' && v.length > 0;

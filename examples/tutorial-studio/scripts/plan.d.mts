@@ -1,7 +1,7 @@
 export interface RunArgs {
   demo: string;
   mode: 'dry' | 'pilot' | 'final';
-  headless: boolean;
+  headed: boolean;
 }
 
 export interface Voice {

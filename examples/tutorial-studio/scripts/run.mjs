@@ -150,7 +150,7 @@ async function main() {
       await prepareRun(root, dir, args.demo, scenes);
 
       const argoArgs = ['--no-install', 'argo', 'pipeline', args.demo, '-c', configPath];
-      if (!args.headless) argoArgs.push('--headed');
+      if (args.headed) argoArgs.push('--headed');
       const env = {
         ...process.env,
         TUTORIAL_URL: url,

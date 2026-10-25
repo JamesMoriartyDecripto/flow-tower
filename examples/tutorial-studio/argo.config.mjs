@@ -23,12 +23,16 @@ export default defineConfig({
     defaultVoice: env.TUTORIAL_TTS_VOICE || 'silent',
   },
   video: {
-    // A headed window must fit the screen with Chrome's own bars; 1600x900 got 771 pixels of
-    // height on a 1080p laptop, and libx264 refuses odd sizes. 1280x720 fits and is even.
-    width: 1280,
-    height: 720,
+    // Headless at 1920x1080 keeps the frame size independent of the screen's size and scaling.
+    width: 1920,
+    height: 1080,
     fps: 30,
-    // Chrome is headed because headless renders WebGL in software, which is too slow and looks wrong for the 3D view.
+    // Headless Chrome renders WebGL in software unless these flags are set. They match GPU_ARGS in
+    // flow-tower's src/cli/browser.ts. Argo has no launch-args option, but it copies contextOptions
+    // into Playwright's `use` block, where launchOptions is valid.
+    contextOptions: {
+      launchOptions: { args: ['--enable-gpu', '--use-angle=gl', '--ignore-gpu-blocklist'] },
+    },
     browser: 'chromium',
     browserChannel: 'chrome',
     captureMode: 'jpeg-stitch',
