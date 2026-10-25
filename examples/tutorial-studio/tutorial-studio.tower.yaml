@@ -1,0 +1,300 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/JamesMoriartyDecripto/flow-tower/main/schema/flow-tower.schema.json
+version: 1
+name: Tutorial Studio
+tags: [method, video, tutorial, playwright, tts, docs]
+description: >-
+  How to turn a web app or a repository into a narrated video tutorial that can be rendered again when the UI
+  changes. A brief fixes audience and goal; a coding agent writes the outline, then the narration and the browser
+  actions; the voice is generated first so its length paces the recording; Playwright records the real app through
+  Argo; clips are aligned to scene marks and exported with captions; a person reviews every scene before publishing.
+  Sample: the Flow Tower tutorial itself.
+
+runtimes:
+  laptop:
+    kind: local
+    label: Author machine
+    description: "Node 22, ffmpeg and Chrome with a GPU. The app runs here as a scratch instance; recordings and clips stay here."
+  openrouter:
+    kind: saas
+    label: OpenRouter
+    provider: openrouter
+    url: https://openrouter.ai/docs/api-reference/audio/create-speech
+    description: "Text to speech for the narration, one request per scene; the key stays in the environment or the user folder."
+  host:
+    kind: saas
+    label: Video host
+    description: "Where the finished video lives: a release asset or a video platform. Never the repository."
+
+prompts:
+  writer:
+    file: prompts/writer.md
+    description: "Outline first, then narration and actions; every claim from the brief's sources of truth."
+
+agents:
+  writer:
+    name: Script writer
+    description: >-
+      The author's coding agent, working in the product's repository: reads the docs the brief names and the running
+      app, drafts the outline, then writes the narration per scene and the Playwright actions. It never edits the
+      product.
+    prompt: writer
+    model_varies: "the author's coding agent (Claude Code, Codex, Pi or Hermes), whichever reads the repo"
+    tools: [Read, Grep, Bash, Write]
+    sandbox: { network: allowlist, allow: [127.0.0.1], filesystem: workspace, description: "Writes only the tutorial folder; reaches only the scratch app." }
+    limits: { max_iterations: 60, timeout: 30m }
+    files: [prompts/writer.md, brief.md]
+
+budget: { usd: 2, per: run, for: model, description: "Illustrative: text to speech for a 6-8 minute video with a few retakes, at $20 per million characters; the writer runs on the author's own agent plan." }
+limits: { max_iterations: 5, description: "Review rounds before the brief or the outline is revisited instead." }
+
+layers:
+  # 1 ───────────────────────────────────────────────────────────────
+  - id: brief
+    title: 1 · Brief
+    description: What the tutorial is for, for whom, and what it may claim, fixed before anyone writes narration.
+    nodes:
+      - id: request
+        type: entry
+        label: Tutorial request
+        description: "Someone asks for a video of a web app or a repo: a first-run walkthrough, a feature, a concept."
+        trigger: { kind: manual, source: maintainer }
+      - id: sources
+        type: memory
+        label: Docs and app
+        description: >-
+          The sources of truth the brief lists (README, guides, the examples) and the running product. A feature,
+          key or command missing from them stays out of the video.
+        data: { sensitivity: public }
+      - id: brief
+        type: memory
+        label: brief.md
+        description: "Audience, goal, out of scope, length, voice, sources of truth, what must never appear on screen, when to re-render."
+        files: [brief.md]
+      - id: signoff
+        type: human
+        label: Brief sign-off
+        description: "The maintainer agrees on audience, goal and length. Changing them later means a new outline."
+        approval: { by: maintainer, actions: [approve, edit, reject] }
+    edges:
+      - request -> brief
+      - "sources -> brief [data]: sources of truth"
+      - brief -> signoff
+
+  # 2 ───────────────────────────────────────────────────────────────
+  - id: script
+    title: 2 · Outline and script
+    description: The outline is approved first, so the narration is written once against an agreed structure.
+    nodes:
+      - id: outline
+        agent: writer
+        label: Draft outline
+        description: "Chapters (why, how, when, how to start), one row per scene with what is on screen, the gist and its source; a time budget per chapter."
+        files: [outline.md]
+      - id: approve
+        type: human
+        label: Outline sign-off
+        description: "The maintainer checks the order, the scope against the brief and the time budget."
+        approval: { by: maintainer, actions: [approve, edit, reject], rounds: 2 }
+      - id: write
+        agent: writer
+        label: Write script
+        description: "Narration per scene (scenes.json) and the browser actions with one scene mark each (demo.ts). One idea per scene, under 60 words."
+        status: planned
+      - id: lint
+        type: guard
+        label: argo validate
+        description: "Every scene in the manifest has a mark in the demo script and the other way round; overlays are known. No recording, no voice."
+        runtime: laptop
+        status: planned
+    edges:
+      - outline -> approve
+      - "approve -> outline [return]: changes"
+      - "approve -> write: approved"
+      - write -> lint
+      - "lint -> write [return]: missing mark"
+
+  # 3 ───────────────────────────────────────────────────────────────
+  - id: voice
+    title: 3 · Voice
+    description: Clips come before the recording, because their length decides how long each scene stays on screen.
+    nodes:
+      - id: tts
+        type: process
+        label: TTS engine
+        description: >-
+          An Argo TTS engine that sends each scene's text to OpenRouter's speech endpoint and returns a WAV clip.
+          Clips are cached by content hash, so only edited scenes are paid for again.
+        model: elevenlabs/eleven-flash-v2.5
+        runtime: laptop
+        status: planned
+        limits: { retries: 2, backoff: "exponential 2s..30s", timeout: 60s }
+      - id: clips
+        type: memory
+        label: Voice clips
+        description: "One WAV per scene in the run folder, named by the hash of text, voice and model. Never committed."
+      - id: pilot
+        type: process
+        label: Pilot render
+        description: "The first chapter only (about 60 s), recorded and exported like the full video."
+        runtime: laptop
+        status: planned
+      - id: listen
+        type: human
+        label: Voice sign-off
+        description: "Voice, pace and pronunciation of names, on the pilot. A wrong name is fixed in the text, spelled for the voice."
+        approval: { by: maintainer, actions: [approve, edit, reject] }
+    edges:
+      - tts -> clips
+      - clips -> pilot
+      - pilot -> listen
+
+  # 4 ───────────────────────────────────────────────────────────────
+  - id: record
+    title: 4 · Recording
+    description: The real app in a real browser, driven by the demo script, on a scratch instance with nothing personal on it.
+    nodes:
+      - id: app
+        type: process
+        label: Scratch instance
+        description: >-
+          The product started for the recording only: its own port, an empty user folder, sample data. Stopped by
+          its PID when the recording ends.
+        runtime: laptop
+        data: { sensitivity: public, description: "Sample data only, so nothing private can reach a frame." }
+      - id: clean
+        type: guard
+        label: Clean screen
+        description: "Before the first mark: no personal path, token, machine name or private project visible; dark theme, fixed window size."
+      - id: recorder
+        type: process
+        label: argo record
+        description: >-
+          Playwright drives Chrome with the GPU (the 3D view renders in software headless), headed at 1600x900.
+          At each scene mark it waits for that scene's clip; a human-like cursor travels to what the narration
+          names; frames are captured at paint time.
+        runtime: laptop
+        status: planned
+        limits: { timeout: 20m }
+      - id: frames
+        type: memory
+        label: Frames and marks
+        description: "Captured frames and the timestamp of every scene mark: what the assembly aligns the clips to."
+    edges:
+      - app -> clean
+      - clean -> recorder
+      - "recorder -> frames [data]"
+
+  # 5 ───────────────────────────────────────────────────────────────
+  - id: assembly
+    title: 5 · Assembly
+    description: Clips placed at their marks, loudness evened out, one MP4 with captions and chapters.
+    nodes:
+      - id: align
+        type: process
+        label: Align clips
+        description: "Each clip starts at its scene mark; an overlap is pushed forward with a 100 ms gap."
+        runtime: laptop
+      - id: export
+        type: process
+        label: argo export
+        description: "ffmpeg: frames to H.264 at 1080p, the aligned narration normalised to EBU R128, SRT and VTT captions, chapter markers."
+        runtime: laptop
+        status: planned
+      - id: video
+        type: output
+        label: Video + captions
+        description: "MP4, SRT, VTT and a scene report with the start and length of every scene. Kept out of the repository."
+        evals:
+          - { name: scenes in sync, target: 100, unit: "%", illustrative: true, description: "Scenes whose action happens while its narration plays, counted in review." }
+          - { name: length, target: 8, unit: min, higher_is_better: false, illustrative: true, description: "Against the brief's target." }
+    edges:
+      - align -> export
+      - export -> video
+
+  # 6 ───────────────────────────────────────────────────────────────
+  - id: review
+    title: 6 · Review and publish
+    description: A person checks every scene before it is published, and a release can make the video stale.
+    nodes:
+      - id: sheet
+        type: process
+        label: Contact sheet
+        description: "One frame from the middle of every scene, with its id and narration, on one page: the reviewer sees each scene without scrubbing."
+        runtime: laptop
+        status: planned
+      - id: check
+        type: human
+        label: Review
+        description: "The checklist: accuracy, sync, screen, audio and captions, length. Each fail names a scene."
+        files: [review.md]
+        approval: { by: maintainer, actions: [approve, reject] }
+      - id: ship
+        type: decision
+        label: Ship?
+        description: "Publish, fix the script (wrong claim, bad sync) or re-record (frame problem, flaky render)."
+        decision: { output: choice, candidates: [publish, fix script, re-record], fail: closed }
+      - id: publish
+        type: output
+        label: Publish
+        description: "Upload with captions to the host, then link it from the README. Replaces the previous version of the video."
+        runtime: host
+        effect: irreversible
+        approval: { by: maintainer, actions: [approve] }
+      - id: stale
+        type: entry
+        label: UI changed
+        description: "A release that changes the HUD, the controls or a command shown in the video: the same script is validated and rendered again."
+        trigger: { kind: event, source: release }
+    edges:
+      - sheet -> check
+      - check -> ship
+      - "ship -> publish: publish"
+
+  # 7 ───────────────────────────────────────────────────────────────
+  - id: tools
+    title: 7 · Tools
+    description: Existing open tools do the heavy lifting; the method adds the brief, the review and one TTS engine.
+    nodes:
+      - id: argo
+        type: tool
+        label: Argo CLI
+        description: "@argo-video/cli (MIT): scenes manifest, TTS clips, recording with scene marks, alignment, export. Commands: validate, tts generate, record, export, pipeline."
+        resources:
+          - { kind: repo, label: Argo, url: "https://github.com/shreyaskarnik/argo" }
+      - id: playwright
+        type: tool
+        label: Playwright
+        description: "The browser driver under Argo (screencast API since 1.59); Chrome channel, headed for the GPU."
+        resources:
+          - { kind: doc, label: Screencast API, url: "https://playwright.dev/docs/api/class-screencast" }
+      - id: ffmpeg
+        type: tool
+        label: ffmpeg
+        description: "Encodes the frames, mixes and normalises the narration (loudnorm), writes the MP4."
+        resources:
+          - { kind: doc, label: loudnorm, url: "https://ffmpeg.org/ffmpeg-filters.html#loudnorm" }
+      - id: speech
+        type: tool
+        label: OpenRouter speech
+        description: "POST /audio/speech with model, voice and input text; returns audio. Billed per character."
+        runtime: openrouter
+        credentials: service
+        resources:
+          - { kind: doc, label: Create speech, url: "https://openrouter.ai/docs/api-reference/audio/create-speech" }
+
+links:
+  - brief.signoff -> script.outline
+  - "brief.brief -> script.outline [data]: audience, sources"
+  - script.lint -> voice.tts
+  - "voice.listen -> script.write [return]: pace, names"
+  - voice.listen -> record.app
+  - "voice.clips -> assembly.align [data]: clips"
+  - "record.frames -> assembly.align [data]: marks"
+  - assembly.video -> review.sheet
+  - "review.ship -> script.write [return]: fix script"
+  - "review.ship -> record.recorder [return]: re-record"
+  - "review.stale -> script.lint: same script"
+  - "script.lint -> tools.argo [call]: validate"
+  - "voice.tts -> tools.speech [call]: per scene"
+  - "record.recorder -> tools.playwright [call]"
+  - "assembly.export -> tools.ffmpeg [call]"
