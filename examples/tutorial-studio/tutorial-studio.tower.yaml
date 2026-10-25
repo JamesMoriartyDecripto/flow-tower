@@ -176,7 +176,7 @@ layers:
         type: process
         label: Record
         description: >-
-          A browser driver runs the actions in Chrome, headed so the 3D view renders on the GPU. At each scene mark it
+          A browser driver runs the actions in Chrome, headed so the 3D view renders on the GPU, in a window that fits the screen (1280x720 in the sample). At each scene mark it
           waits for that scene's clip; a human-like cursor travels to what the narration names. In the sample: argo record.
         runtime: laptop
         status: planned

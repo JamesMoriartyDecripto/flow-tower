@@ -31,7 +31,8 @@ node bin/flow-tower.js examples/tutorial-studio
 - **Argo instead of a custom recorder.** It already does the scenes manifest, the scene marks, the alignment, the
   export with captions and a human-like cursor; the method adds a brief, a review and one TTS engine.
 - **Headed Chrome.** Headless Chrome renders WebGL in software, too slow for a 3D app; a headed window uses the GPU.
-  Its viewport is capped by the screen, so the sample records at 1600x900 (Argo only scales down, from a 2x capture).
+  Its viewport must fit the screen with Chrome's own bars: on a 1080p laptop 1600x900 got 771 pixels of height and an
+  odd frame height the encoder refused, so the sample records at 1280x720, a size the app's layout tests cover.
 - **A scratch instance.** An empty user folder and sample data keep personal paths, tokens and private projects out
   of every frame.
 

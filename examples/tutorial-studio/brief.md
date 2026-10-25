@@ -40,6 +40,6 @@ Every gate has a cap, so a tutorial that does not converge goes back one step in
 | Length | As long as the content needs: a presentation, not a documentary (the narration runs about 4 minutes) |
 | Language and voice | English through OpenRouter: `elevenlabs/eleven-flash-v2.5`, the voice the app already uses for spoken replies; pilot alternatives `elevenlabs/eleven-v4` and `microsoft/mai-voice-2.1`; voices `alice` (both ElevenLabs models) and `en-US-Harper:MAI-Voice-2.1` (from `supported_voices`) |
 | Sources of truth | `README.md` (controls), `docs/what-goes-where.md`, `docs/getting-started.md`, `docs/best-practices.md`, `examples/README.md` |
-| Screen | A 1600x900 window, dark theme, the examples gallery only; no user folder, no personal towers |
+| Screen | A 1280x720 window (a headed Chrome must fit the screen with its own bars; 1600x900 did not on a 1080p laptop), dark theme, the examples gallery only; no user folder, no personal towers |
 | Publishing | A release asset or a video host, with SRT captions; linked from the README |
 | Re-render | Every release that changes the HUD, the controls or a command shown in the video |
