@@ -1,0 +1,63 @@
+// Pure helpers for the Flow Tower demo. No Argo import here, so the vitest suite can load
+// them without a browser. Everything shown on screen passes through these functions, so the
+// clean-screen rule is enforced in one place.
+import { execFileSync } from 'node:child_process';
+
+/** The forbidden strings that occur in `text`. An empty entry is ignored: it would match everything. */
+export function cleanHits(text: string, forbidden: string[]): string[] {
+  return forbidden.filter((s) => s !== '' && text.includes(s));
+}
+
+/** The list the runner passes in TUTORIAL_FORBIDDEN (home path, machine name, user name). */
+export function forbiddenFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
+  return JSON.parse(env.TUTORIAL_FORBIDDEN ?? '[]') as string[];
+}
+
+export function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Inner HTML of an overlay card: the title, then the lines in a pre block. Everything is escaped. */
+export function codeCard(title: string, lines: string[]): string {
+  return `<div class="tutorial-card-title">${escapeHtml(title)}</div><pre>${escapeHtml(lines.join('\n'))}</pre>`;
+}
+
+/** Shows command output relative to its working folder, so the absolute path never reaches the screen. */
+export function relativeTo(text: string, dir: string): string {
+  return text.split(dir + '/').join('');
+}
+
+/**
+ * Runs a command and returns the lines to show. Throws if a shown line holds a forbidden string,
+ * so a leaked path stops the run instead of reaching the recording.
+ */
+export function runShown(
+  cmd: string,
+  args: string[],
+  cwd: string,
+  keep: (line: string) => boolean,
+  forbidden: string[],
+): string[] {
+  let output: string;
+  try {
+    output = execFileSync(cmd, args, { cwd, encoding: 'utf8' });
+  } catch (err) {
+    // audit and validate exit non-zero when they find problems; the findings are what the
+    // viewer should see, so their stdout is kept. Any other failure is re-thrown.
+    const out = (err as { stdout?: unknown }).stdout;
+    if (typeof out !== 'string') throw err;
+    output = out;
+  }
+  // The final newline ends the last line; it is not an empty line to show.
+  const lines = relativeTo(output, cwd).replace(/\n$/, '').split('\n').filter(keep);
+  for (const line of lines) {
+    const hit = cleanHits(line, forbidden)[0];
+    if (hit !== undefined) throw new Error(`clean screen: output of ${cmd} shows "${hit}"`);
+  }
+  return lines;
+}
