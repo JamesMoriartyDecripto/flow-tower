@@ -39,7 +39,7 @@ node bin/flow-tower.js examples/tutorial-studio
 
 - Argo, `@argo-video/cli` 0.41 (MIT): [github.com/shreyaskarnik/argo](https://github.com/shreyaskarnik/argo), checked 2026-10-25.
 - Playwright screencast API (1.59+, `fps` since 1.64): [playwright.dev/docs/api/class-screencast](https://playwright.dev/docs/api/class-screencast).
-- OpenRouter text to speech: [openrouter.ai/docs/api-reference/audio/create-speech](https://openrouter.ai/docs/api-reference/audio/create-speech).
+- OpenRouter text to speech (request fields, MP3 or PCM output, `supported_voices` in the Models API): [openrouter.ai/docs/api-reference/audio/create-speech](https://openrouter.ai/docs/guides/overview/multimodal/tts).
 - Speech prices as listed by OpenRouter on 2026-10-25 (`skills/flow-tower-costs/models.mjs --role voice-tts`): ElevenLabs Flash v2.5
   $40, Eleven v4 $80, MAI-Voice-2.1 $22 per million characters. Flash v2.5 was chosen for live replies in
   [voice-commands/options/tts.md](../voice-commands/options/tts.md); a narration is offline, so the pilot compares it with the other two.

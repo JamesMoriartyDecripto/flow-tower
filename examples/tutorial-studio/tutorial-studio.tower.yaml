@@ -18,7 +18,7 @@ runtimes:
     kind: saas
     label: OpenRouter
     provider: openrouter
-    url: https://openrouter.ai/docs/api-reference/audio/create-speech
+    url: https://openrouter.ai/docs/guides/overview/multimodal/tts
     description: "Text to speech for the narration, one request per scene."
   host:
     kind: saas
@@ -130,15 +130,16 @@ layers:
         type: process
         label: Speak scenes
         description: >-
-          Sends each scene's text to OpenRouter's speech endpoint and keeps the audio as one clip per scene, cached by
-          content, so only edited scenes are paid for again.
+          Sends each scene's text to OpenRouter's speech endpoint (model and voice from tutorial.json), asks for MP3
+          and converts it to the WAV clip Argo expects with ffmpeg. The key comes from the environment or the
+          flow-tower user folder, never from the tutorial folder.
         model: elevenlabs/eleven-flash-v2.5
         runtime: laptop
         status: planned
       - id: clips
         type: memory
         label: Voice clips
-        description: "One clip per scene in the run folder, outside the repository."
+        description: "One clip per scene, cached by scene, text and voice (not by model), so every run (dry run, each pilot voice, final) gets its own run folder and cache. Outside the repository."
       - id: pilot
         type: process
         label: Pilot render
@@ -164,13 +165,13 @@ layers:
         type: process
         label: Scratch instance
         description: >-
-          The product started for the recording only: its own port, an empty user folder, sample data. Stopped by its
-          PID when the recording ends.
+          The product started for the run only, from the command in tutorial.json: its own port, a new empty folder
+          in the variable it names (FLOW_TOWER_HOME in the sample), sample data. Stopped by its PID when the run ends.
         runtime: laptop
       - id: clean
         type: guard
         label: Clean screen
-        description: "Before the first mark: no personal path, token, machine name or private project on screen; theme and window size as in the brief."
+        description: "Before the first mark the page text is searched for the user name, the machine name and the home path; the empty user folder keeps tokens and private projects out. A hit stops the run."
       - id: recorder
         type: process
         label: Record
@@ -229,7 +230,7 @@ layers:
       - id: sheet
         type: process
         label: Contact sheet
-        description: "One frame from the middle of every scene, with its id and narration, on one page: the reviewer sees each scene without scrubbing."
+        description: "One HTML page from what Argo already writes (the scene report and one thumbnail per scene) plus each scene's narration: the reviewer sees every scene without scrubbing."
         runtime: laptop
         status: planned
       - id: check
@@ -290,7 +291,7 @@ layers:
         runtime: openrouter
         credentials: service
         resources:
-          - { kind: doc, label: Create speech, url: "https://openrouter.ai/docs/api-reference/audio/create-speech" }
+          - { kind: doc, label: Create speech, url: "https://openrouter.ai/docs/guides/overview/multimodal/tts" }
 
 links:
   - "brief.signoff -> script.outline: approved"
