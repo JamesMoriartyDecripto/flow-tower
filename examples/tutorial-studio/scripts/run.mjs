@@ -157,6 +157,19 @@ async function main() {
         TUTORIAL_FORBIDDEN: JSON.stringify(forbidden),
         ...run.env,
       };
+      // The tower's scene check runs on every run, so a stale video is checked again too.
+      const checkCode = await runChild(
+        'npx',
+        ['--no-install', 'argo', 'validate', args.demo, '-c', configPath],
+        { cwd: dir, stdio: 'inherit', env },
+      );
+      if (checkCode !== 0) {
+        console.error(
+          `run ${run.name} failed: the scene check found a mismatch between the manifest and the demo script`,
+        );
+        return 1;
+      }
+
       const argoCode = await runChild('npx', argoArgs, { cwd: dir, stdio: 'inherit', env });
       if (argoCode !== 0) {
         console.error(`run ${run.name} failed: Argo names the scene it stopped in above`);
