@@ -23,9 +23,10 @@ export default defineConfig({
     defaultVoice: env.TUTORIAL_TTS_VOICE || 'silent',
   },
   video: {
-    // 1600x900 is the size the brief fixes for the screen.
-    width: 1600,
-    height: 900,
+    // A headed window must fit the screen with Chrome's own bars; 1600x900 got 771 pixels of
+    // height on a 1080p laptop, and libx264 refuses odd sizes. 1280x720 fits and is even.
+    width: 1280,
+    height: 720,
     fps: 30,
     // Chrome is headed because headless renders WebGL in software, which is too slow and looks wrong for the 3D view.
     browser: 'chromium',

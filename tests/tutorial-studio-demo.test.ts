@@ -52,4 +52,9 @@ describe('flow-tower demo scenes', () => {
     expect(marks).toEqual(scenes.map((s) => s.scene));
     expect(new Set(marks).size).toBe(marks.length);
   });
+
+  it('never waits for the short project id, which the stack does not hold', () => {
+    const source = readFileSync(`${demoDir}/flow-tower.demo.ts`, 'utf8');
+    expect(source).not.toContain("stack[0] === 'dev-squad'");
+  });
 });

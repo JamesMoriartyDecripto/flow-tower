@@ -88,7 +88,8 @@ test('flow-tower', async ({ page, narration }) => {
   // why-tower: open dev-squad with the cursor, so the eye follows the click.
   narration.mark('why-tower');
   await cursor.click(page.locator(`[data-card="${DEV_SQUAD}"]`));
-  await waitState(page, `${STATE}.stack[0] === 'dev-squad'`);
+  // The stack holds the project id (the path), not the short name, so compare with the constant.
+  await waitState(page, `${STATE}.stack[0] === '${DEV_SQUAD}'`);
   await page.locator('canvas').first().waitFor({ state: 'visible' });
   await page.waitForTimeout(narration.durationFor('why-tower'));
   if (until === 'why-tower') return;
@@ -199,6 +200,7 @@ test('flow-tower', async ({ page, narration }) => {
   narration.mark('when-not');
   await page.keyboard.press('l');
   await cursor.click(page.locator(`[data-card="${SINGLE_AGENT}"]`));
+  await waitState(page, `${STATE}.stack[0] === '${SINGLE_AGENT}'`);
   await page.locator('canvas').first().waitFor({ state: 'visible' });
   await page.waitForTimeout(narration.durationFor('when-not'));
   if (until === 'when-not') return;
@@ -260,7 +262,7 @@ test('flow-tower', async ({ page, narration }) => {
   narration.mark('close');
   await page.keyboard.press('l');
   await cursor.click(page.locator(`[data-card="${DEV_SQUAD}"]`));
-  await waitState(page, `${STATE}.stack[0] === 'dev-squad'`);
+  await waitState(page, `${STATE}.stack[0] === '${DEV_SQUAD}'`);
   await page.keyboard.press('o');
   await page.waitForTimeout(narration.durationFor('close'));
 });
