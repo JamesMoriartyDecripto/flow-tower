@@ -56,7 +56,7 @@ agents:
     tools: [Read, Write]
     runtime: openrouter
     description: "Neutral chair. Its Write is the only write grant in the workspace, scoped to memory/ (briefs, evals, audit); flow-tower keeps every path inside the project root."
-    budget: { usd: 1.5, turns: 40, on_exceed: pause }
+    budget: { usd: 1.5, turns: 50, on_exceed: pause }
     limits: { max_iterations: 3 }
 
   software_architect:
@@ -155,6 +155,12 @@ layers:
         description: "Approve, edit or reject before tokens are spent."
         approval: { by: User, via: chat, actions: [approve, edit, reject], timeout: 10m, on_timeout: escalate }
 
+      - id: brief_rejected
+        type: output
+        runtime: chat
+        label: Brief rejected
+        description: "The user rejected the brief; nothing is spent on the council."
+
       - id: brief_memory
         type: memory
         runtime: workspace
@@ -165,6 +171,7 @@ layers:
     edges:
       - question -> briefer
       - "briefer -> brief_approval [handoff]: draft"
+      - "brief_approval -> brief_rejected: reject"
       - "brief_approval -> briefer [return]: edit"
 
   # 2 ──────────────────────────────────────────────────────────────
