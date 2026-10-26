@@ -1,6 +1,7 @@
-// OpenRouter speech engine: one POST per scene, MP3 back, converted to the 24 kHz
-// mono float samples that wav.mjs wraps. MP3 is requested because the PCM sample rate is not
-// documented for every provider, so ffmpeg fixes the rate on our side.
+// OpenRouter speech engine: one POST per scene, converted to the 24 kHz mono float samples
+// that wav.mjs wraps. Each model takes its own response format: MP3 by default, PCM for
+// models that refuse MP3 (the PCM header carries its rate and channels). ffmpeg fixes the
+// rate on our side either way.
 
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -42,17 +43,47 @@ export function readKey({ env = process.env, home } = {}) {
   return unquote(match[2].trim()).trim() || undefined;
 }
 
-/** The JSON body of one speech request; MP3 is the format every provider supports. */
-export function speechRequest({ model, voice, text }) {
-  return { model, voice, input: text, response_format: 'mp3' };
+/**
+ * The JSON body of one speech request. MP3 is the default because every provider takes it;
+ * some models (Gemini TTS on OpenRouter) accept only 'pcm', so the caller picks per model.
+ */
+export function speechRequest({ model, voice, text, format = 'mp3' }) {
+  return { model, voice, input: text, response_format: format };
 }
 
-/** Converts an MP3 buffer to 32-bit float little-endian mono samples at RATE. */
-export function mp3ToFloat(mp3) {
+const DEFAULT_PCM = { rate: 24000, channels: 1 };
+
+/** Reads one positive integer parameter such as rate=24000 from a Content-Type value. */
+function pcmParam(contentType, name, fallback) {
+  const match = new RegExp(`;\\s*${name}\\s*=\\s*([^;\\s]+)`, 'i').exec(contentType);
+  if (!match || !/^\d+$/.test(match[1])) return fallback;
+  const value = Number(match[1]);
+  return value > 0 ? value : fallback;
+}
+
+/**
+ * The sample rate and channel count of a PCM reply, e.g. `audio/pcm;rate=24000;channels=1`.
+ * The model states them in the header; the defaults match what it returned so far.
+ */
+export function pcmFormat(contentType) {
+  return {
+    rate: pcmParam(contentType, 'rate', DEFAULT_PCM.rate),
+    channels: pcmParam(contentType, 'channels', DEFAULT_PCM.channels),
+  };
+}
+
+/**
+ * Converts encoded audio to 32-bit float little-endian mono samples at RATE. MP3 is
+ * self-describing; raw PCM needs its rate and channel count to be read at all.
+ */
+export function toFloat(audio, input = { format: 'mp3' }) {
+  const inputArgs = input.format === 'pcm'
+    ? ['-f', 's16le', '-ar', String(input.rate), '-ac', String(input.channels), '-i', 'pipe:0']
+    : ['-i', 'pipe:0'];
   return new Promise((resolve, reject) => {
     const ff = spawn('ffmpeg', [
       '-hide_banner', '-loglevel', 'error',
-      '-i', 'pipe:0', '-f', 'f32le', '-ac', '1', '-ar', String(RATE), 'pipe:1',
+      ...inputArgs, '-f', 'f32le', '-ac', '1', '-ar', String(RATE), 'pipe:1',
     ]);
     const out = [];
     let err = '';
@@ -64,7 +95,7 @@ export function mp3ToFloat(mp3) {
       else reject(new Error(`ffmpeg failed (${code}): ${err}`));
     });
     ff.stdin.on('error', () => {}); // a dying ffmpeg reports through its exit code
-    ff.stdin.end(mp3);
+    ff.stdin.end(audio);
   });
 }
 
@@ -72,10 +103,10 @@ export function mp3ToFloat(mp3) {
  * The engine always uses its own voice: Argo passes its default voice name in the
  * options otherwise, which OpenRouter does not know for this model.
  */
-export function openrouter({ model, voice, key, fetchImpl = fetch, toFloat = mp3ToFloat }) {
+export function openrouter({ model, voice, format = 'mp3', key, fetchImpl = fetch, toFloat: convert = toFloat }) {
   return {
     describe() {
-      return { engine: 'openrouter', model, voice };
+      return { engine: 'openrouter', model, voice, format };
     },
     async generate(text) {
       const apiKey = key ?? readKey();
@@ -88,14 +119,18 @@ export function openrouter({ model, voice, key, fetchImpl = fetch, toFloat = mp3
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(speechRequest({ model, voice, text })),
+        body: JSON.stringify(speechRequest({ model, voice, text, format })),
       });
       if (!res.ok) {
         // The body may echo request details; cut it short and never include the key.
         const body = (await res.text()).slice(0, ERROR_BODY_CHARS);
         throw new Error(`speech request failed (${res.status}): ${body}`);
       }
-      return wavFromFloat(await toFloat(Buffer.from(await res.arrayBuffer())));
+      // The PCM reply has no container, so its rate and channels come from the header.
+      const input = format === 'pcm'
+        ? { format: 'pcm', ...pcmFormat(res.headers.get('content-type') ?? '') }
+        : { format: 'mp3' };
+      return wavFromFloat(await convert(Buffer.from(await res.arrayBuffer()), input));
     },
   };
 }

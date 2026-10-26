@@ -7,6 +7,7 @@ import { estimateSeconds, silent } from '../examples/tutorial-studio/tts/silent.
 import {
   SPEECH_URL,
   openrouter,
+  pcmFormat,
   readKey,
   speechRequest,
 } from '../examples/tutorial-studio/tts/openrouter.mjs';
@@ -108,6 +109,43 @@ describe('openrouter speech engine', () => {
     });
   });
 
+  it('builds a PCM speech request when the format is pcm', () => {
+    expect(speechRequest({ model: 'm', voice: 'v', text: 't', format: 'pcm' }).response_format).toBe('pcm');
+  });
+
+  it('reads the rate and channels from a PCM content type', () => {
+    expect(pcmFormat('audio/pcm;rate=24000;channels=1')).toEqual({ rate: 24000, channels: 1 });
+    expect(pcmFormat('audio/pcm; rate = 16000 ; channels=2')).toEqual({ rate: 16000, channels: 2 });
+  });
+
+  it('falls back to 24 kHz mono when the PCM content type lacks a valid rate or channels', () => {
+    expect(pcmFormat('audio/pcm')).toEqual({ rate: 24000, channels: 1 });
+    expect(pcmFormat('audio/pcm;rate=abc')).toEqual({ rate: 24000, channels: 1 });
+  });
+
+  it('converts a PCM reply using the rate and channels from its content type', async () => {
+    const fetchImpl = vi.fn(async () => new Response(new Uint8Array(4), {
+      headers: { 'content-type': 'audio/pcm;rate=16000;channels=1' },
+    }));
+    const toFloat = vi.fn(async () => Buffer.alloc(4));
+    const engine = openrouter({ model: 'm', voice: 'v', format: 'pcm', key: 'sk-test', fetchImpl, toFloat });
+
+    await engine.generate('hello');
+
+    expect(toFloat).toHaveBeenCalledWith(expect.any(Buffer), { format: 'pcm', rate: 16000, channels: 1 });
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string).response_format).toBe('pcm');
+  });
+
+  it('describes the response format', () => {
+    expect(openrouter({ model: 'm', voice: 'v', format: 'pcm' }).describe()).toEqual({
+      engine: 'openrouter',
+      model: 'm',
+      voice: 'v',
+      format: 'pcm',
+    });
+  });
+
   it('posts the request and returns a WAV built from the float samples', async () => {
     const fetchImpl = vi.fn(async () => new Response(new Uint8Array([1, 2])));
     const toFloat = vi.fn(async () => Buffer.alloc(4));
@@ -116,6 +154,7 @@ describe('openrouter speech engine', () => {
     const wav = await engine.generate('hello');
 
     expect(wav.length).toBe(48);
+    expect(toFloat).toHaveBeenCalledWith(expect.any(Buffer), { format: 'mp3' });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(SPEECH_URL);
