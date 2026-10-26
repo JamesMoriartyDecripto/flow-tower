@@ -77,9 +77,10 @@ export function planRuns(tutorial, mode) {
     return [{ name: 'dry', env: { TUTORIAL_TTS: 'silent' } }];
   }
   if (mode === 'pilot') {
-    // One Argo run per candidate voice; each gets its own folder, since clips are cached by voice, not model.
+    // One Argo run per candidate voice. The folder is per model and voice: clips are cached per voice,
+    // so two voices of one model (e.g. Gemini Charon and Puck) must not share a folder or cache.
     return tutorial.voices.map((voice) => ({
-      name: 'pilot-' + slug(voice.model),
+      name: 'pilot-' + slug(`${voice.model}-${voice.voice}`),
       env: { ...voiceEnv(voice), TUTORIAL_UNTIL: tutorial.pilotUntil },
     }));
   }

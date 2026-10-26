@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  childEnv,
   cleanHits,
   codeCard,
   escapeHtml,
@@ -45,6 +46,12 @@ describe('tutorial demo helpers', () => {
     const script = 'console.log("ok\\nsecret-box\\nfine")';
     const lines = runShown('node', ['-e', script], process.cwd(), (line) => line !== 'secret-box', ['secret-box']);
     expect(lines).toEqual(['ok', 'fine']);
+  });
+
+  it('drops the paid key from child env and leaves the input unchanged', () => {
+    const input = { OPENROUTER_API_KEY: 'sk-x', PATH: '/bin' };
+    expect(childEnv(input)).toEqual({ PATH: '/bin' });
+    expect(input).toEqual({ OPENROUTER_API_KEY: 'sk-x', PATH: '/bin' });
   });
 });
 

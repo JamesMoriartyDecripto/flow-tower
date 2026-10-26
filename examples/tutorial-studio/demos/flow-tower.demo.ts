@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHumanCursor, test } from '@argo-video/cli';
 import type { Page } from '@playwright/test';
-import { cleanHits, codeCard, forbiddenFromEnv, runShown } from './helpers.ts';
+import { childEnv, cleanHits, codeCard, forbiddenFromEnv, runShown } from './helpers.ts';
 
 // Recording a 55-node tower in one process is slow to lay out; allow the whole demo.
 test.setTimeout(30 * 60_000);
@@ -209,7 +209,7 @@ test('flow-tower', async ({ page, narration }) => {
   const simulator = spawn(
     'node',
     ['--experimental-strip-types', 'scripts/simulate.ts', 'dev-squad', '--url', process.env.TUTORIAL_URL ?? ''],
-    { cwd: FLOW_TOWER, stdio: 'ignore' },
+    { cwd: FLOW_TOWER, stdio: 'ignore', env: childEnv() },
   );
   try {
     await page.keyboard.press('f');

@@ -8,6 +8,16 @@ export function cleanHits(text: string, forbidden: string[]): string[] {
   return forbidden.filter((s) => s !== '' && text.includes(s));
 }
 
+/**
+ * The environment for child processes the demo runs. A copy without OPENROUTER_API_KEY: the commands
+ * shown on screen and the simulator never need the paid key, and only the speech engine should hold it.
+ */
+export function childEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const copy = { ...env };
+  delete copy.OPENROUTER_API_KEY;
+  return copy;
+}
+
 /** The list scripts/run.mjs passes in TUTORIAL_FORBIDDEN (home path, machine name, user name). */
 export function forbiddenFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
   return JSON.parse(env.TUTORIAL_FORBIDDEN ?? '[]') as string[];
@@ -47,7 +57,7 @@ export function runShown(
 ): string[] {
   let output: string;
   try {
-    output = execFileSync(cmd, args, { cwd, encoding: 'utf8' });
+    output = execFileSync(cmd, args, { cwd, encoding: 'utf8', env: childEnv() });
   } catch (err) {
     // audit and validate exit non-zero when they find problems; the findings are what the
     // viewer should see, so their stdout is kept. Any other failure is re-thrown.

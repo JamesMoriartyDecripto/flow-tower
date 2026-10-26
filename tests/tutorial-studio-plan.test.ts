@@ -104,7 +104,7 @@ describe('planRuns', () => {
 
   it('plans one pilot per voice, up to pilotUntil', () => {
     const runs = planRuns(tutorial, 'pilot');
-    expect(runs.map((r) => r.name)).toEqual(['pilot-a-b', 'pilot-c-d']);
+    expect(runs.map((r) => r.name)).toEqual(['pilot-a-b-alice', 'pilot-c-d-bob']);
     expect(runs[1].env).toEqual({
       TUTORIAL_TTS: 'openrouter',
       TUTORIAL_TTS_MODEL: 'c/d',
@@ -135,6 +135,19 @@ describe('planRuns', () => {
     };
     const runs = planRuns(pcm, 'pilot');
     expect(runs.map((r) => r.env.TUTORIAL_TTS_FORMAT)).toEqual(['pcm', 'mp3']);
+  });
+
+  it('gives two voices of one model separate pilot folders', () => {
+    const shared = {
+      ...tutorial,
+      voices: [
+        { model: 'g/tts', voice: 'Charon' },
+        { model: 'g/tts', voice: 'Puck' },
+      ],
+    };
+    const runs = planRuns(shared, 'pilot');
+    expect(runs[0].name).not.toBe(runs[1].name);
+    expect(runs.map((r) => r.name)).toEqual(['pilot-g-tts-charon', 'pilot-g-tts-puck']);
   });
 });
 
