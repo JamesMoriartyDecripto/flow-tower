@@ -5,6 +5,7 @@ import {
   cleanHits,
   codeCard,
   escapeHtml,
+  forbiddenFromEnv,
   relativeTo,
   runShown,
 } from '../examples/tutorial-studio/demos/helpers.ts';
@@ -46,6 +47,22 @@ describe('tutorial demo helpers', () => {
     const script = 'console.log("ok\\nsecret-box\\nfine")';
     const lines = runShown('node', ['-e', script], process.cwd(), (line) => line !== 'secret-box', ['secret-box']);
     expect(lines).toEqual(['ok', 'fine']);
+  });
+
+  it('throws when the forbidden list is unset, empty or not a list of strings', () => {
+    const message = 'TUTORIAL_FORBIDDEN is missing: run the demo through scripts/run.mjs';
+    expect(() => forbiddenFromEnv({})).toThrow(message);
+    expect(() => forbiddenFromEnv({ TUTORIAL_FORBIDDEN: '[]' })).toThrow(message);
+    expect(() => forbiddenFromEnv({ TUTORIAL_FORBIDDEN: '"x"' })).toThrow(message);
+  });
+
+  it('reads a valid forbidden list', () => {
+    expect(forbiddenFromEnv({ TUTORIAL_FORBIDDEN: '["/home/al","box1"]' })).toEqual(['/home/al', 'box1']);
+  });
+
+  it('throws on a non-zero exit unless allowFail is set', () => {
+    const script = 'console.log("finding"); process.exit(1)';
+    expect(() => runShown('node', ['-e', script], process.cwd(), () => true, [])).toThrow();
   });
 
   it('drops the paid key from child env and leaves the input unchanged', () => {

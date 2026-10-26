@@ -183,3 +183,15 @@ describe('forbiddenStrings', () => {
     expect(forbiddenStrings({ user: 'alice', host: 'alice', home: 'ab' })).toEqual(['alice']);
   });
 });
+
+describe('parseArgs demo name', () => {
+  it('rejects names that are not safe path segments', () => {
+    for (const bad of ['../x', '/abs', 'a/b', 'A']) {
+      expect(() => parseArgs([bad])).toThrow(/^demo name must match /);
+    }
+  });
+
+  it('accepts a lower-case dashed name', () => {
+    expect(parseArgs(['flow-tower']).demo).toBe('flow-tower');
+  });
+});

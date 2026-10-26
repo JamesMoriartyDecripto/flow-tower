@@ -172,6 +172,8 @@ test('flow-tower', async ({ page, narration }) => {
   await checkScreen('how-yaml');
   narration.mark('how-yaml');
   const yamlLines = readFileSync(join(FLOW_TOWER, 'examples', SINGLE_AGENT), 'utf8').split('\n').slice(0, 20);
+  const yamlHit = cleanHits(yamlLines.join('\n'), forbidden)[0];
+  if (yamlHit !== undefined) throw new Error(`clean screen: "${yamlHit}" is in the YAML card`);
   await showCard(page, codeCard(`examples/${SINGLE_AGENT}`, yamlLines));
   await page.waitForTimeout(narration.durationFor('how-yaml'));
   await hideCard(page);
@@ -196,6 +198,7 @@ test('flow-tower', async ({ page, narration }) => {
     FLOW_TOWER,
     (line) => line.trim() !== '',
     forbidden,
+    true,
   ).slice(0, 14);
   await showCard(page, codeCard('node bin/flow-tower.js audit examples/dev-squad', audit));
   await page.waitForTimeout(narration.durationFor('when-review'));
@@ -208,7 +211,7 @@ test('flow-tower', async ({ page, narration }) => {
   narration.mark('when-live');
   const simulator = spawn(
     'node',
-    ['--experimental-strip-types', 'scripts/simulate.ts', 'dev-squad', '--url', process.env.TUTORIAL_URL ?? ''],
+    ['--experimental-strip-types', 'scripts/simulate.ts', 'dev-squad', '--url', process.env.TUTORIAL_URL || 'http://127.0.0.1:5343'],
     { cwd: FLOW_TOWER, stdio: 'ignore', env: childEnv() },
   );
   try {
@@ -286,6 +289,7 @@ test('flow-tower', async ({ page, narration }) => {
     folder,
     (line) => line.trim() !== '',
     forbidden,
+    true,
   );
   await showCard(page, codeCard('node bin/flow-tower.js validate my-project/tower', validateLines));
   await page.waitForTimeout(narration.durationFor('start-validate'));

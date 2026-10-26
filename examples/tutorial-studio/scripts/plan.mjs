@@ -4,6 +4,9 @@
 
 const USAGE = 'usage: node scripts/run.mjs <demo> [--dry | --pilot] [--headed]';
 const FLAGS = new Set(['--dry', '--pilot', '--headed']);
+// The demo name becomes a path segment (.argo/<demo>, <demo>.scenes.json), so it must not hold
+// separators or dots that could walk out of the folder.
+export const DEMO_NAME = /^[a-z0-9][a-z0-9-]*$/;
 
 export function parseArgs(argv) {
   let demo;
@@ -19,6 +22,7 @@ export function parseArgs(argv) {
     }
   }
   if (demo === undefined) throw new Error(USAGE);
+  if (!DEMO_NAME.test(demo)) throw new Error(`demo name must match ${DEMO_NAME}`);
   if (flags.has('--dry') && flags.has('--pilot')) throw new Error(USAGE);
   const mode = flags.has('--dry') ? 'dry' : flags.has('--pilot') ? 'pilot' : 'final';
   return { demo, mode, headed: flags.has('--headed') };

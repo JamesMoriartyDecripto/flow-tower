@@ -22,6 +22,9 @@ export interface Run {
   env: Record<string, string>;
 }
 
+/** Allowed demo names: lower-case letters, digits and dashes, safe as a path segment. */
+export const DEMO_NAME: RegExp;
+
 /** Parses process.argv.slice(2); throws the usage message on bad input. */
 export function parseArgs(argv: string[]): RunArgs;
 

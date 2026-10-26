@@ -3,6 +3,7 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { DEMO_NAME } from './plan.mjs';
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -128,6 +129,11 @@ async function readReport(argoDir, demo) {
 async function main([runDir, demo]) {
   if (!runDir || !demo) {
     console.error('usage: node scripts/sheet.mjs <run-dir> <demo>');
+    process.exit(1);
+  }
+  // The demo name becomes a path segment below, so it gets the same check as run.mjs.
+  if (!DEMO_NAME.test(demo)) {
+    console.error(`demo name must match ${DEMO_NAME}`);
     process.exit(1);
   }
   const argoDir = join(runDir, '.argo', demo);

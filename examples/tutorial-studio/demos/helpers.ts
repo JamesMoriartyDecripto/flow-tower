@@ -18,9 +18,21 @@ export function childEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEn
   return copy;
 }
 
-/** The list scripts/run.mjs passes in TUTORIAL_FORBIDDEN (home path, machine name, user name). */
+/**
+ * The list scripts/run.mjs passes in TUTORIAL_FORBIDDEN (home path, machine name, user name).
+ * Throws when it is missing or empty: an empty list would silently switch the clean-screen check off.
+ */
 export function forbiddenFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
-  return JSON.parse(env.TUTORIAL_FORBIDDEN ?? '[]') as string[];
+  let list: unknown;
+  try {
+    list = env.TUTORIAL_FORBIDDEN === undefined ? undefined : JSON.parse(env.TUTORIAL_FORBIDDEN);
+  } catch {
+    list = undefined;
+  }
+  if (!Array.isArray(list) || list.length === 0 || !list.every((s) => typeof s === 'string')) {
+    throw new Error('TUTORIAL_FORBIDDEN is missing: run the demo through scripts/run.mjs');
+  }
+  return list as string[];
 }
 
 export function escapeHtml(s: string): string {
@@ -54,15 +66,17 @@ export function runShown(
   cwd: string,
   keep: (line: string) => boolean,
   forbidden: string[],
+  allowFail = false,
 ): string[] {
   let output: string;
   try {
     output = execFileSync(cmd, args, { cwd, encoding: 'utf8', env: childEnv() });
   } catch (err) {
-    // audit and validate exit non-zero when they find problems; the findings are what the
-    // viewer should see, so their stdout is kept. Any other failure is re-thrown.
+    // audit and validate exit non-zero when they find problems; with allowFail their stdout is
+    // kept, since the findings are what the viewer should see. Otherwise, including a failed copy,
+    // the error is re-thrown so the run stops instead of showing a partial result.
     const out = (err as { stdout?: unknown }).stdout;
-    if (typeof out !== 'string') throw err;
+    if (!allowFail || typeof out !== 'string') throw err;
     output = out;
   }
   // The final newline ends the last line; it is not an empty line to show.
