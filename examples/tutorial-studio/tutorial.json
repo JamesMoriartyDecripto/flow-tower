@@ -1,0 +1,13 @@
+{
+  "app": {
+    "command": ["node", "${FLOW_TOWER}/bin/flow-tower.js", "${FLOW_TOWER}/examples", "--port", "5343", "--no-open"],
+    "url": "http://127.0.0.1:5343",
+    "homeEnv": "FLOW_TOWER_HOME"
+  },
+  "voices": [
+    { "model": "google/gemini-3.8-flash-tts", "voice": "Charon", "format": "pcm" },
+    { "model": "elevenlabs/eleven-flash-v2.5", "voice": "alice" },
+    { "model": "microsoft/mai-voice-2.1", "voice": "en-US-Harper:MAI-Voice-2.1" }
+  ],
+  "pilotUntil": "why-tower"
+}
