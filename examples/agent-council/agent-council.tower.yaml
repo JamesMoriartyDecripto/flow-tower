@@ -45,7 +45,7 @@ agents:
     name: Brief Writer
     model: google/gemini-2.0-flash-001
     prompt: briefing
-    tools: [WebSearch, Read]
+    tools: [WebSearch, Read, Write]
     runtime: openrouter
     budget: { usd: 0.5, turns: 5, on_exceed: stop }
 
@@ -53,7 +53,7 @@ agents:
     name: Council Coordinator
     model: anthropic/claude-3.5-sonnet
     prompt: coordinator
-    tools: [Read, Write, WebSearch]
+    tools: [Read, Write]
     runtime: openrouter
     budget: { usd: 1.5, turns: 30, on_exceed: pause }
     limits: { max_iterations: 3 }
@@ -354,7 +354,7 @@ links:
   - { from: council.dev, to: orchestration.coord, kind: return, label: eval }
   - { from: council.ai, to: orchestration.coord, kind: return, label: eval }
   - { from: council.red, to: orchestration.coord, kind: return, label: eval }
-  - "orchestration.round_gate -> synthesis.synth [handoff]: complete"
+  - "orchestration.round_gate -> synthesis.synth [handoff]: synthesize"
   - "council.evals -> synthesis.synth [data]: all positions"
   - "synthesis.plan_out -> ops.audit_log [data]: approved plan"
   - "synthesis.human_gate -> ops.audit_log [data]: decision"

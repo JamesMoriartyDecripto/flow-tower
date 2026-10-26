@@ -36,7 +36,8 @@ A multi-expert deliberation council for complex decisions. A chat question becom
 
 - Numbers marked *illustrative* are not measured.
 - Budget and timeout caps protect against runaway deliberation.
-- Experts deliberately get `WebSearch`: the council evaluates questions that need public sources (regulations, attack surface, tooling); briefs and evals may still hold internal material, flagged `confidential` on the memory nodes. Copying the tower into a stricter environment: drop `WebSearch` from the agents that should not leave the workspace.
+- The coordinator is read/write only (it stores plans and calls the experts); it never searches, so it cannot exfiltrate evaluated content.
+- Experts deliberately get `WebSearch`: the council evaluates questions that need public sources (regulations, attack surface, tooling); briefs and evals may still hold internal material, flagged `confidential` on the memory nodes. For internal-only questions, remove `WebSearch` from the expert agents before copying the tower. The OpenRouter model calls are the platform's own traffic, not an extra egress.
 - No expert agent runs a shell: evaluations are read + search only, so no sandbox is declared.
 - A `brief-example.md` in `memory/` shows the expected brief format.
 
