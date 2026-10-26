@@ -1,5 +1,13 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildSheet, mmss, parseChapters } from '../examples/tutorial-studio/scripts/sheet.mjs';
+import {
+  buildSheet,
+  mmss,
+  parseChapters,
+  readReport,
+} from '../examples/tutorial-studio/scripts/sheet.mjs';
 
 describe('mmss', () => {
   it('formats m:ss with zero-padded seconds', () => {
@@ -73,5 +81,26 @@ describe('parseChapters', () => {
 
   it('returns no scenes and a zero total for an empty text', () => {
     expect(parseChapters('')).toEqual({ totalDurationMs: 0, scenes: [] });
+  });
+});
+
+describe('readReport', () => {
+  it('falls back to the chapters when scene-report.json is truncated', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sheet-'));
+    try {
+      await writeFile(join(dir, 'scene-report.json'), '{"scenes": [');
+      await writeFile(
+        join(dir, 'chapters.txt'),
+        [';FFMETADATA1', '[CHAPTER]', 'TIMEBASE=1/1000', 'START=0', 'END=4000', 'title=a', ''].join('\n'),
+      );
+      const report = await readReport(dir, 'd');
+      expect(report).toEqual({
+        demo: 'd',
+        totalDurationMs: 4000,
+        scenes: [{ scene: 'a', startMs: 0, endMs: 4000, durationMs: 4000 }],
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

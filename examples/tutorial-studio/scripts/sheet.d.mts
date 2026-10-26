@@ -31,3 +31,6 @@ export interface ParsedChapters {
 
 /** Parses an FFMETADATA chapters text (TIMEBASE 1/1000 assumed) into scenes, in file order. */
 export function parseChapters(text: string): ParsedChapters;
+
+/** The scene report from Argo's scene-report.json, else from chapters.txt; null when neither exists. */
+export function readReport(argoDir: string, demo: string): Promise<SheetReport | null>;

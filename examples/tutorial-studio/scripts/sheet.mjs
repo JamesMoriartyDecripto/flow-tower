@@ -116,11 +116,19 @@ async function readIfExists(path) {
 /**
  * The scene report when Argo wrote one; otherwise the chapters, which Argo always writes.
  * A retried encode can stop before the report exists, so the chapters are the fallback.
+ * An encode that stops mid-write can leave the report half written; that unparsable JSON
+ * (SyntaxError) also falls back to the chapters. Other errors are re-thrown.
  * Returns null when neither file exists.
  */
-async function readReport(argoDir, demo) {
+export async function readReport(argoDir, demo) {
   const json = await readIfExists(join(argoDir, 'scene-report.json'));
-  if (json !== null) return JSON.parse(json);
+  if (json !== null) {
+    try {
+      return JSON.parse(json);
+    } catch (err) {
+      if (!(err instanceof SyntaxError)) throw err;
+    }
+  }
   const chapters = await readIfExists(join(argoDir, 'chapters.txt'));
   if (chapters === null) return null;
   return { demo, ...parseChapters(chapters) };
