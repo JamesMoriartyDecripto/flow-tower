@@ -55,8 +55,8 @@ agents:
     prompt: coordinator
     tools: [Read, Write]
     runtime: openrouter
-    description: "Neutral chair. Its Write is the only write grant in the workspace; flow-tower keeps every path inside the project root, and the harness can scope it further to the memory folder."
-    budget: { usd: 1.5, turns: 30, on_exceed: pause }
+    description: "Neutral chair. Its Write is the only write grant in the workspace, scoped to memory/ (briefs, evals, audit); flow-tower keeps every path inside the project root."
+    budget: { usd: 1.5, turns: 40, on_exceed: pause }
     limits: { max_iterations: 3 }
 
   software_architect:
@@ -176,7 +176,7 @@ layers:
       - id: coord
         agent: coordinator
         label: Coordinator
-        description: "Selects 3-7 experts and moderates rounds."
+        description: "Selects the experts for the brief (advisory 3-7, enforced by its prompt) and moderates rounds."
 
       - id: round_gate
         type: decision
@@ -227,8 +227,8 @@ layers:
         type: memory
         runtime: workspace
         label: Evaluations
-        description: "Round outputs, one file per expert per round, registered by the coordinator from the experts' returns; the synthesizer reads them for the plan. Briefs and evals leave the machine to the configured model vendors: restrict the experts' models to approved providers for confidential material (README Notes)."
-        data: { sensitivity: confidential, retention: 90d }
+        description: "Round outputs, one file per expert per round, registered by the coordinator from the experts' returns; the synthesizer reads them for the plan. Content travels to the configured model vendors, so keep truly restricted material out (README Notes)."
+        data: { sensitivity: internal, retention: 90d }
 
     edges: []
 
@@ -289,7 +289,7 @@ layers:
         runtime: workspace
         label: Audit log
         description: "Log of accepted plans and gate decisions, one line per run."
-        data: { sensitivity: confidential, retention: 90d }
+        data: { sensitivity: internal, retention: 90d }
 
       - id: mod_gemini
         type: model
