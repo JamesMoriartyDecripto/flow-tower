@@ -12,6 +12,26 @@ The sample is the Flow Tower tutorial itself: what towers are, how they work, wh
 node bin/flow-tower.js examples/tutorial-studio
 ```
 
+## Run it
+
+Render from a copy outside `examples/`: `node_modules`, Argo's cache and the videos are git-ignored and would fail
+the examples test. It needs Node 22, ffmpeg, Chrome and an OpenRouter key (`OPENROUTER_API_KEY`, or the one
+`flow-tower squad key` stores in the user folder; it is never printed).
+
+```bash
+node bin/flow-tower.js copy tutorial-studio ../tutorial-run
+cd ../tutorial-run && npm install
+export FLOW_TOWER=/path/to/flow-tower   # the checkout the scratch instance runs from
+npm run dry      # every action with a silent voice: no key, no cost
+npm run pilot    # the scenes up to pilotUntil, once per voice in tutorial.json
+npm run render   # the whole video with the first voice
+```
+
+Each run writes `runs/<name>/videos/` (MP4, SRT, VTT) and `runs/<name>/sheet.html`, the contact sheet with one frame
+per scene. The voices, the pilot's last scene and the app command live in [tutorial.json](tutorial.json), the
+narration in [demos/flow-tower.scenes.json](demos/flow-tower.scenes.json), the actions in
+[demos/flow-tower.demo.ts](demos/flow-tower.demo.ts).
+
 ## What it shows
 
 | Layer | What happens there |
