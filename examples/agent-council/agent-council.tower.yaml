@@ -45,7 +45,7 @@ agents:
     name: Brief Writer
     model: google/gemini-2.0-flash-001
     prompt: briefing
-    tools: [WebSearch, Read, Write]
+    tools: []
     runtime: openrouter
     budget: { usd: 0.5, turns: 5, on_exceed: stop }
 
@@ -62,7 +62,7 @@ agents:
     name: Software Architect
     model: openai/gpt-4o
     prompt: expert_software
-    tools: [WebSearch, Read]
+    tools: [Read]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -70,7 +70,7 @@ agents:
     name: Security Expert
     model: anthropic/claude-3.5-sonnet
     prompt: expert_security
-    tools: [WebSearch, Read]
+    tools: [Read]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -78,7 +78,7 @@ agents:
     name: Compliance Officer
     model: anthropic/claude-3.5-sonnet
     prompt: expert_compliance
-    tools: [WebSearch, Read]
+    tools: [Read]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -86,7 +86,7 @@ agents:
     name: Legal Counsel
     model: anthropic/claude-3.5-sonnet
     prompt: expert_legal
-    tools: [WebSearch, Read]
+    tools: [Read]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -94,7 +94,7 @@ agents:
     name: DevOps Lead
     model: openai/gpt-4o
     prompt: expert_devops
-    tools: [WebSearch, Read]
+    tools: [Read]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -102,7 +102,7 @@ agents:
     name: AI and Agents Researcher
     model: deepseek/deepseek-r1
     prompt: expert_ai
-    tools: [WebSearch, Read]
+    tools: [Read]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -110,7 +110,7 @@ agents:
     name: Red Team
     model: meta-llama/llama-3.3-70b-instruct
     prompt: red_team
-    tools: [WebSearch, Read]
+    tools: [Read]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -158,7 +158,7 @@ layers:
         type: memory
         runtime: workspace
         label: Approved brief
-        description: "Structured brief saved for the council."
+        description: "Structured brief the coordinator saves into briefs/{id}.md after approval."
         files: [memory/brief-example.md]
 
     edges:
@@ -192,7 +192,7 @@ layers:
   # 3 ──────────────────────────────────────────────────────────────
   - id: council
     title: Council
-    description: The summoned experts. Each runs in isolation per round, writes to shared eval memory.
+    description: "The expert pool, drawn in full. The coordinator summons only the 3-7 experts its brief selects; every expert evaluates in isolation per round and writes to the shared eval memory."
     nodes:
       - id: arch
         agent: software_architect
@@ -257,7 +257,7 @@ layers:
         type: decision
         runtime: workspace
         label: Consensus?
-        description: "Classifies from the verifier's issues and the experts' confidence scores: unanimous when every non-negotiable is met, majority when most experts agree, dissent when positions conflict."
+        description: "Classifies from the verifier's issues and the experts' confidence scores: unanimous when every non-negotiable is met, majority when most experts agree, dissent when positions conflict. At the 2-revision cap dissent becomes the final outcome."
         decision: { output: choice, candidates: [unanimous, majority, dissent], fail: closed }
         limits: { max_iterations: 2 }
 
@@ -280,6 +280,7 @@ layers:
       - "consensus -> plan_out: unanimous"
       - "consensus -> plan_out: majority"
       - "consensus -> synth [return]: dissent, max 2"
+      - "consensus -> plan_out: dissent, 2 rounds used"
       - "plan_out -> human_gate [handoff]: ready"
       - "human_gate -> plan_out [data]: approved"
       - "human_gate -> synth [return]: edit"
