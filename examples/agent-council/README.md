@@ -37,11 +37,11 @@ A multi-expert deliberation council for complex decisions. A chat question becom
 
 - Numbers marked *illustrative* are not measured.
 - Budget and timeout caps protect against runaway deliberation.
-- The briefer needs no tools: it only reformats the raw question. The approved brief lands in the Approved brief memory; the coordinator reads it and routes the rounds, and each expert writes its own per-round file to the evals memory.
-- Experts default to `[Read, Write]`: they read the brief and the other experts' outputs, and write their own file per round (by convention each expert writes only its own per-round file). For a question that needs public sources, add `WebSearch` to the experts it concerns: the council deliberately separates search from evaluation so confidential evals never ride an outbound channel.
+- The briefer needs no tools: it only reformats the raw question. The approved brief lands in the Approved brief memory; the coordinator is the only writer in the workspace: it saves the brief, registers each expert's round output into the evals memory from the experts' `[return]` links, and notes unreliable experts in the audit log.
+- Experts hold `[Read]` only: they read the brief and the other experts' outputs, and return their own per-round file through their `[return]` link to the coordinator, who registers it. For a question that needs public sources, add `WebSearch` to the experts it concerns: the council deliberately separates search from evaluation so confidential evals never ride an outbound channel.
 - Per-round expert selection is advisory: it lives in the coordinator prompt, bounded by the run budget; the tower sets no hard cap on experts per round. The spawn links draw the whole pool in the diagram; only the experts the coordinator selects for the brief actually run.
 - Running the tower sends the brief and every evaluation to the model vendors configured (OpenRouter routes to the providers listed in the model nodes). For confidential briefs, restrict the experts' `model` values to providers you approve.
-- No expert agent runs a shell, so no sandbox is declared.
+- No expert agent runs a shell: experts are read-only and the coordinator registers outputs, so no sandbox is declared.
 - A `brief-example.md` in `memory/` shows the expected brief format.
 
 ## Sources

@@ -9,9 +9,10 @@ Steps:
    - **Round 1**: send each expert only the brief; collect independent evaluations.
    - **Round 2**: send each expert the Round-1 outputs of the others; collect critiques.
    - **Round 3**: send each expert the Round-2 critiques; collect final positions with confidence scores.
-4. Pass all final positions to the synthesizer.
+4. Register each expert's output into the shared evals memory (one file per expert per round); final positions stay there for the synthesizer, which is reached through the round gate.
 
 Rules:
 - Do not favour any expert.
-- If an expert is persistently unreliable, note it in the audit log.
+- If an expert is persistently unreliable or off-topic, note it in the audit log.
 - Hard stop at 3 rounds.
+- For confidential briefs, share other experts' outputs only with expert models the operator approved for that material; the tower's model list is the default set.
