@@ -58,6 +58,45 @@ narration in [demos/flow-tower.scenes.json](demos/flow-tower.scenes.json), the a
 - **A scratch instance.** An empty user folder and sample data keep personal paths, tokens and private projects out
   of every frame.
 
+## Make a tutorial for your own app
+
+The tower is the method; the files are the Flow Tower sample. For another app, copy the folder and replace the
+sample piece by piece, keeping the order of the layers:
+
+1. **Brief.** Fill the template in [brief.md](brief.md): audience, goal, sources of truth, what must never appear
+   on screen. Get it signed off before anything else.
+2. **Outline.** Ask your coding agent for an outline with [prompts/writer.md](prompts/writer.md) and the brief;
+   [outline.md](outline.md) shows the shape (one idea per scene).
+3. **App.** In [tutorial.json](tutorial.json) set `app.command` (how to start a scratch instance on its own port),
+   `app.url`, and `app.homeEnv` if the app reads a user folder from an environment variable (it gets an empty one).
+4. **Script.** Write `demos/<name>.scenes.json` (narration per scene) and `demos/<name>.demo.ts` (actions, one
+   `narration.mark` per scene); [demos/helpers.ts](demos/helpers.ts) has the overlay cards and the clean-screen
+   check. Point the `package.json` scripts at `<name>`.
+5. **Dry run** until every action passes (`npm run dry`, no key), then the **pilot** with the voices in
+   `tutorial.json` (`pilotUntil` is the last pilot scene), pick one by ear and put it first.
+6. **Render**, go through the contact sheet with [review.md](review.md), fix the script or re-record, publish.
+   When the UI changes, run `npm run render` again: cached clips of unchanged scenes are not paid twice.
+
+## How the Flow Tower video was made
+
+The sample run, in order, with what went wrong, so the next tutorial skips it (issue #308):
+
+- **Argo over a custom recorder.** Prior art was checked first; Argo already did the scenes manifest, marks,
+  alignment and export. The method added the brief, the review, a TTS engine for OpenRouter and a contact sheet.
+- **Dry runs first.** The silent dry run found actions that failed before any voice was paid; they were fixed in
+  the script.
+- **Headless on the GPU.** The second dry run ran every scene, but the headed window came out 1280x617 with a black
+  band (screen scaling). Headless Chrome with GPU flags records 1920x1080 on any screen.
+- **Voice.** The pilot (the first two scenes) was rendered with ElevenLabs Flash v2.5, Eleven v4 and MAI-Voice-2.1;
+  the maintainer then chose `google/gemini-3.8-flash-tts`, voice `Charon`, for quality at a low price. Gemini on
+  OpenRouter answers only PCM, so the engine reads PCM (rate from the `Content-Type`) as well as MP3, and ffmpeg
+  writes the 32-bit float WAV Argo decodes.
+- **Final render.** 17 scenes, 3:46, 1920x1080 at 30 fps, narration at -16.5 LUFS, SRT and VTT captions, chapters.
+  The first export stopped at 4% and left an MP4 without its index; `npx argo export flow-tower -c ../../argo.config.mjs`
+  from `runs/final/` re-encoded the existing recording without calling the voice again.
+- **Code.** Written by the dev squad (`anthropic/claude-haiku-5.5` as coder): 17 runs, $0.12 in total; the lead
+  wrote the tower, the brief, the outline and the narration.
+
 ## Sources
 
 - Argo, `@argo-video/cli` 0.41 (MIT): [github.com/shreyaskarnik/argo](https://github.com/shreyaskarnik/argo), checked 2026-10-25.
