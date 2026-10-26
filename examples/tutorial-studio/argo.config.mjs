@@ -9,7 +9,11 @@ import { silent } from './tts/silent.mjs';
 // Only the real voice run calls the paid speech endpoint; dry runs and the default stay silent.
 const engine =
   env.TUTORIAL_TTS === 'openrouter'
-    ? openrouter({ model: env.TUTORIAL_TTS_MODEL, voice: env.TUTORIAL_TTS_VOICE })
+    ? openrouter({
+      model: env.TUTORIAL_TTS_MODEL,
+      voice: env.TUTORIAL_TTS_VOICE,
+      format: env.TUTORIAL_TTS_FORMAT || 'mp3',
+    })
     : silent;
 
 export default defineConfig({

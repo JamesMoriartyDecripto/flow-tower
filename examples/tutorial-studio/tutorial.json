@@ -5,8 +5,8 @@
     "homeEnv": "FLOW_TOWER_HOME"
   },
   "voices": [
+    { "model": "google/gemini-3.8-flash-tts", "voice": "Charon", "format": "pcm" },
     { "model": "elevenlabs/eleven-flash-v2.5", "voice": "alice" },
-    { "model": "elevenlabs/eleven-v4", "voice": "alice" },
     { "model": "microsoft/mai-voice-2.1", "voice": "en-US-Harper:MAI-Voice-2.1" }
   ],
   "pilotUntil": "why-tower"

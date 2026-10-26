@@ -44,6 +44,10 @@ export function checkTutorial(t) {
     if (!v || typeof v !== 'object' || !isNonEmptyString(v.model) || !isNonEmptyString(v.voice)) {
       fail('each voice needs a non-empty model and voice');
     }
+    // Only the formats the speech engine can decode; a typo would otherwise fail deep in ffmpeg.
+    if (v.format !== undefined && v.format !== 'mp3' && v.format !== 'pcm') {
+      fail('voice format must be mp3 or pcm');
+    }
   }
   if (!isNonEmptyString(t.pilotUntil)) fail('pilotUntil must be a non-empty string');
   return t;
@@ -62,6 +66,8 @@ export function planRuns(tutorial, mode) {
     TUTORIAL_TTS: 'openrouter',
     TUTORIAL_TTS_MODEL: voice.model,
     TUTORIAL_TTS_VOICE: voice.voice,
+    // Passed on as its own variable: the engine must know the reply format before it parses the audio.
+    TUTORIAL_TTS_FORMAT: voice.format ?? 'mp3',
   });
   if (mode === 'dry') {
     return [{ name: 'dry', env: { TUTORIAL_TTS: 'silent' } }];

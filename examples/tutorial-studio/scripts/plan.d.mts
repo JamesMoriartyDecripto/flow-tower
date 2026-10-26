@@ -7,6 +7,8 @@ export interface RunArgs {
 export interface Voice {
   model: string;
   voice: string;
+  /** Reply format of the speech endpoint; defaults to mp3. */
+  format?: 'mp3' | 'pcm';
 }
 
 export interface Tutorial {

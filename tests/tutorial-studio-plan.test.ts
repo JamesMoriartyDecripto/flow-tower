@@ -63,6 +63,14 @@ describe('checkTutorial', () => {
       'tutorial.json: each voice needs a non-empty model and voice',
     );
   });
+
+  it('accepts a pcm voice and rejects an unknown format', () => {
+    const pcm = { ...tutorial, voices: [{ model: 'a/b', voice: 'alice', format: 'pcm' as const }] };
+    expect(checkTutorial(pcm)).toBe(pcm);
+    expect(() => checkTutorial({ ...tutorial, voices: [{ model: 'a/b', voice: 'alice', format: 'wav' }] })).toThrow(
+      'tutorial.json: voice format must be mp3 or pcm',
+    );
+  });
 });
 
 describe('slug', () => {
@@ -84,6 +92,7 @@ describe('planRuns', () => {
       TUTORIAL_TTS: 'openrouter',
       TUTORIAL_TTS_MODEL: 'c/d',
       TUTORIAL_TTS_VOICE: 'bob',
+      TUTORIAL_TTS_FORMAT: 'mp3',
       TUTORIAL_UNTIL: 'intro',
     });
   });
@@ -92,9 +101,23 @@ describe('planRuns', () => {
     expect(planRuns(tutorial, 'final')).toEqual([
       {
         name: 'final',
-        env: { TUTORIAL_TTS: 'openrouter', TUTORIAL_TTS_MODEL: 'a/b', TUTORIAL_TTS_VOICE: 'alice' },
+        env: {
+          TUTORIAL_TTS: 'openrouter',
+          TUTORIAL_TTS_MODEL: 'a/b',
+          TUTORIAL_TTS_VOICE: 'alice',
+          TUTORIAL_TTS_FORMAT: 'mp3',
+        },
       },
     ]);
+  });
+
+  it('passes each voice its reply format, mp3 by default', () => {
+    const pcm = {
+      ...tutorial,
+      voices: [{ model: 'g/tts', voice: 'Charon', format: 'pcm' as const }, tutorial.voices[0]],
+    };
+    const runs = planRuns(pcm, 'pilot');
+    expect(runs.map((r) => r.env.TUTORIAL_TTS_FORMAT)).toEqual(['pcm', 'mp3']);
   });
 });
 
