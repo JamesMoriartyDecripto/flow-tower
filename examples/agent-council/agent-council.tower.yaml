@@ -47,7 +47,7 @@ agents:
     prompt: briefing
     tools: []
     runtime: openrouter
-    budget: { usd: 0.5, turns: 5, on_exceed: stop }
+    budget: { usd: 0.5, turns: 5, on_exceed: pause }
 
   coordinator:
     name: Council Coordinator
@@ -165,7 +165,6 @@ layers:
     edges:
       - question -> briefer
       - "briefer -> brief_approval [handoff]: draft"
-      - "brief_approval -> brief_memory [data]: approved"
       - "brief_approval -> briefer [return]: edit"
 
   # 2 ──────────────────────────────────────────────────────────────
@@ -251,7 +250,7 @@ layers:
         type: decision
         runtime: workspace
         label: Consensus?
-        description: "The runtime classifies from the verifier's issues and the confidence scores the experts stored in the evals memory: unanimous when every non-negotiable is met, majority when most experts agree, dissent when positions conflict. At the 2-revision cap dissent becomes the final outcome."
+        description: "The runtime classifies from the verifier's issues and the confidence scores in the evals memory: unanimous when every non-negotiable is met, majority when most experts agree, dissent when positions conflict. fail: closed; at the 2-revision cap the dissent edge to plan_out fires as the final outcome, dissent register annexed."
         decision: { output: choice, candidates: [unanimous, majority, dissent], fail: closed }
         limits: { max_iterations: 2 }
 
@@ -334,6 +333,7 @@ layers:
         description: "Verifier."
 
 links:
+  - "orchestration.coord -> intake.brief_memory [data]: save approved brief"
   - "intake.brief_memory -> orchestration.coord [data]: brief"
   - { from: orchestration.coord, to: council.arch, kind: spawn, label: brief }
   - { from: orchestration.coord, to: council.sec, kind: spawn, label: brief }
@@ -353,6 +353,7 @@ links:
   - "orchestration.coord -> council.evals [data]: register round outputs"
   - "orchestration.coord -> ops.audit_log [data]: reliability notes"
   - "council.evals -> synthesis.synth [data]: all positions"
+  - "council.evals -> synthesis.consensus [data]: confidence + non-negotiables"
   - "synthesis.plan_out -> ops.audit_log [data]: approved plan"
   - "synthesis.human_gate -> ops.audit_log [data]: decision"
   - "intake.briefer -> ops.mod_gemini [call]"
