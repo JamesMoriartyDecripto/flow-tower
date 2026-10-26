@@ -188,4 +188,15 @@ describe('openrouter speech engine', () => {
     await expect(engine.generate('hello')).rejects.toThrow('OPENROUTER_API_KEY not found');
     expect(fetchImpl).not.toHaveBeenCalled();
   });
+
+  it('gives the speech request a timeout signal', async () => {
+    const fetchImpl = vi.fn(async () => new Response(new Uint8Array([1, 2])));
+    const toFloat = vi.fn(async () => Buffer.alloc(4));
+    const engine = openrouter({ model: 'm', voice: 'v', key: 'sk-test', fetchImpl, toFloat });
+
+    await engine.generate('hello');
+
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
 });

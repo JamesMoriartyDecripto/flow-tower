@@ -49,6 +49,10 @@ export function checkTutorial(t) {
       fail('voice format must be mp3 or pcm');
     }
   }
+  // Optional: an app without a user folder omits it. When present, run.mjs uses it as an env name.
+  if (app.homeEnv !== undefined && !isNonEmptyString(app.homeEnv)) {
+    fail('app.homeEnv must be a non-empty string when set');
+  }
   if (!isNonEmptyString(t.pilotUntil)) fail('pilotUntil must be a non-empty string');
   return t;
 }

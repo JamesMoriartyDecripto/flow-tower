@@ -8,7 +8,7 @@ export function cleanHits(text: string, forbidden: string[]): string[] {
   return forbidden.filter((s) => s !== '' && text.includes(s));
 }
 
-/** The list the runner passes in TUTORIAL_FORBIDDEN (home path, machine name, user name). */
+/** The list scripts/run.mjs passes in TUTORIAL_FORBIDDEN (home path, machine name, user name). */
 export function forbiddenFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
   return JSON.parse(env.TUTORIAL_FORBIDDEN ?? '[]') as string[];
 }

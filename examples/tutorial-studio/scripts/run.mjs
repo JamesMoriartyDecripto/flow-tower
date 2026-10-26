@@ -74,6 +74,8 @@ async function stopInstance() {
 // Environment values are never printed: the OpenRouter key may be among them.
 async function startInstance(app, logPath) {
   const env = { ...process.env };
+  // The recorded app never holds the paid key; only the Argo child, which speaks, gets it.
+  delete env.OPENROUTER_API_KEY;
   if (app.homeEnv) {
     // An empty user folder keeps tokens and private projects out of the recording.
     instance.home = mkdtempSync(join(tmpdir(), 'tutorial-home-'));

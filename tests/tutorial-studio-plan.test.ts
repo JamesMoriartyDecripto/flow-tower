@@ -73,6 +73,23 @@ describe('checkTutorial', () => {
   });
 });
 
+describe('checkTutorial homeEnv', () => {
+  const withHome = (homeEnv: unknown) => ({ ...tutorial, app: { ...tutorial.app, homeEnv } });
+
+  it('rejects an empty or non-string homeEnv', () => {
+    expect(() => checkTutorial(withHome(''))).toThrow(
+      'tutorial.json: app.homeEnv must be a non-empty string when set',
+    );
+    expect(() => checkTutorial(withHome(3))).toThrow(
+      'tutorial.json: app.homeEnv must be a non-empty string when set',
+    );
+  });
+
+  it('accepts a tutorial without homeEnv', () => {
+    expect(checkTutorial(tutorial)).toBe(tutorial);
+  });
+});
+
 describe('slug', () => {
   it('turns model ids into folder-safe names', () => {
     expect(slug('elevenlabs/eleven-v4')).toBe('elevenlabs-eleven-v4');

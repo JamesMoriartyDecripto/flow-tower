@@ -13,6 +13,8 @@ export const SPEECH_URL = 'https://openrouter.ai/api/v1/audio/speech';
 
 const KEY_LINE = /^\s*(export\s+)?OPENROUTER_API_KEY=(.*)$/m;
 const ERROR_BODY_CHARS = 300;
+// An unattended render must fail at its scene rather than hang on a stalled speech request.
+const SPEECH_TIMEOUT_MS = 120_000;
 
 /** Strips one matching pair of surrounding single or double quotes. */
 function unquote(value) {
@@ -120,6 +122,7 @@ export function openrouter({ model, voice, format = 'mp3', key, fetchImpl = fetc
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(speechRequest({ model, voice, text, format })),
+        signal: AbortSignal.timeout(SPEECH_TIMEOUT_MS),
       });
       if (!res.ok) {
         // The body may echo request details; cut it short and never include the key.

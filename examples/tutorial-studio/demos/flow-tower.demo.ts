@@ -20,6 +20,15 @@ const KEY_GAP_MS = 700;
 // Plain JS only: this string runs in the browser, so no TypeScript syntax here.
 const STATE = 'window.__flowTower.store.getState()';
 
+// The copy folder lives outside the recording; it is removed after every test, including when a
+// pilot stops early or a scene throws, so no temp folder is left behind.
+let tmp: string | undefined;
+
+test.afterEach(() => {
+  if (tmp) rmSync(tmp, { recursive: true, force: true });
+  tmp = undefined;
+});
+
 /** Shows an overlay card at the bottom right, replacing any card already there. */
 async function showCard(page: Page, html: string) {
   await page.evaluate((inner) => {
@@ -64,17 +73,22 @@ test('flow-tower', async ({ page, narration }) => {
   const forbidden = forbiddenFromEnv();
   const cursor = await createHumanCursor(page, { seed: 'flow-tower', size: 30 });
   const until = process.env.TUTORIAL_UNTIL;
-  let tmp: string | undefined;
 
-  // Before the first mark: the library must not show a user name, machine name or home path.
+  // The library must not show a user name, machine name or home path. Checked on every scene,
+  // since a card or status line can show one after the library has loaded.
+  async function checkScreen(scene: string) {
+    const hits = cleanHits(await page.evaluate(() => document.body.innerText), forbidden);
+    if (hits.length > 0) throw new Error(`clean screen: "${hits[0]}" is on the page before ${scene}`);
+  }
+
   await page.goto('/');
   await page.locator('[data-card]').first().waitFor();
-  const hits = cleanHits(await page.evaluate(() => document.body.innerText), forbidden);
-  if (hits.length > 0) throw new Error(`clean screen: "${hits[0]}" is on the page`);
+  await checkScreen('why-problem');
 
   await narration.startRecording(page);
 
   // why-problem: the library is the first thing a viewer sees; scroll it a little and back.
+  await checkScreen('why-problem');
   narration.mark('why-problem');
   for (let i = 0; i < 3; i++) {
     await cursor.moveTo(page.locator('[data-card]').nth(i), { durationMs: 900 });
@@ -86,6 +100,7 @@ test('flow-tower', async ({ page, narration }) => {
   if (until === 'why-problem') return;
 
   // why-tower: open dev-squad with the cursor, so the eye follows the click.
+  await checkScreen('why-tower');
   narration.mark('why-tower');
   await cursor.click(page.locator(`[data-card="${DEV_SQUAD}"]`));
   // The stack holds the project id (the path), not the short name, so compare with the constant.
@@ -95,6 +110,7 @@ test('flow-tower', async ({ page, narration }) => {
   if (until === 'why-tower') return;
 
   // how-layers: PageDown walks from the top layer down.
+  await checkScreen('how-layers');
   narration.mark('how-layers');
   for (let i = 0; i < 3; i++) {
     await page.keyboard.press('PageDown');
@@ -104,6 +120,7 @@ test('flow-tower', async ({ page, narration }) => {
   if (until === 'how-layers') return;
 
   // how-nodes: layer 2 is orchestration; arrow across it to the lead agent.
+  await checkScreen('how-nodes');
   narration.mark('how-nodes');
   await page.keyboard.press('2');
   await page.waitForTimeout(SCENE_GAP_MS);
@@ -112,12 +129,14 @@ test('flow-tower', async ({ page, narration }) => {
   if (until === 'how-nodes') return;
 
   // how-edges: the selected node's paths are drawn; the panel is where the eye should go.
+  await checkScreen('how-edges');
   narration.mark('how-edges');
   await cursor.moveTo(page.locator('.inspector'), { durationMs: 900 });
   await page.waitForTimeout(narration.durationFor('how-edges'));
   if (until === 'how-edges') return;
 
   // how-files: switch the panel to its files, open the first one, then close the viewer.
+  await checkScreen('how-files');
   narration.mark('how-files');
   const fileButton = page.locator('.inspector .filelist button:not([disabled])').first();
   for (let i = 0; i < 5 && !(await fileButton.isVisible()); i++) {
@@ -131,6 +150,7 @@ test('flow-tower', async ({ page, narration }) => {
   if (until === 'how-files') return;
 
   // how-subtower: clear the selection, select a node with its own flow, go in and back out.
+  await checkScreen('how-subtower');
   narration.mark('how-subtower');
   for (let i = 0; i < 6 && (await page.evaluate(`${STATE}.selected`)); i++) {
     await page.keyboard.press('Escape');
@@ -149,6 +169,7 @@ test('flow-tower', async ({ page, narration }) => {
   if (until === 'how-subtower') return;
 
   // how-yaml: the first 20 lines of the single-agent starter, as an overlay.
+  await checkScreen('how-yaml');
   narration.mark('how-yaml');
   const yamlLines = readFileSync(join(FLOW_TOWER, 'examples', SINGLE_AGENT), 'utf8').split('\n').slice(0, 20);
   await showCard(page, codeCard(`examples/${SINGLE_AGENT}`, yamlLines));
@@ -157,6 +178,7 @@ test('flow-tower', async ({ page, narration }) => {
   if (until === 'how-yaml') return;
 
   // when-design: the map view shows every layer at once.
+  await checkScreen('when-design');
   narration.mark('when-design');
   await page.keyboard.press('m');
   await waitState(page, `${STATE}.view === 'map'`);
@@ -166,6 +188,7 @@ test('flow-tower', async ({ page, narration }) => {
   if (until === 'when-design') return;
 
   // when-review: the real audit output, cut to the first 14 non-empty lines.
+  await checkScreen('when-review');
   narration.mark('when-review');
   const audit = runShown(
     'node',
@@ -181,6 +204,7 @@ test('flow-tower', async ({ page, narration }) => {
 
   // when-live: the simulator plays a dev-squad run; the live feed shows each node lighting up.
   // It is started by the demo because the feed needs events from a run, and killed when done.
+  await checkScreen('when-live');
   narration.mark('when-live');
   const simulator = spawn(
     'node',
@@ -197,6 +221,7 @@ test('flow-tower', async ({ page, narration }) => {
   if (until === 'when-live') return;
 
   // when-not: back to the library, and the single-agent starter as the small, true case.
+  await checkScreen('when-not');
   narration.mark('when-not');
   await page.keyboard.press('l');
   // The single-agent card sits at the bottom of the library: scroll it into view and travel to it
@@ -211,6 +236,7 @@ test('flow-tower', async ({ page, narration }) => {
   if (until === 'when-not') return;
 
   // start-gallery: filter the library by "starter", typed slowly so the viewer reads it.
+  await checkScreen('start-gallery');
   narration.mark('start-gallery');
   await page.keyboard.press('l');
   const filter = page.getByPlaceholder('Filter projects');
@@ -221,12 +247,14 @@ test('flow-tower', async ({ page, narration }) => {
   if (until === 'start-gallery') return;
 
   // start-copy: copy the starter into a fresh folder, and show the copy's own report.
+  await checkScreen('start-copy');
   narration.mark('start-copy');
-  tmp = mkdtempSync(join(tmpdir(), 'tutorial-copy-'));
+  const folder = mkdtempSync(join(tmpdir(), 'tutorial-copy-'));
+  tmp = folder;
   const copyLines = runShown(
     'node',
     [join(FLOW_TOWER, 'bin', 'flow-tower.js'), 'copy', 'starters/single-agent', 'my-project/tower'],
-    tmp,
+    folder,
     (line) => line.startsWith('copied') || line.startsWith('validation'),
     forbidden,
   );
@@ -236,6 +264,7 @@ test('flow-tower', async ({ page, narration }) => {
   if (until === 'start-copy') return;
 
   // start-agent: the command is shown, never run; running it would install into the author's agent.
+  await checkScreen('start-agent');
   narration.mark('start-agent');
   await showCard(
     page,
@@ -248,26 +277,28 @@ test('flow-tower', async ({ page, narration }) => {
   await hideCard(page);
   if (until === 'start-agent') return;
 
-  // start-validate: the copy validates with zero errors and zero warnings; then the temp folder goes.
+  // start-validate: the copy validates with zero errors and zero warnings; the afterEach hook removes the temp folder.
+  await checkScreen('start-validate');
   narration.mark('start-validate');
   const validateLines = runShown(
     'node',
     [join(FLOW_TOWER, 'bin', 'flow-tower.js'), 'validate', 'my-project/tower'],
-    tmp,
+    folder,
     (line) => line.trim() !== '',
     forbidden,
   );
   await showCard(page, codeCard('node bin/flow-tower.js validate my-project/tower', validateLines));
   await page.waitForTimeout(narration.durationFor('start-validate'));
   await hideCard(page);
-  rmSync(tmp, { recursive: true, force: true });
   if (until === 'start-validate') return;
 
   // close: back to the dev-squad tower, auto-orbit, hold until the clip ends.
+  await checkScreen('close');
   narration.mark('close');
   await page.keyboard.press('l');
   await cursor.click(page.locator(`[data-card="${DEV_SQUAD}"]`));
   await waitState(page, `${STATE}.stack[0] === '${DEV_SQUAD}'`);
   await page.keyboard.press('o');
   await page.waitForTimeout(narration.durationFor('close'));
+  await checkScreen('end');
 });
