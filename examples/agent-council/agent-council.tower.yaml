@@ -62,10 +62,9 @@ agents:
     name: Software Architect
     model: openai/gpt-4o
     prompt: expert_software
-    tools: [WebSearch, Read, Bash]
+    tools: [WebSearch, Read]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
-    sandbox: { network: allowlist, allow: [api.github.com, openrouter.ai], filesystem: workspace }
 
   security_expert:
     name: Security Expert
@@ -95,10 +94,9 @@ agents:
     name: DevOps Lead
     model: openai/gpt-4o
     prompt: expert_devops
-    tools: [WebSearch, Read, Bash]
+    tools: [WebSearch, Read]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
-    sandbox: { network: allowlist, allow: [api.github.com, openrouter.ai], filesystem: workspace }
 
   ai_researcher:
     name: AI and Agents Researcher
@@ -183,7 +181,8 @@ layers:
         type: decision
         runtime: workspace
         label: Round < 3?
-        description: "Another round with new context, or pass to synthesis."
+        description: "The coordinator's round count: another round with fresh context, or hand off to synthesis at 3."
+        decision: { output: choice, candidates: [round, synthesize], fail: closed }
         limits: { max_iterations: 3 }
 
     edges:
@@ -258,8 +257,8 @@ layers:
         type: decision
         runtime: workspace
         label: Consensus?
-        description: "unanimous, majority, or dissent. Plans with dissent iterate."
-        decision: { output: choice, candidates: [unanimous, majority, dissent], fail: open }
+        description: "Classifies from the verifier's issues and the experts' confidence scores: unanimous when every non-negotiable is met, majority when most experts agree, dissent when positions conflict."
+        decision: { output: choice, candidates: [unanimous, majority, dissent], fail: closed }
         limits: { max_iterations: 2 }
 
       - id: plan_out
