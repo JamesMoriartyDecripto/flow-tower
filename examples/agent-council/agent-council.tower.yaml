@@ -226,8 +226,7 @@ layers:
         type: memory
         runtime: workspace
         label: Evaluations
-        description: "Round outputs, one file per expert per round, registered here by the coordinator from the experts' return links; the synthesizer reads them for the plan."
-        # sensitivity: confidential briefs and evals are sent to the configured model vendors (OpenRouter); see the README Notes before handling sensitive material.
+        description: "Round outputs, one file per expert per round, registered by the coordinator from the experts' returns; the synthesizer reads them for the plan. Briefs and evals leave the machine to the configured model vendors: restrict the experts' models to approved providers for confidential material (README Notes)."
         data: { sensitivity: confidential, retention: 90d }
 
     edges: []
