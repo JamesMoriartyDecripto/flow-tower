@@ -141,7 +141,7 @@ layers:
         type: entry
         runtime: chat
         label: Question
-        description: "User submits a question via any chat harness."
+        description: "User submits a question via any chat harness. Its content is sent to the configured model vendors: keep secrets out (README Notes)."
         trigger: { kind: chat, source: "Claude, GPT, Pi or Hermes" }
 
       - id: briefer
@@ -181,7 +181,7 @@ layers:
         type: decision
         runtime: workspace
         label: Round < 3?
-        description: "Counts the coordinator's rounds mechanically: another round with fresh context, or hand off to synthesis at 3."
+        description: "Counts the coordinator's rounds mechanically: another round with fresh context, or hand off to synthesis at 3. A production tower can add its per-round expert cap here."
         decision: { output: choice, candidates: [round, synthesize], fail: closed }
         limits: { max_iterations: 3 }
 
@@ -287,7 +287,7 @@ layers:
         type: memory
         runtime: workspace
         label: Audit log
-        description: "Log of accepted plans and gate decisions, one line per run."
+        description: "Log of accepted plans and gate decisions, one line per run; immutability is best-effort (use an append-only mode in the harness when supported)."
         data: { sensitivity: internal, retention: 90d }
 
       - id: mod_gemini
