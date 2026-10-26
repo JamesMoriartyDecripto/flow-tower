@@ -55,6 +55,7 @@ agents:
     prompt: coordinator
     tools: [Read, Write]
     runtime: openrouter
+    description: "Neutral chair. Its Write is the only write grant in the workspace; flow-tower keeps every path inside the project root, and the harness can scope it further to the memory folder."
     budget: { usd: 1.5, turns: 30, on_exceed: pause }
     limits: { max_iterations: 3 }
 
@@ -159,7 +160,7 @@ layers:
         runtime: workspace
         label: Approved brief
         description: "Structured brief the coordinator saves into briefs/{id}.md after approval."
-        files: [memory/brief-example.md]
+        files: [memory/brief-example.md, { path: briefs/, optional: true, description: "Approved briefs written per run" }]
 
     edges:
       - question -> briefer
@@ -181,7 +182,7 @@ layers:
         type: decision
         runtime: workspace
         label: Round < 3?
-        description: "The coordinator's round count: another round with fresh context, or hand off to synthesis at 3."
+        description: "Counts the coordinator's rounds mechanically: another round with fresh context, or hand off to synthesis at 3."
         decision: { output: choice, candidates: [round, synthesize], fail: closed }
         limits: { max_iterations: 3 }
 
@@ -250,7 +251,7 @@ layers:
         type: decision
         runtime: workspace
         label: Consensus?
-        description: "Classifies from the verifier's issues and the experts' confidence scores: unanimous when every non-negotiable is met, majority when most experts agree, dissent when positions conflict. At the 2-revision cap dissent becomes the final outcome."
+        description: "The runtime classifies from the verifier's issues and the confidence scores the experts stored in the evals memory: unanimous when every non-negotiable is met, majority when most experts agree, dissent when positions conflict. At the 2-revision cap dissent becomes the final outcome."
         decision: { output: choice, candidates: [unanimous, majority, dissent], fail: closed }
         limits: { max_iterations: 2 }
 
