@@ -34,6 +34,7 @@ Presets by pattern: real multi-agent systems, one per architecture.
 | [`airline-support`](airline-support) | 5 | Peer handoffs, guardrails that trip, browser UI vs server agents over HTTP |
 | [`chief-of-staff`](chief-of-staff) | 5 | Ambient agent: event + cron triggers, notify / question / review human-in-the-loop, memory, audit hooks |
 | [`browser-worker`](browser-worker) | 5 | Computer-use agent: browser runtime, live-view takeover, session recordings, TTLs |
+| [`agent-council`](agent-council) | 5 | Multi-expert deliberation: coordinator selects experts, 3 structured rounds, synthesis with dissent register, per-role models on OpenRouter |
 | [`a2a-concierge`](a2a-concierge) | 5 | Agents from different frameworks over A2A, one sub-tower per remote agent |
 | [`legal-diligence`](legal-diligence) | 5 | Per-document fan-out, approvals at every step, confidential EU-resident data |
 | [`jev-agent`](jev-agent) | 5 | Decision-model harness: typed decisions with thresholds, LLM only where text is needed, code enforces |

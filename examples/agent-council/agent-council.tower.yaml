@@ -1,0 +1,376 @@
+# yaml-language-server: $schema=../../schema/flow-tower.schema.json
+version: 1
+name: Agent Council
+tags: [multi-agent, deliberation, council, openrouter, decision-support]
+description: >-
+  A multi-expert deliberation council. A chat question becomes a brief, a coordinator
+  summons a subset of experts, and three structured rounds produce independent evaluations,
+  critiques, and final positions. A synthesizer drafts an operational plan, a verifier
+  audits it, and a short human gate approves the result. Per-role model optimisation on
+  OpenRouter.
+
+budget: { usd: 10, tokens: 400000, per: run, on_exceed: pause }
+limits: { timeout: 30m, max_iterations: 3, description: "Three deliberation rounds; each expert called up to 3 times." }
+
+runtimes:
+  chat:
+    kind: browser
+    label: Chat UI
+    description: "Any chat harness: Claude, GPT, Pi, Hermes."
+  openrouter:
+    kind: saas
+    label: OpenRouter
+    provider: openrouter
+    url: "https://openrouter.ai"
+  workspace:
+    kind: local
+    label: Workspace
+    description: "Local files for briefs, evaluations, and plans."
+
+prompts:
+  briefing: { file: prompts/briefing.md, description: "Raw question -> structured brief." }
+  coordinator: { file: prompts/coordinator.md, description: "Select experts and run 3 rounds." }
+  expert_software: { file: prompts/expert-software.md, description: "Software architecture perspective." }
+  expert_security: { file: prompts/expert-security.md, description: "Cybersecurity perspective." }
+  expert_compliance: { file: prompts/expert-compliance.md, description: "Compliance perspective." }
+  expert_legal: { file: prompts/expert-legal.md, description: "Legal perspective." }
+  expert_devops: { file: prompts/expert-devops.md, description: "DevOps perspective." }
+  expert_ai: { file: prompts/expert-ai.md, description: "AI and agents perspective." }
+  red_team: { file: prompts/red-team.md, description: "Devil's advocate." }
+  synthesizer: { file: prompts/synthesizer.md, description: "Draft operational plan from positions." }
+  verifier: { file: prompts/verifier.md, description: "Check plan consistency and coverage." }
+
+agents:
+  briefer:
+    name: Brief Writer
+    model: google/gemini-2.0-flash-001
+    prompt: briefing
+    tools: []
+    runtime: openrouter
+    budget: { usd: 0.5, turns: 5, on_exceed: pause }
+
+  coordinator:
+    name: Council Coordinator
+    model: anthropic/claude-3.5-sonnet
+    prompt: coordinator
+    tools: [Read, Write]
+    runtime: openrouter
+    description: "Neutral chair. Its Write is the only write grant in the workspace, scoped to memory/ (briefs, evals, audit); flow-tower keeps every path inside the project root."
+    budget: { usd: 1.5, turns: 50, on_exceed: pause }
+    limits: { max_iterations: 3 }
+
+  software_architect:
+    name: Software Architect
+    model: openai/gpt-4o
+    prompt: expert_software
+    tools: [Read]
+    runtime: openrouter
+    budget: { usd: 0.4, turns: 10, on_exceed: stop }
+
+  security_expert:
+    name: Security Expert
+    model: anthropic/claude-3.5-sonnet
+    prompt: expert_security
+    tools: [Read]
+    runtime: openrouter
+    budget: { usd: 0.4, turns: 10, on_exceed: stop }
+
+  compliance_officer:
+    name: Compliance Officer
+    model: anthropic/claude-3.5-sonnet
+    prompt: expert_compliance
+    tools: [Read]
+    runtime: openrouter
+    budget: { usd: 0.4, turns: 10, on_exceed: stop }
+
+  legal_counsel:
+    name: Legal Counsel
+    model: anthropic/claude-3.5-sonnet
+    prompt: expert_legal
+    tools: [Read]
+    runtime: openrouter
+    budget: { usd: 0.4, turns: 10, on_exceed: stop }
+
+  devops_lead:
+    name: DevOps Lead
+    model: openai/gpt-4o
+    prompt: expert_devops
+    tools: [Read]
+    runtime: openrouter
+    budget: { usd: 0.4, turns: 10, on_exceed: stop }
+
+  ai_researcher:
+    name: AI and Agents Researcher
+    model: deepseek/deepseek-r1
+    prompt: expert_ai
+    tools: [Read]
+    runtime: openrouter
+    budget: { usd: 0.4, turns: 10, on_exceed: stop }
+
+  red_team:
+    name: Red Team
+    model: meta-llama/llama-3.3-70b-instruct
+    prompt: red_team
+    tools: [Read]
+    runtime: openrouter
+    budget: { usd: 0.4, turns: 10, on_exceed: stop }
+
+  synthesizer:
+    name: Plan Synthesizer
+    model: anthropic/claude-3.5-sonnet
+    prompt: synthesizer
+    tools: [Read]
+    runtime: openrouter
+    budget: { usd: 0.8, turns: 12, on_exceed: stop }
+
+  verifier:
+    name: Plan Verifier
+    model: openai/gpt-4o-mini
+    prompt: verifier
+    tools: [Read]
+    runtime: openrouter
+    budget: { usd: 0.3, turns: 8, on_exceed: stop }
+
+layers:
+  # 1 ──────────────────────────────────────────────────────────────
+  - id: intake
+    title: Intake & Briefing
+    description: From raw question to a structured brief and a quick human gate.
+    nodes:
+      - id: question
+        type: entry
+        runtime: chat
+        label: Question
+        description: "User submits a question via any chat harness. Its content is sent to the configured model vendors: keep secrets out (README Notes)."
+        trigger: { kind: chat, source: "Claude, GPT, Pi or Hermes" }
+
+      - id: briefer
+        agent: briefer
+        label: Brief writer
+
+      - id: brief_approval
+        type: human
+        runtime: chat
+        label: Approve brief
+        description: "Approve, edit or reject before tokens are spent."
+        approval: { by: User, via: chat, actions: [approve, edit, reject], timeout: 10m, on_timeout: escalate }
+
+      - id: brief_rejected
+        type: output
+        runtime: chat
+        label: Brief rejected
+        description: "The user rejected the brief; nothing is spent on the council."
+
+      - id: brief_memory
+        type: memory
+        runtime: workspace
+        label: Approved brief
+        description: "Structured brief the coordinator saves into briefs/{id}.md after approval."
+        files: [memory/brief-example.md, { path: briefs/, optional: true, description: "Approved briefs written per run" }]
+
+    edges:
+      - question -> briefer
+      - "briefer -> brief_approval [handoff]: draft"
+      - "brief_approval -> brief_rejected: reject"
+      - "brief_approval -> briefer [return]: edit"
+
+  # 2 ──────────────────────────────────────────────────────────────
+  - id: orchestration
+    title: Orchestration
+    description: Coordinator selects experts and runs up to three structured rounds.
+    nodes:
+      - id: coord
+        agent: coordinator
+        label: Coordinator
+        description: "Selects the experts for the brief (advisory 3-7, enforced by its prompt) and moderates rounds."
+
+      - id: round_gate
+        type: decision
+        runtime: workspace
+        label: Round < 3?
+        description: "Counts the coordinator's rounds mechanically: another round with fresh context, or hand off to synthesis at 3. A production tower can add its per-round expert cap here."
+        decision: { output: choice, candidates: [round, synthesize], fail: closed }
+        limits: { max_iterations: 3 }
+
+    edges:
+      - coord -> round_gate [flow]
+      - "round_gate -> coord [return]: next round, max 3"
+
+  # 3 ──────────────────────────────────────────────────────────────
+  - id: council
+    title: Council
+    description: "The expert pool, drawn in full. The coordinator summons only the 3-7 experts its brief selects; each expert evaluates in isolation per round and returns its output, which the coordinator registers in the shared eval memory."
+    nodes:
+      - id: arch
+        agent: software_architect
+        label: Architect
+
+      - id: sec
+        agent: security_expert
+        label: Security
+
+      - id: comp
+        agent: compliance_officer
+        label: Compliance
+
+      - id: leg
+        agent: legal_counsel
+        label: Legal
+
+      - id: dev
+        agent: devops_lead
+        label: DevOps
+
+      - id: ai
+        agent: ai_researcher
+        label: AI Research
+
+      - id: red
+        agent: red_team
+        label: Red Team
+
+      - id: evals
+        type: memory
+        runtime: workspace
+        label: Evaluations
+        description: "Round outputs, one file per expert per round, registered by the coordinator from the experts' returns; the synthesizer reads them for the plan. Content travels to the configured model vendors, so keep truly restricted material out (README Notes)."
+        data: { sensitivity: internal, retention: 90d }
+
+    edges: []
+
+  # 4 ──────────────────────────────────────────────────────────────
+  - id: synthesis
+    title: Synthesis & Review
+    description: "Plan synthesis, verification, consensus classification, and human gate. Revised plans loop synth -> verify -> consensus again; at the 2-revision cap dissent reaches plan_out as the final outcome."
+    nodes:
+      - id: synth
+        agent: synthesizer
+        label: Synthesizer
+        description: "Merges final positions into one operational plan."
+
+      - id: verify
+        agent: verifier
+        label: Verifier
+        description: "Checks internal consistency and coverage."
+
+      - id: consensus
+        type: decision
+        runtime: workspace
+        label: Consensus?
+        description: "The runtime classifies from the verifier's issues and the confidence scores in the evals memory: unanimous when every non-negotiable is met, majority when most experts agree, dissent when positions conflict. fail: closed; at the 2-revision cap the dissent edge to plan_out fires as the final outcome, dissent register annexed."
+        decision: { output: choice, candidates: [unanimous, majority, dissent], fail: closed }
+        limits: { max_iterations: 2 }
+
+      - id: plan_out
+        type: output
+        runtime: chat
+        label: Final plan
+        description: "Markdown plan with trade-offs and dissent register."
+
+      - id: human_gate
+        type: human
+        runtime: chat
+        label: Approve plan
+        description: "Short approval gate before the plan is accepted."
+        approval: { by: User, via: chat, actions: [approve, edit, reject], timeout: 15m, on_timeout: escalate }
+
+    edges:
+      - "synth -> verify [handoff]: draft"
+      - "verify -> consensus [data]: issues"
+      - "consensus -> plan_out: unanimous"
+      - "consensus -> plan_out: majority"
+      - "consensus -> synth [return]: dissent, max 2"
+      - "consensus -> plan_out: dissent, 2 rounds used"
+      - "plan_out -> human_gate [handoff]: ready"
+      - "human_gate -> plan_out [data]: approved"
+      - "human_gate -> synth [return]: edit"
+
+  # 5 ──────────────────────────────────────────────────────────────
+  - id: ops
+    title: Ops, Models & Audit
+    description: Models used, append-only audit log, and learned preferences.
+    nodes:
+      - id: audit_log
+        type: memory
+        runtime: workspace
+        label: Audit log
+        description: "Log of accepted plans and gate decisions, one line per run; immutability is best-effort (use an append-only mode in the harness when supported)."
+        data: { sensitivity: internal, retention: 90d }
+
+      - id: mod_gemini
+        type: model
+        runtime: openrouter
+        label: Gemini 2.0 Flash
+        model: google/gemini-2.0-flash-001
+        description: "Briefer agent."
+
+      - id: mod_claude
+        type: model
+        runtime: openrouter
+        label: Claude 3.5 Sonnet
+        model: anthropic/claude-3.5-sonnet
+        description: "Coordinator, Security, Compliance, Legal, Synthesizer."
+
+      - id: mod_gpt4o
+        type: model
+        runtime: openrouter
+        label: GPT-4o
+        model: openai/gpt-4o
+        description: "Software Architect and DevOps Lead."
+
+      - id: mod_deepseek
+        type: model
+        runtime: openrouter
+        label: DeepSeek R1
+        model: deepseek/deepseek-r1
+        description: "AI and Agents Researcher."
+
+      - id: mod_llama
+        type: model
+        runtime: openrouter
+        label: Llama 3.3 70B
+        model: meta-llama/llama-3.3-70b-instruct
+        description: "Red Team."
+
+      - id: mod_mini
+        type: model
+        runtime: openrouter
+        label: GPT-4o mini
+        model: openai/gpt-4o-mini
+        description: "Verifier."
+
+links:
+  - "orchestration.coord -> intake.brief_memory [data]: save approved brief"
+  - "intake.brief_memory -> orchestration.coord [data]: brief"
+  - { from: orchestration.coord, to: council.arch, kind: spawn, label: brief }
+  - { from: orchestration.coord, to: council.sec, kind: spawn, label: brief }
+  - { from: orchestration.coord, to: council.comp, kind: spawn, label: brief }
+  - { from: orchestration.coord, to: council.leg, kind: spawn, label: brief }
+  - { from: orchestration.coord, to: council.dev, kind: spawn, label: brief }
+  - { from: orchestration.coord, to: council.ai, kind: spawn, label: brief }
+  - { from: orchestration.coord, to: council.red, kind: spawn, label: brief }
+  - { from: council.arch, to: orchestration.coord, kind: return, label: eval }
+  - { from: council.sec, to: orchestration.coord, kind: return, label: eval }
+  - { from: council.comp, to: orchestration.coord, kind: return, label: eval }
+  - { from: council.leg, to: orchestration.coord, kind: return, label: eval }
+  - { from: council.dev, to: orchestration.coord, kind: return, label: eval }
+  - { from: council.ai, to: orchestration.coord, kind: return, label: eval }
+  - { from: council.red, to: orchestration.coord, kind: return, label: eval }
+  - "orchestration.round_gate -> synthesis.synth [handoff]: synthesize"
+  - "orchestration.coord -> council.evals [data]: register round outputs"
+  - "orchestration.coord -> ops.audit_log [data]: reliability notes"
+  - "council.evals -> synthesis.synth [data]: all positions"
+  - "council.evals -> synthesis.consensus [data]: confidence + non-negotiables"
+  - "synthesis.plan_out -> ops.audit_log [data]: approved plan"
+  - "synthesis.human_gate -> ops.audit_log [data]: decision"
+  - "intake.briefer -> ops.mod_gemini [call]"
+  - "orchestration.coord -> ops.mod_claude [call]"
+  - "council.arch -> ops.mod_gpt4o [call]"
+  - "council.sec -> ops.mod_claude [call]"
+  - "council.comp -> ops.mod_claude [call]"
+  - "council.leg -> ops.mod_claude [call]"
+  - "council.dev -> ops.mod_gpt4o [call]"
+  - "council.ai -> ops.mod_deepseek [call]"
+  - "council.red -> ops.mod_llama [call]"
+  - "synthesis.synth -> ops.mod_claude [call]"
+  - "synthesis.verify -> ops.mod_mini [call]"
