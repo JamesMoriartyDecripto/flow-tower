@@ -38,7 +38,7 @@ Every gate has a cap, so a tutorial that does not converge goes back one step in
 | Goal | The viewer can explain what a tower shows, decide whether their project needs one, and start their own from the closest example |
 | Out of scope | The team hub, live wiring of each harness, reports, the dev squad, voice commands |
 | Length | As long as the content needs: a presentation, not a documentary (the narration runs about 4 minutes) |
-| Language and voice | English through OpenRouter: `elevenlabs/eleven-flash-v2.5`, the voice the app already uses for spoken replies; pilot alternatives `elevenlabs/eleven-v4` and `microsoft/mai-voice-2.1`; voices `alice` (both ElevenLabs models) and `en-US-Harper:MAI-Voice-2.1` (from `supported_voices`) |
+| Language and voice | English through OpenRouter: `google/gemini-3.8-flash-tts`, voice `Charon` ("informative"), picked by the maintainer after the pilot for quality at a low price; it returns only PCM. Pilot alternatives `elevenlabs/eleven-flash-v2.5` (the app's voice for spoken replies, `alice`) and `microsoft/mai-voice-2.1` (`en-US-Harper:MAI-Voice-2.1`); voices from `supported_voices` |
 | Sources of truth | `README.md` (controls), `docs/what-goes-where.md`, `docs/getting-started.md`, `docs/best-practices.md`, `examples/README.md` |
 | Screen | 1920x1080, headless Chrome on the GPU (no window, so the screen's size and scaling do not matter), dark theme, the examples gallery only; no user folder, no personal towers |
 | Publishing | A release asset or a video host, with SRT captions; linked from the README |

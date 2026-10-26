@@ -130,10 +130,10 @@ layers:
         type: process
         label: Speak scenes
         description: >-
-          Sends each scene's text to OpenRouter's speech endpoint (model and voice from tutorial.json), asks for MP3
-          and converts it to the WAV clip Argo expects with ffmpeg. The key comes from the environment or the
-          flow-tower user folder, never from the tutorial folder.
-        model: elevenlabs/eleven-flash-v2.5
+          Sends each scene's text to OpenRouter's speech endpoint (model, voice and format from tutorial.json): MP3,
+          or PCM for models that return only PCM (Gemini; rate and channels from the Content-Type). ffmpeg turns it
+          into the 32-bit float WAV Argo decodes. The key comes from the environment or the flow-tower user folder.
+        model: google/gemini-3.8-flash-tts
         runtime: laptop
         status: planned
       - id: clips
@@ -286,7 +286,7 @@ layers:
       - id: speech
         type: tool
         label: OpenRouter speech
-        description: "POST /audio/speech with model, voice and text; returns audio. ElevenLabs Flash v2.5 costs $40 per million characters on OpenRouter (2026-10-25)."
+        description: "POST /audio/speech with model, voice and text; returns MP3 or PCM. Gemini 3.8 Flash TTS: $0.50 per million input tokens, $9 per million audio tokens (2026-10-26)."
         runtime: openrouter
         credentials: service
         resources:

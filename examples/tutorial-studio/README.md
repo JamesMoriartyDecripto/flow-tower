@@ -42,10 +42,11 @@ node bin/flow-tower.js examples/tutorial-studio
 
 - Argo, `@argo-video/cli` 0.41 (MIT): [github.com/shreyaskarnik/argo](https://github.com/shreyaskarnik/argo), checked 2026-10-25.
 - Playwright screencast API (1.59+, `fps` since 1.64): [playwright.dev/docs/api/class-screencast](https://playwright.dev/docs/api/class-screencast).
-- OpenRouter text to speech (request fields, MP3 or PCM output, `supported_voices` in the Models API): [openrouter.ai/docs/api-reference/audio/create-speech](https://openrouter.ai/docs/guides/overview/multimodal/tts).
+- OpenRouter text to speech (request fields, MP3 or PCM output, `supported_voices` in the Models API): [openrouter.ai/docs/guides/overview/multimodal/tts](https://openrouter.ai/docs/guides/overview/multimodal/tts); Gemini TTS answers only `response_format: pcm` (400 on `mp3`), with `audio/pcm;rate=24000;channels=1`, checked 2026-10-26.
 - Speech prices as listed by OpenRouter on 2026-10-25 (`skills/flow-tower-costs/models.mjs --role voice-tts`): ElevenLabs Flash v2.5
-  $40, Eleven v4 $80, MAI-Voice-2.1 $22 per million characters. Flash v2.5 was chosen for live replies in
-  [voice-commands/options/tts.md](../voice-commands/options/tts.md); a narration is offline, so the pilot compares it with the other two.
+  $40, Eleven v4 $80, MAI-Voice-2.1 $22 per million characters; Gemini 3.8 Flash TTS (2026-10-26) $0.50 per million input
+  tokens and $9 per million audio tokens. Flash v2.5 was chosen for live replies in
+  [voice-commands/options/tts.md](../voice-commands/options/tts.md); for the offline narration the maintainer picked Gemini after the pilot.
 - ffmpeg `loudnorm` (EBU R128): [ffmpeg.org/ffmpeg-filters.html#loudnorm](https://ffmpeg.org/ffmpeg-filters.html#loudnorm).
 - Alternatives weighed: [playwright-recast](https://github.com/ThePatriczek/playwright-recast) (MIT, post-produces
   Playwright traces with an SRT) and [tutorial-forge](https://github.com/jbrecht/tutorial-forge) (PolyForm license, not open source).
