@@ -37,11 +37,11 @@ A multi-expert deliberation council for complex decisions. A chat question becom
 
 - Numbers marked *illustrative* are not measured.
 - Budget and timeout caps protect against runaway deliberation.
-- The briefer needs no tools: it only reformats the raw question; the coordinator (read/write only, no search) saves the approved brief and the round outputs.
-- Experts default to `[Read, Write]`: they read the brief and the other experts' outputs, and write their own file per round. For a question that needs public sources, add `WebSearch` to the experts it concerns: the council deliberately separates search from evaluation so confidential evals never ride an outbound channel.
-- Per-round expert selection is advisory: it lives in the coordinator prompt, bounded by the run budget; the tower sets no hard cap on experts per round.
+- The briefer needs no tools: it only reformats the raw question. The approved brief lands in the Approved brief memory; the coordinator reads it and routes the rounds, and each expert writes its own per-round file to the evals memory.
+- Experts default to `[Read, Write]`: they read the brief and the other experts' outputs, and write their own file per round (by convention each expert writes only its own per-round file). For a question that needs public sources, add `WebSearch` to the experts it concerns: the council deliberately separates search from evaluation so confidential evals never ride an outbound channel.
+- Per-round expert selection is advisory: it lives in the coordinator prompt, bounded by the run budget; the tower sets no hard cap on experts per round. The spawn links draw the whole pool in the diagram; only the experts the coordinator selects for the brief actually run.
 - Running the tower sends the brief and every evaluation to the model vendors configured (OpenRouter routes to the providers listed in the model nodes). For confidential briefs, restrict the experts' `model` values to providers you approve.
-- No expert agent runs a shell: evaluations are read + search only, so no sandbox is declared.
+- No expert agent runs a shell, so no sandbox is declared.
 - A `brief-example.md` in `memory/` shows the expected brief format.
 
 ## Sources
