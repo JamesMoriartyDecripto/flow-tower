@@ -99,19 +99,19 @@ layers:
         agent: writer
         label: Write script
         description: "Narration per scene (a scenes manifest) and the browser actions with one scene mark each. One idea per scene, under 60 words."
-        status: planned
+        files: [demos/flow-tower.scenes.json, demos/flow-tower.demo.ts]
       - id: check
         type: guard
         label: Check marks
         description: "Every scene of the manifest has a mark in the actions and the other way round. No voice, no recording. In the sample: argo validate."
         runtime: laptop
-        status: planned
+        files: [scripts/plan.mjs, scripts/run.mjs]
       - id: dryrun
         type: process
         label: Silent dry run
         description: "Every action runs against a scratch instance with silent clips of estimated length (about 150 words a minute): a broken selector or a key that does nothing shows up in any chapter before voice and review."
         runtime: laptop
-        status: planned
+        files: [scripts/run.mjs, tts/silent.mjs]
     edges:
       - outline -> approve
       - "approve -> outline [return]: changes, max 2"
@@ -135,7 +135,7 @@ layers:
           into the 32-bit float WAV Argo decodes. The key comes from the environment or the flow-tower user folder.
         model: google/gemini-3.8-flash-tts
         runtime: laptop
-        status: planned
+        files: [tts/openrouter.mjs, tts/wav.mjs, tutorial.json]
       - id: clips
         type: memory
         label: Voice clips
@@ -145,7 +145,7 @@ layers:
         label: Pilot render
         description: "The first chapter only (about 60 s), recorded and exported like the full video, once per candidate voice: the brief's choice and the two alternatives it names."
         runtime: laptop
-        status: planned
+        files: [scripts/plan.mjs, tutorial.json]
       - id: listen
         type: human
         label: Voice sign-off
@@ -179,7 +179,7 @@ layers:
           A browser driver runs the actions in headless Chrome with GPU flags (headless alone renders WebGL in software; a headed window is rescaled by the screen), at 1920x1080. At each scene mark it
           waits for that scene's clip; a human-like cursor travels to what the narration names. In the sample: argo record.
         runtime: laptop
-        status: planned
+        files: [argo.config.mjs, demos/helpers.ts]
       - id: frames
         type: memory
         label: Frames and marks
@@ -210,7 +210,7 @@ layers:
         label: Export
         description: "Frames to an H.264 MP4 at the recorded size, the narration normalised to EBU R128, SRT and VTT captions, chapter markers. In the sample: argo export."
         runtime: laptop
-        status: planned
+        files: [argo.config.mjs]
       - id: video
         type: output
         label: Video + captions
@@ -231,7 +231,7 @@ layers:
         label: Contact sheet
         description: "One HTML page from what Argo already writes (the scene report and one thumbnail per scene) plus each scene's narration: the reviewer sees every scene without scrubbing."
         runtime: laptop
-        status: planned
+        files: [scripts/sheet.mjs]
       - id: check
         type: human
         label: Review
