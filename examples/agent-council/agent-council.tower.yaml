@@ -62,7 +62,7 @@ agents:
     name: Software Architect
     model: openai/gpt-4o
     prompt: expert_software
-    tools: [Read]
+    tools: [Read, Write]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -70,7 +70,7 @@ agents:
     name: Security Expert
     model: anthropic/claude-3.5-sonnet
     prompt: expert_security
-    tools: [Read]
+    tools: [Read, Write]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -78,7 +78,7 @@ agents:
     name: Compliance Officer
     model: anthropic/claude-3.5-sonnet
     prompt: expert_compliance
-    tools: [Read]
+    tools: [Read, Write]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -86,7 +86,7 @@ agents:
     name: Legal Counsel
     model: anthropic/claude-3.5-sonnet
     prompt: expert_legal
-    tools: [Read]
+    tools: [Read, Write]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -94,7 +94,7 @@ agents:
     name: DevOps Lead
     model: openai/gpt-4o
     prompt: expert_devops
-    tools: [Read]
+    tools: [Read, Write]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -102,7 +102,7 @@ agents:
     name: AI and Agents Researcher
     model: deepseek/deepseek-r1
     prompt: expert_ai
-    tools: [Read]
+    tools: [Read, Write]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -110,7 +110,7 @@ agents:
     name: Red Team
     model: meta-llama/llama-3.3-70b-instruct
     prompt: red_team
-    tools: [Read]
+    tools: [Read, Write]
     runtime: openrouter
     budget: { usd: 0.4, turns: 10, on_exceed: stop }
 
@@ -226,7 +226,7 @@ layers:
         type: memory
         runtime: workspace
         label: Evaluations
-        description: "Append-only evaluations and critiques from every expert and round."
+        description: "Evaluations and critiques as one file per expert per round, written by the experts themselves; the coordinator and synthesizer only read them."
         data: { sensitivity: confidential, retention: 90d }
 
     edges:
@@ -294,7 +294,7 @@ layers:
         type: memory
         runtime: workspace
         label: Audit log
-        description: "Append-only log of evaluations, critiques, and decisions."
+        description: "Log of accepted plans and gate decisions, one line per run."
         data: { sensitivity: confidential, retention: 90d }
 
       - id: mod_gemini
