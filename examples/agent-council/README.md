@@ -41,7 +41,7 @@ A multi-expert deliberation council for complex decisions. A chat question becom
 - Experts hold `[Read]` only: they read the brief and the other experts' outputs, and return their own per-round file through their `[return]` link to the coordinator, who registers it. For a question that needs public sources, add `WebSearch` to the experts it concerns: the council deliberately separates search from evaluation so confidential evals never ride an outbound channel.
 - Per-round expert selection is advisory: it lives in the coordinator prompt, bounded by the run budget; the tower sets no hard cap on experts per round. The spawn links draw the whole pool in the diagram; only the experts the coordinator selects for the brief actually run.
 - Running the tower sends the brief and every evaluation to the model vendors configured (OpenRouter routes to the providers listed in the model nodes). For confidential briefs, restrict the experts' `model` values to providers you approve.
-- No expert agent runs a shell: experts are read-only and the coordinator registers outputs, so no sandbox is declared.
+- No expert agent runs a shell: experts are read-only and the coordinator registers outputs, so no sandbox is declared. The coordinator's `Write` is the only write grant in the workspace; in flow-tower file paths stay confined to the project root, and in your harness you can scope it further to the memory folder.
 - A `brief-example.md` in `memory/` shows the expected brief format.
 
 ## Sources

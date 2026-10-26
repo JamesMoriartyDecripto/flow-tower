@@ -118,7 +118,7 @@ agents:
     name: Plan Synthesizer
     model: anthropic/claude-3.5-sonnet
     prompt: synthesizer
-    tools: [Read, Write]
+    tools: [Read]
     runtime: openrouter
     budget: { usd: 0.8, turns: 12, on_exceed: stop }
 
@@ -192,7 +192,7 @@ layers:
   # 3 ──────────────────────────────────────────────────────────────
   - id: council
     title: Council
-    description: "The expert pool, drawn in full. The coordinator summons only the 3-7 experts its brief selects; every expert evaluates in isolation per round and writes to the shared eval memory."
+    description: "The expert pool, drawn in full. The coordinator summons only the 3-7 experts its brief selects; each expert evaluates in isolation per round and returns its output, which the coordinator registers in the shared eval memory."
     nodes:
       - id: arch
         agent: software_architect
