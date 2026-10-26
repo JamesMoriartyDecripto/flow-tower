@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Added
 - Tower card in the tower view (#295). At Tower overview (no layer focused, no node selected) the right panel shows the tower's card, which until now only the library showed: description, tags, layers, nodes, agents, sub-towers, models, runtimes, errors and warnings, live usage. It uses the same facts as the library card. Inside a sub-tower it shows that sub-tower. `–` reduces it to its title bar and `+` brings it back; the choice is remembered. The scene is framed beside the open card, and the live feed sits next to it.
+- Example tower `agent-council`: a multi-expert deliberation council with a coordinator that selects experts and runs three structured rounds of independent evaluation, critique, and final positions. Synthesiser drafts an operational plan; verifier audits it; consensus supports unanimous, majority, or dissent outcomes. Per-role models on OpenRouter with adversarial coverage from a different-provider red team.
 
 ### Changed
 - Contributing: the working rules live in the repo, so every agent and harness reads them: review before merge and who merges, the issue as the live record, check before proposing, nothing private on GitHub (CLAUDE.md, AGENTS.md); machine-independent gotchas for scratch servers, e2e from a worktree and low memory; the cost skill's tie-break (cheapest per correct answer, then fastest, any provider).
