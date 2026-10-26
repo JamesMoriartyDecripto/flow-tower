@@ -234,7 +234,7 @@ layers:
   # 4 ──────────────────────────────────────────────────────────────
   - id: synthesis
     title: Synthesis & Review
-    description: Plan synthesis, verification, consensus classification, and human gate.
+    description: "Plan synthesis, verification, consensus classification, and human gate. Revised plans loop synth -> verify -> consensus again; at the 2-revision cap dissent reaches plan_out as the final outcome."
     nodes:
       - id: synth
         agent: synthesizer
