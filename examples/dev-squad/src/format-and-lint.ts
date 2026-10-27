@@ -3,8 +3,8 @@ import { promisify } from 'node:util';
 import { extname, resolve } from 'node:path';
 import { childEnv } from './child-env';
 
-// Kept out of hooks/format-lint.ts: that file imports the Agent SDK types, and the
-// OpenRouter loop has no SDK installed, so it must import this module instead.
+// Kept out of hooks/format-lint.ts, which imports the Agent SDK types: the repo's tests import this module
+// without the SDK installed, and the OpenRouter loop shares it without depending on the hook file.
 const execFileAsync = promisify(execFile);
 const LINTABLE = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cts', '.mts']);
 export const FORMATTABLE = new Set([...LINTABLE, '.json', '.md', '.css', '.yaml', '.yml']);
