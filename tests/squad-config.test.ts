@@ -95,3 +95,13 @@ describe('squad config validation (#265 review)', () => {
     expect(() => loadConfig(repoWith(JSON.stringify({ extras: ['validate'], cli: '' })))).toThrow(/"cli"/);
   });
 });
+
+describe('squad model defaults (#322)', () => {
+  it('with no squad.json the reviewer default is z-ai/glm-5.3-flash', () => {
+    expect(loadConfig(repoWith()).models).toEqual({
+      coder: 'anthropic/claude-haiku-5.5',
+      reviewer: 'z-ai/glm-5.3-flash',
+      security: 'deepseek/deepseek-v4.1-flash',
+    });
+  });
+});
