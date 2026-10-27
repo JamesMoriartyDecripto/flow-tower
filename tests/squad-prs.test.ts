@@ -94,8 +94,13 @@ describe('changedFiles', () => {
 });
 
 describe('outputDir', () => {
-  it('names the folder by PR and the first 12 characters of the head', () => {
-    expect(outputDir('/t', 7, 'abcdef0123456789')).toMatch(/pr-7-abcdef012345$/);
+  it('names the folder by PR, the first 12 characters of the head and the base', () => {
+    expect(outputDir('/t', 7, 'abcdef0123456789', 'feat/x')).toMatch(/pr-7-abcdef012345-feat_x$/);
+  });
+
+  // A PR retargeted to main keeps its head, so the base must change the folder: an old pack is never reused.
+  it('gives another folder when only the base changes', () => {
+    expect(outputDir('/t', 7, 'abcdef0123456789', 'main')).not.toBe(outputDir('/t', 7, 'abcdef0123456789', 'feat/x'));
   });
 });
 
@@ -172,5 +177,12 @@ describe('prs.mjs command line', () => {
     expect(r.stdout).toMatch(/^#7 a{7} base origin\/main tag #9 -> .* \(new\)$/m);
     expect(r.stdout).toMatch(/^#8: /m);
     expect(r.stdout).not.toMatch(/^#8 a{7}/m);
+  }, SPAWN.timeout);
+
+  // The same number twice in --pr is reviewed once: one line, not two.
+  it('--dry-run --pr 7,7 prints one line', async () => {
+    const r = await runPrs(['--dry-run', '--pr', '7,7']);
+    expect(r.code, r.stderr).toBe(0);
+    expect(r.stdout.trim().split('\n')).toHaveLength(1);
   }, SPAWN.timeout);
 });

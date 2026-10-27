@@ -218,7 +218,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
   // A folder left by a failed pass (security.out says "empty answer") is not a cache hit: both passes run again.
   it('a failed saved answer is not cached: the next run calls the models again', async () => {
     const caseDir = newCase();
-    const dir = join(caseDir, 'squad-prs', `pr-7-${sha.slice(0, 12)}`);
+    const dir = join(caseDir, 'squad-prs', `pr-7-${sha.slice(0, 12)}-main`);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'review.out'), `${VERDICT}\n`);
     writeFileSync(join(dir, 'security.out'), 'empty answer');
@@ -243,7 +243,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
       const view = { number: 7, title: 'Change a', body: 'Closes #3', headRefOid: bigSha, baseRefName: 'main' };
       const r = await runPrs(caseDir, { STUB_GH_OVERRIDE: JSON.stringify({ 'pr view 7 --json number,title,body,headRefOid,baseRefName': view }) });
       expect(r.code, r.stderr || r.stdout).toBe(0);
-      const task = readFileSync(join(caseDir, 'squad-prs', `pr-7-${bigSha.slice(0, 12)}`, 'reviewer.task.md'), 'utf8');
+      const task = readFileSync(join(caseDir, 'squad-prs', `pr-7-${bigSha.slice(0, 12)}-main`, 'reviewer.task.md'), 'utf8');
       expect(task).toContain('### src/a.ts');
       expect(task).not.toContain('### docs/big.md');
       expect(task).not.toContain('full files left out');
@@ -252,6 +252,21 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
       git(work, 'reset', '-q', '--hard', sha);
       git(work, 'push', '-q', '-f', 'origin', `${sha}:refs/pull/7/head`);
     }
+  }, SPAWN.timeout);
+
+  // The same head after a base change (a stacked PR retargeted to main keeps its head): the saved pack was made against
+  // the old base, so the folder differs and both passes run again instead of reusing the cache.
+  it('the same head with another base name is not cached: the models run again', async () => {
+    const caseDir = newCase();
+    seenModels = [];
+    const first = await runPrs(caseDir);
+    expect(first.code, first.stderr || first.stdout).toBe(0);
+    expect(seenModels).toHaveLength(2);
+    const view = { number: 7, title: 'Change a', body: 'Closes #3', headRefOid: sha, baseRefName: 'feature' };
+    const second = await runPrs(caseDir, { STUB_GH_OVERRIDE: JSON.stringify({ 'pr view 7 --json number,title,body,headRefOid,baseRefName': view }) });
+    expect(second.code, second.stderr || second.stdout).toBe(0);
+    expect(seenModels).toHaveLength(4);
+    expect(existsSync(join(caseDir, 'squad-prs', `pr-7-${sha.slice(0, 12)}-feature`))).toBe(true);
   }, SPAWN.timeout);
 
   it('a PR with no linked issue is tagged with its own number in the ledger', async () => {
@@ -307,7 +322,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
       expect(r.code, r.stderr || r.stdout).toBe(0);
       expect(r.stdout).toContain('#7: src/a,b.ts left out of the review task (comma in the name)');
       expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
-      const task = readFileSync(join(caseDir, 'squad-prs', `pr-7-${commaSha.slice(0, 12)}`, 'reviewer.task.md'), 'utf8');
+      const task = readFileSync(join(caseDir, 'squad-prs', `pr-7-${commaSha.slice(0, 12)}-main`, 'reviewer.task.md'), 'utf8');
       expect(task).toContain('### src/a.ts');
       expect(task).not.toContain('### src/a,b.ts');
     } finally {
@@ -340,7 +355,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
       expect(r.code, r.stderr || r.stdout).toBe(0);
       expect(r.stdout).toContain('#7: docs/link.md left out of the review task (not a regular file)');
       expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
-      const task = readFileSync(join(caseDir, 'squad-prs', `pr-7-${linkSha.slice(0, 12)}`, 'security.task.md'), 'utf8');
+      const task = readFileSync(join(caseDir, 'squad-prs', `pr-7-${linkSha.slice(0, 12)}-main`, 'security.task.md'), 'utf8');
       expect(task).not.toContain('OUTSIDE SECRET TEXT');
       expect(task).toContain('## Left out of this task');
       expect(task).toContain('docs/link.md');
@@ -378,7 +393,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
     const elsewhere = join(caseDir, 'elsewhere');
     mkdirSync(squad, { recursive: true });
     mkdirSync(elsewhere, { recursive: true });
-    const dir = join(squad, `pr-7-${sha.slice(0, 12)}`);
+    const dir = join(squad, `pr-7-${sha.slice(0, 12)}-main`);
     symlinkSync(elsewhere, dir);
     seenModels = [];
     const r = await runPrs(caseDir);

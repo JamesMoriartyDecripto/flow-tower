@@ -91,9 +91,12 @@ export function changedFiles(nameStatus) {
   return { paths, files };
 }
 
-// One folder per PR and head commit, so a rerun on a new head never reuses an older pack.
-export function outputDir(base, pr, sha) {
-  return join(base, `pr-${pr}-${sha.slice(0, 12)}`);
+// One folder per PR, head commit and base, so a rerun on a new head never reuses an older pack. The base is part of the
+// name because a PR stacked on another one keeps its head when GitHub retargets it to main: the pack made against the
+// old base must not be reused. Characters outside the branch-safe set become "_", so the name stays a plain folder name.
+export function outputDir(base, pr, sha, baseRef) {
+  const safeBase = String(baseRef).replace(/[^A-Za-z0-9._-]/g, '_');
+  return join(base, `pr-${pr}-${sha.slice(0, 12)}-${safeBase}`);
 }
 
 export function summaryRow({ pr, head, review, security, gate, cost }) {
@@ -156,12 +159,14 @@ function view(repo, n) {
   const v = JSON.parse(gh(repo, 'pr', 'view', String(n), '--json', 'number,title,body,headRefOid,baseRefName'));
   if (!SHA.test(v.headRefOid)) throw new Error('head is not a commit sha');
   if (!BASE.test(v.baseRefName) || v.baseRefName.startsWith('-')) throw new Error('base is not a branch name');
+  // The number goes into paths and gh/git arguments, so it must be the one asked for, and digits only.
+  if (!/^\d+$/.test(String(v.number)) || String(v.number) !== String(n)) throw new Error('number is not a PR number');
   return v;
 }
 
 // Dry run: one line per PR, no fetch, no worktree, no model call.
 function dryLine(root, v) {
-  const dir = outputDir(root, v.number, v.headRefOid);
+  const dir = outputDir(root, v.number, v.headRefOid, v.baseRefName);
   const tag = linkedIssue(v.body) ?? v.number;
   return `#${v.number} ${v.headRefOid.slice(0, 7)} base origin/${v.baseRefName} tag #${tag} -> ${dir} (${hasOut(dir) ? 'cached' : 'new'})`;
 }
@@ -254,7 +259,7 @@ async function steward(repo, config, v, opts, root) {
   if (taken(wt)) { stdout.write(`#${n}: ${wt} already exists, skipped\n`); return null; }
   // The output folder is written under the steward's root, so a symlink there would send the outputs to another
   // folder. Checked before the worktree is added, so a refused PR leaves nothing to clean up.
-  const dir = outputDir(root, n, v.headRefOid);
+  const dir = outputDir(root, n, v.headRefOid, v.baseRefName);
   if (taken(dir) && !lstatSync(dir).isDirectory()) { stdout.write(`#${n}: ${dir} is not a folder, skipped\n`); return null; }
   git(repo, 'fetch', 'origin', `pull/${n}/head`);
   // The head gh reported may be older than the one just fetched (a push in between). The review must read the head
@@ -322,9 +327,11 @@ async function main() {
       stdout.write(`ignored PR number from gh: ${n}\n`);
       return false;
     });
+  // A number given twice (--pr 7,7, or repeated by gh) runs once: a second pass would race the first on the same
+  // worktree and output folder. Set keeps the first occurrence.
   // One PR that gh cannot read is reported on its own line, so the others still run.
   const views = [];
-  for (const n of numbers) {
+  for (const n of new Set(numbers)) {
     try { views.push(view(repo, n)); } catch (e) { stdout.write(`#${n}: ${e.message}\n`); }
   }
   if (opts.dryRun) {
