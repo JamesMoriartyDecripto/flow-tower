@@ -1,6 +1,7 @@
 import { query, type AgentDefinition, type CanUseTool, type Options } from '@anthropic-ai/claude-agent-sdk';
 import { ROLE_MODEL, loadMcpServers, sdkEnv, type Role, type RoleModel } from './config';
 import { buildHooks } from './hooks';
+import { contextPack } from './hooks/context-loader';
 import { runOpenRouterAgent } from './openrouter-agent';
 import { squadServer } from './tools';
 
@@ -32,7 +33,9 @@ export async function runAgent(
   const { cwd, issue, role, areas, route = ROLE_MODEL[role as Role] ?? { provider: 'claude', model: agent.model }, ...rest } = opts;
   if (route.provider === 'openrouter') {
     // Same prompt and caps, own tool loop: SDK hooks do not run there, its fences are in code.
-    return runOpenRouterAgent({ role, model: route.model, system: agent.prompt, prompt, cwd,
+    // So the memory pack that SessionStart would inject is appended to the system prompt here.
+    const system = `${agent.prompt}\n\n${contextPack({ issue, areas })}`;
+    return runOpenRouterAgent({ role, model: route.model, system, prompt, cwd,
       canWrite: role === 'coder', maxSteps: rest.maxTurns, maxBudgetUsd: rest.maxBudgetUsd });
   }
   const run = query({

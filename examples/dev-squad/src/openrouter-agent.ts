@@ -5,6 +5,9 @@ import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import { env } from 'node:process';
 import { promisify } from 'node:util';
 import type { AgentRun } from './run-agent';
+import { childEnv } from './child-env';
+import { formatAndLint } from './format-and-lint';
+import { queryOsv } from './tools/osv';
 
 const sh = promisify(execFile);
 const API = 'https://openrouter.ai/api/v1/chat/completions';
@@ -47,6 +50,10 @@ const READ_TOOLS = [
   fn('run', `One whitelisted command: ${Object.keys(RUN).join(', ')}.`, { name: { type: 'string', enum: Object.keys(RUN) }, file: str('For vitest / validate') }, ['name']),
   fn('finish', 'End the run with the final report (the JSON or STATUS block your instructions ask for).', { report: str('Final report') }),
 ];
+// Only the security auditor gets the network query: the same OSV check the SDK harness runs (tools/osv.ts).
+const OSV_TOOL = fn('osv_scan', 'Known advisories of one package version from OSV.dev, with the fixed version.', {
+  package_name: str('Package name'), version: str('Exact installed version, from the lockfile'), ecosystem: str('npm (default), PyPI, Go, Maven...'),
+}, ['package_name', 'version']);
 const WRITE_TOOLS = [
   fn('edit_file', 'Replace one exact, unique snippet.', { path: str('Path'), old: str('Exact text, must occur once'), new: str('Replacement') }),
   fn('write_file', 'Create or overwrite a file under src/, tests/ or e2e/. No tmp-/zz-/probe/scratch throwaway files.', { path: str('Path'), content: str('Full content') }),
@@ -70,8 +77,21 @@ function safePath(cwd: string, path: string, write = false): string {
 }
 
 async function exec(cwd: string, [cmd, args]: [string, string[]]) {
-  const r = await sh(cmd, args, { cwd, timeout: 300_000, maxBuffer: 8 << 20 }).catch((e) => ({ stdout: e.stdout ?? '', stderr: e.stderr ?? e.message }));
+  // The coder's code runs in these children, so they get no secrets (see child-env.ts).
+  const r = await sh(cmd, args, { cwd, timeout: 300_000, maxBuffer: 8 << 20, env: childEnv() }).catch((e) => ({ stdout: e.stdout ?? '', stderr: e.stderr ?? e.message }));
   return `${r.stdout}${r.stderr}`;
+}
+
+/**
+ * The PostToolUse format + lint never runs on this loop, so the coder gets it here: a file it
+ * just wrote is formatted, and any lint problem left after auto-fix is handed back to fix now.
+ */
+async function withLint(cwd: string, abs: string, result: string): Promise<string> {
+  const problems = await formatAndLint(cwd, abs);
+  // ESLint prints absolute paths; the worktree prefix must not reach the third-party model,
+  // so strip it and keep paths relative like every other tool output.
+  const shown = problems ? problems.split(`${cwd}/`).join('') : problems;
+  return shown ? `${result}\n\nLint problems remain after auto-fix. Fix them now:\n${shown}` : result;
 }
 
 async function callTool(cwd: string, name: string, a: Record<string, string>): Promise<string> {
@@ -89,7 +109,7 @@ async function callTool(cwd: string, name: string, a: Record<string, string>): P
       const hits = text.split(a.old).length - 1;
       if (hits !== 1) throw new Error(`old text found ${hits} times; it must be unique`);
       writeFileSync(abs, text.replace(a.old, () => a.new));
-      return 'edited';
+      return withLint(cwd, abs, 'edited');
     }
     case 'write_file': {
       const abs = safePath(cwd, a.path, true);
@@ -99,7 +119,7 @@ async function callTool(cwd: string, name: string, a: Record<string, string>): P
       }
       mkdirSync(dirname(abs), { recursive: true });
       writeFileSync(abs, a.content);
-      return `wrote ${a.content.length} chars`;
+      return withLint(cwd, abs, `wrote ${a.content.length} chars`);
     }
     case 'delete_file': {
       rmSync(safePath(cwd, a.path, true)); // same fence as write_file, so a probe file can actually go away
@@ -110,6 +130,11 @@ async function callTool(cwd: string, name: string, a: Record<string, string>): P
       if (!Object.hasOwn(RUN, a.name)) throw new Error(`not whitelisted: ${a.name}`);
       if ((a.name === 'vitest' || a.name === 'validate') && !file) throw new Error(`${a.name} needs a file`);
       return exec(cwd, RUN[a.name](file));
+    }
+    case 'osv_scan': {
+      const { text, isError } = await queryOsv({ name: a.package_name, version: a.version, ecosystem: a.ecosystem || 'npm' });
+      if (isError) throw new Error(text);
+      return text;
     }
     default: throw new Error(`unknown tool ${name}`);
   }
@@ -126,7 +151,9 @@ export async function runOpenRouterAgent(o: { role: string; model: string; syste
   const key = env.OPENROUTER_API_KEY;
   if (!key) throw new Error('OPENROUTER_API_KEY is not set');
   const session = randomUUID();
-  const tools = o.canWrite ? [...READ_TOOLS, ...WRITE_TOOLS] : READ_TOOLS;
+  // Least privilege: writes only for the coder, network lookup only for the auditor.
+  const tools = o.canWrite ? [...READ_TOOLS, ...WRITE_TOOLS]
+    : o.role === 'security-auditor' ? [...READ_TOOLS, OSV_TOOL] : READ_TOOLS;
   const messages: object[] = [{ role: 'system', content: o.system }, { role: 'user', content: o.prompt }];
   const base = { agent: o.role, model: o.model, session };
   let costUsd = 0;
