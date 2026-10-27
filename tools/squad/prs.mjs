@@ -50,16 +50,21 @@ export function linkedIssue(body) {
   return m ? Number(m[1]) : null;
 }
 
-// The run prints its own failure words (see run.mjs): an empty or a cut answer is retried, anything else is an error.
+// The run prints its own failure words (see run.mjs). Three answers are retried on the next attempt model: an empty
+// answer, a cut answer, and a reviewer or security answer with no JSON verdict (#322). Anything else is an error.
 export function passOutcome(code, stdout) {
   if (code === 0) return 'ok';
   const s = String(stdout ?? '');
   if (s.includes('empty answer')) return 'empty';
   if (s.includes('truncated answer')) return 'truncated';
+  if (s.includes('no JSON verdict')) return 'no-verdict';
   return 'error';
 }
 
-// The reviewer gets a second try on an empty or cut answer. The security pass also gets a second try on its own
+// Outcomes from passOutcome that get the next attempt model (see pass).
+const RETRIED = new Set(['empty', 'truncated', 'no-verdict']);
+
+// The reviewer gets a second try on an empty, cut or no-verdict answer. The security pass also gets a second try on its own
 // model, then falls back to the reviewer model, since a second security failure means the brief, not luck, is the
 // problem (README § Pace). The CLI decides when to move on; this only lists the attempts in order.
 export function attemptModels(role, models) {
@@ -206,7 +211,7 @@ const leftSection = (left) => (left.length
   ? `\n## Left out of this task\n\n${left.map(([p, why]) => `- ${p}: ${why}`).join('\n')}\n`
   : '');
 
-// Runs one pass, moving to the next attempt only on an empty or a cut answer. The last stdout is the answer.
+// Runs one pass, moving to the next attempt only on an empty, a cut or a no-verdict answer. The last stdout is the answer.
 // The pass runs from the trusted checkout (repo), never from the PR worktree: run.mjs reads "cli" from the squad.json of
 // the folder it runs in, and ev.sh then runs that file with node on every event. A PR must not pick the code that runs
 // on this machine, or its own reviewers. The task already holds the code (--oneshot), so the worktree is not needed.
@@ -218,7 +223,7 @@ async function pass(role, models, task, tag, repo, env) {
       '--task', task, '--issue', tag, '--repo', repo], env);
     outs.push(last.stdout);
     const o = passOutcome(last.code, last.stdout);
-    if (o !== 'empty' && o !== 'truncated') break;
+    if (!RETRIED.has(o)) break;
   }
   return outs;
 }

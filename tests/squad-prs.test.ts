@@ -58,6 +58,18 @@ describe('passOutcome', () => {
   it('is error for anything else', () => {
     expect(passOutcome(1, 'boom')).toBe('error');
   });
+
+  it('is no-verdict for a one-request answer with no JSON verdict', () => {
+    expect(passOutcome(1, 'no JSON verdict · m · $0.0010')).toBe('no-verdict');
+  });
+
+  it('is no-verdict for a loop answer with no JSON verdict after a second request', () => {
+    expect(passOutcome(1, 'no JSON verdict after a second request · m')).toBe('no-verdict');
+  });
+
+  it('is ok when the text has no JSON verdict but the exit code is 0', () => {
+    expect(passOutcome(0, 'no JSON verdict · m · $0.0010')).toBe('ok');
+  });
 });
 
 describe('attemptModels', () => {
