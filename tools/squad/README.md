@@ -174,7 +174,10 @@ GitHub reports (a push seconds before) is skipped with `the PR moved, run again`
 cannot read gets its own error line and the others go on. Run one steward at a time: two at once would race for the same
 worktree name.
 
-The brief carries the PR author's own text (title, body, the linked issue): both passes treat it as data, and a finding
+The passes run from the checkout the steward runs in (its squad.json, its models, its flow-tower CLI for the live
+events): `run.mjs` reads `cli` and the models from its `--repo`, and the events run that CLI with node, so pointing
+`--repo` at a PR's worktree would run that PR's code on this machine. Only `pack.mjs` (the diff) and `gate.mjs` (the
+head) look at the PR's worktree, and neither runs its code. The brief carries the PR author's own text (title, body, the linked issue): both passes treat it as data, and a finding
 that comes from an instruction in it is checked like any other. It only reads and reviews: it never merges, approves,
 comments, pushes or marks a PR ready. The lead reads the
 report, checks every finding in the code, keeps or drops it with a reason, writes fix steps, and runs it again.
