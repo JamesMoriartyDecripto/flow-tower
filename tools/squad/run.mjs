@@ -15,6 +15,7 @@ import { STYLE_RULES, commandArgv, loadConfig, systemLine } from './config.mjs';
 import { appendRun, issueOf, ledgerPath, projectOf } from './ledger.mjs';
 import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
 import { realRelIfAllowed, realTarget } from './guard.mjs';
+import { parseVerdict } from './gate.mjs';
 import { pickMode } from './mode.mjs';
 import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './oneshot.mjs';
 
@@ -215,11 +216,19 @@ const TOOLS = [
   fn('finish', 'End with your final report (the format your task asks for).', { report: S }, ['report']),
 ];
 
+// A reviewer or security answer is read by the merge gate, which needs the JSON verdict (gate.mjs): prose is refused.
+// The coder's report is free text, so its prompt keeps the report rule.
+const finishRule = role === 'coder'
+  ? 'When done, call finish with your report, and end that report with a `Known gaps:` line (or `Known gaps: none`).'
+  : 'When done, call finish with only the JSON verdict the task asks for, then a `Known gaps:` line (or `Known gaps: none`).';
+const hasVerdict = (text) => { try { parseVerdict(text); return true; } catch { return false; } };
 const messages = [
-  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${STYLE_RULES}${config.rules.map((r) => ` ${r}`).join('')} When done, call finish with your report, and end that report with a \`Known gaps:\` line (or \`Known gaps: none\`).` },
+  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${STYLE_RULES}${config.rules.map((r) => ` ${r}`).join('')} ${finishRule}` },
   { role: 'user', content: task },
 ];
 let cost = 0;
+// The loop asks a reviewer or security for its verdict once more when a finish report has none (#322).
+let verdictAsks = 0;
 // Set when a batch answer's cost could not be read: the ledger then gets null and costUnknown, not a false 0.
 let costUnknown = false;
 let promptTokens = 0, cachedTokens = 0;
@@ -320,6 +329,8 @@ if (mode !== 'loop') {
     console.log(`truncated answer (finish_reason: ${reason}) · ${model} · ${shown}`);
     exit(1);
   }
+  // A reviewer or security answer with no JSON verdict is a failed run here, not a gate surprise later (#322).
+  if (role !== 'coder' && !hasVerdict(content)) { note('no JSON verdict'); record('no-verdict', 1); console.log(`no JSON verdict · ${model} · ${shown}`); exit(1); }
   note(`\n[finish] ${content}\n\ncost ${shown}`);
   record('finish', 1);
   emit('agent.end', node, `${role} on ${model} done (${shown}, ${paidMode})`, 'ok');
@@ -352,10 +363,20 @@ for (let step = 0; step < maxSteps; step++) {
   if (msg.content) note(`\n[assistant] ${msg.content}`);
   emit('log', node, `step ${step + 1} · $${cost.toFixed(3)} · cache ${cached}%${msg.content ? ` · ${msg.content.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`);
   if (!msg.tool_calls?.length) { messages.push({ role: 'user', content: 'Use the tools; call finish with your report when done.' }); continue; }
+  let reask = false;
   for (const c of msg.tool_calls) {
     let a = {};
     try { a = JSON.parse(c.function.arguments || '{}'); } catch { /* reported below */ }
     if (c.function.name === 'finish') {
+      // One re-ask for the verdict; a second prose report ends the run. The tool result keeps the call paired.
+      if (role !== 'coder' && !hasVerdict(a.report)) {
+        note(`\n[finish] no JSON verdict: ${String(a.report ?? '').slice(0, 300)}`);
+        if (++verdictAsks > 1) { record('no-verdict', step + 1); emit('agent.end', node, `${role} on ${model}: no JSON verdict`, 'error'); console.log(`no JSON verdict after a second request · ${model}`); exit(1); }
+        // The user message waits until every tool call of this reply has its result: a message in between would break the pairing.
+        messages.push({ role: 'tool', tool_call_id: c.id, content: 'Not accepted: no JSON verdict.' });
+        reask = true;
+        continue;
+      }
       note(`\n[finish] ${a.report}\n\ncost $${cost.toFixed(4)}`);
       record('finish', step + 1);
       emit('agent.end', node, `${role} on ${model} done ($${cost.toFixed(3)}, cache ${cached}%)`, 'ok');
@@ -370,6 +391,7 @@ for (let step = 0; step < maxSteps; step++) {
     emit('log', node, `${c.function.name} ${what}${result.startsWith('ERROR') ? ' ✗' : ''}`.slice(0, 120), result.startsWith('ERROR') || result.startsWith('EXIT') ? 'error' : 'ok');
     messages.push({ role: 'tool', tool_call_id: c.id, content: result });
   }
+  if (reask) messages.push({ role: 'user', content: 'Your report is not the JSON verdict the task asks for. Call finish again with only that JSON, then the Known gaps line.' });
 }
 record('step-cap', maxSteps);
 emit('agent.end', node, `${role} on ${model}: step cap`, 'error');
