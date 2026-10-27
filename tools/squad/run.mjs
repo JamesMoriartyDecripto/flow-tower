@@ -276,7 +276,7 @@ async function oneshotCall(body) {
   });
   if (!r.ok) { const f = await httpFailure(r); note(f); record('http-error', 0); console.log(f); exit(1); }
   const out = await r.json();
-  return { content: out.choices?.[0]?.message?.content, usage: out.usage ?? {} };
+  return { content: out.choices?.[0]?.message?.content, usage: out.usage ?? {}, finishReason: out.choices?.[0]?.finish_reason };
 }
 // One session per run: OpenRouter keeps it on the provider that holds its prompt cache (cached input: DeepSeek 0.1x, Z.ai ~0.2x).
 const session = `${role}-${Date.now()}`;
@@ -300,7 +300,7 @@ if (mode !== 'loop') {
       answer = await oneshotCall(body);
     } else {
       if (!res.ok) { note(`batch error ${res.error}`); record('batch-error', 0); console.log(`batch failed: ${res.error}`); exit(1); }
-      answer = { content: res.content, usage: res.usage, generationId: res.generationId };
+      answer = { content: res.content, usage: res.usage, generationId: res.generationId, finishReason: res.finishReason };
     }
   }
   const { content, usage } = answer;
@@ -317,6 +317,14 @@ if (mode !== 'loop') {
   cachedTokens += usage.prompt_tokens_details?.cached_tokens ?? 0;
   const cached = promptTokens ? Math.round((100 * cachedTokens) / promptTokens) : 0;
   const shown = costUnknown ? 'cost unknown' : `$${cost.toFixed(4)}`;
+  // A cut answer (finish_reason 'length' at the token cap) is not a finished review: its JSON is incomplete, and the
+  // merge gate would only find that later. Its cost is already counted above, so the ledger says what it cost.
+  if (answer.finishReason !== undefined && answer.finishReason !== 'stop') {
+    note(`truncated answer (finish_reason: ${answer.finishReason})`);
+    record('truncated-answer', 1);
+    console.log(`truncated answer (finish_reason: ${answer.finishReason}) · ${model} · ${shown}`);
+    exit(1);
+  }
   note(`\n[finish] ${content}\n\ncost ${shown}`);
   record('finish', 1);
   emit('agent.end', node, `${role} on ${model} done (${shown}, ${paidMode})`, 'ok');
