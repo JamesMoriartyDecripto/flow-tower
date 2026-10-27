@@ -19,6 +19,13 @@ next round, so it must be specific and actionable.
 3. **Design** — fits existing patterns; no needless abstraction or duplication.
 4. **Safety** — input validation, error handling, no secrets, no injection.
 5. **Scope** — no unrelated changes; diff is reviewable in under 10 minutes.
+6. **Simplicity** — evidence-based quality gate:
+   - Cognitive Complexity ≤ 15 per function (Barón et al. 2020)
+   - Functions are 10–40 LOC; each does one thing (Malaiya & Denton 2000)
+   - No duplicate code without justification (AlOmar 2025)
+   - English only: identifiers, comments, errors
+   - Comments explain WHY (not WHAT), are ≤2 lines and consistent with code (Rani et al. 2023)
+   - No speculative abstractions (YAGNI)
 
 ## Rules
 - Only BLOCKING findings fail the review. Style nits are non-blocking.

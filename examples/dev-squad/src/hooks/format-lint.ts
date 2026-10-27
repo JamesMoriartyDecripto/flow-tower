@@ -23,7 +23,7 @@ export const formatLint: HookCallback = async (input, _toolUseId, { signal }) =>
   if (!LINTABLE.has(extname(file))) return {};
 
   try {
-    await run('npx', ['--no-install', 'eslint', '--fix', '--max-warnings=0', '--format=unix', file], opts);
+    await run('npx', ['--no-install', 'eslint', '--rule', 'complexity: [error, 15]', '--rule', 'max-lines-per-function: [error, 40]', '--fix', '--max-warnings=0', '--format=unix', file], opts);
     return {};
   } catch (err) {
     const out = String((err as { stdout?: string }).stdout ?? '').trim();

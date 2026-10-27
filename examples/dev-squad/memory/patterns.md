@@ -10,6 +10,13 @@ SessionStart hook (filtered by the issue's areas). One rule per line:
 - DO [*] Keep each plan step under ~150 changed lines so review stays under 10 minutes (#240)
 - DONT [*] Add a dependency for something a node: built-in already does (#251)
 - DO [*] Read the pinned version in the lockfile before trusting library docs (#263)
+- DONT [*] Let Cognitive Complexity exceed 15 in a single function; split nested logic early (Barón et al. 2020)
+- DO [*] Keep functions between ~10 and ~40 LOC. Too short is as risky as too long (Malaiya & Denton 2000)
+- DONT [*] Leave duplicate code (>6 similar lines) without a documented reason to keep it (AlOmar 2025)
+- DO [*] Write comments that explain WHY, never WHAT; keep them ≤2 lines and always in English (Rani et al. 2023)
+- DONT [*] Add abstractions, wrappers or generic helpers without evidence of reuse in the current issue (YAGNI)
+- DO [*] Use English only: identifiers, comments, commit messages, docs, error strings
+- DONT [*] Mix languages or leave Italian / non-English text in code or comments
 
 ## API
 - DO [api,auth] Check authorization on every new route, not only authentication (#277)
