@@ -351,6 +351,25 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
     }
   }, SPAWN.timeout);
 
+  // GitHub reports head `sha`, but the pull request ref now points at another commit (a push after the gh answer).
+  // The fetched head is not the reviewed head, so the PR is skipped with its line: no model call, no worktree left.
+  it('a pull request whose fetched head is not the head gh reported is skipped with a PR moved line', async () => {
+    const caseDir = newCase();
+    const mainSha = git(work, 'rev-parse', 'main');
+    git(work, 'push', '-q', '-f', 'origin', `${mainSha}:refs/pull/7/head`);
+    seenModels = [];
+    try {
+      const r = await runPrs(caseDir);
+      expect(r.code, r.stderr || r.stdout).toBe(0);
+      expect(r.stdout).toContain(`#7: GitHub says ${sha.slice(0, 7)}, the fetch gave ${mainSha.slice(0, 7)}: the PR moved, run again`);
+      expect(seenModels).toHaveLength(0);
+      expect(existsSync(join(caseDir, 'squad-prs', 'wt-pr-7'))).toBe(false);
+      expect(git(work, 'worktree', 'list').split('\n')).toHaveLength(1);
+    } finally {
+      git(work, 'push', '-q', '-f', 'origin', `${sha}:refs/pull/7/head`);
+    }
+  }, SPAWN.timeout);
+
   // The output folder for this head already exists as a symlink to another folder. Writing through it would put the
   // outputs in that other folder, so the PR is skipped with its own line before any worktree, model call or write.
   it('an output folder that is a symlink to another folder is skipped with a line and nothing is written there', async () => {

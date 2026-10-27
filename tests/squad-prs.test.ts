@@ -123,20 +123,23 @@ describe('verdictSummary', () => {
 
 // The command line is spawned with a stub gh first on PATH, so no network or GitHub login is needed. The stub prints
 // fixed JSON for the two calls the dry run makes: pr list (not used when --pr is given) and pr view.
+// STUB_GH_FAIL (JSON list of "pr view <n>" keys) makes the stub exit 1 for those calls, so one case can break one PR.
 const SPAWN = { timeout: 60_000 };
 const STUB_GH = `#!/usr/bin/env node
 const [cmd, sub, n] = process.argv.slice(2);
+const fail = JSON.parse(process.env.STUB_GH_FAIL || '[]');
+if (fail.includes([cmd, sub, n].join(' '))) { process.stderr.write('stub gh: forced failure\\n'); process.exit(1); }
 const pr = (number, body) => ({ number, title: 'T' + number, body, headRefOid: 'a'.repeat(40), baseRefName: 'main' });
 if (cmd === 'pr' && sub === 'list') console.log(JSON.stringify([{ number: 7 }, { number: 8 }]));
 else if (cmd === 'pr' && sub === 'view') console.log(JSON.stringify(pr(Number(n), Number(n) === 7 ? 'Closes #9' : 'no link')));
 else process.exit(1);
 `;
 
-function runPrs(args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+function runPrs(args: string[], stubEnv: Record<string, string> = {}): Promise<{ code: number; stdout: string; stderr: string }> {
   const dir = mkdtempSync(join(tmpdir(), 'squad-prs-bin-'));
   writeFileSync(join(dir, 'gh'), STUB_GH);
   chmodSync(join(dir, 'gh'), 0o755);
-  const env = { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}` };
+  const env = { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}`, ...stubEnv };
   return new Promise((resolve) => {
     execFile('node', ['tools/squad/prs.mjs', ...args], { env, encoding: 'utf8', timeout: 60_000 }, (err, stdout, stderr) => {
       const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : 1) : 0;
@@ -160,5 +163,14 @@ describe('prs.mjs command line', () => {
     const r = await runPrs(['--pr', '1;x']);
     expect(r.code).toBe(2);
     expect(r.stderr).toContain('usage: node tools/squad/prs.mjs');
+  }, SPAWN.timeout);
+
+  // One PR that gh cannot read gets its own error line; the run exits 0 and the other PR still gets its line.
+  it('--dry-run with gh failing for pr 8 prints #7 and a #8 error line, and exits 0', async () => {
+    const r = await runPrs(['--dry-run', '--pr', '7,8'], { STUB_GH_FAIL: JSON.stringify(['pr view 8']) });
+    expect(r.code, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/^#7 a{7} base origin\/main tag #9 -> .* \(new\)$/m);
+    expect(r.stdout).toMatch(/^#8: /m);
+    expect(r.stdout).not.toMatch(/^#8 a{7}/m);
   }, SPAWN.timeout);
 });

@@ -154,8 +154,8 @@ const hasOut = (dir) => ['review.out', 'security.out'].every((n) => parses(join(
 // The PR's facts, with its head and base checked before any git call uses them.
 function view(repo, n) {
   const v = JSON.parse(gh(repo, 'pr', 'view', String(n), '--json', 'number,title,body,headRefOid,baseRefName'));
-  if (!SHA.test(v.headRefOid)) throw new Error(`#${n}: head is not a commit sha`);
-  if (!BASE.test(v.baseRefName) || v.baseRefName.startsWith('-')) throw new Error(`#${n}: base is not a branch name`);
+  if (!SHA.test(v.headRefOid)) throw new Error('head is not a commit sha');
+  if (!BASE.test(v.baseRefName) || v.baseRefName.startsWith('-')) throw new Error('base is not a branch name');
   return v;
 }
 
@@ -257,6 +257,14 @@ async function steward(repo, config, v, opts, root) {
   const dir = outputDir(root, n, v.headRefOid);
   if (taken(dir) && !lstatSync(dir).isDirectory()) { stdout.write(`#${n}: ${dir} is not a folder, skipped\n`); return null; }
   git(repo, 'fetch', 'origin', `pull/${n}/head`);
+  // The head gh reported may be older than the one just fetched (a push in between). The review must read the head
+  // GitHub reports, so a mismatch skips the PR. Checked right after this fetch, before the base fetch overwrites
+  // FETCH_HEAD.
+  const fetched = git(repo, 'rev-parse', 'FETCH_HEAD').trim();
+  if (fetched !== v.headRefOid) {
+    stdout.write(`#${n}: GitHub says ${v.headRefOid.slice(0, 7)}, the fetch gave ${fetched.slice(0, 7)}: the PR moved, run again\n`);
+    return null;
+  }
   git(repo, 'fetch', 'origin', v.baseRefName);
   git(repo, 'worktree', 'add', '--detach', wt, v.headRefOid);
   // The worktree must not outlive the run: a throw in a pass or the gate would otherwise leave it behind, and the
@@ -306,8 +314,19 @@ async function main() {
   }
   const root = stewardRoot(process.env);
   const config = loadConfig(repo);
-  const numbers = opts.prs ?? JSON.parse(gh(repo, 'pr', 'list', '--state', 'open', '--json', 'number', '--limit', '50')).map((p) => p.number);
-  const views = numbers.map((n) => view(repo, n));
+  // Numbers from gh go into paths and gh/git arguments, so only digits pass; any other value is named and left out.
+  const numbers = opts.prs ?? JSON.parse(gh(repo, 'pr', 'list', '--state', 'open', '--json', 'number', '--limit', '50'))
+    .map((p) => p.number)
+    .filter((n) => {
+      if (/^\d+$/.test(String(n))) return true;
+      stdout.write(`ignored PR number from gh: ${n}\n`);
+      return false;
+    });
+  // One PR that gh cannot read is reported on its own line, so the others still run.
+  const views = [];
+  for (const n of numbers) {
+    try { views.push(view(repo, n)); } catch (e) { stdout.write(`#${n}: ${e.message}\n`); }
+  }
   if (opts.dryRun) {
     for (const v of views) stdout.write(`${dryLine(root, v)}\n`);
     return 0;
