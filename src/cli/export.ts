@@ -56,10 +56,14 @@ const PAGE_FACTS = `(() => {
     towerId: a.getAttribute('data-tower') || '',
     count: a.querySelectorAll('[data-chart]').length,
   }));
+  // The appendix prints referenced files as source: JSON in a file is its content, not a rendering leak, so
+  // the text the raw-JSON check reads leaves those blocks out (#277).
+  let mainText = main ? main.innerText : '';
+  for (const pre of document.querySelectorAll('main pre.file-text')) mainText = mainText.replace(pre.innerText, '');
   return {
     docError: document.documentElement.dataset.docError,
     buildingText: document.body.innerText.includes('Building the document'),
-    mainText: main ? main.innerText : '',
+    mainText,
     layerTitles,
     nodeLabels: [...nodeLabels, ...detailLabels],
     hrefs: [...document.querySelectorAll('a[href^="#"]')].map((a) => a.getAttribute('href')),
