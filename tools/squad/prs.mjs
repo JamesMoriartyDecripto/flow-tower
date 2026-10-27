@@ -3,7 +3,7 @@
 // tested without git, gh or a model. The command line at the bottom runs them for each pull request. Importing this
 // file has no side effect. The steward never merges, approves, comments, pushes or marks a pull request ready.
 import { execFile, execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { argv, stderr, stdout } from 'node:process';
@@ -135,7 +135,12 @@ const execFileP = promisify(execFile);
 const runAsync = (cmd, args, env) => execFileP(cmd, args, { encoding: 'utf8', maxBuffer: 50e6, env })
   .then((r) => ({ code: 0, stdout: r.stdout }), (e) => ({ code: typeof e.code === 'number' ? e.code : 1, stdout: String(e.stdout ?? '') }));
 
-const hasOut = (dir) => existsSync(join(dir, 'review.out')) && existsSync(join(dir, 'security.out'));
+// A pass counts as done only when its saved answer parses as a verdict. A failed run still writes its stdout (for
+// example "empty answer"), so a file's existence alone would cache the failure and never review that head again.
+const parses = (file) => {
+  try { parseVerdict(readFileSync(file, 'utf8')); return true; } catch { return false; }
+};
+const hasOut = (dir) => ['review.out', 'security.out'].every((n) => parses(join(dir, n)));
 
 // The PR's facts, with its head and base checked before any git call uses them.
 function view(repo, n) {
@@ -183,11 +188,15 @@ async function runPasses(repo, config, v, wt, dir, tag) {
   const { paths, files } = changedFiles(git(wt, '-c', 'core.quotePath=false', 'diff', '-z', '--name-status', `${base}...HEAD`));
   const brief = join(dir, 'brief.md');
   writeFileSync(brief, briefOf(repo, v));
+  // pack drops every full file when the task is over --max-kb, so one big file would cost both passes their context.
+  // Only small files go in full; the big ones stay in the diff, since --paths carries every changed path.
+  const FULL_MAX = 40_000;
+  const small = files.filter((f) => statSync(join(wt, f)).size <= FULL_MAX);
   const roles = ['reviewer', 'security'];
   for (const role of roles) {
     const args = ['--role', role, '--issue', tag, '--repo', wt, '--base', base, '--brief', brief, '--max-kb', '200'];
     if (paths.length) args.push('--paths', paths.join(','));
-    if (files.length) args.push('--files', files.join(','));
+    if (small.length) args.push('--files', small.join(','));
     writeFileSync(join(dir, `${role}.task.md`), execFileSync('node', [join(HERE, 'pack.mjs'), ...args], { encoding: 'utf8' }));
   }
   const env = { ...process.env, SQUAD_PACE: process.env.SQUAD_PACE ?? 'relaxed' };

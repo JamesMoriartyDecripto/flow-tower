@@ -215,6 +215,45 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
   }, SPAWN.timeout);
 
   // A PR body without a closing keyword has no linked issue: the run is tagged with the PR number in the ledger.
+  // A folder left by a failed pass (security.out says "empty answer") is not a cache hit: both passes run again.
+  it('a failed saved answer is not cached: the next run calls the models again', async () => {
+    const caseDir = newCase();
+    const dir = join(caseDir, 'squad-prs', `pr-7-${sha.slice(0, 12)}`);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'review.out'), `${VERDICT}\n`);
+    writeFileSync(join(dir, 'security.out'), 'empty answer');
+    seenModels = [];
+    const r = await runPrs(caseDir);
+    expect(r.code, r.stderr || r.stdout).toBe(0);
+    expect([...seenModels].sort()).toEqual(['vendor-a/rev', 'vendor-b/sec']);
+  }, SPAWN.timeout);
+
+  // A changed 50 KB file must not push the other files out of the task: only small files go in full, and the big one
+  // stays in the diff. The head is moved to a commit that adds docs/big.md, then restored for the cases above.
+  it('a 50 KB changed file stays out of the packed task and the small file is still packed in full', async () => {
+    const caseDir = newCase();
+    git(work, 'checkout', '-q', '--detach', sha);
+    mkdirSync(join(work, 'docs'), { recursive: true });
+    writeFileSync(join(work, 'docs', 'big.md'), 'line\n'.repeat(10_000));
+    git(work, 'add', '-A');
+    commit(work, 'add a big doc');
+    const bigSha = git(work, 'rev-parse', 'HEAD');
+    git(work, 'push', '-q', '-f', 'origin', `${bigSha}:refs/pull/7/head`);
+    try {
+      const view = { number: 7, title: 'Change a', body: 'Closes #3', headRefOid: bigSha, baseRefName: 'main' };
+      const r = await runPrs(caseDir, { STUB_GH_OVERRIDE: JSON.stringify({ 'pr view 7 --json number,title,body,headRefOid,baseRefName': view }) });
+      expect(r.code, r.stderr || r.stdout).toBe(0);
+      const task = readFileSync(join(caseDir, 'squad-prs', `pr-7-${bigSha.slice(0, 12)}`, 'reviewer.task.md'), 'utf8');
+      expect(task).toContain('### src/a.ts');
+      expect(task).not.toContain('### docs/big.md');
+      expect(task).not.toContain('full files left out');
+    } finally {
+      git(work, 'checkout', '-q', 'feature');
+      git(work, 'reset', '-q', '--hard', sha);
+      git(work, 'push', '-q', '-f', 'origin', `${sha}:refs/pull/7/head`);
+    }
+  }, SPAWN.timeout);
+
   it('a PR with no linked issue is tagged with its own number in the ledger', async () => {
     const caseDir = newCase();
     const r = await runPrs(caseDir, { STUB_GH_OVERRIDE: JSON.stringify({ 'pr view 7 --json number,title,body,headRefOid,baseRefName': { number: 7, title: 'Change a', body: 'No link here.', headRefOid: sha, baseRefName: 'main' } }) });
