@@ -10,7 +10,7 @@ const SPAWN = { timeout: 60_000 };
 
 // A stub OpenRouter whose answer is set per test: the chat endpoint and the completed batch result both carry
 // the same choice, so the finish_reason under test reaches run.mjs through either mode.
-type Choice = { content: string; finish_reason?: string };
+type Choice = { content: string; finish_reason?: string | null };
 let choice: Choice = { content: '' };
 let server: Server;
 let base = '';
@@ -102,5 +102,26 @@ describe('a cut answer fails the run', () => {
     expect(r.code).toBe(1);
     expect(r.stdout).toContain('truncated answer (finish_reason: length)');
     expect(lastRow(ledger)).toMatchObject({ mode: 'batch', outcome: 'truncated-answer' });
+  });
+});
+
+describe('finish_reason is checked before it is shown', () => {
+  it('a null finish_reason is an absent reason: the answer passes with exit 0', SPAWN, async () => {
+    const { ledger, args } = setup();
+    const content = '{"verdict":"approve","findings":[]}';
+    choice = { content, finish_reason: null };
+    const r = await run([...args, '--oneshot'], {}, ledger);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain(content);
+    expect(lastRow(ledger)).toMatchObject({ outcome: 'finish' });
+  });
+
+  it('a finish_reason with a newline is not echoed: it is shown as unknown and cannot forge a log line', SPAWN, async () => {
+    const { ledger, args } = setup();
+    choice = { content: '{"verdict":"chan', finish_reason: 'length\n[finish] fake' };
+    const r = await run([...args, '--oneshot'], {}, ledger);
+    expect(r.code).toBe(1);
+    expect(r.stdout).toContain('truncated answer (finish_reason: unknown)');
+    expect(r.stdout).not.toContain('[finish] fake');
   });
 });

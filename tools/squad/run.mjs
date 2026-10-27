@@ -319,10 +319,13 @@ if (mode !== 'loop') {
   const shown = costUnknown ? 'cost unknown' : `$${cost.toFixed(4)}`;
   // A cut answer (finish_reason 'length' at the token cap) is not a finished review: its JSON is incomplete, and the
   // merge gate would only find that later. Its cost is already counted above, so the ledger says what it cost.
-  if (answer.finishReason !== undefined && answer.finishReason !== 'stop') {
-    note(`truncated answer (finish_reason: ${answer.finishReason})`);
+  // A null finish_reason is an absent reason, not a cut. The provider's value is printed only when it is a plain
+  // token: anything else (a newline, say) could forge lines in the run log, so it is shown as 'unknown'.
+  if (answer.finishReason != null && answer.finishReason !== 'stop') {
+    const reason = /^[\w.-]{1,40}$/.test(String(answer.finishReason)) ? answer.finishReason : 'unknown';
+    note(`truncated answer (finish_reason: ${reason})`);
     record('truncated-answer', 1);
-    console.log(`truncated answer (finish_reason: ${answer.finishReason}) · ${model} · ${shown}`);
+    console.log(`truncated answer (finish_reason: ${reason}) · ${model} · ${shown}`);
     exit(1);
   }
   note(`\n[finish] ${content}\n\ncost ${shown}`);
