@@ -86,7 +86,10 @@ async function exec(cwd: string, [cmd, args]: [string, string[]]) {
  */
 async function withLint(cwd: string, abs: string, result: string): Promise<string> {
   const problems = await formatAndLint(cwd, abs);
-  return problems ? `${result}\n\nLint problems remain after auto-fix. Fix them now:\n${problems}` : result;
+  // ESLint prints absolute paths; the worktree prefix must not reach the third-party model,
+  // so strip it and keep paths relative like every other tool output.
+  const shown = problems ? problems.split(`${cwd}/`).join('') : problems;
+  return shown ? `${result}\n\nLint problems remain after auto-fix. Fix them now:\n${shown}` : result;
 }
 
 async function callTool(cwd: string, name: string, a: Record<string, string>): Promise<string> {

@@ -84,6 +84,11 @@ export async function queryOsv(
   fetchImpl: typeof fetch = fetch,
   timeoutMs = 10_000,
 ): Promise<{ text: string; isError: boolean }> {
+  // The caps bound the outbound POST: the model picks these values, so an unbounded
+  // name or version could send an arbitrarily large body to a third-party API.
+  if (!q.name || q.name.length > 200 || !q.version || q.version.length > 50 || (q.ecosystem ?? '').length > 50) {
+    return { isError: true, text: 'OSV.dev query refused: package name 1-200 chars, version 1-50, ecosystem up to 50' };
+  }
   const ecosystem = q.ecosystem ?? 'npm';
   const label = `${q.name} ${q.version} (${ecosystem})`;
   let res: Response;

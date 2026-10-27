@@ -105,6 +105,24 @@ describe('queryOsv', () => {
   });
 });
 
+describe('queryOsv input caps', () => {
+  it('refuses a package name longer than 200 characters without calling OSV', async () => {
+    const { fn, calls } = fakeFetch({});
+    const r = await queryOsv({ name: 'a'.repeat(201), version: '1.0.0' }, fn);
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain('refused');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses an empty version without calling OSV', async () => {
+    const { fn, calls } = fakeFetch({});
+    const r = await queryOsv({ name: 'left-pad', version: '' }, fn);
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain('refused');
+    expect(calls).toHaveLength(0);
+  });
+});
+
 describe('compareVersions', () => {
   it('orders numeric parts', () => {
     expect(compareVersions('0.21.0', '0.31.1')).toBeLessThan(0);
