@@ -18,6 +18,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Command-center kit: README § 7 Update covers pulling, `npm ci` only when the lock changed, then recreating Vite's cache folders. Without them the unit fails before it starts (`status=226/NAMESPACE`). It also covers restarting only for server changes and checking `/api/version`. A note covers Tailscale Serve when a web server already holds port 443. The tower's service node says the same.
 
 ### Fixed
+- Squad: a `--oneshot` or `--batch` answer cut short (`finish_reason` not `stop`) passed as a normal run and was recorded as `finish`; it now fails with `truncated answer` and the ledger outcome `truncated-answer` (#316).
 - Tower card: a long tower name is shown whole, wrapped on more lines, instead of cut with an ellipsis; the reduce toggle stays on its first line (#301).
 
 ## [0.13.0] - 2026-10-23
