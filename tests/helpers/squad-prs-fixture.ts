@@ -146,3 +146,10 @@ export function runPrs(fx: Fixture, caseDir: string, stub: Record<string, string
 }
 
 export const count = (fx: Fixture, model: string) => fx.seenModels.filter((m) => m === model).length;
+
+// The output folder of a run for this head and base, as prs.mjs names it (#319-15): the merge base is read from the
+// trusted checkout, the same way the steward reads it.
+export const outDir = (fx: Fixture, caseDir: string, head: string, base = 'main') => {
+  const mergeBase = git(fx.work, 'merge-base', `origin/${base}`, head);
+  return join(caseDir, 'squad-prs', `pr-7-${head.slice(0, 12)}-${mergeBase.slice(0, 12)}`);
+};

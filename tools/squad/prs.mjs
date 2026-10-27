@@ -96,12 +96,11 @@ export function changedFiles(nameStatus) {
   return { paths, files };
 }
 
-// One folder per PR, head commit and base, so a rerun on a new head never reuses an older pack. The base is part of the
-// name because a PR stacked on another one keeps its head when GitHub retargets it to main: the pack made against the
-// old base must not be reused. Characters outside the branch-safe set become "_", so the name stays a plain folder name.
-export function outputDir(base, pr, sha, baseRef) {
-  const safeBase = String(baseRef).replace(/[^A-Za-z0-9._-]/g, '_');
-  return join(base, `pr-${pr}-${sha.slice(0, 12)}-${safeBase}`);
+// One folder per PR, head commit and merge base, so a rerun never reuses a pack of another diff. The diff is
+// origin/<base>...HEAD, so it starts at the merge base, not at the branch name: a base force-pushed or rebased under the
+// same name moves the merge base, and a folder keyed by the name alone would reuse the old pack.
+export function outputDir(base, pr, sha, mergeBase) {
+  return join(base, `pr-${pr}-${sha.slice(0, 12)}-${mergeBase.slice(0, 12)}`);
 }
 
 // The gate prints its unverified findings after this line, one "- <role> <file:line>: ..." line each (gate.mjs). They are
@@ -180,11 +179,11 @@ function view(repo, n) {
   return v;
 }
 
-// Dry run: one line per PR, no fetch, no worktree, no model call.
+// Dry run: one line per PR, no fetch, no worktree, no model call. The merge base needs the fetch, so the cache is unknown.
 function dryLine(root, v) {
-  const dir = outputDir(root, v.number, v.headRefOid, v.baseRefName);
+  const dir = join(root, `pr-${v.number}-${v.headRefOid.slice(0, 12)}-<merge base>`);
   const tag = linkedIssue(v.body) ?? v.number;
-  return `#${v.number} ${v.headRefOid.slice(0, 7)} base origin/${v.baseRefName} tag #${tag} -> ${dir} (${hasOut(dir) ? 'cached' : 'new'})`;
+  return `#${v.number} ${v.headRefOid.slice(0, 7)} base origin/${v.baseRefName} tag #${tag} -> ${dir} (cache unknown in a dry run)`;
 }
 
 // First line of every brief. The title, body and issue are written by the PR author, and the passes get the brief as
@@ -224,7 +223,7 @@ async function pass(role, models, task, tag, repo, env) {
   return outs;
 }
 
-// Packs both roles, then runs both passes at once. Returns the cost of every run's stdout, retries included.
+// Packs both roles, then runs both passes at once. Returns the cost, retries included, or null when no path is left.
 async function runPasses(repo, config, v, wt, dir, tag) {
   const base = `origin/${v.baseRefName}`;
   const changed = changedFiles(git(wt, '-c', 'core.quotePath=false', 'diff', '-z', '--name-status', `${base}...HEAD`));
@@ -252,6 +251,8 @@ async function runPasses(repo, config, v, wt, dir, tag) {
     paths.push(p);
     if (st) stats.set(p, st);
   }
+  // No path left: pack is not run, since without --paths it would read the PR's own squad.json.
+  if (paths.length === 0) { stdout.write(`#${v.number}: nothing to review\n`); return null; }
   const files = changed.files.filter((f) => stats.has(f));
   const brief = join(dir, 'brief.md');
   writeFileSync(brief, briefOf(repo, v) + leftSection(left));
@@ -261,8 +262,8 @@ async function runPasses(repo, config, v, wt, dir, tag) {
   const small = files.filter((f) => stats.get(f).size <= FULL_MAX);
   const roles = ['reviewer', 'security'];
   for (const role of roles) {
-    const args = ['--role', role, '--issue', tag, '--repo', wt, '--base', base, '--brief', brief, '--max-kb', '200'];
-    if (paths.length) args.push('--paths', paths.join(','));
+    // --base and --paths are always given: without them pack reads the PR worktree's squad.json.
+    const args = ['--role', role, '--issue', tag, '--repo', wt, '--base', base, '--paths', paths.join(','), '--brief', brief, '--max-kb', '200'];
     if (small.length) args.push('--files', small.join(','));
     writeFileSync(join(dir, `${role}.task.md`), execFileSync('node', [join(HERE, 'pack.mjs'), ...args], { encoding: 'utf8' }));
   }
@@ -282,8 +283,6 @@ async function steward(repo, v, opts, root, config) {
   if (taken(wt)) { stdout.write(`#${n}: ${wt} already exists, skipped\n`); return null; }
   // The output folder is written under the steward's root, so a symlink there would send the outputs to another
   // folder. Checked before the worktree is added, so a refused PR leaves nothing to clean up.
-  const dir = outputDir(root, n, v.headRefOid, v.baseRefName);
-  if (taken(dir) && !lstatSync(dir).isDirectory()) { stdout.write(`#${n}: ${dir} is not a folder, skipped\n`); return null; }
   git(repo, 'fetch', 'origin', `pull/${n}/head`);
   // The head gh reported may be older than the one just fetched (a push in between). The review must read the head
   // GitHub reports, so a mismatch skips the PR. Checked right after this fetch, before the base fetch overwrites
@@ -294,6 +293,11 @@ async function steward(repo, v, opts, root, config) {
     return null;
   }
   git(repo, 'fetch', 'origin', v.baseRefName);
+  // The folder is keyed by the merge base (see outputDir); its sha is checked before it becomes a folder name.
+  const mergeBase = git(repo, 'merge-base', `origin/${v.baseRefName}`, v.headRefOid).trim();
+  if (!SHA.test(mergeBase)) throw new Error('merge base is not a commit sha');
+  const dir = outputDir(root, n, v.headRefOid, mergeBase);
+  if (taken(dir) && !lstatSync(dir).isDirectory()) { stdout.write(`#${n}: ${dir} is not a folder, skipped\n`); return null; }
   git(repo, 'worktree', 'add', '--detach', wt, v.headRefOid);
   // The worktree must not outlive the run: a throw in a pass or the gate would otherwise leave it behind, and the
   // next run would skip this PR as "already exists". The removal is in finally, so it runs on failure too.
@@ -305,6 +309,7 @@ async function steward(repo, v, opts, root, config) {
       cost = costOf(readFileSync(join(dir, 'review.out'), 'utf8')) + costOf(readFileSync(join(dir, 'security.out'), 'utf8'));
     } else {
       cost = await runPasses(repo, config, v, wt, dir, linkedIssue(v.body) ?? n);
+      if (cost === null) return null; // nothing to review: no gate, no row
     }
     const g = await runAsync('node', [join(HERE, 'gate.mjs'), '--pr', String(n), '--review', join(dir, 'review.out'),
       '--security', join(dir, 'security.out'), '--repo', wt]);

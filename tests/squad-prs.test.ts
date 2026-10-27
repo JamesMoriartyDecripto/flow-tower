@@ -101,13 +101,13 @@ describe('changedFiles', () => {
 });
 
 describe('outputDir', () => {
-  it('names the folder by PR, the first 12 characters of the head and the base', () => {
-    expect(outputDir('/t', 7, 'abcdef0123456789', 'feat/x')).toMatch(/pr-7-abcdef012345-feat_x$/);
+  it('names the folder by PR, the first 12 characters of the head and of the merge base', () => {
+    expect(outputDir('/t', 7, 'abcdef0123456789', '0123456789abcdef')).toMatch(/pr-7-abcdef012345-0123456789ab$/);
   });
 
-  // A PR retargeted to main keeps its head, so the base must change the folder: an old pack is never reused.
-  it('gives another folder when only the base changes', () => {
-    expect(outputDir('/t', 7, 'abcdef0123456789', 'main')).not.toBe(outputDir('/t', 7, 'abcdef0123456789', 'feat/x'));
+  // The diff starts at the merge base, so a base rewritten under the same name (a new merge base) gets another folder.
+  it('gives another folder when only the merge base changes', () => {
+    expect(outputDir('/t', 7, 'abcdef0123456789', '0123456789abcdef')).not.toBe(outputDir('/t', 7, 'abcdef0123456789', 'fedcba9876543210'));
   });
 });
 
@@ -178,8 +178,8 @@ describe('prs.mjs command line', () => {
     expect(r.code).toBe(0);
     const lines = r.stdout.trim().split('\n');
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toMatch(/^#7 a{7} base origin\/main tag #9 -> .* \(new\)$/);
-    expect(lines[1]).toMatch(/^#8 a{7} base origin\/main tag #8 -> .* \(new\)$/);
+    expect(lines[0]).toMatch(/^#7 a{7} base origin\/main tag #9 -> .* \(cache unknown in a dry run\)$/);
+    expect(lines[1]).toMatch(/^#8 a{7} base origin\/main tag #8 -> .* \(cache unknown in a dry run\)$/);
   }, SPAWN.timeout);
 
   it('a bad --pr list exits 2 with the usage on stderr', async () => {
@@ -192,7 +192,7 @@ describe('prs.mjs command line', () => {
   it('--dry-run with gh failing for pr 8 prints #7 and a #8 error line, and exits 0', async () => {
     const r = await runPrs(['--dry-run', '--pr', '7,8'], { STUB_GH_FAIL: JSON.stringify(['pr view 8']) });
     expect(r.code, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/^#7 a{7} base origin\/main tag #9 -> .* \(new\)$/m);
+    expect(r.stdout).toMatch(/^#7 a{7} base origin\/main tag #9 -> .* \(cache unknown in a dry run\)$/m);
     expect(r.stdout).toMatch(/^#8: /m);
     expect(r.stdout).not.toMatch(/^#8 a{7}/m);
   }, SPAWN.timeout);
