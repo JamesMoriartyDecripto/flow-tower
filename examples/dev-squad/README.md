@@ -71,7 +71,8 @@ What the hooks give Claude sessions is done in the loop too: the memory pack (`c
 `patterns.md` rules for the issue's areas and the last five run lessons, about 2-2.5k characters) closes
 the system prompt, so these providers see those lessons as well as the code under review (OpenRouter's
 `data_collection: deny` applies to both); the coder's writes go through the project's Prettier + ESLint
-(`src/format-and-lint.ts`) with paths relative to the worktree; the security auditor gets `osv_scan`.
+(`src/format-and-lint.ts`) with paths relative to the worktree; the security auditor gets `osv_scan`. The loop's child processes (tests,
+checks, the formatter) run code the coder wrote, so they get no keys (`src/child-env.ts`).
 
 ## Operational fields used
 

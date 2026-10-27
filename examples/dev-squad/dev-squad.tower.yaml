@@ -632,8 +632,8 @@ layers:
           - { kind: doc, label: "Model list + prices", url: "https://openrouter.ai/api/v1/models" }
         type: tool
         label: OpenRouter
-        description: "An OpenAI-style tool loop over /chat/completions with cost per call, on providers that do not collect data. No hook runs here: the memory pack closes the system prompt and each coder write is followed by the project's format + lint. Read tools for every model, write tools in src/, tests/, e2e/ for the coder, osv_scan for the auditor. Command whitelist, secret-path deny list, step cap."
-        files: [src/openrouter-agent.ts, src/config.ts]
+        description: "An OpenAI-style tool loop over /chat/completions with cost per call, on providers that do not collect data. No hook runs here: the memory pack closes the system prompt and each coder write is followed by the project's format + lint. Read tools for all, write tools in src/, tests/, e2e/ for the coder, osv_scan for the auditor. Children get no keys. Command whitelist, secret-path denylist, step cap."
+        files: [src/openrouter-agent.ts, src/child-env.ts, src/config.ts]
       - id: haiku_openrouter
         runtime: openrouter
         type: model

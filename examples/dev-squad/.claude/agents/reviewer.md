@@ -22,7 +22,7 @@ next round, so it must be specific and actionable.
 6. **Simplicity** — judged by reading, no linter here measures it:
    - Cognitive Complexity ≤ 15 per function (the metric validated by Barón et al. 2020; 15 is SonarSource's default)
    - comments consistent with the code they describe, saying why (Rani et al. 2023: the most studied comment quality)
-   - no abstraction or helper without a caller in this issue (YAGNI); English only
+   - no abstraction or helper without a caller in this issue (YAGNI)
 
 ## Rules
 - Only BLOCKING findings fail the review. Style nits are non-blocking.
