@@ -1,6 +1,7 @@
 // Dev-squad runner for non-Claude models through OpenRouter (session tooling, kept in the repo, #113).
-// node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--repo <path>] [--oneshot|--batch]
-// --oneshot and --batch (reviewer and security only) answer in one request with no tools (oneshot.mjs, #169).
+// node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--repo <path>] [--oneshot|--batch|--loop]
+// Reviewer and security answer in one request with no tools by default (oneshot.mjs, #169, #322); --loop keeps the tool loop.
+// --batch sends that request through the OpenRouter Batch API (about half price, hours of wait).
 // The key is loaded from the user's key file into this process only; it is never printed.
 // Each run ends with one line in the local cost ledger (ledger.mjs, #156), finished or failed alike.
 import { execFileSync } from 'node:child_process';
@@ -14,12 +15,14 @@ import { STYLE_RULES, commandArgv, loadConfig, systemLine } from './config.mjs';
 import { appendRun, issueOf, ledgerPath, projectOf } from './ledger.mjs';
 import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
 import { realRelIfAllowed, realTarget } from './guard.mjs';
+import { parseVerdict } from './gate.mjs';
+import { pickMode } from './mode.mjs';
 import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './oneshot.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
 // A missing --task used to reach readFileSync and fail with a raw fs error: a usage line is the answer.
-const USAGE = 'usage: node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--write a,b] [--repo <path>] [--oneshot | --batch]';
+const USAGE = 'usage: node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--write a,b] [--repo <path>] [--oneshot | --batch | --loop]';
 if (argv.includes('--help')) { console.log(USAGE); exit(0); }
 const taskFile = arg('task');
 // Checked before any git call, so a bare invocation fails on the usage, not on the checkout.
@@ -37,27 +40,17 @@ const branch = (() => { try { return execFileSync('git', ['rev-parse', '--abbrev
 const issue = issueOf(arg('issue'), branch);
 const model = arg('model'), role = arg('role'), node = arg('node'), task = readFileSync(taskFile, 'utf8');
 const maxSteps = Number(arg('steps', 40));
-// Modes (#169): the tool loop stays the default; reviewer and security can answer in one request instead. SQUAD_PACE
-// sets their default: relaxed is one direct request (a daytime review in minutes), overnight is a batch (half the price,
-// hours of wait, for work left running overnight). An explicit flag wins over the pace. The coder always needs its tools.
 // The role names the log file below, so only the three known roles pass (no path characters from the command line).
 if (!['coder', 'reviewer', 'security'].includes(role)) { console.error(USAGE); exit(1); }
-const flagOneshot = argv.includes('--oneshot'), flagBatch = argv.includes('--batch');
-const oneshotRole = role === 'reviewer' || role === 'security';
-if ((flagOneshot || flagBatch) && !oneshotRole) {
-  console.error(role === 'coder' ? 'the coder needs tools: --oneshot/--batch are for reviewer and security' : USAGE);
-  exit(1);
-}
-if (flagOneshot && flagBatch) { console.error('--oneshot and --batch are exclusive'); exit(1); }
-// An unknown pace is refused rather than read as now: a typo must not silently pick the paid mode.
-const PACE = env.SQUAD_PACE;
-if (PACE !== undefined && !['now', 'relaxed', 'overnight'].includes(PACE)) { console.error('SQUAD_PACE must be now, relaxed or overnight'); exit(1); }
-const paceMode = PACE === 'relaxed' ? 'oneshot' : PACE === 'overnight' ? 'batch' : undefined;
-const fromPace = !flagOneshot && !flagBatch && oneshotRole ? paceMode : undefined;
-const mode = flagBatch ? 'batch' : flagOneshot ? 'oneshot' : fromPace ?? 'loop';
+// Modes (mode.mjs): reviewer and security answer in one request by default; the coder always needs its tools.
+let picked;
+try {
+  picked = pickMode({ role, flags: { oneshot: argv.includes('--oneshot'), batch: argv.includes('--batch'), loop: argv.includes('--loop') }, pace: env.SQUAD_PACE });
+} catch (e) { console.error(e.message); exit(1); }
+const { mode, why } = picked;
 // The mode that was paid for: a batch that has no endpoint for the model falls back to oneshot, and the ledger says so.
 let paidMode = mode;
-console.log(`mode: ${mode}${fromPace ? ` (SQUAD_PACE=${PACE})` : ''}`);
+console.log(`mode: ${mode}${why === 'pace' ? ` (SQUAD_PACE=${env.SQUAD_PACE})` : why === 'default' ? ` (default for ${role})` : ''}`);
 // A packed review names the commit it was made from; the merge gate reads it from this output, not from the file's mtime.
 // Only the third line counts: pack.mjs writes it there, and a quoted diff or issue body could carry the same text
 // further down, which must not supply a commit.
@@ -223,11 +216,19 @@ const TOOLS = [
   fn('finish', 'End with your final report (the format your task asks for).', { report: S }, ['report']),
 ];
 
+// A reviewer or security answer is read by the merge gate, which needs the JSON verdict (gate.mjs): prose is refused.
+// The coder's report is free text, so its prompt keeps the report rule.
+const finishRule = role === 'coder'
+  ? 'When done, call finish with your report, and end that report with a `Known gaps:` line (or `Known gaps: none`).'
+  : 'When done, call finish with only the JSON verdict the task asks for, then a `Known gaps:` line (or `Known gaps: none`).';
+const hasVerdict = (text) => { try { parseVerdict(text); return true; } catch { return false; } };
 const messages = [
-  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${STYLE_RULES}${config.rules.map((r) => ` ${r}`).join('')} When done, call finish with your report, and end that report with a \`Known gaps:\` line (or \`Known gaps: none\`).` },
+  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${STYLE_RULES}${config.rules.map((r) => ` ${r}`).join('')} ${finishRule}` },
   { role: 'user', content: task },
 ];
 let cost = 0;
+// The loop asks a reviewer or security for its verdict once more when a finish report has none (#322).
+let verdictAsks = 0;
 // Set when a batch answer's cost could not be read: the ledger then gets null and costUnknown, not a false 0.
 let costUnknown = false;
 let promptTokens = 0, cachedTokens = 0;
@@ -328,6 +329,8 @@ if (mode !== 'loop') {
     console.log(`truncated answer (finish_reason: ${reason}) · ${model} · ${shown}`);
     exit(1);
   }
+  // A reviewer or security answer with no JSON verdict is a failed run here, not a gate surprise later (#322).
+  if (role !== 'coder' && !hasVerdict(content)) { note('no JSON verdict'); record('no-verdict', 1); console.log(`no JSON verdict · ${model} · ${shown}`); exit(1); }
   note(`\n[finish] ${content}\n\ncost ${shown}`);
   record('finish', 1);
   emit('agent.end', node, `${role} on ${model} done (${shown}, ${paidMode})`, 'ok');
@@ -360,10 +363,26 @@ for (let step = 0; step < maxSteps; step++) {
   if (msg.content) note(`\n[assistant] ${msg.content}`);
   emit('log', node, `step ${step + 1} · $${cost.toFixed(3)} · cache ${cached}%${msg.content ? ` · ${msg.content.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`);
   if (!msg.tool_calls?.length) { messages.push({ role: 'user', content: 'Use the tools; call finish with your report when done.' }); continue; }
+  let reask = false;
+  // One ask per reply, however many of its finish calls are refused: a reply with two prose reports is still one request
+  // for a verdict. The run fails only when a later reply is refused again.
+  let askedThisReply = false;
   for (const c of msg.tool_calls) {
     let a = {};
     try { a = JSON.parse(c.function.arguments || '{}'); } catch { /* reported below */ }
     if (c.function.name === 'finish') {
+      // One re-ask for the verdict; a second prose report ends the run. The tool result keeps the call paired.
+      if (role !== 'coder' && !hasVerdict(a.report)) {
+        note(`\n[finish] no JSON verdict: ${String(a.report ?? '').slice(0, 300)}`);
+        if (!askedThisReply) {
+          askedThisReply = true;
+          if (++verdictAsks > 1) { record('no-verdict', step + 1); emit('agent.end', node, `${role} on ${model}: no JSON verdict`, 'error'); console.log(`no JSON verdict after a second request · ${model} · $${cost.toFixed(4)}`); exit(1); }
+        }
+        // The user message waits until every tool call of this reply has its result: a message in between would break the pairing.
+        messages.push({ role: 'tool', tool_call_id: c.id, content: 'Not accepted: no JSON verdict.' });
+        reask = true;
+        continue;
+      }
       note(`\n[finish] ${a.report}\n\ncost $${cost.toFixed(4)}`);
       record('finish', step + 1);
       emit('agent.end', node, `${role} on ${model} done ($${cost.toFixed(3)}, cache ${cached}%)`, 'ok');
@@ -378,6 +397,7 @@ for (let step = 0; step < maxSteps; step++) {
     emit('log', node, `${c.function.name} ${what}${result.startsWith('ERROR') ? ' ✗' : ''}`.slice(0, 120), result.startsWith('ERROR') || result.startsWith('EXIT') ? 'error' : 'ok');
     messages.push({ role: 'tool', tool_call_id: c.id, content: result });
   }
+  if (reask) messages.push({ role: 'user', content: 'Your report is not the JSON verdict the task asks for. Call finish again with only that JSON, then the Known gaps line.' });
 }
 record('step-cap', maxSteps);
 emit('agent.end', node, `${role} on ${model}: step cap`, 'error');

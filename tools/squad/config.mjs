@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeDirs } from './args.mjs';
 
+// The three model defaults come from the 2026-10-27 benchmark (#322): on the squad's own review cases, packed in one
+// request, the reviewer scored the same on glm-5.3-flash as on glm-5.3-flashx at a quarter of the price.
 export const DEFAULTS = {
   project: '',
   commands: { check: 'npm run check' },
@@ -15,7 +17,7 @@ export const DEFAULTS = {
   review: ['src'],
   rules: [],
   extras: [],
-  models: { coder: 'anthropic/claude-haiku-5.5', reviewer: 'z-ai/glm-5.3-flashx', security: 'deepseek/deepseek-v4.1-flash' },
+  models: { coder: 'anthropic/claude-haiku-5.5', reviewer: 'z-ai/glm-5.3-flash', security: 'deepseek/deepseek-v4.1-flash' },
   tower: 'Dev Squad',
   source: 'dev-squad',
   cli: '',

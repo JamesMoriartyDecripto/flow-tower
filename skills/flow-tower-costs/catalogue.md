@@ -14,6 +14,7 @@ The models to start from for each role a tower node can have (`src/core/roles.ts
 **Before trusting a pick:**
 - n = 6 per cell is enough to rank, not to settle. Re-run on the project's own cases (see [SKILL.md](SKILL.md)).
 - Check what is new since this date: `node models.mjs --role <id> --families 2 --since 2026-10-16`.
+- **Squad roles 2026-10-27** (#322, 540 runs, $1.22, [results](../../examples/model-benchmark/results/2026-10-27-squad-roles.md)): the dev squad kit measured on its own runner. Reviewer `z-ai/glm-5.3-flash` 12/12 in one request at $0.0001; security `deepseek/deepseek-v4.1-flash` 11/12 with every planted vulnerability found; coder: all 7 candidates passed 12/12, `anthropic/claude-haiku-5.5` stays (fastest). In a tool loop the cheap reviewers answered prose instead of the asked JSON on clean diffs: measure a reviewer in the mode it will run in.
 - **Re-check 2026-10-21** (#281, $0.03, [results](../../examples/model-benchmark/results/2026-10-21-new-models.md)): the models new on OpenRouter since 2026-10-16, on the same tasks.
   - research: `deepseek/deepseek-v4.1-flash-1017` replaces `deepseek-v4.1-flash` (6/6, cheaper and faster on our runs).
   - coding, data, orchestrator: `minimax/minimax-m3.1-flash:free` 6/6 at no cost, under `data_collection: deny`. Not a pick: a free tier is rate-limited and can be withdrawn; re-test when a paid endpoint is listed.
