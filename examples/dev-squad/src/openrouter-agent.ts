@@ -5,6 +5,7 @@ import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import { env } from 'node:process';
 import { promisify } from 'node:util';
 import type { AgentRun } from './run-agent';
+import { childEnv } from './child-env';
 import { formatAndLint } from './format-and-lint';
 import { queryOsv } from './tools/osv';
 
@@ -76,7 +77,8 @@ function safePath(cwd: string, path: string, write = false): string {
 }
 
 async function exec(cwd: string, [cmd, args]: [string, string[]]) {
-  const r = await sh(cmd, args, { cwd, timeout: 300_000, maxBuffer: 8 << 20 }).catch((e) => ({ stdout: e.stdout ?? '', stderr: e.stderr ?? e.message }));
+  // The coder's code runs in these children, so they get no secrets (see child-env.ts).
+  const r = await sh(cmd, args, { cwd, timeout: 300_000, maxBuffer: 8 << 20, env: childEnv() }).catch((e) => ({ stdout: e.stdout ?? '', stderr: e.stderr ?? e.message }));
   return `${r.stdout}${r.stderr}`;
 }
 

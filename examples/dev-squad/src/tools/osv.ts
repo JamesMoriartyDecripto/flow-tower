@@ -16,6 +16,8 @@ export interface OsvVuln {
   }>;
 }
 
+const MAX_ADVISORY_LINES = 30;
+
 interface OsvQueryResponse {
   vulns?: OsvVuln[];
 }
@@ -119,10 +121,15 @@ export async function queryOsv(
   if (!vulns.length) {
     return { isError: false, text: `No known vulnerabilities for ${label}.` };
   }
-  const lines = vulns.map((v) => {
-    const id = v.aliases?.find((a) => a.startsWith('CVE-')) ?? v.id;
-    return `${id} (${severityOf(v)}): fixed in ${fixedFor(v, q.name, q.version)}`;
+  // The advisory text is third-party input that goes into the auditor's context. Newlines and
+  // control characters could fake extra lines, so each field is flattened and cut, and the list is capped.
+  const clean = (s: string) => s.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 80);
+  const lines = vulns.slice(0, MAX_ADVISORY_LINES).map((v) => {
+    const id = clean(v.aliases?.find((a) => a.startsWith('CVE-')) ?? v.id);
+    return `${id} (${clean(severityOf(v))}): fixed in ${fixedFor(v, q.name, q.version)}`;
   });
+  const more = vulns.length - lines.length;
+  if (more > 0) lines.push(`... and ${more} more`);
   const noun = vulns.length === 1 ? 'advisory' : 'advisories';
   return {
     isError: false,

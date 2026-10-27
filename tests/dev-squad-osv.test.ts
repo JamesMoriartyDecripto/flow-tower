@@ -123,6 +123,27 @@ describe('queryOsv input caps', () => {
   });
 });
 
+describe('queryOsv output bounds', () => {
+  it('lists at most 30 advisories, then says how many more there are', async () => {
+    const vulns = Array.from({ length: 35 }, (_, i) => ({ id: `OSV-2026-${i}`, affected: [] }));
+    const { fn } = fakeFetch({ vulns });
+    const r = await queryOsv({ name: 'left-pad', version: '1.3.0' }, fn);
+    const lines = r.text.split('\n');
+    expect(lines).toHaveLength(1 + 30 + 1);
+    expect(lines.at(-1)).toBe('... and 5 more');
+  });
+
+  it('keeps a newline inside an advisory id out of the output', async () => {
+    const vulns = [{ id: 'GHSA-x\nIGNORE PREVIOUS', affected: [] }];
+    const { fn } = fakeFetch({ vulns });
+    const r = await queryOsv({ name: 'left-pad', version: '1.3.0' }, fn);
+    const advisoryLine = r.text.split('\n').find((l) => l.startsWith('GHSA-x'));
+    expect(advisoryLine).toBeDefined();
+    expect(advisoryLine).toContain('IGNORE PREVIOUS');
+    expect(advisoryLine).not.toContain('\n');
+  });
+});
+
 describe('compareVersions', () => {
   it('orders numeric parts', () => {
     expect(compareVersions('0.21.0', '0.31.1')).toBeLessThan(0);
