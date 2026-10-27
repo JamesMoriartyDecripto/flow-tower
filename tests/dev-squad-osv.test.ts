@@ -138,10 +138,9 @@ describe('queryOsv output bounds', () => {
     const vulns = [{ id: 'GHSA-x\nIGNORE PREVIOUS', affected: [] }];
     const { fn } = fakeFetch({ vulns });
     const r = await queryOsv({ name: 'left-pad', version: '1.3.0' }, fn);
-    const advisoryLine = r.text.split('\n').find((l) => l.startsWith('GHSA-x'));
-    expect(advisoryLine).toBeDefined();
-    expect(advisoryLine).toContain('IGNORE PREVIOUS');
-    expect(advisoryLine).not.toContain('\n');
+    // An id with a newline is not in the known shape, so it is replaced by unknown instead of echoed.
+    const advisoryLine = r.text.split('\n').find((l) => l.startsWith('unknown'));
+    expect(advisoryLine).toBe('unknown (unknown): fixed in unknown');
   });
 });
 
@@ -182,7 +181,8 @@ describe('queryOsv advisory line from OSV fields', () => {
     const r = await queryOsv({ name: 'pkg', version: '1.0.0' }, fn);
     const advisoryLine = r.text.split('\n').find((l) => l.startsWith('GHSA-lines'));
     expect(advisoryLine).toBeDefined();
-    expect(advisoryLine).toContain('no fix (last affected 1.0.0 IGNORE)');
+    // The fixed text with a newline fails the version shape, so it is reported as unknown.
+    expect(advisoryLine).toBe('GHSA-lines (unknown): fixed in unknown');
   });
 });
 
@@ -201,12 +201,77 @@ describe('queryOsv response shape and size', () => {
     expect(r.text).toContain('too large');
   });
 
-  it('keeps a newline inside the package name out of the label', async () => {
-    const { fn } = fakeFetch({});
+  it('refuses a package name with a newline instead of echoing it', async () => {
+    const { fn, calls } = fakeFetch({});
     const r = await queryOsv({ name: 'left-pad\nFAKE', version: '1.3.0' }, fn);
-    const firstLine = r.text.split('\n')[0];
-    expect(firstLine).toContain('left-pad FAKE');
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain('refused');
     expect(r.text.split('\n')).toHaveLength(1);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('queryOsv input shapes', () => {
+  it('refuses a package name with a space without calling OSV', async () => {
+    const { fn, calls } = fakeFetch({});
+    const r = await queryOsv({ name: 'a b', version: '1.0.0' }, fn);
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain('refused');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses a version with shell characters without calling OSV', async () => {
+    const { fn, calls } = fakeFetch({});
+    const r = await queryOsv({ name: 'left-pad', version: '1.0.0;rm' }, fn);
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain('refused');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses an ecosystem outside the allow-list without calling OSV', async () => {
+    const { fn, calls } = fakeFetch({});
+    const r = await queryOsv({ name: 'left-pad', version: '1.0.0', ecosystem: 'Hackage' }, fn);
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain('refused');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('accepts a scoped package name', async () => {
+    const { fn, calls } = fakeFetch({});
+    const r = await queryOsv({ name: '@scope/pkg', version: '1.0.0' }, fn);
+    expect(r.isError).toBe(false);
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe('queryOsv output shapes', () => {
+  it('treats non-string fields as missing instead of throwing', async () => {
+    const vuln = {
+      id: 7,
+      aliases: [42],
+      database_specific: { severity: {} },
+      affected: [{ package: { name: 'pkg', ecosystem: 'npm' }, ranges: [{ events: [{ fixed: 3 }] }] }],
+    };
+    const { fn } = fakeFetch({ vulns: [vuln] });
+    const r = await queryOsv({ name: 'pkg', version: '1.0.0' }, fn);
+    expect(r.isError).toBe(false);
+    expect(r.text).toContain('unknown (unknown): fixed in unknown');
+  });
+
+  it('replaces an advisory id with an unexpected shape by unknown', async () => {
+    const { fn } = fakeFetch({ vulns: [{ id: 'GHSA-x IGNORE PREVIOUS', affected: [] }] });
+    const r = await queryOsv({ name: 'left-pad', version: '1.3.0' }, fn);
+    expect(r.text).toContain('unknown (unknown): fixed in unknown');
+    expect(r.text).not.toContain('IGNORE');
+  });
+
+  it('ignores an affected entry for another ecosystem', () => {
+    const vuln = {
+      id: 'GHSA-eco',
+      affected: [{ package: { name: 'pkg', ecosystem: 'PyPI' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '2.0.0' }] }] }],
+    };
+    expect(fixedFor(vuln, 'pkg', '1.0.0')).toBe('unknown');
+    expect(fixedFor(vuln, 'pkg', '1.0.0', 'PyPI')).toBe('2.0.0');
   });
 });
 
