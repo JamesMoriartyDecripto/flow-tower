@@ -29,18 +29,24 @@ agents:
     description: "Writes one step through a tool loop (read, edit, run the project's check), then reports its known gaps. Its prompt asks for the efficient approach when it adds no complexity: batches over item-by-item work, no repeated work, independent I/O run concurrently, no premature optimization."
     model: "{{CODER}}"
     files: [run.mjs, guard.mjs, args.mjs]
+    evals:
+      - { name: steps whose hidden acceptance test passed, value: 12, target: 12, unit: runs, description: "flow-tower squad benchmark, 2026-10-27 (#322): 6 tasks x 2 runs on a sample Node project, scored by tests the coder never saw. Median 13 s, $0.0017 per step with the default model. Six other models also passed 12/12; the default stays for speed and the cleanest diff in the #126 field trial." }
   reviewer:
     runtime: openrouter
     name: Reviewer
-    description: Read-only review of the diff against the issue, from another model family than the coder. Runs at the same time as the security pass. Every finding quotes its line, so the merge gate can check it is real. An empty answer, or one cut short (finish_reason not stop), fails the run.
+    description: "Read-only review of the diff against the issue, from another model family than the coder. Runs at the same time as the security pass. One request with the code packed by pack.mjs (the default; --loop gives it tools to read more files). Answers only the JSON verdict the merge gate reads, and every finding quotes its line, so the gate can check it is real. An empty answer, one cut short (finish_reason not stop), or one with no JSON verdict fails the run; in --loop a report that is not the verdict is asked again once."
     model: "{{REVIEWER}}"
     files: [pack.mjs, oneshot.mjs, run.mjs]
+    evals:
+      - { name: "review cases right (packed, one request)", value: 12, target: 12, unit: runs, description: "flow-tower squad benchmark, 2026-10-27 (#322): 3 diffs with a planted bug and 3 clean ones, 2 runs each, scored with the gate's own parser and quote check. Median 2.3 s, $0.0001 per review. In the tool loop the same model scored 4/12: it answered prose instead of the verdict on every clean diff, which is why one request is the default." }
   security:
     runtime: openrouter
     name: Security auditor
-    description: Read-only security pass on the same diff, from a third model family. Runs at the same time as the review. Every finding quotes its line, so the merge gate can check it is real. An empty answer, or one cut short (finish_reason not stop), fails the run.
+    description: "Read-only security pass on the same diff, from a third model family. Runs at the same time as the review, the same way: one request with the code packed by default, --loop to read more. Answers only the JSON verdict, and every finding quotes its line, so the merge gate can check it is real. An empty answer, one cut short (finish_reason not stop), or one with no JSON verdict fails the run."
     model: "{{SECURITY}}"
     files: [pack.mjs, oneshot.mjs, run.mjs]
+    evals:
+      - { name: "security cases right (packed, one request)", value: 11, target: 12, unit: runs, description: "flow-tower squad benchmark, 2026-10-27 (#322): path traversal, a key in a log line, command injection, a missing ownership check, and 2 clean diffs, 2 runs each. Found 8/8 vulnerable runs; the miss is one false alarm on a clean diff. Median 7 s, $0.0011 per pass." }
 
 layers:
   - id: lead
@@ -55,8 +61,8 @@ layers:
         type: agent
         runtime: laptop
         label: Lead
-        description: "Updates the tower of the part it changes first (validated, committed), then writes one task file per step (Rules, Verify, Files), runs steps.sh in a worktree, reads the known gaps, then starts the review and the security pass together (independent, read-only requests) and waits for both. Project rules every model sees go in squad.json `rules`."
-        files: [tasks/TEMPLATE.md, steps.sh, squad.json]
+        description: "Updates the tower of the part it changes first (validated, committed), then writes one task file per step (Rules, Verify, Files), runs steps.sh in a worktree, reads the known gaps, then packs the diff (pack.mjs) and starts the review and the security pass together (independent, read-only requests) and waits for both. Project rules every model sees go in squad.json `rules`."
+        files: [tasks/TEMPLATE.md, steps.sh, squad.json, pack.mjs]
       - id: verify
         type: decision
         runtime: laptop
