@@ -5,6 +5,7 @@ import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import { env } from 'node:process';
 import { promisify } from 'node:util';
 import type { AgentRun } from './run-agent';
+import { formatAndLint } from './format-and-lint';
 import { queryOsv } from './tools/osv';
 
 const sh = promisify(execFile);
@@ -79,6 +80,15 @@ async function exec(cwd: string, [cmd, args]: [string, string[]]) {
   return `${r.stdout}${r.stderr}`;
 }
 
+/**
+ * The PostToolUse format + lint never runs on this loop, so the coder gets it here: a file it
+ * just wrote is formatted, and any lint problem left after auto-fix is handed back to fix now.
+ */
+async function withLint(cwd: string, abs: string, result: string): Promise<string> {
+  const problems = await formatAndLint(cwd, abs);
+  return problems ? `${result}\n\nLint problems remain after auto-fix. Fix them now:\n${problems}` : result;
+}
+
 async function callTool(cwd: string, name: string, a: Record<string, string>): Promise<string> {
   const clean = (out: string) => out.split('\n').filter((l) => !SECRET.test(l.split(':')[0])).join('\n');
   switch (name) {
@@ -94,7 +104,7 @@ async function callTool(cwd: string, name: string, a: Record<string, string>): P
       const hits = text.split(a.old).length - 1;
       if (hits !== 1) throw new Error(`old text found ${hits} times; it must be unique`);
       writeFileSync(abs, text.replace(a.old, () => a.new));
-      return 'edited';
+      return withLint(cwd, abs, 'edited');
     }
     case 'write_file': {
       const abs = safePath(cwd, a.path, true);
@@ -104,7 +114,7 @@ async function callTool(cwd: string, name: string, a: Record<string, string>): P
       }
       mkdirSync(dirname(abs), { recursive: true });
       writeFileSync(abs, a.content);
-      return `wrote ${a.content.length} chars`;
+      return withLint(cwd, abs, `wrote ${a.content.length} chars`);
     }
     case 'delete_file': {
       rmSync(safePath(cwd, a.path, true)); // same fence as write_file, so a probe file can actually go away
