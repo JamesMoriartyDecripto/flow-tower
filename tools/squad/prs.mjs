@@ -3,7 +3,7 @@
 // tested without git, gh or a model. The command line at the bottom runs them for each pull request. Importing this
 // file has no side effect. The steward never merges, approves, comments, pushes or marks a pull request ready.
 import { execFile, execFileSync } from 'node:child_process';
-import { lstatSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { argv, stderr, stdout } from 'node:process';
 import { promisify } from 'node:util';
@@ -137,6 +137,7 @@ const stewardRoot = (env) => resolve(dirname(ledgerPath(env)), 'squad-prs');
 // lstat rather than existsSync: a symlink, even a dangling one, at the worktree path counts as taken, so git cannot
 // be led to write through it.
 const taken = (p) => { try { lstatSync(p); return true; } catch { return false; } };
+const lstatOrNull = (p) => { try { return lstatSync(p); } catch { return null; } };
 
 // Runs a child for its stdout and exit code. A failed run is a result, not a throw: the run's own failure words
 // (empty answer, truncated answer) are read from its stdout.
@@ -176,6 +177,11 @@ function briefOf(repo, v) {
   return `${text}\n`;
 }
 
+// Named after the brief so the reviewers know the PR holds these paths even though the task does not show them.
+const leftSection = (left) => (left.length
+  ? `\n## Left out of this task\n\n${left.map(([p, why]) => `- ${p}: ${why}`).join('\n')}\n`
+  : '');
+
 // Runs one pass, moving to the next attempt only on an empty or a cut answer. The last stdout is the answer.
 async function pass(role, models, task, tag, wt, env) {
   const outs = [];
@@ -197,15 +203,34 @@ async function runPasses(repo, config, v, wt, dir, tag) {
   // pack reads --paths and --files as comma lists, so a name with a comma would split into two wrong paths. Such a
   // file is left out of the task and named on its own line; the run goes on.
   const comma = (p) => p.includes(',');
-  for (const p of changed.paths.filter(comma)) stdout.write(`#${v.number}: ${p} left out of the review task (comma in the name)\n`);
-  const paths = changed.paths.filter((p) => !comma(p));
-  const files = changed.files.filter((f) => !comma(f));
+  const left = [];
+  for (const p of changed.paths.filter(comma)) {
+    stdout.write(`#${v.number}: ${p} left out of the review task (comma in the name)\n`);
+    left.push([p, 'comma in the name']);
+  }
+  // lstat, not stat: a symlink in the change would be followed to its target, which may lie outside the repo, and pack
+  // then refuses the whole task. So a path that exists and is not a regular file (symlink, folder) is left out of
+  // --paths and --files alike, with its own line; deleted paths do not exist here and stay in --paths. The brief names
+  // each left-out path, so the reviewers know the PR contains it.
+  const stats = new Map();
+  const paths = [];
+  for (const p of changed.paths.filter((p) => !comma(p))) {
+    const st = lstatOrNull(join(wt, p));
+    if (st && !st.isFile()) {
+      stdout.write(`#${v.number}: ${p} left out of the review task (not a regular file)\n`);
+      left.push([p, st.isSymbolicLink() ? 'symlink' : 'not a regular file']);
+      continue;
+    }
+    paths.push(p);
+    if (st) stats.set(p, st);
+  }
+  const files = changed.files.filter((f) => stats.has(f));
   const brief = join(dir, 'brief.md');
-  writeFileSync(brief, briefOf(repo, v));
+  writeFileSync(brief, briefOf(repo, v) + leftSection(left));
   // pack drops every full file when the task is over --max-kb, so one big file would cost both passes their context.
   // Only small files go in full; the big ones stay in the diff, since --paths carries every changed path.
   const FULL_MAX = 40_000;
-  const small = files.filter((f) => statSync(join(wt, f)).size <= FULL_MAX);
+  const small = files.filter((f) => stats.get(f).size <= FULL_MAX);
   const roles = ['reviewer', 'security'];
   for (const role of roles) {
     const args = ['--role', role, '--issue', tag, '--repo', wt, '--base', base, '--brief', brief, '--max-kb', '200'];
@@ -227,13 +252,16 @@ async function steward(repo, config, v, opts, root) {
   const n = v.number;
   const wt = join(root, `wt-pr-${n}`);
   if (taken(wt)) { stdout.write(`#${n}: ${wt} already exists, skipped\n`); return null; }
+  // The output folder is written under the steward's root, so a symlink there would send the outputs to another
+  // folder. Checked before the worktree is added, so a refused PR leaves nothing to clean up.
+  const dir = outputDir(root, n, v.headRefOid);
+  if (taken(dir) && !lstatSync(dir).isDirectory()) { stdout.write(`#${n}: ${dir} is not a folder, skipped\n`); return null; }
   git(repo, 'fetch', 'origin', `pull/${n}/head`);
   git(repo, 'fetch', 'origin', v.baseRefName);
   git(repo, 'worktree', 'add', '--detach', wt, v.headRefOid);
   // The worktree must not outlive the run: a throw in a pass or the gate would otherwise leave it behind, and the
   // next run would skip this PR as "already exists". The removal is in finally, so it runs on failure too.
   try {
-    const dir = outputDir(root, n, v.headRefOid);
     mkdirSync(dir, { recursive: true });
     // A cached pass costs what its saved answers cost; a new pass is summed from its own runs.
     let cost;

@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -315,5 +315,59 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
       git(work, 'reset', '-q', '--hard', sha);
       git(work, 'push', '-q', '-f', 'origin', `${sha}:refs/pull/7/head`);
     }
+  }, SPAWN.timeout);
+
+  // A symlink in the change points outside the clone: statSync would follow it and pack would refuse the whole task.
+  // The file is left out of the task with its own line, the outside text never reaches the task, and the row still shows.
+  it('a changed symlink to a file outside the clone is left out with a line and never reaches the task', async () => {
+    const caseDir = newCase();
+    const outside = join(root, 'outside-secret.md');
+    writeFileSync(outside, 'OUTSIDE SECRET TEXT\n');
+    git(work, 'checkout', '-q', '--detach', sha);
+    mkdirSync(join(work, 'docs'), { recursive: true });
+    symlinkSync(outside, join(work, 'docs', 'link.md'));
+    git(work, 'add', '-A');
+    commit(work, 'add a symlink to outside');
+    const linkSha = git(work, 'rev-parse', 'HEAD');
+    git(work, 'push', '-q', '-f', 'origin', `${linkSha}:refs/pull/7/head`);
+    try {
+      const view = { number: 7, title: 'Change a', body: 'Closes #3', headRefOid: linkSha, baseRefName: 'main' };
+      const gate = { mergeable: 'MERGEABLE', isDraft: false, headRefOid: linkSha };
+      const r = await runPrs(caseDir, { STUB_GH_OVERRIDE: JSON.stringify({
+        'pr view 7 --json number,title,body,headRefOid,baseRefName': view,
+        'pr view 7 --json mergeable,isDraft,headRefOid': gate,
+      }) });
+      expect(r.code, r.stderr || r.stdout).toBe(0);
+      expect(r.stdout).toContain('#7: docs/link.md left out of the review task (not a regular file)');
+      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
+      const task = readFileSync(join(caseDir, 'squad-prs', `pr-7-${linkSha.slice(0, 12)}`, 'security.task.md'), 'utf8');
+      expect(task).not.toContain('OUTSIDE SECRET TEXT');
+      expect(task).toContain('## Left out of this task');
+      expect(task).toContain('docs/link.md');
+    } finally {
+      git(work, 'checkout', '-q', 'feature');
+      git(work, 'reset', '-q', '--hard', sha);
+      git(work, 'push', '-q', '-f', 'origin', `${sha}:refs/pull/7/head`);
+    }
+  }, SPAWN.timeout);
+
+  // The output folder for this head already exists as a symlink to another folder. Writing through it would put the
+  // outputs in that other folder, so the PR is skipped with its own line before any worktree, model call or write.
+  it('an output folder that is a symlink to another folder is skipped with a line and nothing is written there', async () => {
+    const caseDir = newCase();
+    const squad = join(caseDir, 'squad-prs');
+    const elsewhere = join(caseDir, 'elsewhere');
+    mkdirSync(squad, { recursive: true });
+    mkdirSync(elsewhere, { recursive: true });
+    const dir = join(squad, `pr-7-${sha.slice(0, 12)}`);
+    symlinkSync(elsewhere, dir);
+    seenModels = [];
+    const r = await runPrs(caseDir);
+    expect(r.code, r.stderr || r.stdout).toBe(0);
+    expect(r.stdout).toContain(`#7: ${dir} is not a folder, skipped`);
+    expect(seenModels).toHaveLength(0);
+    expect(readdirSync(elsewhere)).toHaveLength(0);
+    expect(existsSync(join(squad, 'wt-pr-7'))).toBe(false);
+    expect(git(work, 'worktree', 'list').split('\n')).toHaveLength(1);
   }, SPAWN.timeout);
 });
