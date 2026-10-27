@@ -1,7 +1,7 @@
 // Dev-squad runner for non-Claude models through OpenRouter (session tooling, kept in the repo, #113).
 // node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--repo <path>] [--oneshot|--batch|--loop]
 // Reviewer and security answer in one request with no tools by default (oneshot.mjs, #169, #322); --loop keeps the tool loop.
-// --oneshot and --batch (reviewer and security only) answer in one request with no tools (oneshot.mjs, #169).
+// --batch sends that request through the OpenRouter Batch API (about half price, hours of wait).
 // The key is loaded from the user's key file into this process only; it is never printed.
 // Each run ends with one line in the local cost ledger (ledger.mjs, #156), finished or failed alike.
 import { execFileSync } from 'node:child_process';

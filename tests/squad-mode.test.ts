@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest';
-// No declaration file for mode.mjs (batch.d.mts is the precedent for one); the untyped import is accepted here.
-// @ts-expect-error TS7016: mode.mjs has no .d.mts yet
 import { pickMode } from '../tools/squad/mode.mjs';
 
 const NONE = { oneshot: false, batch: false, loop: false };
