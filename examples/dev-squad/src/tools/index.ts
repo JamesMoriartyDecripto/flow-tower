@@ -1,6 +1,7 @@
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { fileFollowup } from './file-followup';
 import { openPr } from './open-pr';
+import { osvScan } from './osv-scan';
 import { requestApproval } from './request-approval';
 import { runCoder } from './run-coder';
 import { runTests } from './run-tests';
@@ -19,5 +20,5 @@ export const squadServer = (cwd: string) => createSdkMcpServer({
   name: 'squad',
   version: '1.0.0',
   instructions: 'Dev Squad delivery tools. Prefer run_tests over raw test commands.',
-  tools: [runTests(cwd), runCoder(cwd), openPr(cwd), requestApproval(cwd), fileFollowup(cwd)],
+  tools: [runTests(cwd), osvScan, runCoder(cwd), openPr(cwd), requestApproval(cwd), fileFollowup(cwd)],
 });

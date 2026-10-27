@@ -33,6 +33,11 @@ Project conventions you must respect:
   call id) must be covered on both sides of the pair. Never assert the same kind
   twice (a dedupe bug dropped every `tool.end` and passed review that way).
 
+## Complexity budget
+The reviewer scores simplicity, so plan for it:
+- No function in a step may exceed Cognitive Complexity 15
+- No abstraction or helper without a caller in this issue (YAGNI)
+
 ## Simplicity check
 Before returning, ask: what is the smallest change that satisfies every
 criterion? Remove any step that is not required by a criterion.
