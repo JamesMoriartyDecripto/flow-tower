@@ -6,8 +6,8 @@ Label a GitHub issue `squad:go` and Dev Squad triages it, plans, researches, cod
 tests, reviews, verifies and opens a **draft** pull request. A human merges.
 
 This is the flagship flow-tower example: it is meant to be read, not run. To run a dev squad on your own
-project, use the kit instead: `flow-tower squad init <project>` (the same coder, reviewer and security models,
-your coding agent as the lead; [tools/squad](../../tools/squad/README.md)).
+project, use the kit instead: `flow-tower squad init <project>` (a coder, a reviewer and a security auditor from three
+families, measured on the kit's own runner, with your coding agent as the lead; [tools/squad](../../tools/squad/README.md)).
 
 ## Open it
 

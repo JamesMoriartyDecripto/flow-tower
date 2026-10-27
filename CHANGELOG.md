@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-27
+
 ### Added
 - Squad: a local PR steward (#319). `node tools/squad/prs.mjs [--pr n,m] [--force] [--keep] [--dry-run]` reviews and gates the open pull requests: a detached worktree at each head, review and security packed against the PR's own base with the PR text and its linked issue as brief, both passes at once with the fallback rule (an empty or cut answer runs once more, then the security brief goes to the reviewer model), the merge gate, and one summary row per PR with verdicts, findings by severity, gate and cost. A head already reviewed is skipped unless `--force`; worktrees are removed, on failure too. It never merges, approves, comments or pushes. The squad tower has a PR steward layer.
 - Dev squad example (#315): simplicity rules and a dependency check that work in every harness (SDK pipeline, OpenRouter loop, interactive Claude Code). The learned patterns now reach the OpenRouter roles (coder, reviewer, security auditor) at the end of their system prompt; the coder gets the project's Prettier + ESLint after every write in the OpenRouter loop, as the PostToolUse hook does in Claude sessions; the reviewer scores `simplicity` (Cognitive Complexity ≤ 15, comments consistent with the code, no helper without a caller); the security auditor's `osv_scan` asks OSV.dev for the advisories of each new or bumped dependency, with the severity and the fix of the range that holds the installed version; child processes of the OpenRouter loop and of format + lint run without the API keys and tokens.
@@ -478,7 +480,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.10.0...v0.11.0

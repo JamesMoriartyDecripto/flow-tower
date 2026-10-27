@@ -18,7 +18,7 @@ The same 8 models, 7 families, in all five categories run (intent, doc-writer, c
 |---|---|
 | `deepseek/deepseek-v4.1-flash` | squad coder and security default before this run (#70) |
 | `deepseek/deepseek-v4-pro` | #70's first coder: the stronger tier of the same family |
-| `z-ai/glm-5.3-flashx` | squad reviewer default (glm-5.3 timed out in #70) |
+| `z-ai/glm-5.3-flashx` | squad reviewer default until #322 (glm-5.3 timed out in #70); now `glm-5.3-flash` |
 | `google/gemini-3.5-flash-lite` | voice agent default: fastest first sentence on 2026-10-10 |
 | `anthropic/claude-haiku-5.5` | second in the voice test; Anthropic family |
 | `openai/gpt-6-luna` | voice test; OpenAI family, low price |
