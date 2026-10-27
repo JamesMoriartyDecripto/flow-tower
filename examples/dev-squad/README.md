@@ -34,6 +34,8 @@ and **coder** nodes drill down into their own towers.
 | Lifecycle hooks | `src/hooks/` (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop) |
 | Least-privilege subagents | `.claude/agents/*.md` |
 | Memory | `CLAUDE.md`, `memory/patterns.md`, `memory/session-log.md` |
+| Quality guard (Simplicity) | `memory/patterns.md` + reviewer rubric + `src/hooks/format-lint.ts` — auto-block on cognitive complexity >15 and functions >40 LOC |
+| Security guard (Dependencies) | `src/hooks/dep-audit.ts` — auto-runs `npm audit` on `package*.json` change; `src/tools/osv-scan.ts` — queries OSV.dev for exact package CVEs |
 
 ## Mixed models
 
@@ -83,6 +85,8 @@ container has no egress filter yet; see the optimizer report).
 .mcp.json         github, context7, playwright, semgrep
 prompts/          templated prompts ({{issue}}, {{plan}}, ...) for non-file agents
 src/              pipeline, hooks, tools, memory
+src/hooks/        lifecycle + safety hooks (format-lint, bash-guard, secret-scan, dep-audit)
+src/tools/        delivery tools (run_tests, run_coder, open_pr, osv_scan, request_approval, file_followup)
 memory/           learned patterns and run journal
 towers/           nested towers for the coder and researcher
 ```
