@@ -3,7 +3,7 @@
 // tested without git, gh or a model. The command line at the bottom runs them for each pull request. Importing this
 // file has no side effect. The steward never merges, approves, comments, pushes or marks a pull request ready.
 import { execFile, execFileSync } from 'node:child_process';
-import { lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { argv, stderr, stdout } from 'node:process';
 import { promisify } from 'node:util';
@@ -365,6 +365,9 @@ async function main() {
   // PR is untrusted input to the steward). A bad file stops the run here, before any worktree exists.
   const config = loadConfig(repo);
   mkdirSync(root, { recursive: true, mode: 0o700 });
+  // The mode of mkdirSync applies only when it creates the folder: a folder that already exists (say 0755) keeps its
+  // mode, so the steward folder is made private here too.
+  chmodSync(root, 0o700);
   const rows = [];
   const blocks = [];
   for (const v of views) {
