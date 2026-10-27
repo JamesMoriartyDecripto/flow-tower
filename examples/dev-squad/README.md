@@ -34,8 +34,9 @@ and **coder** nodes drill down into their own towers.
 | Lifecycle hooks | `src/hooks/` (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop) |
 | Least-privilege subagents | `.claude/agents/*.md` |
 | Memory | `CLAUDE.md`, `memory/patterns.md`, `memory/session-log.md` |
-| Quality guard (Simplicity) | `memory/patterns.md` + reviewer rubric + `src/hooks/format-lint.ts` — auto-block on cognitive complexity >15 and functions >40 LOC |
-| Security guard (Dependencies) | `src/hooks/dep-audit.ts` — auto-runs `npm audit` on `package*.json` change; `src/tools/osv-scan.ts` — queries OSV.dev for exact package CVEs |
+| Simplicity rules | `memory/patterns.md` (every role) and the reviewer's `simplicity` score: Cognitive Complexity ≤ 15, comments consistent with the code, no helper without a caller |
+| Format + lint in every harness | `src/format-and-lint.ts`: the project's own Prettier and ESLint after each write, from the PostToolUse hook in Claude sessions and from the OpenRouter loop |
+| Dependency check | `src/tools/osv.ts`: OSV.dev advisories of a package version and the fix of its range; the security auditor's `osv_scan`, in the SDK and the OpenRouter loop |
 
 ## Mixed models
 
@@ -85,7 +86,7 @@ container has no egress filter yet; see the optimizer report).
 .mcp.json         github, context7, playwright, semgrep
 prompts/          templated prompts ({{issue}}, {{plan}}, ...) for non-file agents
 src/              pipeline, hooks, tools, memory
-src/hooks/        lifecycle + safety hooks (format-lint, bash-guard, secret-scan, dep-audit)
+src/hooks/        lifecycle + safety hooks (format-lint, bash-guard, secret-scan, context-loader)
 src/tools/        delivery tools (run_tests, run_coder, open_pr, osv_scan, request_approval, file_followup)
 memory/           learned patterns and run journal
 towers/           nested towers for the coder and researcher
@@ -95,6 +96,9 @@ towers/           nested towers for the coder and researcher
 
 - [Claude Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview) and [hooks](https://code.claude.com/docs/en/agent-sdk/hooks): `query()`, subagents in `options.agents`, hook callbacks.
 - [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) (Anthropic, 2024): the routing, prompt chaining, parallelization, orchestrator-workers and evaluator-optimizer patterns named in the table above.
+- [OSV.dev API, POST /v1/query](https://google.github.io/osv.dev/post-v1-query/): what `osv_scan` asks; each advisory lists one range per release line, so the fix is read from the range that holds the installed version.
+- Barón, Wyrich, Wagner, [An Empirical Validation of Cognitive Complexity as a Measure of Source Code Understandability](https://arxiv.org/abs/2007.12520) (ESEM 2020): the metric of the simplicity rule; the threshold 15 is SonarSource's default, not a finding of the paper.
+- Rani et al., [A Decade of Code Comment Quality Assessment: A Systematic Literature Review](https://arxiv.org/abs/2209.08165) (JSS 2023): consistency between comment and code is the comment quality the literature checks most.
 - [OpenRouter models API](https://openrouter.ai/api/v1/models): the prices in the mixed-models table (2026-10-10).
 - Field numbers: issue #70 of the flow-tower repository; the model choice: the 2026-10-11 benchmark in `skills/flow-tower-costs/reference.md`.
 - The rules in `.claude/agents/coder.md` (never rewrite an existing test file) and `verifier.md` (hold a change no test exercises end to end), and the empty-grader rule of the review loop, come from the flow-tower squad's own runs on 2026-10-13 (issues #187-#196).

@@ -34,10 +34,9 @@ Project conventions you must respect:
   twice (a dedupe bug dropped every `tool.end` and passed review that way).
 
 ## Complexity budget
-Each step must respect empirical thresholds to avoid review blocking:
-- No function in the step may exceed Cognitive Complexity 15
-- No function may exceed 40 LOC; prefer 10–30 LOC
-- Do not introduce speculative abstractions (YAGNI)
+The reviewer scores simplicity, so plan for it:
+- No function in a step may exceed Cognitive Complexity 15
+- No abstraction or helper without a caller in this issue (YAGNI)
 
 ## Simplicity check
 Before returning, ask: what is the smallest change that satisfies every

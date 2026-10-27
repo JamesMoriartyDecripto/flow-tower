@@ -19,13 +19,10 @@ next round, so it must be specific and actionable.
 3. **Design** — fits existing patterns; no needless abstraction or duplication.
 4. **Safety** — input validation, error handling, no secrets, no injection.
 5. **Scope** — no unrelated changes; diff is reviewable in under 10 minutes.
-6. **Simplicity** — evidence-based quality gate:
-   - Cognitive Complexity ≤ 15 per function (Barón et al. 2020)
-   - Functions are 10–40 LOC; each does one thing (Malaiya & Denton 2000)
-   - No duplicate code without justification (AlOmar 2025)
-   - English only: identifiers, comments, errors
-   - Comments explain WHY (not WHAT), are ≤2 lines and consistent with code (Rani et al. 2023)
-   - No speculative abstractions (YAGNI)
+6. **Simplicity** — judged by reading, no linter here measures it:
+   - Cognitive Complexity ≤ 15 per function (the metric validated by Barón et al. 2020; 15 is SonarSource's default)
+   - comments consistent with the code they describe, saying why (Rani et al. 2023: the most studied comment quality)
+   - no abstraction or helper without a caller in this issue (YAGNI); English only
 
 ## Rules
 - Only BLOCKING findings fail the review. Style nits are non-blocking.
@@ -38,7 +35,7 @@ next round, so it must be specific and actionable.
 ```json
 {
   "verdict": "approve" | "changes_requested",
-  "scores": { "correctness": 2, "tests": 1, "design": 2, "safety": 2, "scope": 2 },
+  "scores": { "correctness": 2, "tests": 1, "design": 2, "safety": 2, "scope": 2, "simplicity": 2 },
   "blocking": [{ "file": "src/x.ts", "line": 42, "issue": "...", "fix": "..." }],
   "non_blocking": [{ "file": "...", "line": 0, "issue": "..." }],
   "follow_ups": ["..."]

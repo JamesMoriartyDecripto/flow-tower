@@ -1,8 +1,9 @@
 # Learned patterns
 
-DO/DON'T rules promoted from repeated review findings. Injected into agents by the
-SessionStart hook (filtered by the issue's areas). One rule per line:
-`- DO|DONT [areas] rule (#issue)`. `*` means every area.
+DO/DON'T rules promoted from repeated review findings, plus a few global rules with
+their source. Injected into every role, filtered by the issue's areas: by the
+SessionStart hook in Claude sessions, at the end of the system prompt in the
+OpenRouter loop. One rule per line: `- DO|DONT [areas] rule (#issue)`. `*` means every area.
 
 ## Global
 - DO [*] Write the failing test first when fixing a bug, then the fix (#212)
@@ -10,16 +11,10 @@ SessionStart hook (filtered by the issue's areas). One rule per line:
 - DO [*] Keep each plan step under ~150 changed lines so review stays under 10 minutes (#240)
 - DONT [*] Add a dependency for something a node: built-in already does (#251)
 - DO [*] Read the pinned version in the lockfile before trusting library docs (#263)
-- DONT [*] Let Cognitive Complexity exceed 15 in a single function; split nested logic early (Barón et al. 2020)
-- DO [*] Keep functions between ~10 and ~40 LOC. Too short is as risky as too long (Malaiya & Denton 2000)
-- DONT [*] Leave duplicate code (>6 similar lines) without a documented reason to keep it (AlOmar 2025)
-- DO [*] Write comments that explain WHY, never WHAT; keep them ≤2 lines and always in English (Rani et al. 2023)
-- DONT [*] Add abstractions, wrappers or generic helpers without evidence of reuse in the current issue (YAGNI)
+- DONT [*] Let a function's Cognitive Complexity exceed 15; split nested logic early (metric: Barón et al. 2020; threshold: SonarSource default)
+- DO [*] Keep each comment consistent with the code it describes, and say why, not what (Rani et al. 2023)
+- DONT [*] Add an abstraction, wrapper or helper that has no caller in this issue (YAGNI)
 - DO [*] Use English only: identifiers, comments, commit messages, docs, error strings
-- DONT [*] Mix languages or leave Italian / non-English text in code or comments
-- DONT [*] Add or update dependencies without a green npm audit (moderate+ blocks)
-- DONT [*] Pin wildcard versions (^, ~, latest) in package.json: exact versions in package-lock.json only
-- DO [*] Query OSV.dev for every new dependency before the security audit completes
 
 ## API
 - DO [api,auth] Check authorization on every new route, not only authentication (#277)
