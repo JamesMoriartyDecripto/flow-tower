@@ -179,8 +179,11 @@ cannot read gets its own error line and the others go on. Run one steward at a t
 worktree name.
 
 The passes run from the checkout the steward runs in (its squad.json, its models, its flow-tower CLI for the live
-events): `run.mjs` reads `cli` and the models from its `--repo`, and the events run that CLI with node, so pointing
-`--repo` at a PR's worktree would run that PR's code on this machine. Only `pack.mjs` (the diff) and `gate.mjs` (the
+events). `run.mjs` itself takes the event CLI (and the `validate` extra's) only from the checkout it lives in: the
+`cli` of a squad.json in any other `--repo` is ignored with `squad.json "cli" ignored: ... (#324)`, and the `.cli` beside
+the runner, `FLOW_TOWER_CLI` or PATH is used instead, so no `--repo` can pick code to run on this machine. The rest of
+that squad.json still applies, `commands.check` included: a `--loop` pass on a PR's worktree would run the PR's check,
+so PR passes are packed one-request reviews from your own checkout. Only `pack.mjs` (the diff) and `gate.mjs` (the
 head) look at the PR's worktree, and neither runs its code. The brief carries the PR author's own text (title, body, the linked issue): both passes treat it as data, and a finding
 that comes from an instruction in it is checked like any other. It only reads and reviews: it never merges, approves,
 comments, pushes or marks a PR ready. The lead reads the
