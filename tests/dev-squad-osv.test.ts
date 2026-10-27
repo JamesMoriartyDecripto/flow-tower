@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   compareVersions,
+  fixedFor,
   queryOsv,
 } from '../examples/dev-squad/src/tools/osv.ts';
 
@@ -141,6 +142,33 @@ describe('queryOsv output bounds', () => {
     expect(advisoryLine).toBeDefined();
     expect(advisoryLine).toContain('IGNORE PREVIOUS');
     expect(advisoryLine).not.toContain('\n');
+  });
+});
+
+describe('fixedFor open ranges', () => {
+  const lastAffected = {
+    id: 'GHSA-last-affected',
+    affected: [{ package: { name: 'pkg' }, ranges: [{ type: 'SEMVER', events: [{ introduced: '0' }, { last_affected: '2.3.0' }] }] }],
+  };
+  const noClose = {
+    id: 'GHSA-no-close',
+    affected: [{ package: { name: 'pkg' }, ranges: [{ type: 'SEMVER', events: [{ introduced: '1.0.0' }] }] }],
+  };
+
+  it('says no fix when the version is inside a last_affected range (inclusive bound)', () => {
+    expect(fixedFor(lastAffected, 'pkg', '2.3.0')).toBe('no fix (last affected 2.3.0)');
+  });
+
+  it('reports unknown when the version is past last_affected', () => {
+    expect(fixedFor(lastAffected, 'pkg', '2.4.0')).toBe('unknown');
+  });
+
+  it('says no fix yet when a range is introduced but never closed', () => {
+    expect(fixedFor(noClose, 'pkg', '1.5.0')).toBe('no fix yet');
+  });
+
+  it('reports unknown when the version is below an unclosed range', () => {
+    expect(fixedFor(noClose, 'pkg', '0.9.0')).toBe('unknown');
   });
 });
 

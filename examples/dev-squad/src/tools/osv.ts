@@ -4,6 +4,7 @@
 export interface OsvEvent {
   introduced?: string;
   fixed?: string;
+  last_affected?: string;
 }
 
 export interface OsvVuln {
@@ -55,14 +56,28 @@ export function fixedFor(vuln: OsvVuln, name: string, version: string): string {
     if (affected.package?.name !== name) continue;
     for (const range of affected.ranges ?? []) {
       let introduced: string | undefined;
+      // True from an `introduced` event until a closing event. A range that ends
+      // still open has no fix yet, which is a different answer from "not affected".
+      let open = false;
       for (const event of range.events) {
         if (event.introduced !== undefined) {
           introduced = event.introduced;
+          open = true;
         } else if (event.fixed !== undefined && introduced !== undefined) {
           if (compareVersions(version, introduced) >= 0 && compareVersions(version, event.fixed) < 0) {
             return event.fixed;
           }
+          open = false;
+        } else if (event.last_affected !== undefined && introduced !== undefined) {
+          // last_affected is inclusive: that version is still affected and no fix exists.
+          if (compareVersions(version, introduced) >= 0 && compareVersions(version, event.last_affected) <= 0) {
+            return `no fix (last affected ${event.last_affected})`;
+          }
+          open = false;
         }
+      }
+      if (open && introduced !== undefined && compareVersions(version, introduced) >= 0) {
+        return 'no fix yet';
       }
     }
   }
