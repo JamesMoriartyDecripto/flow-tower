@@ -90,6 +90,19 @@ describe('costOf', () => {
   it('is 0 when there is no amount', () => {
     expect(costOf('no footer')).toBe(0);
   });
+
+  // A failed attempt's line ends with its amount, so it has no " ·" after it.
+  it('counts an amount that ends a failed attempt line', () => {
+    expect(costOf('truncated answer (finish_reason: length) · m · $0.0030')).toBeCloseTo(0.003);
+  });
+
+  it('counts a failed attempt and the footer after it', () => {
+    expect(costOf('no JSON verdict · m · $0.0010\n--- m · 1 step · $0.0020 · cache 0%')).toBeCloseTo(0.003);
+  });
+
+  it('counts the cost of a loop answer with no JSON verdict after a second request', () => {
+    expect(costOf('no JSON verdict after a second request · m · $0.0040')).toBeCloseTo(0.004);
+  });
 });
 
 describe('changedFiles', () => {

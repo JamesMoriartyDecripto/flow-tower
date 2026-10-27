@@ -72,10 +72,12 @@ export function attemptModels(role, models) {
   return [models.reviewer, models.reviewer];
 }
 
-// The run footer carries "· $0.0123 ·" per step. Summing every footer gives what the pass cost, retries included.
+// The run footer carries "· $0.0123 ·" per step, and a failed attempt's line ends with "· $0.0010". Summing every
+// amount gives what the pass cost, retries included. An amount must follow "· $" and be followed by " ·" or the end of
+// its line, so a stray "$" in an answer is not counted. The \r? keeps a CRLF line ending from hiding the amount.
 export function costOf(stdout) {
   let sum = 0;
-  for (const m of String(stdout ?? '').matchAll(/· \$(\d+(?:\.\d+)?) ·/g)) sum += Number(m[1]);
+  for (const m of String(stdout ?? '').matchAll(/· \$(\d+(?:\.\d+)?)(?= ·|\r?$)/gm)) sum += Number(m[1]);
   return sum;
 }
 

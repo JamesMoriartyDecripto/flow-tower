@@ -371,7 +371,7 @@ for (let step = 0; step < maxSteps; step++) {
       // One re-ask for the verdict; a second prose report ends the run. The tool result keeps the call paired.
       if (role !== 'coder' && !hasVerdict(a.report)) {
         note(`\n[finish] no JSON verdict: ${String(a.report ?? '').slice(0, 300)}`);
-        if (++verdictAsks > 1) { record('no-verdict', step + 1); emit('agent.end', node, `${role} on ${model}: no JSON verdict`, 'error'); console.log(`no JSON verdict after a second request · ${model}`); exit(1); }
+        if (++verdictAsks > 1) { record('no-verdict', step + 1); emit('agent.end', node, `${role} on ${model}: no JSON verdict`, 'error'); console.log(`no JSON verdict after a second request · ${model} · $${cost.toFixed(4)}`); exit(1); }
         // The user message waits until every tool call of this reply has its result: a message in between would break the pairing.
         messages.push({ role: 'tool', tool_call_id: c.id, content: 'Not accepted: no JSON verdict.' });
         reask = true;
