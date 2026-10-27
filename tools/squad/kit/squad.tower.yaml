@@ -34,7 +34,7 @@ agents:
   reviewer:
     runtime: openrouter
     name: Reviewer
-    description: "Read-only review of the diff against the issue, from another model family than the coder. Runs at the same time as the security pass. One request with the code packed by pack.mjs (the default; --loop gives it tools to read more files). Answers only the JSON verdict the merge gate reads, and every finding quotes its line, so the gate can check it is real. An empty answer, one cut short (finish_reason not stop), or one with no JSON verdict fails the run; in --loop a report that is not the verdict is asked again once."
+    description: "Read-only review of the diff against the issue, from another model family than the coder. Runs at the same time as the security pass. One request with the code packed by pack.mjs (the default; --loop gives it tools to read more files). Answers only the JSON verdict the merge gate reads, and every finding quotes its line, so the gate can check it is real. An empty answer, one cut short (finish_reason not stop), or one with no JSON verdict fails the run; in --loop a report that is not the verdict is asked again once. The runner takes the CLI its live events run (and the validate extra) only from its own checkout (.cli, FLOW_TOWER_CLI or PATH), never from the squad.json of a --repo it does not live in, so a reviewed pull request cannot pick code to run (#324)."
     model: "{{REVIEWER}}"
     files: [pack.mjs, oneshot.mjs, run.mjs]
     evals:
@@ -42,7 +42,7 @@ agents:
   security:
     runtime: openrouter
     name: Security auditor
-    description: "Read-only security pass on the same diff, from a third model family. Runs at the same time as the review, the same way: one request with the code packed by default, --loop to read more. Answers only the JSON verdict, and every finding quotes its line, so the merge gate can check it is real. An empty answer, one cut short (finish_reason not stop), or one with no JSON verdict fails the run."
+    description: "Read-only security pass on the same diff, from a third model family. Runs at the same time as the review, the same way: one request with the code packed by default, --loop to read more. Answers only the JSON verdict, and every finding quotes its line, so the merge gate can check it is real. An empty answer, one cut short (finish_reason not stop), or one with no JSON verdict fails the run. The runner takes the CLI its live events run (and the validate extra) only from its own checkout (.cli, FLOW_TOWER_CLI or PATH), never from the squad.json of a --repo it does not live in, so a reviewed pull request cannot pick code to run (#324)."
     model: "{{SECURITY}}"
     files: [pack.mjs, oneshot.mjs, run.mjs]
     evals:
