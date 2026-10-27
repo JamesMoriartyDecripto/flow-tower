@@ -2,6 +2,14 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Status on 2026-10-26
+
+- **Tutorial Studio** (#308, PR #311, merged). `examples/tutorial-studio`: a narrated video tutorial of a web app as a tower and runnable scripts on Argo (brief, outline, narration and actions per scene, OpenRouter voice, headless Chrome on the GPU at 1080p, captions, chapters, contact sheet). The sample is Flow Tower's own tutorial: 17 scenes, 3:46, voice `google/gemini-3.8-flash-tts` (`Charon`), picked after a pilot with three other voices. The README covers running it, making one for another app, and how the sample was made.
+  - Four review rounds; 13 findings fixed (key kept away from the recorded app and its children, clean-screen check before every scene, speech timeout, fail-closed forbidden list…), the rest dropped with reasons on #308. DeepSeek answered empty three times; the last security round ran on GLM.
+  - `argo validate` finds scene marks by regex: `narration.mark('<scene>')` must stay literal in a demo script.
+  - Squad $0.28.
+- **Open:** the video is approved but not published. When the destination is chosen (release asset or video host), link it from `examples/tutorial-studio/README.md`.
+
 ## Status on 2026-10-24
 
 - **v0.13.0 released** (2026-10-24, PR #296; [report](examples/release-auditor/reports/v0.13.0.md)). It holds hub security #286 and #287, the voice guided tour #275, the catalogue re-check #281, #279, #289, the onboarding docs and #291.
