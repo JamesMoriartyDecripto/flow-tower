@@ -13,7 +13,7 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
 |---|---|---|
 | Lead (you) | the session model | the tower, task files, commits, the issue |
 | Coder | `anthropic/claude-haiku-5.5` | only the `write` folders of squad.json |
-| Reviewer | `z-ai/glm-5.3-flashx` | nothing (JSON verdict) |
+| Reviewer | `z-ai/glm-5.3-flash` | nothing (JSON verdict) |
 | Security | `deepseek/deepseek-v4.1-flash` | nothing (JSON findings) |
 
 ## Set up (once per project)
@@ -62,10 +62,12 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
    ```bash
    node tools/squad/pack.mjs --role reviewer --issue <n> --repo ../wt-<n> --files <changed files> > /tmp/<n>-review.md
    node tools/squad/pack.mjs --role security --issue <n> --repo ../wt-<n> --files <changed files>,<guards it relies on> > /tmp/<n>-security.md
-   SQUAD_PACE=relaxed node tools/squad/run.mjs --model <reviewer> --role reviewer --node specialists.reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n> > /tmp/<n>-review.out 2>&1 &
-   SQUAD_PACE=relaxed node tools/squad/run.mjs --model <security> --role security --node specialists.security --task /tmp/<n>-security.md --issue <n> --repo ../wt-<n> > /tmp/<n>-security.out 2>&1 &
+   node tools/squad/run.mjs --model <reviewer> --role reviewer --node specialists.reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n> > /tmp/<n>-review.out 2>&1 &
+   node tools/squad/run.mjs --model <security> --role security --node specialists.security --task /tmp/<n>-security.md --issue <n> --repo ../wt-<n> > /tmp/<n>-security.out 2>&1 &
    wait
    ```
+   Both answer in one request with the packed code (the default) and only with the JSON verdict: an answer without
+   one fails the run (`no JSON verdict`); rerun it once. `--loop` gives a pass tools to read files you did not pack.
    Every finding quotes its line. Verify each one in the code: keep the real ones, say why the others do not apply.
 9. **Fix steps** for the kept findings (same format, new folder), then verify again.
 10. **Merge gate**: push, open the pull request, wait for CI, then
@@ -85,8 +87,8 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
 
 ## Pace
 
-Ask how urgent it is. Waiting: the default loop, no batch. No hurry today: `SQUAD_PACE=relaxed` for review and
-security (one request, cents). Unattended: `SQUAD_PACE=overnight` (batch, about half price, can wait hours).
+Ask how urgent it is. Waiting or not, review and security are one request each (seconds, a fraction of a cent).
+Unattended: `SQUAD_PACE=overnight` (batch, about half price, can wait hours).
 The coder always runs the loop. Details: [tools/squad § Pace](../../tools/squad/README.md#pace-how-fast-versus-how-cheap).
 
 ## Field lessons

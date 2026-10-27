@@ -85,7 +85,7 @@ Reviewers on that PR: glm-5.3-flashx 3 steps, $0.007, found the main issue; deep
 
 **Defaults since 2026-10-11** (three families):
 - Coder `anthropic/claude-haiku-5.5`: met the goal in the field trial, cleanest diff, a third of deepseek's cost; `openai/gpt-6-luna` is the cheap, fast fallback for simple tasks.
-- Reviewer `z-ai/glm-5.3-flashx` (kept: cheapest field reviewer that found the issue); security `deepseek/deepseek-v4.1-flash` (6/6, fastest of the 6/6 models).
+- Reviewer `z-ai/glm-5.3-flashx` (kept: cheapest field reviewer that found the issue); security `deepseek/deepseek-v4.1-flash` (6/6, fastest of the 6/6 models). Superseded 2026-10-27 (#322): measured on the squad's own runner the reviewer is `z-ai/glm-5.3-flash` in one request ([results](../../examples/model-benchmark/results/2026-10-27-squad-roles.md)).
 - Voice agent stays `google/gemini-3.5-flash-lite`: the voice category was not rerun.
 
 Caveats: some doc-writer regex checks are lenient (a fix under Added passed; `### Unreleased` passed). Cache was 0% for most models: 300–600-token prompts are below most providers' minimum, and Anthropic needs `cache_control`; #149 adds `--warm`, `--batch` and `cache_control`.

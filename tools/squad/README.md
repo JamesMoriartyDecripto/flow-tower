@@ -40,10 +40,12 @@ it from what the project's files say. A missing file gives the defaults.
 |---|---|---|---|
 | Lead (Claude, you) | the session model | plans, verifies, commits | task files, commits |
 | Coder | `anthropic/claude-haiku-5.5` | cleanest result, 11 steps (#126); `CODER_MODEL` overrides | the `write` folders of squad.json (or `--write a,b`) |
-| Reviewer | `z-ai/glm-5.3-flashx` | 3 steps, cheapest on the same PR | nothing (read-only, JSON verdict) |
-| Security | `deepseek/deepseek-v4.1-flash` | 6/6 in the benchmark, fastest | nothing |
+| Reviewer | `z-ai/glm-5.3-flash` | 12/12 on the squad's own review cases at $0.0001 a review (#322) | nothing (read-only, JSON verdict) |
+| Security | `deepseek/deepseek-v4.1-flash` | 11/12, every planted vulnerability found (#322) | nothing (read-only, JSON verdict) |
 
-All at low reasoning effort: quick passes, and the review rounds re-check the work. [OpenRouter](https://openrouter.ai) is just the gateway. Three families, so no reviewer shares the coder's blind spots.
+All at low reasoning effort: quick passes, and the review rounds re-check the work. The numbers come from a benchmark
+on this runner, not a generic one: [2026-10-27 squad roles](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/examples/model-benchmark/results/2026-10-27-squad-roles.md),
+which also walks a fresh project from `squad init` to a fixed security finding for $0.0121. [OpenRouter](https://openrouter.ai) is just the gateway. Three families, so no reviewer shares the coder's blind spots.
 
 ## A task file
 
@@ -102,18 +104,20 @@ names the tower node that shows the run live; `ev.sh` posts those events to `FLO
 ## A review
 
 ```bash
-node tools/squad/run.mjs --model z-ai/glm-5.3-flashx --role reviewer --node specialists.reviewer \
-  --task tasks/113-review.md --steps 20 --repo ../wt-113
+node tools/squad/pack.mjs --role reviewer --issue 113 --repo ../wt-113 > tasks/113-review.md
+node tools/squad/run.mjs --model z-ai/glm-5.3-flash --role reviewer --node specialists.reviewer \
+  --task tasks/113-review.md --issue 113 --repo ../wt-113
 ```
 
-The reviewer is read-only, so put everything it needs in the task: the diff (`git diff origin/main`) embedded as text,
-the item it was meant to fulfil, and the answer format (JSON with a `verdict` and a finding list, each finding
-`file:line`, what is wrong, why it matters, a fix). Read the log afterwards: `role-*.log` next to the script holds
-every call.
+The reviewer is read-only and answers in one request, so the task holds everything it needs: `pack.mjs` embeds the
+brief (the issue, or `--brief <file>`), the diff, the files that changed and the answer format (JSON with a `verdict`
+and a finding list, each finding `file:line`, its quote, what is wrong, why it matters, a fix). Read the log
+afterwards: `role-*.log` next to the script holds every call.
 
 ```bash
+node tools/squad/pack.mjs --role security --issue 113 --repo ../wt-113 > tasks/113-security.md
 node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node specialists.security \
-  --task tasks/113-security.md --steps 10 --repo ../wt-113
+  --task tasks/113-security.md --issue 113 --repo ../wt-113
 ```
 
 Start the review and the security pass together (each in the background, then `wait`): both are read-only and
@@ -151,10 +155,16 @@ made-up finding rarely comes back).
 The maintainer sets the pace; the lead picks the review mode from it. The coder always runs the tool loop: it reads,
 writes and runs the check over many steps, which no single request can do.
 
+Reviewer and security answer **in one request with the code packed** by default (#322): on the squad's own review cases
+that was as right or better than the tool loop for every model, about 4x faster and cheaper, and the cheap models gave
+the JSON verdict the merge gate reads, which in the loop they often replaced with prose. `--loop` keeps the tool loop
+for a review that must read files beyond the pack; there too the answer must be the verdict (asked again once, then the
+run fails). Any answer without a JSON verdict fails the run (`no-verdict` in the ledger) instead of failing at the gate.
+
 | Pace | When | Reviewer and security | Cost | Wait |
 |---|---|---|---|---|
-| `now` (default) | the maintainer is waiting, or a security pass must read the repo | tool loop (`run.mjs`, as below) | full price, grows with each step | minutes |
-| `relaxed` | daytime, no hurry: most issues | `SQUAD_PACE=relaxed`: `--oneshot`, one direct request with the code packed | full price for one request ($0.008–0.011 on #164/#169) | a few minutes |
+| `now` (default) | the maintainer is waiting | one request with the code packed (`pack.mjs`; `--oneshot` is implied) | full price for one request ($0.0001–0.0011 on #322) | seconds |
+| `relaxed` | daytime, no hurry | the same: one request | the same | seconds to minutes |
 | `overnight` | work left to run unattended (overnight, a weekend) | `SQUAD_PACE=overnight`: `--batch`, the same request through the OpenRouter Batch API | about half | median minutes, but the first real run sat `in_progress` for 30+ min; cap 24 h |
 
 **In a hurry, also pick faster models** (benchmark and field numbers in the [cost skill reference](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-costs/reference.md#benchmark-2026-10-11)); the defaults stay, because speed can cost quality:
@@ -162,17 +172,17 @@ writes and runs the check over many steps, which no single request can do.
 | Role | Default | Faster | Use the faster one when |
 |---|---|---|---|
 | Coder | `anthropic/claude-haiku-5.5` (212 s on #126) | `CODER_MODEL=openai/gpt-6-luna` (67 s, but missed the size goal) | the task is simple and mechanical |
-| Reviewer | `z-ai/glm-5.3-flashx` | none: GLM is already the fastest that found the real issue (Gemini Flash-Lite approved it blind) | — |
+| Reviewer | `z-ai/glm-5.3-flash` | none: it is already the fastest at 12/12 (median 2.3 s, #322) | — |
 | Security | `deepseek/deepseek-v4.1-flash` (6/6) | `openai/gpt-6-luna` (5/6, 8 s) | the change does not touch auth, tokens, paths or anything a remote request reaches |
 
 Never batch in a hurry: `now` and `relaxed` never touch the Batch API.
 
-`--oneshot` and `--batch` have no tools: the task must hold the code. Build it with `pack.mjs`:
+One-request and batch reviews have no tools: the task must hold the code. Build it with `pack.mjs`:
 
 ```bash
 node tools/squad/pack.mjs --role security --issue 164 --files src/server/enroll.ts,src/server/shared-towers.ts > tasks/164-security.md
 node tools/squad/pack.mjs --role reviewer --issue 249 --paths src,examples > tasks/249-review.md
-SQUAD_PACE=relaxed node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node specialists.security --task tasks/164-security.md --issue 164
+node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node specialists.security --task tasks/164-security.md --issue 164
 ```
 
 - **DeepSeek 4.1 Flash can answer empty in `--oneshot`** (2026-10-13: four of five security passes on #189-#194 returned `empty answer`). Re-run it once; if it is empty again, run the same packed task with the reviewer model and the security brief, and say so in the PR. The same day of #316 it also cut answers in the middle of the JSON: a oneshot or batch answer whose `finish_reason` is present and not `stop` now fails the run (`truncated answer`, ledger outcome `truncated-answer`) instead of passing as a normal one; treat it like an empty answer.
@@ -192,6 +202,17 @@ SQUAD_PACE=relaxed node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash
 - **The Batch API keeps inputs and results up to 30 days** unless deleted. The runner always deletes the batch after
   reading it, and only this public repo's diffs go through it, never a task that holds a secret.
 - The ledger line records `mode` (`loop`, `oneshot`, `batch`), so `cost.mjs` shows what each pace cost.
+
+## Field findings (#322: a fresh project and 540 benchmark runs)
+
+- A review the gate cannot read is a failed review: cheap models in the tool loop answered a report ending in
+  `Known gaps:` (what the loop's system prompt asked every role for) instead of the task's JSON verdict, so the gate
+  could never say READY. One request is now the default, and the loop asks reviewer and security for the verdict.
+- A model that passes every task tells you nothing: the first coder set (3 plain tasks) was 12/12 for all 7 models;
+  the hard set (a CSV parser, locale formatting, a promotion rule) still was. Rank coders on a field task too.
+- Security models differ on false alarms, not on finding the planted bug, and a false alarm blocks the gate like a real
+  finding. Score clean diffs as hard as vulnerable ones, and check a "clean" case before calling the models wrong:
+  one was a real missing ownership check.
 
 ## Field findings (#75)
 
