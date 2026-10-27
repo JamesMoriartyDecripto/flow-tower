@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { extname, resolve } from 'node:path';
+import { extname, isAbsolute, relative, resolve } from 'node:path';
 import { childEnv } from './child-env';
 
 // Kept out of hooks/format-lint.ts, which imports the Agent SDK types: the repo's tests import this module
@@ -32,6 +32,10 @@ export async function formatAndLint(
   // Absolute path so a value like `--config=src/x.js` is never read as an option
   // by prettier or eslint. The check must not depend on the caller passing one.
   const path = resolve(cwd, file);
+  // Containment is enforced here, not only by the caller's fence: an absolute or `../` file
+  // would otherwise have prettier --write and eslint --fix rewrite files outside the project.
+  const rel = relative(cwd, path);
+  if (!rel || rel.startsWith('..') || isAbsolute(rel)) return '';
   // execFile with an argv array: the file path is never interpreted by a shell.
   if (FORMATTABLE.has(extname(file))) {
     await run('npx', ['--no-install', 'prettier', '--write', path], opts).catch(() => undefined);

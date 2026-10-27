@@ -141,7 +141,7 @@ export async function queryOsv(
   const clean = (s: string) => s.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 80);
   const lines = vulns.slice(0, MAX_ADVISORY_LINES).map((v) => {
     const id = clean(v.aliases?.find((a) => a.startsWith('CVE-')) ?? v.id);
-    return `${id} (${clean(severityOf(v))}): fixed in ${fixedFor(v, q.name, q.version)}`;
+    return `${id} (${clean(severityOf(v))}): fixed in ${clean(fixedFor(v, q.name, q.version))}`;
   });
   const more = vulns.length - lines.length;
   if (more > 0) lines.push(`... and ${more} more`);

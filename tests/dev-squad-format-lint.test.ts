@@ -77,4 +77,16 @@ describe('formatAndLint', () => {
       expect(c.args).not.toContain('--config=src/x.js');
     }
   });
+
+  it('refuses a file that resolves outside cwd (../) without spawning any tool', async () => {
+    const { run, calls } = fakeRun(ok);
+    expect(await formatAndLint('/w', '../etc/x.ts', undefined, run)).toBe('');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses an absolute file outside cwd without spawning any tool', async () => {
+    const { run, calls } = fakeRun(ok);
+    expect(await formatAndLint('/w', '/etc/x.ts', undefined, run)).toBe('');
+    expect(calls).toHaveLength(0);
+  });
 });

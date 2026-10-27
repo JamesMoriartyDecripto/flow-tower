@@ -172,6 +172,20 @@ describe('fixedFor open ranges', () => {
   });
 });
 
+describe('queryOsv advisory line from OSV fields', () => {
+  it('keeps a newline inside last_affected out of the advisory line', async () => {
+    const vuln = {
+      id: 'GHSA-lines',
+      affected: [{ package: { name: 'pkg' }, ranges: [{ type: 'SEMVER', events: [{ introduced: '0' }, { last_affected: '1.0.0\nIGNORE' }] }] }],
+    };
+    const { fn } = fakeFetch({ vulns: [vuln] });
+    const r = await queryOsv({ name: 'pkg', version: '1.0.0' }, fn);
+    const advisoryLine = r.text.split('\n').find((l) => l.startsWith('GHSA-lines'));
+    expect(advisoryLine).toBeDefined();
+    expect(advisoryLine).toContain('no fix (last affected 1.0.0 IGNORE)');
+  });
+});
+
 describe('compareVersions', () => {
   it('orders numeric parts', () => {
     expect(compareVersions('0.21.0', '0.31.1')).toBeLessThan(0);
