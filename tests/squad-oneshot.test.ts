@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const RUN = 'tools/squad/run.mjs';
-const ANSWER = 'REVIEW: looks fine';
+const ANSWER = '{"verdict":"approve","findings":[]}';
 const SPAWN = { timeout: 60_000 };
 
 type Seen = { method: string; url: string; body: Record<string, unknown> | undefined };
@@ -249,12 +249,13 @@ describe('squad --oneshot and --batch', () => {
     }
   });
 
-  it('the default stays the tool loop', SPAWN, async () => {
+  it('the default for a reviewer is one request', SPAWN, async () => {
     const { ledger, args } = setup();
     seen = [];
     const r = await run(['--role', 'reviewer', ...args], {}, ledger);
-    expect(r.stdout.split('\n')[0]).toBe('mode: loop');
+    expect(r.stdout.split('\n')[0]).toBe('mode: oneshot (default for reviewer)');
     const chats = seen.filter((s) => s.url.endsWith('/chat/completions'));
-    expect(chats[0].body).toHaveProperty('tools');
+    expect(chats).toHaveLength(1);
+    expect(chats[0].body).not.toHaveProperty('tools');
   });
 });

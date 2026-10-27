@@ -1,5 +1,6 @@
 // Dev-squad runner for non-Claude models through OpenRouter (session tooling, kept in the repo, #113).
-// node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--repo <path>] [--oneshot|--batch]
+// node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--repo <path>] [--oneshot|--batch|--loop]
+// Reviewer and security answer in one request with no tools by default (oneshot.mjs, #169, #322); --loop keeps the tool loop.
 // --oneshot and --batch (reviewer and security only) answer in one request with no tools (oneshot.mjs, #169).
 // The key is loaded from the user's key file into this process only; it is never printed.
 // Each run ends with one line in the local cost ledger (ledger.mjs, #156), finished or failed alike.
@@ -14,12 +15,13 @@ import { STYLE_RULES, commandArgv, loadConfig, systemLine } from './config.mjs';
 import { appendRun, issueOf, ledgerPath, projectOf } from './ledger.mjs';
 import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
 import { realRelIfAllowed, realTarget } from './guard.mjs';
+import { pickMode } from './mode.mjs';
 import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './oneshot.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
 // A missing --task used to reach readFileSync and fail with a raw fs error: a usage line is the answer.
-const USAGE = 'usage: node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--write a,b] [--repo <path>] [--oneshot | --batch]';
+const USAGE = 'usage: node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--write a,b] [--repo <path>] [--oneshot | --batch | --loop]';
 if (argv.includes('--help')) { console.log(USAGE); exit(0); }
 const taskFile = arg('task');
 // Checked before any git call, so a bare invocation fails on the usage, not on the checkout.
@@ -37,27 +39,17 @@ const branch = (() => { try { return execFileSync('git', ['rev-parse', '--abbrev
 const issue = issueOf(arg('issue'), branch);
 const model = arg('model'), role = arg('role'), node = arg('node'), task = readFileSync(taskFile, 'utf8');
 const maxSteps = Number(arg('steps', 40));
-// Modes (#169): the tool loop stays the default; reviewer and security can answer in one request instead. SQUAD_PACE
-// sets their default: relaxed is one direct request (a daytime review in minutes), overnight is a batch (half the price,
-// hours of wait, for work left running overnight). An explicit flag wins over the pace. The coder always needs its tools.
 // The role names the log file below, so only the three known roles pass (no path characters from the command line).
 if (!['coder', 'reviewer', 'security'].includes(role)) { console.error(USAGE); exit(1); }
-const flagOneshot = argv.includes('--oneshot'), flagBatch = argv.includes('--batch');
-const oneshotRole = role === 'reviewer' || role === 'security';
-if ((flagOneshot || flagBatch) && !oneshotRole) {
-  console.error(role === 'coder' ? 'the coder needs tools: --oneshot/--batch are for reviewer and security' : USAGE);
-  exit(1);
-}
-if (flagOneshot && flagBatch) { console.error('--oneshot and --batch are exclusive'); exit(1); }
-// An unknown pace is refused rather than read as now: a typo must not silently pick the paid mode.
-const PACE = env.SQUAD_PACE;
-if (PACE !== undefined && !['now', 'relaxed', 'overnight'].includes(PACE)) { console.error('SQUAD_PACE must be now, relaxed or overnight'); exit(1); }
-const paceMode = PACE === 'relaxed' ? 'oneshot' : PACE === 'overnight' ? 'batch' : undefined;
-const fromPace = !flagOneshot && !flagBatch && oneshotRole ? paceMode : undefined;
-const mode = flagBatch ? 'batch' : flagOneshot ? 'oneshot' : fromPace ?? 'loop';
+// Modes (mode.mjs): reviewer and security answer in one request by default; the coder always needs its tools.
+let picked;
+try {
+  picked = pickMode({ role, flags: { oneshot: argv.includes('--oneshot'), batch: argv.includes('--batch'), loop: argv.includes('--loop') }, pace: env.SQUAD_PACE });
+} catch (e) { console.error(e.message); exit(1); }
+const { mode, why } = picked;
 // The mode that was paid for: a batch that has no endpoint for the model falls back to oneshot, and the ledger says so.
 let paidMode = mode;
-console.log(`mode: ${mode}${fromPace ? ` (SQUAD_PACE=${PACE})` : ''}`);
+console.log(`mode: ${mode}${why === 'pace' ? ` (SQUAD_PACE=${env.SQUAD_PACE})` : why === 'default' ? ` (default for ${role})` : ''}`);
 // A packed review names the commit it was made from; the merge gate reads it from this output, not from the file's mtime.
 // Only the third line counts: pack.mjs writes it there, and a quoted diff or issue body could carry the same text
 // further down, which must not supply a commit.
