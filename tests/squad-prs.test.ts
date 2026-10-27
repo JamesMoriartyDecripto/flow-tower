@@ -1,3 +1,7 @@
+import { execFile } from 'node:child_process';
+import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 // The steward's helpers are plain ESM with no types, so they are imported as untyped modules here.
 // @ts-expect-error plain .mjs without declarations
@@ -103,4 +107,46 @@ describe('verdictSummary', () => {
   it('gives no verdict for a text without JSON', () => {
     expect(verdictSummary('empty answer')).toBe('no verdict');
   });
+});
+
+// The command line is spawned with a stub gh first on PATH, so no network or GitHub login is needed. The stub prints
+// fixed JSON for the two calls the dry run makes: pr list (not used when --pr is given) and pr view.
+const SPAWN = { timeout: 60_000 };
+const STUB_GH = `#!/usr/bin/env node
+const [cmd, sub, n] = process.argv.slice(2);
+const pr = (number, body) => ({ number, title: 'T' + number, body, headRefOid: 'a'.repeat(40), baseRefName: 'main' });
+if (cmd === 'pr' && sub === 'list') console.log(JSON.stringify([{ number: 7 }, { number: 8 }]));
+else if (cmd === 'pr' && sub === 'view') console.log(JSON.stringify(pr(Number(n), Number(n) === 7 ? 'Closes #9' : 'no link')));
+else process.exit(1);
+`;
+
+function runPrs(args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+  const dir = mkdtempSync(join(tmpdir(), 'squad-prs-bin-'));
+  writeFileSync(join(dir, 'gh'), STUB_GH);
+  chmodSync(join(dir, 'gh'), 0o755);
+  const env = { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}` };
+  return new Promise((resolve) => {
+    execFile('node', ['tools/squad/prs.mjs', ...args], { env, encoding: 'utf8', timeout: 60_000 }, (err, stdout, stderr) => {
+      const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : 1) : 0;
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+describe('prs.mjs command line', () => {
+  it('--dry-run prints one line per PR with its tag and new, and exits 0', async () => {
+    const r = await runPrs(['--dry-run']);
+    expect(r.stderr).toBe('');
+    expect(r.code).toBe(0);
+    const lines = r.stdout.trim().split('\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatch(/^#7 a{7} base origin\/main tag #9 -> .* \(new\)$/);
+    expect(lines[1]).toMatch(/^#8 a{7} base origin\/main tag #8 -> .* \(new\)$/);
+  }, SPAWN.timeout);
+
+  it('a bad --pr list exits 2 with the usage on stderr', async () => {
+    const r = await runPrs(['--pr', '1;x']);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain('usage: node tools/squad/prs.mjs');
+  }, SPAWN.timeout);
 });

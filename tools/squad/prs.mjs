@@ -1,7 +1,15 @@
 // The PR steward (#319): the lead used to check open pull requests by hand, pack, review and security at once, rerun a
 // pass that answered empty or cut, then run the gate. This file holds the pure helpers of that flow, so each rule is
-// tested without git, gh or a model. The command line comes in a later step; importing this file has no side effect.
-import { join } from 'node:path';
+// tested without git, gh or a model. The command line at the bottom runs them for each pull request. Importing this
+// file has no side effect. The steward never merges, approves, comments, pushes or marks a pull request ready.
+import { execFile, execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { argv, stderr, stdout } from 'node:process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
+import { loadConfig } from './config.mjs';
 import { parseVerdict } from './gate.mjs';
 
 const FLAGS = new Set(['--force', '--keep', '--dry-run']);
@@ -101,4 +109,157 @@ export function verdictSummary(text) {
     .filter((s) => counts.get(s))
     .map((s) => `${counts.get(s)} ${s}`);
   return parts.length ? `${parsed.verdict}: ${parts.join(', ')}` : parsed.verdict;
+}
+
+// ---- command line (#319-02) ----
+// Every external call is an argv array with no shell, like gate.mjs. The gh and git calls that read a value from
+// the PR (head sha, base name) are checked first, since those values go into git arguments.
+const HERE = dirname(fileURLToPath(import.meta.url));
+const USAGE = 'usage: node tools/squad/prs.mjs [--pr 12,34] [--force] [--keep] [--dry-run] [--repo <path>]';
+const TMP = join(tmpdir(), 'squad-prs');
+const SHA = /^[0-9a-f]{40}$/;
+const BASE = /^[\w./-]+$/;
+const git = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8', maxBuffer: 50e6 });
+const gh = (cwd, ...a) => execFileSync('gh', a, { cwd, encoding: 'utf8', maxBuffer: 50e6 });
+const execFileP = promisify(execFile);
+
+// Runs a child for its stdout and exit code. A failed run is a result, not a throw: the run's own failure words
+// (empty answer, truncated answer) are read from its stdout.
+const runAsync = (cmd, args, env) => execFileP(cmd, args, { encoding: 'utf8', maxBuffer: 50e6, env })
+  .then((r) => ({ code: 0, stdout: r.stdout }), (e) => ({ code: typeof e.code === 'number' ? e.code : 1, stdout: String(e.stdout ?? '') }));
+
+const hasOut = (dir) => existsSync(join(dir, 'review.out')) && existsSync(join(dir, 'security.out'));
+
+// The PR's facts, with its head and base checked before any git call uses them.
+function view(repo, n) {
+  const v = JSON.parse(gh(repo, 'pr', 'view', String(n), '--json', 'number,title,body,headRefOid,baseRefName'));
+  if (!SHA.test(v.headRefOid)) throw new Error(`#${n}: head is not a commit sha`);
+  if (!BASE.test(v.baseRefName) || v.baseRefName.startsWith('-')) throw new Error(`#${n}: base is not a branch name`);
+  return v;
+}
+
+// Dry run: one line per PR, no fetch, no worktree, no model call.
+function dryLine(v) {
+  const dir = outputDir(TMP, v.number, v.headRefOid);
+  const tag = linkedIssue(v.body) ?? v.number;
+  return `#${v.number} ${v.headRefOid.slice(0, 7)} base origin/${v.baseRefName} tag #${tag} -> ${dir} (${hasOut(dir) ? 'cached' : 'new'})`;
+}
+
+// The brief is the PR title and body, plus the linked issue when the body names one.
+function briefOf(repo, v) {
+  let text = `Pull request #${v.number}: ${v.title}\n\n${v.body ?? ''}`.trim();
+  const issue = linkedIssue(v.body);
+  if (issue) {
+    const i = JSON.parse(gh(repo, 'issue', 'view', String(issue), '--json', 'title,body'));
+    text += `\n\n## Issue #${issue}: ${i.title}\n\n${i.body ?? ''}`;
+  }
+  return `${text}\n`;
+}
+
+// Runs one pass, moving to the next attempt only on an empty or a cut answer. The last stdout is the answer.
+async function pass(role, models, task, tag, wt, env) {
+  const outs = [];
+  let last = { code: 1, stdout: '' };
+  for (const model of attemptModels(role, models)) {
+    last = await runAsync('node', [join(HERE, 'run.mjs'), '--model', model, '--role', role, '--node', `specialists.${role}`,
+      '--task', task, '--issue', tag, '--repo', wt], env);
+    outs.push(last.stdout);
+    const o = passOutcome(last.code, last.stdout);
+    if (o !== 'empty' && o !== 'truncated') break;
+  }
+  return outs;
+}
+
+// Packs both roles, then runs both passes at once. Returns the cost of every run's stdout, retries included.
+async function runPasses(repo, config, v, wt, dir, tag) {
+  const base = `origin/${v.baseRefName}`;
+  const { paths, files } = changedFiles(git(wt, 'diff', '--name-status', `${base}...HEAD`));
+  const brief = join(dir, 'brief.md');
+  writeFileSync(brief, briefOf(repo, v));
+  const roles = ['reviewer', 'security'];
+  for (const role of roles) {
+    const args = ['--role', role, '--issue', tag, '--repo', wt, '--base', base, '--brief', brief, '--max-kb', '200'];
+    if (paths.length) args.push('--paths', paths.join(','));
+    if (files.length) args.push('--files', files.join(','));
+    writeFileSync(join(dir, `${role}.task.md`), execFileSync('node', [join(HERE, 'pack.mjs'), ...args], { encoding: 'utf8' }));
+  }
+  const env = { ...process.env, SQUAD_PACE: process.env.SQUAD_PACE ?? 'relaxed' };
+  const [rev, sec] = await Promise.all(roles.map((role) =>
+    pass(role, config.models, join(dir, `${role}.task.md`), tag, wt, env)));
+  writeFileSync(join(dir, 'review.out'), rev.at(-1));
+  writeFileSync(join(dir, 'security.out'), sec.at(-1));
+  return [...rev, ...sec].reduce((sum, o) => sum + costOf(o), 0);
+}
+
+// One PR in turn: worktree, passes (unless cached), gate, then the worktree is removed unless --keep.
+// Returns the table row and the gate's text, or null when the PR was skipped.
+async function steward(repo, config, v, opts) {
+  const n = v.number;
+  const wt = resolve(repo, '..', `wt-pr-${n}`);
+  if (existsSync(wt)) { stdout.write(`#${n}: ${wt} already exists, skipped\n`); return null; }
+  git(repo, 'fetch', 'origin', `pull/${n}/head`);
+  git(repo, 'fetch', 'origin', v.baseRefName);
+  git(repo, 'worktree', 'add', '--detach', wt, v.headRefOid);
+  const dir = outputDir(TMP, n, v.headRefOid);
+  mkdirSync(dir, { recursive: true });
+  // A cached pass costs what its saved answers cost; a new pass is summed from its own runs.
+  let cost;
+  if (hasOut(dir) && !opts.force) {
+    cost = costOf(readFileSync(join(dir, 'review.out'), 'utf8')) + costOf(readFileSync(join(dir, 'security.out'), 'utf8'));
+  } else {
+    cost = await runPasses(repo, config, v, wt, dir, linkedIssue(v.body) ?? n);
+  }
+  const g = await runAsync('node', [join(HERE, 'gate.mjs'), '--pr', String(n), '--review', join(dir, 'review.out'),
+    '--security', join(dir, 'security.out'), '--repo', wt]);
+  const ready = g.code === 0;
+  if (!opts.keep) {
+    try { git(repo, 'worktree', 'remove', wt); } catch (e) { stdout.write(`could not remove ${wt}: ${e.message}\n`); }
+  }
+  const row = summaryRow({
+    pr: n,
+    head: v.headRefOid,
+    review: verdictSummary(readFileSync(join(dir, 'review.out'), 'utf8')),
+    security: verdictSummary(readFileSync(join(dir, 'security.out'), 'utf8')),
+    gate: ready ? 'READY' : 'NOT READY',
+    cost,
+  });
+  return { row, ready, gate: g.stdout };
+}
+
+// Returns the exit code: 0 when the steward ran (a NOT READY gate is a result, not an error), 2 for bad usage.
+async function main() {
+  const opts = parseArgs(argv.slice(2));
+  if (!opts) { stderr.write(`${USAGE}\n`); return 2; }
+  const repo = opts.repo ? resolve(opts.repo) : git(process.cwd(), 'rev-parse', '--show-toplevel').trim();
+  const config = loadConfig(repo);
+  const numbers = opts.prs ?? JSON.parse(gh(repo, 'pr', 'list', '--state', 'open', '--json', 'number', '--limit', '50')).map((p) => p.number);
+  const views = numbers.map((n) => view(repo, n));
+  if (opts.dryRun) {
+    for (const v of views) stdout.write(`${dryLine(v)}\n`);
+    return 0;
+  }
+  const rows = [];
+  const blocks = [];
+  for (const v of views) {
+    try {
+      const r = await steward(repo, config, v, opts);
+      if (!r) continue;
+      rows.push(r.row);
+      if (!r.ready) blocks.push(`#${v.number}\n${r.gate}`);
+    } catch (e) {
+      stdout.write(`#${v.number}: ${e.message}\n`);
+    }
+  }
+  stdout.write(['| PR | head | review | security | gate | cost |', '|---|---|---|---|---|---|', ...rows].join('\n') + '\n');
+  for (const b of blocks) stdout.write(`\n${b}`);
+  stdout.write(`outputs in ${TMP}\n`);
+  return 0;
+}
+
+// Run directly, not imported: the realpath check means a symlinked path to this file still counts as the script.
+const isMain = (() => {
+  try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; }
+})();
+if (isMain) {
+  main().then((code) => { process.exitCode = code; }, (e) => { stderr.write(`${e.message}\n`); process.exitCode = 1; });
 }
