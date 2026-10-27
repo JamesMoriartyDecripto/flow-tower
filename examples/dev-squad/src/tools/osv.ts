@@ -18,6 +18,8 @@ export interface OsvVuln {
 }
 
 const MAX_ADVISORY_LINES = 30;
+// Generous for a real OSV answer; caps memory use if a proxy or misbehaving server sends a huge body.
+const MAX_RESPONSE_CHARS = 1_000_000;
 
 interface OsvQueryResponse {
   vulns?: OsvVuln[];
@@ -84,6 +86,10 @@ export function fixedFor(vuln: OsvVuln, name: string, version: string): string {
   return 'unknown';
 }
 
+// Newlines and control characters could fake extra lines in the auditor's context, so every
+// string that reaches the output (advisory fields and the echoed package label) goes through this.
+const clean = (s: string) => s.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 80);
+
 /** Severity as a plain word (LOW, MODERATE, HIGH, CRITICAL), not a CVSS vector. */
 export function severityOf(vuln: OsvVuln): string {
   const sev = vuln.database_specific?.severity;
@@ -107,7 +113,8 @@ export async function queryOsv(
     return { isError: true, text: 'OSV.dev query refused: package name 1-200 chars, version 1-50, ecosystem up to 50' };
   }
   const ecosystem = q.ecosystem ?? 'npm';
-  const label = `${q.name} ${q.version} (${ecosystem})`;
+  // The name and version are copied from the model's diff, so they are cleaned like advisory text.
+  const label = `${clean(q.name)} ${clean(q.version)} (${clean(ecosystem)})`;
   let res: Response;
   try {
     res = await fetchImpl('https://api.osv.dev/v1/query', {
@@ -123,22 +130,37 @@ export async function queryOsv(
   if (!res.ok) {
     return { isError: true, text: `OSV.dev query failed: HTTP ${res.status}` };
   }
-  // A 200 answer can still be unusable (proxy page, cut body). Parse inside the
-  // failure path so it is reported like every other failed call, not thrown.
-  let data: OsvQueryResponse;
+  // Read as text first so the size is bounded in characters, not just in time.
+  // The advisory list is small in practice; anything this large is not a normal answer.
+  let body: string;
   try {
-    data = (await res.json()) as OsvQueryResponse;
+    body = await res.text();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { isError: true, text: `OSV.dev query failed: ${message}` };
   }
-  const vulns = data.vulns ?? [];
+  if (body.length > MAX_RESPONSE_CHARS) {
+    return { isError: true, text: 'OSV.dev query failed: response too large' };
+  }
+  // A 200 answer can still be unusable (proxy page, cut body). Parse inside the
+  // failure path so it is reported like every other failed call, not thrown.
+  let data: OsvQueryResponse;
+  try {
+    data = JSON.parse(body) as OsvQueryResponse;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { isError: true, text: `OSV.dev query failed: ${message}` };
+  }
+  // A non-array vulns would make slice/map throw below, so it is refused here. Absent means none.
+  const raw: unknown = (data as { vulns?: unknown } | null)?.vulns;
+  if (raw !== undefined && !Array.isArray(raw)) {
+    return { isError: true, text: 'OSV.dev query failed: unexpected response shape' };
+  }
+  const vulns = (raw ?? []) as OsvVuln[];
   if (!vulns.length) {
     return { isError: false, text: `No known vulnerabilities for ${label}.` };
   }
-  // The advisory text is third-party input that goes into the auditor's context. Newlines and
-  // control characters could fake extra lines, so each field is flattened and cut, and the list is capped.
-  const clean = (s: string) => s.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 80);
+  // The advisory text is third-party input, so each field is flattened and cut, and the list is capped.
   const lines = vulns.slice(0, MAX_ADVISORY_LINES).map((v) => {
     const id = clean(v.aliases?.find((a) => a.startsWith('CVE-')) ?? v.id);
     return `${id} (${clean(severityOf(v))}): fixed in ${clean(fixedFor(v, q.name, q.version))}`;

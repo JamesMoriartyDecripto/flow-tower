@@ -89,4 +89,11 @@ describe('formatAndLint', () => {
     expect(await formatAndLint('/w', '/etc/x.ts', undefined, run)).toBe('');
     expect(calls).toHaveLength(0);
   });
+
+  it('accepts a file inside cwd whose name starts with two dots', async () => {
+    const { run, calls } = fakeRun(ok);
+    await formatAndLint('/w', '..fixtures.ts', undefined, run);
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.at(-1)!.args.at(-1)).toBe('/w/..fixtures.ts');
+  });
 });

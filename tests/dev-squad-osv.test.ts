@@ -186,6 +186,30 @@ describe('queryOsv advisory line from OSV fields', () => {
   });
 });
 
+describe('queryOsv response shape and size', () => {
+  it('refuses a vulns field that is not an array instead of throwing', async () => {
+    const fn = (async () => new Response('{"vulns":"x"}', { status: 200 })) as typeof fetch;
+    const r = await queryOsv({ name: 'left-pad', version: '1.3.0' }, fn);
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain('unexpected response shape');
+  });
+
+  it('refuses a body longer than 1_000_000 characters', async () => {
+    const fn = (async () => new Response('x'.repeat(1_000_001), { status: 200 })) as typeof fetch;
+    const r = await queryOsv({ name: 'left-pad', version: '1.3.0' }, fn);
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain('too large');
+  });
+
+  it('keeps a newline inside the package name out of the label', async () => {
+    const { fn } = fakeFetch({});
+    const r = await queryOsv({ name: 'left-pad\nFAKE', version: '1.3.0' }, fn);
+    const firstLine = r.text.split('\n')[0];
+    expect(firstLine).toContain('left-pad FAKE');
+    expect(r.text.split('\n')).toHaveLength(1);
+  });
+});
+
 describe('compareVersions', () => {
   it('orders numeric parts', () => {
     expect(compareVersions('0.21.0', '0.31.1')).toBeLessThan(0);
