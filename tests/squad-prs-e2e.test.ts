@@ -146,7 +146,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
     const caseDir = newCase();
     const r = await runPrs(caseDir);
     expect(r.code, r.stderr || r.stdout).toBe(0);
-    expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
+    expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| 0 \| READY \| \$0\.0020 \|$/m);
     expect([...seenModels].sort()).toEqual(['vendor-a/rev', 'vendor-b/sec']);
     expect(existsSync(join(caseDir, 'squad-prs', 'wt-pr-7'))).toBe(false);
     expect(git(work, 'worktree', 'list').split('\n')).toHaveLength(1);
@@ -162,7 +162,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
     const second = await runPrs(caseDir);
     expect(second.code, second.stderr || second.stdout).toBe(0);
     expect(seenModels).toHaveLength(before);
-    expect(second.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
+    expect(second.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| 0 \| READY \| \$0\.0020 \|$/m);
     expect(readFileSync(join(caseDir, 'ledger.jsonl'), 'utf8').trim().split('\n')).toHaveLength(2);
   }, SPAWN.timeout);
 
@@ -177,7 +177,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
       expect(seenModels).toHaveLength(4);
       expect(count('vendor-b/sec')).toBe(2);
       expect(count('vendor-a/rev')).toBe(2);
-      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
+      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| 0 \| READY \| \$0\.0020 \|$/m);
     } finally {
       emptyModel = null;
     }
@@ -205,7 +205,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
     try {
       const r = await runPrs(caseDir);
       expect(r.code, r.stderr || r.stdout).toBe(0);
-      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| changes: 1 high \| NOT READY \| \$0\.0020 \|$/m);
+      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| changes: 1 high \| \d+ \| NOT READY \| \$0\.0020 \|$/m);
       expect(r.stdout).toMatch(/^NOT READY: #7$/m);
       expect(r.stdout).toMatch(/^- security: .*/m);
       expect(existsSync(join(caseDir, 'squad-prs', 'wt-pr-7'))).toBe(false);
@@ -247,6 +247,37 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
       expect(task).toContain('### src/a.ts');
       expect(task).not.toContain('### docs/big.md');
       expect(task).not.toContain('full files left out');
+    } finally {
+      git(work, 'checkout', '-q', 'feature');
+      git(work, 'reset', '-q', '--hard', sha);
+      git(work, 'push', '-q', '-f', 'origin', `${sha}:refs/pull/7/head`);
+    }
+  }, SPAWN.timeout);
+
+  // The PR head's own squad.json names another reviewer model: the steward reads it from the worktree, so the stub
+  // receives that model, not the checkout's vendor-a/rev. The head is restored after the case.
+  it('the reviewer model comes from the PR head\'s squad.json, not the checkout\'s', async () => {
+    const caseDir = newCase();
+    git(work, 'checkout', '-q', '--detach', sha);
+    writeFileSync(join(work, 'tools', 'squad', 'squad.json'), `${JSON.stringify({
+      review: ['src'],
+      models: { reviewer: 'vendor-c/rev', security: 'vendor-b/sec' },
+    }, null, 2)}\n`);
+    git(work, 'add', '-A');
+    commit(work, 'switch the reviewer model');
+    const modelSha = git(work, 'rev-parse', 'HEAD');
+    git(work, 'push', '-q', '-f', 'origin', `${modelSha}:refs/pull/7/head`);
+    seenModels = [];
+    try {
+      const view = { number: 7, title: 'Change a', body: 'Closes #3', headRefOid: modelSha, baseRefName: 'main' };
+      const gate = { mergeable: 'MERGEABLE', isDraft: false, headRefOid: modelSha };
+      const r = await runPrs(caseDir, { STUB_GH_OVERRIDE: JSON.stringify({
+        'pr view 7 --json number,title,body,headRefOid,baseRefName': view,
+        'pr view 7 --json mergeable,isDraft,headRefOid': gate,
+      }) });
+      expect(r.code, r.stderr || r.stdout).toBe(0);
+      expect([...seenModels].sort()).toEqual(['vendor-b/sec', 'vendor-c/rev']);
+      expect(count('vendor-a/rev')).toBe(0);
     } finally {
       git(work, 'checkout', '-q', 'feature');
       git(work, 'reset', '-q', '--hard', sha);
@@ -321,7 +352,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
       }) });
       expect(r.code, r.stderr || r.stdout).toBe(0);
       expect(r.stdout).toContain('#7: src/a,b.ts left out of the review task (comma in the name)');
-      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
+      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| 0 \| READY \| \$0\.0020 \|$/m);
       const task = readFileSync(join(caseDir, 'squad-prs', `pr-7-${commaSha.slice(0, 12)}-main`, 'reviewer.task.md'), 'utf8');
       expect(task).toContain('### src/a.ts');
       expect(task).not.toContain('### src/a,b.ts');
@@ -354,7 +385,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
       }) });
       expect(r.code, r.stderr || r.stdout).toBe(0);
       expect(r.stdout).toContain('#7: docs/link.md left out of the review task (not a regular file)');
-      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
+      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| 0 \| READY \| \$0\.0020 \|$/m);
       const task = readFileSync(join(caseDir, 'squad-prs', `pr-7-${linkSha.slice(0, 12)}-main`, 'security.task.md'), 'utf8');
       expect(task).not.toContain('OUTSIDE SECRET TEXT');
       expect(task).toContain('## Left out of this task');

@@ -99,8 +99,19 @@ export function outputDir(base, pr, sha, baseRef) {
   return join(base, `pr-${pr}-${sha.slice(0, 12)}-${safeBase}`);
 }
 
-export function summaryRow({ pr, head, review, security, gate, cost }) {
-  return `| #${pr} | ${String(head).slice(0, 7)} | ${review} | ${security} | ${gate} | $${Number(cost).toFixed(4)} |`;
+// The gate prints its unverified findings after this line, one "- <role> <file:line>: ..." line each (gate.mjs). They are
+// quotes the gate could not check, so the lead must read them in the code: the table counts them, the text is printed.
+const UNVERIFIED_HEAD = 'Unverified findings';
+
+export function unverifiedCount(gateText) {
+  const lines = String(gateText ?? '').split('\n');
+  const at = lines.findIndex((l) => l.startsWith(UNVERIFIED_HEAD));
+  if (at < 0) return 0;
+  return lines.slice(at + 1).filter((l) => l.startsWith('- ')).length;
+}
+
+export function summaryRow({ pr, head, review, security, unverified, gate, cost }) {
+  return `| #${pr} | ${String(head).slice(0, 7)} | ${review} | ${security} | ${unverified} | ${gate} | $${Number(cost).toFixed(4)} |`;
 }
 
 // Known severities are counted in this order; anything else, or no severity at all, is counted as other.
@@ -253,7 +264,7 @@ async function runPasses(repo, config, v, wt, dir, tag) {
 
 // One PR in turn: worktree, passes (unless cached), gate, then the worktree is removed unless --keep.
 // Returns the table row and the gate's text, or null when the PR was skipped.
-async function steward(repo, config, v, opts, root) {
+async function steward(repo, v, opts, root) {
   const n = v.number;
   const wt = join(root, `wt-pr-${n}`);
   if (taken(wt)) { stdout.write(`#${n}: ${wt} already exists, skipped\n`); return null; }
@@ -275,6 +286,9 @@ async function steward(repo, config, v, opts, root) {
   // The worktree must not outlive the run: a throw in a pass or the gate would otherwise leave it behind, and the
   // next run would skip this PR as "already exists". The removal is in finally, so it runs on failure too.
   try {
+    // The models come from the PR head's own squad.json: a PR that changes the models is reviewed with its own
+    // choice, as the README rule says, not with the checkout's. Loaded here, so a bad file also removes the worktree.
+    const config = loadConfig(wt);
     mkdirSync(dir, { recursive: true });
     // A cached pass costs what its saved answers cost; a new pass is summed from its own runs.
     let cost;
@@ -291,6 +305,7 @@ async function steward(repo, config, v, opts, root) {
       head: v.headRefOid,
       review: verdictSummary(readFileSync(join(dir, 'review.out'), 'utf8')),
       security: verdictSummary(readFileSync(join(dir, 'security.out'), 'utf8')),
+      unverified: unverifiedCount(g.stdout),
       gate: ready ? 'READY' : 'NOT READY',
       cost,
     });
@@ -318,7 +333,6 @@ async function main() {
     return 2;
   }
   const root = stewardRoot(process.env);
-  const config = loadConfig(repo);
   // Numbers from gh go into paths and gh/git arguments, so only digits pass; any other value is named and left out.
   const numbers = opts.prs ?? JSON.parse(gh(repo, 'pr', 'list', '--state', 'open', '--json', 'number', '--limit', '50'))
     .map((p) => p.number)
@@ -343,15 +357,17 @@ async function main() {
   const blocks = [];
   for (const v of views) {
     try {
-      const r = await steward(repo, config, v, opts, root);
+      const r = await steward(repo, v, opts, root);
       if (!r) continue;
       rows.push(r.row);
-      if (!r.ready) blocks.push(`#${v.number}\n${r.gate}`);
+      // The gate's text is printed for a PR that is not ready, and for a ready one with unverified findings, since
+      // the lead must check those in the code before acting.
+      if (!r.ready || unverifiedCount(r.gate) > 0) blocks.push(`#${v.number}\n${r.gate}`);
     } catch (e) {
       stdout.write(`#${v.number}: ${e.message}\n`);
     }
   }
-  stdout.write(['| PR | head | review | security | gate | cost |', '|---|---|---|---|---|---|', ...rows].join('\n') + '\n');
+  stdout.write(['| PR | head | review | security | unverified | gate | cost |', '|---|---|---|---|---|---|---|', ...rows].join('\n') + '\n');
   for (const b of blocks) stdout.write(`\n${b}`);
   stdout.write(`outputs in ${root}\n`);
   return 0;

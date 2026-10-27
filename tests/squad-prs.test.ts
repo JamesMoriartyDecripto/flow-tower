@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 // The steward's helpers are plain ESM with no types, so they are imported as untyped modules here.
 // @ts-expect-error plain .mjs without declarations
-import { attemptModels, changedFiles, costOf, linkedIssue, outputDir, parseArgs, passOutcome, summaryRow, verdictSummary } from '../tools/squad/prs.mjs';
+import { attemptModels, changedFiles, costOf, linkedIssue, outputDir, parseArgs, passOutcome, summaryRow, unverifiedCount, verdictSummary } from '../tools/squad/prs.mjs';
 
 describe('parseArgs', () => {
   it('reads a list of PR numbers and flags', () => {
@@ -106,8 +106,19 @@ describe('outputDir', () => {
 
 describe('summaryRow', () => {
   it('writes one Markdown row with a short head and a 4-decimal cost', () => {
-    expect(summaryRow({ pr: 3, head: 'abcdef0123', review: 'approve', security: 'approve', gate: 'READY', cost: 0.5 }))
-      .toBe('| #3 | abcdef0 | approve | approve | READY | $0.5000 |');
+    expect(summaryRow({ pr: 3, head: 'abcdef0123', review: 'approve', security: 'approve', unverified: 0, gate: 'READY', cost: 0.5 }))
+      .toBe('| #3 | abcdef0 | approve | approve | 0 | READY | $0.5000 |');
+  });
+});
+
+describe('unverifiedCount', () => {
+  it('counts the "- " lines after the unverified header', () => {
+    const text = 'NOT READY: #7\n- security: x\nUnverified findings (check them in the code before acting):\n- review src/a.ts:1: q\n- security src/b.ts:2: r\n';
+    expect(unverifiedCount(text)).toBe(2);
+  });
+
+  it('is 0 when the gate says READY with no unverified header', () => {
+    expect(unverifiedCount('READY: #7 can be merged\n')).toBe(0);
   });
 });
 
