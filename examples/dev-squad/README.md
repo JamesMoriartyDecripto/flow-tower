@@ -67,6 +67,11 @@ belong in a real test), a command whitelist instead of a shell, a secret-path de
 a `session_id` per run (OpenRouter keeps it on the provider that holds its prompt cache), a step and
 dollar cap, and a live tower event per tool call. SDK subagents are Claude only, so the lead reaches
 the coder through the `run_coder` tool (`src/tools/run-coder.ts`).
+What the hooks give Claude sessions is done in the loop too: the memory pack (`contextPack`: the
+`patterns.md` rules for the issue's areas and the last five run lessons, about 2-2.5k characters) closes
+the system prompt, so these providers see those lessons as well as the code under review (OpenRouter's
+`data_collection: deny` applies to both); the coder's writes go through the project's Prettier + ESLint
+(`src/format-and-lint.ts`) with paths relative to the worktree; the security auditor gets `osv_scan`.
 
 ## Operational fields used
 
