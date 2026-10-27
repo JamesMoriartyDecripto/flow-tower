@@ -69,17 +69,24 @@ export function costOf(stdout) {
   return sum;
 }
 
-// Input is `git diff --name-status` text: "M\tpath", "D\tpath" or "R100\told\tnew". A rename touches both paths, but
-// only the new one still exists on disk, so `files` keeps the new side and drops deletions.
+// Input is `git diff -z --name-status` text: NUL-separated tokens, a status then one path, or two paths for R and C.
+// NUL is used because git quotes names with newlines or non-ASCII bytes in the line form, and a tab in a name would
+// split it. A rename touches both paths, but only the new one still exists on disk, so `files` keeps the new side and
+// drops deletions; a copy keeps the source too, since it is still there.
 export function changedFiles(nameStatus) {
+  const tokens = String(nameStatus ?? '').split('\0');
   const paths = [];
   const files = [];
-  for (const line of String(nameStatus ?? '').split('\n')) {
-    if (!line) continue;
-    const [status, ...rest] = line.split('\t');
-    const existing = rest[rest.length - 1];
-    paths.push(...rest);
-    if (!status.startsWith('D')) files.push(existing);
+  for (let i = 0; i < tokens.length; i++) {
+    const status = tokens[i];
+    if (!status) continue;
+    const n = /^[RC]/.test(status) ? 2 : 1;
+    const ps = tokens.slice(i + 1, i + 1 + n);
+    i += n;
+    paths.push(...ps);
+    if (status.startsWith('D')) continue;
+    if (status.startsWith('C')) files.push(...ps);
+    else files.push(ps[ps.length - 1]);
   }
   return { paths, files };
 }
@@ -173,7 +180,7 @@ async function pass(role, models, task, tag, wt, env) {
 // Packs both roles, then runs both passes at once. Returns the cost of every run's stdout, retries included.
 async function runPasses(repo, config, v, wt, dir, tag) {
   const base = `origin/${v.baseRefName}`;
-  const { paths, files } = changedFiles(git(wt, 'diff', '--name-status', `${base}...HEAD`));
+  const { paths, files } = changedFiles(git(wt, '-c', 'core.quotePath=false', 'diff', '-z', '--name-status', `${base}...HEAD`));
   const brief = join(dir, 'brief.md');
   writeFileSync(brief, briefOf(repo, v));
   const roles = ['reviewer', 'security'];
@@ -200,30 +207,36 @@ async function steward(repo, config, v, opts) {
   git(repo, 'fetch', 'origin', `pull/${n}/head`);
   git(repo, 'fetch', 'origin', v.baseRefName);
   git(repo, 'worktree', 'add', '--detach', wt, v.headRefOid);
-  const dir = outputDir(TMP, n, v.headRefOid);
-  mkdirSync(dir, { recursive: true });
-  // A cached pass costs what its saved answers cost; a new pass is summed from its own runs.
-  let cost;
-  if (hasOut(dir) && !opts.force) {
-    cost = costOf(readFileSync(join(dir, 'review.out'), 'utf8')) + costOf(readFileSync(join(dir, 'security.out'), 'utf8'));
-  } else {
-    cost = await runPasses(repo, config, v, wt, dir, linkedIssue(v.body) ?? n);
+  // The worktree must not outlive the run: a throw in a pass or the gate would otherwise leave it behind, and the
+  // next run would skip this PR as "already exists". The removal is in finally, so it runs on failure too.
+  try {
+    const dir = outputDir(TMP, n, v.headRefOid);
+    mkdirSync(dir, { recursive: true });
+    // A cached pass costs what its saved answers cost; a new pass is summed from its own runs.
+    let cost;
+    if (hasOut(dir) && !opts.force) {
+      cost = costOf(readFileSync(join(dir, 'review.out'), 'utf8')) + costOf(readFileSync(join(dir, 'security.out'), 'utf8'));
+    } else {
+      cost = await runPasses(repo, config, v, wt, dir, linkedIssue(v.body) ?? n);
+    }
+    const g = await runAsync('node', [join(HERE, 'gate.mjs'), '--pr', String(n), '--review', join(dir, 'review.out'),
+      '--security', join(dir, 'security.out'), '--repo', wt]);
+    const ready = g.code === 0;
+    const row = summaryRow({
+      pr: n,
+      head: v.headRefOid,
+      review: verdictSummary(readFileSync(join(dir, 'review.out'), 'utf8')),
+      security: verdictSummary(readFileSync(join(dir, 'security.out'), 'utf8')),
+      gate: ready ? 'READY' : 'NOT READY',
+      cost,
+    });
+    return { row, ready, gate: g.stdout };
+  } finally {
+    // A failed removal is reported, not thrown, so it cannot hide the run's own result or error.
+    if (!opts.keep) {
+      try { git(repo, 'worktree', 'remove', wt); } catch (e) { stdout.write(`could not remove ${wt}: ${e.message}\n`); }
+    }
   }
-  const g = await runAsync('node', [join(HERE, 'gate.mjs'), '--pr', String(n), '--review', join(dir, 'review.out'),
-    '--security', join(dir, 'security.out'), '--repo', wt]);
-  const ready = g.code === 0;
-  if (!opts.keep) {
-    try { git(repo, 'worktree', 'remove', wt); } catch (e) { stdout.write(`could not remove ${wt}: ${e.message}\n`); }
-  }
-  const row = summaryRow({
-    pr: n,
-    head: v.headRefOid,
-    review: verdictSummary(readFileSync(join(dir, 'review.out'), 'utf8')),
-    security: verdictSummary(readFileSync(join(dir, 'security.out'), 'utf8')),
-    gate: ready ? 'READY' : 'NOT READY',
-    cost,
-  });
-  return { row, ready, gate: g.stdout };
 }
 
 // Returns the exit code: 0 when the steward ran (a NOT READY gate is a result, not an error), 2 for bad usage.

@@ -75,9 +75,21 @@ describe('costOf', () => {
 
 describe('changedFiles', () => {
   it('lists every touched path and only the paths that still exist', () => {
-    const r = changedFiles('M\ta.ts\nD\tb.ts\nR100\tc.ts\td.ts\nA\te.ts');
+    const r = changedFiles('M\0a.ts\0D\0b.ts\0R100\0c.ts\0d.ts\0A\0e.ts\0');
     expect(r.paths).toEqual(['a.ts', 'b.ts', 'c.ts', 'd.ts', 'e.ts']);
     expect(r.files).toEqual(['a.ts', 'd.ts', 'e.ts']);
+  });
+
+  it('keeps a path with a tab whole', () => {
+    expect(changedFiles('M\0dir/a\tb.ts\0')).toEqual({ paths: ['dir/a\tb.ts'], files: ['dir/a\tb.ts'] });
+  });
+
+  it('keeps a non-ASCII path whole', () => {
+    expect(changedFiles('A\0docs/città.md\0')).toEqual({ paths: ['docs/città.md'], files: ['docs/città.md'] });
+  });
+
+  it('keeps both sides of a copy in files', () => {
+    expect(changedFiles('C75\0x.ts\0y.ts\0')).toEqual({ paths: ['x.ts', 'y.ts'], files: ['x.ts', 'y.ts'] });
   });
 });
 
