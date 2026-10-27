@@ -101,7 +101,15 @@ export async function queryOsv(
   if (!res.ok) {
     return { isError: true, text: `OSV.dev query failed: HTTP ${res.status}` };
   }
-  const data = (await res.json()) as OsvQueryResponse;
+  // A 200 answer can still be unusable (proxy page, cut body). Parse inside the
+  // failure path so it is reported like every other failed call, not thrown.
+  let data: OsvQueryResponse;
+  try {
+    data = (await res.json()) as OsvQueryResponse;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { isError: true, text: `OSV.dev query failed: ${message}` };
+  }
   const vulns = data.vulns ?? [];
   if (!vulns.length) {
     return { isError: false, text: `No known vulnerabilities for ${label}.` };

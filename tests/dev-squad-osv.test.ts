@@ -77,6 +77,13 @@ describe('queryOsv', () => {
     expect(r.text).toContain('HTTP 500');
   });
 
+  it('reports a 200 answer that is not JSON as a failed call', async () => {
+    const fn = (async () => new Response('not json', { status: 200 })) as typeof fetch;
+    const r = await queryOsv({ name: 'left-pad', version: '1.3.0' }, fn);
+    expect(r.isError).toBe(true);
+    expect(r.text.startsWith('OSV.dev query failed:')).toBe(true);
+  });
+
   it('reports network errors and timeouts as failed calls', async () => {
     const r = await queryOsv({ name: 'left-pad', version: '1.3.0' }, failingFetch(new Error('timed out')));
     expect(r.isError).toBe(true);

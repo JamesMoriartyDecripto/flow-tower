@@ -67,4 +67,14 @@ describe('formatAndLint', () => {
     const out = await formatAndLint('/w', '/w/a.ts', undefined, run);
     expect(out.split('\n').length).toBeLessThanOrEqual(15);
   });
+
+  it('passes an absolute path to prettier and eslint even for a dash-led argument', async () => {
+    const { run, calls } = fakeRun(ok);
+    await formatAndLint('/w', '--config=src/x.js', undefined, run);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const c of calls) {
+      expect(c.args.at(-1)).toBe('/w/--config=src/x.js');
+      expect(c.args).not.toContain('--config=src/x.js');
+    }
+  });
 });

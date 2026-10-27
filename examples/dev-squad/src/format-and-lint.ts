@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { extname } from 'node:path';
+import { extname, resolve } from 'node:path';
 
 // Kept out of hooks/format-lint.ts: that file imports the Agent SDK types, and the
 // OpenRouter loop has no SDK installed, so it must import this module instead.
@@ -27,16 +27,19 @@ export async function formatAndLint(
   run: Run = execFileAsync,
 ): Promise<string> {
   const opts = { cwd, signal, timeout: 30_000 };
+  // Absolute path so a value like `--config=src/x.js` is never read as an option
+  // by prettier or eslint. The check must not depend on the caller passing one.
+  const path = resolve(cwd, file);
   // execFile with an argv array: the file path is never interpreted by a shell.
   if (FORMATTABLE.has(extname(file))) {
-    await run('npx', ['--no-install', 'prettier', '--write', file], opts).catch(() => undefined);
+    await run('npx', ['--no-install', 'prettier', '--write', path], opts).catch(() => undefined);
   }
   if (!LINTABLE.has(extname(file))) return '';
 
   try {
     // No --rule or --format overrides: the project config is the source of truth,
     // and ESLint 9 dropped the `unix` formatter that used to be requested here.
-    await run('npx', ['--no-install', 'eslint', '--fix', '--max-warnings=0', file], opts);
+    await run('npx', ['--no-install', 'eslint', '--fix', '--max-warnings=0', path], opts);
     return '';
   } catch (err) {
     const e = err as { code?: unknown; stdout?: string };
