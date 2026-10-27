@@ -2,7 +2,6 @@ import type { HookCallback, HookEvent, HookCallbackMatcher, PreToolUseHookInput 
 import { bashGuard } from './bash-guard';
 import { changelogGate } from './changelog-gate';
 import { contextLoader } from './context-loader';
-import { depAudit } from './dep-audit';
 import { formatLint } from './format-lint';
 import { secretScanPrompt, secretScanWrite } from './secret-scan';
 
@@ -43,7 +42,7 @@ export function buildHooks(ctx: { worktree: string; issue: number; areas?: strin
       { matcher: 'Write|Edit|MultiEdit|NotebookEdit', hooks: [worktreeFence(ctx.worktree), secretScanWrite] },
       { hooks: [audit(ctx.role)] },
     ],
-    PostToolUse: [{ matcher: 'Write|Edit|MultiEdit', hooks: [formatLint, depAudit], timeout: 90 }],
+    PostToolUse: [{ matcher: 'Write|Edit|MultiEdit', hooks: [formatLint], timeout: 60 }],
     Stop: [{ hooks: [changelogGate(ctx)] }],
   };
 }

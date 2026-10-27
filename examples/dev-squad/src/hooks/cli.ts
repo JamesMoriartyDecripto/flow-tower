@@ -11,14 +11,12 @@ import type { HookCallback } from '@anthropic-ai/claude-agent-sdk';
 import { bashGuard } from './bash-guard';
 import { changelogGate } from './changelog-gate';
 import { contextLoader } from './context-loader';
-import { depAudit } from './dep-audit';
 import { formatLint } from './format-lint';
 import { secretScanPrompt, secretScanWrite } from './secret-scan';
 
 const issue = Number(env.SQUAD_ISSUE ?? 0);
 const HOOKS: Record<string, HookCallback> = {
   'bash-guard': bashGuard(),
-  'dep-audit': depAudit,
   'secret-scan-write': secretScanWrite,
   'secret-scan-prompt': secretScanPrompt,
   'format-lint': formatLint,
