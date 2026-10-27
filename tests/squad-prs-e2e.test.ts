@@ -1,0 +1,176 @@
+import { execFile, execFileSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+// The whole steward path (#319-04): `prs.mjs --pr 7` runs for real against a git origin on disk, a stub gh on PATH and
+// a stub OpenRouter on 127.0.0.1. Nothing reaches the network. Every spawn has an explicit 60 s timeout.
+const PRS = resolve('tools/squad/prs.mjs');
+const SPAWN = { timeout: 60_000 };
+const VERDICT = '{"verdict":"approve","findings":[]}';
+const GIT_ENV = {
+  ...process.env,
+  GIT_AUTHOR_NAME: 'test', GIT_AUTHOR_EMAIL: 'test@example.com',
+  GIT_COMMITTER_NAME: 'test', GIT_COMMITTER_EMAIL: 'test@example.com',
+};
+
+let root = '';
+let work = '';
+let bin = '';
+let sha = '';
+let server: Server;
+let base = '';
+// Every chat request's model, in arrival order: the assertions count the passes by model.
+let seenModels: string[] = [];
+// Set by one case: the chat answers this model with an empty content, so the steward retries it.
+let emptyModel: string | null = null;
+
+const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, env: GIT_ENV, encoding: 'utf8' }).trim();
+const commit = (cwd: string, msg: string) => git(cwd, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', msg);
+
+// The stub gh answers only the calls the steward makes, by their exact argument list; anything else fails loudly.
+function stubGh(answers: Record<string, unknown>): string {
+  return `#!/usr/bin/env node
+const answers = ${JSON.stringify(answers)};
+const key = process.argv.slice(2).join(' ');
+if (!(key in answers)) { process.stderr.write('stub gh: unexpected call: ' + key + '\\n'); process.exit(1); }
+console.log(JSON.stringify(answers[key]));
+`;
+}
+
+beforeAll(async () => {
+  root = mkdtempSync(join(tmpdir(), 'squad-e2e-'));
+  const origin = join(root, 'origin.git');
+  work = join(root, 'work');
+  bin = join(root, 'bin');
+  git(root, 'init', '-q', '--bare', origin);
+  git(root, 'clone', '-q', origin, work);
+  git(work, 'checkout', '-q', '-b', 'main');
+  mkdirSync(join(work, 'src'), { recursive: true });
+  mkdirSync(join(work, 'tools', 'squad'), { recursive: true });
+  writeFileSync(join(work, 'src', 'a.ts'), 'export const a = 1;\n');
+  writeFileSync(join(work, 'tools', 'squad', 'squad.json'), `${JSON.stringify({
+    review: ['src'],
+    models: { reviewer: 'vendor-a/rev', security: 'vendor-b/sec' },
+  }, null, 2)}\n`);
+  git(work, 'add', '-A');
+  commit(work, 'main');
+  git(work, 'push', '-q', 'origin', 'main');
+
+  git(work, 'checkout', '-q', '-b', 'feature');
+  writeFileSync(join(work, 'src', 'a.ts'), 'export const a = 2;\n');
+  git(work, 'add', '-A');
+  commit(work, 'change a');
+  sha = git(work, 'rev-parse', 'HEAD');
+  git(work, 'push', '-q', 'origin', 'feature');
+  // GitHub keeps every pull request head under refs/pull/<n>/head; the steward fetches it from there.
+  git(work, 'push', '-q', 'origin', 'HEAD:refs/pull/7/head');
+
+  mkdirSync(bin, { recursive: true });
+  const gh = join(bin, 'gh');
+  writeFileSync(gh, stubGh({
+    'pr view 7 --json number,title,body,headRefOid,baseRefName': { number: 7, title: 'Change a', body: 'Closes #3', headRefOid: sha, baseRefName: 'main' },
+    'issue view 3 --json title,body': { title: 'Issue three', body: 'The issue body.' },
+    'pr checks 7 --json name,bucket': [{ name: 'check', bucket: 'pass' }],
+    'pr view 7 --json mergeable,isDraft,headRefOid': { mergeable: 'MERGEABLE', isDraft: false, headRefOid: sha },
+  }));
+  chmodSync(gh, 0o755);
+
+  server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    let raw = '';
+    req.on('data', (c: Buffer) => { raw += c; });
+    req.on('end', () => {
+      if (!req.url?.endsWith('/chat/completions')) { res.writeHead(404).end(); return; }
+      const model = (JSON.parse(raw) as { model: string }).model;
+      seenModels.push(model);
+      const content = model === emptyModel ? '' : VERDICT;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content }, finish_reason: 'stop' }], usage: { cost: 0.001, prompt_tokens: 10 } }));
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+  const { port } = server.address() as { port: number };
+  base = `http://127.0.0.1:${port}/api/v1`;
+});
+
+afterAll(async () => {
+  await new Promise<void>((r) => server.close(() => r()));
+  rmSync(root, { recursive: true, force: true });
+});
+
+// Each case gets its own temp folder for the outputs (TMPDIR) and the ledger, so caching never leaks between cases.
+let caseCount = 0;
+function newCase(): string {
+  const dir = join(root, `case-${caseCount++}`);
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+type Result = { code: number; stdout: string; stderr: string };
+
+// Async on purpose: the stub lives in this process, so a blocking spawn would deadlock the server.
+function runPrs(caseDir: string): Promise<Result> {
+  const env = {
+    ...process.env,
+    PATH: `${bin}:${process.env.PATH ?? ''}`,
+    OPENROUTER_API_KEY: 'test-key',
+    SQUAD_API_BASE: base,
+    SQUAD_LEDGER: join(caseDir, 'ledger.jsonl'),
+    SQUAD_PACE: 'relaxed',
+    TMPDIR: caseDir,
+  };
+  return new Promise((resolvePromise) => {
+    execFile('node', [PRS, '--pr', '7'], { cwd: work, env, encoding: 'utf8', timeout: SPAWN.timeout }, (err, stdout, stderr) => {
+      const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : 1) : 0;
+      resolvePromise({ code, stdout, stderr });
+    });
+  });
+}
+
+const count = (model: string) => seenModels.filter((m) => m === model).length;
+
+describe('prs.mjs --pr 7, end to end with no network', () => {
+  it('runs fetch, worktree, pack, both passes, the gate, the table and the cleanup', async () => {
+    seenModels = [];
+    const caseDir = newCase();
+    const r = await runPrs(caseDir);
+    expect(r.code, r.stderr || r.stdout).toBe(0);
+    expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
+    expect([...seenModels].sort()).toEqual(['vendor-a/rev', 'vendor-b/sec']);
+    expect(existsSync(join(root, 'wt-pr-7'))).toBe(false);
+    expect(git(work, 'worktree', 'list').split('\n')).toHaveLength(1);
+  }, SPAWN.timeout);
+
+  it('a second run on the same head uses the saved outputs: no chat request, still READY', async () => {
+    const caseDir = newCase();
+    seenModels = [];
+    const first = await runPrs(caseDir);
+    expect(first.code).toBe(0);
+    const before = seenModels.length;
+    expect(before).toBe(2);
+    const second = await runPrs(caseDir);
+    expect(second.code, second.stderr || second.stdout).toBe(0);
+    expect(seenModels).toHaveLength(before);
+    expect(second.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
+    expect(readFileSync(join(caseDir, 'ledger.jsonl'), 'utf8').trim().split('\n')).toHaveLength(2);
+  }, SPAWN.timeout);
+
+  it('an empty security answer is retried twice, then the reviewer model answers, and the row still says approve', async () => {
+    const caseDir = newCase();
+    seenModels = [];
+    emptyModel = 'vendor-b/sec';
+    try {
+      const r = await runPrs(caseDir);
+      expect(r.code, r.stderr || r.stdout).toBe(0);
+      // Reviewer: one request. Security: the security model twice (both empty), then the reviewer model.
+      expect(seenModels).toHaveLength(4);
+      expect(count('vendor-b/sec')).toBe(2);
+      expect(count('vendor-a/rev')).toBe(2);
+      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
+    } finally {
+      emptyModel = null;
+    }
+  }, SPAWN.timeout);
+});
