@@ -53,7 +53,7 @@ async function removeBatch(fetchImpl, key, id, log) {
  * Create a one-request batch, poll it to a terminal status (or the deadline), read the answer and delete the batch.
  * `fetchImpl`, `sleep` and `log` are seams: the tests inject a stub, a no-op sleep and a log sink.
  * `onCreated(id)` lets the caller remember the batch while it is pending, so an interrupt can still delete it.
- * Returns `{ ok: true, content, usage, generationId }` or `{ ok: false, error }` with a short code only.
+ * Returns `{ ok: true, content, usage, generationId, finishReason }` or `{ ok: false, error }` with a short code only.
  * A model with no batch endpoint returns `{ ok: false, error, noBatch: true }`, so the caller can fall back.
  */
 export async function batchOne({
@@ -131,7 +131,8 @@ export async function batchOne({
     const answer = item?.response?.body;
     const content = answer?.choices?.[0]?.message?.content;
     if (typeof content !== 'string' || content === '') return { ok: false, error: 'empty answer' };
-    return { ok: true, content, usage: answer.usage ?? {}, generationId: answer.id };
+    // finish_reason 'length' means the answer was cut at the token cap: the caller must not treat it as finished.
+    return { ok: true, content, usage: answer.usage ?? {}, generationId: answer.id, finishReason: answer?.choices?.[0]?.finish_reason };
   } catch (e) {
     log(`squad batch ${id}: poll failed (${e.name})`);
     return { ok: false, error: 'poll failed' };

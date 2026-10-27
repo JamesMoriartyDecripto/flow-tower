@@ -32,15 +32,15 @@ agents:
   reviewer:
     runtime: openrouter
     name: Reviewer
-    description: Read-only review of the diff against the issue, from another model family than the coder. Runs at the same time as the security pass. Every finding quotes its line, so the merge gate can check it is real.
+    description: Read-only review of the diff against the issue, from another model family than the coder. Runs at the same time as the security pass. Every finding quotes its line, so the merge gate can check it is real. An empty answer, or one cut short (finish_reason not stop), fails the run.
     model: "{{REVIEWER}}"
-    files: [pack.mjs, oneshot.mjs]
+    files: [pack.mjs, oneshot.mjs, run.mjs]
   security:
     runtime: openrouter
     name: Security auditor
-    description: Read-only security pass on the same diff, from a third model family. Runs at the same time as the review. Every finding quotes its line, so the merge gate can check it is real.
+    description: Read-only security pass on the same diff, from a third model family. Runs at the same time as the review. Every finding quotes its line, so the merge gate can check it is real. An empty answer, or one cut short (finish_reason not stop), fails the run.
     model: "{{SECURITY}}"
-    files: [pack.mjs, oneshot.mjs]
+    files: [pack.mjs, oneshot.mjs, run.mjs]
 
 layers:
   - id: lead
