@@ -114,4 +114,22 @@ describe('a reviewer or security answer without a JSON verdict fails the run', (
     expect(r.code).toBe(0);
     expect(lastRow(ledger)).toMatchObject({ outcome: 'finish' });
   });
+
+  // Two prose finish calls in one reply are one refusal round: the re-ask is spent once, so the next reply's verdict passes.
+  it('loop: two prose finish calls in one reply take one re-ask, and a JSON verdict in the next reply passes', SPAWN, async () => {
+    const { ledger, args } = setup('reviewer');
+    seen = [];
+    const twoProse: Message = {
+      content: null,
+      tool_calls: [
+        { id: 'call-a', type: 'function', function: { name: 'finish', arguments: JSON.stringify({ report: 'first prose' }) } },
+        { id: 'call-b', type: 'function', function: { name: 'finish', arguments: JSON.stringify({ report: 'second prose' }) } },
+      ],
+    };
+    replies = [twoProse, finishCall(VERDICT)];
+    const r = await run([...args, '--loop'], ledger);
+    expect(r.code).toBe(0);
+    expect(r.stdout).not.toContain('no JSON verdict after a second request');
+    expect(lastRow(ledger)).toMatchObject({ outcome: 'finish' });
+  });
 });

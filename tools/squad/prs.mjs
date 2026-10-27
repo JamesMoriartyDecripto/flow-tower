@@ -72,12 +72,19 @@ export function attemptModels(role, models) {
   return [models.reviewer, models.reviewer];
 }
 
-// The run footer carries "· $0.0123 ·" per step, and a failed attempt's line ends with "· $0.0010". Summing every
-// amount gives what the pass cost, retries included. An amount must follow "· $" and be followed by " ·" or the end of
-// its line, so a stray "$" in an answer is not counted. The \r? keeps a CRLF line ending from hiding the amount.
+// The run footer ("--- m · 1 step · $0.0020 · cache 0%") and a failed attempt's line ("no JSON verdict · m · $0.0010")
+// carry the pass cost, retries included. Only those lines are summed: the model's answer is printed above them and can
+// end a line with "· $<n>", so counting every line would let a pull request add to its own cost. An amount must follow
+// "· $" and be followed by " ·" or the end of its line. The \r? keeps a CRLF line ending from hiding the amount.
+const RUNNER_LINE = /^(--- |truncated answer|no JSON verdict|step cap reached)/;
+const AMOUNT = /· \$(\d+(?:\.\d+)?)(?= ·|\r?$)/;
 export function costOf(stdout) {
   let sum = 0;
-  for (const m of String(stdout ?? '').matchAll(/· \$(\d+(?:\.\d+)?)(?= ·|\r?$)/gm)) sum += Number(m[1]);
+  for (const line of String(stdout ?? '').split('\n')) {
+    if (!RUNNER_LINE.test(line)) continue;
+    const m = AMOUNT.exec(line);
+    if (m) sum += Number(m[1]);
+  }
   return sum;
 }
 

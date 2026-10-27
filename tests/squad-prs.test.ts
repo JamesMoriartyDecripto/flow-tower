@@ -103,6 +103,15 @@ describe('costOf', () => {
   it('counts the cost of a loop answer with no JSON verdict after a second request', () => {
     expect(costOf('no JSON verdict after a second request · m · $0.0040')).toBeCloseTo(0.004);
   });
+
+  // The model's answer can end a line with "· $<n>": only the runner's own lines are summed.
+  it('does not count an answer line that ends with an amount', () => {
+    expect(costOf('see the table · $9.99\n--- m · 1 step · $0.0020 · cache 0%')).toBeCloseTo(0.002);
+  });
+
+  it('counts the cost of a step cap line', () => {
+    expect(costOf('step cap reached · $0.0100 · log x')).toBeCloseTo(0.01);
+  });
 });
 
 describe('changedFiles', () => {
