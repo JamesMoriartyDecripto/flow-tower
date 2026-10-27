@@ -131,13 +131,13 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 - **Squad lesson:** coders rewrite an existing test file and drop earlier tests. Task files now say "never rewrite or empty an existing test file"; give each step its own test file.
 - **Squad notes from #181:** OpenRouter can answer 504 or 429 in the middle of a coder step: discard the partial changes and rerun the step. A task that rewords an existing message breaks the test that asserts it: quote the existing text in the task. Worktrees with a symlinked `node_modules` make Vite answer 403 for fonts outside the root, so run e2e checks from the main checkout (detached HEAD) on a scratch port, never against the maintainer's server on 5317.
 - **Squad cost of v0.10.0:** $1.53 (#93 $0.09, #94 $0.13, #187 $0.04, #188 $0.15, #189 $0.21, #190 $0.13, #191 $0.18, #196 $0.10, #192 $0.15, #193 $0.14, #194 $0.08, #206 $0.12), each posted on its issue.
-- **Dev squad models** (from the benchmark and a field trial): Claude Haiku 5.5 codes, GLM 5.3 FlashX reviews, DeepSeek 4.1 Flash audits (it often returns an empty security answer: GLM with the security brief works). See [tools/squad](tools/squad/README.md) and the cost skill reference § Benchmark 2026-10-11.
+- **Dev squad models** (from the benchmark and a field trial): Claude Haiku 5.5 codes, GLM 5.3 Flash reviews, DeepSeek 4.1 Flash audits (it often returns an empty security answer on large packs: GLM with the security brief works, and the steward falls back to it). Measured on the squad's own runner: [results 2026-10-27](examples/model-benchmark/results/2026-10-27-squad-roles.md), [tools/squad](tools/squad/README.md).
 - **Live:** the #97 two-computer test passed: the [command-center](examples/command-center) kit as a systemd service of a dedicated user, Tailscale Serve, two satellites on two computers lighting their towers together.
 - **Voice 2 plan:** [#129](https://github.com/JamesMoriartyDecripto/flow-tower/issues/129). Items 1–3 shipped; 4–8 on hold until the maintainer asks.
 
 ## Next, in order
 
-0. #287 the hub serves a remote viewer only the app's own assets
+0. #324 a fence in run.mjs for a `--repo` that is not trusted, and #317 the dev-squad SDK worktree fence and its children's HOME: before anything runs unattended (#320)
 1. #181 what needs the Mac: a real tailnet with the v0.10.0 team journeys, the macOS side of #194 (launchd)
 2. #69 tower names as an STT prompt
 3. docs-qa gaps left after #143: Q8 (hub flag), Q22 (Tailscale ACL for CI), Q31 (voice filter phrase)
