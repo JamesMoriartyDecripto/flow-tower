@@ -26,17 +26,24 @@ let base = '';
 let seenModels: string[] = [];
 // Set by one case: the chat answers this model with an empty content, so the steward retries it.
 let emptyModel: string | null = null;
+// Set by one case: the security model answers this text instead of the approve verdict.
+let securityAnswer: string | null = null;
 
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, env: GIT_ENV, encoding: 'utf8' }).trim();
 const commit = (cwd: string, msg: string) => git(cwd, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', msg);
 
 // The stub gh answers only the calls the steward makes, by their exact argument list; anything else fails loudly.
+// Two env switches let one case change it without rewriting the stub: STUB_GH_FAIL (JSON list of keys that exit 1)
+// and STUB_GH_OVERRIDE (JSON object of answers replacing the defaults).
 function stubGh(answers: Record<string, unknown>): string {
   return `#!/usr/bin/env node
 const answers = ${JSON.stringify(answers)};
 const key = process.argv.slice(2).join(' ');
-if (!(key in answers)) { process.stderr.write('stub gh: unexpected call: ' + key + '\\n'); process.exit(1); }
-console.log(JSON.stringify(answers[key]));
+const fail = JSON.parse(process.env.STUB_GH_FAIL || '[]');
+if (fail.includes(key)) { process.stderr.write('stub gh: forced failure: ' + key + '\\n'); process.exit(1); }
+const all = { ...answers, ...JSON.parse(process.env.STUB_GH_OVERRIDE || '{}') };
+if (!(key in all)) { process.stderr.write('stub gh: unexpected call: ' + key + '\\n'); process.exit(1); }
+console.log(JSON.stringify(all[key]));
 `;
 }
 
@@ -85,7 +92,8 @@ beforeAll(async () => {
       if (!req.url?.endsWith('/chat/completions')) { res.writeHead(404).end(); return; }
       const model = (JSON.parse(raw) as { model: string }).model;
       seenModels.push(model);
-      const content = model === emptyModel ? '' : VERDICT;
+      const content = model === emptyModel ? ''
+        : model === 'vendor-b/sec' && securityAnswer !== null ? securityAnswer : VERDICT;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ choices: [{ message: { content }, finish_reason: 'stop' }], usage: { cost: 0.001, prompt_tokens: 10 } }));
     });
@@ -111,7 +119,7 @@ function newCase(): string {
 type Result = { code: number; stdout: string; stderr: string };
 
 // Async on purpose: the stub lives in this process, so a blocking spawn would deadlock the server.
-function runPrs(caseDir: string): Promise<Result> {
+function runPrs(caseDir: string, stub: Record<string, string> = {}): Promise<Result> {
   const env = {
     ...process.env,
     PATH: `${bin}:${process.env.PATH ?? ''}`,
@@ -120,6 +128,7 @@ function runPrs(caseDir: string): Promise<Result> {
     SQUAD_LEDGER: join(caseDir, 'ledger.jsonl'),
     SQUAD_PACE: 'relaxed',
     TMPDIR: caseDir,
+    ...stub,
   };
   return new Promise((resolvePromise) => {
     execFile('node', [PRS, '--pr', '7'], { cwd: work, env, encoding: 'utf8', timeout: SPAWN.timeout }, (err, stdout, stderr) => {
@@ -172,5 +181,45 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
     } finally {
       emptyModel = null;
     }
+  }, SPAWN.timeout);
+
+  // A throw after the worktree exists: the brief cannot be built (gh issue view fails) inside the try. The error is
+  // reported on its own line, no model is called, and the finally removes the worktree.
+  it('a throw after the worktree exists is reported as #7, leaves no worktree and calls no model', async () => {
+    const caseDir = newCase();
+    seenModels = [];
+    const r = await runPrs(caseDir, { STUB_GH_FAIL: JSON.stringify(['issue view 3 --json title,body']) });
+    expect(r.code, r.stderr || r.stdout).toBe(0);
+    expect(r.stdout).toMatch(/^#7: /m);
+    expect(seenModels).toHaveLength(0);
+    expect(existsSync(join(root, 'wt-pr-7'))).toBe(false);
+    expect(git(work, 'worktree', 'list').split('\n')).toHaveLength(1);
+  }, SPAWN.timeout);
+
+  // A security verdict with a high finding the gate cannot verify (quote too short) blocks the PR: the row says so,
+  // the gate's NOT READY block names the security role, and no worktree is left behind.
+  it('a security verdict that blocks the PR shows NOT READY with the gate block and leaves no worktree', async () => {
+    const caseDir = newCase();
+    seenModels = [];
+    securityAnswer = '{"verdict":"changes","findings":[{"severity":"high","file":"src/a.ts:1","quote":"x","what":"w","why":"y","fix":"f"}]}';
+    try {
+      const r = await runPrs(caseDir);
+      expect(r.code, r.stderr || r.stdout).toBe(0);
+      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| changes: 1 high \| NOT READY \| \$0\.0020 \|$/m);
+      expect(r.stdout).toMatch(/^NOT READY: #7$/m);
+      expect(r.stdout).toMatch(/^- security: .*/m);
+      expect(existsSync(join(root, 'wt-pr-7'))).toBe(false);
+    } finally {
+      securityAnswer = null;
+    }
+  }, SPAWN.timeout);
+
+  // A PR body without a closing keyword has no linked issue: the run is tagged with the PR number in the ledger.
+  it('a PR with no linked issue is tagged with its own number in the ledger', async () => {
+    const caseDir = newCase();
+    const r = await runPrs(caseDir, { STUB_GH_OVERRIDE: JSON.stringify({ 'pr view 7 --json number,title,body,headRefOid,baseRefName': { number: 7, title: 'Change a', body: 'No link here.', headRefOid: sha, baseRefName: 'main' } }) });
+    expect(r.code, r.stderr || r.stdout).toBe(0);
+    const lines = readFileSync(join(caseDir, 'ledger.jsonl'), 'utf8').trim().split('\n');
+    expect(JSON.parse(lines.at(-1) as string)).toMatchObject({ issue: '7' });
   }, SPAWN.timeout);
 });
