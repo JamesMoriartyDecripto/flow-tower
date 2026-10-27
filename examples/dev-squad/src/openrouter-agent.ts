@@ -5,6 +5,7 @@ import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import { env } from 'node:process';
 import { promisify } from 'node:util';
 import type { AgentRun } from './run-agent';
+import { queryOsv } from './tools/osv';
 
 const sh = promisify(execFile);
 const API = 'https://openrouter.ai/api/v1/chat/completions';
@@ -47,6 +48,10 @@ const READ_TOOLS = [
   fn('run', `One whitelisted command: ${Object.keys(RUN).join(', ')}.`, { name: { type: 'string', enum: Object.keys(RUN) }, file: str('For vitest / validate') }, ['name']),
   fn('finish', 'End the run with the final report (the JSON or STATUS block your instructions ask for).', { report: str('Final report') }),
 ];
+// Only the security auditor gets the network query: the same OSV check the SDK harness runs (tools/osv.ts).
+const OSV_TOOL = fn('osv_scan', 'Known advisories of one package version from OSV.dev, with the fixed version.', {
+  package_name: str('Package name'), version: str('Exact installed version, from the lockfile'), ecosystem: str('npm (default), PyPI, Go, Maven...'),
+}, ['package_name', 'version']);
 const WRITE_TOOLS = [
   fn('edit_file', 'Replace one exact, unique snippet.', { path: str('Path'), old: str('Exact text, must occur once'), new: str('Replacement') }),
   fn('write_file', 'Create or overwrite a file under src/, tests/ or e2e/. No tmp-/zz-/probe/scratch throwaway files.', { path: str('Path'), content: str('Full content') }),
@@ -111,6 +116,11 @@ async function callTool(cwd: string, name: string, a: Record<string, string>): P
       if ((a.name === 'vitest' || a.name === 'validate') && !file) throw new Error(`${a.name} needs a file`);
       return exec(cwd, RUN[a.name](file));
     }
+    case 'osv_scan': {
+      const { text, isError } = await queryOsv({ name: a.package_name, version: a.version, ecosystem: a.ecosystem || 'npm' });
+      if (isError) throw new Error(text);
+      return text;
+    }
     default: throw new Error(`unknown tool ${name}`);
   }
 }
@@ -126,7 +136,9 @@ export async function runOpenRouterAgent(o: { role: string; model: string; syste
   const key = env.OPENROUTER_API_KEY;
   if (!key) throw new Error('OPENROUTER_API_KEY is not set');
   const session = randomUUID();
-  const tools = o.canWrite ? [...READ_TOOLS, ...WRITE_TOOLS] : READ_TOOLS;
+  // Least privilege: writes only for the coder, network lookup only for the auditor.
+  const tools = o.canWrite ? [...READ_TOOLS, ...WRITE_TOOLS]
+    : o.role === 'security-auditor' ? [...READ_TOOLS, OSV_TOOL] : READ_TOOLS;
   const messages: object[] = [{ role: 'system', content: o.system }, { role: 'user', content: o.prompt }];
   const base = { agent: o.role, model: o.model, session };
   let costUsd = 0;
