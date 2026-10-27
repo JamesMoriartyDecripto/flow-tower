@@ -125,7 +125,50 @@ layers:
       - "check -> security: step commits, in parallel"
       - "coder -> costs [data]"
 
+  - id: steward
+    title: PR steward
+    description: "One local command reviews and gates every open pull request: prs.mjs. It reads, runs the passes and the gate, and reports; it never merges, approves, comments or pushes."
+    nodes:
+      - id: open_prs
+        type: entry
+        label: Open PRs
+        description: "The open pull requests (gh pr list), or the ones named with --pr."
+        files: [prs.mjs]
+      - id: worktree
+        type: process
+        runtime: laptop
+        label: Worktree at head
+        description: "A detached worktree at each PR head; the base is the PR's own (stacked PRs too); the brief is the PR text plus the issue it closes. A head that already has both pass outputs is skipped unless --force."
+        files: [prs.mjs]
+      - id: passes
+        type: process
+        runtime: laptop
+        label: Review + security
+        description: "pack.mjs and run.mjs for both roles at once, at the squad.json pace. An empty or cut answer runs once more; a second failure of the security model sends the security brief to the reviewer model."
+        files: [prs.mjs, pack.mjs, run.mjs]
+      - id: pr_gate
+        type: guard
+        runtime: laptop
+        label: Gate per PR
+        description: "gate.mjs on each PR: READY or NOT READY with its reasons and the unverified findings."
+        files: [gate.mjs]
+      - id: report
+        type: output
+        runtime: laptop
+        label: Report
+        description: "A summary table (PR, head, verdicts, findings by severity, unverified quotes, gate, cost) and the paths of the pass outputs. The worktrees are removed unless --keep."
+        files: [prs.mjs]
+    edges:
+      - open_prs -> worktree
+      - worktree -> passes
+      - "passes -> pr_gate [data]: verdicts"
+      - pr_gate -> report
+
 links:
+  - "steward.passes -> specialists.reviewer [spawn]: packed task"
+  - "steward.passes -> specialists.security [spawn]: packed task"
+  - "steward.report -> lead.lead [handoff]: verify each finding, fix steps"
+  - "steward.report -> lead.merge: ready"
   - "lead.lead -> specialists.coder [spawn]: task file"
   - "specialists.reviewer -> lead.verify [return]: verdict"
   - "specialists.security -> lead.verify [return]: findings"

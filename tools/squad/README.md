@@ -150,6 +150,42 @@ Nobody acts on one before checking it in the code. Below high it does not block,
 good change. A critical or high one blocks even unverified: check it, and if it is not real, run the pass again (a
 made-up finding rarely comes back).
 
+## The PR steward
+
+One local command reviews and gates the open pull requests: the sequence of the two sections above, for each one.
+
+```bash
+node tools/squad/prs.mjs                 # every open pull request
+node tools/squad/prs.mjs --pr 300,301    # only these
+node tools/squad/prs.mjs --dry-run       # what it would do: head, base, issue tag, output folder, cached or new
+```
+
+For each pull request it fetches the head (`pull/<n>/head`) and the base, adds a detached worktree `wt-pr-<n>` in its own folder (below), packs
+the review and the security task against the PR's own base (stacked PRs too) with the PR text and the issue it closes
+(`Closes #n`) as brief, runs both passes at once (`SQUAD_PACE` from the environment, else `relaxed`), and runs the gate.
+An empty or cut answer is run once more; a second failure of the security model sends the security brief to the reviewer
+model (§ Pace). The runs are tagged with the linked issue, else the PR number, so `cost.mjs` sums them.
+
+It prints one table row per PR (head, both verdicts with findings by severity, the gate, the cost), the gate's reasons
+for each NOT READY one, and its folder: `squad-prs/` next to the cost ledger (the flow-tower user folder, mode 700), with one
+`pr-<n>-<head>-<base>/` per review (a PR moved to another base is reviewed again) (brief, packed tasks, `review.out`, `security.out`) and the worktrees. Changed files up to
+40 KB go in full into the tasks, bigger ones (a CHANGELOG) only through the diff, so one big file never pushes the others
+out; a file name with a comma, a symlink or another non-regular file is left out of the task with a line saying so, and the
+brief lists it under `## Left out of this task` so both passes know the PR holds it. A head that already has both outputs, each with a readable verdict, is not reviewed again unless `--force`, so a repeated
+run costs nothing until a PR changes. The worktree is removed at the end, on failure too, unless `--keep`; an existing
+`wt-pr-<n>` (or a symlink there) is never touched (that PR is skipped). A PR whose fetched head differs from the head
+GitHub reports (a push seconds before) is skipped with `the PR moved, run again`, before any model call; a PR that `gh`
+cannot read gets its own error line and the others go on. Run one steward at a time: two at once would race for the same
+worktree name.
+
+The passes run from the checkout the steward runs in (its squad.json, its models, its flow-tower CLI for the live
+events): `run.mjs` reads `cli` and the models from its `--repo`, and the events run that CLI with node, so pointing
+`--repo` at a PR's worktree would run that PR's code on this machine. Only `pack.mjs` (the diff) and `gate.mjs` (the
+head) look at the PR's worktree, and neither runs its code. The brief carries the PR author's own text (title, body, the linked issue): both passes treat it as data, and a finding
+that comes from an instruction in it is checked like any other. It only reads and reviews: it never merges, approves,
+comments, pushes or marks a PR ready. The lead reads the
+report, checks every finding in the code, keeps or drops it with a reason, writes fix steps, and runs it again.
+
 ## Pace: how fast versus how cheap
 
 The maintainer sets the pace; the lead picks the review mode from it. The coder always runs the tool loop: it reads,
