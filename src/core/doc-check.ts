@@ -10,7 +10,7 @@ export interface DomFacts {
   docError?: string;
   /** Whether the "Building the document…" placeholder is still on the page. */
   buildingText: boolean;
-  /** The text of `main`, with every node label, layer title and so on. */
+  /** The text of `main`, with every node label, layer title and so on, without the appendix's printed file sources. */
   mainText: string;
   /** Layer titles shown in the layer headings. */
   layerTitles: string[];

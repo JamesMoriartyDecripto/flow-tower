@@ -1,0 +1,14 @@
+# A tower whose referenced file contains JSON: the level-3 export prints it in the appendix as source (#277).
+name: JSON in a file
+description: One agent that reads a note with a JSON example. The export must print it and still pass its checks.
+
+layers:
+  - id: loop
+    title: Agent loop
+    nodes:
+      - { id: question, type: entry, label: Question }
+      - { id: agent, type: agent, label: Reader, files: [notes.md] }
+      - { id: answer, type: output, label: Answer }
+    edges:
+      - question -> agent
+      - agent -> answer
