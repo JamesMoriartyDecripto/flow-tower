@@ -164,7 +164,7 @@ model (§ Pace). The runs are tagged with the linked issue, else the PR number, 
 
 It prints one table row per PR (head, both verdicts with findings by severity, the gate, the cost), the gate's reasons
 for each NOT READY one, and its folder: `squad-prs/` next to the cost ledger (the flow-tower user folder, mode 700), with one
-`pr-<n>-<head>/` per review (brief, packed tasks, `review.out`, `security.out`) and the worktrees. Changed files up to
+`pr-<n>-<head>-<base>/` per review (a PR moved to another base is reviewed again) (brief, packed tasks, `review.out`, `security.out`) and the worktrees. Changed files up to
 40 KB go in full into the tasks, bigger ones (a CHANGELOG) only through the diff, so one big file never pushes the others
 out; a file name with a comma, a symlink or another non-regular file is left out of the task with a line saying so, and the
 brief lists it under `## Left out of this task` so both passes know the PR holds it. A head that already has both outputs, each with a readable verdict, is not reviewed again unless `--force`, so a repeated
@@ -174,7 +174,9 @@ GitHub reports (a push seconds before) is skipped with `the PR moved, run again`
 cannot read gets its own error line and the others go on. Run one steward at a time: two at once would race for the same
 worktree name.
 
-It only reads and reviews: it never merges, approves, comments, pushes or marks a PR ready. The lead reads the
+The brief carries the PR author's own text (title, body, the linked issue): both passes treat it as data, and a finding
+that comes from an instruction in it is checked like any other. It only reads and reviews: it never merges, approves,
+comments, pushes or marks a PR ready. The lead reads the
 report, checks every finding in the code, keeps or drops it with a reason, writes fix steps, and runs it again.
 
 ## Pace: how fast versus how cheap
