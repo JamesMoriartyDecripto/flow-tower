@@ -119,7 +119,7 @@ function newCase(): string {
 type Result = { code: number; stdout: string; stderr: string };
 
 // Async on purpose: the stub lives in this process, so a blocking spawn would deadlock the server.
-function runPrs(caseDir: string, stub: Record<string, string> = {}): Promise<Result> {
+function runPrs(caseDir: string, stub: Record<string, string> = {}, args: string[] = ['--pr', '7']): Promise<Result> {
   const env = {
     ...process.env,
     PATH: `${bin}:${process.env.PATH ?? ''}`,
@@ -131,7 +131,7 @@ function runPrs(caseDir: string, stub: Record<string, string> = {}): Promise<Res
     ...stub,
   };
   return new Promise((resolvePromise) => {
-    execFile('node', [PRS, '--pr', '7'], { cwd: work, env, encoding: 'utf8', timeout: SPAWN.timeout }, (err, stdout, stderr) => {
+    execFile('node', [PRS, ...args], { cwd: work, env, encoding: 'utf8', timeout: SPAWN.timeout }, (err, stdout, stderr) => {
       const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : 1) : 0;
       resolvePromise({ code, stdout, stderr });
     });
@@ -148,7 +148,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
     expect(r.code, r.stderr || r.stdout).toBe(0);
     expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
     expect([...seenModels].sort()).toEqual(['vendor-a/rev', 'vendor-b/sec']);
-    expect(existsSync(join(root, 'wt-pr-7'))).toBe(false);
+    expect(existsSync(join(caseDir, 'squad-prs', 'wt-pr-7'))).toBe(false);
     expect(git(work, 'worktree', 'list').split('\n')).toHaveLength(1);
   }, SPAWN.timeout);
 
@@ -192,7 +192,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
     expect(r.code, r.stderr || r.stdout).toBe(0);
     expect(r.stdout).toMatch(/^#7: /m);
     expect(seenModels).toHaveLength(0);
-    expect(existsSync(join(root, 'wt-pr-7'))).toBe(false);
+    expect(existsSync(join(caseDir, 'squad-prs', 'wt-pr-7'))).toBe(false);
     expect(git(work, 'worktree', 'list').split('\n')).toHaveLength(1);
   }, SPAWN.timeout);
 
@@ -208,7 +208,7 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
       expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| changes: 1 high \| NOT READY \| \$0\.0020 \|$/m);
       expect(r.stdout).toMatch(/^NOT READY: #7$/m);
       expect(r.stdout).toMatch(/^- security: .*/m);
-      expect(existsSync(join(root, 'wt-pr-7'))).toBe(false);
+      expect(existsSync(join(caseDir, 'squad-prs', 'wt-pr-7'))).toBe(false);
     } finally {
       securityAnswer = null;
     }
@@ -260,5 +260,60 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
     expect(r.code, r.stderr || r.stdout).toBe(0);
     const lines = readFileSync(join(caseDir, 'ledger.jsonl'), 'utf8').trim().split('\n');
     expect(JSON.parse(lines.at(-1) as string)).toMatchObject({ issue: '7' });
+  }, SPAWN.timeout);
+
+  // The worktree and outputs are private to the ledger's folder, not beside the repo or in a shared temp folder.
+  // --keep leaves the worktree in place so the case can see where it was created; the case removes it itself.
+  it('the worktree of a run is created under <ledger folder>/squad-prs/', async () => {
+    const caseDir = newCase();
+    const r = await runPrs(caseDir, {}, ['--pr', '7', '--keep']);
+    expect(r.code, r.stderr || r.stdout).toBe(0);
+    const wt = join(caseDir, 'squad-prs', 'wt-pr-7');
+    expect(existsSync(wt)).toBe(true);
+    expect(r.stdout).toContain(`outputs in ${join(caseDir, 'squad-prs')}`);
+    git(work, 'worktree', 'remove', '--force', wt);
+    expect(git(work, 'worktree', 'list').split('\n')).toHaveLength(1);
+  }, SPAWN.timeout);
+
+  // --repo must name a git work tree: a plain folder exits 2 with a message before any gh call is made.
+  it('--repo pointing at a folder that is not a git work tree exits 2', async () => {
+    const caseDir = newCase();
+    const plain = join(caseDir, 'plain');
+    mkdirSync(plain, { recursive: true });
+    const r = await runPrs(caseDir, {}, ['--pr', '7', '--repo', plain]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/is not a git work tree/);
+  }, SPAWN.timeout);
+
+  // A comma in a changed path would split into two wrong paths in pack's --paths, so the file is left out with its
+  // own line. The run still ends with a table row, and the other files stay in the task.
+  it('a changed file with a comma in its name is left out of the task with a line, and the run still gives a row', async () => {
+    const caseDir = newCase();
+    git(work, 'checkout', '-q', '--detach', sha);
+    mkdirSync(join(work, 'src'), { recursive: true });
+    writeFileSync(join(work, 'src', 'a,b.ts'), 'export const b = 1;\n');
+    git(work, 'add', '-A');
+    commit(work, 'add a comma file');
+    const commaSha = git(work, 'rev-parse', 'HEAD');
+    git(work, 'push', '-q', '-f', 'origin', `${commaSha}:refs/pull/7/head`);
+    try {
+      const view = { number: 7, title: 'Change a', body: 'Closes #3', headRefOid: commaSha, baseRefName: 'main' };
+      // The gate asks gh for the head again, so that answer must move too, or the gate sees a stale head.
+      const gate = { mergeable: 'MERGEABLE', isDraft: false, headRefOid: commaSha };
+      const r = await runPrs(caseDir, { STUB_GH_OVERRIDE: JSON.stringify({
+        'pr view 7 --json number,title,body,headRefOid,baseRefName': view,
+        'pr view 7 --json mergeable,isDraft,headRefOid': gate,
+      }) });
+      expect(r.code, r.stderr || r.stdout).toBe(0);
+      expect(r.stdout).toContain('#7: src/a,b.ts left out of the review task (comma in the name)');
+      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| READY \| \$0\.0020 \|$/m);
+      const task = readFileSync(join(caseDir, 'squad-prs', `pr-7-${commaSha.slice(0, 12)}`, 'reviewer.task.md'), 'utf8');
+      expect(task).toContain('### src/a.ts');
+      expect(task).not.toContain('### src/a,b.ts');
+    } finally {
+      git(work, 'checkout', '-q', 'feature');
+      git(work, 'reset', '-q', '--hard', sha);
+      git(work, 'push', '-q', '-f', 'origin', `${sha}:refs/pull/7/head`);
+    }
   }, SPAWN.timeout);
 });

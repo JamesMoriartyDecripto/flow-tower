@@ -3,14 +3,14 @@
 // tested without git, gh or a model. The command line at the bottom runs them for each pull request. Importing this
 // file has no side effect. The steward never merges, approves, comments, pushes or marks a pull request ready.
 import { execFile, execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { lstatSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { argv, stderr, stdout } from 'node:process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.mjs';
 import { parseVerdict } from './gate.mjs';
+import { ledgerPath } from './ledger.mjs';
 
 const FLAGS = new Set(['--force', '--keep', '--dry-run']);
 
@@ -123,12 +123,20 @@ export function verdictSummary(text) {
 // the PR (head sha, base name) are checked first, since those values go into git arguments.
 const HERE = dirname(fileURLToPath(import.meta.url));
 const USAGE = 'usage: node tools/squad/prs.mjs [--pr 12,34] [--force] [--keep] [--dry-run] [--repo <path>]';
-const TMP = join(tmpdir(), 'squad-prs');
 const SHA = /^[0-9a-f]{40}$/;
 const BASE = /^[\w./-]+$/;
 const git = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8', maxBuffer: 50e6 });
 const gh = (cwd, ...a) => execFileSync('gh', a, { cwd, encoding: 'utf8', maxBuffer: 50e6 });
 const execFileP = promisify(execFile);
+
+// Outputs and worktrees live in a folder next to the ledger, not in a shared temp folder: the output names come from
+// public PR heads, and another user on the same machine could pre-place an approval in a shared folder and have the
+// steward skip the review. The folder is created private (0700) when it is missing.
+const stewardRoot = (env) => resolve(dirname(ledgerPath(env)), 'squad-prs');
+
+// lstat rather than existsSync: a symlink, even a dangling one, at the worktree path counts as taken, so git cannot
+// be led to write through it.
+const taken = (p) => { try { lstatSync(p); return true; } catch { return false; } };
 
 // Runs a child for its stdout and exit code. A failed run is a result, not a throw: the run's own failure words
 // (empty answer, truncated answer) are read from its stdout.
@@ -151,8 +159,8 @@ function view(repo, n) {
 }
 
 // Dry run: one line per PR, no fetch, no worktree, no model call.
-function dryLine(v) {
-  const dir = outputDir(TMP, v.number, v.headRefOid);
+function dryLine(root, v) {
+  const dir = outputDir(root, v.number, v.headRefOid);
   const tag = linkedIssue(v.body) ?? v.number;
   return `#${v.number} ${v.headRefOid.slice(0, 7)} base origin/${v.baseRefName} tag #${tag} -> ${dir} (${hasOut(dir) ? 'cached' : 'new'})`;
 }
@@ -185,7 +193,13 @@ async function pass(role, models, task, tag, wt, env) {
 // Packs both roles, then runs both passes at once. Returns the cost of every run's stdout, retries included.
 async function runPasses(repo, config, v, wt, dir, tag) {
   const base = `origin/${v.baseRefName}`;
-  const { paths, files } = changedFiles(git(wt, '-c', 'core.quotePath=false', 'diff', '-z', '--name-status', `${base}...HEAD`));
+  const changed = changedFiles(git(wt, '-c', 'core.quotePath=false', 'diff', '-z', '--name-status', `${base}...HEAD`));
+  // pack reads --paths and --files as comma lists, so a name with a comma would split into two wrong paths. Such a
+  // file is left out of the task and named on its own line; the run goes on.
+  const comma = (p) => p.includes(',');
+  for (const p of changed.paths.filter(comma)) stdout.write(`#${v.number}: ${p} left out of the review task (comma in the name)\n`);
+  const paths = changed.paths.filter((p) => !comma(p));
+  const files = changed.files.filter((f) => !comma(f));
   const brief = join(dir, 'brief.md');
   writeFileSync(brief, briefOf(repo, v));
   // pack drops every full file when the task is over --max-kb, so one big file would cost both passes their context.
@@ -209,17 +223,17 @@ async function runPasses(repo, config, v, wt, dir, tag) {
 
 // One PR in turn: worktree, passes (unless cached), gate, then the worktree is removed unless --keep.
 // Returns the table row and the gate's text, or null when the PR was skipped.
-async function steward(repo, config, v, opts) {
+async function steward(repo, config, v, opts, root) {
   const n = v.number;
-  const wt = resolve(repo, '..', `wt-pr-${n}`);
-  if (existsSync(wt)) { stdout.write(`#${n}: ${wt} already exists, skipped\n`); return null; }
+  const wt = join(root, `wt-pr-${n}`);
+  if (taken(wt)) { stdout.write(`#${n}: ${wt} already exists, skipped\n`); return null; }
   git(repo, 'fetch', 'origin', `pull/${n}/head`);
   git(repo, 'fetch', 'origin', v.baseRefName);
   git(repo, 'worktree', 'add', '--detach', wt, v.headRefOid);
   // The worktree must not outlive the run: a throw in a pass or the gate would otherwise leave it behind, and the
   // next run would skip this PR as "already exists". The removal is in finally, so it runs on failure too.
   try {
-    const dir = outputDir(TMP, n, v.headRefOid);
+    const dir = outputDir(root, n, v.headRefOid);
     mkdirSync(dir, { recursive: true });
     // A cached pass costs what its saved answers cost; a new pass is summed from its own runs.
     let cost;
@@ -252,19 +266,30 @@ async function steward(repo, config, v, opts) {
 async function main() {
   const opts = parseArgs(argv.slice(2));
   if (!opts) { stderr.write(`${USAGE}\n`); return 2; }
-  const repo = opts.repo ? resolve(opts.repo) : git(process.cwd(), 'rev-parse', '--show-toplevel').trim();
+  // The repo is the top of the work tree the --repo folder (or the current one) belongs to. Outside git, or for a
+  // folder that does not exist, the run stops here with its own message.
+  const cwd = opts.repo ? resolve(opts.repo) : process.cwd();
+  let repo;
+  try {
+    repo = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    stderr.write(`${cwd} is not a git work tree\n`);
+    return 2;
+  }
+  const root = stewardRoot(process.env);
   const config = loadConfig(repo);
   const numbers = opts.prs ?? JSON.parse(gh(repo, 'pr', 'list', '--state', 'open', '--json', 'number', '--limit', '50')).map((p) => p.number);
   const views = numbers.map((n) => view(repo, n));
   if (opts.dryRun) {
-    for (const v of views) stdout.write(`${dryLine(v)}\n`);
+    for (const v of views) stdout.write(`${dryLine(root, v)}\n`);
     return 0;
   }
+  mkdirSync(root, { recursive: true, mode: 0o700 });
   const rows = [];
   const blocks = [];
   for (const v of views) {
     try {
-      const r = await steward(repo, config, v, opts);
+      const r = await steward(repo, config, v, opts, root);
       if (!r) continue;
       rows.push(r.row);
       if (!r.ready) blocks.push(`#${v.number}\n${r.gate}`);
@@ -274,7 +299,7 @@ async function main() {
   }
   stdout.write(['| PR | head | review | security | gate | cost |', '|---|---|---|---|---|---|', ...rows].join('\n') + '\n');
   for (const b of blocks) stdout.write(`\n${b}`);
-  stdout.write(`outputs in ${TMP}\n`);
+  stdout.write(`outputs in ${root}\n`);
   return 0;
 }
 
