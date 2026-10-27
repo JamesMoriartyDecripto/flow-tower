@@ -166,9 +166,13 @@ It prints one table row per PR (head, both verdicts with findings by severity, t
 for each NOT READY one, and its folder: `squad-prs/` next to the cost ledger (the flow-tower user folder, mode 700), with one
 `pr-<n>-<head>/` per review (brief, packed tasks, `review.out`, `security.out`) and the worktrees. Changed files up to
 40 KB go in full into the tasks, bigger ones (a CHANGELOG) only through the diff, so one big file never pushes the others
-out; a file name with a comma is left out of the task, with a line saying so. A head that already has both outputs, each with a readable verdict, is not reviewed again unless `--force`, so a repeated
+out; a file name with a comma, a symlink or another non-regular file is left out of the task with a line saying so, and the
+brief lists it under `## Left out of this task` so both passes know the PR holds it. A head that already has both outputs, each with a readable verdict, is not reviewed again unless `--force`, so a repeated
 run costs nothing until a PR changes. The worktree is removed at the end, on failure too, unless `--keep`; an existing
-`wt-pr-<n>` (or a symlink there) is never touched (that PR is skipped).
+`wt-pr-<n>` (or a symlink there) is never touched (that PR is skipped). A PR whose fetched head differs from the head
+GitHub reports (a push seconds before) is skipped with `the PR moved, run again`, before any model call; a PR that `gh`
+cannot read gets its own error line and the others go on. Run one steward at a time: two at once would race for the same
+worktree name.
 
 It only reads and reviews: it never merges, approves, comments, pushes or marks a PR ready. The lead reads the
 report, checks every finding in the code, keeps or drops it with a reason, writes fix steps, and runs it again.
