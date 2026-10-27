@@ -430,6 +430,12 @@ layers:
         label: file_followup
         description: "Opens a GitHub issue (label squad:followup) for a part the maintainer moved out of scope at the plan sign-off, linked back to the issue. The lead only; never to defer work in scope."
         files: [src/tools/file-followup.ts]
+      - id: osv_scan
+        runtime: vps
+        type: tool
+        label: osv_scan
+        description: "Known advisories of one package version from OSV.dev: id, severity, and the fix of the range that holds that version. Read-only, with a timeout; an error result only when the query fails. The security auditor calls it for every dependency a diff adds or bumps: through the squad MCP in Claude sessions, as its own tool in the OpenRouter loop."
+        files: [src/tools/osv-scan.ts, src/openrouter-agent.ts]
       - id: github
         runtime: github
         type: tool
@@ -463,6 +469,7 @@ layers:
       - "squad_mcp -> open_pr [call]"
       - "squad_mcp -> request_approval [call]"
       - "squad_mcp -> file_followup [call]"
+      - "squad_mcp -> osv_scan [call]"
       - "file_followup -> github [data]: follow-up issue"
       - "open_pr -> github [data]: PR url"
 
@@ -477,8 +484,8 @@ layers:
         runtime: vps
         type: hook
         label: SessionStart
-        description: "Injects learned patterns and recent runs as additionalContext; re-injects after compaction. Lead and quick-fix sessions get the issue's area rules, evaluator sessions the global [*] ones."
-        files: [src/hooks/context-loader.ts]
+        description: "Injects learned patterns and recent runs as additionalContext in Claude sessions; re-injects after compaction. Sessions get the issue's area rules plus the global [*] ones. No hook runs in the OpenRouter loop, so run-agent puts the same pack at the end of those roles' system prompt."
+        files: [src/hooks/context-loader.ts, src/run-agent.ts]
       - id: prompt_submit
         runtime: vps
         type: hook
@@ -517,8 +524,8 @@ layers:
         runtime: vps
         type: hook
         label: PostToolUse
-        description: Prettier + ESLint --fix on every edited file; leftover problems return as additionalContext.
-        files: [src/hooks/format-lint.ts]
+        description: "Prettier + ESLint --fix on every edited file, with the project's own ESLint config; leftover problems return as additionalContext. ESLint's exit code tells problems (1) from a crash (2). The OpenRouter loop runs the same check after write_file and edit_file and appends the problems to the tool result."
+        files: [src/hooks/format-lint.ts, src/openrouter-agent.ts]
       - id: stop
         runtime: vps
         type: hook
@@ -558,7 +565,7 @@ layers:
         runtime: vps
         type: memory
         label: patterns.md
-        description: DO/DON'T rules promoted from repeated findings. Filtered by issue area before injection.
+        description: "DO/DON'T rules promoted from repeated findings, plus a few global ones (simplicity, comments, English). Filtered by issue area before injection; every role gets them, Claude sessions through SessionStart, OpenRouter roles through their system prompt."
         files: [memory/patterns.md, src/memory/store.ts]
       - id: session_log
         runtime: vps
@@ -625,7 +632,7 @@ layers:
           - { kind: doc, label: "Model list + prices", url: "https://openrouter.ai/api/v1/models" }
         type: tool
         label: OpenRouter
-        description: "An OpenAI-style tool loop over /chat/completions that reports cost per call and only uses providers that do not collect data. Read tools for every model; write and delete tools in src/, tests/ and e2e/ for the coder only. Command whitelist, secret-path deny list and a step cap."
+        description: "An OpenAI-style tool loop over /chat/completions with cost per call, on providers that do not collect data. No hook runs here: the memory pack closes the system prompt and each coder write is followed by the project's format + lint. Read tools for every model, write tools in src/, tests/, e2e/ for the coder, osv_scan for the auditor. Command whitelist, secret-path deny list, step cap."
         files: [src/openrouter-agent.ts, src/config.ts]
       - id: haiku_openrouter
         runtime: openrouter
@@ -689,11 +696,13 @@ links:
   - "specialists.tester -> tools.run_tests [call]: affected"
   - "specialists.tester -> tools.playwright [call]: e2e"
   - "quality.security -> tools.semgrep [call]: SAST"
+  - "quality.security -> tools.osv_scan [call]: new deps"
   # tools -> harness -> memory
   - "tools.builtin -> harness.pre_tool: every call"
   - "harness.session_start -> memory.context_pack [data]: inject"
   - "harness.stop -> memory.session_log [data]: append"
   - "memory.context_pack -> orchestration.lead [data]: context"
+  - "memory.context_pack -> models.openrouter [data]: system prompt"
   # models
   - "orchestration.lead -> models.policy [call]: role"
   - "intake.triage -> models.haiku [call]"
