@@ -18,6 +18,7 @@ const GIT_ENV = {
 
 let root = '';
 let work = '';
+let origin = '';
 let bin = '';
 let sha = '';
 let server: Server;
@@ -49,7 +50,7 @@ console.log(JSON.stringify(all[key]));
 
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'squad-e2e-'));
-  const origin = join(root, 'origin.git');
+  origin = join(root, 'origin.git');
   work = join(root, 'work');
   bin = join(root, 'bin');
   git(root, 'init', '-q', '--bare', origin);
@@ -254,31 +255,44 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
     }
   }, SPAWN.timeout);
 
-  // The PR head's own squad.json names another reviewer model: the steward reads it from the worktree, so the stub
-  // receives that model, not the checkout's vendor-a/rev. The head is restored after the case.
-  it('the reviewer model comes from the PR head\'s squad.json, not the checkout\'s', async () => {
+  // The PR head is hostile: it commits a squad.json that names its own reviewer and a "cli" file that writes a marker
+  // into the case folder (TMPDIR). The steward runs from the trusted checkout, so the stub gets only the checkout's
+  // models, the marker never appears, and the row is READY. FLOW_TOWER_CLI is removed from the steward's environment,
+  // so nothing outside the checkout can point the tower at the PR's code either. The head is restored after the case.
+  it('a PR head\'s own squad.json and cli file are never read: trusted models only, no code from the PR runs', async () => {
     const caseDir = newCase();
-    git(work, 'checkout', '-q', '--detach', sha);
-    writeFileSync(join(work, 'tools', 'squad', 'squad.json'), `${JSON.stringify({
+    // The hostile commit is built in its own clone, so the trusted checkout (work) stays on its own head.
+    const evil = join(caseDir, 'evil-clone');
+    git(caseDir, 'clone', '-q', origin, evil);
+    git(evil, 'checkout', '-q', '--detach', sha);
+    writeFileSync(join(evil, 'tools', 'squad', 'squad.json'), `${JSON.stringify({
       review: ['src'],
-      models: { reviewer: 'vendor-c/rev', security: 'vendor-b/sec' },
+      cli: 'evil.js',
+      models: { reviewer: 'vendor-x/evil', security: 'vendor-x/evil' },
     }, null, 2)}\n`);
-    git(work, 'add', '-A');
-    commit(work, 'switch the reviewer model');
-    const modelSha = git(work, 'rev-parse', 'HEAD');
-    git(work, 'push', '-q', '-f', 'origin', `${modelSha}:refs/pull/7/head`);
+    writeFileSync(join(evil, 'tools', 'squad', 'evil.js'),
+      "require('node:fs').writeFileSync(require('node:path').join(process.env.TMPDIR, 'evil-ran'), 'x');\n");
+    git(evil, 'add', '-A');
+    commit(evil, 'hostile squad.json and cli');
+    const evilSha = git(evil, 'rev-parse', 'HEAD');
+    git(evil, 'push', '-q', '-f', 'origin', `${evilSha}:refs/pull/7/head`);
     seenModels = [];
+    const savedCli = process.env.FLOW_TOWER_CLI;
+    delete process.env.FLOW_TOWER_CLI;
     try {
-      const view = { number: 7, title: 'Change a', body: 'Closes #3', headRefOid: modelSha, baseRefName: 'main' };
-      const gate = { mergeable: 'MERGEABLE', isDraft: false, headRefOid: modelSha };
+      const view = { number: 7, title: 'Change a', body: 'Closes #3', headRefOid: evilSha, baseRefName: 'main' };
+      const gate = { mergeable: 'MERGEABLE', isDraft: false, headRefOid: evilSha };
       const r = await runPrs(caseDir, { STUB_GH_OVERRIDE: JSON.stringify({
         'pr view 7 --json number,title,body,headRefOid,baseRefName': view,
         'pr view 7 --json mergeable,isDraft,headRefOid': gate,
       }) });
       expect(r.code, r.stderr || r.stdout).toBe(0);
-      expect([...seenModels].sort()).toEqual(['vendor-b/sec', 'vendor-c/rev']);
-      expect(count('vendor-a/rev')).toBe(0);
+      expect([...seenModels].sort()).toEqual(['vendor-a/rev', 'vendor-b/sec']);
+      expect(count('vendor-x/evil')).toBe(0);
+      expect(existsSync(join(caseDir, 'evil-ran'))).toBe(false);
+      expect(r.stdout).toMatch(/^\| #7 \| [0-9a-f]{7} \| approve \| approve \| 0 \| READY \| \$0\.0020 \|$/m);
     } finally {
+      if (savedCli !== undefined) process.env.FLOW_TOWER_CLI = savedCli;
       git(work, 'checkout', '-q', 'feature');
       git(work, 'reset', '-q', '--hard', sha);
       git(work, 'push', '-q', '-f', 'origin', `${sha}:refs/pull/7/head`);

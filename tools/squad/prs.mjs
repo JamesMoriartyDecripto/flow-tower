@@ -208,12 +208,15 @@ const leftSection = (left) => (left.length
   : '');
 
 // Runs one pass, moving to the next attempt only on an empty or a cut answer. The last stdout is the answer.
-async function pass(role, models, task, tag, wt, env) {
+// The pass runs from the trusted checkout (repo), never from the PR worktree: run.mjs reads "cli" from the squad.json of
+// the folder it runs in, and ev.sh then runs that file with node on every event. A PR must not pick the code that runs
+// on this machine, or its own reviewers. The task already holds the code (--oneshot), so the worktree is not needed.
+async function pass(role, models, task, tag, repo, env) {
   const outs = [];
   let last = { code: 1, stdout: '' };
   for (const model of attemptModels(role, models)) {
     last = await runAsync('node', [join(HERE, 'run.mjs'), '--model', model, '--role', role, '--node', `specialists.${role}`,
-      '--task', task, '--issue', tag, '--repo', wt], env);
+      '--task', task, '--issue', tag, '--repo', repo], env);
     outs.push(last.stdout);
     const o = passOutcome(last.code, last.stdout);
     if (o !== 'empty' && o !== 'truncated') break;
@@ -265,7 +268,7 @@ async function runPasses(repo, config, v, wt, dir, tag) {
   }
   const env = { ...process.env, SQUAD_PACE: process.env.SQUAD_PACE ?? 'relaxed' };
   const [rev, sec] = await Promise.all(roles.map((role) =>
-    pass(role, config.models, join(dir, `${role}.task.md`), tag, wt, env)));
+    pass(role, config.models, join(dir, `${role}.task.md`), tag, repo, env)));
   writeFileSync(join(dir, 'review.out'), rev.at(-1));
   writeFileSync(join(dir, 'security.out'), sec.at(-1));
   return [...rev, ...sec].reduce((sum, o) => sum + costOf(o), 0);
@@ -273,7 +276,7 @@ async function runPasses(repo, config, v, wt, dir, tag) {
 
 // One PR in turn: worktree, passes (unless cached), gate, then the worktree is removed unless --keep.
 // Returns the table row and the gate's text, or null when the PR was skipped.
-async function steward(repo, v, opts, root) {
+async function steward(repo, v, opts, root, config) {
   const n = v.number;
   const wt = join(root, `wt-pr-${n}`);
   if (taken(wt)) { stdout.write(`#${n}: ${wt} already exists, skipped\n`); return null; }
@@ -295,9 +298,6 @@ async function steward(repo, v, opts, root) {
   // The worktree must not outlive the run: a throw in a pass or the gate would otherwise leave it behind, and the
   // next run would skip this PR as "already exists". The removal is in finally, so it runs on failure too.
   try {
-    // The models come from the PR head's own squad.json: a PR that changes the models is reviewed with its own
-    // choice, as the README rule says, not with the checkout's. Loaded here, so a bad file also removes the worktree.
-    const config = loadConfig(wt);
     mkdirSync(dir, { recursive: true });
     // A cached pass costs what its saved answers cost; a new pass is summed from its own runs.
     let cost;
@@ -361,12 +361,15 @@ async function main() {
     for (const v of views) stdout.write(`${dryLine(root, v)}\n`);
     return 0;
   }
+  // The models come from the trusted checkout, loaded once: a PR's own squad.json must not pick its reviewers (the
+  // PR is untrusted input to the steward). A bad file stops the run here, before any worktree exists.
+  const config = loadConfig(repo);
   mkdirSync(root, { recursive: true, mode: 0o700 });
   const rows = [];
   const blocks = [];
   for (const v of views) {
     try {
-      const r = await steward(repo, v, opts, root);
+      const r = await steward(repo, v, opts, root, config);
       if (!r) continue;
       rows.push(r.row);
       // The gate's text is printed for a PR that is not ready, and for a ready one with unverified findings, since
