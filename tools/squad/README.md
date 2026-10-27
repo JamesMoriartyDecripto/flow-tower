@@ -146,6 +146,31 @@ Nobody acts on one before checking it in the code. Below high it does not block,
 good change. A critical or high one blocks even unverified: check it, and if it is not real, run the pass again (a
 made-up finding rarely comes back).
 
+## The PR steward
+
+One local command reviews and gates the open pull requests: the sequence of the two sections above, for each one.
+
+```bash
+node tools/squad/prs.mjs                 # every open pull request
+node tools/squad/prs.mjs --pr 300,301    # only these
+node tools/squad/prs.mjs --dry-run       # what it would do: head, base, issue tag, output folder, cached or new
+```
+
+For each pull request it fetches the head (`pull/<n>/head`) and the base, adds a detached worktree `../wt-pr-<n>`, packs
+the review and the security task against the PR's own base (stacked PRs too) with the PR text and the issue it closes
+(`Closes #n`) as brief, runs both passes at once (`SQUAD_PACE` from the environment, else `relaxed`), and runs the gate.
+An empty or cut answer is run once more; a second failure of the security model sends the security brief to the reviewer
+model (§ Pace). The runs are tagged with the linked issue, else the PR number, so `cost.mjs` sums them.
+
+It prints one table row per PR (head, both verdicts with findings by severity, the gate, the cost), the gate's reasons
+for each NOT READY one, and the output folder (`squad-prs/pr-<n>-<head>` under the temp folder: brief, packed tasks,
+`review.out`, `security.out`). A head that already has both outputs is not reviewed again unless `--force`, so a repeated
+run costs nothing until a PR changes. The worktree is removed at the end, on failure too, unless `--keep`; an existing
+`../wt-pr-<n>` is never touched (that PR is skipped).
+
+It only reads and reviews: it never merges, approves, comments, pushes or marks a PR ready. The lead reads the
+report, checks every finding in the code, keeps or drops it with a reason, writes fix steps, and runs it again.
+
 ## Pace: how fast versus how cheap
 
 The maintainer sets the pace; the lead picks the review mode from it. The coder always runs the tool loop: it reads,

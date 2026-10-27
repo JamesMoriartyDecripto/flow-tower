@@ -127,17 +127,19 @@ layers:
         type: entry
         label: Open PRs
         description: "The open pull requests (gh pr list), or the ones named with --pr."
+        files: [prs.mjs]
       - id: worktree
         type: process
         runtime: laptop
         label: Worktree at head
         description: "A detached worktree at each PR head; the base is the PR's own (stacked PRs too); the brief is the PR text plus the issue it closes. A head that already has both pass outputs is skipped unless --force."
+        files: [prs.mjs]
       - id: passes
         type: process
         runtime: laptop
         label: Review + security
         description: "pack.mjs and run.mjs for both roles at once, at the squad.json pace. An empty or cut answer runs once more; a second failure of the security model sends the security brief to the reviewer model."
-        files: [pack.mjs, run.mjs]
+        files: [prs.mjs, pack.mjs, run.mjs]
       - id: pr_gate
         type: guard
         runtime: laptop
@@ -149,6 +151,7 @@ layers:
         runtime: laptop
         label: Report
         description: "A summary table (PR, head, verdicts, findings by severity, unverified quotes, gate, cost) and the paths of the pass outputs. The worktrees are removed unless --keep."
+        files: [prs.mjs]
     edges:
       - open_prs -> worktree
       - worktree -> passes
