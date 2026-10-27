@@ -23,6 +23,13 @@ describe('parseArgs', () => {
   it('gives prs null when --pr is absent', () => {
     expect(parseArgs([])).toMatchObject({ prs: null, force: false, keep: false, dryRun: false });
   });
+
+  // Each PR costs two model passes, so --pr is capped at the 50 the gh list also takes.
+  it('refuses more than 50 PR numbers in --pr', () => {
+    const fifty = Array.from({ length: 50 }, (_, i) => i + 1);
+    expect(parseArgs(['--pr', fifty.join(',')])).toMatchObject({ prs: fifty });
+    expect(parseArgs(['--pr', [...fifty, 51].join(',')])).toBeNull();
+  });
 });
 
 describe('linkedIssue', () => {
