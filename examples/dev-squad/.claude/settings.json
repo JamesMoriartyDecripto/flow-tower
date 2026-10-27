@@ -64,6 +64,10 @@
       {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts format-lint", "timeout": 60 }]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{ "type": "command", "command": "npx tsx \"$CLAUDE_PROJECT_DIR\"/src/hooks/cli.ts dep-audit", "timeout": 30 }]
       }
     ],
     "Stop": [

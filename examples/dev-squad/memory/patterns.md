@@ -17,6 +17,9 @@ SessionStart hook (filtered by the issue's areas). One rule per line:
 - DONT [*] Add abstractions, wrappers or generic helpers without evidence of reuse in the current issue (YAGNI)
 - DO [*] Use English only: identifiers, comments, commit messages, docs, error strings
 - DONT [*] Mix languages or leave Italian / non-English text in code or comments
+- DONT [*] Add or update dependencies without a green npm audit (moderate+ blocks)
+- DONT [*] Pin wildcard versions (^, ~, latest) in package.json: exact versions in package-lock.json only
+- DO [*] Query OSV.dev for every new dependency before the security audit completes
 
 ## API
 - DO [api,auth] Check authorization on every new route, not only authentication (#277)
