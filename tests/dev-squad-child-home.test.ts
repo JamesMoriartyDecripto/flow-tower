@@ -2,7 +2,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { childEnv, scratchHome } from '../examples/dev-squad/src/child-env.ts';
+import { childEnv, removeScratchHomes, scratchHome } from '../examples/dev-squad/src/child-env.ts';
 
 describe('scratchHome', () => {
   it('returns the same empty folder under the OS temp dir on every call', () => {
@@ -31,5 +31,15 @@ describe('scratchHome', () => {
     expect(w2).not.toBe(w1);
     expect(statSync(join(w1, '.config')).isDirectory()).toBe(true);
     expect(statSync(join(w2, '.config')).isDirectory()).toBe(true);
+  });
+
+  it('removeScratchHomes deletes the folders, and a new call makes a different one', () => {
+    const old = scratchHome('/w3');
+    removeScratchHomes();
+    expect(existsSync(old)).toBe(false);
+    const fresh = scratchHome('/w3');
+    expect(fresh).not.toBe(old);
+    expect(statSync(fresh).isDirectory()).toBe(true);
+    removeScratchHomes();
   });
 });

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -15,6 +15,16 @@ const ALLOWED_ENV = ['PATH', 'LANG', 'TERM', 'TZ', 'TMPDIR', 'TMP', 'TEMP', 'CI'
 // HOME would let one issue's code plant ~/.npmrc for the other's children.
 const scratchHomes = new Map<string, string>();
 
+// Registered once, on the first scratchHome call. A long-running container would otherwise keep one
+// temp folder per worktree forever, each holding whatever caches the children wrote.
+let exitHookRegistered = false;
+
+/** Removes every scratch HOME created so far and forgets them; the next scratchHome call makes new ones. */
+export function removeScratchHomes(): void {
+  for (const home of scratchHomes.values()) rmSync(home, { recursive: true, force: true });
+  scratchHomes.clear();
+}
+
 /**
  * An empty folder that stands in for the user's home for the child processes of one worktree. Dropping
  * the secrets is not enough: the same code can read ~/.npmrc, ~/.gitconfig or cloud credentials under
@@ -22,6 +32,10 @@ const scratchHomes = new Map<string, string>();
  * assume they exist do not fail.
  */
 export function scratchHome(key: string): string {
+  if (!exitHookRegistered) {
+    exitHookRegistered = true;
+    process.once('exit', removeScratchHomes);
+  }
   let home = scratchHomes.get(key);
   if (home === undefined) {
     home = mkdtempSync(join(tmpdir(), 'dev-squad-home-'));
