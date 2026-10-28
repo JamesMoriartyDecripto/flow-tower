@@ -3,7 +3,7 @@ import { SECRET_ENV, childEnv } from '../examples/dev-squad/src/child-env.ts';
 
 describe('childEnv', () => {
   it('keeps PATH, drops both secrets, and points HOME at the scratch folder', () => {
-    const env = childEnv({ PATH: '/bin', OPENROUTER_API_KEY: 'k', GITHUB_TOKEN: 't', HOME: '/h' }, '/scratch');
+    const env = childEnv({ PATH: '/bin', OPENROUTER_API_KEY: 'k', GITHUB_TOKEN: 't', AWS_SECRET_ACCESS_KEY: 'x', SSH_AUTH_SOCK: '/s', HOME: '/h' }, '/scratch');
     expect(env).toEqual({
       PATH: '/bin',
       HOME: '/scratch',
@@ -16,14 +16,14 @@ describe('childEnv', () => {
 
   it('drops every name in SECRET_ENV', () => {
     const base = Object.fromEntries([...SECRET_ENV, 'PATH'].map((k) => [k, 'x']));
-    const env = childEnv(base);
+    const env = childEnv(base, '/scratch');
     for (const key of SECRET_ENV) expect(env).not.toHaveProperty(key);
     expect(env.PATH).toBe('x');
   });
 
   it('does not modify the input object', () => {
     const base = { PATH: '/bin', OPENROUTER_API_KEY: 'k' };
-    childEnv(base);
+    childEnv(base, '/scratch');
     expect(base).toEqual({ PATH: '/bin', OPENROUTER_API_KEY: 'k' });
   });
 });
