@@ -2,6 +2,7 @@ import type { HookCallback, HookEvent, HookCallbackMatcher, PreToolUseHookInput 
 import { bashGuard } from './bash-guard';
 import { changelogGate } from './changelog-gate';
 import { contextLoader } from './context-loader';
+import { insideWorktree } from './fence';
 import { formatLint } from './format-lint';
 import { secretScanPrompt, secretScanWrite } from './secret-scan';
 
@@ -9,7 +10,7 @@ import { secretScanPrompt, secretScanWrite } from './secret-scan';
 function worktreeFence(worktree: string): HookCallback {
   return async (input) => {
     const path = String(((input as PreToolUseHookInput).tool_input as { file_path?: string }).file_path ?? '');
-    if (!path || path.startsWith(`${worktree}/`)) return {};
+    if (!path || insideWorktree(worktree, path)) return {};
     console.log(`[hook] PreToolUse fence deny ${path} (outside ${worktree})`);
     return {
       hookSpecificOutput: {
