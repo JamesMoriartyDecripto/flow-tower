@@ -76,7 +76,9 @@ checks, the formatter) run code the coder wrote, so they get only an allowlisted
 folders, `NODE_ENV`...: no key or token the host exports) and a scratch HOME per worktree (`src/child-env.ts`, #317), so
 tools that read `~` find no credentials. The real home is still readable by an absolute path: the isolation that holds
 is the container (`deploy/`), which is where the sample runs. The SDK harness fences every write to the issue worktree
-on the real path, symlinks followed (`src/hooks/fence.ts`), and denies a write call that names no path.
+on the real path, symlinks followed (`src/hooks/fence.ts`): it refuses any `..` segment, a dangling link and a write call
+that names no path, and the OpenRouter loop's write tools use the same test. It checks before the tool runs, so a link
+swapped in between could still be followed: the container stays the boundary.
 
 ## Operational fields used
 
