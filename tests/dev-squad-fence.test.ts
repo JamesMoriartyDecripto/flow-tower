@@ -11,7 +11,7 @@ describe('insideWorktree', () => {
 
   it('allows paths that resolve inside the worktree', () => {
     expect(insideWorktree(w, `${w}/src/a.ts`)).toBe(true);
-    expect(insideWorktree(w, `${w}/src/../tests/b.ts`)).toBe(true);
+    expect(insideWorktree(w, `${w}/src/../tests/b.ts`)).toBe(false);
     expect(insideWorktree(w, 'src/a.ts')).toBe(true);
   });
 
@@ -63,5 +63,14 @@ describe('insideWorktree on real folders', () => {
 
   it('denies the parent segment itself', () => {
     expect(insideWorktree(worktree, '..')).toBe(false);
+  });
+
+  it('denies a parent segment after a link, even though it normalizes inside', () => {
+    // A raw string: join() would collapse the `..` before the function sees it.
+    expect(insideWorktree(worktree, `${worktree}/src/link/../x.ts`)).toBe(false);
+  });
+
+  it('allows a name that contains .. inside it', () => {
+    expect(insideWorktree(worktree, join(worktree, 'src', 'a..b.ts'))).toBe(true);
   });
 });

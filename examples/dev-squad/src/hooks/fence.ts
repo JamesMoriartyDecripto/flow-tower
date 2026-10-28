@@ -48,9 +48,12 @@ function realTarget(path: string): string {
  * The lexical test alone is not enough: a symlink such as `src/link -> /etc` passes it while the kernel
  * follows it on write, so the real paths of the worktree and of the target must also be inside.
  * A worktree that does not exist gives false (fail closed).
+ * A raw `..` segment is refused before any resolution: the kernel resolves `..` after following links,
+ * so `src/link/../x.ts` (link -> /etc) looks inside once normalized but writes outside. No write needs `..`.
  * Lives apart from hooks/index.ts so tests can load it without the Agent SDK.
  */
 export function insideWorktree(worktree: string, path: string): boolean {
+  if (path.split(/[\\/]/).includes('..')) return false;
   if (!lexicalInside(worktree, path)) return false;
   try {
     const root = realpathSync(worktree);

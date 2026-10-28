@@ -70,6 +70,8 @@ function emit(event: Record<string, unknown>) {
 
 /** Resolves a model-supplied path inside the worktree, or throws. */
 function safePath(cwd: string, path: string, write = false): string {
+  // Refused on the raw text: resolving first would collapse `..` before a link under it is followed.
+  if (path.split(/[\\/]/).includes('..')) throw new Error(`path denied: ${path}`);
   const abs = resolve(cwd, path);
   const rel = relative(cwd, abs);
   // The lexical checks miss a symlink such as src/link -> /etc: insideWorktree follows the real path.
