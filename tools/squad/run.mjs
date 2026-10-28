@@ -5,7 +5,7 @@
 // The key is loaded from the user's key file into this process only; it is never printed.
 // Each run ends with one line in the local cost ledger (ledger.mjs, #156), finished or failed alike.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, writeFileSync, appendFileSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
@@ -33,6 +33,11 @@ const REPO = resolve(arg('repo') ?? execFileSync('git', ['rev-parse', '--show-to
 // The repo's own settings (tools/squad/squad.json): a bad file stops the run before anything is run or sent.
 let config;
 try { config = loadConfig(REPO); } catch (e) { console.error(e.message); exit(1); }
+// squad.json "cli" is a path that runs as node on every live event, so it is trusted only in this runner's own checkout (#324).
+// A --repo pointed at someone else's worktree could otherwise pick the code that runs here. Compared by real path.
+const CHECKOUT = resolve(HERE, '..', '..');
+const sameCheckout = (() => { try { return realpathSync(CHECKOUT) === realpathSync(REPO); } catch { return false; } })();
+if (config.cli && !sameCheckout) console.error(`squad.json "cli" ignored: ${REPO} is not this runner's checkout (#324)`);
 // The live-events helper is a sibling of this script, so a checkout carries its own copy, wherever it sits.
 const EV = join(HERE, 'ev.sh');
 // The issue is taken from --issue, else from the branch name; a detached or unreadable HEAD gives no branch.
@@ -81,7 +86,9 @@ const log = join(HERE, `${role}-${Date.now()}.log`);
 // squad.json no longer names the checkout (machine-local, #265): init writes its path to .cli, git-ignored beside this script.
 // A squad.json that still has "cli" keeps working, and wins.
 const CLI_FILE = join(HERE, '.cli');
-const cliPath = config.cli || (existsSync(CLI_FILE) ? readFileSync(CLI_FILE, 'utf8').trim() : '');
+// A relative path resolves against the runner's checkout, never against --repo.
+const cliRaw = (sameCheckout && config.cli) || (existsSync(CLI_FILE) ? readFileSync(CLI_FILE, 'utf8').trim() : '');
+const cliPath = cliRaw ? resolve(CHECKOUT, cliRaw) : '';
 const note = (s) => appendFileSync(log, `${s}\n`);
 // Run through sh so the helper needs no executable bit, and drop undefined arguments (a missing --node).
 // The helper finds the tower from its environment (ev.sh): the project's cli, tower and source go in unless the user
@@ -89,7 +96,7 @@ const note = (s) => appendFileSync(log, `${s}\n`);
 const { OPENROUTER_API_KEY: _key, ...evEnv } = env;
 const evChildEnv = {
   ...evEnv,
-  ...(cliPath && !env.FLOW_TOWER_CLI && { FLOW_TOWER_CLI: resolve(REPO, cliPath) }),
+  ...(cliPath && !env.FLOW_TOWER_CLI && { FLOW_TOWER_CLI: cliPath }),
   ...(!env.SQUAD_TOWER && { SQUAD_TOWER: config.tower }),
   ...(!env.SQUAD_SOURCE && { SQUAD_SOURCE: config.source }),
 };
@@ -140,7 +147,7 @@ const RUNS = {
   // The dirs a task may touch (--write) are the ones worth reviewing: a reviewer of tools/ would see nothing otherwise.
   diff: () => cap(git('diff', config.base, '--', ...dirs)),
   status: () => git('status', '--short'),
-  ...(config.extras.includes('validate') && { validate: (f) => sh('node', [resolve(REPO, cliPath), 'validate', f ? readRel(f).rel : 'examples', '--json']) }),
+  ...(config.extras.includes('validate') && { validate: (f) => sh('node', [cliPath, 'validate', f ? readRel(f).rel : 'examples', '--json']) }),
   // An example script in dry-run mode (the coder could not verify scripts/*.mjs otherwise, #75). The key is
   // removed from the child environment, so nothing paid can run whatever the script does.
   ...(config.extras.includes('dryrun') && { dryrun: (f) => {

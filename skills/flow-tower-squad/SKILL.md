@@ -79,8 +79,9 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
     short to prove anything): treat them as possible hallucinations and check them in the code before acting. An
     unverified critical or high one still blocks: if it is not real, run that pass again. The gate never merges or
     approves: on READY, tell the user; the user merges.
-    **Someone else's pull request**: never pass its worktree as `run.mjs --repo` (run.mjs reads `cli` from there and
-    runs it for the live events): use the steward, or `--repo` of your own checkout with the task packed from the PR.
+    **Someone else's pull request**: use the steward, or `--repo` of your own checkout with the task packed from the
+    PR. `run.mjs` ignores the `cli` of a `--repo` it does not live in (`squad.json "cli" ignored`, #324), so live events
+    never run a PR's code; but a `--loop` pass there would still run that repo's `check`, so never `--loop` on it.
     **Several open pull requests**: `node tools/squad/prs.mjs` (README § The PR steward) runs pack, both passes with
     the fallback rule and the gate for each one and prints one row per PR; you still check every finding in the code.
 11. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.
