@@ -6,8 +6,8 @@ Label a GitHub issue `squad:go` and Dev Squad triages it, plans, researches, cod
 tests, reviews, verifies and opens a **draft** pull request. A human merges.
 
 This is the flagship flow-tower example: it is meant to be read, not run. To run a dev squad on your own
-project, use the kit instead: `flow-tower squad init <project>` (the same coder, reviewer and security models,
-your coding agent as the lead; [tools/squad](../../tools/squad/README.md)).
+project, use the kit instead: `flow-tower squad init <project>` (a coder, a reviewer and a security auditor from three
+families, measured on the kit's own runner, with your coding agent as the lead; [tools/squad](../../tools/squad/README.md)).
 
 ## Open it
 
@@ -58,6 +58,10 @@ of the flow-tower repo: coder round 1, 50 steps, $0.13, 231 tests green; reviewe
 blocking bug found; security auditor 9 steps, $0.06. The coder moved from DeepSeek to Haiku after the
 2026-10-11 benchmark and field trial: about a third of the steps and of the cost on a real task. Full GLM 5.3 was tried first as the reviewer: it
 reasoned 1-2.5 min per step and timed out at step 9 ($0.24), so the squad uses its FlashX variant.
+
+This sample still runs FlashX in a tool loop. The squad kit (`tools/squad`) moved its reviewer to `z-ai/glm-5.3-flash`
+in one request in #322: measured on the kit's own runner, the cheap reviewers in a loop answered prose instead of the
+verdict on clean diffs. Bringing that to this sample is #328.
 
 The OpenRouter roles run in `src/openrouter-agent.ts`, an OpenAI-style tool loop (sample code: the
 real runner is session tooling outside this repo). Claude Code hooks do not run there, so the fences

@@ -5,11 +5,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
-### Security
-- Dev squad example (#317): the SDK harness's worktree fence was a string prefix test, so a write to `<worktree>/../../x` passed it. It now checks the real path, with symlinks followed (`src/hooks/fence.ts`), refuses `..` segments and dangling links, checks every path field and denies a write call with no path (`NotebookEdit`'s `notebook_path` was never fenced); the OpenRouter loop's write tools use the same test. The children that run the coder's code (tests, checks, the formatter) get an allowlisted environment instead of the parent's minus five keys, so no other exported credential reaches them, and a scratch HOME per worktree, so tools that read `~` find no credentials; tsc, vitest, git, prettier, eslint and npm were checked to work that way. The real home stays readable by an absolute path: the container is the isolation.
-
-### Security
-- Squad (#324): `run.mjs` no longer runs a CLI named by a `--repo` it does not live in. The live events and the `validate` extra took `cli` from the `--repo`'s squad.json, so pointing the runner at someone else's worktree by hand ran code that worktree chose; the PR steward already avoided it. The `cli` of any other checkout is now ignored, with a line on stderr, and the runner's own `.cli`, `FLOW_TOWER_CLI` or PATH is used.
+## [0.14.0] - 2026-10-28
 
 ### Added
 - Squad: a local PR steward (#319). `node tools/squad/prs.mjs [--pr n,m] [--force] [--keep] [--dry-run]` reviews and gates the open pull requests: a detached worktree at each head, review and security packed against the PR's own base with the PR text and its linked issue as brief, both passes at once with the fallback rule (an empty or cut answer runs once more, then the security brief goes to the reviewer model), the merge gate, and one summary row per PR with verdicts, findings by severity, gate and cost. A head already reviewed is skipped unless `--force`; worktrees are removed, on failure too. It never merges, approves, comments or pushes. The squad tower has a PR steward layer.
@@ -30,6 +26,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Squad: a `--oneshot` or `--batch` answer cut short (`finish_reason` not `stop`) passed as a normal run and was recorded as `finish`; it now fails with `truncated answer` and the ledger outcome `truncated-answer` (#316).
 - Dev squad example: the PostToolUse format-lint hook asked ESLint for the `unix` formatter, which ESLint 9 removed, so it never reported a lint problem (#315).
 - Tower card: a long tower name is shown whole, wrapped on more lines, instead of cut with an ellipsis; the reduce toggle stays on its first line (#301).
+
+### Security
+- Squad (#324): `run.mjs` no longer runs a CLI named by a `--repo` it does not live in. The live events and the `validate` extra took `cli` from the `--repo`'s squad.json, so pointing the runner at someone else's worktree by hand ran code that worktree chose; the PR steward already avoided it. The `cli` of any other checkout is now ignored, with a line on stderr, and the runner's own `.cli`, `FLOW_TOWER_CLI` or PATH is used.
+- Dev squad example (#317): the SDK harness's worktree fence was a string prefix test, so a write to `<worktree>/../../x` passed it. It now checks the real path, with symlinks followed (`src/hooks/fence.ts`), refuses `..` segments and dangling links, checks every path field and denies a write call with no path (`NotebookEdit`'s `notebook_path` was never fenced); the OpenRouter loop's write tools use the same test. The children that run the coder's code (tests, checks, the formatter) get an allowlisted environment instead of the parent's minus five keys, so no other exported credential reaches them, and a scratch HOME per worktree, so tools that read `~` find no credentials; tsc, vitest, git, prettier, eslint and npm were checked to work that way. The real home stays readable by an absolute path: the container is the isolation.
 
 ## [0.13.0] - 2026-10-23
 
@@ -484,7 +484,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.10.0...v0.11.0
