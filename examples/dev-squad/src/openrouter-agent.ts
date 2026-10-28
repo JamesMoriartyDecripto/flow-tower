@@ -5,9 +5,10 @@ import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import { env } from 'node:process';
 import { promisify } from 'node:util';
 import type { AgentRun } from './run-agent';
-import { childEnv } from './child-env';
+import { childEnv, scratchHome } from './child-env';
 import { formatAndLint } from './format-and-lint';
 import { queryOsv } from './tools/osv';
+import { insideWorktree } from './hooks/fence';
 
 const sh = promisify(execFile);
 const API = 'https://openrouter.ai/api/v1/chat/completions';
@@ -69,16 +70,19 @@ function emit(event: Record<string, unknown>) {
 
 /** Resolves a model-supplied path inside the worktree, or throws. */
 function safePath(cwd: string, path: string, write = false): string {
+  // Refused on the raw text: resolving first would collapse `..` before a link under it is followed.
+  if (path.split(/[\\/]/).includes('..')) throw new Error(`path denied: ${path}`);
   const abs = resolve(cwd, path);
   const rel = relative(cwd, abs);
-  if (!rel || rel.startsWith('..') || isAbsolute(rel) || SECRET.test(rel) || SECRET.test(path)) throw new Error(`path denied: ${path}`);
+  // The lexical checks miss a symlink such as src/link -> /etc: insideWorktree follows the real path.
+  if (!rel || rel.startsWith('..') || isAbsolute(rel) || SECRET.test(rel) || SECRET.test(path) || !insideWorktree(cwd, abs)) throw new Error(`path denied: ${path}`);
   if (write && !WRITABLE.test(rel)) throw new Error(`write denied outside src/, tests/, e2e/: ${rel}`);
   return abs;
 }
 
 async function exec(cwd: string, [cmd, args]: [string, string[]]) {
   // The coder's code runs in these children, so they get no secrets (see child-env.ts).
-  const r = await sh(cmd, args, { cwd, timeout: 300_000, maxBuffer: 8 << 20, env: childEnv() }).catch((e) => ({ stdout: e.stdout ?? '', stderr: e.stderr ?? e.message }));
+  const r = await sh(cmd, args, { cwd, timeout: 300_000, maxBuffer: 8 << 20, env: childEnv(process.env, scratchHome(cwd)) }).catch((e) => ({ stdout: e.stdout ?? '', stderr: e.stderr ?? e.message }));
   return `${r.stdout}${r.stderr}`;
 }
 

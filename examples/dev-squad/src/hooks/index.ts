@@ -2,14 +2,31 @@ import type { HookCallback, HookEvent, HookCallbackMatcher, PreToolUseHookInput 
 import { bashGuard } from './bash-guard';
 import { changelogGate } from './changelog-gate';
 import { contextLoader } from './context-loader';
+import { insideWorktree } from './fence';
 import { formatLint } from './format-lint';
 import { secretScanPrompt, secretScanWrite } from './secret-scan';
 
-/** Edits must stay inside the issue worktree, whatever path the model invents. */
+/**
+ * Edits must stay inside the issue worktree, whatever path the model invents.
+ * Every path field is checked: a call may carry both `file_path` and `notebook_path`, and checking only
+ * one would let the other write escape. A call with no path is denied because the fence cannot prove where it writes.
+ */
 function worktreeFence(worktree: string): HookCallback {
   return async (input) => {
-    const path = String(((input as PreToolUseHookInput).tool_input as { file_path?: string }).file_path ?? '');
-    if (!path || path.startsWith(`${worktree}/`)) return {};
+    const toolInput = (input as PreToolUseHookInput).tool_input as { file_path?: unknown; notebook_path?: unknown };
+    const paths = [toolInput.file_path, toolInput.notebook_path].filter((p): p is string => typeof p === 'string');
+    const path = paths.find((p) => !insideWorktree(worktree, p)) ?? paths[0] ?? '';
+    if (paths.length > 0 && paths.every((p) => insideWorktree(worktree, p))) return {};
+    if (paths.length === 0) {
+      console.log(`[hook] PreToolUse fence deny: no file path (outside ${worktree})`);
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse' as const,
+          permissionDecision: 'deny' as const,
+          permissionDecisionReason: `Writes are limited to ${worktree}: no file path in the tool input.`,
+        },
+      };
+    }
     console.log(`[hook] PreToolUse fence deny ${path} (outside ${worktree})`);
     return {
       hookSpecificOutput: {
