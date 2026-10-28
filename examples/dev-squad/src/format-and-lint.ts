@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
-import { childEnv } from './child-env';
+import { childEnv, scratchHome } from './child-env';
 
 // Kept out of hooks/format-lint.ts, which imports the Agent SDK types: the repo's tests import this module
 // without the SDK installed, and the OpenRouter loop shares it without depending on the hook file.
@@ -28,7 +28,7 @@ export async function formatAndLint(
   run: Run = execFileAsync,
 ): Promise<string> {
   // Prettier loads a config found next to the file, so the child must not see the secrets.
-  const opts = { cwd, signal, timeout: 30_000, env: childEnv() };
+  const opts = { cwd, signal, timeout: 30_000, env: childEnv(process.env, scratchHome(cwd)) };
   // Absolute path so a value like `--config=src/x.js` is never read as an option
   // by prettier or eslint. The check must not depend on the caller passing one.
   const path = resolve(cwd, file);

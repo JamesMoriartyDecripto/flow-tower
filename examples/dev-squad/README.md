@@ -72,7 +72,13 @@ What the hooks give Claude sessions is done in the loop too: the memory pack (`c
 the system prompt, so these providers see those lessons as well as the code under review (OpenRouter's
 `data_collection: deny` applies to both); the coder's writes go through the project's Prettier + ESLint
 (`src/format-and-lint.ts`) with paths relative to the worktree; the security auditor gets `osv_scan`. The loop's child processes (tests,
-checks, the formatter) run code the coder wrote, so they get no keys (`src/child-env.ts`).
+checks, the formatter) run code the coder wrote, so they get only an allowlisted environment (PATH, locale, temp
+folders, `NODE_ENV`...: no key or token the host exports) and a scratch HOME per worktree (`src/child-env.ts`, #317), so
+tools that read `~` find no credentials. The real home is still readable by an absolute path: the isolation that holds
+is the container (`deploy/`), which is where the sample runs. The SDK harness fences every write to the issue worktree
+on the real path, symlinks followed (`src/hooks/fence.ts`): it refuses any `..` segment, a dangling link and a write call
+that names no path, and the OpenRouter loop's write tools use the same test. It checks before the tool runs, so a link
+swapped in between could still be followed: the container stays the boundary.
 
 ## Operational fields used
 

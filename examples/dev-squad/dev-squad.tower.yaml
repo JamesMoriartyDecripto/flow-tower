@@ -510,7 +510,7 @@ layers:
         runtime: vps
         type: guard
         label: Secret + fence
-        description: Denies writes containing secrets and any write outside the issue worktree.
+        description: "Denies writes containing secrets and any write outside the issue worktree. The real path is checked, symlinks followed, and a write call with no path is denied (#317)."
         files: [src/hooks/secret-scan.ts, src/hooks/index.ts]
       - id: permissions
         runtime: laptop
@@ -632,7 +632,7 @@ layers:
           - { kind: doc, label: "Model list + prices", url: "https://openrouter.ai/api/v1/models" }
         type: tool
         label: OpenRouter
-        description: "An OpenAI-style tool loop over /chat/completions with cost per call, on providers that do not collect data. No hook runs here: the memory pack closes the system prompt and each coder write is followed by the project's format + lint. Read tools for all, write tools in src/, tests/, e2e/ for the coder, osv_scan for the auditor. Children get no keys. Command whitelist, secret-path denylist, step cap."
+        description: "An OpenAI-style tool loop over /chat/completions, on providers that do not collect data. No hook runs here: the memory pack closes the system prompt; coder writes get format + lint. Read tools for all, writes in src/, tests/, e2e/ for the coder, osv_scan for the auditor. Children get an allowlisted env and a scratch HOME per worktree (#317). Command whitelist, secret-path denylist, step cap."
         files: [src/openrouter-agent.ts, src/child-env.ts, src/config.ts]
       - id: haiku_openrouter
         runtime: openrouter
