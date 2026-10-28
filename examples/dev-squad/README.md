@@ -72,7 +72,9 @@ What the hooks give Claude sessions is done in the loop too: the memory pack (`c
 the system prompt, so these providers see those lessons as well as the code under review (OpenRouter's
 `data_collection: deny` applies to both); the coder's writes go through the project's Prettier + ESLint
 (`src/format-and-lint.ts`) with paths relative to the worktree; the security auditor gets `osv_scan`. The loop's child processes (tests,
-checks, the formatter) run code the coder wrote, so they get no keys (`src/child-env.ts`).
+checks, the formatter) run code the coder wrote, so they get no keys and an empty scratch HOME (`src/child-env.ts`, #317):
+they never see the host's npm, git or cloud credentials. The SDK harness fences every write to the issue worktree by
+resolving the path first (`src/hooks/fence.ts`), so `..` cannot step out of it.
 
 ## Operational fields used
 
