@@ -8,6 +8,7 @@ import type { AgentRun } from './run-agent';
 import { childEnv, scratchHome } from './child-env';
 import { formatAndLint } from './format-and-lint';
 import { queryOsv } from './tools/osv';
+import { insideWorktree } from './hooks/fence';
 
 const sh = promisify(execFile);
 const API = 'https://openrouter.ai/api/v1/chat/completions';
@@ -71,7 +72,8 @@ function emit(event: Record<string, unknown>) {
 function safePath(cwd: string, path: string, write = false): string {
   const abs = resolve(cwd, path);
   const rel = relative(cwd, abs);
-  if (!rel || rel.startsWith('..') || isAbsolute(rel) || SECRET.test(rel) || SECRET.test(path)) throw new Error(`path denied: ${path}`);
+  // The lexical checks miss a symlink such as src/link -> /etc: insideWorktree follows the real path.
+  if (!rel || rel.startsWith('..') || isAbsolute(rel) || SECRET.test(rel) || SECRET.test(path) || !insideWorktree(cwd, abs)) throw new Error(`path denied: ${path}`);
   if (write && !WRITABLE.test(rel)) throw new Error(`write denied outside src/, tests/, e2e/: ${rel}`);
   return abs;
 }

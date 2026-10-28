@@ -51,4 +51,17 @@ describe('insideWorktree on real folders', () => {
   it('denies everything when the worktree does not exist', () => {
     expect(insideWorktree(join(base, 'missing'), join(base, 'missing', 'src', 'a.ts'))).toBe(false);
   });
+
+  it('denies a dangling link whose target is outside the worktree', () => {
+    symlinkSync(join(outside, 'missing.ts'), join(worktree, 'src', 'dead'));
+    expect(insideWorktree(worktree, join(worktree, 'src', 'dead'))).toBe(false);
+  });
+
+  it('allows an in-tree name that merely starts with ..', () => {
+    expect(insideWorktree(worktree, join(worktree, 'src', '..fixtures.ts'))).toBe(true);
+  });
+
+  it('denies the parent segment itself', () => {
+    expect(insideWorktree(worktree, '..')).toBe(false);
+  });
 });

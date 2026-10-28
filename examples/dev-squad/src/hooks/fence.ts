@@ -1,10 +1,23 @@
-import { realpathSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { lstatSync, realpathSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
-/** Lexical test: `path` resolves strictly inside `worktree` without following any link. */
+/**
+ * Lexical test: `path` resolves strictly inside `worktree` without following any link.
+ * Only `..` as a whole segment is an escape: a name such as `..fixtures.ts` is in-tree.
+ */
 function lexicalInside(worktree: string, path: string): boolean {
   const rel = relative(worktree, resolve(worktree, path));
-  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+  return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
+/** True when `path` is a directory entry (a symlink, dangling or not) whose realpath failed. */
+function existsAsLink(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -18,6 +31,9 @@ function realTarget(path: string): string {
     try {
       return join(realpathSync(probe), ...tail);
     } catch (err) {
+      // A dangling link exists as a name but its target does not: walking up would join the link
+      // back as a plain new file and the write would follow it. Refuse instead.
+      if (existsAsLink(probe)) throw err;
       const parent = dirname(probe);
       if (parent === probe) throw err;
       tail.unshift(basename(probe));
