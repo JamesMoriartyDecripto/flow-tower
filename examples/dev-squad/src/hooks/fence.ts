@@ -1,11 +1,45 @@
-import { isAbsolute, relative, resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+
+/** Lexical test: `path` resolves strictly inside `worktree` without following any link. */
+function lexicalInside(worktree: string, path: string): boolean {
+  const rel = relative(worktree, resolve(worktree, path));
+  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+}
+
+/**
+ * Real path of the deepest existing ancestor of `path`, with the missing tail joined back.
+ * A write to `src/new/b.ts` must be checked where it will land, even though `src/new` does not exist yet.
+ */
+function realTarget(path: string): string {
+  const tail: string[] = [];
+  let probe = path;
+  for (;;) {
+    try {
+      return join(realpathSync(probe), ...tail);
+    } catch (err) {
+      const parent = dirname(probe);
+      if (parent === probe) throw err;
+      tail.unshift(basename(probe));
+      probe = parent;
+    }
+  }
+}
 
 /**
  * True when `path` (absolute, or relative to `worktree`) resolves to a location strictly inside it.
  * Resolving first matters: a string prefix test accepts `<worktree>/../../etc/x.ts`.
+ * The lexical test alone is not enough: a symlink such as `src/link -> /etc` passes it while the kernel
+ * follows it on write, so the real paths of the worktree and of the target must also be inside.
+ * A worktree that does not exist gives false (fail closed).
  * Lives apart from hooks/index.ts so tests can load it without the Agent SDK.
  */
 export function insideWorktree(worktree: string, path: string): boolean {
-  const rel = relative(worktree, resolve(worktree, path));
-  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+  if (!lexicalInside(worktree, path)) return false;
+  try {
+    const root = realpathSync(worktree);
+    return lexicalInside(root, realTarget(resolve(worktree, path)));
+  } catch {
+    return false;
+  }
 }

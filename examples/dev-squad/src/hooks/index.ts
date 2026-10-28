@@ -6,11 +6,27 @@ import { insideWorktree } from './fence';
 import { formatLint } from './format-lint';
 import { secretScanPrompt, secretScanWrite } from './secret-scan';
 
-/** Edits must stay inside the issue worktree, whatever path the model invents. */
+/**
+ * Edits must stay inside the issue worktree, whatever path the model invents.
+ * NotebookEdit names its target `notebook_path`, so both fields are read; a call with neither is denied
+ * because the fence cannot prove where it writes.
+ */
 function worktreeFence(worktree: string): HookCallback {
   return async (input) => {
-    const path = String(((input as PreToolUseHookInput).tool_input as { file_path?: string }).file_path ?? '');
-    if (!path || insideWorktree(worktree, path)) return {};
+    const toolInput = (input as PreToolUseHookInput).tool_input as { file_path?: unknown; notebook_path?: unknown };
+    const raw = toolInput.file_path ?? toolInput.notebook_path;
+    const path = typeof raw === 'string' ? raw : '';
+    if (path && insideWorktree(worktree, path)) return {};
+    if (!path) {
+      console.log(`[hook] PreToolUse fence deny: no file path (outside ${worktree})`);
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse' as const,
+          permissionDecision: 'deny' as const,
+          permissionDecisionReason: `Writes are limited to ${worktree}: no file path in the tool input.`,
+        },
+      };
+    }
     console.log(`[hook] PreToolUse fence deny ${path} (outside ${worktree})`);
     return {
       hookSpecificOutput: {
