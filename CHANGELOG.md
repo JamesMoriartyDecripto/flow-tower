@@ -6,7 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Security
-- Dev squad example (#317): the SDK harness's worktree fence was a string prefix test, so a write to `<worktree>/../../x` passed it; it now resolves the path first, like the OpenRouter loop's `safePath` (`src/hooks/fence.ts`). The children that run the coder's code (tests, checks, the formatter) also get an empty scratch HOME instead of the real one, so they cannot read the host's npm, git or cloud credentials; tsc, vitest, git, prettier, eslint and npm were checked to work with it.
+- Dev squad example (#317): the SDK harness's worktree fence was a string prefix test, so a write to `<worktree>/../../x` passed it. It now checks the real path, with symlinks followed (`src/hooks/fence.ts`), and denies a write call with no path (`NotebookEdit`'s `notebook_path` was never fenced). The children that run the coder's code (tests, checks, the formatter) get an allowlisted environment instead of the parent's minus five keys, so no other exported credential reaches them, and a scratch HOME per worktree, so tools that read `~` find no credentials; tsc, vitest, git, prettier, eslint and npm were checked to work that way. The real home stays readable by an absolute path: the container is the isolation.
 
 ### Security
 - Squad (#324): `run.mjs` no longer runs a CLI named by a `--repo` it does not live in. The live events and the `validate` extra took `cli` from the `--repo`'s squad.json, so pointing the runner at someone else's worktree by hand ran code that worktree chose; the PR steward already avoided it. The `cli` of any other checkout is now ignored, with a line on stderr, and the runner's own `.cli`, `FLOW_TOWER_CLI` or PATH is used.
