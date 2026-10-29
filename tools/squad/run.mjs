@@ -17,7 +17,9 @@ import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './ba
 import { realRelIfAllowed, realTarget } from './guard.mjs';
 import { parseVerdict } from './gate.mjs';
 import { pickMode } from './mode.mjs';
-import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './oneshot.mjs';
+import { ONESHOT_TIMEOUT_MS, httpFailure, loopBody, oneshotBody, oneshotSystem } from './oneshot.mjs';
+import { STEP_DEFAULT, appendReminder, incompleteText, parseSteps } from './step-limit.mjs';
+import { toolSchema } from './tool-schema.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
@@ -64,7 +66,9 @@ if (!dirs) {
 // The canonical node is the registry's, unless --node names one explicitly.
 const node = arg('node') ?? ROLES[role].node;
 const task = readFileSync(taskFile, 'utf8');
-const maxSteps = Number(arg('steps', 40));
+// Checked before any key or request: NaN, 0, a fraction, an empty value or a trailing --steps (arg gives undefined) is refused.
+const maxSteps = argv.includes('--steps') ? parseSteps(arg('steps') ?? '') : STEP_DEFAULT;
+if (maxSteps === null) { console.error(`--steps must be a whole number of at least 1, got "${arg('steps') ?? ''}"`); exit(1); }
 // Modes (mode.mjs): reviewer and security answer in one request by default; the coder always needs its tools.
 let picked;
 try {
@@ -217,26 +221,7 @@ const tools = {
     return f(file);
   },
 };
-const fn = (name, description, properties, required = []) => ({ type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } });
-const S = { type: 'string' };
-const TOOLS = [
-  fn('list_files', 'Tracked files under a folder.', { dir: S }),
-  fn('read_file', 'Read a repo file with line numbers (optionally a line range).', { path: S, from: { type: 'integer' }, to: { type: 'integer' } }, ['path']),
-  fn('grep', 'git grep -n -E over tracked files.', { pattern: S, path: S }, ['pattern']),
-  ...(canWrite(role) ? [
-    fn('edit_file', `Replace one exact, unique occurrence of \`old\` with \`new\` (${dirs.join('/, ')}/ only).`, { path: S, old: S, new: S }, ['path', 'old', 'new']),
-    fn('write_file', `Create or overwrite a file (${dirs.join('/, ')}/ only).`, { path: S, content: S }, ['path', 'content']),
-    fn('delete_file', 'Delete a file you may write (e.g. one the task says to remove).', { path: S }, ['path']),
-  ] : []),
-  // Only the commands this project offers are named: a dryrun the extras leave out is not advertised.
-  fn('run', [
-    `Run a whitelisted command: ${Object.keys(RUNS).join(', ')}.`,
-    ...(RUNS.test ? ['test takes a file.'] : []),
-    `diff is vs ${config.base}.`,
-    ...(RUNS.dryrun ? ['dryrun (file: examples/<name>/scripts/<script>.mjs) runs it with --dry-run and no API key.'] : []),
-  ].join(' '), { command: { type: 'string', enum: Object.keys(RUNS) }, file: S }, ['command']),
-  fn('finish', 'End with your final report (the format your task asks for).', { report: S }, ['report']),
-];
+const TOOLS = toolSchema({ role, dirs, runNames: Object.keys(RUNS), base: config.base });
 
 // A reviewer or security answer is read by the merge gate, which needs the JSON verdict (gate.mjs): prose is refused.
 // The coder's report is free text, so its prompt keeps the report rule.
@@ -278,14 +263,6 @@ const onInterrupt = async (code) => {
 };
 process.on('SIGINT', () => { onInterrupt(130); });
 process.on('SIGTERM', () => { onInterrupt(143); });
-// A failed HTTP answer is logged as its status and a short error code only: the provider's body can echo the
-// request, and the log and the console must not carry that. The body is read here, for the code, and dropped.
-async function httpFailure(r) {
-  const j = await r.json().catch(() => null);
-  const code = j?.error?.code;
-  const short = typeof code === 'string' || typeof code === 'number' ? String(code) : '';
-  return `HTTP ${r.status}${/^[\w.-]{1,40}$/.test(short) ? ` ${short}` : ''}`;
-}
 // One request with no tools, shared by --oneshot and by a batch that fell back. No retry on the 10 min cap:
 // one long answer, the failure is the answer.
 async function oneshotCall(body) {
@@ -357,16 +334,16 @@ if (mode !== 'loop') {
   console.log(`${content}\n\n--- ${model} · 1 step · ${shown} · cache ${cached}% of ${promptTokens} prompt tokens${paidMode === 'batch' ? ' (batch)' : ''} · log ${log}`);
   exit(0);
 }
+// The last assistant text of the loop: printed, labelled INCOMPLETE, if the cap is reached. Never read as a verdict.
+let lastText = '';
 for (let step = 0; step < maxSteps; step++) {
+  // The reminder is for the last two calls only; appendReminder keeps the tool results paired and the roles alternating.
+  appendReminder(messages, maxSteps - step);
   // A call stuck for minutes (GLM once sat 7 min on one) is retried once, then the run stops.
   const ask = () => fetch(chatUrl(), {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'X-Title': 'Flow Tower dev-squad' },
-    body: JSON.stringify({ model, messages, tools: TOOLS, max_tokens: 16000, usage: { include: true }, session_id: session,
-      // OpenRouter caches Claude prompts only on request; the breakpoint trails the last cacheable block (https://openrouter.ai/docs/guides/best-practices/prompt-caching).
-      ...cacheControl(model),
-      // Low effort everywhere (maintainer, 2026-10-10): quick passes, the review rounds re-check the work.
-      reasoning: { effort: 'low' }, provider: { require_parameters: true, data_collection: 'deny' } }),
+    body: JSON.stringify(loopBody({ model, messages, tools: TOOLS, session })),
     signal: AbortSignal.timeout(180_000),
   });
   let r;
@@ -381,6 +358,7 @@ for (let step = 0; step < maxSteps; step++) {
   const msg = out.choices?.[0]?.message ?? {};
   messages.push({ role: 'assistant', content: msg.content ?? null, ...(msg.tool_calls?.length && { tool_calls: msg.tool_calls }) });
   if (msg.content) note(`\n[assistant] ${msg.content}`);
+  if (msg.content?.trim()) lastText = msg.content;
   emit('log', node, `step ${step + 1} · $${cost.toFixed(3)} · cache ${cached}%${msg.content ? ` · ${msg.content.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`);
   if (!msg.tool_calls?.length) { messages.push({ role: 'user', content: 'Use the tools; call finish with your report when done.' }); continue; }
   let reask = false;
@@ -410,7 +388,8 @@ for (let step = 0; step < maxSteps; step++) {
       exit(0);
     }
     let result;
-    try { result = String(tools[c.function.name]?.(a) ?? `unknown tool ${c.function.name}`); } catch (e) { result = `ERROR: ${e.message}`; }
+    // Own keys only: a model's "constructor" or "toString" would otherwise reach Object.prototype and run an inherited function.
+    try { result = String(Object.hasOwn(tools, c.function.name) ? tools[c.function.name](a) : `unknown tool ${c.function.name}`); } catch (e) { result = `ERROR: ${e.message}`; }
     note(`\n[${c.function.name}] ${JSON.stringify(a).slice(0, 300)}\n→ ${result.slice(0, 600)}`);
     // Every call shows on the tower, reads included: a reviewer only reads, and must not look idle.
     const what = a.path ?? a.command ?? a.pattern ?? a.dir ?? '';
@@ -422,3 +401,7 @@ for (let step = 0; step < maxSteps; step++) {
 record('step-cap', maxSteps);
 emit('agent.end', node, `${role} on ${model}: step cap`, 'error');
 console.log(`step cap reached · $${cost.toFixed(4)} · log ${log}`);
+// Stderr, not stdout: the gate and parseVerdict read stdout, and partial model text must never pass there as a verdict.
+console.error(incompleteText(lastText));
+// The cap is a failure: exit 0 here used to read as a finished run.
+exit(1);

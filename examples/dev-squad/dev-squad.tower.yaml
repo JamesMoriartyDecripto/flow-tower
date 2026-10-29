@@ -1,6 +1,8 @@
 # yaml-language-server: $schema=../../schema/flow-tower.schema.json
 # Canonical Dev Squad: squad init distributes this tower with its referenced bundle.
 # The installer adapts only name/root for the target project; tools/squad has no separate tower design.
+# Portable execution (#336): tool loops remind roles to finish within their explicit step limit.
+# Cap exits remain errors; last assistant text is incomplete diagnostic evidence, never a verdict.
 # Portable onboarding (#332, #334): init installs the shared task runner and complete design;
 # doctor checks Node/git/OpenRouter. The user's existing harness is lead; SDK execution is optional.
 version: 1

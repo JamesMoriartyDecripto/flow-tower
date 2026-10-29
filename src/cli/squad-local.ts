@@ -32,7 +32,7 @@ const MIN_NODE = [22, 12, 0];
 export const RUNNER_FILES = [
   'args.mjs', 'batch.mjs', 'batch.d.mts', 'config.mjs', 'config.d.mts', 'cost.mjs', 'ev.sh', 'files-check.mjs',
   'gate.mjs', 'guard.mjs', 'ledger.mjs', 'mode.mjs', 'mode.d.mts', 'oneshot.mjs', 'pack.mjs', 'prs.mjs',
-  'roles.mjs', 'run.mjs', 'steps.sh',
+  'roles.mjs', 'run.mjs', 'step-limit.mjs', 'steps.sh', 'tool-schema.mjs',
 ];
 
 const defaultExec: Exec = (cmd, args) => {
