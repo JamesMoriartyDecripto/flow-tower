@@ -56,6 +56,9 @@ seconds including runner overhead, not TTFT or a stable speed benchmark. No sign
 | security | GLM | 2/2 | 0.000889 | 14.1 |
 | security | Gemini | 2/2 | 0.005459 | 11.6 |
 
+`*` Completion/protocol gate passed, but manual inspection found factual accuracy failures; these are NOT
+quality passes. The next shortlist must account for these failures rather than rank by raw completion alone.
+
 ## Evidence that changes the next shortlist
 
 - **Cheap completion is not research quality.** GLM researcher A said native (-0).toFixed(2) returns
