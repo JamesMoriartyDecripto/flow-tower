@@ -10,9 +10,14 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   nine specialist roles and the complete lead skill. Maintainer merges bottom-up only after final reviews/gate.
 - Pi local full-role trial passed: 9 calls, 21 steps, reported specialist cost $0.0073 (lead cost excluded).
   No external PR, CI gate or universal harness claim. Source/test/docs and clean trial head independently checked.
-- **Next session:** follow [docs/dev-squad-harness-trial.md](docs/dev-squad-harness-trial.md) from the
-  `feat/332-runnable-dev-squad` checkout. Repeat in a fresh local repository using Claude Code, then Codex.
-  Keep role models/issue constant, record failures and actual host, update #333. Do not overwrite Pi evidence.
+- Claude Code trial: code passed; researcher hit its 3-step cap and verifier hit its 5-step cap twice.
+  Prose PASS without `finish` is not role completion; evidence and commit `21fad55` preserved.
+- Codex baseline repeat (2026-10-29), implementation `21fad55`: all nine roles explicitly finished,
+  20 steps, reported specialist cost $0.008795. Independent 12/12 tests and clean head `89345da`;
+  reviewer/security approved that head. Runner unchanged; no external repo/PR/push/merge.
+- **Next session:** [docs/dev-squad-harness-trial.md](docs/dev-squad-harness-trial.md) records all three hosts.
+  Hermes remains untested; #333's broader acceptance remains open. Preserve Pi/Claude Code/Codex evidence.
+  Investigate the recorded cap/report-loss gap separately from these baseline trials.
 - #333 remains open for cross-harness and full draft-PR acceptance; #334/#332 implementation is partial.
   Global enforced spending limits, hostile-code isolation and unattended execution are not proven by this trial.
 
