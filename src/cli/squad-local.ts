@@ -6,9 +6,11 @@
  * The one external program is a fixed `git --version` probe, started without a shell and injected for tests.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { accessSync, constants, existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { userHome } from '../core/secrets.ts';
+// The runner's own loader: doctor and `squad run` must agree on what a valid squad.json is. It only reads data.
+import { loadConfig } from '../../tools/squad/config.mjs';
 
 /** A finished subprocess: status null means it did not run to an exit code (missing binary, signal). */
 export interface Probe { status: number | null; stdout: string; stderr: string; error?: Error }
@@ -70,11 +72,44 @@ export function configProblem(text: string): string | undefined {
 /** Whether the OpenRouter key is set: presence only, never the value. Environment first, then the user key file. */
 export function credentialSource(env: NodeJS.ProcessEnv, keyFile: string): string | undefined {
   if (env[KEY_NAME]?.trim()) return `environment (${KEY_NAME})`;
-  if (existsSync(keyFile)) {
+  // A directory, a FIFO or an unreadable file counts as no key: doctor must report it, never throw on it.
+  try {
+    if (!statSync(keyFile).isFile()) return undefined;
     const m = KEY_LINE.exec(readFileSync(keyFile, 'utf8'));
     if (m?.[1]?.trim()) return keyFile;
-  }
+  } catch { /* absent or unreadable: the same as no key */ }
   return undefined;
+}
+
+/**
+ * Reduces a loader error to a fixed reason. JSON parse errors can quote the file's text and a bad-dir error quotes
+ * the value, so only the reason words are kept: the detail never carries config content.
+ */
+function safeReason(e: unknown): string {
+  if ((e as NodeJS.ErrnoException)?.code === 'EACCES' || (e as NodeJS.ErrnoException)?.code === 'EPERM') return 'not readable';
+  const msg = e instanceof Error ? e.message : '';
+  if (msg.includes('not valid JSON')) return 'not valid JSON';
+  if (msg.includes('the config must be a JSON object')) return 'the config must be a JSON object';
+  // Loader key errors read `"key" <reason>`; the reason may quote a value, so it is cut at the first colon or quote.
+  const m = /"([\w.]+)" ((?:must|may|has a bad dir)[^:"]*)/.exec(msg);
+  return m ? `"${m[1]}" ${m[2]}`.trim() : 'not readable or not valid';
+}
+
+/**
+ * The squad config check, through the runner's loader (config.mjs), from the git root as run.mjs does.
+ * A non-regular file (directory, FIFO) is refused before the loader reads it, so no read can block or throw a stack.
+ */
+function configCheck(root: string, file: string, dir: string): Check {
+  const name = 'squad config';
+  if (!existsSync(file)) return { name, ok: false, detail: `missing: run flow-tower squad init ${dir}` };
+  try {
+    if (!statSync(file).isFile()) return { name, ok: false, detail: `${file}: not a regular file` };
+    accessSync(file, constants.R_OK);
+    loadConfig(root);
+    return { name, ok: true, detail: file };
+  } catch (e) {
+    return { name, ok: false, detail: `${file}: ${safeReason(e)}` };
+  }
 }
 
 /** Paths of the installed squad inside a project root. */
@@ -113,13 +148,7 @@ export function doctor(dir: string, opts: { exec?: Exec; env?: NodeJS.ProcessEnv
     detail: node ? `v${nodeVersion.replace(/^v/, '')}` : `Node ${MIN_NODE.join('.')} or newer is needed (found v${nodeVersion.replace(/^v/, '')})`,
   });
 
-  const config = existsSync(p.config);
-  const problem = config ? configProblem(readFileSync(p.config, 'utf8')) : undefined;
-  checks.push({
-    name: 'squad config',
-    ok: config && !problem,
-    detail: !config ? `missing: run flow-tower squad init ${dir}` : problem ? `${p.config}: ${problem}` : p.config,
-  });
+  checks.push(configCheck(root, p.config, dir));
 
   const missing = RUNNER_FILES.filter((f) => !existsSync(join(p.squadDir, f)));
   checks.push({

@@ -167,6 +167,47 @@ describe('squad doctor helpers (#334)', () => {
     expect(JSON.stringify(config)).not.toContain('SENTINEL-SECRET-123');
   });
 
+  it('reports a squad.json that is a directory as not a regular file, without a stack', () => {
+    const root = installedProject();
+    rmSync(join(root, 'tools', 'squad', 'squad.json'));
+    mkdirSync(join(root, 'tools', 'squad', 'squad.json'));
+    const config = doctor(root, healthyOpts(root)).find((c) => c.name === 'squad config');
+    expect(config?.ok).toBe(false);
+    expect(config?.detail).toContain('not a regular file');
+    expect(config?.detail).not.toContain('at ');
+  });
+
+  it('runs the runner loader, so a malformed write, review, base or empty model is a failing check', () => {
+    const cases: [object, string][] = [
+      [{ write: [] }, '"write" must not be empty'],
+      [{ review: '../x' }, '"review" must be an array'],
+      [{ review: ['/etc'] }, '"review" has a bad dir'],
+      [{ base: '--output=x' }, '"base" must be a revision'],
+      [{ models: { coder: '  ' } }, '"models.coder" must not be empty'],
+    ];
+    for (const [cfg, reason] of cases) {
+      const root = installedProject(JSON.stringify(cfg));
+      const config = doctor(root, healthyOpts(root)).find((c) => c.name === 'squad config');
+      expect(config?.ok, JSON.stringify(cfg)).toBe(false);
+      expect(config?.detail, JSON.stringify(cfg)).toContain(reason);
+    }
+  });
+
+  it('does not expose the config value in a loader failure', () => {
+    const root = installedProject(JSON.stringify({ review: ['SENTINEL-SECRET-789/../x'] }));
+    const config = doctor(root, healthyOpts(root)).find((c) => c.name === 'squad config');
+    expect(config?.ok).toBe(false);
+    expect(JSON.stringify(config)).not.toContain('SENTINEL-SECRET-789');
+  });
+
+  it('treats a key file that is a directory as an absent key, without throwing', () => {
+    const root = installedProject();
+    const keyDir = join(tempDir('squad-local-keydir-'), '.env');
+    mkdirSync(keyDir);
+    const checks = doctor(root, { ...healthyOpts(root), env: {}, keyFile: keyDir });
+    expect(checks.find((c) => c.name === 'OpenRouter key')?.ok).toBe(false);
+  });
+
   it('names the key source by its place, never by value', () => {
     const keyFile = join(tempDir('squad-local-key-'), '.env');
     writeFileSync(keyFile, 'OPENROUTER_API_KEY=sk-or-secret-value\n');

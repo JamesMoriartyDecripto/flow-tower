@@ -6,7 +6,6 @@ import { parse } from 'yaml';
 import { afterAll, describe, expect, it } from 'vitest';
 import { cleanEnv } from './fixtures/clean-env';
 // The squad's role helpers are plain ESM with no types, so they are imported as untyped modules here.
-// @ts-expect-error plain .mjs without declarations
 import { DEFAULTS, modelFor } from '../tools/squad/config.mjs';
 // @ts-expect-error plain .mjs without declarations
 import { ROLES, canWrite, finishRule, isRole, needsVerdict, roleRule, startupWrite, writeArgFor } from '../tools/squad/roles.mjs';
@@ -81,7 +80,7 @@ describe('modelFor', () => {
 
   it('an explicit empty or non-string model is returned as is, not replaced by the family model', () => {
     expect(modelFor({ ...DEFAULTS, models: { ...DEFAULTS.models, triage: '' } }, 'triage')).toBe('');
-    expect(modelFor({ ...DEFAULTS, models: { ...DEFAULTS.models, tester: 42 } }, 'tester')).toBe(42);
+    expect(modelFor({ ...DEFAULTS, models: { ...DEFAULTS.models, tester: 42 as unknown as string } }, 'tester')).toBe(42);
   });
 });
 
@@ -191,6 +190,23 @@ describe('run.mjs role startup (#334)', () => {
       expect(r.status, String(bad)).toBe(1);
       expect(r.stderr, String(bad)).toContain('"models.triage"');
     }
+  });
+
+  it('a dangling --model with no value is refused before any paid call, not defaulted silently', () => {
+    const { repo, task } = squadRepo({ models: { triage: 'x/triage' } });
+    for (const tail of [['--model'], ['--model', '--node', 'x']]) {
+      const r = runSquad(['--role', 'triage', '--task', task, ...tail], { repo, withKey: true });
+      expect(r.status, tail.join(' ')).toBe(1);
+      expect(r.stderr, tail.join(' ')).toContain('--model needs a value');
+      expect(r.stdout, tail.join(' ')).not.toContain('mode:');
+    }
+  });
+
+  it('a doc writer without --write gets the reason and the usage', () => {
+    const { repo, task } = squadRepo({ models: { 'doc-writer': 'x/doc' } });
+    const r = runSquad(['--role', 'doc-writer', '--task', task], { repo, withKey: true });
+    expect(r.stderr).toContain('doc-writer needs --write');
+    expect(r.stderr).toContain('usage: node tools/squad/run.mjs');
   });
 
   it('a valid configured new role gets past startup and stops at the missing key, not a crash', () => {
