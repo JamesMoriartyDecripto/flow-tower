@@ -18,7 +18,8 @@ const CANONICAL_MAIN = 'dev-squad.tower.yaml';
 /** The folders the canonical tower and its agents reference. Anything else in the example is not part of the squad. */
 const BUNDLE_DIRS = ['.claude', 'deploy', 'logs', 'memory', 'prompts', 'scripts', 'src', 'towers'];
 /** Top-level files of the bundle. The main tower is not listed: it is installed once, as MAIN_TOWER. */
-const BUNDLE_FILES = ['.mcp.json', 'CLAUDE.md', 'README.md'];
+// package.json and its lockfile pin the SDK runtime; they are copied so `npm ci` can rebuild it from the bundle.
+const BUNDLE_FILES = ['.mcp.json', 'CLAUDE.md', 'README.md', 'package.json', 'package-lock.json'];
 const SKIP_DIRS = new Set(['node_modules', '.git']);
 
 /** Whether a path exists at all, a dangling symlink included (existsSync follows links and would miss it). */

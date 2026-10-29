@@ -14,6 +14,7 @@ import { parseArgs } from 'node:util';
 import { cliName, shellPath } from '../../bin/cli-name.js';
 import { userHome } from '../core/secrets.ts';
 import { detectConfig } from './squad-detect.ts';
+import { RUNTIME_IGNORE_LINE } from './squad-runtime-install.ts';
 import {
   BUNDLE_DIR, MAIN_TOWER, assertRealDirOrMissing, assertRegularOrMissing, assertSquadDir, assertTowerDests, installTower,
 } from './squad-tower.ts';
@@ -44,6 +45,8 @@ const IGNORE_LINES = [
   'tools/squad/.cli',
   `${BUNDLE_LOGS}/*.log`,
   ...SHIPPED_BUNDLE_LOGS.map((name) => `!${BUNDLE_LOGS}/${name}`),
+  // The SDK runtime's node_modules, filled by an explicit install (squad-runtime-install.ts): never committed.
+  RUNTIME_IGNORE_LINE,
 ];
 
 /** Whether a path is an existing folder (false for a missing path or a file). */

@@ -245,6 +245,31 @@ describe('squad bundle (#330)', () => {
     expect(r.stdout).not.toContain('SENTINEL-SECRET-123');
   });
 
+  it('ships the SDK runtime pins and lockfile in the bundle, and the host package does not depend on the SDK (#332)', () => {
+    const pkg = JSON.parse(readFileSync(resolve('examples/dev-squad/package.json'), 'utf8'));
+    expect(pkg.private).toBe(true);
+    expect(pkg.type).toBe('module');
+    expect(pkg.engines.node).toBe('>=22.12.0');
+    expect(pkg.scripts.run).toBe('tsx src/main.ts run');
+    expect(pkg.scripts.serve).toBe('tsx src/main.ts serve');
+    expect(pkg.dependencies).toEqual({ '@anthropic-ai/claude-agent-sdk': '0.3.312', tsx: '4.23.15', zod: '4.6.7' });
+    // The lockfile is what `npm ci` installs from: it must exist next to the pinned package.json.
+    expect(existsSync(resolve('examples/dev-squad/package-lock.json'))).toBe(true);
+    // Nothing from the example's node_modules is copied: the installed runtime is rebuilt by npm ci.
+    const host = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
+    const hostDeps = { ...host.dependencies, ...host.devDependencies };
+    expect(hostDeps['@anthropic-ai/claude-agent-sdk']).toBeUndefined();
+  });
+
+  it('copies the runtime package.json and lockfile into the installed bundle', () => {
+    const squad = tempDir('squad-tower-dst8-');
+    installTower(resolve('examples/dev-squad'), squad, 'Demo');
+    const bundle = join(squad, 'dev-squad');
+    expect(existsSync(join(bundle, 'package.json'))).toBe(true);
+    expect(existsSync(join(bundle, 'package-lock.json'))).toBe(true);
+    expect(existsSync(join(bundle, 'node_modules'))).toBe(false);
+  });
+
   it('refuses a malformed squad.json before any write, and leaves the runner and .cli untouched', { timeout: 30_000 }, () => {
     const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
     expect(run('squad', 'init', dir).status).toBe(0);
