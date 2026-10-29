@@ -6,7 +6,7 @@
  * The one external program is a fixed `git --version` probe, started without a shell and injected for tests.
  */
 import { spawnSync } from 'node:child_process';
-import { accessSync, constants, existsSync, readFileSync, statSync } from 'node:fs';
+import { accessSync, constants, lstatSync, readFileSync, statSync, type Stats } from 'node:fs';
 import { join } from 'node:path';
 import { userHome } from '../core/secrets.ts';
 // The runner's own loader: doctor and `squad run` must agree on what a valid squad.json is. It only reads data.
@@ -25,8 +25,15 @@ const KEY_LINE = /^\s*OPENROUTER_API_KEY=(.*)$/m;
 const KEY_NAME = 'OPENROUTER_API_KEY';
 /** The lowest Node that strips TypeScript types, which the flow-tower CLI itself needs (see bin/commands.js). */
 const MIN_NODE = [22, 12, 0];
-/** Runner files init copies into tools/squad/ and the lead's steps depend on; a missing one means a partial install. */
-const RUNNER_FILES = ['steps.sh', 'run.mjs', 'pack.mjs', 'config.mjs', 'gate.mjs'];
+/**
+ * Every runner file init distributes into tools/squad/ (a static registry: the set is fixed per release). A missing one
+ * means a partial install. Only the regular files are checked; they are never executed here.
+ */
+export const RUNNER_FILES = [
+  'args.mjs', 'batch.mjs', 'batch.d.mts', 'config.mjs', 'config.d.mts', 'cost.mjs', 'ev.sh', 'files-check.mjs',
+  'gate.mjs', 'guard.mjs', 'ledger.mjs', 'mode.mjs', 'mode.d.mts', 'oneshot.mjs', 'pack.mjs', 'prs.mjs',
+  'roles.mjs', 'run.mjs', 'steps.sh',
+];
 
 const defaultExec: Exec = (cmd, args) => {
   const r = spawnSync(cmd, args, { encoding: 'utf8', stdio: 'pipe', shell: false });
@@ -50,23 +57,9 @@ export function nodeAtLeastMin(version: string): boolean {
   return true;
 }
 
-/**
- * Whether squad.json is valid for the runner. Parsed as data only, never imported or executed. A message names
- * the offending key, never the file's content: a malformed file can hold a credential.
- */
-export function configProblem(text: string): string | undefined {
-  let raw: unknown;
-  try { raw = JSON.parse(text); } catch { return 'not valid JSON'; }
-  const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
-  if (!isObj(raw)) return 'the config must be a JSON object';
-  if (raw.commands !== undefined && !isObj(raw.commands)) return 'commands must be an object';
-  const check = isObj(raw.commands) ? raw.commands.check : undefined;
-  if (typeof check !== 'string' || check.trim() === '') return 'commands.check must be a non-empty string';
-  if (raw.models !== undefined) {
-    if (!isObj(raw.models)) return 'models must be an object';
-    for (const [name, m] of Object.entries(raw.models)) if (typeof m !== 'string') return `models.${name} must be a string`;
-  }
-  return undefined;
+/** The entry's lstat, or undefined when absent. lstat does not follow links, so a symlink is never a regular file. */
+function entry(path: string): Stats | undefined {
+  try { return lstatSync(path); } catch { return undefined; }
 }
 
 /** Whether the OpenRouter key is set: presence only, never the value. Environment first, then the user key file. */
@@ -101,9 +94,10 @@ function safeReason(e: unknown): string {
  */
 function configCheck(root: string, file: string, dir: string): Check {
   const name = 'squad config';
-  if (!existsSync(file)) return { name, ok: false, detail: `missing: run flow-tower squad init ${dir}` };
+  const st = entry(file);
+  if (!st) return { name, ok: false, detail: `missing: run flow-tower squad init ${dir}` };
+  if (!st.isFile()) return { name, ok: false, detail: `${file}: not a regular file` };
   try {
-    if (!statSync(file).isFile()) return { name, ok: false, detail: `${file}: not a regular file` };
     accessSync(file, constants.R_OK);
     loadConfig(root);
     return { name, ok: true, detail: file };
@@ -150,7 +144,7 @@ export function doctor(dir: string, opts: { exec?: Exec; env?: NodeJS.ProcessEnv
 
   checks.push(configCheck(root, p.config, dir));
 
-  const missing = RUNNER_FILES.filter((f) => !existsSync(join(p.squadDir, f)));
+  const missing = RUNNER_FILES.filter((f) => !entry(join(p.squadDir, f))?.isFile());
   checks.push({
     name: 'runner files',
     ok: missing.length === 0,

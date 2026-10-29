@@ -1,8 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { configProblem, credentialSource, doctor, gitRoot, nodeAtLeastMin, unsupportedRun, type Exec, type Probe } from '../src/cli/squad-local';
+import { credentialSource, doctor, gitRoot, nodeAtLeastMin, RUNNER_FILES, unsupportedRun, type Exec, type Probe } from '../src/cli/squad-local';
 
 // Every temp folder is recorded and removed after the suite: no test leaves a folder behind.
 const made: string[] = [];
@@ -18,15 +19,23 @@ afterAll(() => {
 const ok = (stdout = ''): Probe => ({ status: 0, stdout, stderr: '' });
 const fail = (status = 1): Probe => ({ status, stdout: '', stderr: 'boom' });
 
-/** A project folder with the runner files init copies and a valid squad.json. Nothing is executed in it. */
+/** A project folder with every runner file init distributes and a valid squad.json. Nothing is executed in it. */
 function installedProject(config: string = JSON.stringify({ commands: { check: 'npm run check' } })): string {
   const root = tempDir('squad-local-');
   const squad = join(root, 'tools', 'squad');
   mkdirSync(squad, { recursive: true });
-  for (const f of ['steps.sh', 'run.mjs', 'pack.mjs', 'config.mjs', 'gate.mjs']) writeFileSync(join(squad, f), '');
+  for (const f of RUNNER_FILES) writeFileSync(join(squad, f), '');
   writeFileSync(join(squad, 'squad.json'), config);
   return root;
 }
+
+/**
+ * The runner files the trusted distribution ships, read from this repo's tools/squad folder (module-relative, never
+ * from the project under test). Only the file names are read: nothing in it is executed.
+ */
+const TRUSTED_SQUAD = join(dirname(fileURLToPath(import.meta.url)), '..', 'tools', 'squad');
+const trustedRunnerFiles = (): string[] =>
+  readdirSync(TRUSTED_SQUAD).filter((f) => /\.(mjs|d\.mts|sh)$/.test(f)).sort();
 
 /**
  * A fake exec. Every call is recorded, so a test can check exactly which binaries were started and with which
@@ -51,6 +60,9 @@ const healthyOpts = (root: string) => ({
   keyFile: join(tempDir('squad-local-key-'), '.env'),
   nodeVersion: 'v22.12.0',
 });
+
+const configCheck = (root: string, opts = healthyOpts(root)) =>
+  doctor(root, opts).find((c) => c.name === 'squad config');
 
 describe('squad doctor, portable (#334)', () => {
   it('passes every check on a healthy project with an OpenRouter key and no SDK or Claude credential', () => {
@@ -107,10 +119,41 @@ describe('squad doctor, portable (#334)', () => {
     expect(runner?.detail).toContain('gate.mjs');
   });
 
+  it('fails the runner check when roles.mjs is missing', () => {
+    const root = installedProject();
+    rmSync(join(root, 'tools', 'squad', 'roles.mjs'));
+    const runner = doctor(root, healthyOpts(root)).find((c) => c.name === 'runner files');
+    expect(runner?.ok).toBe(false);
+    expect(runner?.detail).toContain('roles.mjs');
+  });
+
+  it('fails the runner check when a runner file is a directory, not a regular file', () => {
+    const root = installedProject();
+    rmSync(join(root, 'tools', 'squad', 'run.mjs'));
+    mkdirSync(join(root, 'tools', 'squad', 'run.mjs'));
+    const runner = doctor(root, healthyOpts(root)).find((c) => c.name === 'runner files');
+    expect(runner?.ok).toBe(false);
+    expect(runner?.detail).toContain('run.mjs');
+  });
+
+  it('fails the runner check when a runner file is a symlink, and never follows it', () => {
+    const root = installedProject();
+    const target = join(tempDir('squad-local-link-'), 'elsewhere.mjs');
+    writeFileSync(target, '');
+    rmSync(join(root, 'tools', 'squad', 'pack.mjs'));
+    symlinkSync(target, join(root, 'tools', 'squad', 'pack.mjs'));
+    const runner = doctor(root, healthyOpts(root)).find((c) => c.name === 'runner files');
+    expect(runner?.ok).toBe(false);
+    expect(runner?.detail).toContain('pack.mjs');
+  });
+
+  it('lists every distributed runner file, so a partial install is caught for each one', () => {
+    expect([...RUNNER_FILES].sort()).toEqual(trustedRunnerFiles());
+  });
+
   it('fails the config check when squad init was never run', () => {
     const root = tempDir('squad-local-bare-');
-    const checks = doctor(root, { ...healthyOpts(root), exec: fakeExec(root).exec });
-    const config = checks.find((c) => c.name === 'squad config');
+    const config = configCheck(root, { ...healthyOpts(root), exec: fakeExec(root).exec });
     expect(config?.ok).toBe(false);
     expect(config?.detail).toContain('squad init');
   });
@@ -150,18 +193,26 @@ describe('squad doctor helpers (#334)', () => {
     expect(nodeAtLeastMin('not-a-version')).toBe(false);
   });
 
-  it('reads a malformed squad.json as a problem, without echoing its content', () => {
-    expect(configProblem('{ "commands": { "check": "SENTINEL-SECRET-123" ')).toBe('not valid JSON');
-    expect(configProblem('[]')).toBe('the config must be a JSON object');
-    expect(configProblem('{"commands":{"check":"  "}}')).toBe('commands.check must be a non-empty string');
-    expect(configProblem('{"commands":"npm test"}')).toBe('commands must be an object');
-    expect(configProblem('{"commands":{"check":"npm test"},"models":{"coder":3}}')).toBe('models.coder must be a string');
-    expect(configProblem('{"commands":{"check":"npm test"},"models":{"coder":"x/y"}}')).toBeUndefined();
+  it('reports each squad.json shape problem through the runner loader, as a failing check', () => {
+    const cases: [string, string][] = [
+      ['[]', 'the config must be a JSON object'],
+      ['{"commands":"npm test"}', '"commands" must be an object'],
+      ['{"commands":{"check":"  "}}', '"commands.check" must not be empty'],
+      ['{"commands":{"check":3}}', '"commands.check" must be a string'],
+      ['{"commands":{"check":"npm test"},"models":{"coder":3}}', '"models.coder" must be a string'],
+      ['{"commands":{"check":"npm test"},"models":{"coder":"x/y"}}', ''],
+    ];
+    for (const [text, reason] of cases) {
+      const root = installedProject(text);
+      const config = configCheck(root);
+      expect(config?.ok, text).toBe(reason === '');
+      if (reason) expect(config?.detail, text).toContain(reason);
+    }
   });
 
-  it('reports a malformed squad.json as a failing check whose message never shows the content', () => {
+  it('reads a malformed squad.json as a failing check whose message never shows the content', () => {
     const root = installedProject('{ "commands": { "check": "SENTINEL-SECRET-123" ');
-    const config = doctor(root, healthyOpts(root)).find((c) => c.name === 'squad config');
+    const config = configCheck(root);
     expect(config?.ok).toBe(false);
     expect(config?.detail).toContain('not valid JSON');
     expect(JSON.stringify(config)).not.toContain('SENTINEL-SECRET-123');
@@ -171,7 +222,7 @@ describe('squad doctor helpers (#334)', () => {
     const root = installedProject();
     rmSync(join(root, 'tools', 'squad', 'squad.json'));
     mkdirSync(join(root, 'tools', 'squad', 'squad.json'));
-    const config = doctor(root, healthyOpts(root)).find((c) => c.name === 'squad config');
+    const config = configCheck(root);
     expect(config?.ok).toBe(false);
     expect(config?.detail).toContain('not a regular file');
     expect(config?.detail).not.toContain('at ');
@@ -187,7 +238,7 @@ describe('squad doctor helpers (#334)', () => {
     ];
     for (const [cfg, reason] of cases) {
       const root = installedProject(JSON.stringify(cfg));
-      const config = doctor(root, healthyOpts(root)).find((c) => c.name === 'squad config');
+      const config = configCheck(root);
       expect(config?.ok, JSON.stringify(cfg)).toBe(false);
       expect(config?.detail, JSON.stringify(cfg)).toContain(reason);
     }
@@ -195,7 +246,7 @@ describe('squad doctor helpers (#334)', () => {
 
   it('does not expose the config value in a loader failure', () => {
     const root = installedProject(JSON.stringify({ review: ['SENTINEL-SECRET-789/../x'] }));
-    const config = doctor(root, healthyOpts(root)).find((c) => c.name === 'squad config');
+    const config = configCheck(root);
     expect(config?.ok).toBe(false);
     expect(JSON.stringify(config)).not.toContain('SENTINEL-SECRET-789');
   });
