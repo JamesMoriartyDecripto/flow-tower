@@ -7,6 +7,8 @@ import { detectConfig } from '../src/cli/squad';
 import { cleanEnv } from './fixtures/clean-env';
 
 const CLI = resolve('bin/flow-tower.js');
+// The shipped runner this checkout copies from: the tests compare installed files against it.
+const RUNNER_SRC = resolve('tools/squad');
 // A hung CLI would otherwise block this process forever: the timeout lets the test fail instead of the run.
 const run = (...args: string[]) =>
   spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', timeout: 20_000, env: cleanEnv() });
@@ -245,6 +247,26 @@ describe('squad init (#265)', () => {
     expect(r.stdout).not.toContain('squad run');
     expect(r.stdout).not.toContain('install runtime');
     expect(existsSync(join(dir, 'tools', 'squad', 'dev-squad', 'node_modules'))).toBe(false);
+  });
+
+  it('keeps a local runner edit on a plain init and restores the runner on --force (#334)', { timeout: 30_000 }, () => {
+    const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
+    expect(run('squad', 'init', dir).status).toBe(0);
+
+    const runner = join(dir, 'tools', 'squad', 'steps.sh');
+    const shipped = readFileSync(join(RUNNER_SRC, 'steps.sh'), 'utf8');
+    const edited = `${shipped}# local edit\n`;
+    writeFileSync(runner, edited);
+
+    // A plain init on an installed squad is refused before any write, so the local edit must survive it.
+    const again = run('squad', 'init', dir);
+    expect(again.status).toBe(1);
+    expect(readFileSync(runner, 'utf8')).toBe(edited);
+
+    // --force is the only path that refreshes the runner from this checkout.
+    const forced = run('squad', 'init', dir, '--force');
+    expect(forced.status, forced.stderr).toBe(0);
+    expect(readFileSync(runner, 'utf8')).toBe(shipped);
   });
 
   it('detects python3 when only python3 is on PATH (#265 review)', () => {

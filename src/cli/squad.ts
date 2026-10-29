@@ -277,6 +277,8 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
   for (const name of runnerNames) {
     const from = join(RUNNER, name);
     const to = join(squadDir, name);
+    // The runner is refreshed only with --force (or when the file is missing): a plain init keeps any edit made to it.
+    if (!force && existsSync(to)) continue;
     copyFileSync(from, to);
     // copyFileSync does not promise the mode, and the steps run as scripts: keep the source's executable bit.
     if (name.endsWith('.sh')) chmodSync(to, statSync(from).mode & 0o777);
