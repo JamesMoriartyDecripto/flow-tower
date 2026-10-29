@@ -1,7 +1,21 @@
 # Dev Squad: repeatable host-harness trial
 
 Tracking: #333 (acceptance), #334 (portable workflow), #332 (onboarding).
-Implementation: draft PR #335, stacked on #331. Do not test the older runner from main.
+Implementation: #331, #335 and #337 are merged into main. Use an up-to-date checkout of main for new trials.
+Historical results below name the older implementation commits actually tested; do not rewrite baseline evidence.
+
+## Post-merge acceptance milestone
+
+The operator-approved private GitHub trial reached a draft PR using the installed runner from `3af5ef6`:
+actual issue → fresh install/doctor → nine specialist roles → code/tests/docs → independent tests → final-head
+review/security → verifier → draft PR. All 22 tests passed independently, both passes approved the exact head,
+and all roles completed. Ledger: nine calls, 21 steps, reported $0.008620, no unknown costs (lead cost excluded).
+No merge or deletion was performed. Private links and local infrastructure are intentionally omitted.
+
+The disposable repository had no GitHub Actions workflow: this proves local checks and draft-PR creation,
+not GitHub CI execution. Existing user credentials were reused. Later doctor/argument fixes were tested in
+the implementation suite. #333 remains open for its broader checklist; #328 and #320 retain separate scope.
+The completion fixes in #337 do not guarantee that every future model call will finish within its limit.
 
 ## What this tests
 
@@ -15,7 +29,7 @@ provider recovery or every possible project. Follow-up acceptance remains open i
 
 ## Repeat from a new session
 
-1. Open the checkout of `feat/332-runnable-dev-squad`, not the unchanged main checkout. Read `AGENTS.md`,
+1. Open an up-to-date checkout of `main` (the merged feature branches have been removed). Read `AGENTS.md`,
    `CLAUDE.md`, `skills/flow-tower-squad/SKILL.md`, this file and the latest #333 comments. Record the commit
    tested, Node/git versions and actual lead harness/model. Do not overwrite existing worktrees or trial folders.
 2. Create a **new disposable git repository** per harness. Configure a local test commit identity. Install:

@@ -2,12 +2,12 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
-## In flight: portable Dev Squad trials (#333, #334)
+## Portable Dev Squad merged; broader acceptance remains open (#333)
 
 - **Do not resume the superseded Claude-SDK-only installer direction.** The user's existing harness is lead;
   shared Node/OpenRouter specialists select models per role. No required Claude SDK/authentication.
-- PR #331 (canonical full tower) is unmerged. Draft PR #335 is stacked on its branch and adds portable doctor,
-  nine specialist roles and the complete lead skill. Maintainer merges bottom-up only after final reviews/gate.
+- PRs #331 (canonical full tower), #335 (portable doctor, nine roles and lead skill), and #337 (step-cap
+  reliability) are merged into main after READY gates and maintainer authorization. #330/#332/#334/#336 are closed.
 - Pi local full-role trial passed: 9 calls, 21 steps, reported specialist cost $0.0073 (lead cost excluded).
   No external PR, CI gate or universal harness claim. Source/test/docs and clean trial head independently checked.
 - Claude Code trial: code passed; researcher hit its 3-step cap and verifier hit its 5-step cap twice.
@@ -17,9 +17,14 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   reviewer/security approved that head. Runner unchanged; no external repo/PR/push/merge.
 - **Next session:** [docs/dev-squad-harness-trial.md](docs/dev-squad-harness-trial.md) records all three hosts.
   Hermes remains untested; #333's broader acceptance remains open. Preserve Pi/Claude Code/Codex evidence.
-  Investigate the recorded cap/report-loss gap separately from these baseline trials.
-- #333 remains open for cross-harness and full draft-PR acceptance; #334/#332 implementation is partial.
-  Global enforced spending limits, hostile-code isolation and unattended execution are not proven by this trial.
+  The recorded cap/report-loss gap is fixed by #337: nonzero exhausted-loop exit, safe incomplete diagnostics,
+  explicit limit validation and finish reminders. Researcher/verifier repeats completed within 3/5 steps.
+- Approved private GitHub issue-to-draft-PR trial passed: nine roles, 21 steps, 22 independently passing tests,
+  exact-head reviewer/security approvals and verifier completion; reported specialist cost $0.008620.
+  Acceptance PR remains draft/unmerged; no GitHub Actions configured there, so local checks are not CI evidence.
+- #333 remains open for broader acceptance (failure matrix, live delivery, clean-machine credentials).
+  #328 tracks SDK reference reviewer alignment; #320 tracks unattended execution, not the portable lead workflow.
+  Global enforced spending limits and hostile-code isolation are not proven. Do not claim universal harness support.
 
 ## Status on 2026-10-27
 
