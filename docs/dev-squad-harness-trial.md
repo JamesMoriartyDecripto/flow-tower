@@ -1,7 +1,21 @@
 # Dev Squad: repeatable host-harness trial
 
 Tracking: #333 (acceptance), #334 (portable workflow), #332 (onboarding).
-Implementation: draft PR #335, stacked on #331. Do not test the older runner from main.
+Implementation: #331, #335 and #337 are merged into main. Use an up-to-date checkout of main for new trials.
+Historical results below name the older implementation commits actually tested; do not rewrite baseline evidence.
+
+## Post-merge acceptance milestone
+
+The operator-approved private GitHub trial reached a draft PR using the installed runner from `3af5ef6`:
+actual issue → fresh install/doctor → nine specialist roles → code/tests/docs → independent tests → final-head
+review/security → verifier → draft PR. All 22 tests passed independently, both passes approved the exact head,
+and all roles completed. Ledger: nine calls, 21 steps, reported $0.008620, no unknown costs (lead cost excluded).
+No merge or deletion was performed. Private links and local infrastructure are intentionally omitted.
+
+The disposable repository had no GitHub Actions workflow: this proves local checks and draft-PR creation,
+not GitHub CI execution. Existing user credentials were reused. Later doctor/argument fixes were tested in
+the implementation suite. #333 remains open for its broader checklist; #328 and #320 retain separate scope.
+The completion fixes in #337 do not guarantee that every future model call will finish within its limit.
 
 ## What this tests
 
@@ -15,7 +29,7 @@ provider recovery or every possible project. Follow-up acceptance remains open i
 
 ## Repeat from a new session
 
-1. Open the checkout of `feat/332-runnable-dev-squad`, not the unchanged main checkout. Read `AGENTS.md`,
+1. Open an up-to-date checkout of `main` (the merged feature branches have been removed). Read `AGENTS.md`,
    `CLAUDE.md`, `skills/flow-tower-squad/SKILL.md`, this file and the latest #333 comments. Record the commit
    tested, Node/git versions and actual lead harness/model. Do not overwrite existing worktrees or trial folders.
 2. Create a **new disposable git repository** per harness. Configure a local test commit identity. Install:
@@ -39,6 +53,9 @@ provider recovery or every possible project. Follow-up acceptance remains open i
    node tools/squad/run.mjs --role architect --task <plan-task> --issue 333 --steps 4
    node tools/squad/run.mjs --role doc-writer --write docs --task <docs-task> --issue 333 --steps 6
    ```
+   Here `--issue 333` is only the local run's ledger label, not a GitHub issue lookup by `run.mjs`.
+   When packing an offline review, use `pack.mjs --base <local-base> --brief <local-issue-file>` to supply
+   issue context without a remote lookup; `--brief` is a pack option, not a runner option.
    Other roles use the same entry point. Keep configured models constant across host trials where available.
    Do not silently substitute unavailable models. Record retries, failures and any explicit fallback.
 6. Independently inspect source, tests and documentation. Run `node --test` and `git diff --check` yourself.
@@ -114,7 +131,7 @@ local commit packing still worked. No actual GitHub/CI gate or live-event delive
 | Independent tests | 4 top-level tests, 22 table cases, 13 invalid inputs; all passed. Mutants (`toLowerCase()`, `giu` flags, no `+`) each fail 1 test |
 | Review/security | Both approved the trial head. Security: one low finding (slug not injective, may be `''`), quote verified, dropped: required by the issue, documented, no caller uses it as a key |
 | Verifier | **Did not complete**: 2 runs, both `step cap` at 5 steps. Each wrote a correct PASS in prose next to tool calls but never called `finish`. Lead established the result from git/test output |
-| Ledger | 10 specialist calls (one verifier retry), 29 steps, reported cost **$0.0105**, no unknown-cost runs; excludes lead cost |
+| Ledger | 10 specialist calls (one verifier retry), 29 steps, reported cost **$0.0105**, no unknown-cost runs; excludes lead cost. Per-role display values are rounded independently and need not sum to the unrounded ledger total. |
 
 | Role | Model | Runs | Steps | Reported cost | Outcome |
 |---|---|---:|---:|---:|---|
