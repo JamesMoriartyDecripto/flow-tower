@@ -5,9 +5,17 @@ A multi-agent **software delivery system** built on the
 Label a GitHub issue `squad:go` and Dev Squad triages it, plans, researches, codes,
 tests, reviews, verifies and opens a **draft** pull request. A human merges.
 
-This is the flagship flow-tower example: it is meant to be read, not run. To run a dev squad on your own
-project, use the kit instead: `flow-tower squad init <project>` (a coder, a reviewer and a security auditor from three
-families, measured on the kit's own runner, with your coding agent as the lead; [tools/squad](../../tools/squad/README.md)).
+This is the **canonical Dev Squad**. `flow-tower squad init <project>` installs this complete eight-layer tower
+as `tools/squad/squad.tower.yaml`, with its nested towers, agents, prompts and source under
+`tools/squad/dev-squad/`. There is no separate reduced tower template.
+
+The installed [runner scripts](../../tools/squad/README.md) still execute individual coder, reviewer and security
+tasks with your coding agent as lead; installing this bundle does **not** activate the full SDK pipeline or its
+webhook/deployment. Those require separate runtime setup (#320).
+
+Updates preserve existing towers and bundle files, including on `--force`. For an older reduced installation,
+back up your tower, remove `tools/squad/squad.tower.yaml`, then run `flow-tower squad init <project> --force`.
+Review and port any customizations from the backup; the installer never silently discards them.
 
 ## Open it
 

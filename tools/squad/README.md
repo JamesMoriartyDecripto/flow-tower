@@ -14,8 +14,17 @@ git -C ~/my-project add tools/squad .gitignore && git -C ~/my-project commit -m 
 Commit what init wrote before the first step: each worktree reads `tools/squad/squad.json` from its branch.
 
 Then ask your agent to work an issue with the squad: the [flow-tower-squad skill](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/skills/flow-tower-squad/SKILL.md)
-is the lead's procedure. `tools/squad/squad.json` holds what is specific to a project (below). The design sample of a
-bigger, unattended squad on the Claude Agent SDK is [`examples/dev-squad`](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/examples/dev-squad/README.md) (meant to be read).
+is the lead's procedure. `tools/squad/squad.json` holds what is specific to a project (below).
+
+The **single canonical Dev Squad tower** is [`examples/dev-squad`](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/examples/dev-squad/README.md).
+Init installs its full eight layers at `tools/squad/squad.tower.yaml` and its supporting files (including nested
+towers, agents, prompts and SDK source) in `tools/squad/dev-squad/`. It does not install a reduced tower.
+These runner scripts execute individual tasks, not the full SDK pipeline: installing its source does not activate
+webhooks, orchestration or deployment (#320). Runner model settings do not rewrite the canonical SDK model metadata.
+
+`--force` refreshes runner scripts and fills missing bundle files, but preserves existing towers and bundle edits.
+To replace an older reduced tower, back it up, remove `tools/squad/squad.tower.yaml`, and rerun init with `--force`;
+review and port your customizations from the backup. No automatic replacement risks losing user work.
 
 ## squad.json
 
@@ -105,7 +114,7 @@ names the tower node that shows the run live; `ev.sh` posts those events to `FLO
 
 ```bash
 node tools/squad/pack.mjs --role reviewer --issue 113 --repo ../wt-113 > tasks/113-review.md
-node tools/squad/run.mjs --model z-ai/glm-5.3-flash --role reviewer --node specialists.reviewer \
+node tools/squad/run.mjs --model z-ai/glm-5.3-flash --role reviewer --node quality.reviewer \
   --task tasks/113-review.md --issue 113 --repo ../wt-113
 ```
 
@@ -116,7 +125,7 @@ afterwards: `role-*.log` next to the script holds every call.
 
 ```bash
 node tools/squad/pack.mjs --role security --issue 113 --repo ../wt-113 > tasks/113-security.md
-node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node specialists.security \
+node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node quality.security \
   --task tasks/113-security.md --issue 113 --repo ../wt-113
 ```
 
@@ -221,7 +230,7 @@ One-request and batch reviews have no tools: the task must hold the code. Build 
 ```bash
 node tools/squad/pack.mjs --role security --issue 164 --files src/server/enroll.ts,src/server/shared-towers.ts > tasks/164-security.md
 node tools/squad/pack.mjs --role reviewer --issue 249 --paths src,examples > tasks/249-review.md
-node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node specialists.security --task tasks/164-security.md --issue 164
+node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node quality.security --task tasks/164-security.md --issue 164
 ```
 
 - **DeepSeek 4.1 Flash can answer empty in `--oneshot`** (2026-10-13: four of five security passes on #189-#194 returned `empty answer`). Re-run it once; if it is empty again, run the same packed task with the reviewer model and the security brief, and say so in the PR. The same day of #316 it also cut answers in the middle of the JSON: a oneshot or batch answer whose `finish_reason` is present and not `stop` now fails the run (`truncated answer`, ledger outcome `truncated-answer`) instead of passing as a normal one; treat it like an empty answer.
@@ -296,4 +305,4 @@ The lead posts that table on the issue when it closes.
 
 - In flow-tower: [`src/server/plugin.ts`](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/src/server/plugin.ts) and [`src/core/secrets.ts`](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/src/core/secrets.ts), how the key file and the user folder are found and guarded.
 - `bin/flow-tower.js emit`: the event CLI `ev.sh` calls (never fails, never blocks long).
-- `examples/dev-squad`: the product sample, a full squad in TypeScript, not this harness.
+- `examples/dev-squad`: the canonical complete Dev Squad tower and SDK source, distributed by init; these scripts remain its task runner, not a launcher for the full SDK pipeline.

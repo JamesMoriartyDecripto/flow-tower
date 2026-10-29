@@ -14,6 +14,9 @@ import { parseArgs } from 'node:util';
 import { cliName, shellPath } from '../../bin/cli-name.js';
 import { userHome } from '../core/secrets.ts';
 import { detectConfig } from './squad-detect.ts';
+import {
+  BUNDLE_DIR, MAIN_TOWER, assertRealDirOrMissing, assertRegularOrMissing, assertSquadDir, assertTowerDests, installTower,
+} from './squad-tower.ts';
 
 // Re-exported for the tests, which import detectConfig from here.
 export { detectConfig };
@@ -21,32 +24,33 @@ export { detectConfig };
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const RUNNER = join(pkgRoot, 'tools', 'squad');
 const KIT = join(RUNNER, 'kit');
+// The canonical Dev Squad: the tower and the bundle it points at are installed from this folder (#330).
+const EXAMPLE = join(pkgRoot, 'examples', 'dev-squad');
 const CLI = join(pkgRoot, 'bin', 'flow-tower.js');
 
 /** The lines a squad adds to .gitignore: its run logs, the task folders, and the checkout's path (.cli). */
 // The task folders (tools/squad/tasks/<n>/) hold per-issue step files that are not committed; ignoring them keeps
 // steps.sh from reporting "UNTRACKED LEFT" on every step (#265). TEMPLATE.md is the one file meant to be tracked.
 // .cli holds this checkout's absolute path, which is machine-local: it must not be committed with squad.json.
-const IGNORE_LINES = ['tools/squad/*.log', 'tools/squad/tasks/*', '!tools/squad/tasks/TEMPLATE.md', 'tools/squad/.cli'];
+// Runtime logs in the bundle are ignored; only the four logs shipped with the example are re-included, one by one.
+// A blanket negation would also re-include any runtime log the squad writes later, so each sample is named.
+// Git takes the last matching pattern, so the negations must come after the ignore line they override.
+const BUNDLE_LOGS = `tools/squad/${BUNDLE_DIR}/logs`;
+const SHIPPED_BUNDLE_LOGS = ['hooks.log', 'lead.log', 'review-loop.log', 'webhook.log'];
+const IGNORE_LINES = [
+  'tools/squad/*.log',
+  'tools/squad/tasks/*',
+  '!tools/squad/tasks/TEMPLATE.md',
+  'tools/squad/.cli',
+  `${BUNDLE_LOGS}/*.log`,
+  ...SHIPPED_BUNDLE_LOGS.map((name) => `!${BUNDLE_LOGS}/${name}`),
+];
 
 /** Whether a path is an existing folder (false for a missing path or a file). */
 const isDir = (path: string) => existsSync(path) && statSync(path).isDirectory();
 
-/** Values go inside the tower's double quotes, so a stray quote or backslash would break its YAML. */
-// Stripping them is simpler than escaping, and no real tower name needs either character.
-const quoteSafe = (value: string) => value.replace(/["\\]/g, '');
-
 /** Runner files: every *.mjs, *.d.mts and *.sh, plus the README. Never logs, squad.json or kit/. */
 const isRunnerFile = (name: string) => /\.(mjs|d\.mts|sh)$/.test(name) || name === 'README.md';
-
-function fillTower(template: string, config: ReturnType<typeof detectConfig>['config']): string {
-  const c = config as { tower: string; models: Record<string, string> };
-  return template
-    .replaceAll('{{TOWER}}', quoteSafe(c.tower))
-    .replaceAll('{{CODER}}', quoteSafe(c.models.coder))
-    .replaceAll('{{REVIEWER}}', quoteSafe(c.models.reviewer))
-    .replaceAll('{{SECURITY}}', quoteSafe(c.models.security));
-}
 
 /** The key the squad needs, as OpenRouter issues it. */
 const KEY_PREFIX = 'sk-or-';
@@ -192,6 +196,24 @@ const isMain = (() => {
   try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; }
 })();
 
+/**
+ * The tower name init uses. On --force the repo's own squad.json wins (its tower name is the one the repo already
+ * uses, not a fresh detection). A malformed file throws, so the init stops with a clear error; a missing or
+ * empty `tower` falls back to the detected name.
+ */
+function existingTowerName(squadJson: string, detected: string): string {
+  if (!existsSync(squadJson)) return detected;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(squadJson, 'utf8'));
+  } catch {
+    // The parser's message is not echoed: it can quote file content, which may hold credentials.
+    throw new Error(`${squadJson} is not valid JSON: fix or remove it, then run init again`);
+  }
+  const tower = (parsed as { tower?: unknown } | null)?.tower;
+  return typeof tower === 'string' && tower.trim() !== '' ? tower : detected;
+}
+
 function init(dirArg: string, check: string | undefined, force: boolean): void {
   const top = spawnSync('git', ['-C', dirArg, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
   if (top.status !== 0) {
@@ -219,10 +241,30 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
     exit(1);
   }
 
+  // Every destination is checked before the first write (#330 review): a link or non-regular file at any of them
+  // would send a write outside the repo, and a malformed squad.json must stop the init before it touches anything.
+  const runnerNames = readdirSync(RUNNER).filter(isRunnerFile);
+  const tasks = join(squadDir, 'tasks');
+  const taskTemplate = join(tasks, 'TEMPLATE.md');
+  const ignore = join(project, '.gitignore');
+  let towerName: string;
+  try {
+    towerName = existingTowerName(squadJson, (config as { tower: string }).tower);
+    assertSquadDir(squadDir);
+    for (const name of runnerNames) assertRegularOrMissing(join(squadDir, name));
+    assertRegularOrMissing(join(squadDir, '.cli'));
+    assertRegularOrMissing(squadJson);
+    assertRealDirOrMissing(tasks);
+    assertRegularOrMissing(taskTemplate);
+    assertTowerDests(EXAMPLE, squadDir);
+    assertRegularOrMissing(ignore);
+  } catch (e) {
+    console.error((e as Error).message);
+    exit(1);
+  }
   mkdirSync(squadDir, { recursive: true });
   const written: string[] = [];
-  for (const name of readdirSync(RUNNER)) {
-    if (!isRunnerFile(name)) continue;
+  for (const name of runnerNames) {
     const from = join(RUNNER, name);
     const to = join(squadDir, name);
     copyFileSync(from, to);
@@ -242,21 +284,17 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
     writeFileSync(squadJson, `${JSON.stringify(config, null, 2)}\n`);
     written.push('tools/squad/squad.json');
   }
-  const tasks = join(squadDir, 'tasks');
   mkdirSync(tasks, { recursive: true });
-  const taskTemplate = join(tasks, 'TEMPLATE.md');
   if (!existsSync(taskTemplate)) {
     copyFileSync(join(KIT, 'TEMPLATE.md'), taskTemplate);
     written.push('tools/squad/tasks/TEMPLATE.md');
   }
-  const tower = join(squadDir, 'squad.tower.yaml');
-  if (!existsSync(tower)) {
-    writeFileSync(tower, fillTower(readFileSync(join(KIT, 'squad.tower.yaml'), 'utf8'), config));
-    written.push('tools/squad/squad.tower.yaml');
-  }
+  // The canonical tower and its bundle: only missing files are written, so --force never replaces an edited tower.
+  const tower = installTower(EXAMPLE, squadDir, towerName);
+  if (tower.main) written.push(`tools/squad/${MAIN_TOWER}`);
+  if (tower.files) written.push(`tools/squad/${BUNDLE_DIR}/ (${tower.files} files)`);
 
   // The squad's logs and task output are local: they must not be committed to the repo.
-  const ignore = join(project, '.gitignore');
   const current = existsSync(ignore) ? readFileSync(ignore, 'utf8') : '';
   const have = new Set(current.split(/\r?\n/).map((l) => l.trim()));
   const missing = IGNORE_LINES.filter((l) => !have.has(l));
@@ -268,7 +306,7 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
   }
 
   const cli = cliName();
-  const towerPath = join(squadDir, 'squad.tower.yaml');
+  const towerPath = join(squadDir, MAIN_TOWER);
   const cfg = config as { project: string; write: string[]; review: string[] };
   // The key is reported, never printed: a squad without one fails on its first model call, so say so now.
   const source = keySource();

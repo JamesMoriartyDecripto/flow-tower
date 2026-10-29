@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Fixed
+- Dev Squad installation (#330): `squad init` now distributes the complete canonical eight-layer tower from `examples/dev-squad`, with nested towers, agents, prompts and source. Removed the obsolete reduced tower template and placeholder substitution. Updates preserve existing towers and bundle edits; bundled example logs remain trackable. The task runner does not launch the full SDK pipeline automatically.
+
 ## [0.14.0] - 2026-10-28
 
 ### Added

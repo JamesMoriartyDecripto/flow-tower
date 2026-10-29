@@ -20,8 +20,13 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
 
 1. **Init**: `{{FLOW_TOWER_CLI}} squad init <project>` (a git repository). It copies the runner into
    `tools/squad/`, detects `tools/squad/squad.json` (check command, writable folders, base branch) and writes the
-   task template and a ready tower. No check detected: `--check "<the command that proves a step works>"`.
-   After a flow-tower update: `squad init <project> --force` refreshes the runner and keeps squad.json.
+   task template and the complete canonical eight-layer Dev Squad tower at `tools/squad/squad.tower.yaml`.
+   Its nested towers, agents, prompts and SDK source go in `tools/squad/dev-squad/`; no reduced template exists.
+   No check detected: `--check "<the command that proves a step works>"`.
+   After a flow-tower update: `squad init <project> --force` refreshes the runner, fills missing bundle files and
+   keeps squad.json, existing towers and bundle edits. To migrate an old reduced tower, back it up, remove the
+   installed `squad.tower.yaml`, rerun init with `--force`, then review and port your customizations.
+   The task runner does not launch the full SDK pipeline; installing its source does not configure deployment (#320).
 2. **Read squad.json with the user**: `project` (one line on the stack, it opens every model's prompt),
    `commands.check` (must pass after every step), `write` (what the coder may touch), `review`, `base`, `rules`
    (project rules every model sees). Fix what the detection got wrong before the first step.
@@ -62,8 +67,8 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
    ```bash
    node tools/squad/pack.mjs --role reviewer --issue <n> --repo ../wt-<n> --files <changed files> > /tmp/<n>-review.md
    node tools/squad/pack.mjs --role security --issue <n> --repo ../wt-<n> --files <changed files>,<guards it relies on> > /tmp/<n>-security.md
-   node tools/squad/run.mjs --model <reviewer> --role reviewer --node specialists.reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n> > /tmp/<n>-review.out 2>&1 &
-   node tools/squad/run.mjs --model <security> --role security --node specialists.security --task /tmp/<n>-security.md --issue <n> --repo ../wt-<n> > /tmp/<n>-security.out 2>&1 &
+   node tools/squad/run.mjs --model <reviewer> --role reviewer --node quality.reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n> > /tmp/<n>-review.out 2>&1 &
+   node tools/squad/run.mjs --model <security> --role security --node quality.security --task /tmp/<n>-security.md --issue <n> --repo ../wt-<n> > /tmp/<n>-security.out 2>&1 &
    wait
    ```
    Both answer in one request with the packed code (the default) and only with the JSON verdict: an answer without
