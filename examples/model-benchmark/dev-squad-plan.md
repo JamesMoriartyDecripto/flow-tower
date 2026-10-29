@@ -36,6 +36,52 @@ These are public list quotes, not measured task costs or final recommended model
 can be added only for justified hard tasks after budget approval; do not test every listed model indiscriminately.
 Free variants are not substitutes unless their endpoints meet the same data policy and reliability requirements.
 
+## Coverage audit and proposed first-round matrix
+
+Offline task parsing found 17 existing tasks across intent (4), planner (3), coder (3), reviewer (3),
+security (2), doc-writer (2); all passed taskProblems. This checks fixture structure, not answer-key quality.
+Intent's airline/navigation tasks are not squad issue triage. Planner has no executable repository investigation;
+review/security regex checks cannot alone establish defect precision or valid squad verdicts. Researcher,
+tester and verifier need dedicated fixtures. Existing tasks can screen candidates but cannot select nine defaults.
+
+Candidate shorthand: H = Haiku, G = GLM Flash, D = DeepSeek Flash, L = GPT Luna, M = MiMo Flash,
+N = MiniMax Flash, Q = Qwen Flash, F = Gemini Flash (exact IDs/prices above).
+
+| Role | Proposed candidates | Required role-specific acceptance |
+|---|---|---|
+| triage | H, G, L | Correct issue scope/risk routing; no invented requirements |
+| architect | G, H, L, F | Implementable plan, correct dependencies and gates |
+| researcher | G, D, N | Evidence with real file references; uncertainty stated |
+| coder | H, L, M, Q | Independent tests pass, no forbidden-path edits |
+| tester | H, G, L | Detect planted failure; negative control not falsely failed |
+| reviewer | G, D, F | Critical defect detected, clean control accepted, valid verdict |
+| security | D, G, F | Critical vulnerability detected, no fabricated vulnerability, valid verdict |
+| verifier | G, H, L | Reject false completion and failed checks; correct completion evidence |
+| doc-writer | H, G, M | Factual docs, scoped edits, explicit finish |
+
+This is a proposed 29 role/model combinations, not a claim these are the best candidates. Endpoint checks may
+exclude a model; replacements require recorded rationale. Same exact model used by several roles need not
+repeat generic endpoint smoke, but must repeat role-specific tests. No critical miss/false success allowed;
+all eligible runs must complete correctly. With six measured runs per role/model (two fixtures × three repeats),
+require all six mandatory checks to pass before treating a candidate as eligible in this small pilot. Report raw
+counts, not a statistically established reliability percentage. Rubric score >=4/5 on each task, judged blind,
+is proposed for plan/research/docs; freeze rubric and keys before calls. Broader task coverage follows pilot.
+
+## Proposed budget, not authorization
+
+Public-price envelope: a smoke round of eight unique candidates at 10k input + 2k output tokens each is about
+$0.0297 before tool-loop growth. The 29-combination pilot × two tasks × three repeats = 174 role runs;
+assuming at most 100k aggregate input + 10k output per role run, the quoted matrix totals about $4.09.
+These assumptions include all loop turns, not tokens per turn. They are estimates, NOT enforced token limits:
+reasoning, cache/provider pricing, growing context, failures and retries can change actual spend.
+
+Propose **$1 maximum for the initial smoke stage**, then review outcomes before authorizing a separate
+**$6 pilot ceiling**. Do not authorize both stages implicitly. Check costs after every call, stop on unknown
+cost or unexpectedly large usage, and account for possible in-flight overshoot: runner has no hard global
+USD cap. Deterministic/offline fixture checks remain free of specialist API charges. Until explicit approval,
+prepare fixtures and dry runs only. Higher-cost blind model judges are excluded; use deterministic checks and
+lead/manual blind rubric in the pilot, reporting that limitation.
+
 ## Experiment sequence and decision rule
 
 1. Inventory existing category tasks/judges and real squad failures. Map all nine roles; identify missing
