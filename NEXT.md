@@ -2,6 +2,20 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## In flight: portable Dev Squad trials (#333, #334)
+
+- **Do not resume the superseded Claude-SDK-only installer direction.** The user's existing harness is lead;
+  shared Node/OpenRouter specialists select models per role. No required Claude SDK/authentication.
+- PR #331 (canonical full tower) is unmerged. Draft PR #335 is stacked on its branch and adds portable doctor,
+  nine specialist roles and the complete lead skill. Maintainer merges bottom-up only after final reviews/gate.
+- Pi local full-role trial passed: 9 calls, 21 steps, reported specialist cost $0.0073 (lead cost excluded).
+  No external PR, CI gate or universal harness claim. Source/test/docs and clean trial head independently checked.
+- **Next session:** follow [docs/dev-squad-harness-trial.md](docs/dev-squad-harness-trial.md) from the
+  `feat/332-runnable-dev-squad` checkout. Repeat in a fresh local repository using Claude Code, then Codex.
+  Keep role models/issue constant, record failures and actual host, update #333. Do not overwrite Pi evidence.
+- #333 remains open for cross-harness and full draft-PR acceptance; #334/#332 implementation is partial.
+  Global enforced spending limits, hostile-code isolation and unattended execution are not proven by this trial.
+
 ## Status on 2026-10-27
 
 - **Working model** (maintainer, 2026-10-27): the squad develops, the lead checks and measures, never infers. A PR goes to `main` when the lead's review and the PR steward agree; the maintainer runs the merge. Every tower here must work on any harness and come optimized with ready OpenRouter models: the day's work is the towers' training ground, so a flaw found in real work is fixed in the tower or runner it belongs to.
