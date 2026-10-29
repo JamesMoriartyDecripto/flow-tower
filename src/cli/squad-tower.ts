@@ -33,9 +33,19 @@ const isRealFile = (path: string) => { try { return lstatSync(path).isFile(); } 
  * Throws when `path` exists but is not a real folder. A symlink here would send the writes to wherever it
  * points, possibly outside the repo, so the install stops before it writes anything.
  */
-function assertRealDirOrMissing(path: string): void {
+export function assertRealDirOrMissing(path: string): void {
   if (present(path) && !isRealDir(path)) {
     throw new Error(`refusing to write through ${path}: it is not a real folder (a symlink or file is in the way)`);
+  }
+}
+
+/**
+ * Throws when `path` exists but is not a regular file. Checked with lstat, so a dangling symlink is refused too:
+ * a write through it would create the file at the link's target, outside the repo.
+ */
+export function assertRegularOrMissing(path: string): void {
+  if (present(path) && !isRealFile(path)) {
+    throw new Error(`refusing to write ${path}: it is not a regular file (a symlink or folder is in the way)`);
   }
 }
 
@@ -101,15 +111,27 @@ function mainTower(source: string, towerName: string): string {
 }
 
 /**
- * Installs the bundle into `squadDir` from `source` (the canonical example folder). Existing files are never
- * overwritten, not even on --force: a missing file is filled, a file the repo already has is the repo's own
- * edit. A destination folder that is a symlink is refused (the install throws before writing anything).
- * Modes are kept, so the scripts stay executable. Returns what was written, for the init report.
+ * Checks every destination the tower install may write, before any write: the squad folder and bundle folders
+ * must be real folders, and the main tower and each bundle file must be a regular file or missing. Returns the
+ * bundle's file list so the caller does not walk the source twice. A link anywhere stops the install.
  */
-export function installTower(source: string, squadDir: string, towerName: string): { main: boolean; files: number } {
+export function assertTowerDests(source: string, squadDir: string): string[] {
   const bundle = bundleFiles(source);
   assertSquadDir(squadDir);
   assertBundleDirs(squadDir, bundle);
+  assertRegularOrMissing(join(squadDir, MAIN_TOWER));
+  for (const rel of bundle) assertRegularOrMissing(join(squadDir, BUNDLE_DIR, rel));
+  return bundle;
+}
+
+/**
+ * Installs the bundle into `squadDir` from `source` (the canonical example folder). Existing files are never
+ * overwritten, not even on --force: a missing file is filled, a file the repo already has is the repo's own
+ * edit. A destination folder or file that is a link is refused (the install throws before writing anything).
+ * Modes are kept, so the scripts stay executable. Returns what was written, for the init report.
+ */
+export function installTower(source: string, squadDir: string, towerName: string): { main: boolean; files: number } {
+  const bundle = assertTowerDests(source, squadDir);
 
   const mainPath = join(squadDir, MAIN_TOWER);
   let main = false;
@@ -123,6 +145,7 @@ export function installTower(source: string, squadDir: string, towerName: string
   for (const rel of bundle) {
     const from = join(source, rel);
     const to = join(squadDir, BUNDLE_DIR, rel);
+    // Already checked by assertTowerDests: here it is a regular file the repo owns, which is kept as it is.
     if (present(to)) continue;
     mkdirSync(join(to, '..'), { recursive: true });
     copyFileSync(from, to);
