@@ -18,6 +18,7 @@ import { realRelIfAllowed, realTarget } from './guard.mjs';
 import { parseVerdict } from './gate.mjs';
 import { pickMode } from './mode.mjs';
 import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './oneshot.mjs';
+import { incompleteText, parseSteps, stepReminder } from './step-limit.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
@@ -56,7 +57,9 @@ if (!dirs) { console.error(USAGE); exit(2); }
 // The canonical node is the registry's, unless --node names one explicitly.
 const node = arg('node') ?? ROLES[role].node;
 const task = readFileSync(taskFile, 'utf8');
-const maxSteps = Number(arg('steps', 40));
+// Checked before any key or request: NaN, 0, a fraction or an empty value would otherwise run zero steps or none at all.
+const maxSteps = parseSteps(arg('steps'));
+if (maxSteps === null) { console.error(`--steps must be a whole number of at least 1, got "${arg('steps')}"`); exit(1); }
 // Modes (mode.mjs): reviewer and security answer in one request by default; the coder always needs its tools.
 let picked;
 try {
@@ -349,7 +352,12 @@ if (mode !== 'loop') {
   console.log(`${content}\n\n--- ${model} · 1 step · ${shown} · cache ${cached}% of ${promptTokens} prompt tokens${paidMode === 'batch' ? ' (batch)' : ''} · log ${log}`);
   exit(0);
 }
+// The last assistant text of the loop: printed, labelled INCOMPLETE, if the cap is reached. Never read as a verdict.
+let lastText = '';
 for (let step = 0; step < maxSteps; step++) {
+  // Appended after the previous reply's tool results, so the pairing holds. The reminder is for the last two calls only.
+  const reminder = stepReminder(maxSteps - step);
+  if (reminder) messages.push({ role: 'user', content: reminder });
   // A call stuck for minutes (GLM once sat 7 min on one) is retried once, then the run stops.
   const ask = () => fetch(chatUrl(), {
     method: 'POST',
@@ -373,6 +381,7 @@ for (let step = 0; step < maxSteps; step++) {
   const msg = out.choices?.[0]?.message ?? {};
   messages.push({ role: 'assistant', content: msg.content ?? null, ...(msg.tool_calls?.length && { tool_calls: msg.tool_calls }) });
   if (msg.content) note(`\n[assistant] ${msg.content}`);
+  if (msg.content?.trim()) lastText = msg.content;
   emit('log', node, `step ${step + 1} · $${cost.toFixed(3)} · cache ${cached}%${msg.content ? ` · ${msg.content.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`);
   if (!msg.tool_calls?.length) { messages.push({ role: 'user', content: 'Use the tools; call finish with your report when done.' }); continue; }
   let reask = false;
@@ -414,3 +423,6 @@ for (let step = 0; step < maxSteps; step++) {
 record('step-cap', maxSteps);
 emit('agent.end', node, `${role} on ${model}: step cap`, 'error');
 console.log(`step cap reached · $${cost.toFixed(4)} · log ${log}`);
+console.log(incompleteText(lastText));
+// The cap is a failure: exit 0 here used to read as a finished run.
+exit(1);
