@@ -85,7 +85,7 @@ layers:
           and video generation. One per role a node can have. Each says what the role must do
           and its deterministic check. Pitfall: one "general" leaderboard; a fast classifier
           and a careful reviewer are different jobs.
-        files: [categories.md, dev-squad-plan.md]
+        files: [categories.md, dev-squad-plan.md, cybersec-plan.md]
       - id: ready
         type: decision
         label: Has 2+ tasks?
