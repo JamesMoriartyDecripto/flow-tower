@@ -423,6 +423,7 @@ for (let step = 0; step < maxSteps; step++) {
 record('step-cap', maxSteps);
 emit('agent.end', node, `${role} on ${model}: step cap`, 'error');
 console.log(`step cap reached · $${cost.toFixed(4)} · log ${log}`);
-console.log(incompleteText(lastText));
+// Stderr, not stdout: the gate and parseVerdict read stdout, and partial model text must never pass there as a verdict.
+console.error(incompleteText(lastText));
 // The cap is a failure: exit 0 here used to read as a finished run.
 exit(1);
