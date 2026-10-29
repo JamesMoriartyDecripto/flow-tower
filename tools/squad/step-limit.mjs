@@ -23,6 +23,19 @@ export function stepReminder(left) {
     + 'Report what is done and what is not. If the work is not finished, say so plainly and end the report with a `Known gaps:` line that names what is missing. Do not claim unfinished work passed.';
 }
 
+// Puts the reminder for the next request into the history without breaking the role alternation. After a tool reply the
+// reminder is a new user message, which comes after every tool result, so each call stays paired. After a user message
+// (the task, or a nudge for a reply with no tool call) it joins that message, so two user turns never sit in a row.
+// Nothing is added unless the request is one of the last two. Mutates and returns messages (no I/O).
+export function appendReminder(messages, left) {
+  const reminder = stepReminder(left);
+  if (!reminder) return messages;
+  const last = messages.at(-1);
+  if (last?.role === 'user') last.content = `${last.content}\n${reminder}`;
+  else messages.push({ role: 'user', content: reminder });
+  return messages;
+}
+
 // Terminal control sequences (CSI, OSC, a lone ESC), C0 and C1 controls, and bidi formatting controls (LRE..PDI, LRM/RLM,
 // ALM), but keeping newline and tab. A model's text must not move the cursor, clear the screen, rewrite a line of the
 // console or reorder the text it shows.

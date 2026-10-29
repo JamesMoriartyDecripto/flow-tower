@@ -18,7 +18,7 @@ import { realRelIfAllowed, realTarget } from './guard.mjs';
 import { parseVerdict } from './gate.mjs';
 import { pickMode } from './mode.mjs';
 import { ONESHOT_TIMEOUT_MS, httpFailure, loopBody, oneshotBody, oneshotSystem } from './oneshot.mjs';
-import { STEP_DEFAULT, incompleteText, parseSteps, stepReminder } from './step-limit.mjs';
+import { STEP_DEFAULT, appendReminder, incompleteText, parseSteps } from './step-limit.mjs';
 import { toolSchema } from './tool-schema.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -329,9 +329,8 @@ if (mode !== 'loop') {
 // The last assistant text of the loop: printed, labelled INCOMPLETE, if the cap is reached. Never read as a verdict.
 let lastText = '';
 for (let step = 0; step < maxSteps; step++) {
-  // Appended after the previous reply's tool results, so the pairing holds. The reminder is for the last two calls only.
-  const reminder = stepReminder(maxSteps - step);
-  if (reminder) messages.push({ role: 'user', content: reminder });
+  // The reminder is for the last two calls only; appendReminder keeps the tool results paired and the roles alternating.
+  appendReminder(messages, maxSteps - step);
   // A call stuck for minutes (GLM once sat 7 min on one) is retried once, then the run stops.
   const ask = () => fetch(chatUrl(), {
     method: 'POST',
@@ -381,7 +380,8 @@ for (let step = 0; step < maxSteps; step++) {
       exit(0);
     }
     let result;
-    try { result = String(tools[c.function.name]?.(a) ?? `unknown tool ${c.function.name}`); } catch (e) { result = `ERROR: ${e.message}`; }
+    // Own keys only: a model's "constructor" or "toString" would otherwise reach Object.prototype and run an inherited function.
+    try { result = String(Object.hasOwn(tools, c.function.name) ? tools[c.function.name](a) : `unknown tool ${c.function.name}`); } catch (e) { result = `ERROR: ${e.message}`; }
     note(`\n[${c.function.name}] ${JSON.stringify(a).slice(0, 300)}\n→ ${result.slice(0, 600)}`);
     // Every call shows on the tower, reads included: a reviewer only reads, and must not look idle.
     const what = a.path ?? a.command ?? a.pattern ?? a.dir ?? '';

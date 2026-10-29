@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error plain .mjs without declarations
 import { parseVerdict } from '../tools/squad/gate.mjs';
 // @ts-expect-error plain .mjs without declarations
-import { diagnosticText } from '../tools/squad/step-limit.mjs';
+import { appendReminder, diagnosticText } from '../tools/squad/step-limit.mjs';
 
 // The runner talks to a fetch the fixture replaces (no socket is opened): each chat request takes the next scripted
 // reply, and every request body is logged so the test can read the messages the model was sent.
@@ -149,6 +149,69 @@ describe('the reminder before the last two calls', () => {
     const calls = sent(t.requests);
     expect(calls).toHaveLength(1);
     expect(calls[0].some(isReminder)).toBe(true);
+  });
+});
+
+describe('the reminder keeps the roles alternating and every tool call paired', () => {
+  // No two user messages in a row: a second one would be a second user turn the API does not expect.
+  const noConsecutiveUsers = (messages: Message[]) => messages.every((m, i) => i === 0 || m.role !== 'user' || messages[i - 1].role !== 'user');
+
+  it('a cap of one sends one user message for the task, with the reminder merged into it', SPAWN, async () => {
+    const t = setup([FINISH('c1', 'Done.\n\nKnown gaps: none')]);
+    const r = await run([...t.args, '--steps', '1'], {}, t.dir);
+    expect(r.code).toBe(0);
+    const [first] = sent(t.requests);
+    expect(first.filter((m) => m.role === 'user')).toHaveLength(1);
+    expect(first.find((m) => m.role === 'user')?.content).toContain('Check the squad step cap.');
+    expect(first.find((m) => m.role === 'user')?.content).toContain('1 model call left');
+    expect(noConsecutiveUsers(first)).toBe(true);
+  });
+
+  it('a no-tool reply followed by the nudge is merged with the reminder into one user turn', SPAWN, async () => {
+    const t = setup([prose('Thinking.'), FINISH('c2', 'Done.\n\nKnown gaps: none')]);
+    const r = await run([...t.args, '--steps', '3'], {}, t.dir);
+    expect(r.code).toBe(0);
+    const calls = sent(t.requests);
+    expect(calls).toHaveLength(2);
+    // The reminder joins the nudge in one user message: the history never holds two user turns in a row.
+    const nudge = calls[1].at(-1);
+    expect(nudge?.role).toBe('user');
+    expect(nudge?.content).toContain('Use the tools; call finish with your report when done.');
+    expect(isReminder(nudge as Message)).toBe(true);
+    expect(noConsecutiveUsers(calls[1])).toBe(true);
+  });
+
+  it('after a reply with two tool calls, both results come before the reminder', SPAWN, async () => {
+    const pair = { role: 'assistant', content: null, tool_calls: [
+      { id: 'x', type: 'function', function: { name: 'list_files', arguments: '{"dir":"tools/squad"}' } },
+      { id: 'y', type: 'function', function: { name: 'list_files', arguments: '{"dir":"tools/squad"}' } },
+    ] };
+    const t = setup([pair, FINISH('c2', 'Done.\n\nKnown gaps: none')]);
+    const r = await run([...t.args, '--steps', '2'], {}, t.dir);
+    expect(r.code).toBe(0);
+    const second = sent(t.requests)[1];
+    const lastTool = second.map((m) => m.role).lastIndexOf('tool');
+    expect(second[lastTool - 1].role).toBe('tool');
+    expect(isReminder(second[lastTool + 1])).toBe(true);
+    expect(pairedOk(second)).toBe(true);
+    expect(noConsecutiveUsers(second)).toBe(true);
+  });
+
+  it('appendReminder leaves the history alone outside the last two calls', () => {
+    const history: Message[] = [{ role: 'user', content: 'task' }];
+    expect(appendReminder(history, 3)).toEqual([{ role: 'user', content: 'task' }]);
+  });
+});
+
+describe('an unknown tool name is refused as a tool result, even an inherited one', () => {
+  it('a model call to "constructor" gets an unknown-tool result, paired, and the run goes on', SPAWN, async () => {
+    const ctor = { role: 'assistant', content: null, tool_calls: [{ id: 'k1', type: 'function', function: { name: 'constructor', arguments: '{}' } }] };
+    const t = setup([ctor, FINISH('c2', 'Done.\n\nKnown gaps: none')]);
+    const r = await run([...t.args, '--steps', '2'], {}, t.dir);
+    expect(r.code).toBe(0);
+    const second = sent(t.requests)[1];
+    expect(second.find((m) => m.role === 'tool' && m.tool_call_id === 'k1')?.content).toBe('unknown tool constructor');
+    expect(pairedOk(second)).toBe(true);
   });
 });
 
