@@ -14,6 +14,7 @@ import { parseArgs } from 'node:util';
 import { cliName, shellPath } from '../../bin/cli-name.js';
 import { userHome } from '../core/secrets.ts';
 import { detectConfig } from './squad-detect.ts';
+import { BUNDLE_DIR, MAIN_TOWER, assertSquadDir, installTower } from './squad-tower.ts';
 
 // Re-exported for the tests, which import detectConfig from here.
 export { detectConfig };
@@ -21,32 +22,29 @@ export { detectConfig };
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const RUNNER = join(pkgRoot, 'tools', 'squad');
 const KIT = join(RUNNER, 'kit');
+// The canonical Dev Squad: the tower and the bundle it points at are installed from this folder (#330).
+const EXAMPLE = join(pkgRoot, 'examples', 'dev-squad');
 const CLI = join(pkgRoot, 'bin', 'flow-tower.js');
 
 /** The lines a squad adds to .gitignore: its run logs, the task folders, and the checkout's path (.cli). */
 // The task folders (tools/squad/tasks/<n>/) hold per-issue step files that are not committed; ignoring them keeps
 // steps.sh from reporting "UNTRACKED LEFT" on every step (#265). TEMPLATE.md is the one file meant to be tracked.
 // .cli holds this checkout's absolute path, which is machine-local: it must not be committed with squad.json.
-const IGNORE_LINES = ['tools/squad/*.log', 'tools/squad/tasks/*', '!tools/squad/tasks/TEMPLATE.md', 'tools/squad/.cli'];
+// The bundled example logs are re-included last: a repo whose .gitignore starts "*.log" would otherwise hide them.
+// Git takes the last matching pattern, so the negation must come after every other line.
+const IGNORE_LINES = [
+  'tools/squad/*.log',
+  'tools/squad/tasks/*',
+  '!tools/squad/tasks/TEMPLATE.md',
+  'tools/squad/.cli',
+  `!tools/squad/${BUNDLE_DIR}/logs/*.log`,
+];
 
 /** Whether a path is an existing folder (false for a missing path or a file). */
 const isDir = (path: string) => existsSync(path) && statSync(path).isDirectory();
 
-/** Values go inside the tower's double quotes, so a stray quote or backslash would break its YAML. */
-// Stripping them is simpler than escaping, and no real tower name needs either character.
-const quoteSafe = (value: string) => value.replace(/["\\]/g, '');
-
 /** Runner files: every *.mjs, *.d.mts and *.sh, plus the README. Never logs, squad.json or kit/. */
 const isRunnerFile = (name: string) => /\.(mjs|d\.mts|sh)$/.test(name) || name === 'README.md';
-
-function fillTower(template: string, config: ReturnType<typeof detectConfig>['config']): string {
-  const c = config as { tower: string; models: Record<string, string> };
-  return template
-    .replaceAll('{{TOWER}}', quoteSafe(c.tower))
-    .replaceAll('{{CODER}}', quoteSafe(c.models.coder))
-    .replaceAll('{{REVIEWER}}', quoteSafe(c.models.reviewer))
-    .replaceAll('{{SECURITY}}', quoteSafe(c.models.security));
-}
 
 /** The key the squad needs, as OpenRouter issues it. */
 const KEY_PREFIX = 'sk-or-';
@@ -219,6 +217,13 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
     exit(1);
   }
 
+  // Refused before anything is written: a link at tools/ or tools/squad/ would send every write outside the repo.
+  try {
+    assertSquadDir(squadDir);
+  } catch (e) {
+    console.error((e as Error).message);
+    exit(1);
+  }
   mkdirSync(squadDir, { recursive: true });
   const written: string[] = [];
   for (const name of readdirSync(RUNNER)) {
@@ -249,11 +254,14 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
     copyFileSync(join(KIT, 'TEMPLATE.md'), taskTemplate);
     written.push('tools/squad/tasks/TEMPLATE.md');
   }
-  const tower = join(squadDir, 'squad.tower.yaml');
-  if (!existsSync(tower)) {
-    writeFileSync(tower, fillTower(readFileSync(join(KIT, 'squad.tower.yaml'), 'utf8'), config));
-    written.push('tools/squad/squad.tower.yaml');
-  }
+  // The canonical tower and its bundle: only missing files are written, so --force never replaces an edited tower.
+  // On --force the repo's squad.json wins: its tower name is the one the repo already uses, not the fresh detection.
+  const towerName = existsSync(squadJson)
+    ? (JSON.parse(readFileSync(squadJson, 'utf8')) as { tower: string }).tower
+    : (config as { tower: string }).tower;
+  const tower = installTower(EXAMPLE, squadDir, towerName);
+  if (tower.main) written.push(`tools/squad/${MAIN_TOWER}`);
+  if (tower.files) written.push(`tools/squad/${BUNDLE_DIR}/ (${tower.files} files)`);
 
   // The squad's logs and task output are local: they must not be committed to the repo.
   const ignore = join(project, '.gitignore');
@@ -268,7 +276,7 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
   }
 
   const cli = cliName();
-  const towerPath = join(squadDir, 'squad.tower.yaml');
+  const towerPath = join(squadDir, MAIN_TOWER);
   const cfg = config as { project: string; write: string[]; review: string[] };
   // The key is reported, never printed: a squad without one fails on its first model call, so say so now.
   const source = keySource();
