@@ -17,8 +17,9 @@ import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './ba
 import { realRelIfAllowed, realTarget } from './guard.mjs';
 import { parseVerdict } from './gate.mjs';
 import { pickMode } from './mode.mjs';
-import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './oneshot.mjs';
-import { incompleteText, parseSteps, stepReminder } from './step-limit.mjs';
+import { ONESHOT_TIMEOUT_MS, httpFailure, loopBody, oneshotBody, oneshotSystem } from './oneshot.mjs';
+import { STEP_DEFAULT, incompleteText, parseSteps, stepReminder } from './step-limit.mjs';
+import { toolSchema } from './tool-schema.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
@@ -57,9 +58,9 @@ if (!dirs) { console.error(USAGE); exit(2); }
 // The canonical node is the registry's, unless --node names one explicitly.
 const node = arg('node') ?? ROLES[role].node;
 const task = readFileSync(taskFile, 'utf8');
-// Checked before any key or request: NaN, 0, a fraction or an empty value would otherwise run zero steps or none at all.
-const maxSteps = parseSteps(arg('steps'));
-if (maxSteps === null) { console.error(`--steps must be a whole number of at least 1, got "${arg('steps')}"`); exit(1); }
+// Checked before any key or request: NaN, 0, a fraction, an empty value or a trailing --steps (arg gives undefined) is refused.
+const maxSteps = argv.includes('--steps') ? parseSteps(arg('steps') ?? '') : STEP_DEFAULT;
+if (maxSteps === null) { console.error(`--steps must be a whole number of at least 1, got "${arg('steps') ?? ''}"`); exit(1); }
 // Modes (mode.mjs): reviewer and security answer in one request by default; the coder always needs its tools.
 let picked;
 try {
@@ -212,26 +213,7 @@ const tools = {
     return f(file);
   },
 };
-const fn = (name, description, properties, required = []) => ({ type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } });
-const S = { type: 'string' };
-const TOOLS = [
-  fn('list_files', 'Tracked files under a folder.', { dir: S }),
-  fn('read_file', 'Read a repo file with line numbers (optionally a line range).', { path: S, from: { type: 'integer' }, to: { type: 'integer' } }, ['path']),
-  fn('grep', 'git grep -n -E over tracked files.', { pattern: S, path: S }, ['pattern']),
-  ...(canWrite(role) ? [
-    fn('edit_file', `Replace one exact, unique occurrence of \`old\` with \`new\` (${dirs.join('/, ')}/ only).`, { path: S, old: S, new: S }, ['path', 'old', 'new']),
-    fn('write_file', `Create or overwrite a file (${dirs.join('/, ')}/ only).`, { path: S, content: S }, ['path', 'content']),
-    fn('delete_file', 'Delete a file you may write (e.g. one the task says to remove).', { path: S }, ['path']),
-  ] : []),
-  // Only the commands this project offers are named: a dryrun the extras leave out is not advertised.
-  fn('run', [
-    `Run a whitelisted command: ${Object.keys(RUNS).join(', ')}.`,
-    ...(RUNS.test ? ['test takes a file.'] : []),
-    `diff is vs ${config.base}.`,
-    ...(RUNS.dryrun ? ['dryrun (file: examples/<name>/scripts/<script>.mjs) runs it with --dry-run and no API key.'] : []),
-  ].join(' '), { command: { type: 'string', enum: Object.keys(RUNS) }, file: S }, ['command']),
-  fn('finish', 'End with your final report (the format your task asks for).', { report: S }, ['report']),
-];
+const TOOLS = toolSchema({ role, dirs, runNames: Object.keys(RUNS), base: config.base });
 
 // A reviewer or security answer is read by the merge gate, which needs the JSON verdict (gate.mjs): prose is refused.
 // The coder's report is free text, so its prompt keeps the report rule.
@@ -273,14 +255,6 @@ const onInterrupt = async (code) => {
 };
 process.on('SIGINT', () => { onInterrupt(130); });
 process.on('SIGTERM', () => { onInterrupt(143); });
-// A failed HTTP answer is logged as its status and a short error code only: the provider's body can echo the
-// request, and the log and the console must not carry that. The body is read here, for the code, and dropped.
-async function httpFailure(r) {
-  const j = await r.json().catch(() => null);
-  const code = j?.error?.code;
-  const short = typeof code === 'string' || typeof code === 'number' ? String(code) : '';
-  return `HTTP ${r.status}${/^[\w.-]{1,40}$/.test(short) ? ` ${short}` : ''}`;
-}
 // One request with no tools, shared by --oneshot and by a batch that fell back. No retry on the 10 min cap:
 // one long answer, the failure is the answer.
 async function oneshotCall(body) {
@@ -362,11 +336,7 @@ for (let step = 0; step < maxSteps; step++) {
   const ask = () => fetch(chatUrl(), {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'X-Title': 'Flow Tower dev-squad' },
-    body: JSON.stringify({ model, messages, tools: TOOLS, max_tokens: 16000, usage: { include: true }, session_id: session,
-      // OpenRouter caches Claude prompts only on request; the breakpoint trails the last cacheable block (https://openrouter.ai/docs/guides/best-practices/prompt-caching).
-      ...cacheControl(model),
-      // Low effort everywhere (maintainer, 2026-10-10): quick passes, the review rounds re-check the work.
-      reasoning: { effort: 'low' }, provider: { require_parameters: true, data_collection: 'deny' } }),
+    body: JSON.stringify(loopBody({ model, messages, tools: TOOLS, session })),
     signal: AbortSignal.timeout(180_000),
   });
   let r;

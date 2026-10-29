@@ -207,4 +207,13 @@ describe('invalid --steps is refused before any key or request', () => {
     expect(existsSync(t.requests)).toBe(false);
     expect(existsSync(t.ledger)).toBe(false);
   });
+
+  it('a trailing --steps with no value exits 1 before any request, not the default', SPAWN, async () => {
+    const t = setup([prose('never sent')]);
+    const r = await run([...t.args, '--steps'], {}, t.dir, { key: false });
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain('--steps must be a whole number of at least 1');
+    expect(existsSync(t.requests)).toBe(false);
+    expect(existsSync(t.ledger)).toBe(false);
+  });
 });
