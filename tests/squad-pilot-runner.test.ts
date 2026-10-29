@@ -87,11 +87,15 @@ describe('squad pilot: verdict grading', () => {
   const approve = '{"verdict":"approve","findings":[]}';
   const changes = '{"verdict":"changes","findings":[{"file":"src/a.ts:3","quote":"const x = 1;","severity":"high"}]}';
 
-  it('expects changes with a finding for a bug task and approve for a clean task', async () => {
+  it('expects changes with a finding for defective reviewer/security tasks and approve without findings for controls', async () => {
     const parse = await driver.loadVerdictParser();
-    expect(driver.verdictOk('check-b', changes, parse)).toBe(true);
-    expect(driver.verdictOk('check-b', approve, parse)).toBe(false);
-    expect(driver.verdictOk('check-clean', approve, parse)).toBe(true);
-    expect(driver.verdictOk('check-clean', changes, parse)).toBe(false);
+    for (const task of ['reviewer-a', 'security-a']) {
+      expect(driver.verdictOk(task, changes, parse)).toBe(true);
+      expect(driver.verdictOk(task, approve, parse)).toBe(false);
+    }
+    for (const task of ['reviewer-b', 'security-b']) {
+      expect(driver.verdictOk(task, approve, parse)).toBe(true);
+      expect(driver.verdictOk(task, changes, parse)).toBe(false);
+    }
   });
 });

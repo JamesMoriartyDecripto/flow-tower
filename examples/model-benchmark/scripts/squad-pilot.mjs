@@ -25,7 +25,7 @@ const RUNNER = join(CHECKOUT, 'tools', 'squad', 'run.mjs');
 const GATE = join(CHECKOUT, 'tools', 'squad', 'gate.mjs');
 const DEFAULT_TASKS = join(HERE, '..', 'tasks', 'squad-pilot');
 // Fixture repositories each run starts from; the case picks one (see caseFor). Their contents are not created here.
-export const TEMPLATES = join(HERE, '..', 'fixtures', 'squad-pilot');
+export const TEMPLATES = join(HERE, '..', 'tasks', 'squad-pilot', 'templates');
 const ISSUE = '105';
 const COOLDOWN_MS = 1000;
 // The 85% stop threshold: a run in flight can overshoot, so the stop is taken before the budget, not at it.
@@ -76,7 +76,7 @@ export function combos({ roles, models } = {}) {
 export function verdictOk(taskId, text, parseVerdict) {
   let parsed;
   try { parsed = parseVerdict(text); } catch { return false; }
-  if (/clean$/.test(taskId)) return parsed.verdict === 'approve' && parsed.findings.length === 0;
+  if (/-b$/.test(taskId)) return parsed.verdict === 'approve' && parsed.findings.length === 0;
   return parsed.verdict === 'changes' && parsed.findings.length > 0;
 }
 
@@ -89,11 +89,12 @@ export async function loadVerdictParser() {
 // Outcome checks that do not need a human. The runner's ledger writes 'finish' for a completed run; 'step-cap' is a
 // recorded failure and is not graded as a pass. Manual grading is never implied: each result says what is still pending.
 export function checkOutcome({ role, taskId, ledger, text, changed, parseVerdict }) {
-  if (ledger?.outcome !== 'finish') return { deterministicPass: false, manualPending: false, notes: [`outcome ${ledger?.outcome ?? 'missing'}`] };
-  if (typeof ledger.cost !== 'number' || ledger.costUnknown) return { deterministicPass: false, manualPending: false, notes: ['cost unknown'] };
+  const manualPending = role === 'reviewer' || role === 'security';
+  if (ledger?.outcome !== 'finish') return { deterministicPass: false, manualPending, notes: [`outcome ${ledger?.outcome ?? 'missing'}`] };
+  if (typeof ledger.cost !== 'number' || ledger.costUnknown) return { deterministicPass: false, manualPending, notes: ['cost unknown'] };
   if (role === 'reviewer' || role === 'security') {
     const ok = verdictOk(taskId, text, parseVerdict);
-    return { deterministicPass: ok, manualPending: false, notes: ok ? [] : ['verdict does not match the expected outcome'] };
+    return { deterministicPass: ok, manualPending: true, notes: ok ? [] : ['verdict does not match the expected outcome'] };
   }
   if (role === 'coder') {
     // Tests must be byte-identical; the independent node --test run is the gap noted in the report, not done here.
@@ -173,6 +174,7 @@ function runCase({ role, model, task, run, outDir, templates, parseVerdict }) {
   try {
     writeFileSync(taskFile, `${task.prompt}\n`);
     const { repo, commit } = prepareRepo(caseFor(role, task.id), work, { templates });
+    const runnerCommit = execFileSync('git', ['-C', CHECKOUT, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
     const before = { src: hashTree(join(repo, 'src')), tests: hashTree(join(repo, TEST_DIR)), docs: hashTree(join(repo, 'docs')) };
     // The key is inherited from the environment: the runner loads the user's key file itself, and no key is copied here.
     let stdout = '', stderr = '', status = 0, childError = null;
@@ -187,11 +189,19 @@ function runCase({ role, model, task, run, outDir, templates, parseVerdict }) {
     }
     const after = { src: hashTree(join(repo, 'src')), tests: hashTree(join(repo, TEST_DIR)), docs: hashTree(join(repo, 'docs')) };
     const changed = { src: before.src !== after.src, tests: before.tests !== after.tests, docs: before.docs !== after.docs };
+    let testsPassed = true;
+    if (role === 'coder') {
+      const { OPENROUTER_API_KEY, ...testEnv } = env;
+      try {
+        execFileSync(process.execPath, ['--test'], { cwd: repo, encoding: 'utf8', env: testEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+      } catch (e) { testsPassed = e.status === 0; }
+    }
     const rawLedger = existsSync(ledgerFile) ? readFileSync(ledgerFile, 'utf8') : '';
     const ledger = lastLedger(rawLedger);
     const throttled = HOLD.test(`${stdout}\n${stderr}`);
     const check = childError ? { deterministicPass: false, manualPending: false, notes: ['child error'] }
       : checkOutcome({ role, taskId: task.id, ledger, text: stdout, changed, parseVerdict });
+    if (role === 'coder') check.deterministicPass &&= testsPassed && !changed.tests && !changed.docs;
     const snapshot = [];
     for (const dir of ['src', 'docs']) if (changed[dir]) snapshot.push(dir);
     if (changed.tests) snapshot.push(TEST_DIR);
@@ -200,7 +210,8 @@ function runCase({ role, model, task, run, outDir, templates, parseVerdict }) {
       outcome: childError ? 'child-error' : (ledger?.outcome ?? 'missing'), cost: ledger?.cost ?? null,
       costUnknown: Boolean(ledger?.costUnknown ?? ledger?.cost == null),
       promptTokens: ledger?.promptTokens ?? 0, cachedTokens: ledger?.cachedTokens ?? 0, steps: ledger?.steps ?? 0,
-      runnerCommit: commit, changedDirs: snapshot, throttled, childError, ...check,
+      ...(role === 'coder' ? { testsPassed } : {}),
+      runnerCommit, fixtureCommit: commit, changedDirs: snapshot, throttled, childError, ...check,
     };
     if (outDir) {
       const base = join(outDir, 'runs', `${role}-${task.id}-${model.replace(/\//g, '_')}-${run}`);
@@ -208,6 +219,8 @@ function runCase({ role, model, task, run, outDir, templates, parseVerdict }) {
       writeFileSync(join(base, 'stdout.txt'), stdout);
       writeFileSync(join(base, 'stderr.txt'), stderr);
       writeFileSync(join(base, 'ledger.jsonl'), rawLedger);
+      const logPath = stdout.match(/ · log (.+)$/m)?.[1];
+      if (logPath && existsSync(logPath)) writeFileSync(join(base, 'runner.log'), readFileSync(logPath));
       for (const dir of snapshot) copyTree(join(repo, dir), join(base, 'snapshot', dir));
     }
     return { result, stdout };
@@ -299,6 +312,7 @@ async function main() {
   const file = join(opts.out, 'runs.jsonl');
   const records = existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
   // A resume past a rate-limit or hold record is refused: the provider said stop, so a new out folder is the explicit choice.
+  if (records.some((r) => typeof r.cost !== 'number' || !Number.isFinite(r.cost))) { console.error(`stop: ${file} has unknown or nonfinite cost; use a new --out folder`); exit(3); }
   if (records.some((r) => r.throttled)) { console.error(`stop: ${file} has a provider hold record; use a new --out folder`); exit(3); }
   const done = new Set(records.map(runKey));
   let spent = spentSoFar(records);
@@ -310,6 +324,7 @@ async function main() {
     if (result.childError) { console.error(`stop: child error in ${p.role}/${p.task}: ${result.childError}`); exit(3); }
     if (result.costUnknown) { console.error(`stop: unknown cost in ${p.role}/${p.task}`); exit(3); }
     if (result.throttled) { console.error(`stop: provider hold in ${p.role}/${p.task} (no retry)`); exit(3); }
+    if (result.status !== 0 && result.outcome !== 'step-cap') { console.error(`stop: runner status ${result.status} in ${p.role}/${p.task}`); exit(3); }
     spent += result.cost ?? 0;
     console.log(`${result.outcome} ${p.role} ${p.model} ${p.task}#${p.run} $${result.cost}`);
     await new Promise((r) => setTimeout(r, COOLDOWN_MS));

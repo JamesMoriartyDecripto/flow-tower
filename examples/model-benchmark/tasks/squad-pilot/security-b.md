@@ -28,7 +28,7 @@ export function formatPrice(value) {
 Report exploitable issues only, most severe first. Answer with JSON only, no prose around it:
 {"verdict":"approve"|"changes","findings":[{"severity":"critical|high|medium|low","file":"path:line","quote":"exact line text","what":"...","why":"...","fix":"..."}]}
 
-Use "changes" only when a real critical or high issue exists. End by calling finish with that JSON as the report.
+Use "changes" only when a real critical or high issue exists. This is a one-request review with no tools: return the JSON directly.
 
 ## Expected
 
