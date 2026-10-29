@@ -6,6 +6,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeDirs } from './args.mjs';
+import { ROLES, isRole } from './roles.mjs';
 
 // The three model defaults come from the 2026-10-27 benchmark (#322): on the squad's own review cases, packed in one
 // request, the reviewer scored the same on glm-5.3-flash as on glm-5.3-flashx at a quarter of the price.
@@ -69,7 +70,11 @@ export function loadConfig(repo) {
   if (!Array.isArray(cfg.extras) || cfg.extras.some((x) => !EXTRAS.includes(x))) fail('extras', `may only list ${EXTRAS.join(' and ')}`);
   // Both extras call the project's own CLI (cli), so listing one without it would fail only at run time.
   if (cfg.extras.length > 0 && !cfg.cli.trim()) fail('cli', 'must be a non-empty string when extras are listed');
-  for (const [name, m] of Object.entries(cfg.models)) if (typeof m !== 'string') fail(`models.${name}`, 'must be a string');
+  // An empty model would only fail later at the run's own check: it is refused here, by name, with the file.
+  for (const [name, m] of Object.entries(cfg.models)) {
+    if (typeof m !== 'string') fail(`models.${name}`, 'must be a string');
+    if (!m.trim()) fail(`models.${name}`, 'must not be empty');
+  }
   return cfg;
 }
 
@@ -84,6 +89,15 @@ export function commandArgv(command, file) {
   const out = [cmd, ...args.flatMap((a) => (a === '{file}' ? (file === undefined ? [] : [file]) : [a]))];
   if (!hasToken && file !== undefined) out.push(file);
   return out;
+}
+
+// The model a role runs on: its own models.<role> entry when squad.json names one, else the model of its family
+// (roles.mjs). Returns undefined for an unknown role; the caller checks the result is a non-empty string.
+// An explicit entry is returned as it is, even when it is invalid: a family fallback would hide the mistake.
+export function modelFor(config, role) {
+  if (!isRole(role)) return undefined;
+  const key = Object.hasOwn(config.models, role) ? role : ROLES[role].family;
+  return config.models[key];
 }
 
 // The opening of the system prompt: the project's name when it has one, so a prompt never says "Flow Tower" for another repo.

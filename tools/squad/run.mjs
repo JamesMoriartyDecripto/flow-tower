@@ -1,5 +1,5 @@
 // Dev-squad runner for non-Claude models through OpenRouter (session tooling, kept in the repo, #113).
-// node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--repo <path>] [--oneshot|--batch|--loop]
+// node tools/squad/run.mjs --model <id> --role <triage|architect|researcher|coder|tester|reviewer|security|verifier|doc-writer> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--repo <path>] [--oneshot|--batch|--loop]
 // Reviewer and security answer in one request with no tools by default (oneshot.mjs, #169, #322); --loop keeps the tool loop.
 // --batch sends that request through the OpenRouter Batch API (about half price, hours of wait).
 // The key is loaded from the user's key file into this process only; it is never printed.
@@ -10,8 +10,8 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { writeDirs } from './args.mjs';
-import { STYLE_RULES, commandArgv, loadConfig, systemLine } from './config.mjs';
+import { STYLE_RULES, commandArgv, loadConfig, modelFor, systemLine } from './config.mjs';
+import { ROLES, canWrite, finishRule as roleFinishRule, isRole, needsVerdict, roleRule, startupWrite } from './roles.mjs';
 import { appendRun, issueOf, ledgerPath, projectOf } from './ledger.mjs';
 import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
 import { realRelIfAllowed, realTarget } from './guard.mjs';
@@ -22,7 +22,7 @@ import { ONESHOT_TIMEOUT_MS, cacheControl, oneshotBody, oneshotSystem } from './
 const HERE = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
 // A missing --task used to reach readFileSync and fail with a raw fs error: a usage line is the answer.
-const USAGE = 'usage: node tools/squad/run.mjs --model <id> --role <coder|reviewer|security> --node <tower node> --task <file> [--steps 40] [--issue <n>] [--write a,b] [--repo <path>] [--oneshot | --batch | --loop]';
+const USAGE = 'usage: node tools/squad/run.mjs --role <triage|architect|researcher|coder|tester|reviewer|security|verifier|doc-writer> --task <file> [--model <id>] [--node <tower node>] [--steps 40] [--issue <n>] [--write a,b] [--repo <path>] [--oneshot | --batch | --loop]';
 if (argv.includes('--help')) { console.log(USAGE); exit(0); }
 const taskFile = arg('task');
 // Checked before any git call, so a bare invocation fails on the usage, not on the checkout.
@@ -43,10 +43,20 @@ const EV = join(HERE, 'ev.sh');
 // The issue is taken from --issue, else from the branch name; a detached or unreadable HEAD gives no branch.
 const branch = (() => { try { return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim(); } catch { return ''; } })();
 const issue = issueOf(arg('issue'), branch);
-const model = arg('model'), role = arg('role'), node = arg('node'), task = readFileSync(taskFile, 'utf8');
+const role = arg('role');
+// The role names the log file below, so only registry roles pass (no path characters from the command line).
+if (!isRole(role)) { console.error(USAGE); exit(1); }
+// The model is the explicit --model, else the config's model for the role; it must be a non-empty string.
+const model = arg('model') ?? modelFor(config, role);
+if (typeof model !== 'string' || model.trim() === '') { console.error(`no model for ${role}: pass --model or set models.${role} in squad.json`); exit(1); }
+// The write folders are checked here, before the key is read: a usage error must not be hidden by a missing key.
+// A bad --write (empty, absolute or with "..") is refused with the usage, and a doc writer with no --write has no folders.
+const dirs = startupWrite(role, arg('write'), config.write);
+if (!dirs) { console.error(USAGE); exit(2); }
+// The canonical node is the registry's, unless --node names one explicitly.
+const node = arg('node') ?? ROLES[role].node;
+const task = readFileSync(taskFile, 'utf8');
 const maxSteps = Number(arg('steps', 40));
-// The role names the log file below, so only the three known roles pass (no path characters from the command line).
-if (!['coder', 'reviewer', 'security'].includes(role)) { console.error(USAGE); exit(1); }
 // Modes (mode.mjs): reviewer and security answer in one request by default; the coder always needs its tools.
 let picked;
 try {
@@ -103,11 +113,8 @@ const evChildEnv = {
 const emit = (...a) => { try { execFileSync('sh', [EV, ...a.filter((x) => x !== undefined).map(String)], { stdio: 'ignore', env: evChildEnv }); } catch { /* tower offline */ } };
 
 const SECRET = /(^|\/)(\.env[^/]*|.*\.(key|pem|p12|pfx|crt)|id_rsa[^/]*|\.npmrc|\.git|node_modules|\.ssh|\.config\/flow-tower)(\/|$)/i;
-// Reviewers are read-only; the coder writes src/ tests/ e2e/, or the folders a task names with --write a,b.
-// A bad --write (empty, absolute or with "..") is refused with the usage, before the checkout is touched.
-const dirs = writeDirs(arg('write', config.write.join(',')));
-if (!dirs) { console.error(USAGE); exit(2); }
-const WRITABLE = role === 'coder' ? new RegExp(`^(${dirs.map((d) => d.replace(/[.]/g, "\\.")).join("|")})(/|$)`) : /^$/;
+// Reviewers are read-only; the coder writes src/ tests/ e2e/, or the folders a task names with --write a,b (dirs, checked above).
+const WRITABLE = canWrite(role) ? new RegExp(`^(${dirs.map((d) => d.replace(/[.]/g, "\\.")).join("|")})(/|$)`) : /^$/;
 const SCRATCH = /(^|\/)(tmp[-_.]|zz[-_]|[^/]*(probe|scratch)[^/]*$)/i;
 const inRepo = (p) => {
   const abs = resolve(REPO, String(p ?? ''));
@@ -208,7 +215,7 @@ const TOOLS = [
   fn('list_files', 'Tracked files under a folder.', { dir: S }),
   fn('read_file', 'Read a repo file with line numbers (optionally a line range).', { path: S, from: { type: 'integer' }, to: { type: 'integer' } }, ['path']),
   fn('grep', 'git grep -n -E over tracked files.', { pattern: S, path: S }, ['pattern']),
-  ...(role === 'coder' ? [
+  ...(canWrite(role) ? [
     fn('edit_file', `Replace one exact, unique occurrence of \`old\` with \`new\` (${dirs.join('/, ')}/ only).`, { path: S, old: S, new: S }, ['path', 'old', 'new']),
     fn('write_file', `Create or overwrite a file (${dirs.join('/, ')}/ only).`, { path: S, content: S }, ['path', 'content']),
     fn('delete_file', 'Delete a file you may write (e.g. one the task says to remove).', { path: S }, ['path']),
@@ -225,12 +232,10 @@ const TOOLS = [
 
 // A reviewer or security answer is read by the merge gate, which needs the JSON verdict (gate.mjs): prose is refused.
 // The coder's report is free text, so its prompt keeps the report rule.
-const finishRule = role === 'coder'
-  ? 'When done, call finish with your report, and end that report with a `Known gaps:` line (or `Known gaps: none`).'
-  : 'When done, call finish with only the JSON verdict the task asks for, then a `Known gaps:` line (or `Known gaps: none`).';
+const finishRule = roleFinishRule(role);
 const hasVerdict = (text) => { try { parseVerdict(text); return true; } catch { return false; } };
 const messages = [
-  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${STYLE_RULES}${config.rules.map((r) => ` ${r}`).join('')} ${finishRule}` },
+  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${STYLE_RULES}${config.rules.map((r) => ` ${r}`).join('')} ${roleRule(role)} ${finishRule}` },
   { role: 'user', content: task },
 ];
 let cost = 0;
@@ -337,7 +342,7 @@ if (mode !== 'loop') {
     exit(1);
   }
   // A reviewer or security answer with no JSON verdict is a failed run here, not a gate surprise later (#322).
-  if (role !== 'coder' && !hasVerdict(content)) { note('no JSON verdict'); record('no-verdict', 1); console.log(`no JSON verdict · ${model} · ${shown}`); exit(1); }
+  if (needsVerdict(role) && !hasVerdict(content)) { note('no JSON verdict'); record('no-verdict', 1); console.log(`no JSON verdict · ${model} · ${shown}`); exit(1); }
   note(`\n[finish] ${content}\n\ncost ${shown}`);
   record('finish', 1);
   emit('agent.end', node, `${role} on ${model} done (${shown}, ${paidMode})`, 'ok');
@@ -379,7 +384,7 @@ for (let step = 0; step < maxSteps; step++) {
     try { a = JSON.parse(c.function.arguments || '{}'); } catch { /* reported below */ }
     if (c.function.name === 'finish') {
       // One re-ask for the verdict; a second prose report ends the run. The tool result keeps the call paired.
-      if (role !== 'coder' && !hasVerdict(a.report)) {
+      if (needsVerdict(role) && !hasVerdict(a.report)) {
         note(`\n[finish] no JSON verdict: ${String(a.report ?? '').slice(0, 300)}`);
         if (!askedThisReply) {
           askedThisReply = true;
