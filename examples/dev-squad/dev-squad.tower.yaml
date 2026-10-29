@@ -1,4 +1,6 @@
 # yaml-language-server: $schema=../../schema/flow-tower.schema.json
+# Canonical Dev Squad: squad init distributes this tower with its referenced bundle.
+# The installer adapts only name/root for the target project; tools/squad has no separate tower design.
 version: 1
 name: Dev Squad
 tags: [coding, claude-agent-sdk, multi-agent]
