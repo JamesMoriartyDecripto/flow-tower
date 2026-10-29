@@ -14,7 +14,7 @@ import { parseArgs } from 'node:util';
 import { cliName, shellPath } from '../../bin/cli-name.js';
 import { userHome } from '../core/secrets.ts';
 import { detectConfig } from './squad-detect.ts';
-import { RUNTIME_IGNORE_LINE } from './squad-runtime-install.ts';
+import { doctor, unsupportedRun } from './squad-local.ts';
 import {
   BUNDLE_DIR, MAIN_TOWER, assertRealDirOrMissing, assertRegularOrMissing, assertSquadDir, assertTowerDests, installTower,
 } from './squad-tower.ts';
@@ -45,8 +45,6 @@ const IGNORE_LINES = [
   'tools/squad/.cli',
   `${BUNDLE_LOGS}/*.log`,
   ...SHIPPED_BUNDLE_LOGS.map((name) => `!${BUNDLE_LOGS}/${name}`),
-  // The SDK runtime's node_modules, filled by an explicit install (squad-runtime-install.ts): never committed.
-  RUNTIME_IGNORE_LINE,
 ];
 
 /** Whether a path is an existing folder (false for a missing path or a file). */
@@ -192,7 +190,16 @@ async function keyCommand(status: boolean): Promise<void> {
   exit(0);
 }
 
-const USAGE = `usage: ${cliName()} squad init <dir> [--check "<command>"] [--force] | squad key [status]`;
+const USAGE = `usage: ${cliName()} squad init <dir> [--check "<command>"] [--force] | squad doctor <dir> | squad key [status]`;
+
+/** Prints every doctor check and returns 0 only when all pass. No paid or model call is made. */
+function doctorCommand(dir: string): number {
+  const checks = doctor(dir);
+  for (const c of checks) console.log(`${c.ok ? 'ok  ' : 'FAIL'} ${c.name}: ${c.detail}`);
+  const failed = checks.filter((c) => !c.ok).length;
+  console.log(failed ? `${failed} check(s) failed` : 'ready: use the Dev Squad from your current harness');
+  return failed ? 1 : 0;
+}
 
 // Run directly, not imported: a test imports detectConfig and must not start the CLI. Same realpath guard as config.mjs.
 const isMain = (() => {
@@ -324,13 +331,12 @@ function init(dirArg: string, check: string | undefined, force: boolean): void {
   console.log(keyLine);
   // The key line is only useful while the key is missing: with a key found, "put the key" would be noise.
   const keyStep = source ? '' : `  put the key:     ${cli} squad key\n`;
-    // A worktree reads squad.json from its branch: until it is committed, every step runs with the defaults.
   console.log(`next steps:
   commit it:        git add tools/squad .gitignore && git commit -m "chore: add the dev squad"   (worktrees read squad.json from the branch)
-${keyStep}  open the tower:  ${cli} ${shellPath(towerPath)}
-  install skill:   ${cli} install-skill
-  first step:      bash tools/squad/steps.sh <issue> tools/squad/tasks/<issue> "" "<title>"
-                   (empty write dirs take the config's)`);
+${keyStep}  check readiness:  ${cli} squad doctor ${shellPath(project)}
+  install skill:   ${cli} install-skill --target <harness>   (claude, codex, pi, hermes or cursor)
+  use the squad:   in that harness, ask the current session to use the Dev Squad on your issue (the flow-tower-squad skill)
+  open the tower:  ${cli} ${shellPath(towerPath)}`);
   exit(0);
 }
 
@@ -340,12 +346,22 @@ if (isMain) {
     args: process.argv.slice(2),
     strict: false,
     allowPositionals: true,
-    options: { check: { type: 'string' }, force: { type: 'boolean', default: false } },
+    options: {
+      check: { type: 'string' },
+      force: { type: 'boolean', default: false },
+    },
   });
   const [cmd, dir] = positionals;
   // `status` is a word, not a flag: the top-level parser in bin/flow-tower.js takes --check as a string option.
   if (cmd === 'key') {
     await keyCommand(dir === 'status');
+  }
+  if (cmd === 'doctor' && dir) {
+    exit(doctorCommand(dir));
+  }
+  // `run` is not an autonomous entry any more: unsupportedRun says how to use the squad from the current harness.
+  if (cmd === 'run') {
+    exit(unsupportedRun());
   }
   if (cmd !== 'init' || !dir) {
     console.error(USAGE);

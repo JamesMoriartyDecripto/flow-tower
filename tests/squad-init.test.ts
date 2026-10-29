@@ -235,6 +235,18 @@ describe('squad init (#265)', () => {
     expect(r.stdout).toContain('git add tools/squad .gitignore');
   });
 
+  it('next steps name the harness skill and the current session, never a run command (#334)', { timeout: 30_000 }, () => {
+    const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
+    const r = run('squad', 'init', dir);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('squad doctor');
+    expect(r.stdout).toContain('install-skill --target <harness>');
+    expect(r.stdout).toContain('flow-tower-squad');
+    expect(r.stdout).not.toContain('squad run');
+    expect(r.stdout).not.toContain('install runtime');
+    expect(existsSync(join(dir, 'tools', 'squad', 'dev-squad', 'node_modules'))).toBe(false);
+  });
+
   it('detects python3 when only python3 is on PATH (#265 review)', () => {
     // Stock Ubuntu and macOS have no `python`: the fake PATH holds only an executable python3.
     const bin = tempDir('squad-py3-bin-');
