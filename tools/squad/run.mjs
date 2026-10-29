@@ -47,12 +47,20 @@ const role = arg('role');
 // The role names the log file below, so only registry roles pass (no path characters from the command line).
 if (!isRole(role)) { console.error(USAGE); exit(1); }
 // The model is the explicit --model, else the config's model for the role; it must be a non-empty string.
+// A bare --model (no value, or another flag next) would otherwise fall back silently to the role's default model.
+const modelArg = argv.indexOf('--model');
+if (modelArg > 0 && (argv[modelArg + 1] === undefined || argv[modelArg + 1].startsWith('--'))) { console.error(`--model needs a value: ${USAGE}`); exit(1); }
 const model = arg('model') ?? modelFor(config, role);
 if (typeof model !== 'string' || model.trim() === '') { console.error(`no model for ${role}: pass --model or set models.${role} in squad.json`); exit(1); }
 // The write folders are checked here, before the key is read: a usage error must not be hidden by a missing key.
 // A bad --write (empty, absolute or with "..") is refused with the usage, and a doc writer with no --write has no folders.
 const dirs = startupWrite(role, arg('write'), config.write);
-if (!dirs) { console.error(USAGE); exit(2); }
+// A doc writer without --write has no folders to write to: say why, then the usage, so the fix is clear.
+if (!dirs) {
+  const reason = role === 'doc-writer' && arg('write') === undefined ? 'doc-writer needs --write <dirs>: it has no default folders' : `bad --write: ${arg('write')}`;
+  console.error(`${reason}\n${USAGE}`);
+  exit(2);
+}
 // The canonical node is the registry's, unless --node names one explicitly.
 const node = arg('node') ?? ROLES[role].node;
 const task = readFileSync(taskFile, 'utf8');
