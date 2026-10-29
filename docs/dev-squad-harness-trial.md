@@ -102,4 +102,40 @@ implementation defect. Verifier could inspect content/run checks but not indepen
 lead supplied that git evidence. `pack` emitted `no git remotes found` on this intentionally offline repository;
 local commit packing still worked. No actual GitHub/CI gate or live-event delivery was tested.
 
-Claude Code, Codex and Hermes trials are **not yet recorded**. Do not mark them passed based on the Pi result.
+## Recorded Claude Code result (2026-10-29)
+
+| Item | Evidence |
+|---|---|
+| Lead host | Existing interactive Claude Code session (Opus 5.5) as lead, following the portable skill by hand; no Claude SDK |
+| Implementation tested | `d2e2002d25d1c0776b45beab041550cb84f8be36` |
+| Environment | Node `v24.18.0`, git `2.56.0`; existing user-scoped OpenRouter credentials |
+| Fresh install | New disposable repo; init, doctor, installed towers validated (3 towers, 0 errors, 0 warnings) |
+| Trial head | `6af619359ac3aedb454207c6b9c0f6f56b2502a3` (clean tree; only the three issue files added, 135 lines) |
+| Independent tests | 4 top-level tests, 22 table cases, 13 invalid inputs; all passed. Mutants (`toLowerCase()`, `giu` flags, no `+`) each fail 1 test |
+| Review/security | Both approved the trial head. Security: one low finding (slug not injective, may be `''`), quote verified, dropped: required by the issue, documented, no caller uses it as a key |
+| Verifier | **Did not complete**: 2 runs, both `step cap` at 5 steps. Each wrote a correct PASS in prose next to tool calls but never called `finish`. Lead established the result from git/test output |
+| Ledger | 10 specialist calls (one verifier retry), 29 steps, reported cost **$0.0105**, no unknown-cost runs; excludes lead cost |
+
+| Role | Model | Runs | Steps | Reported cost | Outcome |
+|---|---|---:|---:|---:|---|
+| triage | anthropic/claude-haiku-5.5 | 1 | 2 | $0.0013 | finish |
+| architect | z-ai/glm-5.3-flash | 1 | 2 | $0.0010 | finish; plan approved unchanged |
+| researcher | z-ai/glm-5.3-flash | 1 | 3 | $0.0004 | step cap; full report only in the log |
+| coder | anthropic/claude-haiku-5.5 | 1 | 4 | $0.0018 | finish, check green |
+| tester | anthropic/claude-haiku-5.5 | 1 | 2 | $0.0014 | finish |
+| doc-writer | anthropic/claude-haiku-5.5 | 1 | 4 | $0.0017 | finish, `docs/slug.md` only |
+| reviewer | z-ai/glm-5.3-flash | 1 | 1 | $0.0002 | approve, no findings |
+| security | deepseek/deepseek-v4.1-flash | 1 | 1 | $0.0013 | approve, 1 low (dropped) |
+| verifier | z-ai/glm-5.3-flash | 2 | 10 | $0.0015 | step cap twice, no `finish` |
+
+Observations: triage flagged the Kelvin-sign `i`-flag trap up front, so the plan and tests pin it (the Pi gap is now a
+case). Recipe deviation: the coder ran through `run.mjs --steps 10`, not `steps.sh`, which hard-codes `--steps 70`;
+the lead committed after checking. The researcher's 3 confirmations were right (lead reproduced them with `node -e`),
+with one wording slip (it said the non-`u` regex works on code points). The tester's two "gaps" were dropped: string
+mutation is impossible, and its normalization test expected the wrong direction (`café -> caf` already rules out NFD).
+**Runner gap:** GLM 5.3 Flash puts its final answer in assistant content alongside more tool calls and never calls
+`finish`; at the cap, `run.mjs` prints only `step cap reached`, so the report is lost from stdout. Pi's verifier
+finished in 5 steps, so this varies by run. `pack` again printed `no git remotes found`. No GitHub/CI gate, push or
+live events tested.
+
+Codex and Hermes trials are **not yet recorded**. Do not mark them passed based on the Pi or Claude Code results.
