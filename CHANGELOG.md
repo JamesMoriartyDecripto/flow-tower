@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- Portable Dev Squad onboarding (#332, #334): `squad doctor` checks local Node/git, runner/config and OpenRouter readiness without paid calls or mandatory Claude credentials. The user's current harness stays the lead. Shared specialist roles now include triage, architect, researcher, tester, verifier and doc-writer, with canonical tower nodes and per-role model selection. Doc-writer requires explicit writable folders. The skill documents the complete lead-driven workflow and its current safety/budget limitations; cross-harness end-to-end evidence remains tracked in #333.
+
 ### Fixed
 - Dev Squad installation (#330): `squad init` now distributes the complete canonical eight-layer tower from `examples/dev-squad`, with nested towers, agents, prompts and source. Removed the obsolete reduced tower template and placeholder substitution. Updates preserve existing towers and bundle edits; bundled example logs remain trackable. The task runner does not launch the full SDK pipeline automatically.
 
