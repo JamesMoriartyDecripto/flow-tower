@@ -1,12 +1,14 @@
 # tools/squad: the dev squad runner
 
-A cheap coder, a reviewer and a security auditor from three model families, driven by your coding agent as the
-lead. A few scripts and a task file, no build step, no dependency beyond Node, git and an OpenRouter key. It ran
+One Dev Squad workflow driven by your existing Pi, Codex, Claude Code, Hermes or other skill-capable session
+as lead. Specialists use configurable OpenRouter models, independently of the lead harness. A few scripts and
+a task file, no build step, no dependency beyond Node >=22.12, git and an OpenRouter key. It ran
 every field session of this repo, and it runs on **your own project** too (#265):
 
 ```bash
 node <flow-tower>/bin/flow-tower.js squad init ~/my-project   # runner into tools/squad/, squad.json detected
 node <flow-tower>/bin/flow-tower.js squad key                 # your OpenRouter key, into the user folder
+node <flow-tower>/bin/flow-tower.js squad doctor ~/my-project # local readiness, no paid calls
 node <flow-tower>/bin/flow-tower.js install-skill             # the flow-tower-squad skill for your agent
 git -C ~/my-project add tools/squad .gitignore && git -C ~/my-project commit -m "chore: add the dev squad"
 ```
@@ -19,8 +21,11 @@ is the lead's procedure. `tools/squad/squad.json` holds what is specific to a pr
 The **single canonical Dev Squad tower** is [`examples/dev-squad`](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/examples/dev-squad/README.md).
 Init installs its full eight layers at `tools/squad/squad.tower.yaml` and its supporting files (including nested
 towers, agents, prompts and SDK source) in `tools/squad/dev-squad/`. It does not install a reduced tower.
-These runner scripts execute individual tasks, not the full SDK pipeline: installing its source does not activate
-webhooks, orchestration or deployment (#320). Runner model settings do not rewrite the canonical SDK model metadata.
+The lead follows the portable skill to coordinate triage, planning, research, coding, testing, documentation,
+review, security and verification. These scripts execute the specialist tasks; they do not replace the lead
+with an autonomous scheduler. The SDK source is a reference backend: no mandatory Claude SDK, Claude account,
+webhook or deployment is needed. Runner settings do not rewrite that reference backend's model metadata.
+The skill is portable guidance; actual harness trials are tracked in #333, not inferred from installation.
 
 `--force` refreshes runner scripts and fills missing bundle files, but preserves existing towers and bundle edits.
 To replace an older reduced tower, back it up, remove `tools/squad/squad.tower.yaml`, and rerun init with `--force`;
@@ -40,17 +45,34 @@ it from what the project's files say. A missing file gives the defaults.
 | `base` | the branch diffs are taken against | `origin/main` |
 | `rules` | extra lines every model sees, after the shared style line (`STYLE_RULES` in `config.mjs`: language, comments, file size, efficiency without added complexity) | none |
 | `extras` | flow-tower-only tools (`validate`, `dryrun`) | none |
-| `models` | `coder`, `reviewer`, `security` | the table below |
+| `models` | per-role model IDs; `--model` overrides one call | the table below; extra roles inherit a family unless explicitly configured |
 | `tower`, `source`, `cli` | the tower name the live events go to, their source, the flow-tower CLI path | `Dev Squad`, `dev-squad`; the CLI from `FLOW_TOWER_CLI`, then `tools/squad/.cli` (written by init, git-ignored), then PATH |
 
 ## Roles
 
 | Role | Model | Why | Writes |
 |---|---|---|---|
-| Lead (Claude, you) | the session model | plans, verifies, commits | task files, commits |
+| Lead (your current harness) | the session model | plans, verifies, commits | task files, commits |
 | Coder | `anthropic/claude-haiku-5.5` | cleanest result, 11 steps (#126); `CODER_MODEL` overrides | the `write` folders of squad.json (or `--write a,b`) |
 | Reviewer | `z-ai/glm-5.3-flash` | 12/12 on the squad's own review cases at $0.0001 a review (#322) | nothing (read-only, JSON verdict) |
 | Security | `deepseek/deepseek-v4.1-flash` | 11/12, every planted vulnerability found (#322) | nothing (read-only, JSON verdict) |
+
+Additional loop roles: `triage`, `architect`, `researcher`, `tester`, `verifier`, `doc-writer`. Their node IDs
+come from the same canonical tower. Configure `models.<role>` or pass `--model`; unconfigured architect,
+researcher and verifier inherit the reviewer model, while triage, tester and doc-writer inherit the coder model.
+These are starting defaults, not new benchmark results. Only coder and doc-writer have file-write tools;
+doc-writer requires explicit `--write` folders and never inherits coder folders. Only reviewer/security require
+JSON gate verdicts and support `--oneshot`/`--batch`; other roles use the tool loop.
+
+```bash
+node tools/squad/run.mjs --role architect --task /tmp/plan.md --repo ../wt-123 --issue 123
+node tools/squad/run.mjs --role doc-writer --write docs --task /tmp/docs.md --repo ../wt-123 --issue 123
+```
+
+Path guards constrain direct file tools, not test-command side effects. All loop roles can run configured
+project checks; only do this in trusted projects (use OS isolation where appropriate). No global issue spending
+cap is enforced: agree a budget, bound calls with `--steps`, inspect the ledger and stop before exceeding it.
+Read-only here does not promise an OS sandbox. There is no advertised autonomous `squad run` command.
 
 All at low reasoning effort: quick passes, and the review rounds re-check the work. The numbers come from a benchmark
 on this runner, not a generic one: [2026-10-27 squad roles](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/examples/model-benchmark/results/2026-10-27-squad-roles.md),

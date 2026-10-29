@@ -1,6 +1,8 @@
 # yaml-language-server: $schema=../../schema/flow-tower.schema.json
 # Canonical Dev Squad: squad init distributes this tower with its referenced bundle.
 # The installer adapts only name/root for the target project; tools/squad has no separate tower design.
+# Portable onboarding (#332, #334): init installs the shared task runner and complete design;
+# doctor checks Node/git/OpenRouter. The user's existing harness is lead; SDK execution is optional.
 version: 1
 name: Dev Squad
 tags: [coding, claude-agent-sdk, multi-agent]
@@ -162,7 +164,7 @@ layers:
   # 1 ───────────────────────────────────────────────────────────────
   - id: intake
     title: Intake & Triage
-    description: Routing. A cheap Haiku call decides how much machinery an issue deserves.
+    description: "The user's existing Pi, Codex, Claude Code, Hermes or other harness is lead. Init installs the shared runner; doctor checks Node/git/OpenRouter. Specialists use independently configured models. The SDK/webhook is a reference backend, not an onboarding requirement."
     nodes:
       - id: issue
         runtime: github
@@ -170,7 +172,7 @@ layers:
           - { kind: repo, label: "squad:go issues", url: "https://github.com/example-org/app/issues?q=label%3Asquad%3Ago" }
         type: entry
         label: GitHub issue
-        description: An issue labelled `squad:go` by a maintainer. Humans always opt in.
+        description: "The user asks their current harness to work a selected issue with the Dev Squad skill. Humans always opt in. Doctor checks the portable setup, without requiring Claude credentials. The optional SDK webhook reference accepts the squad:go label."
         files: [src/main.ts]
       - id: webhook
         runtime: vps
@@ -197,7 +199,7 @@ layers:
         runtime: vps
         status: deprecated
         label: Quick-fix path
-        description: "Deprecated. Complexity 1-2, one file: one coder run, then the doc-writer for the CHANGELOG entry and PR body, then the review loop. Being folded into the full path with a one-step plan so every change gets a plan record."
+        description: "Legacy bypass being removed in #332: trivial issues will use the full path with a one-step plan, keeping a plan record and the same review gates. Not a separate installable squad."
         files: [src/pipeline.ts]
       - id: needs_info
         runtime: github

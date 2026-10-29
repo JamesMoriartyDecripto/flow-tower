@@ -1,20 +1,33 @@
 ---
 name: flow-tower-squad
-description: Set up and drive the Flow Tower dev squad on the user's own project - a cheap coder, a reviewer and a security auditor from three model families through OpenRouter, with the user's coding agent as the lead that plans, writes task files and verifies. Use when the user wants the dev squad / a coding squad / cheaper models to write code in their project, asks to set it up (`squad init`, OpenRouter key), or asks to run, review or check the cost of squad work.
+description: Set up and drive the complete Flow Tower Dev Squad from the user's existing Pi, Codex, Claude Code, Hermes or other skill-capable harness, with configurable OpenRouter specialist models and shared verification gates. Use when the user wants the dev squad / a coding squad / cheaper models to write code in their project, asks to set it up (`squad init`, OpenRouter key), or asks to run, review or check the cost of squad work.
 ---
 
 # Flow Tower: the dev squad on your project
 
-You are the **lead**. You plan, write one task file per step, run the squad, and verify. The squad's models write
+You are the **lead in the user's current harness**. Do not replace that session with a Claude SDK orchestrator.
+You plan, write one task file per step, run the squad, and verify. The squad's models write
 the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner reference:
 [tools/squad/README.md](../../tools/squad/README.md) (also copied into the project as `tools/squad/README.md`).
 
 | Role | Default model (squad.json `models`) | Writes |
 |---|---|---|
 | Lead (you) | the session model | the tower, task files, commits, the issue |
-| Coder | `anthropic/claude-haiku-5.5` | only the `write` folders of squad.json |
-| Reviewer | `z-ai/glm-5.3-flash` | nothing (JSON verdict) |
-| Security | `deepseek/deepseek-v4.1-flash` | nothing (JSON findings) |
+| Triage | `models.triage`, otherwise coder model | nothing |
+| Architect | `models.architect`, otherwise reviewer model | nothing |
+| Researcher | `models.researcher`, otherwise reviewer model | nothing |
+| Coder | `models.coder` (default `anthropic/claude-haiku-5.5`) | configured `write` folders |
+| Tester | `models.tester`, otherwise coder model | no direct file tools; may run project checks |
+| Reviewer | `models.reviewer` (default `z-ai/glm-5.3-flash`) | nothing (JSON verdict) |
+| Security | `models.security` (default `deepseek/deepseek-v4.1-flash`) | nothing (JSON findings) |
+| Verifier | `models.verifier`, otherwise reviewer model | nothing |
+| Doc writer | `models.doc-writer`, otherwise coder model | explicit `--write` folders only |
+
+Set a model for each role in `squad.json`; `--model` overrides it for one invocation. The family defaults for
+new roles are starting points, not benchmark claims. Model routing is independent of the lead harness.
+No Claude account, SDK installation or Claude-specific permissions are required by the portable runner.
+This is a lead-driven procedure, **not an unattended scheduler**. Skill installation does not prove that every
+harness has been exercised: check the recorded trials before claiming support.
 
 ## Set up (once per project)
 
@@ -26,7 +39,9 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
    After a flow-tower update: `squad init <project> --force` refreshes the runner, fills missing bundle files and
    keeps squad.json, existing towers and bundle edits. To migrate an old reduced tower, back it up, remove the
    installed `squad.tower.yaml`, rerun init with `--force`, then review and port your customizations.
-   The task runner does not launch the full SDK pipeline; installing its source does not configure deployment (#320).
+   The SDK source is a reference backend, not required to use the squad. No npm install in that bundle is needed.
+   Run `{{FLOW_TOWER_CLI}} squad doctor <project>` to check Node, git, runner/config and OpenRouter credentials.
+   Install this skill using the documented skill target for your harness; keep using the current session as lead.
 2. **Read squad.json with the user**: `project` (one line on the stack, it opens every model's prompt),
    `commands.check` (must pass after every step), `write` (what the coder may touch), `review`, `base`, `rules`
    (project rules every model sees). Fix what the detection got wrong before the first step.
@@ -38,6 +53,38 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
    (`npm run check`, `src` and `tests`), and a project in another language goes red on the first step.
 5. **Optional, live view**: `{{FLOW_TOWER_CLI}} <project>/tools/squad/squad.tower.yaml` with Flow Tower running:
    every coder, reviewer and security run lights its node.
+
+## Complete role workflow
+
+Before implementation, **triage** the issue (scope, acceptance criteria, risks), ask the **architect** for a plan,
+and use the **researcher** where facts or APIs need evidence. The lead saves their results in the issue/plan;
+read-only specialists return reports rather than editing it. Skip a role only with an explicit reason recorded
+in the issue (for example, no unknown dependencies to research), not by silently using a second quickfix pipeline.
+
+Run any specialist through the same runner, from the project containing the installed tools:
+
+```bash
+node tools/squad/run.mjs --repo ../wt-<n> --role architect --task /tmp/<n>-plan.md --issue <n>
+node tools/squad/run.mjs --repo ../wt-<n> --role tester --task /tmp/<n>-test.md --issue <n>
+node tools/squad/run.mjs --repo ../wt-<n> --role doc-writer --write docs --task /tmp/<n>-docs.md --issue <n>
+```
+
+The role selects its canonical tower node and configured model. Triage/architect/researcher/coder/tester/
+verifier/doc-writer use tool loops; only reviewer/security support the packed one-request and batch paths.
+Task files are supplied by the lead (they may be outside the repository); file tools cannot read arbitrary
+external paths. Put necessary non-secret context in the task or tracked project files.
+
+After each coder step, the **tester** runs the agreed checks and reports failures, then the lead verifies them
+independently. Run **doc-writer** for documentation, release notes and draft PR text with explicit narrow write
+folders. After all changes, run review/security against the final commit, then **verifier** compares the result
+with the issue's acceptance criteria. Any fix invalidates old review evidence: rerun the affected checks and both
+final-commit passes. The lead owns approvals, budget decisions, publication and the final human handoff.
+
+The runner's path guards constrain direct file tools, **not arbitrary side effects of project test commands**.
+All loop roles can invoke configured checks; tests may write build artifacts or execute project code. Use only
+trusted repositories, use OS/container isolation where needed, and never describe these controls as a sandbox.
+There is no enforced global issue spending cap yet: use small `--steps` bounds, inspect the cost ledger after each
+run and stop for approval before exceeding the agreed budget. Do not advertise prompt-only limits as enforcement.
 
 ## Work an issue
 
@@ -105,9 +152,9 @@ The coder always runs the loop. Details: [tools/squad § Pace](../../tools/squad
 
 - Never let a step rewrite or empty an existing test file: say "append new cases" in the task.
 - A task that rewords a message breaks the test asserting it: quote the current text in the task.
-- OpenRouter 504/429 mid-step: discard the partial changes (`git checkout -- . && git clean -fd` in the worktree)
-  and rerun that step. A security pass that answers empty: rerun once, then use the reviewer model with the
-  security brief.
+- OpenRouter 504/429 mid-step: inspect and preserve useful partial changes; write a continuation step or ask
+  before discarding anything. A security pass that answers empty: retry once; if a different model is needed,
+  report the failure and get approval for the substitution rather than silently changing providers/models.
 - Tests that spawn a CLI or a server need explicit timeouts.
 - A step left red with useful changes: write the next step to finish them ("keep that work") instead of starting over.
 

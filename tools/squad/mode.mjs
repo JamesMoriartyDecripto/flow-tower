@@ -7,8 +7,11 @@ const PACES = ['now', 'relaxed', 'overnight'];
 
 export function pickMode({ role, flags, pace }) {
   const { oneshot, batch, loop } = flags;
-  if (role === 'coder' && (oneshot || batch)) {
-    throw new Error('the coder needs tools: --oneshot/--batch are for reviewer and security');
+  // Only the verdict roles have a one-request path; every other role (coder and the new roles) needs its tools.
+  if (role !== 'reviewer' && role !== 'security' && (oneshot || batch)) {
+    throw new Error(role === 'coder'
+      ? 'the coder needs tools: --oneshot/--batch are for reviewer and security'
+      : `${role} needs tools: --oneshot/--batch are for reviewer and security`);
   }
   if ([oneshot, batch, loop].filter(Boolean).length > 1) {
     throw new Error('--oneshot, --batch and --loop are exclusive');
