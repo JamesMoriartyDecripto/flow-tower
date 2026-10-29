@@ -97,7 +97,7 @@ export function checkOutcome({ role, taskId, ledger, text, changed, parseVerdict
     return { deterministicPass: ok, manualPending: true, notes: ok ? [] : ['verdict does not match the expected outcome'] };
   }
   if (role === 'coder') {
-    // Tests must be byte-identical; the independent node --test run is the gap noted in the report, not done here.
+    // Tests must be byte-identical; runCase executes the independent node --test suite for coder runs.
     const ok = !changed.tests;
     return { deterministicPass: ok, manualPending: true, notes: ok ? ['coder tests not run here: manual'] : ['tests modified'] };
   }
@@ -191,7 +191,7 @@ function runCase({ role, model, task, run, outDir, templates, parseVerdict }) {
     const changed = { src: before.src !== after.src, tests: before.tests !== after.tests, docs: before.docs !== after.docs };
     let testsPassed = true;
     if (role === 'coder') {
-      const { OPENROUTER_API_KEY, ...testEnv } = env;
+      const testEnv = { PATH: env.PATH, LANG: 'C' };
       try {
         execFileSync(process.execPath, ['--test'], { cwd: repo, encoding: 'utf8', env: testEnv, stdio: ['ignore', 'pipe', 'pipe'] });
       } catch (e) { testsPassed = e.status === 0; }
@@ -219,8 +219,6 @@ function runCase({ role, model, task, run, outDir, templates, parseVerdict }) {
       writeFileSync(join(base, 'stdout.txt'), stdout);
       writeFileSync(join(base, 'stderr.txt'), stderr);
       writeFileSync(join(base, 'ledger.jsonl'), rawLedger);
-      const logPath = stdout.match(/ · log (.+)$/m)?.[1];
-      if (logPath && existsSync(logPath)) writeFileSync(join(base, 'runner.log'), readFileSync(logPath));
       for (const dir of snapshot) copyTree(join(repo, dir), join(base, 'snapshot', dir));
     }
     return { result, stdout };
@@ -229,17 +227,20 @@ function runCase({ role, model, task, run, outDir, templates, parseVerdict }) {
   }
 }
 
-// Copies a folder, skipping anything that is not a plain file: symlinks and secret names never leave the temp repo.
+// Fixture output is trusted public material; only source and documentation files belong in snapshots.
+export function snapshotAllowed(name, isDirectory = false) {
+  return !name.startsWith('.') && (isDirectory || /\.(?:mjs|md)$/i.test(name));
+}
+
 function copyTree(from, to) {
   if (!existsSync(from)) return;
   for (const name of readdirSync(from)) {
-    if (/(^|\/)(\.env|.*\.(key|pem|p12|pfx|crt)|id_rsa)/i.test(name)) continue;
     const p = join(from, name);
     const q = join(to, name);
     const st = lstatSync(p);
-    if (st.isSymbolicLink()) continue;
+    if (!snapshotAllowed(name, st.isDirectory()) || st.isSymbolicLink()) continue;
     if (st.isDirectory()) copyTree(p, q);
-    else { mkdirSync(dirname(q), { recursive: true }); copyFileSync(p, q); }
+    else if (st.isFile()) { mkdirSync(dirname(q), { recursive: true }); copyFileSync(p, q); }
   }
 }
 

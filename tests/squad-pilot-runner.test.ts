@@ -52,6 +52,15 @@ describe('squad pilot: prepareRepo', () => {
 });
 
 describe('squad pilot: hashing and copying', () => {
+  it('allows only non-hidden markdown and mjs files in snapshots', () => {
+    for (const name of ['README.md', 'script.mjs']) expect(driver.snapshotAllowed(name)).toBe(true);
+    for (const name of ['.env', '.private.md', 'id_rsa', 'secret.key', 'code.ts', 'run.sh', 'image.png']) {
+      expect(driver.snapshotAllowed(name)).toBe(false);
+    }
+    expect(driver.snapshotAllowed('nested', true)).toBe(true);
+    expect(driver.snapshotAllowed('.hidden', true)).toBe(false);
+  });
+
   it('ignores symlinks when hashing a folder', () => {
     const dir = mkdtempSync(join(tmpdir(), 'pilot-hash-'));
     try {
