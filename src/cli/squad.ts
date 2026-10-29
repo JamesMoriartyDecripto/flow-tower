@@ -206,8 +206,9 @@ function existingTowerName(squadJson: string, detected: string): string {
   let parsed: unknown;
   try {
     parsed = JSON.parse(readFileSync(squadJson, 'utf8'));
-  } catch (e) {
-    throw new Error(`${squadJson} is not valid JSON (${(e as Error).message}): fix or remove it, then run init again`);
+  } catch {
+    // The parser's message is not echoed: it can quote file content, which may hold credentials.
+    throw new Error(`${squadJson} is not valid JSON: fix or remove it, then run init again`);
   }
   const tower = (parsed as { tower?: unknown } | null)?.tower;
   return typeof tower === 'string' && tower.trim() !== '' ? tower : detected;

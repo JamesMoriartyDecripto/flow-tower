@@ -146,6 +146,35 @@ describe('squad bundle (#330)', () => {
     expect(existsSync(join(squad, 'squad.tower.yaml'))).toBe(false);
   });
 
+  it('refuses a symlinked or missing canonical main tower, and writes nothing (#330 review)', () => {
+    // The canonical main is read before any write: a link or a missing file must leave the destination absent.
+    const source = tempDir('squad-tower-src5-');
+    const outside = tempDir('squad-tower-outside5-');
+    writeFileSync(join(outside, 'real.yaml'), 'version: 1\nname: Dev Squad\nroot: ../..\nlayers: []\n');
+    symlinkSync(join(outside, 'real.yaml'), join(source, 'dev-squad.tower.yaml'));
+    const squad = tempDir('squad-tower-dst5-');
+    expect(() => installTower(source, squad, 'Demo')).toThrow(/not a regular file|missing or not a regular/);
+    expect(existsSync(join(squad, 'squad.tower.yaml'))).toBe(false);
+    expect(existsSync(join(squad, 'dev-squad'))).toBe(false);
+
+    const missing = tempDir('squad-tower-src6-');
+    const squad2 = tempDir('squad-tower-dst6-');
+    expect(() => installTower(missing, squad2, 'Demo')).toThrow(/missing or not a regular/);
+    expect(existsSync(join(squad2, 'squad.tower.yaml'))).toBe(false);
+    expect(existsSync(join(squad2, 'dev-squad'))).toBe(false);
+  });
+
+  it('refuses a malformed canonical main tower without echoing its content', () => {
+    const source = tempDir('squad-tower-src7-');
+    writeFileSync(join(source, 'dev-squad.tower.yaml'), 'name: [unclosed SENTINEL-CONTENT\n');
+    const squad = tempDir('squad-tower-dst7-');
+    let message = '';
+    try { installTower(source, squad, 'Demo'); } catch (e) { message = (e as Error).message; }
+    expect(message).toContain('not a valid YAML mapping');
+    expect(message).not.toContain('SENTINEL-CONTENT');
+    expect(existsSync(join(squad, 'squad.tower.yaml'))).toBe(false);
+  });
+
   it('refuses a nested folder inside the bundle that is a symlink', () => {
     const source = tempDir('squad-tower-src3-');
     writeFileSync(join(source, 'dev-squad.tower.yaml'), 'version: 1\nname: Dev Squad\nroot: ../..\nlayers: []\n');
@@ -201,6 +230,19 @@ describe('squad bundle (#330)', () => {
     }
     expect(check('tools/squad/dev-squad/logs/run.log')).toBe(0);
     expect(check('tools/squad/run.log')).toBe(0);
+  });
+
+  it('does not echo malformed squad.json content in the error (#330 review)', { timeout: 30_000 }, () => {
+    const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
+    expect(run('squad', 'init', dir).status).toBe(0);
+    const squad = join(dir, 'tools', 'squad');
+    // The sentinel stands in for a credential in a broken file: the parser message must not carry it out.
+    writeFileSync(join(squad, 'squad.json'), '{ "tower": "SENTINEL-SECRET-123", ');
+    const r = run('squad', 'init', dir, '--force');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('is not valid JSON: fix or remove it, then run init again');
+    expect(r.stderr).not.toContain('SENTINEL-SECRET-123');
+    expect(r.stdout).not.toContain('SENTINEL-SECRET-123');
   });
 
   it('refuses a malformed squad.json before any write, and leaves the runner and .cli untouched', { timeout: 30_000 }, () => {

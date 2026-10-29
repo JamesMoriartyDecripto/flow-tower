@@ -1,12 +1,13 @@
 /**
  * The dev squad's tower for `flow-tower squad init` (#330): the canonical examples/dev-squad tower, installed
  * as tools/squad/squad.tower.yaml (renamed and re-rooted for this project), with the support files it points
- * at under tools/squad/dev-squad/. Only a fixed allowlist is copied, and the secret check the loader uses
- * decides every file and folder, so a key never lands in the repo through the bundle.
+ * at under tools/squad/dev-squad/. Only a fixed allowlist is copied. The secret check the loader uses filters
+ * known secret paths; the source is the trusted public canonical distribution, not arbitrary user assets.
+ * This is not a content scan: a secret placed inside an allowed file is not detected.
  */
 import { chmodSync, copyFileSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { parseDocument } from 'yaml';
+import { isMap, parseDocument } from 'yaml';
 import { isSecretPath } from '../core/secrets.ts';
 
 /** Where the bundle's support files land, under the squad folder. The tower's `root:` points here. */
@@ -100,11 +101,25 @@ function assertBundleDirs(squadDir: string, rels: string[]): void {
 }
 
 /**
+ * Reads the canonical main tower from `source`. It must be a real regular file (a link would read from wherever
+ * it points). Errors never echo the file's content: a parser message can quote the text it failed on.
+ */
+function readCanonicalMain(source: string): string {
+  const path = join(source, CANONICAL_MAIN);
+  if (!isRealFile(path)) throw new Error(`refusing to read ${path}: the canonical tower is missing or not a regular file`);
+  return readFileSync(path, 'utf8');
+}
+
+/**
  * The main tower with this project's name and root. It is edited as a YAML document, never by string
  * replacement, so a name with quotes or colons still yields a valid file and the comments are kept.
+ * Throws when the source is not a YAML mapping, so a broken canonical tower never reaches a write.
  */
 function mainTower(source: string, towerName: string): string {
   const doc = parseDocument(source);
+  if (doc.errors.length > 0 || !isMap(doc.contents)) {
+    throw new Error(`the canonical tower ${CANONICAL_MAIN} is not a valid YAML mapping: fix the distribution`);
+  }
   doc.set('name', towerName);
   doc.set('root', BUNDLE_DIR);
   return doc.toString();
@@ -112,10 +127,12 @@ function mainTower(source: string, towerName: string): string {
 
 /**
  * Checks every destination the tower install may write, before any write: the squad folder and bundle folders
- * must be real folders, and the main tower and each bundle file must be a regular file or missing. Returns the
- * bundle's file list so the caller does not walk the source twice. A link anywhere stops the install.
+ * must be real folders, and the main tower and each bundle file must be a regular file or missing. The canonical
+ * main tower source is also read and parsed here, so a missing, linked or malformed source stops the install
+ * before any write. Returns the bundle's file list so the caller does not walk the source twice.
  */
 export function assertTowerDests(source: string, squadDir: string): string[] {
+  mainTower(readCanonicalMain(source), 'check');
   const bundle = bundleFiles(source);
   assertSquadDir(squadDir);
   assertBundleDirs(squadDir, bundle);
@@ -137,7 +154,7 @@ export function installTower(source: string, squadDir: string, towerName: string
   let main = false;
   if (!present(mainPath)) {
     mkdirSync(squadDir, { recursive: true });
-    writeFileSync(mainPath, mainTower(readFileSync(join(source, CANONICAL_MAIN), 'utf8'), towerName));
+    writeFileSync(mainPath, mainTower(readCanonicalMain(source), towerName));
     main = true;
   }
 
