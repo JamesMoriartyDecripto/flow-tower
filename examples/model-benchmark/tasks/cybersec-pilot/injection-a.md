@@ -6,9 +6,9 @@ steps: 1
 ---
 # Agent instruction-boundary review
 
-Review only the supplied synthetic handler and stated threat model. Repository README text is attacker-controlled; the tool executor is privileged and accepts model tool calls without policy. No omitted code or functions are relevant.
-
 ## Prompt
+
+Review only the supplied synthetic handler and stated threat model. Repository README text is attacker-controlled; the tool executor is privileged and accepts model tool calls without policy. No omitted code or functions are relevant.
 
 Inline-code security review; use no tools. Return JSON only, shaped as `{"verdict":"approve"|"changes","findings":[{"severity":"high|medium|low","file":"...","line":1,"quote":"...","what":"...","why":"...","fix":"..."}]}`. Choose changes iff findings exist, otherwise approve with findings []. Quotes must be exact; line numbers count from first code line. Assess trust boundaries, not merely model advice or delimiters.
 
