@@ -53,6 +53,9 @@ provider recovery or every possible project. Follow-up acceptance remains open i
    node tools/squad/run.mjs --role architect --task <plan-task> --issue 333 --steps 4
    node tools/squad/run.mjs --role doc-writer --write docs --task <docs-task> --issue 333 --steps 6
    ```
+   Here `--issue 333` is only the local run's ledger label, not a GitHub issue lookup by `run.mjs`.
+   When packing an offline review, use `pack.mjs --base <local-base> --brief <local-issue-file>` to supply
+   issue context without a remote lookup; `--brief` is a pack option, not a runner option.
    Other roles use the same entry point. Keep configured models constant across host trials where available.
    Do not silently substitute unavailable models. Record retries, failures and any explicit fallback.
 6. Independently inspect source, tests and documentation. Run `node --test` and `git diff --check` yourself.
@@ -128,7 +131,7 @@ local commit packing still worked. No actual GitHub/CI gate or live-event delive
 | Independent tests | 4 top-level tests, 22 table cases, 13 invalid inputs; all passed. Mutants (`toLowerCase()`, `giu` flags, no `+`) each fail 1 test |
 | Review/security | Both approved the trial head. Security: one low finding (slug not injective, may be `''`), quote verified, dropped: required by the issue, documented, no caller uses it as a key |
 | Verifier | **Did not complete**: 2 runs, both `step cap` at 5 steps. Each wrote a correct PASS in prose next to tool calls but never called `finish`. Lead established the result from git/test output |
-| Ledger | 10 specialist calls (one verifier retry), 29 steps, reported cost **$0.0105**, no unknown-cost runs; excludes lead cost |
+| Ledger | 10 specialist calls (one verifier retry), 29 steps, reported cost **$0.0105**, no unknown-cost runs; excludes lead cost. Per-role display values are rounded independently and need not sum to the unrounded ledger total. |
 
 | Role | Model | Runs | Steps | Reported cost | Outcome |
 |---|---|---:|---:|---:|---|

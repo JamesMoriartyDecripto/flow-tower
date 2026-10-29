@@ -11,7 +11,8 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 - Pi local full-role trial passed: 9 calls, 21 steps, reported specialist cost $0.0073 (lead cost excluded).
   No external PR, CI gate or universal harness claim. Source/test/docs and clean trial head independently checked.
 - Claude Code trial: code passed; researcher hit its 3-step cap and verifier hit its 5-step cap twice.
-  Prose PASS without `finish` is not role completion; evidence and commit `21fad55` preserved.
+  Prose PASS without `finish` is not role completion. Claude Code tested `d2e2002`; its evidence was
+  subsequently recorded in commit `21fad55` (which Codex then tested). Both historical records are preserved.
 - Codex baseline repeat (2026-10-29), implementation `21fad55`: all nine roles explicitly finished,
   20 steps, reported specialist cost $0.008795. Independent 12/12 tests and clean head `89345da`;
   reviewer/security approved that head. Runner unchanged; no external repo/PR/push/merge.
