@@ -1,4 +1,5 @@
 # yaml-language-server: $schema=../../schema/flow-tower.schema.json
+# v0.15.0: verify canonical portable Dev Squad; benchmark draft #340 is excluded from release scope.
 version: 1
 name: Release Auditor
 tags: [qa, security, code-review, release, playwright, claude-code, dogfooding]
