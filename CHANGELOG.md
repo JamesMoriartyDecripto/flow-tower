@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Changed
+- Dev Squad SDK reference (#347): the deprecated quick-fix route is gone. Triage routes to `full`, `needs_info` or `reject`; a trivial issue gets a one-step plan from the lead and the same review, verification and approval gates. The tower no longer shows the `quickfix` node.
+
 ## [0.15.0] - 2026-10-30
 
 ### Security
