@@ -204,7 +204,7 @@ layers:
         runtime: vps
         type: decision
         label: Route?
-        description: "Model proposes a route; deterministic policy decides last: the squad:skip label rejects first, and a full route in a sensitive area (auth, billing, payment, privacy, personal data...) gets risk high, so its plan always needs a human sign-off. There is no quick-fix bypass (#347): every change goes through a plan and the review gates."
+        description: "Model proposes a route; deterministic policy decides last: the squad:skip label rejects first, and a full route whose title, body or areas name a sensitive area (auth, billing, payment, privacy, personal data...) gets risk high, so its plan always needs a human sign-off. There is no quick-fix bypass (#347): every change goes through a plan and the review gates."
         decision: { output: choice, candidates: [full, needs_info, reject], fail: closed }
         files: [src/triage.ts]
       - id: needs_info
