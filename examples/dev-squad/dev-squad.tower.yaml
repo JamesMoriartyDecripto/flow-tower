@@ -248,8 +248,8 @@ layers:
         runtime: github
         type: human
         label: Plan sign-off
-        description: Before any code is written. Maintainer approves with the `squad:approved` label or comments `/squad revise <notes>`.
-        approval: { by: maintainer, via: [issue label, issue comment], actions: [approve, edit, respond], when: "risk == high or steps > 6", timeout: 4h, on_timeout: reject, rounds: 2, description: "The lead asks and ends its session; the pipeline polls the issue every 2 min and resumes the same session with the answer: squad:approved, /squad approve <notes> (approved with changes: parts moved out of scope become follow-up issues) or /squad revise <notes>. No answer in 4h, or a third revise, pauses the run." }
+        description: "Before coding, a repository pusher approves or revises the current request. Label approval requires a fresh attributable event; the newer authorized comment or label decision wins."
+        approval: { by: maintainer, via: [issue label, issue comment], actions: [approve, edit, respond], when: "risk == high or steps > 6", timeout: 4h, on_timeout: reject, rounds: 2, description: "The lead ends its session; the pipeline polls every 2 min. Comments and the newest squad:approved label event must follow this request and have a push-authorized actor. A newer revise overrides an older label. Missing label evidence fails closed; no answer in 4h or a third revise pauses the run." }
         files: [src/loop/await-approval.ts, src/tools/request-approval.ts, src/config.ts]
       - id: dispatch
         runtime: vps
@@ -322,7 +322,7 @@ layers:
         resources:
           - { kind: log, label: "Review loop log", path: "logs/review-loop.log" }
         label: Parallel review
-        description: "Promise.all over two fresh query() sessions. Neither evaluator sees the other. An empty or unparsable grader answer throws (lastJson): it is never read as a pass."
+        description: "Promise.all over two fresh query() sessions. Neither evaluator sees the other. Incomplete roles and malformed verdicts stop delivery; approving JSON inside a failed run never counts."
         prompt: review-round
         files: [src/loop/review-loop.ts, src/run-agent.ts, prompts/review-round.md]
       - id: reviewer
@@ -335,7 +335,7 @@ layers:
         runtime: vps
         type: decision
         label: All pass?
-        description: "Passes when nothing blocks: the reviewer's blocking findings plus critical/high security findings. Lower security findings become follow-ups on the PR."
+        description: "Completed roles must return valid verdicts. Blocking review findings and critical/high security findings trigger a fix; a failed fixer stops delivery. Negative verdicts without actionable findings fail closed. Lower security findings on a passing verdict become follow-ups."
         decision: { output: binary, candidates: [approved, changes], fail: closed }
         files: [src/loop/review-loop.ts]
       - id: round_cap
@@ -355,7 +355,7 @@ layers:
       - id: verifier
         agent: verifier
         label: Fresh verifier
-        description: "Only the issue and the branch. Ships when its verdict is ship, the suite is green and every criterion is met: checked in code, whatever the model says. Holds a user-facing change that no test exercises end to end (a spawned CLI, a started server, a rendered page)."
+        description: "Only the issue and the branch. Ships with completed verification, a nonempty list of met criteria, a green suite and no explicit gaps. Empty criteria, unmet criteria and unknown suite results hold the change. The lead independently checks the reported evidence."
       - id: approval
         runtime: github
         resources:
@@ -377,7 +377,7 @@ layers:
         runtime: github
         type: output
         label: Run stopped
-        description: "Any throw (gh, git worktree, an agent's JSON, open_pr) or the $15 issue budget ends here: a comment on the issue and a failed / over_budget entry in the session log. The worktree is kept for debugging."
+        description: "Errors and budget failures post an issue comment and journal failed / over_budget. Delivery returns an explicit outcome; CLI run exits nonzero unless it reaches a draft PR. The issue worktree is kept for debugging."
         files: [src/pipeline.ts]
     edges:
       - "fanout -> reviewer [spawn]: rubric"
