@@ -1,7 +1,6 @@
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { loadAgentFiles } from './agents';
 import { LIMITS, PATHS, PLAN_GATE } from './config';
 import { awaitApproval } from './loop/await-approval';
 import { reviewLoop } from './loop/review-loop';
@@ -9,7 +8,6 @@ import { verify } from './loop/verify';
 import { appendRun } from './memory/session-log';
 import { promoteRecurring } from './memory/store';
 import { runLead, type Worktree } from './orchestrator';
-import { runAgent } from './run-agent';
 import { openPr } from './tools/open-pr';
 import { requestApproval } from './tools/request-approval';
 import { triage } from './triage';
@@ -24,7 +22,7 @@ export type DeliveryOutcome = 'pr_open' | 'rejected' | 'needs_info' | 'blocked' 
 class OverBudget extends Error {}
 
 /**
- * Prompt chain with gates: triage -> (quickfix | lead) -> review loop -> fresh
+ * Prompt chain with gates: triage -> lead -> review loop -> fresh
  * verifier -> draft PR -> human approval. Every arrow is a programmatic check,
  * so a failed step stops the chain instead of flowing garbage downstream.
  * Any throw (gh, git, an agent's JSON, open_pr) and the whole-issue budget end here:
@@ -69,45 +67,30 @@ async function stages(issue: Issue, run: { cost: number }): Promise<DeliveryOutc
     return done('needs_info', 0, t.rationale);
   }
 
+  // Every change takes the full path: the lead writes a plan (one step for a trivial fix), then review and verify.
   const wt = await createWorktree(issue);
-  let plan = `Single quick fix: ${issue.title}`;
-
-  if (t.route === 'quickfix') {
-    const { coder, 'doc-writer': docWriter } = loadAgentFiles();
-    const base = { cwd: wt.path, issue: issue.number, areas: t.areas, permissionMode: 'acceptEdits' as const };
-    const coderRun = await runAgent(coder, `Quick fix for #${issue.number}: ${issue.title}\n\n${issue.body}`, { ...base, role: 'coder', ...LIMITS.quickfix });
-    spend(coderRun.costUsd);
-    // A failed run (ok=false) carries the provider's error in text; it must not reach the doc-writer or review.
-    if (!coderRun.ok) throw new Error(`quick-fix coder did not finish: ${coderRun.text}`);
-    // On the full route the lead's doc-writer does this; without it the Stop gate and open_pr have nothing to work with.
-    const docRun = await runAgent(docWriter, `Quick fix for #${issue.number} (${issue.title}) is done on ${wt.branch}. ` +
-      'Add the CHANGELOG.md entry and write .squad/pr-body.md.', { ...base, role: 'doc-writer', ...LIMITS.docs });
-    spend(docRun.costUsd);
-    if (!docRun.ok) throw new Error(`doc-writer did not finish: ${docRun.text}`);
-  } else {
-    let since = new Date();
-    let lead = await runLead(issue, t, wt);
-    spend(lead.costUsd);
-    // Plan sign-off: the lead asked and ended its session; resume it with the human's answer.
-    for (let revisions = 0; lead.status === 'awaiting_approval'; revisions++) {
-      const answer = await awaitApproval(issue, since);
-      if (answer.kind === 'timeout' || (answer.kind === 'revise' && revisions >= PLAN_GATE.maxRevisions)) {
-        const why = answer.kind === 'timeout' ? `no plan decision within ${PLAN_GATE.approvalTimeoutMin} min` : `plan still not approved after ${PLAN_GATE.maxRevisions} revisions`;
-        await comment(issue, `Dev Squad paused: ${why}. Label \`squad:go\` again to restart.`);
-        return done('blocked', 0, why);
-      }
-      since = new Date();
-      lead = await runLead(issue, t, wt, {
-        sessionId: lead.sessionId,
-        answer: answer.kind === 'revise' ? `Revise the plan: ${answer.notes}`
-          : answer.notes ? `The plan is approved with these changes: ${answer.notes}\nApply them; for each part moved out of scope, call file_followup. Then continue from step 3.`
-          : 'The plan is approved. Continue from step 3.',
-      });
-      spend(lead.costUsd);
+  let since = new Date();
+  let lead = await runLead(issue, t, wt);
+  spend(lead.costUsd);
+  // Plan sign-off: the lead asked and ended its session; resume it with the human's answer.
+  for (let revisions = 0; lead.status === 'awaiting_approval'; revisions++) {
+    const answer = await awaitApproval(issue, since);
+    if (answer.kind === 'timeout' || (answer.kind === 'revise' && revisions >= PLAN_GATE.maxRevisions)) {
+      const why = answer.kind === 'timeout' ? `no plan decision within ${PLAN_GATE.approvalTimeoutMin} min` : `plan still not approved after ${PLAN_GATE.maxRevisions} revisions`;
+      await comment(issue, `Dev Squad paused: ${why}. Label \`squad:go\` again to restart.`);
+      return done('blocked', 0, why);
     }
-    if (lead.status === 'blocked') return done('blocked', 0, lead.notes);
-    plan = lead.plan;
+    since = new Date();
+    lead = await runLead(issue, t, wt, {
+      sessionId: lead.sessionId,
+      answer: answer.kind === 'revise' ? `Revise the plan: ${answer.notes}`
+        : answer.notes ? `The plan is approved with these changes: ${answer.notes}\nApply them; for each part moved out of scope, call file_followup. Then continue from step 3.`
+        : 'The plan is approved. Continue from step 3.',
+    });
+    spend(lead.costUsd);
   }
+  if (lead.status === 'blocked') return done('blocked', 0, lead.notes);
+  const plan = lead.plan;
 
   const loop = await reviewLoop(issue.number, plan, wt);
   spend(loop.costUsd);

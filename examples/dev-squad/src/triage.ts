@@ -8,7 +8,7 @@ import type { Issue } from './main';
 export const TriageSchema = z.object({
   kind: z.enum(['bug', 'feature', 'chore', 'docs', 'question']),
   complexity: z.number().int().min(1).max(5),
-  route: z.enum(['quickfix', 'full', 'needs_info', 'reject']),
+  route: z.enum(['full', 'needs_info', 'reject']),
   risk: z.enum(['low', 'medium', 'high']),
   areas: z.array(z.string()).max(5),
   questions: z.array(z.string()).describe('What to ask the reporter when route=needs_info'),
@@ -54,15 +54,12 @@ export async function triage(issue: Issue, openIssueTitles: string[]): Promise<T
 
 /** Deterministic overrides: code, not the model, has the last word on safety. */
 function applyPolicy(t: Triage, issue: Issue): Triage {
-  // Opting out wins over everything, including the upgrade below.
+  // Opting out wins over everything.
   if (issue.labels.includes('squad:skip')) return { ...t, route: 'reject', rationale: 'Opted out via label.' };
   // Personal data counts as sensitive too: a journal of what users say is as risky as billing code.
   const sensitive = /auth|billing|payment|migration|permission|secret|privacy|personal|pii|gdpr/i;
   const touchesSensitive = sensitive.test(`${issue.title} ${t.areas.join(' ')}`);
-  if (t.route === 'quickfix' && (t.complexity > 2 || touchesSensitive)) {
-    return { ...t, route: 'full', risk: 'high', rationale: `${t.rationale} [policy: upgraded to full]` };
-  }
-  // On the full route too: a sensitive area always gets a human plan sign-off (risk high).
+  // A sensitive area always gets a human plan sign-off (risk high).
   if (t.route === 'full' && touchesSensitive && t.risk !== 'high') {
     return { ...t, risk: 'high', rationale: `${t.rationale} [policy: sensitive area, risk high]` };
   }

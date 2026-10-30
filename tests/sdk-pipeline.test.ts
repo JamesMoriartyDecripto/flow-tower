@@ -18,6 +18,7 @@ const h = vi.hoisted(() => {
     fakeExec,
     triage: vi.fn(),
     runLead: vi.fn(),
+    // Not imported by the pipeline any more: kept so a regression that reaches it is caught.
     runAgent: vi.fn(),
     reviewLoop: vi.fn(),
     verify: vi.fn(),
@@ -26,12 +27,10 @@ const h = vi.hoisted(() => {
     promoteRecurring: vi.fn(() => 0),
     openPrHandler: vi.fn(),
     requestHandler: vi.fn(),
-    loadAgentFiles: vi.fn(() => ({ coder: {}, 'doc-writer': {}, verifier: {}, reviewer: {}, 'security-auditor': {} })),
   };
 });
 
 vi.mock('node:child_process', () => ({ execFile: h.fakeExec }));
-vi.mock('../examples/dev-squad/src/agents.ts', () => ({ loadAgentFiles: h.loadAgentFiles }));
 vi.mock('../examples/dev-squad/src/triage.ts', () => ({ triage: h.triage }));
 vi.mock('../examples/dev-squad/src/orchestrator.ts', () => ({ runLead: h.runLead }));
 vi.mock('../examples/dev-squad/src/run-agent.ts', () => ({ runAgent: h.runAgent }));
@@ -46,35 +45,23 @@ vi.mock('../examples/dev-squad/src/tools/request-approval.ts', () => ({ requestA
 // Local types: the pipeline module is never statically imported, so its types stay out of the host typecheck.
 type Outcome = 'pr_open' | 'rejected' | 'needs_info' | 'blocked' | 'escalated' | 'failed' | 'over_budget';
 type Issue = { repo: string; number: number; title: string; body: string; labels: string[] };
-type Route = 'quickfix' | 'full' | 'needs_info' | 'reject';
-interface AgentRun { text: string; costUsd: number; sessionId: string; ok: boolean }
+type Route = 'full' | 'needs_info' | 'reject';
 interface LeadReport { status: 'ready_for_review' | 'blocked' | 'awaiting_approval'; plan: string; notes: string; sessionId: string; costUsd: number }
 
 const pipelinePath = '../examples/dev-squad/src/pipeline.ts';
 const { deliver } = (await import(pipelinePath)) as { deliver: (issue: Issue) => Promise<Outcome> };
 
 const issue: Issue = { repo: 'acme/shop', number: 412, title: 'Fix typo', body: 'It says teh.', labels: [] };
-const okRun = (costUsd: number, text = 'done'): AgentRun => ({ text, costUsd, sessionId: 'a1', ok: true });
-const failRun = (costUsd: number, text: string): AgentRun => ({ text, costUsd, sessionId: 'a1', ok: false });
 const triageFor = (route: Route) => ({ kind: 'bug', complexity: 1, route, risk: 'low', areas: ['web'], questions: ['what page?'], rationale: 'why' });
 const lead = (over: Partial<LeadReport> = {}): LeadReport => ({ status: 'ready_for_review', plan: 'Plan P', notes: '', sessionId: 'L1', costUsd: 1, ...over });
 const PR_URL = 'https://github.com/acme/shop/pull/77';
 const prOpenOk = { content: [{ type: 'text', text: PR_URL }] };
 
-// Per-role provider answers, reset before each test. A role mapped to an Error throws, like a crashed SDK call.
-let roles: Record<string, AgentRun | Error>;
-
 beforeEach(() => {
   for (const f of [h.triage, h.runLead, h.runAgent, h.reviewLoop, h.verify, h.awaitApproval, h.appendRun, h.openPrHandler, h.requestHandler]) (f as Mock).mockReset();
   h.promoteRecurring.mockReset().mockReturnValue(0);
   h.execCalls.length = 0;
-  roles = { coder: okRun(0.5), 'doc-writer': okRun(0.1) };
-  (h.runAgent as Mock).mockImplementation(async (_agent: unknown, _prompt: string, opts: { role: string }) => {
-    const r = roles[opts.role];
-    if (r instanceof Error) throw r;
-    return r ?? okRun(0);
-  });
-  (h.triage as Mock).mockResolvedValue(triageFor('quickfix'));
+  (h.triage as Mock).mockResolvedValue(triageFor('full'));
   (h.runLead as Mock).mockResolvedValue(lead());
   (h.reviewLoop as Mock).mockResolvedValue({ outcome: 'approved', rounds: 1, costUsd: 0.3, followUps: [], open: [], seen: [] });
   (h.verify as Mock).mockResolvedValue({ verdict: 'ship', criteria: [{ text: 'typo fixed', met: true, evidence: 'diff' }], suite: 'green', gaps: [], costUsd: 0.2 });
@@ -86,26 +73,16 @@ beforeEach(() => {
 const journal = () => (h.appendRun as Mock).mock.calls.map((c) => c[0] as Record<string, unknown>);
 
 describe('SDK pipeline: success paths', () => {
-  it('quickfix success opens a draft PR and journals pr_open with all cost', async () => {
-    expect(await deliver(issue)).toBe('pr_open');
-    expect(h.openPrHandler).toHaveBeenCalledTimes(1);
-    expect(journal()).toHaveLength(1);
-    expect(journal()[0]).toMatchObject({ issue: 412, outcome: 'pr_open', rounds: 1, lesson: 'clean run' });
-    // coder 0.5 + doc-writer 0.1 + review 0.3 + verify 0.2
-    expect(journal()[0].costUsd as number).toBeCloseTo(1.1, 5);
-  });
-
   it('full lead completion opens a draft PR after review and verify', async () => {
-    (h.triage as Mock).mockResolvedValue(triageFor('full'));
     expect(await deliver(issue)).toBe('pr_open');
     expect(h.runLead).toHaveBeenCalledTimes(1);
     expect(h.reviewLoop).toHaveBeenCalledWith(412, 'Plan P', expect.objectContaining({ branch: 'squad/412-fix-typo' }));
     expect(journal()[0]).toMatchObject({ outcome: 'pr_open' });
+    // lead 1 + review 0.3 + verify 0.2
     expect(journal()[0].costUsd as number).toBeCloseTo(1.5, 5);
   });
 
   it('plan await, revise and approve resume the same lead session', async () => {
-    (h.triage as Mock).mockResolvedValue(triageFor('full'));
     (h.runLead as Mock)
       .mockResolvedValueOnce(lead({ status: 'awaiting_approval', sessionId: 's-plan', costUsd: 0.5 }))
       .mockResolvedValueOnce(lead({ status: 'awaiting_approval', sessionId: 's-plan', costUsd: 0.5 }))
@@ -124,7 +101,6 @@ describe('SDK pipeline: success paths', () => {
 
 describe('SDK pipeline: plan gate stops', () => {
   it('a plan timeout is blocked, with no PR and no review', async () => {
-    (h.triage as Mock).mockResolvedValue(triageFor('full'));
     (h.runLead as Mock).mockResolvedValue(lead({ status: 'awaiting_approval', sessionId: 's-plan' }));
     (h.awaitApproval as Mock).mockResolvedValue({ kind: 'timeout' });
     expect(await deliver(issue)).toBe('blocked');
@@ -134,7 +110,6 @@ describe('SDK pipeline: plan gate stops', () => {
   });
 
   it('revisions beyond the limit are blocked with no PR', async () => {
-    (h.triage as Mock).mockResolvedValue(triageFor('full'));
     (h.runLead as Mock).mockResolvedValue(lead({ status: 'awaiting_approval', sessionId: 's-plan' }));
     (h.awaitApproval as Mock).mockResolvedValue({ kind: 'revise', notes: 'again' });
     expect(await deliver(issue)).toBe('blocked');
@@ -145,7 +120,6 @@ describe('SDK pipeline: plan gate stops', () => {
   });
 
   it('a lead that reports blocked stops before review', async () => {
-    (h.triage as Mock).mockResolvedValue(triageFor('full'));
     (h.runLead as Mock).mockResolvedValue(lead({ status: 'blocked', notes: 'missing API' }));
     expect(await deliver(issue)).toBe('blocked');
     expect(h.reviewLoop).not.toHaveBeenCalled();
@@ -153,35 +127,24 @@ describe('SDK pipeline: plan gate stops', () => {
   });
 });
 
-describe('SDK pipeline: failed quickfix steps stop before review', () => {
-  it('a quickfix coder that does not finish fails, keeps its cost, and skips doc-writer and review', async () => {
-    roles.coder = failRun(0.4, 'provider rejected: 401');
-    expect(await deliver(issue)).toBe('failed');
-    expect(h.runAgent).toHaveBeenCalledTimes(1);
-    expect(h.reviewLoop).not.toHaveBeenCalled();
-    expect(journal()[0]).toMatchObject({ outcome: 'failed', rounds: 0 });
-    expect(journal()[0].costUsd as number).toBeCloseTo(0.4, 5);
-    expect(journal()[0].lesson as string).toContain('provider rejected: 401');
-  });
-
-  it('a doc-writer that does not finish fails before review and keeps both costs', async () => {
-    roles['doc-writer'] = failRun(0.2, 'tool loop exhausted');
+describe('SDK pipeline: a failed lead stops before review', () => {
+  it('a thrown lead error is an explicit failed outcome, with no cost spent and no review', async () => {
+    (h.runLead as Mock).mockRejectedValue(new Error('network down'));
     expect(await deliver(issue)).toBe('failed');
     expect(h.reviewLoop).not.toHaveBeenCalled();
-    expect(h.openPrHandler).not.toHaveBeenCalled();
-    expect(journal()[0].costUsd as number).toBeCloseTo(0.7, 5);
-  });
-
-  it('a thrown provider error is an explicit failed outcome, with no cost spent', async () => {
-    roles.coder = new Error('network down');
-    expect(await deliver(issue)).toBe('failed');
     expect(journal()[0]).toMatchObject({ outcome: 'failed', costUsd: 0 });
+  });
+
+  it('a trivial issue still goes through the lead once and never the quick-fix coder', async () => {
+    (h.triage as Mock).mockResolvedValue(triageFor('full'));
+    await deliver(issue);
+    expect(h.runLead).toHaveBeenCalledTimes(1);
+    expect(h.runAgent).not.toHaveBeenCalled();
   });
 });
 
 describe('SDK pipeline: review and verifier gates', () => {
   it('review escalation opens no PR and journals escalated', async () => {
-    (h.triage as Mock).mockResolvedValue(triageFor('full'));
     (h.reviewLoop as Mock).mockResolvedValue({ outcome: 'escalate', rounds: 3, costUsd: 0.9, followUps: [], open: [{ file: 'a.ts', line: 1, issue: 'bug', fix: 'x' }], seen: [{ file: 'a.ts', line: 1, issue: 'bug', fix: 'x' }] });
     expect(await deliver(issue)).toBe('escalated');
     expect(h.verify).not.toHaveBeenCalled();
@@ -206,9 +169,8 @@ describe('SDK pipeline: review and verifier gates', () => {
 
 describe('SDK pipeline: explicit non-success outcomes', () => {
   it('a budget breach is over_budget and keeps the spend', async () => {
-    roles.coder = okRun(16);
+    (h.runLead as Mock).mockResolvedValue(lead({ costUsd: 16 }));
     expect(await deliver(issue)).toBe('over_budget');
-    expect(h.runAgent).toHaveBeenCalledTimes(1);
     expect(journal()[0]).toMatchObject({ outcome: 'over_budget' });
     expect(journal()[0].costUsd as number).toBeCloseTo(16, 5);
   });
@@ -241,7 +203,7 @@ describe('SDK pipeline: side effects are recorded, never executed, and never mer
   });
 
   it('a failing run still posts exactly one comment and journals once', async () => {
-    roles.coder = new Error('boom');
+    (h.runLead as Mock).mockRejectedValue(new Error('boom'));
     await deliver(issue);
     expect(h.execCalls.filter((c) => c.startsWith('gh issue comment'))).toHaveLength(1);
     expect(journal()).toHaveLength(1);

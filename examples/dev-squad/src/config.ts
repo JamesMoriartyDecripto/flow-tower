@@ -46,7 +46,6 @@ export type Role = keyof typeof ROLE_MODEL;
 /** Hard caps per query(). The SDK stops with error_max_turns / error_max_budget_usd. */
 export const LIMITS = {
   triage: { maxTurns: 2, maxBudgetUsd: 0.05 },
-  quickfix: { maxTurns: 25, maxBudgetUsd: 1 },
   /** One plan step for an OpenRouter coder (run_coder): round 1 of #70 took 50 steps and $0.13. */
   step: { maxTurns: 60, maxBudgetUsd: 1 },
   lead: { maxTurns: 80, maxBudgetUsd: 8 },
