@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadLibrary } from '../src/core/loader';
@@ -8,6 +9,8 @@ import { createAcceptanceFixture, FAKE_KEY, toolCall, type AcceptanceFixture } f
 // Live delivery and cancellation are out of scope for this file.
 
 const SUM_SRC = 'export const sum = (a, b) => a + b;\n';
+// Deliberately wrong: the failing-check case swaps in this implementation so node:test reports a real failure.
+const SUM_WRONG = 'export const sum = (a, b) => a - b;\n';
 // The marker is written with fs at test time, so the file's presence proves the configured check actually ran.
 const SUM_TEST = `import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -110,6 +113,35 @@ describe('squad acceptance: install, doctor, installed coder and tester', () => 
     const finishes = ledgerRows(fx.env().SQUAD_LEDGER).filter((row) => row.outcome === 'finish');
     expect(finishes.map((row) => row.role)).toEqual(['coder', 'tester']);
   });
+
+  it('a real failed project check: the tester reports it, the marker stays absent, and the project command exits nonzero', async () => {
+    const marker = join(fx.dir, '.acceptance-marker');
+    try {
+      writeFileSync(join(fx.dir, 'src', 'sum.mjs'), SUM_WRONG);
+      rmSync(marker, { force: true });
+      const before = fx.requests.length;
+      fx.setReplies([
+        toolCall('r2', 'run', { command: 'check' }),
+        toolCall('f3', 'finish', { report: 'Check failed: sum(2, 3) returns the wrong value.\nKnown gaps: failing suite' }),
+      ]);
+      const r = await fx.runner(['--role', 'tester', '--model', 'fake/model', '--issue', '333', '--steps', '4', '--task', task]);
+      // The role completed its report: exit 0 means finish was reached, not that the project passed.
+      expect(r.code, r.stderr || r.stdout).toBe(0);
+      // The tool response the provider received must carry the real nonzero exit of the check.
+      const sent = fx.requests.slice(before).map((b) => JSON.stringify(b));
+      expect(sent.some((body) => body.includes('EXIT 1'))).toBe(true);
+      expect(existsSync(marker)).toBe(false);
+      const lastFinish = ledgerRows(fx.env().SQUAD_LEDGER).filter((row) => row.outcome === 'finish').at(-1);
+      expect(lastFinish).toMatchObject({ role: 'tester' });
+      // Independent evidence: the same project command, run without any key, really fails.
+      const project = spawnSync(process.execPath, ['--test', 'tests/sum.test.mjs'], { cwd: fx.dir, env: fx.env(), encoding: 'utf8', timeout: 60_000 });
+      expect(project.status, project.stderr || project.stdout).not.toBe(0);
+      expect(project.status).toBe(1);
+    } finally {
+      // Later cases and the final assertions expect the good implementation back.
+      writeFileSync(join(fx.dir, 'src', 'sum.mjs'), SUM_SRC);
+    }
+  }, 120_000);
 
   it('the project declares no dependencies and persists no fake provider key in project files or ledger', () => {
     const pkg = JSON.parse(readFileSync(join(fx.dir, 'package.json'), 'utf8'));

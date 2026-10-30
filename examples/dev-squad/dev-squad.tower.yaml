@@ -16,13 +16,14 @@
 # doctor checks Node/git/OpenRouter. The user's existing harness is lead; SDK execution is optional.
 version: 1
 name: Dev Squad
-tags: [coding, claude-agent-sdk, multi-agent]
-budget: { usd: 15, per: run, on_exceed: stop, description: "Whole-issue ceiling across every query (LIMITS.issueUsd); the pipeline aborts above it." }
-limits: { concurrency: 4, description: "At most 4 concurrent subagents, spawn depth 1 (specialists never spawn their own)." }
+tags: [coding, openrouter, claude-agent-sdk, multi-agent]
+budget: { usd: 15, per: run, on_exceed: stop, description: "SDK reference threshold checked after returned stage costs. Failed subcall costs can be incomplete; the portable lead workflow has no enforced global dollar cap." }
+limits: { concurrency: 4, description: "SDK reference: at most 4 concurrent subagents, spawn depth 1. Portable process concurrency is controlled by the lead, not a global runner limit." }
 description: >-
-  A multi-agent software delivery system on the Claude Agent SDK. It takes a GitHub
-  issue, routes it, plans, researches, codes, tests, reviews in an evaluator-optimizer
-  loop, verifies with a fresh context and opens a draft PR that a human merges.
+  Canonical eight-layer Dev Squad design. The portable workflow keeps the user's existing harness
+  as lead and runs specialists through Node/OpenRouter. The optional Claude Agent SDK reference
+  backend models issue routing, planning, coding, gated review, fresh verification and draft PR
+  delivery. A human reviews and merges.
 
 runtimes:
   laptop:

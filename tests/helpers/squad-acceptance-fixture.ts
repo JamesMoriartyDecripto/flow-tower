@@ -27,7 +27,7 @@ export interface AcceptanceFixture {
   dir: string;
   /** Request bodies the fake provider received, in arrival order. */
   requests: unknown[];
-  /** Replaces the scripted replies; the next request takes the first one. The last reply repeats. */
+  /** Replaces the scripted replies; the next request takes the first one. Requests past the end get a 500 (no repeat). */
   setReplies(replies: Reply[]): void;
   /** Runs the trusted CLI (bin/flow-tower.js) with the minimal isolated env. */
   cli(args: string[], opts?: { key?: string }): Promise<Result>;
@@ -92,13 +92,13 @@ export async function createAcceptanceFixture(): Promise<AcceptanceFixture> {
     req.on('end', () => {
       requests.push(raw ? JSON.parse(raw) : null);
       next++;
-      // No script means no scripted behavior: fail loudly instead of inventing a successful finish.
-      if (replies.length === 0) {
+      // Past the end of the script (or no script at all) fail loudly: a silent repeat would hide a role looping on one reply.
+      if (next > replies.length) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'fake provider has no scripted reply' }));
+        res.end(JSON.stringify({ error: 'fake provider script exhausted' }));
         return;
       }
-      const reply = replies[Math.min(next - 1, replies.length - 1)];
+      const reply = replies[next - 1];
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(reply));
     });

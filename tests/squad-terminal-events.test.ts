@@ -47,8 +47,19 @@ type Setup = { dir: string; args: string[]; env: Record<string, string>; events:
 // Every fixture root and live child is tracked, so afterEach can stop stragglers before deleting their folder.
 const roots: string[] = [];
 const children = new Set<ChildProcess>();
-afterEach(() => {
-  for (const c of children) c.kill('SIGKILL');
+// Cleanup waits for each live child to close before its fixture root is removed, so no child writes into a deleted folder.
+afterEach(async () => {
+  await Promise.all(
+    [...children].map(
+      (c) =>
+        new Promise<void>((ok) => {
+          // A child that never spawned (no pid) emits no close; every other live child closes after the kill.
+          if (c.pid === undefined) return ok();
+          c.once('close', () => ok());
+          c.kill('SIGKILL');
+        }),
+    ),
+  );
   children.clear();
   for (const d of roots.splice(0)) rmSync(d, { recursive: true, force: true });
 });
@@ -94,15 +105,15 @@ function start(t: Setup, args: string[], extra: Record<string, string> = {}): { 
   let stdout = '', stderr = '';
   child.stdout?.on('data', (c: Buffer) => { stdout += c; });
   child.stderr?.on('data', (c: Buffer) => { stderr += c; });
-  const settle = (code: number, extra = '') => new Promise<Result>((resolve) => {
-    children.delete(child);
-    clearTimeout(timer);
-    resolve({ code, stdout, stderr: stderr + extra });
-  });
+  // One done promise settles on whichever comes first: 'error' (a spawn failure may skip 'close') or 'close'.
   const done = new Promise<Result>((resolve) => {
-    // A spawn failure (no node binary, bad cwd) emits 'error' and may skip 'close': settle on either.
-    child.on('error', (err) => { settle(-1, String(err)).then(resolve); });
-    child.on('close', (code) => { settle(code ?? -1).then(resolve); });
+    const finish = (code: number, extra = '') => {
+      if (!children.delete(child)) return;
+      clearTimeout(timer);
+      resolve({ code, stdout, stderr: stderr + extra });
+    };
+    child.on('error', (err) => finish(-1, String(err)));
+    child.on('close', (code) => finish(code ?? -1));
   });
   return { child, done };
 }
