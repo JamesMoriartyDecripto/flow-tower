@@ -25,6 +25,7 @@ node bin/flow-tower.js install-skill --target <claude|codex|pi|hermes|cursor|age
 Conventions and gotchas: [CLAUDE.md](CLAUDE.md). Code map: [docs/architecture.md](docs/architecture.md). Handoff: [NEXT.md](NEXT.md). GitHub issues are the source of truth.
 
 - English only. Never work on `main`: one branch per feature (`feat/…`, `fix/…`).
+- Use Git branches in the existing checkout. Do not create extra worktrees, repository copies or per-task working folders unless the user explicitly authorizes an exception. Stop any viewer/server serving this checkout before switching branches. Preserve uncommitted work and verify commits are pushed before removing any existing worktree; never discard work to simplify cleanup.
 - The issue is the live record: plan, status per step, review findings kept or dropped and why.
 - Review before merge: review and security passes, then the merge gate (`tools/squad/gate.mjs`) says READY. The maintainer merges.
 - Check before proposing: count the real cases in the examples, docs, code and open issues first (KISS, DRY, YAGNI).
