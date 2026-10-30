@@ -14,8 +14,51 @@ No merge or deletion was performed. Private links and local infrastructure are i
 
 The disposable repository had no GitHub Actions workflow: this proves local checks and draft-PR creation,
 not GitHub CI execution. Existing user credentials were reused. Later doctor/argument fixes were tested in
-the implementation suite. #333 remains open for its broader checklist; #328 and #320 retain separate scope.
+the implementation suite. The maintainer-confirmed #333 scope is the current interactive lead, portable
+Node/OpenRouter specialists, isolated acceptance tests and a draft PR (see the matrix below); the broader checklist
+is not claimed. #328 and #320 retain separate scope.
 The completion fixes in #337 do not guarantee that every future model call will finish within its limit.
+
+## Current acceptance matrix (scoped #333, PR #344)
+
+Maintainer-confirmed scope: the current interactive harness stays the lead; portable Node/OpenRouter specialists,
+isolated tests and a draft PR. Automatic harness launch, discovery and session management remain in #320. The
+optional SDK is a reference backend, not an onboarding dependency. Hermes remains unrecorded.
+
+| Test file | Cases | Evidence type | What it covers |
+|---|---|---|---|
+| `tests/squad-acceptance.test.ts` (helper `tests/helpers/squad-acceptance-fixture.ts`) | 8 | Fixture: fresh git repo, HOME and config; trusted CLI init | init; doctor nonzero without key, ready with fake key; installed coder writes source/test; installed tester runs `node:test`; a wrong implementation gives a real nonzero exit in tool output |
+| `tests/squad-live-acceptance.test.ts` | 3 | Fake model, loopback HTTP collector | all nine roles through installed runner, installed `ev.sh` and trusted CLI; payload schema and target resolution against the installed root/nested assets; towers validate 0/0; success and provider-error ends |
+| `tests/squad-terminal-events.test.ts` | 10 | Subprocess fixtures | completion, provider, protocol, empty, truncated, step-cap, pre-start, offline and SIGTERM contracts; end attempted once after start |
+| `tests/sdk-approval-events.test.ts` | 15 | Mocked GitHub events | fresh label application by an actor with current push permission; current label state and authorized comment recency; fail closed on unavailable evidence |
+| `tests/sdk-pipeline.test.ts` | 17 | Real pipeline with mocked SDK-bound roles, Git and `gh` | explicit outcomes; plan approve/revise/timeout; escalation/hold; budget and provider failures |
+| `tests/sdk-cli-status.test.ts` | 7 | Real main module with mocked delivery and `gh` | nonzero SDK CLI exit unless `pr_open` |
+| `tests/sdk-quality-gates.test.ts` | 19 | Mocked provider, agents, prompts and JSON helper | incomplete or malformed verdicts stop; failed fixer stops; empty or unmet criteria, red or unknown suite, explicit gaps hold |
+| `tests/sdk-security.test.ts` | 18 | Injected subprocess, stream and GitHub boundaries | credential filtering, stale reports, webhook byte/HMAC checks and authorized comment approvals |
+
+The 18 existing SDK security regressions remain. The lead independently ran all eight boundary files: 97 passing
+tests; the installed canonical and nested towers validate with 0 errors and 0 warnings. The full `npm run check`
+also passed: 205 files, 2349 passing tests / 1 skipped, clean typecheck, with automatic fixtures on disk after
+in-memory temporary storage hit its quota. Final-head review/security/verifier and PR #344 CI/gate remain separate
+requirements; these results alone do not authorize a merge.
+
+**Evidence type.** Every row above is fixture or mocked evidence: no real provider, real SDK run, GitHub call or
+network reliability claim. The private GitHub trial provides real issue-to-draft-PR evidence. The historical
+Pi/Claude Code/Codex trials below separately exercised real OpenRouter roles; their recorded counts remain intact.
+
+**Recipe (repository checkout).**
+1. Run `npm run check` in this checkout.
+2. Run the focused files: `npm exec -- vitest run tests/squad-acceptance.test.ts tests/squad-live-acceptance.test.ts tests/squad-terminal-events.test.ts tests/sdk-approval-events.test.ts tests/sdk-pipeline.test.ts tests/sdk-cli-status.test.ts tests/sdk-quality-gates.test.ts`.
+3. `TMPDIR` may point to a disk-backed temporary location, but only for automatic test fixtures. Keep tasks, logs
+   and outputs in the ignored repository-local scratch folder. Do not create external task files or worktrees for
+   this recipe, and do not move credentials into the project.
+
+**Limits.** Not universal host parity; not a hostile-code sandbox; no enforced portable or global dollar cap; no
+first-ever real key issuance. Role step bounds are not dollar caps. A diagnostic report that finishes with exit 0
+means the role completed its report, not that project tests passed; the lead verifies and decides. Optional SDK
+failed subcall costs can be incomplete in its pipeline journal, and its $15 metadata is a threshold after returned
+stage costs, not proven portable or global enforcement. SIGKILL cannot emit the end event; the SIGTERM
+`interrupted` ledger case uses a recorder, not real CLI cancellation. #328 still owns SDK reviewer alignment.
 
 ## What this tests
 
