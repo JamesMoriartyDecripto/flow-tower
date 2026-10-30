@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Security
+- Dev Squad SDK reference (#342): test commands use credential-filtered environments and fresh reports; plan approval comments require repository push permission; webhook request bodies are bounded by raw bytes during streaming, before signature verification.
+
 ### Added
 - Dev Squad acceptance evidence (#333): recorded the Codex-led local nine-role baseline with independent tests and final-head review/security; preserved Pi/Claude Code results and incomplete-role evidence. Broader acceptance remains open.
 - Portable Dev Squad onboarding (#332, #334): `squad doctor` checks local Node/git, runner/config and OpenRouter readiness without paid calls or mandatory Claude credentials. The user's current harness stays the lead. Shared specialist roles now include triage, architect, researcher, tester, verifier and doc-writer, with canonical tower nodes and per-role model selection. Doc-writer requires explicit writable folders. The skill documents the complete lead-driven workflow and its current safety/budget limitations; cross-harness end-to-end evidence remains tracked in #333.
