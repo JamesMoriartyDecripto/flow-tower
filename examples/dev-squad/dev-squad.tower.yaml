@@ -1,4 +1,9 @@
 # yaml-language-server: $schema=../../schema/flow-tower.schema.json
+# #333 acceptance: isolated clean installation and fake-provider failure matrix;
+# canonical role event delivery; plan decisions must belong to the current request
+# and be attributable to a push-authorized actor, including label-based approval.
+# Portable lead execution and the optional SDK reference are tested separately;
+# no automatic harness launcher, hostile-code sandbox or global USD cap is implied.
 # #342: SDK tests use credential-filtered child env; approvals verify commenter push permission;
 # webhook body is bounded by raw bytes while streaming, before signature verification.
 # Canonical Dev Squad: squad init distributes this tower with its referenced bundle.
