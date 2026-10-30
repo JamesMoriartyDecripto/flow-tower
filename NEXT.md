@@ -2,6 +2,19 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Restart checkpoint — 2026-10-30
+
+- Saved on `release/0.15.0-final`, draft PR #345. No release tag or publication.
+- Deterministic release gates: all six pass; 205 test files, 2349 pass / 1 skip, 75 towers with zero errors/warnings.
+- Browser run stopped for the requested restart: 108 passed, 1 interrupted, 6 not run (exit 130). Test server stopped.
+  A complete browser sweep remains required. [Release checkpoint](reports/v0.15.0.md).
+- Resume: finish the full GPU E2E sweep, update the release report and browser log, obtain exact-head release
+  review/security/verifier, check CI, then run the merge gate. PR #343 and #344 already had READY gates;
+  check their live status. The maintainer merges #343, then #344, then #345. Never count interrupted E2E as passing.
+- User policy changes (`AGENTS.md`, `.pi/extensions/repo-only.ts`) stay outside the release PR and are backed up
+  on `wip/restart-2026-10-30`. Existing external worktrees remain untouched. Local ignored evidence stays in
+  `.stress/evidence`; detailed restart instructions are in `.stress/evidence/RESTART.md`.
+
 ## v0.15.0 release candidate; portable acceptance ready (#333, #341)
 
 - **Scoped #333 acceptance: PR #344 has a READY gate at `5cccf6d`.** Maintainer-confirmed scope: the current
@@ -9,7 +22,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   #320). Eight boundary test files cover fixture and loopback acceptance, terminal events, SDK approval events,
   pipeline, CLI status and quality gates. The lead independently ran 97 boundary tests and the full check:
   205 files, 2349 pass / 1 skip, clean typecheck (automatic fixtures on disk). Final-head review/security/verifier
-  and final-head review/security/verifier are complete; CI and merge gate pass. Merge after PR #343 remains a
+  are complete; CI and merge gate pass. Merge after PR #343 remains a
   maintainer action; consult GitHub for the live status.
 - **Release #341:** `release/0.15.0-final` prepares version 0.15.0 in the existing checkout. Full deterministic gates
   and a quiet hardware-GPU browser sweep precede final review, maintainer merge and publication. The older
