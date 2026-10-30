@@ -7,11 +7,11 @@
  *
  * The webhook only reacts to issues labelled `squad:go`, so a human always opts in.
  */
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { createServer } from 'node:http';
 import { argv, env, exit } from 'node:process';
 import { promisify } from 'node:util';
+import { BodyTooLarge, readCappedBody, verifySignature } from './http-body';
 import { deliver } from './pipeline';
 
 export interface Issue { repo: string; number: number; title: string; body: string; labels: string[] }
@@ -29,30 +29,27 @@ async function fetchIssue(repo: string, number: number): Promise<Issue> {
   return { repo, number, title: raw.title, body: raw.body ?? '', labels: raw.labels.map((l) => l.name) };
 }
 
-function verifySignature(body: string, signature: string | undefined): boolean {
-  const secret = env.GITHUB_WEBHOOK_SECRET;
-  if (!secret || !signature) return false;
-  const expected = Buffer.from(`sha256=${createHmac('sha256', secret).update(body).digest('hex')}`);
-  const given = Buffer.from(signature);
-  return expected.length === given.length && timingSafeEqual(expected, given);
-}
-
 function serve(port: number) {
   createServer(async (req, res) => {
     if (req.method !== 'POST' || req.url !== '/github') return res.writeHead(404).end();
-    let body = '';
-    for await (const chunk of req) body += chunk;
-    if (body.length > 1_000_000) return res.writeHead(413).end();
+    let raw: Buffer;
+    try {
+      raw = await readCappedBody(req);
+    } catch (err) {
+      // Oversize or a dropped connection: answer if the socket is still open, never reject unhandled.
+      if (!res.headersSent && !res.writableEnded) res.writeHead(err instanceof BodyTooLarge ? 413 : 400).end();
+      return;
+    }
     const delivery = String(req.headers['x-github-delivery']);
     const log = (msg: string) => console.log(`[webhook] ${new Date().toISOString()} delivery=${delivery} ${msg}`);
-    if (!verifySignature(body, req.headers['x-hub-signature-256'] as string)) {
+    if (!verifySignature(raw, req.headers['x-hub-signature-256'] as string | undefined, env.GITHUB_WEBHOOK_SECRET)) {
       log('sig=invalid -> 401');
       return res.writeHead(401).end();
     }
 
     let event;
     try {
-      event = JSON.parse(body);
+      event = JSON.parse(raw.toString('utf8'));
     } catch {
       log('bad JSON -> 400');
       return res.writeHead(400).end();

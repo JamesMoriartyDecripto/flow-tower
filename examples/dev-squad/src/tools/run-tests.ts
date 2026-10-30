@@ -1,18 +1,8 @@
-import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-
-const run = promisify(execFile);
-
-interface VitestReport {
-  numTotalTests: number;
-  numPassedTests: number;
-  numFailedTests: number;
-  testResults: { name: string; assertionResults: { fullName: string; status: string; failureMessages: string[] }[] }[];
-}
+import { scratchHome } from '../child-env';
+import { runSuite } from './run-suite';
 
 /**
  * Why a custom tool instead of plain Bash: the raw vitest output can be thousands
@@ -36,8 +26,7 @@ export const runTests = (cwd: string) => tool(
     if (pattern) args.push('-t', pattern);
 
     const started = Date.now();
-    await run('npx', ['--no-install', ...args], { cwd, timeout: 10 * 60_000, maxBuffer: 32 * 1024 * 1024 }).catch(() => undefined);
-    const report = JSON.parse(await readFile(out, 'utf8').catch(() => 'null')) as VitestReport | null;
+    const report = await runSuite({ cwd, args, reportFile: out, home: scratchHome(cwd) });
     if (!report) return { content: [{ type: 'text', text: 'Test runner crashed before producing a report.' }], isError: true };
 
     const failures = report.testResults

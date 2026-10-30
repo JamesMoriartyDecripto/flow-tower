@@ -61,8 +61,9 @@ export const LIMITS = {
 /** Evaluator-optimizer loop: cap rounds; the last fix round leaves OpenRouter for Claude Opus. */
 export const REVIEW = { maxRounds: 3, escalateOnRound: 3, escalateTo: claude(MODELS.opus) } as const;
 
-/** Plans above this size or with risk=high need a human sign-off before coding; at most 2 revise rounds. */
-export const PLAN_GATE = { maxSteps: 6, approvalTimeoutMin: 240, maxRevisions: 2 } as const;
+import { PLAN_GATE } from './loop/approval-policy';
+export { PLAN_GATE };
+
 
 export const PATHS = {
   agents: resolve(ROOT, '.claude/agents'),
