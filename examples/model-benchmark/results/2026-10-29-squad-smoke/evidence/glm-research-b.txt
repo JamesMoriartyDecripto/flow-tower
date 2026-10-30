@@ -1,0 +1,18 @@
+mode: loop
+reviewed: none
+Findings on `resolveInside` (src/guard.mjs):
+
+1. Return value for a path under the root: it returns the resolved absolute path (`src/guard.mjs:5` resolves, `src/guard.mjs:7` returns `abs`). If the path is judged not under the root, it throws `'path escapes root'` (`src/guard.mjs:6`).
+
+2. How it decides "inside the root": it checks that the resolved absolute path starts with the root string. Quoted line: `if (!abs.startsWith(root)) throw new Error('path escapes root');` (`src/guard.mjs:6`). Note this is a raw string prefix check, not a separator-aware comparison, so it can accept siblings such as a root `/tmp/a` matching `/tmp/ab/file` (uncertainty noted below).
+
+3. `path.relative` vs `isAbsolute`: neither is used. Only `resolve` from `node:path` is imported and used (`src/guard.mjs:1`, `src/guard.mjs:5`).
+
+4. Uncertainties and what would settle them:
+   - Prefix-check false positives (e.g. root `/tmp/a` accepting `/tmp/ab/...`) — no test exists for sibling-directory cases. Running/grepping the test suite or grepping for `startsWith`/`relative` usage would confirm whether this is relied upon.
+   - Whether `resolve` in this Node version preserves an exact root string (e.g. trailing separators on `root`) — behavior depends on Node's path implementation; a quick test call or checking a test fixture would settle it.
+   - No evidence in the file of intent to use `relative`/`isAbsolute`; uncertainty is about expected behavior, best settled by reading tests or the project spec in the repo.
+
+Known gaps: none
+
+--- z-ai/glm-5.3-flash · 2 steps · $0.0001 · cache 33% of 1659 prompt tokens · log /tmp/flow-tower-model-plan/tools/squad/researcher-1793291504645.log

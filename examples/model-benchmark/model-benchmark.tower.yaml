@@ -6,7 +6,8 @@ description: >-
   How Flow Tower picks a model per role: the question, real task sets per category, a shortlist from
   the public price list, one runner for every candidate, deterministic judges before a blind rubric,
   repeat runs and variance, and a results table the maintainer signs off before it goes into the
-  cost skill. The method behind issue #105; the scripts in scripts/ run it.
+  cost skill. The method behind issue #105; the scripts in scripts/ run it. The Dev Squad pilot also
+  uses the real portable squad runner to check finish/verdict parity, staged spend approval and nine roles.
 
 runtimes:
   laptop:
@@ -84,7 +85,7 @@ layers:
           and video generation. One per role a node can have. Each says what the role must do
           and its deterministic check. Pitfall: one "general" leaderboard; a fast classifier
           and a careful reviewer are different jobs.
-        files: [categories.md]
+        files: [categories.md, dev-squad-plan.md, cybersec-plan.md]
       - id: ready
         type: decision
         label: Has 2+ tasks?

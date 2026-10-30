@@ -1,0 +1,13 @@
+mode: loop
+reviewed: none
+Research complete (read-only; nothing modified).
+
+1. Exported function: `formatPrice(value)`, the only export — `src/price.mjs:2`. For a finite number it returns `Number(value).toFixed(2)` — `src/price.mjs:3` — i.e. a string with exactly two decimals (confirmed by `tests/price.test.mjs:6-8`: 12.5→'12.50', 0→'0.00', 3.14159→'3.14').
+
+2. NaN / Infinity / "12.5": the current implementation does NOT reject them. `Number(NaN).toFixed(2)` → "NaN", `Number(Infinity).toFixed(2)` → "Infinity" (per ECMAScript spec, since `Number(value)` is a no-op for numbers and `toFixed` returns "NaN"/"Infinity" for non-finite values). For `"12.5"`, `Number("12.5")` coerces to 12.5, so it returns "12.50" — the decisive lines are `src/price.mjs:2-3` (coercion + toFixed, no validation). The tests expect a TypeError instead (`tests/price.test.mjs:13-15` for NaN/±Infinity, `tests/price.test.mjs:19-20` for strings), and the intended behavior is documented in `docs/README.md:5-6` ("Anything that is not a finite number is refused with a TypeError"). So src and tests/docs are out of sync — running the test suite would fail these cases; I did not run tests in this phase.
+
+3. Uncertain / to be settled: whether non-number inputs like booleans, null, or numeric strings should throw (README says any non-finite number is refused; `'12.5'` is arguably a valid price). Also whether -0 output should be "0.00" or "-0.00" — the test at `tests/price.test.mjs:9` delegates to `(-0).toFixed(2)` (-0.00 in Node), so it's self-referential and doesn't pin a value. Running `run test` and a proposed fix (finite-number guard throwing TypeError) would settle it.
+
+Known gaps: test suite not executed, so the exact failing-test list is inferred from assertions at tests/price.test.mjs:13-15,19-20 rather than observed; behavior of non-number edge inputs (null, boolean, objects) beyond NaN/Infinity/strings is unspecified by any file.
+
+--- z-ai/glm-5.3-flash · 4 steps · $0.0003 · cache 36% of 4077 prompt tokens · log /tmp/flow-tower-model-plan/tools/squad/researcher-1793291485884.log

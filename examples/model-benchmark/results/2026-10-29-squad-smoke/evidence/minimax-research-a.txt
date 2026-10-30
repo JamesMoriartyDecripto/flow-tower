@@ -1,0 +1,44 @@
+mode: loop
+reviewed: none
+# Price formatter — research findings
+
+The repository contains exactly one tracked file, `src/price.mjs` (4 lines of code), so every answer below is derived from that file.
+
+## 1. Exported function and return value for a finite number
+
+The module exports a single named function, `formatPrice` (`src/price.mjs:2`), described by the header comment as formatting "a price for the storefront: two decimals, no currency sign" (`src/price.mjs:1`).
+
+For a finite number it returns a **string** with exactly two decimal places, produced by `Number(value).toFixed(2)` (`src/price.mjs:3`). E.g. `formatPrice(12.5)` → `"12.50"`, `formatPrice(3)` → `"3.00"`. The "no currency sign" and "two decimals" contract is only stated in the comment; the implementation guarantee is `toFixed(2)`, which always yields two fractional digits (including trailing zeros) and never a currency symbol.
+
+## 2. Behaviour for `NaN`, `Infinity`, and `"12.5"`
+
+All behaviour is decided by the single expression on `src/price.mjs:3`:
+
+```js
+  return Number(value).toFixed(2);
+```
+
+- **`NaN`** → `Number(NaN)` is `NaN`, and `NaN.toFixed(2)` returns the string `"NaN"`. So `formatPrice(NaN)` returns `"NaN"` — no exception, no error signal. Deciding lines: `src/price.mjs:3` (the only line with logic).
+- **`Infinity`** → `Number(Infinity)` is `Infinity`, and `Infinity.toFixed(2)` returns the string `"Infinity"`. So `formatPrice(Infinity)` returns `"Infinity"`. Deciding lines: `src/price.mjs:3`.
+- **`"12.5"`** (a numeric string) → `Number("12.5")` is `12.5`, and `12.5.toFixed(2)` is `"12.50"`. So the function accepts numeric strings and normalises them, returning `"12.50"`. Deciding lines: `src/price.mjs:3`. Note the coercion is unconditional: `Number(value)` runs on every input, so strings, booleans and `null` are all coerced (`Number(null)` → `0` → `"0.00"`; `Number(true)` → `1` → `"1.00"`; `Number(undefined)` → `NaN` → `"NaN"`).
+
+There is no guard, validation, `isFinite`/`Number.isFinite` check, `try/catch`, or error branch anywhere in the file — the function body is one return statement (`src/price.mjs:3`), with no other executable lines.
+
+## 3. What is uncertain, and what would settle it
+
+Uncertainties (stated explicitly, not assumed):
+
+1. **Intended handling of non-finite input.** Whether `"NaN"` / `"Infinity"` are acceptable outputs (i.e. deliberately passed through) or a bug (i.e. should throw or return an error marker) is not determinable from the code: the comment only specifies the happy path for a price (`src/price.mjs:1`). *Settles it:* a product decision/spec, or a failing/passing test asserting `formatPrice(NaN)`.
+2. **Intended input domain.** The code accepts any coercible value (`src/price.mjs:3`), but it is unclear whether only numbers and numeric strings are supposed to be valid inputs, and what should happen for `"abc"`, `""`, `null` or `undefined` (all of which currently return `"NaN"`, `"0.00"`, `"0.00"`, `"NaN"` respectively). *Settles it:* a documented input contract (README/type definition) or tests covering invalid input.
+3. **Rounding mode for edge cases.** `toFixed(2)` uses binary floating-point semantics, so values like `1.005` or `2.675` may not round the way a user expects (`1.005` → `"1.00"`). Whether exact decimal rounding is required is unknown. *Settles it:* tests/spec stating the rounding rule, or an explicit rounding implementation.
+4. **Locale/grouping behaviour.** The comment says "no currency sign" (`src/price.mjs:1`) but says nothing about thousands separators, negative-number representation (`-1.5` → `"-1.50"`, which may or may not be wanted for a storefront), or currency-symbol omission being deliberately implemented vs. simply not yet added. *Settles it:* product spec or example-output fixtures.
+5. **No tests exist in the repo.** The tracked file list contains only `src/price.mjs` — there is no test file, package manifest, or README to cross-check against, so every behaviour above is inferred from a single line of code. *Settles it:* adding/running a test suite (the repo's `check`/`test` commands exist but there is nothing to run against yet).
+6. **Repository state is not verifiable.** `git diff` against `origin/main` fails with `fatal: bad revision 'origin/main'`, so I cannot tell whether `src/price.mjs` is new work, a stub, or a reduced excerpt of a larger formatter. *Settles it:* access to the upstream remote/history (`git log`, `git remote -v`).
+
+## Summary
+
+`formatPrice` is the only export (`src/price.mjs:2`). It returns `Number(value).toFixed(2)` (`src/price.mjs:3`): a two-decimal string for finite numbers (`12.5` → `"12.50"`), and the raw strings `"NaN"` and `"Infinity"` for `NaN` and `Infinity` because no validation exists. All uncertainty concerns intended contract (valid input domain, non-finite handling, rounding, locale/negatives) and the absence of tests or upstream history to confirm it.
+
+Known gaps: no test suite, README, or package manifest exist in the repo to confirm intent; the upstream git history is unavailable (`origin/main` does not resolve), so the original spec for the formatter could not be inspected; runtime outputs above are derived from `Number(...).toFixed(2)` semantics rather than executed, as the repository contains no runnable test or example harness.
+
+--- minimax/minimax-m3.1-flash · 3 steps · $0.0013 · cache 43% of 3376 prompt tokens · log /tmp/flow-tower-model-plan/tools/squad/researcher-1793291557213.log
