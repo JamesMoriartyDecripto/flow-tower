@@ -18,6 +18,9 @@ import type { Issue } from './main';
 const sh = promisify(execFile);
 const text = (r: { content: { type: string; text?: string }[] }) => r.content.map((c) => c.text ?? '').join('');
 
+/** What the caller gets back. Only `pr_open` means the issue reached a draft PR. */
+export type DeliveryOutcome = 'pr_open' | 'rejected' | 'needs_info' | 'blocked' | 'escalated' | 'failed' | 'over_budget';
+
 class OverBudget extends Error {}
 
 /**
@@ -26,28 +29,34 @@ class OverBudget extends Error {}
  * so a failed step stops the chain instead of flowing garbage downstream.
  * Any throw (gh, git, an agent's JSON, open_pr) and the whole-issue budget end here:
  * the issue gets a comment and the run journal an entry, instead of a silent crash.
+ * The returned outcome lets the CLI exit nonzero unless a draft PR was actually opened.
  */
-export async function deliver(issue: Issue): Promise<void> {
+export async function deliver(issue: Issue): Promise<DeliveryOutcome> {
   const run = { cost: 0 };
   try {
-    await stages(issue, run);
+    return await stages(issue, run);
   } catch (err) {
     const over = err instanceof OverBudget;
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[squad] #${issue.number} ${over ? 'over budget' : 'failed'}: ${message}`);
     await comment(issue, over ? `Dev Squad stopped: ${message}` : `Dev Squad stopped on an error: ${message}\nThe worktree is kept for debugging.`)
       .catch(() => undefined);
-    appendRun({ issue: issue.number, outcome: over ? 'over_budget' : 'failed', rounds: 0, costUsd: run.cost, lesson: message.slice(0, 200) });
+    const outcome: DeliveryOutcome = over ? 'over_budget' : 'failed';
+    // Cost spent before the failure is still recorded: a failed run is not a free run.
+    appendRun({ issue: issue.number, outcome, rounds: 0, costUsd: run.cost, lesson: message.slice(0, 200) });
+    return outcome;
   }
 }
 
-async function stages(issue: Issue, run: { cost: number }): Promise<void> {
+async function stages(issue: Issue, run: { cost: number }): Promise<DeliveryOutcome> {
   const spend = (usd: number) => {
     run.cost += usd;
     if (run.cost > LIMITS.issueUsd) throw new OverBudget(`cost $${run.cost.toFixed(2)} passed the $${LIMITS.issueUsd} issue budget.`);
   };
-  const done = (outcome: Parameters<typeof appendRun>[0]['outcome'], rounds: number, lesson: string) =>
+  const done = (outcome: DeliveryOutcome, rounds: number, lesson: string): DeliveryOutcome => {
     appendRun({ issue: issue.number, outcome, rounds, costUsd: run.cost, lesson });
+    return outcome;
+  };
 
   const { stdout } = await sh('gh', ['issue', 'list', '-R', issue.repo, '--json', 'title', '-q', '.[].title']);
   const t = await triage(issue, stdout.split('\n'));
@@ -66,10 +75,15 @@ async function stages(issue: Issue, run: { cost: number }): Promise<void> {
   if (t.route === 'quickfix') {
     const { coder, 'doc-writer': docWriter } = loadAgentFiles();
     const base = { cwd: wt.path, issue: issue.number, areas: t.areas, permissionMode: 'acceptEdits' as const };
-    spend((await runAgent(coder, `Quick fix for #${issue.number}: ${issue.title}\n\n${issue.body}`, { ...base, role: 'coder', ...LIMITS.quickfix })).costUsd);
+    const coderRun = await runAgent(coder, `Quick fix for #${issue.number}: ${issue.title}\n\n${issue.body}`, { ...base, role: 'coder', ...LIMITS.quickfix });
+    spend(coderRun.costUsd);
+    // A failed run (ok=false) carries the provider's error in text; it must not reach the doc-writer or review.
+    if (!coderRun.ok) throw new Error(`quick-fix coder did not finish: ${coderRun.text}`);
     // On the full route the lead's doc-writer does this; without it the Stop gate and open_pr have nothing to work with.
-    spend((await runAgent(docWriter, `Quick fix for #${issue.number} (${issue.title}) is done on ${wt.branch}. ` +
-      'Add the CHANGELOG.md entry and write .squad/pr-body.md.', { ...base, role: 'doc-writer', ...LIMITS.docs })).costUsd);
+    const docRun = await runAgent(docWriter, `Quick fix for #${issue.number} (${issue.title}) is done on ${wt.branch}. ` +
+      'Add the CHANGELOG.md entry and write .squad/pr-body.md.', { ...base, role: 'doc-writer', ...LIMITS.docs });
+    spend(docRun.costUsd);
+    if (!docRun.ok) throw new Error(`doc-writer did not finish: ${docRun.text}`);
   } else {
     let since = new Date();
     let lead = await runLead(issue, t, wt);
@@ -121,7 +135,7 @@ async function stages(issue: Issue, run: { cost: number }): Promise<void> {
   await requestApproval(wt.path).handler({ kind: 'merge', issue: issue.number, pr: prNumber,
     summary: `Verified against ${v.criteria.length} criteria in ${loop.rounds} review round(s). Follow-ups: ${loop.followUps.join('; ') || 'none'}` }, undefined);
 
-  done('pr_open', loop.rounds, findings || loop.followUps[0] || 'clean run');
+  return done('pr_open', loop.rounds, findings || loop.followUps[0] || 'clean run');
 }
 
 async function createWorktree(issue: Issue): Promise<Worktree> {
