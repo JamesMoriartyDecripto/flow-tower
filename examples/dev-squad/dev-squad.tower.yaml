@@ -1,4 +1,6 @@
 # yaml-language-server: $schema=../../schema/flow-tower.schema.json
+# #342: SDK tests use credential-filtered child env; approvals verify commenter push permission;
+# webhook body is bounded by raw bytes while streaming, before signature verification.
 # Canonical Dev Squad: squad init distributes this tower with its referenced bundle.
 # The installer adapts only name/root for the target project; tools/squad has no separate tower design.
 # Portable execution (#336): tool loops remind roles to finish within their explicit step limit.
