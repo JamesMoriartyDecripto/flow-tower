@@ -53,12 +53,13 @@ export async function triage(issue: Issue, openIssueTitles: string[]): Promise<T
 }
 
 /** Deterministic overrides: code, not the model, has the last word on safety. */
-function applyPolicy(t: Triage, issue: Issue): Triage {
+export function applyPolicy(t: Triage, issue: Issue): Triage {
   // Opting out wins over everything.
   if (issue.labels.includes('squad:skip')) return { ...t, route: 'reject', rationale: 'Opted out via label.' };
   // Personal data counts as sensitive too: a journal of what users say is as risky as billing code.
   const sensitive = /auth|billing|payment|migration|permission|secret|privacy|personal|pii|gdpr/i;
-  const touchesSensitive = sensitive.test(`${issue.title} ${t.areas.join(' ')}`);
+  // The body is matched too because the model chooses `areas`, so a title alone can hide a sensitive change.
+  const touchesSensitive = sensitive.test(`${issue.title} ${issue.body} ${t.areas.join(' ')}`);
   // A sensitive area always gets a human plan sign-off (risk high).
   if (t.route === 'full' && touchesSensitive && t.risk !== 'high') {
     return { ...t, risk: 'high', rationale: `${t.rationale} [policy: sensitive area, risk high]` };
