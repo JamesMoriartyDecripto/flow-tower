@@ -2,19 +2,16 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
-## Restart checkpoint — 2026-10-30
+## v0.15.0 released — 2026-10-30
 
-- Saved on `release/0.15.0-final`, draft PR #345. No release tag or publication.
-- Deterministic release gates: all six pass; 205 test files, 2349 pass / 1 skip, 75 towers with zero errors/warnings.
-- Full hardware-GPU browser sweep after the restart: 115/115 passed (2026-10-30T18:34Z). [Release report](reports/v0.15.0.md).
-- Resume: obtain exact-head release
-  review/security/verifier, check CI, then run the merge gate. PR #343 and #344 already had READY gates;
-  check their live status. The maintainer merges #343, then #344, then #345. Never count interrupted E2E as passing.
-- User policy changes (`AGENTS.md`, `.pi/extensions/repo-only.ts`) stay outside the release PR and are backed up
-  on `wip/restart-2026-10-30`. Existing external worktrees remain untouched. Local ignored evidence stays in
-  `.stress/evidence`; detailed restart instructions are in `.stress/evidence/RESTART.md`.
+- **[v0.15.0](https://github.com/JamesMoriartyDecripto/flow-tower/releases/tag/v0.15.0)** published, tag on `92ab9bc`
+  (main after #343, #344, #345); CI and Pages green; #341 closed. [Release report](reports/v0.15.0.md).
+- Verification: six deterministic gates pass (205 files, 2349 pass / 1 skip, 75 towers 0/0); full hardware-GPU
+  browser sweep 115/115; exact-head reviewer/security approve, verifier PASS, merge gate READY.
+- Still open: #333 broader acceptance (failure matrix, live delivery, clean-machine credentials), #320 unattended
+  runner, #328, #340 (branch `docs/105-squad-benchmark-plan`), #317. Hermes untested.
 
-## v0.15.0 release candidate; portable acceptance ready (#333, #341)
+## v0.15.0 preparation (#333, #341)
 
 - **Scoped #333 acceptance: PR #344 has a READY gate at `5cccf6d`.** Maintainer-confirmed scope: the current
   interactive lead, portable Node/OpenRouter specialists, isolated tests and a draft PR (automatic launch stays in
