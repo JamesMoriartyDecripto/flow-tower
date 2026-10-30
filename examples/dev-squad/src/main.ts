@@ -20,7 +20,8 @@ const sh = promisify(execFile);
 const TRIGGER_LABEL = 'squad:go';
 // In memory: one container, one process. Redeliveries after a restart run again (the worktree add then fails loudly).
 const seen = new Set<string>();
-const queue: Promise<void>[] = [];
+// Jobs resolve to a DeliveryOutcome; the webhook only waits for them, so the element type stays open.
+const queue: Promise<unknown>[] = [];
 const MAX_PARALLEL_ISSUES = Number(env.SQUAD_MAX_PARALLEL_ISSUES ?? 2);
 
 async function fetchIssue(repo: string, number: number): Promise<Issue> {
@@ -90,7 +91,13 @@ if (command === 'run') {
     console.error('usage: main.ts run --repo <owner/name> --issue <number>');
     exit(1);
   }
-  await deliver(await fetchIssue(repo, number));
+  const outcome = await deliver(await fetchIssue(repo, number));
+  // Only a draft PR is success; a rejected, blocked or failed issue must not look like a clean shell run.
+  // exitCode (not exit()) so buffered stdout/stderr still flushes.
+  if (outcome !== 'pr_open') {
+    console.error(`[squad] #${number} ended as ${outcome}, not pr_open`);
+    process.exitCode = 1;
+  }
 } else if (command === 'serve') {
   serve(Number(flag('port') ?? 8787));
 } else {

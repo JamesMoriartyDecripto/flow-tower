@@ -123,6 +123,11 @@ const evChildEnv = {
   ...(!env.SQUAD_SOURCE && { SQUAD_SOURCE: config.source }),
 };
 const emit = (...a) => { try { execFileSync('sh', [EV, ...a.filter((x) => x !== undefined).map(String)], { stdio: 'ignore', env: evChildEnv }); } catch { /* tower offline */ } };
+// One start and one terminal end per run; the exit handler below closes a started role on every other exit.
+// Kept inline: a separate module would need a new entry in the installer's runner manifest (squad-local.ts).
+let agentOpen = false;
+const agentStart = (message) => { agentOpen = true; emit('agent.start', node, message); };
+const agentEnd = (status, message) => { if (!agentOpen) return; agentOpen = false; emit('agent.end', node, message, status); };
 
 const SECRET = /(^|\/)(\.env[^/]*|.*\.(key|pem|p12|pfx|crt)|id_rsa[^/]*|\.npmrc|\.git|node_modules|\.ssh|\.config\/flow-tower)(\/|$)/i;
 // Reviewers are read-only; the coder writes src/ tests/ e2e/, or the folders a task names with --write a,b (dirs, checked above).
@@ -238,14 +243,17 @@ let verdictAsks = 0;
 let costUnknown = false;
 let promptTokens = 0, cachedTokens = 0;
 // A failed run still cost money, so every exit writes its line; steps counts the model calls that completed.
-let recorded = false, stepsDone = 0;
+let recorded = false, stepsDone = 0, recordedOutcome = 'crash';
 const record = (outcome, steps) => {
   recorded = true;
+  recordedOutcome = outcome;
   appendRun(ledgerPath(env), { ts: new Date().toISOString(), project: projectOf(REPO), issue, role, model, steps, cost: costUnknown ? null : Number(cost.toFixed(6)), ...(costUnknown && { costUnknown: true }), promptTokens, cachedTokens, outcome, mode: paidMode });
 };
 // An unhandled throw (two failed fetches, a bad JSON body) ends the process without any explicit record: the exit
 // handler catches those. appendFileSync is synchronous, so the write completes inside the handler.
-process.on('exit', () => { if (!recorded) record('crash', stepsDone); });
+// The same handler closes a started role: a refused request, a cut answer, a crash or a signal all end here as error.
+// Normal exits already ended it with ok or error, so agentEnd is then a no-op.
+process.on('exit', () => { if (!recorded) record('crash', stepsDone); agentEnd('error', `${role} on ${model}: ${recordedOutcome}`); });
 // A default-handled SIGINT or SIGTERM kills the process without emitting 'exit', so a run stopped with Ctrl-C
 // (the usual answer to a stuck model call) left no ledger line. Listening here records it; exit() then sets the code.
 // A pending batch is deleted first: exit() skips batchOne's finally, and a batch is kept 30 days otherwise.
@@ -278,7 +286,7 @@ async function oneshotCall(body) {
 }
 // One session per run: OpenRouter keeps it on the provider that holds its prompt cache (cached input: DeepSeek 0.1x, Z.ai ~0.2x).
 const session = `${role}-${Date.now()}`;
-emit('agent.start', node, `${role} on ${model}`);
+agentStart(`${role} on ${model}`);
 note(`# ${role} ${model}\n${task}\n`);
 // One request (or one batch) with the task as the whole input: no tool loop, one step, then exit.
 if (mode !== 'loop') {
@@ -330,7 +338,7 @@ if (mode !== 'loop') {
   if (needsVerdict(role) && !hasVerdict(content)) { note('no JSON verdict'); record('no-verdict', 1); console.log(`no JSON verdict · ${model} · ${shown}`); exit(1); }
   note(`\n[finish] ${content}\n\ncost ${shown}`);
   record('finish', 1);
-  emit('agent.end', node, `${role} on ${model} done (${shown}, ${paidMode})`, 'ok');
+  agentEnd('ok', `${role} on ${model} done (${shown}, ${paidMode})`);
   console.log(`${content}\n\n--- ${model} · 1 step · ${shown} · cache ${cached}% of ${promptTokens} prompt tokens${paidMode === 'batch' ? ' (batch)' : ''} · log ${log}`);
   exit(0);
 }
@@ -374,7 +382,7 @@ for (let step = 0; step < maxSteps; step++) {
         note(`\n[finish] no JSON verdict: ${String(a.report ?? '').slice(0, 300)}`);
         if (!askedThisReply) {
           askedThisReply = true;
-          if (++verdictAsks > 1) { record('no-verdict', step + 1); emit('agent.end', node, `${role} on ${model}: no JSON verdict`, 'error'); console.log(`no JSON verdict after a second request · ${model} · $${cost.toFixed(4)}`); exit(1); }
+          if (++verdictAsks > 1) { record('no-verdict', step + 1); agentEnd('error', `${role} on ${model}: no JSON verdict`); console.log(`no JSON verdict after a second request · ${model} · $${cost.toFixed(4)}`); exit(1); }
         }
         // The user message waits until every tool call of this reply has its result: a message in between would break the pairing.
         messages.push({ role: 'tool', tool_call_id: c.id, content: 'Not accepted: no JSON verdict.' });
@@ -383,7 +391,7 @@ for (let step = 0; step < maxSteps; step++) {
       }
       note(`\n[finish] ${a.report}\n\ncost $${cost.toFixed(4)}`);
       record('finish', step + 1);
-      emit('agent.end', node, `${role} on ${model} done ($${cost.toFixed(3)}, cache ${cached}%)`, 'ok');
+      agentEnd('ok', `${role} on ${model} done ($${cost.toFixed(3)}, cache ${cached}%)`);
       console.log(`${a.report}\n\n--- ${model} · ${step + 1} steps · $${cost.toFixed(4)} · cache ${cached}% of ${promptTokens} prompt tokens · log ${log}`);
       exit(0);
     }
@@ -399,7 +407,7 @@ for (let step = 0; step < maxSteps; step++) {
   if (reask) messages.push({ role: 'user', content: 'Your report is not the JSON verdict the task asks for. Call finish again with only that JSON, then the Known gaps line.' });
 }
 record('step-cap', maxSteps);
-emit('agent.end', node, `${role} on ${model}: step cap`, 'error');
+agentEnd('error', `${role} on ${model}: step cap`);
 console.log(`step cap reached · $${cost.toFixed(4)} · log ${log}`);
 // Stderr, not stdout: the gate and parseVerdict read stdout, and partial model text must never pass there as a verdict.
 console.error(incompleteText(lastText));

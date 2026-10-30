@@ -1,4 +1,11 @@
 # yaml-language-server: $schema=../../schema/flow-tower.schema.json
+# #333 acceptance: isolated clean installation and fake-provider failure matrix;
+# Portable live delivery must terminate every started role exactly once, including
+# provider/protocol failures and interruption; delivery remains best effort offline.
+# canonical role event delivery; plan decisions must belong to the current request
+# and be attributable to a push-authorized actor, including label-based approval.
+# Portable lead execution and the optional SDK reference are tested separately;
+# no automatic harness launcher, hostile-code sandbox or global USD cap is implied.
 # #342: SDK tests use credential-filtered child env; approvals verify commenter push permission;
 # webhook body is bounded by raw bytes while streaming, before signature verification.
 # Canonical Dev Squad: squad init distributes this tower with its referenced bundle.
@@ -9,13 +16,14 @@
 # doctor checks Node/git/OpenRouter. The user's existing harness is lead; SDK execution is optional.
 version: 1
 name: Dev Squad
-tags: [coding, claude-agent-sdk, multi-agent]
-budget: { usd: 15, per: run, on_exceed: stop, description: "Whole-issue ceiling across every query (LIMITS.issueUsd); the pipeline aborts above it." }
-limits: { concurrency: 4, description: "At most 4 concurrent subagents, spawn depth 1 (specialists never spawn their own)." }
+tags: [coding, openrouter, claude-agent-sdk, multi-agent]
+budget: { usd: 15, per: run, on_exceed: stop, description: "SDK reference threshold checked after returned stage costs. Failed subcall costs can be incomplete; the portable lead workflow has no enforced global dollar cap." }
+limits: { concurrency: 4, description: "SDK reference: at most 4 concurrent subagents, spawn depth 1. Portable process concurrency is controlled by the lead, not a global runner limit." }
 description: >-
-  A multi-agent software delivery system on the Claude Agent SDK. It takes a GitHub
-  issue, routes it, plans, researches, codes, tests, reviews in an evaluator-optimizer
-  loop, verifies with a fresh context and opens a draft PR that a human merges.
+  Canonical eight-layer Dev Squad design. The portable workflow keeps the user's existing harness
+  as lead and runs specialists through Node/OpenRouter. The optional Claude Agent SDK reference
+  backend models issue routing, planning, coding, gated review, fresh verification and draft PR
+  delivery. A human reviews and merges.
 
 runtimes:
   laptop:
@@ -243,8 +251,8 @@ layers:
         runtime: github
         type: human
         label: Plan sign-off
-        description: Before any code is written. Maintainer approves with the `squad:approved` label or comments `/squad revise <notes>`.
-        approval: { by: maintainer, via: [issue label, issue comment], actions: [approve, edit, respond], when: "risk == high or steps > 6", timeout: 4h, on_timeout: reject, rounds: 2, description: "The lead asks and ends its session; the pipeline polls the issue every 2 min and resumes the same session with the answer: squad:approved, /squad approve <notes> (approved with changes: parts moved out of scope become follow-up issues) or /squad revise <notes>. No answer in 4h, or a third revise, pauses the run." }
+        description: "Before coding, a repository pusher approves or revises the current request. Label approval requires a fresh attributable event; the newer authorized comment or label decision wins."
+        approval: { by: maintainer, via: [issue label, issue comment], actions: [approve, edit, respond], when: "risk == high or steps > 6", timeout: 4h, on_timeout: reject, rounds: 2, description: "The lead ends its session; the pipeline polls every 2 min. Comments and the newest squad:approved label event must follow this request and have a push-authorized actor. A newer revise overrides an older label. Missing label evidence fails closed; no answer in 4h or a third revise pauses the run." }
         files: [src/loop/await-approval.ts, src/tools/request-approval.ts, src/config.ts]
       - id: dispatch
         runtime: vps
@@ -317,7 +325,7 @@ layers:
         resources:
           - { kind: log, label: "Review loop log", path: "logs/review-loop.log" }
         label: Parallel review
-        description: "Promise.all over two fresh query() sessions. Neither evaluator sees the other. An empty or unparsable grader answer throws (lastJson): it is never read as a pass."
+        description: "Promise.all over two fresh query() sessions. Neither evaluator sees the other. Incomplete roles and malformed verdicts stop delivery; approving JSON inside a failed run never counts."
         prompt: review-round
         files: [src/loop/review-loop.ts, src/run-agent.ts, prompts/review-round.md]
       - id: reviewer
@@ -330,7 +338,7 @@ layers:
         runtime: vps
         type: decision
         label: All pass?
-        description: "Passes when nothing blocks: the reviewer's blocking findings plus critical/high security findings. Lower security findings become follow-ups on the PR."
+        description: "Completed roles must return valid verdicts. Blocking review findings and critical/high security findings trigger a fix; a failed fixer stops delivery. Negative verdicts without actionable findings fail closed. Lower security findings on a passing verdict become follow-ups."
         decision: { output: binary, candidates: [approved, changes], fail: closed }
         files: [src/loop/review-loop.ts]
       - id: round_cap
@@ -350,7 +358,7 @@ layers:
       - id: verifier
         agent: verifier
         label: Fresh verifier
-        description: "Only the issue and the branch. Ships when its verdict is ship, the suite is green and every criterion is met: checked in code, whatever the model says. Holds a user-facing change that no test exercises end to end (a spawned CLI, a started server, a rendered page)."
+        description: "Only the issue and the branch. Ships with completed verification, a nonempty list of met criteria, a green suite and no explicit gaps. Empty criteria, unmet criteria and unknown suite results hold the change. The lead independently checks the reported evidence."
       - id: approval
         runtime: github
         resources:
@@ -372,7 +380,7 @@ layers:
         runtime: github
         type: output
         label: Run stopped
-        description: "Any throw (gh, git worktree, an agent's JSON, open_pr) or the $15 issue budget ends here: a comment on the issue and a failed / over_budget entry in the session log. The worktree is kept for debugging."
+        description: "Errors and budget failures post an issue comment and journal failed / over_budget. Delivery returns an explicit outcome; CLI run exits nonzero unless it reaches a draft PR. The issue worktree is kept for debugging."
         files: [src/pipeline.ts]
     edges:
       - "fanout -> reviewer [spawn]: rubric"
