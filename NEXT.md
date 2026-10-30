@@ -2,16 +2,18 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
-## Portable Dev Squad: scoped acceptance in final review (#333)
+## v0.15.0 release candidate; portable acceptance ready (#333, #341)
 
-- **Scoped #333 acceptance: PR #344 awaits final review and merge.** Maintainer-confirmed scope: the current
+- **Scoped #333 acceptance: PR #344 has a READY gate at `5cccf6d`.** Maintainer-confirmed scope: the current
   interactive lead, portable Node/OpenRouter specialists, isolated tests and a draft PR (automatic launch stays in
   #320). Eight boundary test files cover fixture and loopback acceptance, terminal events, SDK approval events,
   pipeline, CLI status and quality gates. The lead independently ran 97 boundary tests and the full check:
   205 files, 2349 pass / 1 skip, clean typecheck (automatic fixtures on disk). Final-head review/security/verifier
-  and PR #344 CI/gate are pending. No merge was performed.
-- **Release #341 still awaits browser acceptance**; #342 and #343 await merge. Nothing here marks a release published
-  or an issue closed.
+  and final-head review/security/verifier are complete; CI and merge gate pass. Merge after PR #343 remains a
+  maintainer action; consult GitHub for the live status.
+- **Release #341:** `release/0.15.0-final` prepares version 0.15.0 in the existing checkout. Full deterministic gates
+  and a quiet hardware-GPU browser sweep precede final review, maintainer merge and publication. The older
+  uncommitted preparation is preserved. No tag/publication is claimed by this handoff.
 - **Do not resume the superseded Claude-SDK-only installer direction.** The user's existing harness is lead;
   shared Node/OpenRouter specialists select models per role. No required Claude SDK/authentication.
 - PRs #331 (canonical full tower), #335 (portable doctor, nine roles and lead skill), and #337 (step-cap

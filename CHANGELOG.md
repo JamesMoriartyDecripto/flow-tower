@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-30
+
 ### Security
 - Dev Squad approval events (#333, PR #344): a plan approval label needs a current label state, a fresh application event and an actor with current repository push permission. The newer authorized label or comment decision wins; unavailable label evidence and permission errors fail closed.
 - Dev Squad SDK reference (#342): test commands use credential-filtered environments and fresh reports; plan approval comments require repository push permission; webhook request bodies are bounded by raw bytes during streaming, before signature verification.
