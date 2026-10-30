@@ -20,7 +20,7 @@ export function headlessPermissions(allow: string[] = []): CanUseTool {
 
 /**
  * Runs ONE agent definition as the main thread of a brand-new session.
- * Used for the quick-fix coder, reviewer, security auditor, fixer, verifier and
+ * Used for the reviewer, security auditor, fixer, verifier and
  * doc-writer: no parent conversation leaks in, so each judgement is made with fresh context.
  * `role` tells the hooks which agent this is (a main thread has no agent_type) and picks
  * the provider from ROLE_MODEL; `route` overrides it (the escalated last fix round).
