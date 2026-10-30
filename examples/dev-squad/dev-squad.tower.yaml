@@ -72,7 +72,7 @@ runtimes:
 prompts:
   triage:
     file: prompts/triage.md
-    description: Routing prompt. Classifies the issue into quickfix / full / needs_info / reject.
+    description: Routing prompt. Classifies the issue into full / needs_info / reject; a trivial issue still takes the full path with a one-step plan.
   orchestrator:
     file: prompts/orchestrator.md
     description: Lead system prompt. Orchestrator-workers over the specialist team.
@@ -204,15 +204,9 @@ layers:
         runtime: vps
         type: decision
         label: Route?
-        description: "Model proposes a route; deterministic policy decides last: the squad:skip label rejects first, then quickfixes with complexity > 2 or a sensitive area (auth, billing, payment, privacy, personal data...) are upgraded to full, and a full route in a sensitive area gets risk high, so its plan always needs a human sign-off."
-        decision: { output: choice, candidates: [quickfix, full, needs_info, reject], fail: closed }
+        description: "Model proposes a route; deterministic policy decides last: the squad:skip label rejects first, and a full route in a sensitive area (auth, billing, payment, privacy, personal data...) gets risk high, so its plan always needs a human sign-off. There is no quick-fix bypass (#347): every change goes through a plan and the review gates."
+        decision: { output: choice, candidates: [full, needs_info, reject], fail: closed }
         files: [src/triage.ts]
-      - id: quickfix
-        runtime: vps
-        status: deprecated
-        label: Quick-fix path
-        description: "Legacy bypass being removed in #332: trivial issues will use the full path with a one-step plan, keeping a plan record and the same review gates. Not a separate installable squad."
-        files: [src/pipeline.ts]
       - id: needs_info
         runtime: github
         type: output
@@ -223,7 +217,6 @@ layers:
       - issue -> webhook
       - "webhook -> triage [call]: issue JSON"
       - "triage -> route [data]: TriageSchema"
-      - "route -> quickfix: trivial"
       - { from: route, to: needs_info, label: unclear, condition: "route in [needs_info, reject]" }
 
   # 2 ───────────────────────────────────────────────────────────────
@@ -680,9 +673,6 @@ layers:
 links:
   # intake -> orchestration / specialists
   - "intake.route -> orchestration.worktree [handoff]: full"
-  - "intake.quickfix -> specialists.coder [spawn]: one-liner"
-  - "intake.quickfix -> specialists.doc_writer [spawn]: changelog + PR body"
-  - "intake.quickfix -> quality.fanout: diff"
   - "intake.triage -> tools.github [call]: open issues"
   - "intake.webhook -> harness.prompt_submit: issue text"
   # orchestration -> specialists
