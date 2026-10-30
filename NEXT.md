@@ -2,16 +2,30 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
-## Portable Dev Squad: scoped acceptance in final review (#333)
+## Restart checkpoint — 2026-10-30
 
-- **Scoped #333 acceptance: PR #344 awaits final review and merge.** Maintainer-confirmed scope: the current
+- Saved on `release/0.15.0-final`, draft PR #345. No release tag or publication.
+- Deterministic release gates: all six pass; 205 test files, 2349 pass / 1 skip, 75 towers with zero errors/warnings.
+- Full hardware-GPU browser sweep after the restart: 115/115 passed (2026-10-30T18:34Z). [Release report](reports/v0.15.0.md).
+- Resume: obtain exact-head release
+  review/security/verifier, check CI, then run the merge gate. PR #343 and #344 already had READY gates;
+  check their live status. The maintainer merges #343, then #344, then #345. Never count interrupted E2E as passing.
+- User policy changes (`AGENTS.md`, `.pi/extensions/repo-only.ts`) stay outside the release PR and are backed up
+  on `wip/restart-2026-10-30`. Existing external worktrees remain untouched. Local ignored evidence stays in
+  `.stress/evidence`; detailed restart instructions are in `.stress/evidence/RESTART.md`.
+
+## v0.15.0 release candidate; portable acceptance ready (#333, #341)
+
+- **Scoped #333 acceptance: PR #344 has a READY gate at `5cccf6d`.** Maintainer-confirmed scope: the current
   interactive lead, portable Node/OpenRouter specialists, isolated tests and a draft PR (automatic launch stays in
   #320). Eight boundary test files cover fixture and loopback acceptance, terminal events, SDK approval events,
   pipeline, CLI status and quality gates. The lead independently ran 97 boundary tests and the full check:
   205 files, 2349 pass / 1 skip, clean typecheck (automatic fixtures on disk). Final-head review/security/verifier
-  and PR #344 CI/gate are pending. No merge was performed.
-- **Release #341 still awaits browser acceptance**; #342 and #343 await merge. Nothing here marks a release published
-  or an issue closed.
+  are complete; CI and merge gate pass. Merge after PR #343 remains a
+  maintainer action; consult GitHub for the live status.
+- **Release #341:** `release/0.15.0-final` prepares version 0.15.0 in the existing checkout. Full deterministic gates
+  and a quiet hardware-GPU browser sweep precede final review, maintainer merge and publication. The older
+  uncommitted preparation is preserved. No tag/publication is claimed by this handoff.
 - **Do not resume the superseded Claude-SDK-only installer direction.** The user's existing harness is lead;
   shared Node/OpenRouter specialists select models per role. No required Claude SDK/authentication.
 - PRs #331 (canonical full tower), #335 (portable doctor, nine roles and lead skill), and #337 (step-cap
