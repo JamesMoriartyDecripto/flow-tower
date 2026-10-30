@@ -1,9 +1,9 @@
-import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 // Every run must leave the tower with exactly one agent.start and one terminal agent.end, the end carrying the
 // outcome (ok or error), whatever the exit. The tower is a trusted recorder: a .cjs file run with node through its
@@ -44,9 +44,19 @@ type Result = { code: number; stdout: string; stderr: string };
 type Event = { kind: string; node: string; message: string; status?: string };
 type Setup = { dir: string; args: string[]; env: Record<string, string>; events: string; ledger: string; requests: string };
 
+// Every fixture root and live child is tracked, so afterEach can stop stragglers before deleting their folder.
+const roots: string[] = [];
+const children = new Set<ChildProcess>();
+afterEach(() => {
+  for (const c of children) c.kill('SIGKILL');
+  children.clear();
+  for (const d of roots.splice(0)) rmSync(d, { recursive: true, force: true });
+});
+
 // A fresh folder per test: the recorder, the fake model, the ledger and a fake HOME and key. No real key or network.
 function setup(role: string, mode: string, reply: unknown, flag: string): Setup {
   const dir = mkdtempSync(join(tmpdir(), 'squad-terminal-'));
+  roots.push(dir);
   const task = join(dir, 'task.md');
   writeFileSync(task, 'Check the terminal events.');
   const cli = join(dir, 'recorder.cjs');
@@ -78,10 +88,22 @@ function start(t: Setup, args: string[], extra: Record<string, string> = {}): { 
     env: { ...host, ...t.env, ...extra } as NodeJS.ProcessEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  children.add(child);
+  // A hung child is killed at the deadline, so one stuck run cannot hold the whole suite.
+  const timer = setTimeout(() => child.kill('SIGKILL'), SPAWN.timeout);
   let stdout = '', stderr = '';
   child.stdout?.on('data', (c: Buffer) => { stdout += c; });
   child.stderr?.on('data', (c: Buffer) => { stderr += c; });
-  const done = new Promise<Result>((resolve) => child.on('close', (code) => resolve({ code: code ?? -1, stdout, stderr })));
+  const settle = (code: number, extra = '') => new Promise<Result>((resolve) => {
+    children.delete(child);
+    clearTimeout(timer);
+    resolve({ code, stdout, stderr: stderr + extra });
+  });
+  const done = new Promise<Result>((resolve) => {
+    // A spawn failure (no node binary, bad cwd) emits 'error' and may skip 'close': settle on either.
+    child.on('error', (err) => { settle(-1, String(err)).then(resolve); });
+    child.on('close', (code) => { settle(code ?? -1).then(resolve); });
+  });
   return { child, done };
 }
 

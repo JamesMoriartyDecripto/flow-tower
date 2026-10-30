@@ -32,7 +32,7 @@ export interface AcceptanceFixture {
   /** Runs the trusted CLI (bin/flow-tower.js) with the minimal isolated env. */
   cli(args: string[], opts?: { key?: string }): Promise<Result>;
   /** Runs the installed runner with cwd at the fixture, using the minimal isolated env. */
-  runner(args: string[], opts?: { key?: string }): Promise<Result>;
+  runner(args: string[], opts?: { key?: string; env?: Record<string, string> }): Promise<Result>;
   /** The isolated env the children use, for assertions about what they could see. */
   env(key?: string): Record<string, string>;
   close(): Promise<void>;
@@ -115,8 +115,12 @@ export async function createAcceptanceFixture(): Promise<AcceptanceFixture> {
     },
     env: (key) => ({ ...isolatedEnv(home, key), SQUAD_API_BASE: `http://127.0.0.1:${port}/api/v1` }),
     cli: (args, opts = {}) => spawnChild(process.execPath, [CLI, ...args], { env: fx.env(opts.key) }),
+    // opts.env is spread last so a test can point the installed runner at a recorder; the default stays isolated.
     runner: (args, opts = {}) =>
-      spawnChild(process.execPath, [join(dir, 'tools', 'squad', 'run.mjs'), ...args], { cwd: dir, env: fx.env(opts.key ?? FAKE_KEY) }),
+      spawnChild(process.execPath, [join(dir, 'tools', 'squad', 'run.mjs'), ...args], {
+        cwd: dir,
+        env: { ...fx.env(opts.key ?? FAKE_KEY), ...opts.env },
+      }),
     async close() {
       await new Promise<void>((ok) => server.close(() => ok()));
       rmSync(root, { recursive: true, force: true });
