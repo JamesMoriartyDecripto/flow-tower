@@ -151,12 +151,13 @@ describe('awaitApproval with injected gh', () => {
   const issue = { repo: 'acme/shop', number: 7, title: 't', body: '', labels: [] };
   const since = new Date(Date.now() - 60_000);
 
-  function deps(opts: { labels?: string[]; pages: IssueComment[][]; permissions: Record<string, string> }) {
+  function deps(opts: { labels?: string[]; pages: IssueComment[][]; permissions: Record<string, string>; events?: unknown[][] }) {
     const calls: string[][] = [];
     const gh = vi.fn(async (args: string[]) => {
       calls.push(args);
       if (args[0] === 'issue') return JSON.stringify({ labels: (opts.labels ?? []).map((name) => ({ name })) });
       if (args[1]?.endsWith('/comments')) return JSON.stringify(opts.pages);
+      if (args[1]?.endsWith('/events')) return JSON.stringify(opts.events ?? []);
       const login = /collaborators\/([^/]+)\/permission/.exec(args[1])![1];
       if (!(login in opts.permissions)) throw new Error('404');
       return JSON.stringify({ permission: opts.permissions[login] });
@@ -188,7 +189,9 @@ describe('awaitApproval with injected gh', () => {
   });
 
   it('accepts the squad:approved label from repo writers without a comment', async () => {
-    const { d } = deps({ labels: ['squad:approved'], pages: [], permissions: {} });
+    const fresh = new Date().toISOString();
+    const events = [[{ event: 'labeled', created_at: fresh, actor: { login: 'maintainer' }, label: { name: 'squad:approved' } }]];
+    const { d } = deps({ labels: ['squad:approved'], pages: [], permissions: { maintainer: 'write' }, events });
     expect(await awaitApproval(issue, since, d)).toEqual({ kind: 'approved' });
   });
 });
