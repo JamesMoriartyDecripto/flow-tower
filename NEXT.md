@@ -6,9 +6,8 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 
 - Saved on `release/0.15.0-final`, draft PR #345. No release tag or publication.
 - Deterministic release gates: all six pass; 205 test files, 2349 pass / 1 skip, 75 towers with zero errors/warnings.
-- Browser run stopped for the requested restart: 108 passed, 1 interrupted, 6 not run (exit 130). Test server stopped.
-  A complete browser sweep remains required. [Release checkpoint](reports/v0.15.0.md).
-- Resume: finish the full GPU E2E sweep, update the release report and browser log, obtain exact-head release
+- Full hardware-GPU browser sweep after the restart: 115/115 passed (2026-10-30T18:34Z). [Release report](reports/v0.15.0.md).
+- Resume: obtain exact-head release
   review/security/verifier, check CI, then run the merge gate. PR #343 and #344 already had READY gates;
   check their live status. The maintainer merges #343, then #344, then #345. Never count interrupted E2E as passing.
 - User policy changes (`AGENTS.md`, `.pi/extensions/repo-only.ts`) stay outside the release PR and are backed up
