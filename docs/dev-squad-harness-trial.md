@@ -23,7 +23,8 @@ The completion fixes in #337 do not guarantee that every future model call will 
 
 Maintainer-confirmed scope: the current interactive harness stays the lead; portable Node/OpenRouter specialists,
 isolated tests and a draft PR. Automatic harness launch, discovery and session management remain in #320. The
-optional SDK is a reference backend, not an onboarding dependency. Hermes remains unrecorded.
+Hermes remains unrecorded. The Claude Agent SDK reference backend and its five test files listed below were removed
+in #355; their rows are kept as the record of what was tested at the time.
 
 | Test file | Cases | Evidence type | What it covers |
 |---|---|---|---|

@@ -5,7 +5,7 @@ description: Set up and drive the complete Flow Tower Dev Squad from the user's 
 
 # Flow Tower: the dev squad on your project
 
-You are the **lead in the user's current harness**. Do not replace that session with a Claude SDK orchestrator.
+You are the **lead in the user's current harness**. The squad depends on no SDK: every specialist runs through the Node runner on one OpenRouter key.
 You plan, write one task file per step, run the squad, and verify. The squad's models write
 the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner reference:
 [tools/squad/README.md](../../tools/squad/README.md) (also copied into the project as `tools/squad/README.md`).
@@ -34,12 +34,11 @@ harness has been exercised: check the recorded trials before claiming support.
 1. **Init**: `{{FLOW_TOWER_CLI}} squad init <project>` (a git repository). It copies the runner into
    `tools/squad/`, detects `tools/squad/squad.json` (check command, writable folders, base branch) and writes the
    task template and the complete canonical eight-layer Dev Squad tower at `tools/squad/squad.tower.yaml`.
-   Its nested towers, agents, prompts and SDK source go in `tools/squad/dev-squad/`; no reduced template exists.
+   Its role cards, sample config, task template and nested runner tower go in `tools/squad/dev-squad/`.
    No check detected: `--check "<the command that proves a step works>"`.
    After a flow-tower update: `squad init <project> --force` refreshes the runner, fills missing bundle files and
    keeps squad.json, existing towers and bundle edits. To migrate an old reduced tower, back it up, remove the
    installed `squad.tower.yaml`, rerun init with `--force`, then review and port your customizations.
-   The SDK source is a reference backend, not required to use the squad. No npm install in that bundle is needed.
    Run `{{FLOW_TOWER_CLI}} squad doctor <project>` to check Node, git, runner/config and OpenRouter credentials.
    Install this skill using the documented skill target for your harness; keep using the current session as lead.
 2. **Read squad.json with the user**: `project` (one line on the stack, it opens every model's prompt),

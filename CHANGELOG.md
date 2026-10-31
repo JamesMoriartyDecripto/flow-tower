@@ -5,7 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Removed
+- Dev Squad Claude Agent SDK backend (#355): `examples/dev-squad/src` (the webhook pipeline on `@anthropic-ai/claude-agent-sdk`), its deploy files, Claude Code settings, prompts, memory and sample logs, and their tests. The squad depends on no SDK: one OpenRouter key, the user's own session as lead in any harness.
+
 ### Changed
+- Dev Squad tower (#355): `examples/dev-squad` now models the OpenRouter runner in `tools/squad`: lead in your harness, triage, plan and task files, coder steps, packed review and security, merge gate, setup, cost ledger and models. The role node ids are unchanged. New role cards (`roles/*.md`), a sample `squad.example.json`, the task template and a nested `runner-loop` tower replace the coder and researcher towers. `squad init` installs this smaller bundle.
 - Focus mode hides cross-layer links (#348): with a layer focused in the tower view, links that do not touch it are no longer drawn, and links that leave it show only for the selected or hovered node and its related nodes, at full strength. They used to stay at 10% and cross the camera's view of the focused layer. Overview and map view are unchanged.
 - Dev Squad SDK reference (#347): the deprecated quick-fix route is gone. Triage routes to `full`, `needs_info` or `reject`; a trivial issue gets a one-step plan from the lead and the same review, verification and approval gates. The tower no longer shows the `quickfix` node. The sensitive-area rule that forces a human plan sign-off now also reads the issue body, not only the title and the model-chosen areas.
 
