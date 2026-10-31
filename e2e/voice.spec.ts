@@ -217,7 +217,7 @@ test('voice: the new fixed phrases scroll, filter and open the hub, all on the p
   // In hub mode the alert pill polls this route (#94); the test server is not a hub, so it would 404.
   await page.route('**/api/hub/alerts', (r) => r.fulfill({ json: { alerts: [], rules: [], counts: { warning: 0, critical: 0 } } }));
   // A file long enough that the viewer's code pane must overflow, or a page step has nowhere to go.
-  const long = 'src/pipeline.ts';
+  const long = 'README.md';
   const node = tower(id).layers.flatMap((l) => l.nodes).find((n) => n.files.includes(long))!;
   const index = node.files.indexOf(long);
 

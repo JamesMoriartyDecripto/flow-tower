@@ -134,7 +134,13 @@ test('the document control table shows a 16-hex fingerprint, the same on every l
 test('the full document links node names to their sheets and prints no raw JSON', async ({ page }) => {
   await page.goto('/?doc=dev-squad&level=3&snap=0');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 60_000 });
-  const text = await page.locator('main').innerText();
+  // The file appendix prints real file text (squad.example.json, a JSON verdict in roles/reviewer.md),
+  // which is not raw JSON leaking from the tower, so it is left out of the text checked here (#277).
+  const text = await page.locator('main').evaluate((m) => {
+    const c = m.cloneNode(true) as HTMLElement;
+    c.querySelectorAll('.file-entry').forEach((e) => e.remove());
+    return c.innerText || c.textContent || '';
+  });
   expect(text, 'no raw JSON in the document').not.toContain('{"');
   expect(await page.locator('main a[href^="#node-"]').count(), 'node names link to their sheets').toBeGreaterThan(0);
   await expectNoDeadLinks(page);
@@ -189,11 +195,11 @@ async function checkFiguresOnce(page: Page, browserName: string, run: number): P
   await page.goto('/?doc=dev-squad&level=2');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: SNAP_READY_MS });
   const chapters = page.locator('main article.chapter');
-  // The root and its two sub-towers are the chapters the figures belong to: level 2 prints every tower.
-  expect(await chapters.count(), 'root and both sub-tower chapters').toBeGreaterThanOrEqual(3);
+  // The root and its one sub-tower (runner-loop) are the chapters the figures belong to: level 2 prints every tower.
+  expect(await chapters.count(), 'root and sub-tower chapters').toBeGreaterThanOrEqual(2);
   const figures = chapters.locator('figure.snap-figure');
   const total = await figures.count();
-  expect(total, 'one 3D figure per chapter').toBeGreaterThanOrEqual(3);
+  expect(total, 'one 3D figure per chapter').toBeGreaterThanOrEqual(2);
   let images = 0;
   for (let i = 0; i < total; i++) {
     const fig = figures.nth(i);
