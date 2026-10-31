@@ -443,7 +443,7 @@ layers:
         runtime: laptop
         type: process
         label: runner.mjs
-        description: "The code-driven lead: triage, branch, architect plan as task files, steps.sh, pack, reviewer and security, lead-judge, fix steps (at most 2 rounds), verifier, draft PR, gate. Each arrow is a check in code; a failure stops the issue."
+        description: "The code-driven lead: triage, worktree under the user folder, plan as task files, steps.sh, review and security, lead-judge, at most 2 fix rounds, verifier, draft PR, gate. A failed check stops the issue. Issue and plan text reach models fenced as data; anything posted is scrubbed of keys and tokens."
         files: [README.md]
       - id: judge
         agent: lead-judge
@@ -452,14 +452,14 @@ layers:
         runtime: laptop
         type: guard
         label: Limits
-        description: "From squad.json: issues in parallel (1), a dollar cap per issue summed from the ledger, a wall-clock timeout. Over a limit, the issue stops."
+        description: "From squad.json: issues in parallel (1), a dollar cap per issue summed from the ledger, a wall-clock timeout. Over a limit, the issue stops. A lock in the user folder allows one runner, and --issue n needs the squad:go label."
         limits: { concurrency: 1 }
         files: [squad.example.json]
       - id: draft_pr
         runtime: github
         type: output
         label: Draft PR
-        description: "Stop point: a draft PR with the plan, findings kept and dropped with reasons, the cost and the gate result, also posted on the issue. The maintainer merges."
+        description: "Stop point: a draft PR with the plan, the dropped findings with reasons and the spend, then the gate result commented on the issue, whose label becomes squad:review. The maintainer merges."
         files: [README.md]
       - id: failed
         runtime: github

@@ -2,6 +2,20 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Unattended runner (#320) — 2026-10-31
+
+- `node tools/squad/runner.mjs` works issues labelled `squad:go` with no session and no SDK (PR #364): one issue at a
+  time on this laptop, polling every 10 min, `--once`, `--issue n` (needs the label), `--dry-run`. Code-driven procedure
+  (`runner-core.mjs`), real deps through one exec (`runner-deps.mjs`), gh wrapper, plan and judge parsers. Stops at a
+  draft PR (`squad:review`) or `squad:failed` with a scrubbed reason. Limits in `squad.json` `runner`: $3, 90 min,
+  2 fix rounds. Defaults from the #362 benchmark: architect `openai/gpt-6.1-terra`, lead-judge `anthropic/claude-sonnet-5.5`.
+- Twelve squad steps, four review rounds; the blocking catch was `deps.gh` never wired (fake deps hid it), now covered
+  by a wiring test. Tower layer 9 is active and matches the code; the skill names the runner.
+- **Next:** the first real `--once` on a small test issue (GitHub and OpenRouter for real), then #303 (pack and gate
+  robustness, both used by the runner) and a check of #75 (findings from the removed SDK pipeline: likely superseded).
+- **Key:** the user-folder OpenRouter key hit its weekly limit (resets 2026-11-02). This session ran the squad on the
+  repository's own key (weekly cap $50) with `FLOW_TOWER_HOME=.stress/squad-home`.
+
 ## Dev Squad on one OpenRouter key — 2026-10-31
 
 - **No SDK anywhere** (#355, PR #356): the Claude Agent SDK backend (`examples/dev-squad/src`, deploy, Claude Code
