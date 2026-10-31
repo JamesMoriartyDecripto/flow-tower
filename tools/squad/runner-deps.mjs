@@ -145,7 +145,8 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
     must(git(['-C', path, 'push', '--force-with-lease', '-u', 'origin', branch]), 'git push');
   }
 
-  // gate.mjs exits 1 when the PR is not ready, so its exit code is not an error here: the text carries the answer.
+  // gate.mjs exits 1 for NOT READY as well as for a crash, so the exit code alone cannot tell them apart. A crash prints
+  // no NOT READY or READY line, and that must not post an empty gate text or label the issue squad:review.
   function gate(path, prUrl) {
     const pr = /\/pull\/(\d+)/.exec(String(prUrl ?? ''));
     if (!pr) throw new Error(`no PR number in ${prUrl}`);
@@ -154,7 +155,12 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
     const r = exec('node', [join(runner, 'gate.mjs'), '--pr', pr[1],
       '--review', join(outDir, `${n}-review.out`), '--security', join(outDir, `${n}-security.out`), '--repo', path],
       { env: envWithoutKey() });
-    return { ready: String(r.stdout ?? '').startsWith('READY'), text: r.stdout };
+    const out = String(r.stdout ?? '');
+    if (r.status !== 0 && !out.startsWith('NOT READY')) {
+      const why = String(r.stderr ?? '').split('\n')[0].trim();
+      return { ready: false, text: `gate failed to run: ${why}` };
+    }
+    return { ready: out.startsWith('READY'), text: r.stdout };
   }
 
   // The cost of one issue, from the shared ledger. An issue with no runs reads 0.

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULTS, loadConfig } from '../tools/squad/config.mjs';
 // @ts-expect-error plain .mjs without declarations
-import { acquireLock, buildDeps, isQueued, parseArgs } from '../tools/squad/runner.mjs';
+import { acquireLock, buildDeps, isQueued, nextAction, parseArgs } from '../tools/squad/runner.mjs';
 
 // config.d.mts does not describe the runner limits, so the test reads them through this type.
 type Runner = { usdPerIssue: number; minutes: number; fixRounds: number; pollMinutes: number };
@@ -35,6 +35,16 @@ describe('runner.mjs --issue label rule', () => {
     expect(isQueued([{ name: 'bug' }])).toBe(false);
     expect(isQueued([])).toBe(false);
     expect(isQueued(undefined)).toBe(false);
+  });
+});
+
+describe('runner.mjs nextAction', () => {
+  it('retries a polling runner after a queue error', () => {
+    expect(nextAction({ once: false, error: new Error('gh issue list failed') })).toBe('retry');
+  });
+
+  it('exits a one-shot run on the same error', () => {
+    expect(nextAction({ once: true, error: new Error('gh issue list failed') })).toBe('exit');
   });
 });
 

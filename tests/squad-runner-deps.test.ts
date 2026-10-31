@@ -205,6 +205,28 @@ describe('gate', () => {
   });
 });
 
+describe('gate crash', () => {
+  it('reports ready false with the first stderr line when gate.mjs exits nonzero without a verdict line', () => {
+    const { deps } = setup((c) => (c.args[0].endsWith('gate.mjs')
+      ? { status: 2, stdout: '', stderr: 'TypeError: boom\nmore' }
+      : { status: 0, stdout: VERDICT('approve') }));
+    deps.quality('/repo', { number: 7 });
+    expect(deps.gate('/repo', 'https://github.com/o/r/pull/77')).toEqual({
+      ready: false, text: 'gate failed to run: TypeError: boom',
+    });
+  });
+
+  it('keeps the NOT READY text when gate.mjs exits 1 for a PR that is not ready', () => {
+    const { deps } = setup((c) => (c.args[0].endsWith('gate.mjs')
+      ? { status: 1, stdout: 'NOT READY: #77\n- ci red\n' }
+      : { status: 0, stdout: VERDICT('approve') }));
+    deps.quality('/repo', { number: 7 });
+    expect(deps.gate('/repo', 'https://github.com/o/r/pull/77')).toEqual({
+      ready: false, text: 'NOT READY: #77\n- ci red\n',
+    });
+  });
+});
+
 describe('quality pack failure', () => {
   it('returns the pack error and runs no role when pack.mjs exits nonzero', () => {
     const { deps, calls } = setup((c) => (c.args[0].endsWith('pack.mjs')

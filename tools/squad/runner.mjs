@@ -15,6 +15,7 @@ import { workIssue } from './runner-core.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const USAGE = 'usage: node tools/squad/runner.mjs [--once] [--issue <n>] [--repo <path>] [--dry-run]';
 const ISSUE_FIELDS = 'number,title,body,labels,createdAt';
+const SIGNAL_REPORT_MS = 10000;
 
 // The queue label: gh issue view lists labels as objects with a name. Pure, so the --issue rule is testable.
 export function isQueued(labels) {
@@ -64,9 +65,12 @@ export function releaseLock(path, pid) {
 }
 
 // The real process call behind the deps: arrays only, no shell. A missing binary or a signal reads as a failure.
+// A timeout makes spawnSync kill the child and return an ETIMEDOUT error, which reads as a failure here.
 function realExec(cmd, args, opts = {}) {
-  const r = spawnSync(cmd, args, { encoding: 'utf8', input: opts.input, cwd: opts.cwd, env: opts.env ?? env, maxBuffer: 64 * 1024 * 1024 });
-  return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? r.error?.message ?? '' };
+  const r = spawnSync(cmd, args, { encoding: 'utf8', input: opts.input, cwd: opts.cwd, env: opts.env ?? env,
+    maxBuffer: 64 * 1024 * 1024, timeout: opts.timeout });
+  // A timed-out child gives an empty stderr, so the error message (ETIMEDOUT) is the reason, not the empty string.
+  return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr || r.error?.message || '' };
 }
 
 // The direct gh and git calls in main(): the same key-less env as the deps, since a git hook runs repo code.
@@ -74,12 +78,14 @@ const quietExec = (cmd, args, opts = {}) => realExec(cmd, args, { ...opts, env: 
 
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
-// Bounds a call that may hang. The timer is cleared once the call settles, so a finished call leaves no timer behind.
-function withTimeout(p, ms) {
-  let timer;
-  const expired = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`timed out after ${ms / 1000} s`)), ms); });
-  return Promise.race([p, expired]).finally(() => clearTimeout(timer));
+// The polling loop's decision after a failed queue read. A one-shot run (--once or --issue) reports the error and exits;
+// a polling runner keeps going, because one transient gh failure must not stop an unattended lead. Pure, so it is testable.
+export function nextAction({ once, error }) {
+  return once ? 'exit' : 'retry';
 }
+
+// The first line of an error, so a long gh trace does not flood the log.
+const firstLine = (e) => String(e?.message ?? e).split('\n')[0];
 
 // The one place the deps are built: main and the tests both call it, so a dep the core needs cannot go missing here.
 // gh runs without the model key, the same as the git calls in runner-deps.mjs.
@@ -133,16 +139,20 @@ async function main(args) {
   // The issue in progress, so a signal can report it as failed instead of leaving it squad:running with no comment.
   let current;
   // Signals exit through process.exit, so the 'exit' handler above still removes the lock. The report is best effort:
-  // a gh that hangs or fails must not block the stop, so it gets 10 s and its failure is printed and ignored.
+  // gh is synchronous, so a hang can only be cut by the child timeout. The report gets one 10 s deadline in total, and
+  // each gh call gets what is left of it; a failure is printed and ignored.
   let stopping = false;
-  const onSignal = async (code) => {
+  const onSignal = (code) => {
     if (stopping) return;
     stopping = true;
     if (current !== undefined) {
+      const deadline = Date.now() + SIGNAL_REPORT_MS;
+      const signalGh = makeGh((cmd, args, o = {}) => realExec(cmd, args,
+        { ...o, env: envWithoutKey(), timeout: Math.max(1, deadline - Date.now()) }), nameWithOwner);
       try {
-        await withTimeout(deps.gh.fail(current, 'runner stopped (signal)'), 10000);
+        signalGh.fail(current, 'runner stopped (signal)');
       } catch (e) {
-        console.error(`could not report the stop of #${current}: ${e?.message ?? e}`);
+        console.error(`could not report the stop of #${current}: ${firstLine(e)}`);
       }
     }
     release();
@@ -154,7 +164,15 @@ async function main(args) {
   const once = opts.once || opts.issue !== undefined;
   // A pass per poll: the first issue of the queue, one at a time. The sleep is the poll gap, not a retry delay.
   for (;;) {
-    const issues = nextIssues();
+    let issues;
+    try {
+      issues = nextIssues();
+    } catch (e) {
+      if (nextAction({ once, error: e }) === 'exit') throw e;
+      console.log(`poll failed: ${firstLine(e)}`);
+      await sleep(config.runner.pollMinutes * 60000);
+      continue;
+    }
     if (!issues.length) console.log('queue empty');
     else {
       const issue = issues[0];
