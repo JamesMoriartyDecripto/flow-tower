@@ -98,6 +98,9 @@ for f in "$dir"/*.md; do
     # git add and git commit run without OPENROUTER_API_KEY: a project's pre-commit hook (husky, lint-staged) may run
     # the tests the coder wrote, and those must not see the key.
     staged=$("$NODE" "$H/step-scope.mjs" stage "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite")
+    # Nothing left to stage means the coder changed only probe files. An empty pathspec would make git commit the whole
+    # index, including what the maintainer staged before the run, so this step is RED instead (#353).
+    if [ -z "$staged" ]; then echo "RED after step $step: the coder changed only probe files"; exit 1; fi
     while IFS= read -r p; do
       [ -n "$p" ] && env -u OPENROUTER_API_KEY git add -A -- "$p"
     done <<< "$staged"
@@ -109,8 +112,8 @@ for f in "$dir"/*.md; do
     mapfile -t stagedPaths <<< "$staged"
     env -u OPENROUTER_API_KEY git commit -s -q -m "$title, step $step (#$issue)
 
-Coder: $CODER.${trailerPara}" -- "${stagedPaths[@]}" && git log --oneline -1
-  )
+Coder: $CODER.${trailerPara}" -- "${stagedPaths[@]}" && git log --oneline -1 || exit 1
+  ) || { echo "RED after step $step: commit failed"; exit 1; }
 done
 "$NODE" "$H/cost.mjs" "$issue" --repo "$R"
 echo "ALL GREEN #$issue"

@@ -28,6 +28,10 @@ describe('writeDirsFor', () => {
     expect(writeDirsFor(['src'], ['examples/dev-squad/src/a.ts', 'tests/x.test.ts', 'CHANGELOG.md', 'docs/**/*.md']))
       .toEqual(['src', 'examples/dev-squad/src', 'tests', 'CHANGELOG.md', 'docs']);
   });
+
+  it('strips a trailing slash so src/ and src are one write dir', () => {
+    expect(writeDirsFor(['src/'], ['tests/a.ts'])).toEqual(['src', 'tests']);
+  });
 });
 
 describe('badEntries', () => {
@@ -154,6 +158,27 @@ describe('step-scope CLI in a temp repo', () => {
       } finally {
         rmSync(aux, { recursive: true, force: true });
       }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it('reports a step done when the config base is HEAD, since HEAD is then the base itself', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'step-scope-done-'));
+    try {
+      const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
+      git('init', '-q');
+      git('config', 'user.email', 't@example.com');
+      git('config', 'user.name', 't');
+      mkdirSync(join(dir, 'tools', 'squad'), { recursive: true });
+      writeFileSync(join(dir, 'tools', 'squad', 'squad.json'), JSON.stringify({ project: 't', base: 'HEAD', write: ['src'] }));
+      git('add', '-A');
+      git('commit', '-q', '-m', 'init');
+      writeFileSync(join(dir, 'a.txt'), 'a\n');
+      git('add', '-A');
+      git('commit', '-q', '-m', 'x, step 01 (#7)');
+
+      expect(cli('done', '7', '01', dir)).toBe('yes');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

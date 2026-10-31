@@ -30,8 +30,9 @@ function dirOf(entry) {
 
 // The write dirs of a step: the configured write list plus the directory of every Files entry, so a task may name a
 // file outside the configured folders (its own tests, a doc at the root) without widening the config.
+// A trailing "/" is stripped before de-duplicating, so "src/" and "src" are the same write dir (no prefix mismatch).
 export function writeDirsFor(write, files) {
-  const dirs = [...write, ...files.map(dirOf)];
+  const dirs = [...write, ...files.map(dirOf)].map((d) => d.replace(/\/+$/, ''));
   return [...new Set(dirs)];
 }
 
@@ -102,10 +103,12 @@ function readSnapshot(file) {
 }
 
 // Subjects of the commits since the base. A base that does not resolve (a fresh clone, a typo) falls back to the
-// last 200 commits, so a step is never wrongly reported as not done for want of a base.
+// last 200 commits, so a step is never wrongly reported as not done for want of a base. When HEAD is the base or an
+// ancestor of it, "base..HEAD" is empty by construction and would hide every done step, so the fallback applies too.
 function subjectsSince(repo, base) {
   const resolves = spawnSync('git', ['rev-parse', '--verify', '-q', `${base}^{commit}`], { cwd: repo }).status === 0;
-  const args = resolves ? ['log', '--format=%s', `${base}..HEAD`] : ['log', '--format=%s', '-n', '200'];
+  const headBehind = resolves && spawnSync('git', ['merge-base', '--is-ancestor', 'HEAD', base], { cwd: repo }).status === 0;
+  const args = resolves && !headBehind ? ['log', '--format=%s', `${base}..HEAD`] : ['log', '--format=%s', '-n', '200'];
   return execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).split('\n').filter(Boolean);
 }
 
