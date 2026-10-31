@@ -123,6 +123,23 @@ describe('workIssue', () => {
     expect(calls).not.toContain('done');
   });
 
+  it('stops when the triage run failed, even if its text is valid JSON', async () => {
+    const { deps, calls } = fakeDeps({ role: async (name: string) => {
+      calls.push(`role:${name}`);
+      return { ok: name !== 'triage', text: triageFull };
+    } });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:triage gave no usable answer');
+    expect(calls).not.toContain('worktree');
+  });
+
+  it('accepts a bare JSON triage answer with no fence', async () => {
+    const bare = JSON.stringify({ route: 'reject', areas: [], questions: [], rationale: 'spam' });
+    const { deps, calls } = fakeDeps({}, { triage: [bare] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('rejected');
+    expect(calls).toContain('comment:Triage rejected this issue: spam');
+  });
+
   it('asks the reporter for information on needs_info, and releases without squad:review', async () => {
     const { deps, calls } = fakeDeps({}, { triage: [fence({ route: 'needs_info', areas: [], questions: ['which page?'], rationale: '' })] });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('needs_info');

@@ -56,12 +56,14 @@ function untrusted(issue) {
   return [DATA_NOTE, '<issue-data>', `# ${stripFence(issue.title)}`, body, '</issue-data>'].join('\n');
 }
 
-// The last ```json block is the answer; a route outside the three, or no block, is not usable.
+// The last ```json block is the answer, or the whole text when there is no block (same rule as parsePlan). A route
+// outside the three, or text that is not JSON, is not usable.
 export function parseTriage(text) {
-  const fences = [...String(text ?? '').matchAll(/```json\s*([\s\S]*?)```/g)];
-  if (!fences.length) return null;
+  const src = String(text ?? '');
+  const fences = [...src.matchAll(/```json\s*([\s\S]*?)```/g)];
+  const body = fences.length ? fences[fences.length - 1][1] : src;
   let raw;
-  try { raw = JSON.parse(fences[fences.length - 1][1]); } catch { return null; }
+  try { raw = JSON.parse(body); } catch { return null; }
   if (raw === null || typeof raw !== 'object' || !ROUTES.includes(raw.route)) return null;
   const strings = (v) => (Array.isArray(v) ? v.map(String) : []);
   return { route: raw.route, areas: strings(raw.areas), questions: strings(raw.questions), rationale: String(raw.rationale ?? '') };
@@ -149,7 +151,9 @@ export async function workIssue(issue, deps, limits) {
     // Triage: the route and the areas come from the model; the sensitive-area rule is checked here, not trusted to it.
     await guard();
     // The triage runs in the main checkout, so its cwd is left to the deps default (undefined).
-    const t = parseTriage((await deps.role('triage', `${TRIAGE_ASK}\n\n${untrusted(issue)}`, undefined, n)).text);
+    // A triage run that did not finish is no answer, even when its text happens to parse.
+    const tr = await deps.role('triage', `${TRIAGE_ASK}\n\n${untrusted(issue)}`, undefined, n);
+    const t = tr.ok ? parseTriage(tr.text) : null;
     if (!t) stop('triage gave no usable answer');
     if (t.route === 'reject') {
       await gh.comment(n, `Triage rejected this issue: ${t.rationale}`);
