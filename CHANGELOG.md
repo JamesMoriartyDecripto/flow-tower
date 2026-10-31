@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Fixed
+- Temp files no longer fill the disk (#357). Each test run uses its own `TMPDIR`, removed at the end; folders left by crashed runs are swept after 24 h. On 2026-10-31, 2205 leftover folders had filled a `/tmp` quota. `steps.sh` deletes its output folder when every step is green, and its own folders older than 7 days. `run.mjs` prunes role logs beyond the newest 200 that are older than 14 days (new runner file `log-prune.mjs`).
+
 ### Changed
 - Squad `steps.sh` (#353): each step commits only its own files: the write dirs, the folders of its `Files:` entries and the paths those entries match. It no longer stages every tracked change, and local edits from before the run are never staged; a step that modifies one of them is RED. Steps already committed are skipped on a rerun. The coder may write the folders its `Files:` line names. The script runs from a temporary copy, so a step can edit `steps.sh`. New runner file `step-scope.mjs`.
 - Focus mode hides cross-layer links (#348): with a layer focused in the tower view, links that do not touch it are no longer drawn, and links that leave it show only for the selected or hovered node and its related nodes, at full strength. They used to stay at 10% and cross the camera's view of the focused layer. Overview and map view are unchanged.

@@ -319,6 +319,8 @@ and the cache hit rate; method and older figures: [skills/flow-tower-costs/refer
 
 Every run (coder, reviewer, security, failed runs too) appends one line to `~/.config/flow-tower/squad-costs.jsonl`
 (`SQUAD_LEDGER` overrides the path). The run is tagged with `--issue <n>`, or with the number in the branch name.
+Housekeeping (#357): `steps.sh` deletes its output folder after ALL GREEN; a RED run keeps it for the logs, and folders of your own older than 7 days are removed at the next start. `run.mjs` keeps the newest 200 role logs (`tools/squad/<role>-<ms>.log`) and any under 14 days, and deletes the rest when it starts. The cost ledger in the user folder is never pruned.
+
 `steps.sh` adds a `Squad-Cost: $0.0123` trailer to each step commit. To see an issue's total:
 
 ```bash
