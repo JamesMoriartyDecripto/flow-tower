@@ -8,6 +8,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Removed
 - Dev Squad Claude Agent SDK backend (#355): `examples/dev-squad/src` (the webhook pipeline on `@anthropic-ai/claude-agent-sdk`), its deploy files, Claude Code settings, prompts, memory and sample logs, and their tests. The squad depends on no SDK: one OpenRouter key, the user's own session as lead in any harness.
 
+### Fixed
+- Temp files no longer fill the disk (#357). Each test run uses its own `TMPDIR`, removed at the end; folders left by crashed runs are swept after 24 h. On 2026-10-31, 2205 leftover folders had filled a `/tmp` quota. `steps.sh` deletes its output folder when every step is green, and its own folders older than 7 days. `run.mjs` prunes role logs beyond the newest 200 that are older than 14 days (new runner file `log-prune.mjs`).
+
 ### Changed
 - Dev Squad tower (#355): `examples/dev-squad` now models the OpenRouter runner in `tools/squad`: lead in your harness, triage, plan and task files, coder steps, packed review and security, merge gate, setup, cost ledger and models. The role node ids are unchanged. New role cards (`roles/*.md`), a sample `squad.example.json`, the task template and a nested `runner-loop` tower replace the coder and researcher towers. `squad init` installs this smaller bundle.
 - Squad `steps.sh` (#353): each step commits only its own files: the write dirs, the folders of its `Files:` entries and the paths those entries match. It no longer stages every tracked change, and local edits from before the run are never staged; a step that modifies one of them is RED. Steps already committed are skipped on a rerun. The coder may write the folders its `Files:` line names. The script runs from a temporary copy, so a step can edit `steps.sh`. New runner file `step-scope.mjs`.

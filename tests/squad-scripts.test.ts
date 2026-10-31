@@ -132,4 +132,13 @@ describe('steps.sh (#265)', () => {
     expect(text).toContain('foreign-touched');
     expect(text).not.toContain('git add -u');
   });
+
+  it('removes its output folder after ALL GREEN, and old leftovers first (#357)', () => {
+    const text = readFileSync(join(squad, 'steps.sh'), 'utf8');
+    expect(text).toContain('-mtime +7');
+    expect(text).toContain('rm -rf -- "$OUT"');
+    const costLine = text.indexOf('cost.mjs" "$issue"');
+    expect(costLine).toBeGreaterThan(-1);
+    expect(text.indexOf('rm -rf -- "$OUT"')).toBeGreaterThan(costLine);
+  });
 });
