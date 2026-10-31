@@ -205,6 +205,17 @@ describe('gate', () => {
   });
 });
 
+describe('quality pack failure', () => {
+  it('returns the pack error and runs no role when pack.mjs exits nonzero', () => {
+    const { deps, calls } = setup((c) => (c.args[0].endsWith('pack.mjs')
+      ? { status: 2, stderr: 'pack broke\nmore detail' }
+      : { status: 0, stdout: VERDICT('approve') }));
+    const q = deps.quality('/repo', { number: 7 });
+    expect(q).toEqual({ ok: false, error: 'pack failed for reviewer: pack broke' });
+    expect(calls.some((c) => c.args[0].endsWith('run.mjs'))).toBe(false);
+  });
+});
+
 describe('pack and gate env', () => {
   it('gives pack.mjs and gate.mjs no OPENROUTER_API_KEY, while the rest of the environment stays', () => {
     const before = env.OPENROUTER_API_KEY;

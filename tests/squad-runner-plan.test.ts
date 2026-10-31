@@ -25,6 +25,11 @@ describe('parsePlan', () => {
     expect(r.plan.steps[0].title).toBe('Add the helper!');
   });
 
+  it('accepts a json fence whose plan is on the same line as the tag', () => {
+    const oneLine = `\`\`\`json ${JSON.stringify(plan())}\n\`\`\``;
+    expect(parsePlan(oneLine).ok).toBe(true);
+  });
+
   it('takes the last json fence when the prose quotes an earlier one', () => {
     const text = `Draft:\n${asText(plan({ criteria: [] }))}\nFinal:\n${asText(plan())}`;
     expect(parsePlan(text).ok).toBe(true);

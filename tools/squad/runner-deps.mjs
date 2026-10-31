@@ -96,14 +96,18 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
     return { ok: r.status === 0, tail: `${r.stdout ?? ''}${r.stderr ?? ''}` };
   }
 
-  // One review pass: the pack is written to a task file, then run. Returns the run's text, which holds the verdict.
+  // One review pass: the pack is written to a task file, then run. Returns { text } with the run's text, which holds the
+  // verdict, or { error } when pack.mjs failed: a failed pack means the role must not run on an empty or partial task.
   function reviewPass(path, n, name, model) {
     const packed = exec('node', [join(runner, 'pack.mjs'), '--role', name, '--issue', String(n), '--repo', path],
       { env: envWithoutKey() });
+    if (packed.status !== 0) {
+      return { error: `pack failed for ${name}: ${String(packed.stderr ?? '').split('\n')[0]}` };
+    }
     const file = freshTask(`${n}-${name}`, packed.stdout);
     const args = [join(runner, 'run.mjs'), '--role', name, '--node', ROLES[name].node, '--task', file,
       '--issue', String(n), '--repo', path, ...(model ? ['--model', model] : [])];
-    return exec('node', args).stdout;
+    return { text: exec('node', args).stdout };
   }
 
   // Security gets one more pass on the reviewer's model when its first answer has no verdict; both outputs are kept.
@@ -111,11 +115,17 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
   function quality(path, issue) {
     const n = issue.number;
     lastIssue = n;
-    const reviewText = reviewPass(path, n, 'reviewer');
-    let securityText = reviewPass(path, n, 'security');
+    const first = reviewPass(path, n, 'reviewer');
+    if (first.error) return { ok: false, error: first.error };
+    const reviewText = first.text;
+    let sec = reviewPass(path, n, 'security');
+    if (sec.error) return { ok: false, error: sec.error };
+    let securityText = sec.text;
     let security = verdictOrNull(securityText);
     if (!security) {
-      securityText = reviewPass(path, n, 'security', loadConfig(repo).models.reviewer);
+      sec = reviewPass(path, n, 'security', loadConfig(repo).models.reviewer);
+      if (sec.error) return { ok: false, error: sec.error };
+      securityText = sec.text;
       security = verdictOrNull(securityText);
     }
     const review = verdictOrNull(reviewText);

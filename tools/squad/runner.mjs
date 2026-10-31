@@ -69,7 +69,17 @@ function realExec(cmd, args, opts = {}) {
   return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? r.error?.message ?? '' };
 }
 
+// The direct gh and git calls in main(): the same key-less env as the deps, since a git hook runs repo code.
+const quietExec = (cmd, args, opts = {}) => realExec(cmd, args, { ...opts, env: envWithoutKey() });
+
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
+
+// Bounds a call that may hang. The timer is cleared once the call settles, so a finished call leaves no timer behind.
+function withTimeout(p, ms) {
+  let timer;
+  const expired = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`timed out after ${ms / 1000} s`)), ms); });
+  return Promise.race([p, expired]).finally(() => clearTimeout(timer));
+}
 
 // The one place the deps are built: main and the tests both call it, so a dep the core needs cannot go missing here.
 // gh runs without the model key, the same as the git calls in runner-deps.mjs.
@@ -83,7 +93,7 @@ async function main(args) {
   let repo = opts.repo;
   if (repo === undefined) {
     // Outside a checkout the runner has no repo to work in, so it stops here with the folder it was started from.
-    const top = realExec('git', ['rev-parse', '--show-toplevel']);
+    const top = quietExec('git', ['rev-parse', '--show-toplevel']);
     if (top.status !== 0) throw new Error(`not a git repository: ${process.cwd()}`);
     repo = top.stdout.trim();
   }
@@ -93,12 +103,12 @@ async function main(args) {
   const limits = { usdPerIssue: config.runner.usdPerIssue, minutes: config.runner.minutes, fixRounds: config.runner.fixRounds };
 
   // gh needs owner/name for -R; the repo's own remote gives it, so the runner never guesses a repository.
-  const named = realExec('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd: repo });
+  const named = quietExec('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd: repo });
   if (named.status !== 0) throw new Error(`gh repo view failed: ${named.stderr.split('\n')[0]}`);
   const nameWithOwner = named.stdout.trim();
   const deps = buildDeps({ repo, home, exec: realExec, runner: HERE, nameWithOwner });
 
-  const fetchOne = (n) => JSON.parse(realExec('gh', ['issue', 'view', String(n), '-R', nameWithOwner, '--json', ISSUE_FIELDS]).stdout);
+  const fetchOne = (n) => JSON.parse(quietExec('gh', ['issue', 'view', String(n), '-R', nameWithOwner, '--json', ISSUE_FIELDS]).stdout);
   // --issue works an issue only when it carries squad:go, so a manual run cannot skip the queue's label rule.
   const nextIssues = () => {
     if (opts.issue === undefined) return deps.gh.queue();
@@ -120,9 +130,26 @@ async function main(args) {
   const got = acquireLock(lock, me);
   if (!got.ok) throw new Error(`another runner is working (pid ${got.pid})`);
   const release = () => releaseLock(lock, me);
-  // Signals exit through process.exit, so the 'exit' handler above still removes the lock.
+  // The issue in progress, so a signal can report it as failed instead of leaving it squad:running with no comment.
+  let current;
+  // Signals exit through process.exit, so the 'exit' handler above still removes the lock. The report is best effort:
+  // a gh that hangs or fails must not block the stop, so it gets 10 s and its failure is printed and ignored.
+  let stopping = false;
+  const onSignal = async (code) => {
+    if (stopping) return;
+    stopping = true;
+    if (current !== undefined) {
+      try {
+        await withTimeout(deps.gh.fail(current, 'runner stopped (signal)'), 10000);
+      } catch (e) {
+        console.error(`could not report the stop of #${current}: ${e?.message ?? e}`);
+      }
+    }
+    release();
+    exit(code);
+  };
   process.on('exit', release);
-  for (const [sig, code] of [['SIGINT', 130], ['SIGTERM', 143]]) process.on(sig, () => exit(code));
+  for (const [sig, code] of [['SIGINT', 130], ['SIGTERM', 143]]) process.on(sig, () => { onSignal(code); });
 
   const once = opts.once || opts.issue !== undefined;
   // A pass per poll: the first issue of the queue, one at a time. The sleep is the poll gap, not a retry delay.
@@ -131,7 +158,9 @@ async function main(args) {
     if (!issues.length) console.log('queue empty');
     else {
       const issue = issues[0];
+      current = issue.number;
       const outcome = await workIssue(issue, deps, limits);
+      current = undefined;
       console.log(`#${issue.number} -> ${outcome}`);
     }
     if (once) return 0;

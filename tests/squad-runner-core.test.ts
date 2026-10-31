@@ -216,8 +216,14 @@ describe('workIssue', () => {
   });
 
   it('passes when the verdict is alone on the first line', async () => {
-    const { deps } = fakeDeps({}, { triage: [triageFull], architect: [fence(PLAN)], verifier: ['PASS\nall criteria met'] });
+    const { deps } = fakeDeps({}, { triage: [triageFull], architect: [fence(PLAN)], verifier: ['PASS\nall met'] });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+  });
+
+  it('holds when PASS is quoted after other prose, since only the first line counts', async () => {
+    const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(PLAN)], verifier: ['notes\nPASS'] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls.some((c) => c.startsWith('fail:verifier held the change'))).toBe(true);
   });
 
   it('keeps a closing issue-data tag out of the title in the triage prompt', async () => {

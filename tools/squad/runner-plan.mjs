@@ -3,7 +3,8 @@
 // Both functions are pure: no git, no disk. A bad plan is reported in words, never thrown, so the lead can ask again.
 import { stripFence } from './runner-judge.mjs';
 
-const FENCE = /```json[ \t]*\r?\n([\s\S]*?)```/g;
+// Same fence rule as parseTriage and parseJudgement: whitespace, newline or not, may follow the tag.
+const FENCE = /```json\s*([\s\S]*?)```/g;
 const RULES = 'Rules: English only; never touch secret files; edit only the files named below; comments explain why; '
   + 'files under ~400 lines; never rewrite or empty an existing test file (add to the new one only).';
 const VERIFY = 'Verify: `run check`; `finish` with the output and a `Known gaps:` line.';
