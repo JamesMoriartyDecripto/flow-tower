@@ -1,0 +1,147 @@
+import { describe, expect, it } from 'vitest';
+// The procedure is plain JavaScript; the fakes below record every call so each route can be checked in order.
+// @ts-expect-error plain .mjs without declarations
+import { workIssue } from '../tools/squad/runner-core.mjs';
+
+const ISSUE = { number: 91, title: 'Add a badge', body: 'Show a badge on the card.' };
+const LIMITS = { usdPerIssue: 5, minutes: 30, fixRounds: 1 };
+const PLAN = { criteria: ['badge shows'], steps: [{ title: 'Add badge', items: ['render it'], files: ['src/badge.ts'] }] };
+const fence = (v: unknown) => '```json\n' + JSON.stringify(v) + '\n```';
+
+// Builds deps whose role answers come from `answers`, and whose quality results come from `qualities` in order.
+// Every call is pushed to `calls` as a name, so a test can assert the order and the count.
+function fakeDeps(over: Record<string, any> = {}, answers: Record<string, string[]> = {}, qualities: any[] = []) {
+  const calls: string[] = [];
+  const queue = { ...answers };
+  const qs = [...qualities];
+  const gh = {
+    claim: async () => { calls.push('claim'); return true; },
+    comment: async (_n: number, body: string) => { calls.push(`comment:${body.split('\n')[0]}`); },
+    fail: async (_n: number, reason: string) => { calls.push(`fail:${reason}`); },
+    done: async () => { calls.push('done'); },
+    draftPr: async (o: { bodyFile: string }) => { calls.push('draftPr'); return `https://pr/${o.bodyFile.length}`; },
+    ...(over.gh ?? {}),
+  };
+  const deps = {
+    gh,
+    role: async (name: string) => {
+      calls.push(`role:${name}`);
+      const next = queue[name]?.shift();
+      return { ok: true, text: next ?? '' };
+    },
+    worktree: async () => { calls.push('worktree'); return { path: '/wt', branch: 'squad/91' }; },
+    writeTasks: async (_p: string, _n: number, files: { name: string }[]) => {
+      calls.push(`writeTasks:${files.map((f) => f.name).join(',')}`);
+      return '/wt/tasks';
+    },
+    steps: async () => { calls.push('steps'); return { ok: true, tail: '' }; },
+    quality: async () => { calls.push('quality'); return qs.shift() ?? { ok: true, review: { findings: [] }, security: { findings: [] } }; },
+    push: async () => { calls.push('push'); },
+    gate: async () => { calls.push('gate'); return { ready: true, text: 'READY: #91' }; },
+    spent: async () => 0,
+    now: () => 0,
+    ...over,
+  };
+  return { deps: { ...deps, gh }, calls };
+}
+
+const triageFull = fence({ route: 'full', areas: ['ui'], questions: [], rationale: 'ok' });
+
+describe('workIssue', () => {
+  it('runs the happy path to a draft PR', async () => {
+    const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(PLAN)], verifier: ['PASS fine'] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(calls.filter((c) => c === 'draftPr')).toHaveLength(1);
+    expect(calls.filter((c) => c === 'done')).toHaveLength(1);
+    expect(calls.some((c) => c.startsWith('fail'))).toBe(false);
+  });
+
+  it('skips when the claim is lost, without any role call', async () => {
+    const { deps, calls } = fakeDeps({ gh: { claim: async () => false } });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('skipped');
+    expect(calls.some((c) => c.startsWith('role:'))).toBe(false);
+  });
+
+  it('closes a rejected issue with the rationale', async () => {
+    const { deps, calls } = fakeDeps({}, { triage: [fence({ route: 'reject', areas: [], questions: [], rationale: 'spam' })] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('rejected');
+    expect(calls).toContain('comment:Triage rejected this issue: spam');
+    expect(calls).toContain('done');
+  });
+
+  it('asks the reporter for information on needs_info', async () => {
+    const { deps, calls } = fakeDeps({}, { triage: [fence({ route: 'needs_info', areas: [], questions: ['which page?'], rationale: '' })] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('needs_info');
+    expect(calls).toContain('comment:Triage needs more information:');
+  });
+
+  it('stops a sensitive title before any worktree is made', async () => {
+    const { deps, calls } = fakeDeps({}, { triage: [triageFull] });
+    expect(await workIssue({ ...ISSUE, title: 'Fix billing page' }, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:sensitive area: a person must lead this issue (plan sign-off)');
+    expect(calls).not.toContain('worktree');
+  });
+
+  it('fails when the architect sends a bad plan twice', async () => {
+    const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: ['no json', 'still no'] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls.some((c) => c.startsWith('fail:no valid plan'))).toBe(true);
+    expect(calls.filter((c) => c === 'role:architect')).toHaveLength(2);
+  });
+
+  it('fails with the tail when a step goes red', async () => {
+    const { deps, calls } = fakeDeps({ steps: async () => ({ ok: false, tail: 'line1\nboom' }) },
+      { triage: [triageFull], architect: [fence(PLAN)] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls.some((c) => c.startsWith('fail:a step went red') && c.includes('boom'))).toBe(true);
+  });
+
+  it('writes a fix task and runs the steps again for one kept finding', async () => {
+    const review = { findings: [{ file: 'src/a.ts:3', what: 'bug', why: 'x', fix: 'y' }] };
+    const { deps, calls } = fakeDeps({}, {
+      triage: [triageFull],
+      architect: [fence(PLAN)],
+      'lead-judge': [fence({ R1: { decision: 'keep', reason: 'real' } })],
+      verifier: ['PASS'],
+    }, [{ ok: true, review, security: { findings: [] } }, { ok: true, review: { findings: [] }, security: { findings: [] } }]);
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(calls).toContain('writeTasks:91-review-fixes.md');
+    expect(calls.filter((c) => c === 'steps')).toHaveLength(2);
+  });
+
+  it('fails when findings stay kept after the fix rounds', async () => {
+    const review = { findings: [{ file: 'src/a.ts:3', what: 'bug', why: 'x', fix: 'y' }] };
+    const keep = fence({ R1: { decision: 'keep', reason: 'real' } });
+    const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(PLAN)], 'lead-judge': [keep, keep] },
+      [{ ok: true, review, security: {} }, { ok: true, review, security: {} }]);
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:findings still open after 1 fix rounds');
+  });
+
+  it('stops when the verifier holds the change', async () => {
+    const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(PLAN)], verifier: ['HOLD: missing test'] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls.some((c) => c.startsWith('fail:verifier held the change'))).toBe(true);
+    expect(calls).not.toContain('draftPr');
+  });
+
+  it('stops before the plan when the spend is over the cap', async () => {
+    const { deps, calls } = fakeDeps({ spent: async () => 9 });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:over budget: $9 of $5');
+    expect(calls).not.toContain('worktree');
+  });
+
+  it('stops when the clock is past the timeout', async () => {
+    let t = 0;
+    const { deps, calls } = fakeDeps({ now: () => (t += 31 * 60000) }, { triage: [triageFull] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls.some((c) => c.startsWith('fail:timeout after 30 min'))).toBe(true);
+  });
+
+  it('reports a thrown dep error as failed with its message', async () => {
+    const { deps, calls } = fakeDeps({ worktree: async () => { throw new Error('disk full'); } }, { triage: [triageFull] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:error: disk full');
+  });
+});
