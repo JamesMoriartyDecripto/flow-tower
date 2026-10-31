@@ -175,6 +175,31 @@ describe('gate', () => {
   });
 });
 
+describe('pack and gate env', () => {
+  it('gives pack.mjs and gate.mjs no OPENROUTER_API_KEY, while the rest of the environment stays', () => {
+    const before = env.OPENROUTER_API_KEY;
+    process.env.OPENROUTER_API_KEY = 'sk-or-v1-testkey000000';
+    try {
+      const { deps, calls } = setup((c) => ({
+        status: 0,
+        stdout: c.args[0].endsWith('gate.mjs') ? 'READY: #77\n' : VERDICT('approve'),
+      }));
+      deps.quality('/repo', { number: 7 });
+      deps.gate('/repo', 'https://github.com/o/r/pull/77');
+      const pack = calls.find((c) => c.args[0].endsWith('pack.mjs'));
+      const gate = calls.find((c) => c.args[0].endsWith('gate.mjs'));
+      expect(pack?.opts?.env).toBeDefined();
+      expect(gate?.opts?.env).toBeDefined();
+      expect(pack?.opts.env).not.toHaveProperty('OPENROUTER_API_KEY');
+      expect(gate?.opts.env).not.toHaveProperty('OPENROUTER_API_KEY');
+      expect(gate?.opts.env.PATH).toBe(env.PATH);
+    } finally {
+      if (before === undefined) delete process.env.OPENROUTER_API_KEY;
+      else process.env.OPENROUTER_API_KEY = before;
+    }
+  });
+});
+
 describe('spent', () => {
   it('sums the cost of one issue from a ledger file', () => {
     const home = tmp();

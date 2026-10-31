@@ -2,7 +2,7 @@
 // and the models make only the judgement calls (triage, plan, judge, verifier). No I/O here: every effect goes through
 // deps, so the tests run the whole path with fakes and the same facts always take the same path.
 import { join } from 'node:path';
-import { fixTask, judgePrompt, numberFindings, parseJudgement } from './runner-judge.mjs';
+import { FENCE_TAG, fixTask, judgePrompt, numberFindings, parseJudgement } from './runner-judge.mjs';
 import { parsePlan, taskFiles } from './runner-plan.mjs';
 
 // An area named here needs a human to sign off the plan before any code is written.
@@ -21,16 +21,19 @@ const stop = (reason) => { throw new Stop(reason); };
 const lastLines = (text, k) => String(text ?? '').split('\n').slice(-k).join('\n');
 
 // A closing or opening fence tag inside text would let the text end its own fence early, so the tags are removed.
-const stripFence = (text) => String(text ?? '').replace(/<\/?(issue-data|plan-data)>/g, '');
+// The tag regex also matches spaced forms such as "</ plan-data>", which a looser parser would still read as a tag.
+const stripFence = (text) => String(text ?? '').replace(FENCE_TAG, '');
 
 // Secrets that a child process may print. Each match becomes [redacted], so a failure reason posted on the public
 // issue cannot carry a key. The patterns are the shapes of the keys this repo uses; ordinary text is left alone.
+// Matching is case-insensitive because a secret is printed in lower case as often as upper case.
 const SECRETS = [
   /sk-or-[A-Za-z0-9_-]{10,}/g,
   /gh[pousr]_[A-Za-z0-9]{20,}/g,
   /github_pat_[A-Za-z0-9_]{20,}/g,
-  /Bearer\s+\S+/g,
-  /[A-Z_]*(KEY|TOKEN|SECRET|PASSWORD)[A-Z_]*=\S+/g,
+  /Bearer\s+\S+/gi,
+  // Covers NAME=value, NAME: value and NAME = value for names that contain key, token, secret or password.
+  /[\w-]*(key|token|secret|password)[\w-]*\s*[:=]\s*\S+/gi,
 ];
 export function scrub(text) {
   return SECRETS.reduce((t, re) => t.replace(re, '[redacted]'), String(text ?? ''));

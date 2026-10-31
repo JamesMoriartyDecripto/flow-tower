@@ -24,6 +24,14 @@ function verdictOrNull(text) {
   try { return parseVerdict(text); } catch { return null; }
 }
 
+// pack.mjs and gate.mjs read the repo and the review files only, so they get the environment without the model key:
+// a child that needs no key should not be able to read one.
+function envWithoutKey() {
+  const copy = { ...env };
+  delete copy.OPENROUTER_API_KEY;
+  return copy;
+}
+
 // gh is the GitHub adapter from runner-gh.mjs; it is passed in so the runner builds it once and the core reads it here.
 export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
   const squadDir = join(home, 'squad-runner');
@@ -84,7 +92,8 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
 
   // One review pass: the pack is written to a task file, then run. Returns the run's text, which holds the verdict.
   function reviewPass(path, n, name, model) {
-    const packed = exec('node', [join(runner, 'pack.mjs'), '--role', name, '--issue', String(n), '--repo', path]);
+    const packed = exec('node', [join(runner, 'pack.mjs'), '--role', name, '--issue', String(n), '--repo', path],
+      { env: envWithoutKey() });
     const file = freshTask(`${n}-${name}`, packed.stdout);
     const args = [join(runner, 'run.mjs'), '--role', name, '--node', ROLES[name].node, '--task', file,
       '--issue', String(n), '--repo', path, ...(model ? ['--model', model] : [])];
@@ -126,7 +135,8 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
     if (lastIssue === undefined) throw new Error('gate ran before quality');
     const n = lastIssue;
     const r = exec('node', [join(runner, 'gate.mjs'), '--pr', pr[1],
-      '--review', join(outDir, `${n}-review.out`), '--security', join(outDir, `${n}-security.out`), '--repo', path]);
+      '--review', join(outDir, `${n}-review.out`), '--security', join(outDir, `${n}-security.out`), '--repo', path],
+      { env: envWithoutKey() });
     return { ready: String(r.stdout ?? '').startsWith('READY'), text: r.stdout };
   }
 
