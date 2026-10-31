@@ -46,6 +46,11 @@ function satisfied(entry, changed) {
   return changed.some((p) => p === entry || p.startsWith(dir));
 }
 
+// One path against one entry, with the same rule as the check. step-scope.mjs reuses it so the two never disagree.
+export function matchesEntry(entry, path) {
+  return satisfied(entry, [path]);
+}
+
 // Returns the entries no changed path satisfies, in the order the task lists them.
 export function missingFiles(entries, changed) {
   return entries.filter((e) => !satisfied(e, changed));

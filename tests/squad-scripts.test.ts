@@ -116,4 +116,20 @@ describe('steps.sh (#265)', () => {
     const r = spawnSync('bash', ['-n', join(squad, 'steps.sh')], { encoding: 'utf8' });
     expect(r.status).toBe(0);
   });
+
+  it('runs from a private copy so edits to steps.sh cannot break a run (#353)', () => {
+    const text = readFileSync(join(squad, 'steps.sh'), 'utf8');
+    expect(text).toContain('SQUAD_STEPS_COPY');
+    expect(text).toContain('SQUAD_STEPS_HOME');
+    const r = spawnSync('bash', ['-n', join(squad, 'steps.sh')], { encoding: 'utf8' });
+    expect(r.status).toBe(0);
+  });
+
+  it('skips done steps and stages only the step scope (#353)', () => {
+    const text = readFileSync(join(squad, 'steps.sh'), 'utf8');
+    expect(text).toContain('step-scope.mjs" done');
+    expect(text).toContain('step-scope.mjs" stage');
+    expect(text).toContain('foreign-touched');
+    expect(text).not.toContain('git add -u');
+  });
 });

@@ -121,10 +121,14 @@ git worktree remove ../wt-113 && git branch -d fix/113-tools
 `<write-dirs>` is a comma-separated list, same as `run.mjs --write` (e.g. `src,tests` or `tools/squad`). `REPO` picks the worktree
 (default: this checkout); `NODE` picks the Node binary (default `node`; e.g. `NODE=/opt/node22/bin/node` where the
 system Node is older than 22). For simple tasks, `CODER_MODEL=openai/gpt-6-luna`. It stops at the first red step: a failed
-coder run, no change at all, a red check, or a `Files:` entry the step did not touch. Each commit stages every changed tracked path (`git add -u`),
-not a fixed list, so files like `package.json` or `NEXT.md` are never left out; new files are staged inside the
-`write-dirs`, and anything untracked outside them is reported as `UNTRACKED LEFT (not committed)`. Probe files the
-coder dropped (`tmp*`, `probe`, `scratch`) are removed first. Trailers are session-specific, so pass them in
+coder run, no change at all, a red check, or a `Files:` entry the step did not touch. A step whose commit
+(`<title>, step <name> (#<issue>)`) is already on the branch is skipped, so a folder can be run again after a fix.
+The coder may write the `write-dirs` plus the folder of every `Files:` entry. Each commit stages only the step's own
+paths: changes inside those folders or matching `Files:`. A root file such as `package.json` must therefore be listed in
+`Files:`. Anything else the coder changed is reported as `CHANGED, NOT COMMITTED` or `UNTRACKED LEFT` and stays out.
+Local changes that exist before the run (your own uncommitted edits, the task files) are listed at the start and
+never staged; a step that modifies one of them is RED. Probe files the coder dropped (`tmp*`, `probe`, `scratch`) are
+removed first. The script runs from a temporary copy of itself, so a step may edit `steps.sh`. Trailers are session-specific, so pass them in
 `SQUAD_TRAILERS` (one per line) or leave them out. Each step commit is signed off (`git commit -s`, the DCO rule in CONTRIBUTING.md) with the git identity of whoever runs the squad.
 
 `run.mjs` needs `OPENROUTER_API_KEY`: the environment, else `~/.config/flow-tower/.env` (or `FLOW_TOWER_HOME`), else the
