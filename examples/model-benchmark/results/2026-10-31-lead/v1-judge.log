@@ -1,0 +1,48 @@
+ok   judge/quickfix-removal  check=command  tools=read_file  steps<=6
+ok   judge/steps-scope  check=command  tools=read_file  steps<=6
+ok   judge/temp-cleanup  check=command  tools=read_file  steps<=6
+
+plan: 6 models × 3 tasks × 2 runs = 36 runs (at most 216 model calls, 432 with retries)
+models: anthropic/claude-sonnet-5.5, openai/gpt-6.1-terra, z-ai/glm-5.3, moonshotai/kimi-k2.6, google/gemini-3.8-flash, z-ai/glm-5.3-flash
+order: run-major, models interleaved, so a slow hour or a provider incident hits every model alike
+output: results/2026-10-31-lead/judge.jsonl  timeout: 180s + 1 retry  effort: low
+note: fewer than 3 runs per cell: label every result ILLUSTRATIVE
+[1/36] anthropic/claude-sonnet-5.5 quickfix-removal #1: answered · 5.5s · 2 steps · $0.0331 · cache 11%
+[2/36] openai/gpt-6.1-terra quickfix-removal #1: answered · 3.4s · 2 steps · $0.0107 · cache 0%
+[3/36] z-ai/glm-5.3 quickfix-removal #1: answered · 3.2s · 2 steps · $0.0011 · cache 10%
+[4/36] moonshotai/kimi-k2.6 quickfix-removal #1: answered · 43.1s · 2 steps · $0.0176 · cache 9%
+[5/36] google/gemini-3.8-flash quickfix-removal #1: answered · 10.8s · 2 steps · $0.0078 · cache 0%
+[6/36] z-ai/glm-5.3-flash quickfix-removal #1: answered · 30.3s · 3 steps · $0.0005 · cache 10%
+[7/36] anthropic/claude-sonnet-5.5 steps-scope #1: answered · 9.7s · 2 steps · $0.0421 · cache 9%
+[8/36] openai/gpt-6.1-terra steps-scope #1: answered · 4.6s · 2 steps · $0.0130 · cache 0%
+[9/36] z-ai/glm-5.3 steps-scope #1: answered · 8.3s · 2 steps · $0.0034 · cache 11%
+[10/36] moonshotai/kimi-k2.6 steps-scope #1: answered · 38.0s · 2 steps · $0.0085 · cache 63%
+[11/36] google/gemini-3.8-flash steps-scope #1: answered · 8.2s · 2 steps · $0.0091 · cache 0%
+[12/36] z-ai/glm-5.3-flash steps-scope #1: answered · 12.8s · 2 steps · $0.0014 · cache 7%
+[13/36] anthropic/claude-sonnet-5.5 temp-cleanup #1: answered · 7.7s · 2 steps · $0.0261 · cache 12%
+[14/36] openai/gpt-6.1-terra temp-cleanup #1: answered · 5.0s · 2 steps · $0.0088 · cache 0%
+[15/36] z-ai/glm-5.3 temp-cleanup #1: answered · 9.6s · 2 steps · $0.0023 · cache 12%
+[16/36] moonshotai/kimi-k2.6 temp-cleanup #1: answered · 34.5s · 2 steps · $0.0182 · cache 10%
+[17/36] google/gemini-3.8-flash temp-cleanup #1: answered · 6.6s · 2 steps · $0.0058 · cache 0%
+[18/36] z-ai/glm-5.3-flash temp-cleanup #1: answered · 20.6s · 2 steps · $0.0002 · cache 12%
+[19/36] anthropic/claude-sonnet-5.5 quickfix-removal #2: answered · 7.0s · 2 steps · $0.0045 · cache 100%
+[20/36] openai/gpt-6.1-terra quickfix-removal #2: answered · 3.5s · 2 steps · $0.0107 · cache 0%
+[21/36] z-ai/glm-5.3 quickfix-removal #2: answered · 4.7s · 2 steps · $0.0031 · cache 10%
+[22/36] moonshotai/kimi-k2.6 quickfix-removal #2: answered · 26.8s · 2 steps · $0.0126 · cache 9%
+[23/36] google/gemini-3.8-flash quickfix-removal #2: answered · 10.0s · 2 steps · $0.0078 · cache 0%
+[24/36] z-ai/glm-5.3-flash quickfix-removal #2: answered · 28.6s · 3 steps · $0.0005 · cache 13%
+[25/36] anthropic/claude-sonnet-5.5 steps-scope #2: answered · 10.8s · 2 steps · $0.0091 · cache 100%
+[26/36] openai/gpt-6.1-terra steps-scope #2: answered · 4.5s · 2 steps · $0.0131 · cache 0%
+[27/36] z-ai/glm-5.3 steps-scope #2: answered · 6.1s · 2 steps · $0.0119 · cache 8%
+[28/36] moonshotai/kimi-k2.6 steps-scope #2: answered · 59.7s · 2 steps · $0.0214 · cache 7%
+[29/36] google/gemini-3.8-flash steps-scope #2: answered · 7.6s · 2 steps · $0.0091 · cache 0%
+[30/36] z-ai/glm-5.3-flash steps-scope #2: answered · 67.6s · 3 steps · $0.0007 · cache 26%
+[31/36] anthropic/claude-sonnet-5.5 temp-cleanup #2: answered · 9.7s · 2 steps · $0.0273 · cache 12%
+[32/36] openai/gpt-6.1-terra temp-cleanup #2: answered · 3.9s · 2 steps · $0.0082 · cache 0%
+[33/36] z-ai/glm-5.3 temp-cleanup #2: answered · 3.8s · 2 steps · $0.0017 · cache 15%
+[34/36] moonshotai/kimi-k2.6 temp-cleanup #2: answered · 40.2s · 2 steps · $0.0165 · cache 100%
+[35/36] google/gemini-3.8-flash temp-cleanup #2: answered · 7.6s · 2 steps · $0.0031 · cache 55%
+[36/36] z-ai/glm-5.3-flash temp-cleanup #2: answered · 23.9s · 2 steps · $0.0002 · cache 16%
+
+done: 36 runs, $0.3711 in total → results/2026-10-31-lead/judge.jsonl
+next: node scripts/judge.mjs --in results/2026-10-31-lead/judge.jsonl --tasks tasks/judge/
