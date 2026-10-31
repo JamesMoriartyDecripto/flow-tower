@@ -286,7 +286,7 @@ layers:
         label: run.mjs
         description: "One role, one process: picks the model from squad.json, the mode (tool loop for most roles, oneshot or batch for reviewer and security), calls OpenRouter, records the cost."
         tower: towers/runner-loop.tower.yaml
-        files: [roles/coder.md]
+        files: [towers/runner-loop.tower.yaml, roles/coder.md]
       - id: steps
         runtime: laptop
         type: process
