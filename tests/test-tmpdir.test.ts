@@ -1,4 +1,14 @@
-import { mkdirSync, mkdtempSync, existsSync, rmSync, utimesSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  existsSync,
+  lstatSync,
+  lutimesSync,
+  rmSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { env } from 'node:process';
@@ -16,6 +26,7 @@ describe('per-run temp folder (#357)', () => {
   it('removes old leftovers, keeps new ones, and tears down its own folder', () => {
     const savedTmpdir = env.TMPDIR;
     const fakeBase = mkdtempSync(join(tmpdir(), 'fake-base-'));
+    const linkTarget = mkdtempSync(join(tmpdir(), 'link-target-'));
     try {
       env.TMPDIR = fakeBase;
       const old = join(fakeBase, 'flow-tower-tests-old');
@@ -25,9 +36,25 @@ describe('per-run temp folder (#357)', () => {
       const twoDaysAgo = (Date.now() - 2 * 24 * 60 * 60 * 1000) / 1000;
       utimesSync(old, twoDaysAgo, twoDaysAgo);
 
+      // An old symlink planted in the shared base must survive the sweep, and
+      // the folder it points to must not be removed or changed.
+      const marker = join(linkTarget, 'keep.txt');
+      writeFileSync(marker, 'keep');
+      const link = join(fakeBase, 'flow-tower-tests-link');
+      symlinkSync(linkTarget, link, 'dir');
+      // lutimesSync sets the link's own mtime; without it the link is not old
+      // and the assertion below is skipped rather than checking nothing.
+      const canAgeLink = typeof lutimesSync === 'function';
+      if (canAgeLink) lutimesSync(link, twoDaysAgo, twoDaysAgo);
+
       const teardown = globalTmp();
       expect(existsSync(old)).toBe(false);
       expect(existsSync(fresh)).toBe(true);
+      if (canAgeLink) {
+        expect(lstatSync(link).isSymbolicLink()).toBe(true);
+        expect(existsSync(linkTarget)).toBe(true);
+        expect(existsSync(marker)).toBe(true);
+      }
 
       const runDir = env.TMPDIR;
       expect(dirname(runDir)).toBe(fakeBase);
@@ -41,6 +68,7 @@ describe('per-run temp folder (#357)', () => {
       if (savedTmpdir === undefined) delete env.TMPDIR;
       else env.TMPDIR = savedTmpdir;
       rmSync(fakeBase, { recursive: true, force: true });
+      rmSync(linkTarget, { recursive: true, force: true });
     }
   });
 });

@@ -5,7 +5,7 @@
 // the run sets TMPDIR to a folder of its own, and the teardown removes it.
 // Tests that need a folder outside any git checkout still get one, because
 // the base folder is the system temp dir, which is outside the repo.
-import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { lstatSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { env } from 'node:process';
@@ -27,7 +27,13 @@ export default function globalTmp(): () => void {
     if (!name.startsWith(PREFIX)) continue;
     const path = join(base, name);
     try {
-      if (now - statSync(path).mtimeMs < MAX_AGE_MS) continue;
+      // lstat, not stat: the base is shared, so another user could plant a
+      // symlink named like ours. stat would follow it and could age the
+      // target, and the recursive rm would then reach a folder we do not own.
+      // A symlink is not a directory under lstat, so it is skipped too.
+      const st = lstatSync(path);
+      if (!st.isDirectory()) continue;
+      if (now - st.mtimeMs < MAX_AGE_MS) continue;
       rmSync(path, { recursive: true, force: true });
     } catch {
       // One bad entry must not stop the cleanup of the others.
