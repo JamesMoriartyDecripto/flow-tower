@@ -39,6 +39,10 @@ describe('badEntries', () => {
     expect(badEntries(['/etc/passwd', '../x', 'a/../b'])).toEqual(['/etc/passwd', '../x', 'a/../b']);
   });
 
+  it('flags a drive-letter or backslash entry, which is absolute or a separator on Windows', () => {
+    expect(badEntries(['C:/x', 'C:\\x', 'a\\b'])).toEqual(['C:/x', 'C:\\x', 'a\\b']);
+  });
+
   it('accepts entries inside the repo, globs and root files', () => {
     expect(badEntries(['src/a.ts', 'docs/**/*.md', 'CHANGELOG.md'])).toEqual([]);
   });

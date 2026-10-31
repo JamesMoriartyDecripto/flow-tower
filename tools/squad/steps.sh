@@ -46,7 +46,9 @@ for f in "$dir"/*.md; do
   step=${step%.md}
   echo "=== #$issue step $step"
   # A step whose commit is already in the log is done: rerunning it would make a second commit for the same work.
-  if [ "$("$NODE" "$H/step-scope.mjs" done "$issue" "$step" "$R")" = yes ]; then echo "skip $step: already committed"; continue; fi
+  # A failing done check stops the run: an empty answer would read as "not done" and rerun a finished step.
+  doneAns=$("$NODE" "$H/step-scope.mjs" done "$issue" "$step" "$R") || { echo "RED: cannot tell whether step $step is done"; exit 1; }
+  if [ "$doneAns" = yes ]; then echo "skip $step: already committed"; continue; fi
   # The commit base for the files check: the step's changes are everything since this commit.
   base=$(git -C "$R" rev-parse HEAD)
   # The coder may write only the step's own dirs: the configured write list plus the directories of its Files entries.
@@ -101,6 +103,9 @@ for f in "$dir"/*.md; do
     # Nothing left to stage means the coder changed only probe files. An empty pathspec would make git commit the whole
     # index, including what the maintainer staged before the run, so this step is RED instead (#353).
     if [ -z "$staged" ]; then echo "RED after step $step: the coder changed only probe files"; exit 1; fi
+    # Paths come from git output and must match literally: a name like a[1].ts would otherwise be read as a glob,
+    # for git add and for the pathspec git commit below alike.
+    export GIT_LITERAL_PATHSPECS=1
     while IFS= read -r p; do
       [ -n "$p" ] && env -u OPENROUTER_API_KEY git add -A -- "$p"
     done <<< "$staged"

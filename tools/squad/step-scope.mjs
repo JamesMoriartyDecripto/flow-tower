@@ -55,9 +55,10 @@ export function toStage(changed, foreign, writeDirs, files) {
 }
 
 // A Files entry must name a path inside the repo. An absolute entry or a ".." segment would give a write dir outside
-// it, so a step could write anywhere on disk.
+// it, so a step could write anywhere on disk. A drive-letter or backslash entry is absolute on Windows, and git
+// reads a backslash as a separator there, so both are refused too.
 export function badEntries(files) {
-  return files.filter((e) => e.startsWith('/') || e.split('/').includes('..'));
+  return files.filter((e) => e.startsWith('/') || /^[A-Za-z]:[\\/]/.test(e) || e.includes('\\') || e.split('/').includes('..'));
 }
 
 // The foreign paths a step changed: the hash differs, or the file is gone (a "-" hash marks a missing file).
