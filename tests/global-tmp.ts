@@ -33,6 +33,9 @@ export default function globalTmp(): () => void {
       // A symlink is not a directory under lstat, so it is skipped too.
       const st = lstatSync(path);
       if (!st.isDirectory()) continue;
+      // The base is shared, so another user's run folder is not ours to delete.
+      // Windows has no getuid; there the check is skipped and behaviour is unchanged.
+      if (typeof process.getuid === 'function' && st.uid !== process.getuid()) continue;
       if (now - st.mtimeMs < MAX_AGE_MS) continue;
       rmSync(path, { recursive: true, force: true });
     } catch {
