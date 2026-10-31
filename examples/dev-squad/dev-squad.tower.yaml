@@ -266,7 +266,6 @@ layers:
         label: Maintainer merge
         description: "Only the maintainer merges. Agents never run the merge."
         approval: { by: maintainer, via: PR, actions: [approve, respond] }
-        files: [README.md]
     edges:
       - "pack -> reviewer [spawn]: packed review"
       - "pack -> security [spawn]: packed audit"
