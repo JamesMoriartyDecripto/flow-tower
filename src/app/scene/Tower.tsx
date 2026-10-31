@@ -169,7 +169,7 @@ function Stack({ tower, layout }: { tower: NonNullable<ReturnType<typeof useTowe
             subtrees={live.subtrees}
           />
         ))}
-        <Links links={tower.links} layout={layout} layerIndex={layerIndex} visual={visual} layerFade={layerFade} lens={lens} quiet={view === 'map'} />
+        <Links links={tower.links} layout={layout} layerIndex={layerIndex} visual={visual} layerFade={layerFade} lens={lens} quiet={view === 'map'} focusedLayer={focusedLayer} />
         <group ref={pillars}>
           <Pillars width={width} depth={depth} bottom={-(n - 1) * LAYER_GAP} />
         </group>

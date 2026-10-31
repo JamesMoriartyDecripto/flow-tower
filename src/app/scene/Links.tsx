@@ -11,6 +11,7 @@ import { decorative } from './frameBudget';
 import { EDGE_STYLE, GLOW, HOT } from '../theme';
 import { scaled, toSegments } from './batch';
 import type { LensState } from './lens';
+import { linkFocusFade } from './linkFocus';
 import { Particles, type ParticlePath } from './Particles';
 import type { Visual } from './Layer';
 
@@ -23,10 +24,18 @@ interface Props {
   lens: LensState;
   /** Map view: seen from above, links cross everything; keep them faint unless highlighted. */
   quiet: boolean;
+  /** Focus mode hides links that are not about the focused layer (#348). */
+  focusedLayer: number | undefined;
 }
 
 const STEPS = 24;
 const LIFT = 0.16;
+
+/** Combined opacity of a curve: focus rule first, then the node fades of both endpoints. */
+function curveFade(c: Curve, visual: Visual, layerFade: (index: number) => number, focusedLayer: number | undefined): number {
+  return linkFocusFade(c.la, c.lb, focusedLayer, !!visual.edgeHighlight(c.link.id), layerFade)
+    * Math.min(visual.nodeFade(c.link.from), visual.nodeFade(c.link.to));
+}
 
 interface Curve {
   link: ResolvedEdge;
@@ -71,7 +80,7 @@ function flatten(points: Vector3[]): Float32Array {
 }
 
 /** Cross-layer edges, batched into solid / dashed / highlighted lines that follow the layer lens. */
-export function Links({ links, layout, layerIndex, visual, layerFade, lens, quiet }: Props) {
+export function Links({ links, layout, layerIndex, visual, layerFade, lens, quiet, focusedLayer }: Props) {
   const particles = useStore((s) => s.particles);
   const flow = usePrefs((s) => s.flowLayers);
   const visible = usePrefs((s) => s.show.links);
@@ -87,17 +96,23 @@ export function Links({ links, layout, layerIndex, visual, layerFade, lens, quie
     return [c];
   }), [links, layout, layerIndex, lens]);
 
+  // Curves hidden by focus mode or by a zero fade are dropped up front, so they cost no segments.
+  const shown = useMemo(
+    () => curves
+      .map((c) => ({ c, fade: curveFade(c, visual, layerFade, focusedLayer) }))
+      .filter((s) => s.fade > 0),
+    [curves, visual, layerFade, focusedLayer],
+  );
+
   const batches = useMemo(() => {
-    const fadeOf = (c: Curve) =>
-      Math.min(layerFade(c.la), layerFade(c.lb)) * Math.min(visual.nodeFade(c.link.from), visual.nodeFade(c.link.to));
-    const group = (dashed: boolean) => toSegments(curves
-      .filter((c) => EDGE_STYLE[c.link.kind].dashed === dashed && !visual.edgeHighlight(c.link.id))
-      .map((c) => ({ points: c.points, color: scaled(GLOW.white, (quiet ? 0.12 : 0.32) * fadeOf(c)) })));
-    const hot = toSegments(curves
-      .filter((c) => visual.edgeHighlight(c.link.id))
-      .map((c) => ({ points: c.points, color: scaled(HOT.orange, fadeOf(c)) })));
+    const group = (dashed: boolean) => toSegments(shown
+      .filter(({ c }) => EDGE_STYLE[c.link.kind].dashed === dashed && !visual.edgeHighlight(c.link.id))
+      .map(({ c, fade }) => ({ points: c.points, color: scaled(GLOW.white, (quiet ? 0.12 : 0.32) * fade) })));
+    const hot = toSegments(shown
+      .filter(({ c }) => visual.edgeHighlight(c.link.id))
+      .map(({ c, fade }) => ({ points: c.points, color: scaled(HOT.orange, fade) })));
     return { solid: group(false), dashed: group(true), hot };
-  }, [curves, visual, layerFade, quiet]);
+  }, [shown, visual, quiet]);
 
   // Imperative updates: when the lens animates, move the existing geometry instead of re-rendering.
   const refs = { solid: useRef<LineSegments2>(null), dashed: useRef<LineSegments2>(null), hot: useRef<LineSegments2>(null) };
@@ -115,9 +130,11 @@ export function Links({ links, layout, layerIndex, visual, layerFade, lens, quie
     }
   });
 
+  // Particles follow the same visibility in focus mode; without focus they keep every curve as before.
   const paths = useMemo<ParticlePath[]>(
-    () => curves.map((c) => ({ points: c.points, color: EDGE_STYLE[c.link.kind].color, count: 1 })),
-    [curves],
+    () => (focusedLayer === undefined ? curves : shown.map((s) => s.c))
+      .map((c) => ({ points: c.points, color: EDGE_STYLE[c.link.kind].color, count: 1 })),
+    [curves, shown, focusedLayer],
   );
 
   return (
