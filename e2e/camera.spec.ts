@@ -10,12 +10,12 @@ const camera = (page: Page) => page.evaluate(() => {
 const distance = async (page: Page) => (await camera(page)).distance;
 const targetX = async (page: Page) => (await camera(page)).x;
 const DEV = ws.projects.find((p) => p.startsWith('dev-squad/'))!;
-// Harness & Guardrails: the longest layer of dev-squad.
-const HARNESS = 5;
+// Quality Gate: the longest layer of dev-squad.
+const LONGEST = 3;
 
 async function selectInLayer(page: Page) {
   await pressUntil(page, 'PageDown', (s) => s.focusedLayer === 0);
-  await pressUntil(page, 'PageDown', (s) => s.focusedLayer === HARNESS);
+  await pressUntil(page, 'PageDown', (s) => s.focusedLayer === LONGEST);
   await page.waitForTimeout(1500);
   const before = await distance(page);
   await pressUntil(page, 'ArrowRight', (s) => !!s.selected);

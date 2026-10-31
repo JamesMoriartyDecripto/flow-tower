@@ -31,11 +31,11 @@ describe('voice live status (#160a)', () => {
   it('lists only the errors inside the window, newest first, and marks the one on screen', () => {
     const nodes = new Map<string, NodeLive>([
       [`${TOWER}#intake.triage`, node({ errorTs: NOW - 30_000, lastTs: NOW - 30_000, last: event({ kind: 'tool.end', ts: NOW - 30_000, tool: 'Bash' }, []) })],
-      [`${TOWER}#intake.webhook`, node({ errorTs: NOW - 20 * 60_000 })],
+      [`${TOWER}#intake.issue`, node({ errorTs: NOW - 20 * 60_000 })],
     ]);
     const r = run({ nodes });
     expect(r.errors.map((e) => e.key)).toEqual(['intake.triage']);
-    expect(r.errors[0]).toMatchObject({ node: 'Triage router', on_screen: true, ago: '30 s', kind: 'tool.end', tool: 'Bash' });
+    expect(r.errors[0]).toMatchObject({ node: 'Triage', on_screen: true, ago: '30 s', kind: 'tool.end', tool: 'Bash' });
     expect(r.newest_error).toBe(r.errors[0]);
     expect(run({ nodes, towerId: 'elsewhere.yaml' }).errors[0].on_screen).toBe(false);
   });
@@ -52,10 +52,10 @@ describe('voice live status (#160a)', () => {
   it('lists a node running with an open start, and not a stale one', () => {
     const nodes = new Map<string, NodeLive>([
       [`${TOWER}#intake.triage`, node({ open: 1, lastTs: NOW - 10_000 })],
-      [`${TOWER}#intake.webhook`, node({ open: 1, lastTs: NOW - 5 * 60_000 })],
+      [`${TOWER}#intake.issue`, node({ open: 1, lastTs: NOW - 5 * 60_000 })],
     ]);
     const r = run({ nodes });
-    expect(r.running).toEqual([expect.objectContaining({ key: 'intake.triage', node: 'Triage router', since: '10 s', on_screen: true })]);
+    expect(r.running).toEqual([expect.objectContaining({ key: 'intake.triage', node: 'Triage', since: '10 s', on_screen: true })]);
   });
 
   it('is quiet with no events in the window', () => {
@@ -66,7 +66,7 @@ describe('voice live status (#160a)', () => {
 
   it('ranks the busiest nodes by window events, ties by label, and omits hub unless asked', () => {
     const a = `${TOWER}#intake.triage`;
-    const b = `${TOWER}#intake.webhook`;
+    const b = `${TOWER}#intake.issue`;
     const events = [
       event({ kind: 'log', ts: NOW - 1000, targets: [a] }),
       event({ kind: 'log', ts: NOW - 2000, targets: [a, b] }),
@@ -75,8 +75,8 @@ describe('voice live status (#160a)', () => {
     const r = run({ events });
     expect(r.quiet).toBe(false);
     expect(r.events).toBe(3);
-    // Both nodes have two events: the label breaks the tie ("Triage router" < "Webhook receiver").
-    expect(r.busiest.map((x) => [x.node, x.events])).toEqual([['Triage router', 2], ['Webhook receiver', 2]]);
+    // Both nodes have two events: the label breaks the tie ("GitHub issue" < "Triage").
+    expect(r.busiest.map((x) => [x.node, x.events])).toEqual([['GitHub issue', 2], ['Triage', 2]]);
     expect(r.busiest.length).toBeLessThanOrEqual(3);
     expect(r).not.toHaveProperty('hub');
   });

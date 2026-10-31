@@ -285,9 +285,9 @@ describe('towerDoc', () => {
     const paths = files.map((f) => f.path);
     expect(paths).toEqual([...paths].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
     for (const f of files) expect(f.refs.length).toBeGreaterThan(0);
-    // The triage tower file the e2e test names: its source is in the appendix with the node that uses it.
-    const triage = files.find((f) => f.path === 'src/triage.ts');
-    expect(triage, 'src/triage.ts is listed').toBeDefined();
+    // The triage role file the e2e test names: its source is in the appendix with the node that uses it.
+    const triage = files.find((f) => f.path === 'roles/triage.md');
+    expect(triage, 'roles/triage.md is listed').toBeDefined();
     // Each ref names the node by its code (N-Lxx.yy), so a reader can find it in the layer table.
     expect(triage!.refs.every((r) => /N-L\d{2}\.\d{2}$/.test(r))).toBe(true);
   });

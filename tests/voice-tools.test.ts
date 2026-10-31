@@ -19,29 +19,29 @@ describe('voice agent tools (#63)', () => {
   });
 
   it('lists layers and the nodes of the second one', () => {
-    expect(call('list_layers')[1]).toMatchObject({ number: 2, title: 'Orchestration' });
+    expect(call('list_layers')[1]).toMatchObject({ number: 2, title: 'Plan & Steps' });
     const r = call('layer_nodes', { layer: 2 });
-    expect(r.layer.title).toBe('Orchestration');
-    expect(r.nodes.map((n: { key: string }) => n.key)).toContain('orchestration.lead');
-    expect(call('layer_nodes', { layer: 'tools' }).layer.title).toBe('Tools & MCP');
+    expect(r.layer.title).toBe('Plan & Steps');
+    expect(r.nodes.map((n: { key: string }) => n.key)).toContain('orchestration.architect');
+    expect(call('layer_nodes', { layer: 'runner' }).layer.title).toBe('Runner (tools/squad)');
   });
 
   it('answers about "this node" from the selection, and acts on screen', () => {
-    expect(call('select_node', { node: 'triage' })).toMatchObject({ selected: 'Triage router', layer: 'Intake & Triage' });
+    expect(call('select_node', { node: 'triage' })).toMatchObject({ selected: 'Triage', layer: 'Intake & Triage' });
     expect(useStore.getState().selected).toBe('intake.triage');
     const c = call('connections');
-    expect(c.incoming.map((e: { from: { node: string } }) => e.from.node)).toContain('Webhook receiver');
+    expect(c.incoming.map((e: { from: { node: string } }) => e.from.node)).toContain('Lead');
     expect(c.outgoing.length).toBeGreaterThan(0);
     const files = call('node_files');
-    expect(files.files[0]).toEqual({ number: 1, path: 'src/triage.ts' });
-    expect(call('open_file', { index: 1 })).toEqual({ opened: 'src/triage.ts' });
-    expect(useStore.getState().file).toMatchObject({ index: 0, files: ['src/triage.ts'] });
+    expect(files.files[0]).toEqual({ number: 1, path: 'roles/triage.md' });
+    expect(call('open_file', { index: 1 })).toEqual({ opened: 'roles/triage.md' });
+    expect(useStore.getState().file).toMatchObject({ index: 0, files: ['roles/triage.md'] });
   });
 
   it('closes the open file and keeps the selection', () => {
-    expect(call('select_node', { node: 'triage' })).toMatchObject({ selected: 'Triage router' });
-    expect(call('open_file', { index: 1 })).toEqual({ opened: 'src/triage.ts' });
-    expect(call('close_file')).toEqual({ closed: 'src/triage.ts' });
+    expect(call('select_node', { node: 'triage' })).toMatchObject({ selected: 'Triage' });
+    expect(call('open_file', { index: 1 })).toEqual({ opened: 'roles/triage.md' });
+    expect(call('close_file')).toEqual({ closed: 'roles/triage.md' });
     expect(useStore.getState().file).toBeUndefined();
     expect(useStore.getState().selected).toBe('intake.triage');
     expect(call('close_file').error).toBe('No file is open.');
@@ -66,22 +66,26 @@ describe('voice agent tools (#63)', () => {
     useStore.getState().showLibrary(false);
     useStore.getState().select(undefined);
     const r = call('compare_nodes', { a: 'lead', b: 'coder' });
-    expect(r.a).toMatchObject({ label: 'Lead orchestrator', type: 'agent', layer: 'Orchestration', model: 'claude-opus-5-5', runtime: 'Squad container (container)' });
-    expect(r.b).toMatchObject({ label: 'coder', type: 'agent', layer: 'Specialist Agents', model: 'anthropic/claude-haiku-5.5', runtime: 'Squad container (container)' });
-    expect(r.a.files).toBe(3);
-    expect(r.b.files).toBe(3);
-    expect(r.a).toMatchObject({ incoming: 3, outgoing: 6 });
-    expect(r.b).toMatchObject({ incoming: 4, outgoing: 3 });
+    expect(r.a).toMatchObject({ label: 'Lead', type: 'agent', layer: 'Intake & Triage', model: 'your-harness-model', runtime: 'Your machine (local)' });
+    expect(r.b).toMatchObject({ label: 'Coder', type: 'agent', layer: 'Specialists', model: 'anthropic/claude-haiku-5.5', runtime: 'Your machine (local)' });
+    expect(r.a.files).toBe(1);
+    expect(r.b.files).toBe(2);
+    // Lead: issue -> lead and the setup.skill link come in; the spawn to triage and the link to the architect go out.
+    // Coder: researcher, green (return) and the runner.steps link come in; only coder -> green goes out.
+    expect(r.a).toMatchObject({ incoming: 2, outgoing: 2 });
+    expect(r.b).toMatchObject({ incoming: 3, outgoing: 1 });
     // Same fields are named, the differing ones are not.
     expect(r.same).toEqual(expect.arrayContaining(['type', 'runtime']));
     expect(r.same).not.toContain('label');
     expect(r.same).not.toContain('layer');
     expect(r.same).not.toContain('incoming');
     // Tools one has and the other has not, in both directions; Read/Grep/Glob are shared, so neither.
-    expect(r.only_a).toEqual(expect.arrayContaining(['Agent', 'TodoWrite', 'mcp__squad__request_approval']));
-    expect(r.only_b).toEqual(expect.arrayContaining(['Edit', 'Write', 'Bash', 'mcp__squad__run_tests']));
+    // The new tower declares no tool lists on these two agents, so no tool differs in either direction.
+    expect(r.only_a).toEqual([]);
+    expect(r.only_b).toEqual([]);
     expect(r.only_a).not.toContain('Read');
     expect(r.only_b).not.toContain('Grep');
+    expect(r.same).toEqual(expect.arrayContaining(['tools']));
     // A read tool: the view is untouched.
     expect(useStore.getState().file).toBeUndefined();
     expect(useStore.getState().library).toBe(false);
@@ -93,7 +97,7 @@ describe('voice agent tools (#63)', () => {
   });
 
   it('reports a node compared with itself as fully equal (#145d)', () => {
-    const r = call('compare_nodes', { a: 'triage', b: 'triage router' });
+    const r = call('compare_nodes', { a: 'triage', b: 'triage' });
     expect(r.a).toEqual(r.b);
     expect(r.only_a).toEqual([]);
     expect(r.only_b).toEqual([]);
@@ -292,9 +296,9 @@ describe('voice agent tools (#63)', () => {
   });
 
   it('searches the whole tower', () => {
-    const r = call('search', { query: 'MCP' });
+    const r = call('search', { query: 'squad' });
     expect(r.count).toBeGreaterThanOrEqual(5);
-    expect(r.nodes.map((n: { label: string }) => n.label)).toContain('GitHub MCP');
+    expect(r.nodes.map((n: { label: string }) => n.label)).toContain('Squad skill');
   });
 
   it('returns errors the model can recover from', () => {
@@ -304,13 +308,13 @@ describe('voice agent tools (#63)', () => {
   });
 
   it('sets the list on search and reports it from screen (#130)', () => {
-    const r = call('search', { query: 'MCP' });
+    const r = call('search', { query: 'squad' });
     // Cursor at -1 (nothing stepped yet): the count is known, the position is not.
     expect(call('screen').list).toEqual({ source: 'search', count: r.count });
   });
 
   it('moves the cursor when a listed node is selected (#130)', () => {
-    const r = call('search', { query: 'MCP' });
+    const r = call('search', { query: 'squad' });
     const key = r.nodes[2].key;
     expect(call('select_node', { node: key })).toMatchObject({ selected: r.nodes[2].label });
     expect(call('screen').list).toMatchObject({ source: 'search', count: r.count, position: 3 });

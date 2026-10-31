@@ -23,7 +23,8 @@ The completion fixes in #337 do not guarantee that every future model call will 
 
 Maintainer-confirmed scope: the current interactive harness stays the lead; portable Node/OpenRouter specialists,
 isolated tests and a draft PR. Automatic harness launch, discovery and session management remain in #320. The
-optional SDK is a reference backend, not an onboarding dependency. Hermes remains unrecorded.
+Hermes remains unrecorded. The Claude Agent SDK reference backend and its five test files listed below were removed
+in #355; their rows are kept as the record of what was tested at the time.
 
 | Test file | Cases | Evidence type | What it covers |
 |---|---|---|---|
@@ -48,7 +49,7 @@ Pi/Claude Code/Codex trials below separately exercised real OpenRouter roles; th
 
 **Recipe (repository checkout).**
 1. Run `npm run check` in this checkout.
-2. Run the focused files: `npm exec -- vitest run tests/squad-acceptance.test.ts tests/squad-live-acceptance.test.ts tests/squad-terminal-events.test.ts tests/sdk-approval-events.test.ts tests/sdk-pipeline.test.ts tests/sdk-cli-status.test.ts tests/sdk-quality-gates.test.ts`.
+2. Run the focused files: `npm exec -- vitest run tests/squad-acceptance.test.ts tests/squad-live-acceptance.test.ts tests/squad-terminal-events.test.ts`. The `tests/sdk-*` files were removed with the SDK backend in #355.
 3. `TMPDIR` may point to a disk-backed temporary location, but only for automatic test fixtures. Keep tasks, logs
    and outputs in the ignored repository-local scratch folder. Do not create external task files or worktrees for
    this recipe, and do not move credentials into the project.

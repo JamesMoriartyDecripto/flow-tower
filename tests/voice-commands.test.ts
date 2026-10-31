@@ -16,7 +16,7 @@ describe('voice commands (#62)', () => {
   it('focuses a layer by number or by name', () => {
     expect(say('fammi vedere il primo livello')).toEqual({ kind: 'layer', index: 0 });
     expect(say('show layer three')).toEqual({ kind: 'layer', index: 2 });
-    expect(say("passiamo al livello degli MCP")).toEqual({ kind: 'layer', index: squad.layers.findIndex((l) => l.id === 'tools') });
+    expect(say("passiamo al livello del runner")).toEqual({ kind: 'layer', index: squad.layers.findIndex((l) => l.id === 'runner') });
     expect(say("l'ultimo livello")).toEqual({ kind: 'layer', index: squad.layers.length - 1 });
   });
 
@@ -38,14 +38,14 @@ describe('voice commands (#62)', () => {
   });
 
   it('keeps the phrases of the issue working, in English and with Italian variants', () => {
-    const tools = squad.layers.findIndex((l) => l.id === 'tools');
+    const runner = squad.layers.findIndex((l) => l.id === 'runner');
     expect(say('open the dev squad project', true)).toEqual({ kind: 'tower', id: 'dev-squad/dev-squad.tower.yaml' });
     expect(say('show layer one')).toEqual({ kind: 'layer', index: 0 });
     expect(say('go to the triage node')).toEqual({ kind: 'node', tower: squad.id, key: 'intake.triage' });
-    expect(say('tools layer')).toEqual({ kind: 'layer', index: tools });
+    expect(say('runner layer')).toEqual({ kind: 'layer', index: runner });
     expect(say('aprimi la dev squad', true)).toEqual({ kind: 'tower', id: 'dev-squad/dev-squad.tower.yaml' });
     expect(say('portami al terzo livello')).toEqual({ kind: 'layer', index: 2 });
-    expect(say('vediamo i livelli degli MCP')).toEqual({ kind: 'layer', index: tools });
+    expect(say('vediamo i livelli del runner')).toEqual({ kind: 'layer', index: runner });
     // Whisper hears "matta" for "mappa": one wrong letter in a command word is forgiven.
     expect(say('Vista matta.')).toEqual({ kind: 'view', view: 'map' });
   });
@@ -170,7 +170,8 @@ describe('voice commands (#62)', () => {
   });
 
   it('offers a choice when names tie, and admits when nothing matches', () => {
-    const r = say('vai al nodo MCP');
+    // "squad" is in four node labels of the new tower (Squad skill, squad init, squad.json, squad doctor), so the choice is four.
+    const r = say('vai al nodo squad');
     expect(r.kind).toBe('ambiguous');
     expect(r.kind === 'ambiguous' && r.options.length).toBe(4);
     expect(say('ordina una pizza margherita')).toEqual({ kind: 'unknown' });

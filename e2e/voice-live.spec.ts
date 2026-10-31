@@ -20,7 +20,7 @@ test('voice: \'cosa sta succedendo?\' reports the error and selects the node (#1
     chatCalls++;
     const chunks = chatCalls === 1
       ? [{ choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', function: { name: 'live_status', arguments: '{}' } }] } }] }]
-      : [{ choices: [{ delta: { content: 'C\'è un errore su Triage router.' } }], usage: { cost: 0.0001 } }];
+      : [{ choices: [{ delta: { content: 'C\'è un errore su Triage.' } }], usage: { cost: 0.0001 } }];
     if (chatCalls === 2) secondBody = r.request().postDataJSON();
     r.fulfill({ contentType: 'text/event-stream', body: `${chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join('')}data: [DONE]\n\n` });
   });
@@ -56,9 +56,9 @@ test('voice: \'cosa sta succedendo?\' reports the error and selects the node (#1
   expect(chatCalls).toBe(2);
   const toolMsg = secondBody!.messages.find((m) => m.role === 'tool');
   expect(toolMsg).toBeDefined();
-  expect(toolMsg!.content).toContain('Triage router');
+  expect(toolMsg!.content).toContain('Triage');
   expect(toolMsg!.content).toContain('"quiet":false');
   expect(toolMsg!.content).not.toContain('SECRET-MARKER');
   expect((await state(page)).selected).toBe(node);
-  await expect(page.locator('.voice-caption .voice-heard')).toContainText('C\'è un errore su Triage router.');
+  await expect(page.locator('.voice-caption .voice-heard')).toContainText('C\'è un errore su Triage.');
 });

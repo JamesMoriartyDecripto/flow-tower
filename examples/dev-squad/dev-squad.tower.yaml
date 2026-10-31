@@ -1,720 +1,432 @@
 # yaml-language-server: $schema=../../schema/flow-tower.schema.json
-# #333 acceptance: isolated clean installation and fake-provider failure matrix;
-# Portable live delivery must terminate every started role exactly once, including
-# provider/protocol failures and interruption; delivery remains best effort offline.
-# canonical role event delivery; plan decisions must belong to the current request
-# and be attributable to a push-authorized actor, including label-based approval.
-# Portable lead execution and the optional SDK reference are tested separately;
-# no automatic harness launcher, hostile-code sandbox or global USD cap is implied.
-# #342: SDK tests use credential-filtered child env; approvals verify commenter push permission;
-# webhook body is bounded by raw bytes while streaming, before signature verification.
-# Canonical Dev Squad: squad init distributes this tower with its referenced bundle.
-# The installer adapts only name/root for the target project; tools/squad has no separate tower design.
-# Portable execution (#336): tool loops remind roles to finish within their explicit step limit.
-# Cap exits remain errors; last assistant text is incomplete diagnostic evidence, never a verdict.
-# Portable onboarding (#332, #334): init installs the shared task runner and complete design;
-# doctor checks Node/git/OpenRouter. The user's existing harness is lead; SDK execution is optional.
+# Canonical Dev Squad (#355): one engine, the Node runner in tools/squad, on one OpenRouter key.
+# The lead is the user's own session in any skill-capable harness; no SDK, no Claude account.
+# squad init installs this tower as tools/squad/squad.tower.yaml with its bundle under tools/squad/dev-squad/.
+# The role node ids below are the ones tools/squad/roles.mjs posts live events to: keep them stable.
 version: 1
 name: Dev Squad
-tags: [coding, openrouter, claude-agent-sdk, multi-agent]
-budget: { usd: 15, per: run, on_exceed: stop, description: "SDK reference threshold checked after returned stage costs. Failed subcall costs can be incomplete; the portable lead workflow has no enforced global dollar cap." }
-limits: { concurrency: 4, description: "SDK reference: at most 4 concurrent subagents, spawn depth 1. Portable process concurrency is controlled by the lead, not a global runner limit." }
+tags: [coding, openrouter, multi-agent, harness-agnostic]
+limits: { concurrency: 2, description: "The lead decides what runs at once. Reviewer and security start together (both read-only); coder steps run one at a time per worktree." }
 description: >-
-  Canonical eight-layer Dev Squad design. The portable workflow keeps the user's existing harness
-  as lead and runs specialists through Node/OpenRouter. The optional Claude Agent SDK reference
-  backend models issue routing, planning, coding, gated review, fresh verification and draft PR
-  delivery. A human reviews and merges.
+  A coding squad that works your GitHub issues on one OpenRouter key. Your current session
+  (Claude Code, Codex, Pi, Hermes, Cursor…) is the lead: it plans, writes the task files and
+  verifies. Specialists (triage, architect, researcher, coder, tester, doc writer, reviewer,
+  security, verifier) run through the Node runner in tools/squad, each on the model its
+  squad.json names. A maintainer merges.
 
 runtimes:
   laptop:
     kind: local
-    label: "Maintainer laptop"
-    description: "Interactive Claude Code sessions with the same agents, hooks and settings.json permissions."
-    host: "dev-mbp"
-  vps:
-    kind: container
-    label: "Squad container"
-    description: "Webhook receiver, pipeline, lead and every subagent in one docker compose service; worktrees on a volume. The VPS TLS proxy forwards /github to it."
-    host: "squad-01.example.com"
-    provider: "hetzner"
-    region: "fsn1"
-  actions:
-    kind: ci
-    label: "GitHub Actions"
-    description: "Repo CI on draft PRs and the post-merge pipeline on main. Agents read it, never edit it."
-    provider: "github-actions"
-    url: "https://github.com/example-org/app/actions"
+    label: "Your machine"
+    description: "The lead session, the runner scripts (Node 22, git) and the worktrees. Nothing is deployed."
   github:
     kind: saas
     label: "GitHub"
-    description: "Issues, pull requests and the remote GitHub MCP."
+    description: "Issues, pull requests and CI."
     provider: "github"
     url: "https://github.com/example-org/app"
-  context7:
-    kind: saas
-    label: "Context7"
-    description: "Version-pinned library documentation over MCP."
-    provider: "upstash"
-    url: "https://context7.com"
-  anthropic:
-    kind: saas
-    label: "Claude API"
-    description: "Opus, Sonnet and Haiku 5.5 plus server-side web search."
-    provider: "anthropic"
-    url: "https://console.anthropic.com"
   openrouter:
     kind: saas
     label: "OpenRouter"
-    description: "One OpenAI-style API in front of Claude Haiku, DeepSeek and Z.ai: the coder, reviewer and security auditor run here."
+    description: "One OpenAI-style API, one key, every model family: each specialist role runs here."
     provider: "openrouter"
     url: "https://openrouter.ai"
 
 prompts:
-  triage:
-    file: prompts/triage.md
-    description: Routing prompt. Classifies the issue into full / needs_info / reject; a trivial issue still takes the full path with a one-step plan.
-  orchestrator:
-    file: prompts/orchestrator.md
-    description: Lead system prompt. Orchestrator-workers over the specialist team.
-  architect:
-    file: prompts/architect.md
-    description: Planner prompt. Issue -> ordered, testable YAML step plan.
-  review-round:
-    file: prompts/review-round.md
-    description: Per-round evaluator prompt (prompt chaining with previous findings).
-  fix-round:
-    file: prompts/fix-round.md
-    description: Optimizer prompt. Coder fixes only the blocking findings.
+  task-template:
+    file: task-template.md
+    description: "The shape of one step: rules, files to read, why, numbered items, the Files: line the runner checks."
 
 agents:
-  triage:
-    runtime: vps
-    name: Triage router
-    description: Cheap, tool-less classifier with a JSON schema output and deterministic policy overrides.
-    model: claude-haiku-5-5
-    prompt: triage
-    tools: []
-    harness: { max_turns: 2, output: json_schema, setting_sources: [] }
-    budget: { usd: 0.05, on_exceed: stop }
-    files: [src/triage.ts]
-    meta: { pattern: routing }
   lead:
-    runtime: vps
-    resources:
-      - { kind: log, label: "Lead log", path: "logs/lead.log" }
-      - { kind: config, label: "docker compose", path: "deploy/docker-compose.yml" }
-      - { kind: script, label: "Deploy to VPS", path: "scripts/deploy-vps.sh" }
-      - { kind: dashboard, label: "Squad runs", url: "https://grafana.dev-squad.example.com/d/squad/dev-squad-runs" }
-    name: Lead orchestrator
-    description: Plans with the architect, fans out researchers, walks the plan with coders. Cannot edit files itself.
-    model: claude-opus-5-5
-    prompt: orchestrator
-    tools: [Agent, Read, Grep, Glob, TodoWrite, mcp__squad__request_approval, mcp__squad__file_followup]
-    harness: { max_turns: 80, permission_mode: default, effort: high, fallback_model: claude-sonnet-5-5, max_subagent_depth: 1, max_concurrent_subagents: 4 }
-    budget: { usd: 8, on_exceed: stop }
-    files: [src/orchestrator.ts, src/agents.ts, CLAUDE.md]
+    runtime: laptop
+    name: Lead (your session)
+    description: "Your own coding agent, in any harness that loads skills. It follows the flow-tower-squad skill: issue, tower, plan, task files, runs the specialists, verifies everything itself, opens the PR. It never merges."
+    model: your-harness-model
+    harness: { provider: any, skill: flow-tower-squad }
+    files: [README.md]
     meta: { pattern: orchestrator-workers }
-  architect:
-    runtime: vps
-    name: Architect
-    description: Read-only planner. Produces criteria, research questions and steps of at most ~150 lines each.
-    model: claude-sonnet-5-5
-    prompt: architect
-    tools: [Read, Grep, Glob]
-    harness: { max_turns: 30 }
-    files: [src/agents.ts]
-  researcher:
-    runtime: vps
-    from: .claude/agents/researcher.md
-    tower: towers/researcher.tower.yaml
-    harness: { max_turns: 20, context: isolated }
-    meta: { pattern: parallelization }
-  coder:
-    runtime: vps
-    from: .claude/agents/coder.md
+  triage:
+    runtime: laptop
+    name: Triage
+    description: "Read-only classifier: route full / needs_info / reject and the areas touched."
     model: anthropic/claude-haiku-5.5
-    tower: towers/coder.tower.yaml
-    harness: { provider: openrouter, max_steps: 60, writes: [src/, tests/, e2e/], escalate_model_on_round: 3, escalate_to: claude-opus-5-5 }
+    harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true }
+    files: [roles/triage.md]
+    meta: { pattern: routing }
+  architect:
+    runtime: laptop
+    name: Architect
+    description: "Read-only planner: criteria, open questions, ordered steps with their Files: lines."
+    model: z-ai/glm-5.3-flash
+    harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true }
+    files: [roles/architect.md]
+  researcher:
+    runtime: laptop
+    name: Researcher
+    description: "Read-only: answers the plan's open questions with file:line citations."
+    model: z-ai/glm-5.3-flash
+    harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true }
+    files: [roles/researcher.md]
+  coder:
+    runtime: laptop
+    name: Coder
+    description: "Implements one step in a tool loop, writes only the step's folders, runs the checks, ends with Known gaps."
+    model: anthropic/claude-haiku-5.5
+    tower: towers/runner-loop.tower.yaml
+    harness: { provider: openrouter, runner: steps.sh, mode: loop, max_steps: 70 }
     sandbox: { network: open, filesystem: workspace }
-    files: [src/openrouter-agent.ts, src/tools/run-coder.ts]
+    files: [roles/coder.md, task-template.md]
   tester:
-    runtime: vps
-    from: .claude/agents/tester.md
-    harness: { flaky_retries: 1 }
-    sandbox: { network: open, filesystem: workspace }
+    runtime: laptop
+    name: Tester
+    description: "Runs the project's existing checks and reports; writes nothing."
+    model: anthropic/claude-haiku-5.5
+    harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true }
+    files: [roles/tester.md]
   doc-writer:
-    runtime: vps
-    from: .claude/agents/doc-writer.md
+    runtime: laptop
+    name: Doc writer
+    description: "Writes only the doc folders given with --write: CHANGELOG, README, docs."
+    model: anthropic/claude-haiku-5.5
+    harness: { provider: openrouter, runner: run.mjs, mode: loop }
+    files: [roles/doc-writer.md]
   reviewer:
-    runtime: vps
-    resources:
-      - { kind: log, label: "Review loop log", path: "logs/review-loop.log" }
-    from: .claude/agents/reviewer.md
-    model: z-ai/glm-5.3-flashx
-    harness: { provider: openrouter, max_steps: 25, fresh_session_each_round: true, read_only: true }
-    sandbox: { network: open, filesystem: read-only }
-    budget: { usd: 1.5, on_exceed: stop }
-    files: [src/loop/review-loop.ts, src/openrouter-agent.ts]
+    runtime: laptop
+    name: Reviewer
+    description: "One packed request, JSON verdict only. Another model family than the coder's."
+    model: z-ai/glm-5.3-flash
+    harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
+    files: [roles/reviewer.md]
     meta: { pattern: evaluator-optimizer, role: evaluator, cross_model: "GLM reviews Haiku's code" }
   security:
-    runtime: vps
-    from: .claude/agents/security-auditor.md
+    runtime: laptop
+    name: Security auditor
+    description: "One packed request, JSON verdict with severities; falls back to the reviewer's model on an empty answer."
     model: deepseek/deepseek-v4.1-flash
-    harness: { provider: openrouter, max_steps: 25, blocks_on: [critical, high], read_only: true }
-    budget: { usd: 1.5, on_exceed: stop }
-    files: [src/loop/review-loop.ts, src/openrouter-agent.ts]
+    harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
+    files: [roles/security.md]
   verifier:
-    runtime: vps
-    from: .claude/agents/verifier.md
-    model: claude-opus-5-5
-    harness: { max_turns: 30, permission_mode: dontAsk, context: fresh }
-    sandbox: { network: open, filesystem: workspace }
-    budget: { usd: 1.5, on_exceed: stop }
-    files: [src/loop/verify.ts]
+    runtime: laptop
+    name: Verifier
+    description: "Fresh context: the criteria and the branch, PASS or HOLD per criterion with evidence."
+    model: z-ai/glm-5.3-flash
+    harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true, context: fresh }
+    files: [roles/verifier.md]
 
 layers:
   # 1 ───────────────────────────────────────────────────────────────
   - id: intake
     title: Intake & Triage
-    description: "The user's existing Pi, Codex, Claude Code, Hermes or other harness is lead. Init installs the shared runner; doctor checks Node/git/OpenRouter. Specialists use independently configured models. The SDK/webhook is a reference backend, not an onboarding requirement."
+    description: "You pick the issue and ask your session to work it with the squad. Triage proposes a route; the lead decides."
     nodes:
       - id: issue
         runtime: github
-        resources:
-          - { kind: repo, label: "squad:go issues", url: "https://github.com/example-org/app/issues?q=label%3Asquad%3Ago" }
         type: entry
         label: GitHub issue
-        description: "The user asks their current harness to work a selected issue with the Dev Squad skill. Humans always opt in. Doctor checks the portable setup, without requiring Claude credentials. The optional SDK webhook reference accepts the squad:go label."
-        files: [src/main.ts]
-      - id: webhook
-        runtime: vps
-        resources:
-          - { kind: log, label: "Webhook log", path: "logs/webhook.log" }
-          - { kind: endpoint, label: "Webhook URL", url: "https://squad-01.example.com/github" }
-          - { kind: config, label: "docker compose", path: "deploy/docker-compose.yml" }
-        label: Webhook receiver
-        description: "`main.ts serve` in the squad container. Bad HMAC: 401; bad JSON: 400; otherwise acks 202 at once, ignores everything but the squad:go label, dedupes redeliveries in memory and caps issues in flight."
-        files: [src/main.ts]
-        limits: { concurrency: 2, description: "SQUAD_MAX_PARALLEL_ISSUES (default 2) issues in flight." }
-        meta: { endpoint: POST /github }
+        description: "The live record: the plan, each step's status, review findings kept or dropped and why, the squad cost when it closes."
+        files: [README.md]
+      - id: lead
+        agent: lead
+        label: Lead
       - id: triage
         agent: triage
-        label: Triage router
+        label: Triage
       - id: route
-        runtime: vps
+        runtime: laptop
         type: decision
         label: Route?
-        description: "Model proposes a route; deterministic policy decides last: the squad:skip label rejects first, and a full route whose title, body or areas name a sensitive area (auth, billing, payment, privacy, personal data...) gets risk high, so its plan always needs a human sign-off. There is no quick-fix bypass (#347): every change goes through a plan and the review gates."
+        description: "Triage proposes, the lead decides. Every change takes the full path (a trivial one gets a one-step plan); a sensitive area named in the title, body or areas needs the maintainer's plan sign-off."
         decision: { output: choice, candidates: [full, needs_info, reject], fail: closed }
-        files: [src/triage.ts]
+        files: [roles/triage.md]
       - id: needs_info
         runtime: github
         type: output
         label: Ask reporter
-        description: "needs_info: comments the clarifying questions; reject: comments the reason. Either way the run stops and no worktree is created."
-        files: [src/pipeline.ts]
+        description: "needs_info: the lead comments the questions; reject: the reason. No branch is created."
+        files: [roles/triage.md]
     edges:
-      - issue -> webhook
-      - "webhook -> triage [call]: issue JSON"
-      - "triage -> route [data]: TriageSchema"
+      - "issue -> lead: work #n with the squad"
+      - "lead -> triage [spawn]: issue text as data"
+      - "triage -> route [data]: route, areas"
       - { from: route, to: needs_info, label: unclear, condition: "route in [needs_info, reject]" }
 
   # 2 ───────────────────────────────────────────────────────────────
   - id: orchestration
-    title: Orchestration
-    description: Orchestrator-workers. The Opus lead plans, gates risky plans on a human, then dispatches.
+    title: Plan & Steps
+    description: "Towers before code: the lead updates the tower of the part it changes, then plans and writes one task file per step."
     nodes:
-      - id: worktree
-        runtime: vps
-        resources:
-          - { kind: script, label: "New worktree", path: "scripts/new-worktree.sh" }
-        label: Issue worktree
-        description: "`git worktree add -B squad/<n>-<slug>` from origin/main. Every agent is fenced into this path; one worktree per issue, and the lead calls run_coder one plan step at a time in it, so two coder tasks never share a checkout (a task meant to run in parallel gets its own worktree)."
-        files: [src/pipeline.ts]
-      - id: lead
-        agent: lead
+      - id: branch
+        runtime: laptop
+        label: Feature branch
+        description: "One branch per issue from an up-to-date main, in the existing checkout (or an authorized worktree). Never main."
+        files: [README.md]
       - id: architect
         agent: architect
-      - id: plan
-        runtime: vps
-        label: Step plan
-        description: YAML with criteria, research questions and ordered steps. Each step leaves the suite green.
-        files: [prompts/architect.md]
+        label: Architect
+      - id: tower
+        runtime: laptop
+        label: Tower first
+        description: "The tower that models the changed part gets the planned design, validated 0 errors / 0 warnings and committed before any code."
+        files: [README.md]
       - id: signoff
         runtime: github
         type: human
         label: Plan sign-off
-        description: "Before coding, a repository pusher approves or revises the current request. Label approval requires a fresh attributable event; the newer authorized comment or label decision wins."
-        approval: { by: maintainer, via: [issue label, issue comment], actions: [approve, edit, respond], when: "risk == high or steps > 6", timeout: 4h, on_timeout: reject, rounds: 2, description: "The lead ends its session; the pipeline polls every 2 min. Comments and the newest squad:approved label event must follow this request and have a push-authorized actor. A newer revise overrides an older label. Missing label evidence fails closed; no answer in 4h or a third revise pauses the run." }
-        files: [src/loop/await-approval.ts, src/tools/request-approval.ts, src/config.ts]
-      - id: dispatch
-        runtime: vps
-        label: Dispatch steps
-        description: Parallel researchers for independent questions; sequential coders unless steps are marked independent.
-        files: [prompts/orchestrator.md]
-      - id: integrate
-        runtime: vps
-        label: Collect results
-        description: Merges subagent summaries into the lead report (status, plan, steps, tests) for the pipeline.
-        files: [src/orchestrator.ts, src/pipeline.ts]
+        description: "For a sensitive area or a large plan, the maintainer approves or revises the plan on the issue before any step runs."
+        approval: { by: maintainer, via: issue comment, actions: [approve, edit, respond], when: "sensitive area or many steps" }
+        files: [README.md]
+      - id: tasks
+        runtime: laptop
+        label: Task files
+        description: "tools/squad/tasks/<n>/NN-*.md, one or two items each: files to read, why with file:line, numbered changes, tests, and the Files: line the runner checks."
+        prompt: task-template
+        files: [task-template.md]
     edges:
-      - "worktree -> lead: cwd"
-      - "lead -> architect [spawn]: plan"
-      - "architect -> plan [data]: YAML"
-      - { from: plan, to: signoff, kind: handoff, group: plan gate, label: high risk }
-      - { from: plan, to: dispatch, group: plan gate, label: low risk }
-      - "signoff -> dispatch: approved"
-      - "signoff -> architect [return]: revise, max 2"
-      - "integrate -> lead [return]: report"
+      - "branch -> architect [spawn]: issue, tower"
+      - "architect -> tower [data]: design"
+      - { from: tower, to: signoff, kind: handoff, label: sensitive }
+      - { from: tower, to: tasks, label: otherwise }
+      - "signoff -> tasks: approved"
+      - "signoff -> architect [return]: revise"
 
   # 3 ───────────────────────────────────────────────────────────────
   - id: specialists
-    title: Specialist Agents
-    description: Focused subagents with isolated context and least-privilege tool lists. Only their final report returns.
+    title: Specialists
+    description: "Each role is one run.mjs process on its own OpenRouter model, with only the tools its role allows."
     nodes:
       - id: researcher
         agent: researcher
+        label: Researcher
       - id: coder
         agent: coder
+        label: Coder
       - id: tester
         agent: tester
+        label: Tester
       - id: green
-        runtime: vps
+        runtime: laptop
         type: decision
-        label: Suite green?
-        description: "Tester result. Red goes back to the coder at most 2 extra times before the lead reports blocked (a rule in the lead's prompt, not enforced in code)."
+        label: Step green?
+        description: "steps.sh: the coder run finished, the project's check passes, every Files: entry was touched. Otherwise the step is RED and the chain stops."
         decision: { output: binary, candidates: [green, red], fail: closed }
-        files: [.claude/agents/tester.md]
+        files: [roles/coder.md]
+      - id: commit
+        runtime: laptop
+        label: Step commit
+        description: "Only the step's own files, signed off, with a Squad-Cost trailer. Local edits from before the run are never staged; a rerun skips committed steps."
+        files: [roles/coder.md]
       - id: doc_writer
         agent: doc-writer
         label: Doc writer
-      - id: perf_bench
-        runtime: vps
-        status: planned
-        label: Perf benchmark
-        description: >-
-          Planned. Runs the vitest bench suite on perf-sensitive areas (areas tagged `hot-path`) and
-          blocks regressions over 10% against origin/main before the review loop.
-        files: [src/tools/run-tests.ts]
     edges:
-      - "researcher -> coder [data]: cited brief"
-      - "coder -> tester [handoff]: diff ready"
-      - "tester -> green [data]: report"
-      - "green -> coder [return]: failures"
-      - "green -> doc_writer: green"
-      - "green -> perf_bench: hot-path areas"
-      - "perf_bench -> doc_writer: within 10%"
+      - "researcher -> coder [data]: cited answers"
+      - "coder -> green [data]: report, Known gaps"
+      - "green -> commit: green"
+      - "green -> coder [return]: red, lead rewrites the step"
+      - "commit -> tester [handoff]: branch"
+      - "tester -> doc_writer: checks pass"
 
   # 4 ───────────────────────────────────────────────────────────────
   - id: quality
-    title: Quality Loop
-    description: >-
-      Evaluator-optimizer, max 3 rounds. Reviewer and security auditor grade in parallel
-      in fresh sessions; a fresh-context verifier and a human close the loop.
-      Batch APIs could halve review cost, but graders that read the repo with tools stay synchronous here.
+    title: Quality Gate
+    description: "Reviewer and security answer in one request each with the code packed, started together. The merge gate reads their verdicts; the maintainer merges."
     nodes:
-      - id: fanout
-        runtime: vps
-        resources:
-          - { kind: log, label: "Review loop log", path: "logs/review-loop.log" }
-        label: Parallel review
-        description: "Promise.all over two fresh query() sessions. Neither evaluator sees the other. Incomplete roles and malformed verdicts stop delivery; approving JSON inside a failed run never counts."
-        prompt: review-round
-        files: [src/loop/review-loop.ts, src/run-agent.ts, prompts/review-round.md]
+      - id: pack
+        runtime: laptop
+        label: Pack
+        description: "pack.mjs: role rules, the brief (what is already decided), the diff against the base and the changed files, in one prompt; it records the reviewed commit."
+        files: [roles/reviewer.md]
       - id: reviewer
         agent: reviewer
         label: Reviewer
       - id: security
         agent: security
         label: Security auditor
-      - id: verdict
-        runtime: vps
+      - id: triage_findings
+        runtime: laptop
         type: decision
-        label: All pass?
-        description: "Completed roles must return valid verdicts. Blocking review findings and critical/high security findings trigger a fix; a failed fixer stops delivery. Negative verdicts without actionable findings fail closed. Lower security findings on a passing verdict become follow-ups."
-        decision: { output: binary, candidates: [approved, changes], fail: closed }
-        files: [src/loop/review-loop.ts]
-      - id: round_cap
-        runtime: vps
-        type: decision
-        label: Round < 3?
-        description: Hard iteration cap. The fix before the last round runs on Opus (cheap first, smart when stuck).
-        limits: { max_iterations: 3 }
-        prompt: fix-round
-        files: [src/config.ts, prompts/fix-round.md]
-      - id: escalate
-        runtime: github
-        type: human
-        label: Escalate
-        description: "The loop did not converge, or the verifier held the change: open findings or gaps are posted on the issue for a maintainer."
-        files: [src/pipeline.ts]
+        label: Findings real?
+        description: "The lead checks each finding in the code or by running it; keeps the real ones as new steps, drops the rest with the reason on the issue."
+        decision: { output: binary, candidates: [fix, drop], fail: closed }
+        files: [README.md]
       - id: verifier
         agent: verifier
-        label: Fresh verifier
-        description: "Only the issue and the branch. Ships with completed verification, a nonempty list of met criteria, a green suite and no explicit gaps. Empty criteria, unmet criteria and unknown suite results hold the change. The lead independently checks the reported evidence."
-      - id: approval
+        label: Verifier
+      - id: gate
+        runtime: laptop
+        type: decision
+        label: Merge gate
+        description: "gate.mjs: CI green, not a draft, reviewer and security approve the PR's exact head. READY or NOT READY with the reasons."
+        decision: { output: binary, candidates: [ready, not_ready], fail: closed }
+        files: [roles/reviewer.md, roles/security.md]
+      - id: merge
         runtime: github
-        resources:
-          - { kind: repo, label: "Draft squad PRs", url: "https://github.com/example-org/app/pulls?q=is%3Adraft+head%3Asquad" }
         type: human
-        label: Merge approval
-        description: Draft PR + review request. Agents have no merge tool and `gh pr merge` is denied.
-        approval: { by: maintainer, via: PR review, actions: [approve, respond] }
-        files: [src/tools/request-approval.ts]
-      - id: merged
-        runtime: actions
-        resources:
-          - { kind: dashboard, label: "Actions runs", url: "https://github.com/example-org/app/actions" }
-        type: output
-        label: Merged PR
-        description: Merged by a human. The run is recorded in the session log.
-        files: [memory/session-log.md]
-      - id: stopped
-        runtime: github
-        type: output
-        label: Run stopped
-        description: "Errors and budget failures post an issue comment and journal failed / over_budget. Delivery returns an explicit outcome; CLI run exits nonzero unless it reaches a draft PR. The issue worktree is kept for debugging."
-        files: [src/pipeline.ts]
+        label: Maintainer merge
+        description: "Only the maintainer merges. Agents never run the merge."
+        approval: { by: maintainer, via: PR, actions: [approve, respond] }
     edges:
-      - "fanout -> reviewer [spawn]: rubric"
-      - "fanout -> security [spawn]: SAST"
-      - "reviewer -> verdict [return]: verdict JSON"
-      - "security -> verdict [return]: findings"
-      - "verdict -> verifier: nothing blocks"
-      - "verdict -> round_cap: blocking findings"
-      - "round_cap -> escalate [handoff]: cap hit"
-      - "approval -> merged: approved"
-      - "verifier -> escalate: hold"
-      - "fanout -> stopped: verdict not JSON"
+      - "pack -> reviewer [spawn]: packed review"
+      - "pack -> security [spawn]: packed audit"
+      - "reviewer -> triage_findings [return]: verdict JSON"
+      - "security -> triage_findings [return]: verdict JSON"
+      - "triage_findings -> verifier: nothing left to fix"
+      - "verifier -> gate: PASS"
+      - "gate -> merge: READY"
 
   # 5 ───────────────────────────────────────────────────────────────
-  - id: tools
-    title: Tools & MCP
-    description: Built-in tools, an in-process SDK MCP server for delivery actions, and four external MCP servers.
+  - id: runner
+    title: Runner (tools/squad)
+    description: "Node scripts with no dependency beyond Node 22 and git. Installed into the project by squad init; the same files in every harness."
     nodes:
-      - id: builtin
-        runtime: vps
-        type: tool
-        label: Built-in tools
-        description: Read, Edit, Write, Grep, Glob, Bash, WebSearch, WebFetch. Granted per agent, never all.
-        tools: [Read, Edit, Write, Grep, Glob, Bash, WebSearch, WebFetch, TodoWrite, Agent]
-        sandbox: { network: open, filesystem: workspace }
-        files: [.claude/settings.json]
-      - id: squad_mcp
-        runtime: vps
-        resources:
-          - { kind: other, label: "Server source", path: "src/tools/index.ts" }
-        type: tool
-        label: squad MCP
-        description: createSdkMcpServer in-process. Tools surface as mcp__squad__<name>.
-        files: [src/tools/index.ts]
-      - id: run_coder
-        runtime: vps
-        type: tool
-        label: run_coder
-        description: "The lead's way to an OpenRouter coder: SDK subagents are Claude only, so each plan step runs as its own tool loop and only the coder's STATUS report comes back. Its cost is added to the lead's."
-        files: [src/tools/run-coder.ts]
-      - id: run_tests
-        runtime: vps
-        type: tool
-        label: run_tests
-        description: Vitest/Playwright with a JSON reporter in the issue worktree, summarized to the first 10 failures to save context.
-        files: [src/tools/run-tests.ts]
-      - id: open_pr
-        runtime: vps
-        type: tool
-        label: open_pr
-        description: "Pushes the issue branch and opens a DRAFT PR from the worktree. Refuses protected branches; argv only, no shell. The pipeline checks its error result."
-        files: [src/tools/open-pr.ts]
-      - id: request_approval
-        runtime: vps
-        type: tool
-        label: request_approval
-        description: "Label + comment (+ review request for a merge). Returns at once with a ticket, so no agent waits holding tokens."
-        async: { mode: poll, interval: 2m, timeout: 4h, description: "Plan: the lead ends its session; src/loop/await-approval.ts polls the issue for squad:approved, /squad approve <notes> or /squad revise <notes> and resumes it. Merge: the maintainer merges, nothing resumes." }
-        files: [src/tools/request-approval.ts, src/loop/await-approval.ts]
-      - id: file_followup
-        runtime: vps
-        type: tool
-        label: file_followup
-        description: "Opens a GitHub issue (label squad:followup) for a part the maintainer moved out of scope at the plan sign-off, linked back to the issue. The lead only; never to defer work in scope."
-        files: [src/tools/file-followup.ts]
-      - id: osv_scan
-        runtime: vps
-        type: tool
-        label: osv_scan
-        description: "Known advisories of one package version from OSV.dev: id, severity, and the fix of the range that holds that version. Read-only, with a timeout; an error result only when the query fails. The security auditor calls it for every dependency a diff adds or bumps: through the squad MCP in Claude sessions, as its own tool in the OpenRouter loop."
-        files: [src/tools/osv.ts, src/tools/osv-scan.ts, src/openrouter-agent.ts]
-      - id: github
-        runtime: github
-        type: tool
-        label: GitHub MCP
-        description: Remote HTTP MCP, read-only toolsets (issues, pull_requests, repos).
-        files: [.mcp.json]
-      - id: context7
-        runtime: context7
-        type: tool
-        label: Context7 MCP
-        description: Version-pinned library docs for the researcher.
-        files: [.mcp.json]
-      - id: playwright
-        runtime: vps
-        status: experimental
-        type: tool
-        label: Playwright MCP
-        description: Headless, isolated browser for the tester's e2e smoke flows.
-        files: [.mcp.json]
-      - id: semgrep
-        runtime: vps
-        resources:
-          - { kind: dashboard, label: "SAST findings", url: "https://semgrep.example.com/orgs/example-org/findings" }
-        type: tool
-        label: Semgrep MCP
-        description: SAST rulesets p/default, p/owasp-top-ten, p/secrets for the security auditor.
-        files: [.mcp.json]
+      - id: run
+        runtime: laptop
+        type: process
+        label: run.mjs
+        description: "One role, one process: picks the model from squad.json, the mode (tool loop for most roles, oneshot or batch for reviewer and security), calls OpenRouter, records the cost."
+        tower: towers/runner-loop.tower.yaml
+        files: [towers/runner-loop.tower.yaml, roles/coder.md]
+      - id: steps
+        runtime: laptop
+        type: process
+        label: steps.sh
+        description: "Runs the coder on each task file in order; check, Files: check and one commit per green step. Runs from a copy of itself."
+        files: [roles/coder.md]
+      - id: guard
+        runtime: laptop
+        type: guard
+        label: Write fence
+        description: "Writes only inside the role's folders, real paths checked, symlinks followed; secrets and paths outside the repo refused. Children run without the API key."
+        files: [roles/coder.md]
+      - id: gate_script
+        runtime: laptop
+        type: process
+        label: gate.mjs
+        description: "Reads the two verdicts and the PR state; the reviewed commit must be the PR head."
+        files: [roles/reviewer.md]
+      - id: steward
+        runtime: laptop
+        type: process
+        label: PR steward
+        description: "prs.mjs: reviews and gates every open PR from the trusted checkout, one row per PR."
+        files: [README.md]
     edges:
-      - "squad_mcp -> run_coder [call]"
-      - "squad_mcp -> run_tests [call]"
-      - "squad_mcp -> open_pr [call]"
-      - "squad_mcp -> request_approval [call]"
-      - "squad_mcp -> file_followup [call]"
-      - "squad_mcp -> osv_scan [call]"
-      - "file_followup -> github [data]: follow-up issue"
-      - "open_pr -> github [data]: PR url"
+      - "steps -> run [spawn]: coder, one step"
+      - "run -> guard [call]: every write"
+      - "steward -> run [spawn]: reviewer, security"
+      - "steward -> gate_script [call]: per PR"
 
   # 6 ───────────────────────────────────────────────────────────────
-  - id: harness
-    title: Harness & Guardrails
-    description: >-
-      Lifecycle hooks registered in-process (options.hooks) and mirrored in .claude/settings.json
-      for interactive sessions. Deny beats ask beats allow.
+  - id: setup
+    title: Setup & Config
+    description: "Three commands and one key. No account other than OpenRouter's."
     nodes:
-      - id: session_start
-        runtime: vps
-        type: hook
-        label: SessionStart
-        description: "Injects learned patterns and recent runs as additionalContext in Claude sessions; re-injects after compaction. Sessions get the issue's area rules plus the global [*] ones. No hook runs in the OpenRouter loop, so run-agent puts the same pack at the end of those roles' system prompt."
-        files: [src/hooks/context-loader.ts, src/run-agent.ts]
-      - id: prompt_submit
-        runtime: vps
-        type: hook
-        label: UserPromptSubmit
-        description: Blocks prompts carrying leaked credentials; flags injection-like issue text as data.
-        files: [src/hooks/secret-scan.ts]
-      - id: pre_tool
-        runtime: vps
-        resources:
-          - { kind: log, label: "Hooks log", path: "logs/hooks.log" }
-        type: hook
-        label: PreToolUse
-        description: Matchers fan out to the guards; all run in parallel, the most restrictive decision wins.
-        files: [src/hooks/index.ts]
-      - id: bash_guard
-        runtime: vps
-        type: guard
-        label: Bash guard
-        description: "Denies force-push, merge, rm -rf, curl|sh, publish, env dumps. Asks for push, installs and infra commands: in pipeline runs nobody can answer, so they are denied. Keeps the reviewer to git diff/log/show (role passed by runAgent)."
-        files: [src/hooks/bash-guard.ts]
-      - id: secret_scan
-        runtime: vps
-        type: guard
-        label: Secret + fence
-        description: "Denies writes containing secrets and any write outside the issue worktree. The real path is checked, symlinks followed, and a write call with no path is denied (#317)."
-        files: [src/hooks/secret-scan.ts, src/hooks/index.ts]
-      - id: permissions
+      - id: init
         runtime: laptop
-        resources:
-          - { kind: config, label: "Permission rules", path: ".claude/settings.json" }
+        type: entry
+        label: squad init
+        description: "Copies the runner into tools/squad/, detects squad.json (check command, write and review folders), installs this tower and ignores the logs."
+        files: [README.md]
+      - id: key
+        runtime: laptop
+        type: memory
+        label: OpenRouter key
+        description: "flow-tower squad key stores it in the user folder (~/.config/flow-tower/.env, mode 600), never in the project. OPENROUTER_API_KEY in the environment wins."
+        files: [README.md]
+      - id: config
+        runtime: laptop
+        type: memory
+        label: squad.json
+        description: "Per project: check/test commands, write and review folders, the diff base, project rules and the model of each role."
+        files: [squad.example.json]
+      - id: doctor
+        runtime: laptop
         type: guard
-        label: Permission rules
-        description: "settings.json allow / ask / deny, evaluated after hooks; ask rules come before allowedTools. In pipeline runs an ask falls through to a headless canUseTool that denies it, except request_approval for the lead. Merge, force-push and workflow edits are denied."
-        files: [.claude/settings.json]
-      - id: post_tool
-        runtime: vps
-        type: hook
-        label: PostToolUse
-        description: "Prettier + ESLint --fix on every edited file, with the project's own ESLint config; leftover problems return as additionalContext. ESLint's exit code tells problems (1) from a crash (2). The OpenRouter loop runs the same check after write_file and edit_file and appends the problems to the tool result."
-        files: [src/hooks/format-lint.ts, src/format-and-lint.ts, src/openrouter-agent.ts]
-      - id: stop
-        runtime: vps
-        type: hook
-        label: Stop
-        description: Blocks finishing while source changed without a CHANGELOG entry; appends the session log.
-        files: [src/hooks/changelog-gate.ts]
-      - id: budget
-        runtime: vps
-        resources:
-          - { kind: dashboard, label: "Spend per issue", url: "https://grafana.dev-squad.example.com/d/spend/spend-per-issue" }
-        type: guard
-        label: Turn & $ caps
-        description: "maxTurns and maxBudgetUsd per query (the SDK ends that query), subagent depth 1 and concurrency 4 (env), and the $15 issue budget the pipeline checks after every stage."
-        files: [src/config.ts]
+        label: squad doctor
+        description: "Checks git, Node, the config, the runner files and the key, with no paid call."
+        files: [README.md]
+      - id: skill
+        runtime: laptop
+        type: memory
+        label: Squad skill
+        description: "install-skill --target claude|codex|pi|hermes|cursor|agents: the lead's procedure, the same in every harness."
+        files: [README.md]
     edges:
-      - session_start -> prompt_submit
-      - prompt_submit -> pre_tool
-      - "pre_tool -> bash_guard [call]: Bash"
-      - "pre_tool -> secret_scan [call]: Write|Edit"
-      - "bash_guard -> permissions: allow"
-      - "secret_scan -> permissions: allow"
-      - "permissions -> post_tool: executed"
-      - post_tool -> stop
+      - "init -> config [data]: detected"
+      - "key -> doctor [data]: present?"
+      - "config -> doctor [data]: valid?"
 
   # 7 ───────────────────────────────────────────────────────────────
-  - id: memory
-    title: Memory & Context
-    description: Plain files, reviewed in PRs. Static memory via CLAUDE.md, learned rules and run journal via hooks.
+  - id: observe
+    title: Cost & Live View
+    description: "Every run leaves a ledger line; the tower lights up while a role runs."
     nodes:
-      - id: claude_md
+      - id: ledger
         runtime: laptop
         type: memory
-        label: CLAUDE.md
-        description: Project memory loaded by settingSources ['project'] into every session and subagent.
-        files: [CLAUDE.md]
-      - id: patterns
-        runtime: vps
-        type: memory
-        label: patterns.md
-        description: "DO/DON'T rules promoted from repeated findings, plus a few global ones (simplicity, comments, English). Filtered by issue area before injection; every role gets them, Claude sessions through SessionStart, OpenRouter roles through their system prompt."
-        files: [memory/patterns.md, src/memory/store.ts]
-      - id: session_log
-        runtime: vps
-        resources:
-          - { kind: log, label: "Session log", path: "memory/session-log.md" }
-        type: memory
-        label: Session log
-        description: Append-only run journal; the last 5 issue outcomes are injected at SessionStart.
-        files: [memory/session-log.md, src/memory/session-log.ts]
-      - id: promote
-        runtime: vps
-        status: experimental
-        type: decision
-        label: Seen twice?
-        description: "After each review loop, a blocking finding already in the log of another issue becomes a DONT rule for the issue's areas (promoteRecurring, deduped). Matching is plain text, hence experimental."
-        files: [src/memory/store.ts, src/pipeline.ts]
-      - id: context_pack
-        runtime: vps
-        label: Context pack
-        description: Patterns + recent runs, capped at 6k chars. Context is finite; spend it on signal.
-        files: [src/hooks/context-loader.ts]
+        label: Cost ledger
+        description: "One line per run in the user folder: role, model, steps, tokens, the cost OpenRouter reports. cost.mjs sums an issue."
+        files: [README.md]
+      - id: live
+        runtime: laptop
+        type: output
+        label: Live tower
+        description: "ev.sh posts start/end events to a running flow-tower viewer: the role's node lights up. Best effort: offline it is skipped."
+        files: [README.md]
     edges:
-      - "session_log -> promote [data]: lessons"
-      - { from: promote, to: patterns, kind: data, label: new rule, condition: "finding already in another issue's log" }
-      - "patterns -> context_pack [data]: by area"
-      - "session_log -> context_pack [data]: last 5"
-      - "claude_md -> context_pack [data]: static"
+      - "ledger -> live [data]: cost per role"
 
   # 8 ───────────────────────────────────────────────────────────────
   - id: models
-    title: Models
-    description: >-
-      Mixed models. Claude Opus leads, arbitrates and verifies; Haiku codes, DeepSeek audits and GLM reviews
-      through OpenRouter (cross-model review); Sonnet plans and researches, Haiku routes, tests and writes.
+    title: Models (OpenRouter)
+    description: "One key, any family. The defaults come from the squad's own benchmarks; squad.json overrides any role."
     nodes:
-      - id: policy
-        runtime: vps
-        resources:
-          - { kind: config, label: "Model policy", path: "src/config.ts" }
-        label: Model policy
-        description: "ROLE_MODEL: a provider (claude or openrouter) and a model per role. The coder is reviewed by another model family (GLM), Claude verifies; the last fix round escalates the coder to Opus, Sonnet is the lead's fallback."
-        files: [src/config.ts]
-      - id: opus
-        runtime: anthropic
-        type: model
-        label: Opus 5.5
-        model: claude-opus-5-5
-        description: Lead, fresh verifier, and the escalated last-round fixer.
-      - id: sonnet
-        runtime: anthropic
-        type: model
-        label: Sonnet 5.5
-        model: claude-sonnet-5-5
-        description: Architect and researcher; fallback model for the lead.
-      - id: haiku
-        runtime: anthropic
-        type: model
-        label: Haiku 5.5
-        model: claude-haiku-5-5
-        description: Triage router, tester and doc writer. Cents per issue.
       - id: openrouter
         runtime: openrouter
-        resources:
-          - { kind: doc, label: "Model list + prices", url: "https://openrouter.ai/api/v1/models" }
-        type: tool
+        type: model
         label: OpenRouter
-        description: "An OpenAI-style tool loop over /chat/completions, on providers that do not collect data. No hook runs here: the memory pack closes the system prompt; coder writes get format + lint. Read tools for all, writes in src/, tests/, e2e/ for the coder, osv_scan for the auditor. Children get an allowlisted env and a scratch HOME per worktree (#317). Command whitelist, secret-path denylist, step cap."
-        files: [src/openrouter-agent.ts, src/child-env.ts, src/config.ts]
-      - id: haiku_openrouter
+        description: "One OpenAI-style endpoint. A role with no model of its own uses its family's: coder for writers and triage, reviewer for read-only graders."
+        files: [squad.example.json]
+      - id: haiku
         runtime: openrouter
         type: model
-        label: Haiku 5.5 (OR)
+        label: Claude Haiku 5.5
         model: anthropic/claude-haiku-5.5
-        description: "Coder, at low effort. $0.10 in / $0.50 out per M tokens. Chosen by the 2026-10-11 benchmark and field trial: about a third of the steps and of the cost on a real task. Anthropic caches only on request, so the loop sends a top-level cache_control."
+        description: "Default coder (and triage, tester, doc writer by family)."
+        files: [squad.example.json]
+      - id: glm
+        runtime: openrouter
+        type: model
+        label: GLM 5.3 Flash
+        model: z-ai/glm-5.3-flash
+        description: "Default reviewer (and architect, researcher, verifier by family). Another family than the coder's."
+        files: [squad.example.json]
       - id: deepseek
         runtime: openrouter
         type: model
         label: DeepSeek 4.1 Flash
         model: deepseek/deepseek-v4.1-flash
-        description: "Security auditor, at low effort. $0.30 in / $1.20 out per M tokens (2026-10-10); prompt cache automatic (cached input 0.1x). On #70: V4 Pro coded round 1 (50 steps, $0.13); 4.1 Flash took over (about $0.001 per step, 66-74% of the prompt from cache)."
-      - id: glm
-        runtime: openrouter
-        type: model
-        label: GLM 5.3 FlashX
-        model: z-ai/glm-5.3-flashx
-        description: "Reviewer: a different model family from the coder's. $0.37 in / $1.25 out per M tokens (2026-10-10). Review of #70: 6 steps, $0.085, found the blocking bug. Full GLM 5.3 reasoned 1-2.5 min per step and timed out at step 9 ($0.24): too slow for a review loop."
+        description: "Default security auditor."
+        files: [squad.example.json]
     edges:
-      - "policy -> opus: lead, verify"
-      - "policy -> sonnet: plan, research"
-      - "policy -> haiku: route, test, docs"
-      - "policy -> openrouter: code, review"
-      - "openrouter -> haiku_openrouter [call]: code"
+      - "openrouter -> haiku [call]: write"
+      - "openrouter -> glm [call]: judge"
       - "openrouter -> deepseek [call]: audit"
-      - "openrouter -> glm [call]: review"
 
 links:
-  # intake -> orchestration / specialists
-  - "intake.route -> orchestration.worktree [handoff]: full"
-  - "intake.triage -> tools.github [call]: open issues"
-  - "intake.webhook -> harness.prompt_submit: issue text"
-  # orchestration -> specialists
-  - "orchestration.dispatch -> specialists.researcher [spawn]: questions"
-  - "orchestration.dispatch -> tools.run_coder [call]: step N"
-  - "tools.run_coder -> specialists.coder [spawn]: step N"
-  - "specialists.doc_writer -> orchestration.integrate [return]: docs + PR body"
-  - "orchestration.lead -> tools.request_approval [call]: plan review"
-  - "orchestration.lead -> tools.file_followup [call]: moved out of scope"
-  # specialists -> quality
-  - "orchestration.integrate -> quality.fanout [handoff]: candidate diff"
-  - "quality.round_cap -> specialists.coder [return]: fix list"
-  - "quality.verifier -> tools.open_pr [call]: ship"
-  - { from: tools.request_approval, to: quality.approval, label: notify, async: true }
-  - "quality.escalate -> memory.session_log [data]: open findings"
-  - "quality.merged -> memory.session_log [data]: outcome"
-  - "quality.stopped -> memory.session_log [data]: failed, over_budget"
-  - "intake.triage -> quality.stopped: throws"
-  - "orchestration.worktree -> quality.stopped: git fails"
-  - "orchestration.lead -> quality.stopped: no JSON report"
-  - "orchestration.signoff -> quality.stopped: no answer in 4h"
-  - "tools.open_pr -> quality.stopped: error result"
-  - "harness.budget -> quality.stopped: over $15"
-  # specialists -> tools
-  - "specialists.researcher -> tools.context7 [call]: docs"
-  - "specialists.coder -> tools.builtin [call]: Edit, Bash"
-  - "specialists.tester -> tools.run_tests [call]: affected"
-  - "specialists.tester -> tools.playwright [call]: e2e"
-  - "quality.security -> tools.semgrep [call]: SAST"
-  - "quality.security -> tools.osv_scan [call]: new deps"
-  # tools -> harness -> memory
-  - "tools.builtin -> harness.pre_tool: every call"
-  - "harness.session_start -> memory.context_pack [data]: inject"
-  - "harness.stop -> memory.session_log [data]: append"
-  - "memory.context_pack -> orchestration.lead [data]: context"
-  - "memory.context_pack -> models.openrouter [data]: system prompt"
-  # models
-  - "orchestration.lead -> models.policy [call]: role"
-  - "intake.triage -> models.haiku [call]"
-  - "orchestration.lead -> models.opus [call]: plan, arbitrate"
-  - "quality.verifier -> models.opus [call]: verify"
-  - "quality.round_cap -> models.opus: escalate fixer"
-  - "specialists.coder -> models.openrouter [call]: Haiku"
-  - "quality.reviewer -> models.openrouter [call]: GLM"
-  - "quality.security -> models.openrouter [call]: DeepSeek"
+  - "intake.route -> orchestration.branch [handoff]: full"
+  - "intake.lead -> orchestration.architect [spawn]: plan"
+  - "orchestration.tasks -> runner.steps [call]: run the folder"
+  - "runner.steps -> specialists.coder [spawn]: step N"
+  - "orchestration.architect -> specialists.researcher [spawn]: open questions"
+  - "specialists.doc_writer -> quality.pack [handoff]: branch ready"
+  - "quality.triage_findings -> orchestration.tasks [return]: fix steps"
+  - "runner.run -> observe.ledger [data]: cost"
+  - "runner.run -> observe.live [data]: events"
+  - "runner.run -> models.openrouter [call]: chat completions"
+  - "setup.key -> runner.run [data]: key"
+  - "setup.config -> runner.run [data]: models, commands"
+  - "setup.skill -> intake.lead [data]: procedure"
+  - "quality.gate -> runner.gate_script [call]"
+  - "quality.pack -> runner.run [spawn]: reviewer, security"

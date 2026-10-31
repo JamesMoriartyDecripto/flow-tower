@@ -77,11 +77,10 @@ afterAll(async () => {
 });
 
 describe('live delivery: installed runner to the trusted CLI to a loopback collector', () => {
-  it('the installed root and coder/researcher nested towers validate with 0 errors and 0 warnings', async () => {
+  it('the installed root and runner-loop nested tower validate with 0 errors and 0 warnings', async () => {
     const lib = await loadLibrary([join(fx.dir, 'tools', 'squad')]);
     const ids = Object.keys(lib.workspace.towers);
-    expect(ids.some((id) => id.includes('coder'))).toBe(true);
-    expect(ids.some((id) => id.includes('researcher'))).toBe(true);
+    expect(ids.some((id) => id.includes('runner-loop'))).toBe(true);
     const issues = Object.values(lib.workspace.towers).flatMap((t) => t.issues);
     expect(issues.filter((i) => i.level === 'error').map((i) => i.message)).toEqual([]);
     expect(issues.filter((i) => i.level === 'warning').map((i) => i.message)).toEqual([]);
@@ -90,7 +89,7 @@ describe('live delivery: installed runner to the trusted CLI to a loopback colle
   it('every registered role delivers exactly one start and one ok end through the installed CLI path', async () => {
     const config = JSON.parse(readFileSync(join(fx.dir, 'tools', 'squad', 'squad.json'), 'utf8'));
     const lib = await loadLibrary([join(fx.dir, 'tools', 'squad')]);
-    const rootId = Object.keys(lib.workspace.towers).find((id) => !id.includes('coder') && !id.includes('researcher'))!;
+    const rootId = Object.keys(lib.workspace.towers).find((id) => !id.includes('runner-loop'))!;
     const env = { ...liveEnv() };
     for (const role of ROLE_NAMES) {
       const verdict = ROLES[role].verdict;
