@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Changed
+- Focus mode hides cross-layer links (#348): with a layer focused in the tower view, links that do not touch it are no longer drawn, and links that leave it show only for the selected or hovered node and its related nodes, at full strength. They used to stay at 10% and cross the camera's view of the focused layer. Overview and map view are unchanged.
+
 ## [0.15.0] - 2026-10-30
 
 ### Security
