@@ -19,6 +19,9 @@ NODE=${NODE:-node}
 # The copy cannot find its helpers next to itself, so the original folder is passed in as SQUAD_STEPS_HOME.
 H=${SQUAD_STEPS_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}
 issue=$1; dir=$2; write=$3; title=$4
+# A red run keeps its folder for the lead, and nothing removes it after that. Folders a lead never came back to would pile up,
+# so this run removes this user's own old ones first (older than 7 days). The user check keeps other users' folders out of reach.
+find "${TMPDIR:-/tmp}" -maxdepth 1 -type d -name 'squad-*-??????' -user "$(id -u)" -mtime +7 -exec rm -rf -- {} + 2>/dev/null || true
 # Run outputs go to a temp folder: files dropped into the repo would make the "changed nothing" guard
 # below see a dirty tree even when the coder did nothing.
 OUT=$(mktemp -d "${TMPDIR:-/tmp}/squad-$issue-XXXXXX") || exit 1
@@ -122,4 +125,6 @@ Coder: $CODER.${trailerPara}" -- "${stagedPaths[@]}" && git log --oneline -1 || 
   ) || { echo "RED after step $step: commit failed"; exit 1; }
 done
 "$NODE" "$H/cost.mjs" "$issue" --repo "$R"
+# Only a red run keeps its folder: after ALL GREEN nothing reads the logs, so the folder goes.
+rm -rf -- "$OUT"
 echo "ALL GREEN #$issue"
