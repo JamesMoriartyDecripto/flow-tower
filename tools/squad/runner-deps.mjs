@@ -1,7 +1,7 @@
 // The real dependencies of the unattended lead (#320). runner-core.mjs runs on injected deps and does no I/O itself;
 // this file makes them real. Every effect goes through one injected exec(cmd, args, opts) -> { status, stdout, stderr },
 // so the tests run the whole set with a fake and never reach git, gh or OpenRouter.
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { env } from 'node:process';
@@ -54,6 +54,8 @@ export function makeDeps({ repo, home, exec, runner, now = Date.now }) {
     const branch = `squad/${issue.number}-${slugOf(issue.title)}`;
     const path = join(squadDir, 'worktrees', `${basename(repo)}-${issue.number}`);
     mkdirSync(join(squadDir, 'worktrees'), { recursive: true });
+    // A failed issue keeps its worktree for inspection; a rerun is a new start, so the old folder is cleared first.
+    if (existsSync(path)) exec('git', ['-C', repo, 'worktree', 'remove', '--force', path]);
     must(exec('git', ['-C', repo, 'fetch', 'origin', 'main']), 'git fetch');
     must(exec('git', ['-C', repo, 'worktree', 'add', '-B', branch, path, 'origin/main']), 'git worktree add');
     return { path, branch };
@@ -123,7 +125,7 @@ export function makeDeps({ repo, home, exec, runner, now = Date.now }) {
 
   // The cost of one issue, from the shared ledger. An issue with no runs reads 0.
   function spent(n) {
-    return summarize(readRuns(ledgerPath({ FLOW_TOWER_HOME: home })), n).total.cost;
+    return summarize(readRuns(ledgerPath({ ...env, FLOW_TOWER_HOME: home })), n).total.cost;
   }
 
   return { role, worktree, writeTasks, steps, quality, push, gate, spent, now };

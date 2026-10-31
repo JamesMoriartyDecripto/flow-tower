@@ -1,6 +1,7 @@
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { env } from 'node:process';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error plain .mjs without declarations
 import { makeDeps } from '../tools/squad/runner-deps.mjs';
@@ -67,6 +68,18 @@ describe('worktree', () => {
     expect(fetchAt).toBeGreaterThanOrEqual(0);
     expect(addAt).toBeGreaterThan(fetchAt);
     expect(calls[addAt].args).toContain('squad/7-fix-the-thing');
+  });
+
+  it('removes a leftover worktree at the same path before worktree add', async () => {
+    const { deps, calls, home } = setup();
+    // A failed earlier attempt left its folder behind; the rerun must clear it before adding.
+    mkdirSync(join(home, 'squad-runner', 'worktrees', 'flow-tower-7'), { recursive: true });
+    await deps.worktree({ number: 7, title: 'x' });
+    const removeAt = calls.findIndex((c) => c.args.includes('remove'));
+    const addAt = calls.findIndex((c) => c.args.includes('add'));
+    expect(removeAt).toBeGreaterThanOrEqual(0);
+    expect(calls[removeAt].args).toContain('--force');
+    expect(addAt).toBeGreaterThan(removeAt);
   });
 
   it('throws with the command and the first stderr line when git fails', async () => {
@@ -147,5 +160,20 @@ describe('spent', () => {
     const deps = makeDeps({ repo: '/repo', home, exec: fakeExec().exec, runner: '/runner' });
     expect(deps.spent(7)).toBe(1.75);
     expect(existsSync(ledger)).toBe(true);
+  });
+
+  it('reads the ledger named by SQUAD_LEDGER when it is set', () => {
+    const home = tmp();
+    const other = join(tmp(), 'other-ledger.jsonl');
+    writeFileSync(other, JSON.stringify({ issue: '7', role: 'coder', model: 'm', cost: 2 }) + '\n');
+    const before = env.SQUAD_LEDGER;
+    process.env.SQUAD_LEDGER = other;
+    try {
+      const deps = makeDeps({ repo: '/repo', home, exec: fakeExec().exec, runner: '/runner' });
+      expect(deps.spent(7)).toBe(2);
+    } finally {
+      if (before === undefined) delete process.env.SQUAD_LEDGER;
+      else process.env.SQUAD_LEDGER = before;
+    }
   });
 });
