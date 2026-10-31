@@ -71,12 +71,9 @@ describe('voice list referents (#130)', () => {
     // A node without files says so, by its label.
     const s2 = useStore.getState();
     const tower = s2.workspace!.towers[s2.stack[s2.stack.length - 1]]!;
-    // The dev-squad tower (#355) gives every node a file, so there may be no bare node to check: skip, do not fail.
-    const bare = tower.layers.flatMap((l) => l.nodes).find((n) => n.files.length === 0 && n.resources.length === 0);
-    if (bare) {
-      useStore.getState().select(bare.key);
-      expect(runItsFile(0)).toBe(`${bare.label} has no files`);
-    }
+    const bare = tower.layers.flatMap((l) => l.nodes).find((n) => n.files.length === 0 && n.resources.length === 0)!;
+    useStore.getState().select(bare.key);
+    expect(runItsFile(0)).toBe(`${bare.label} has no files`);
   });
 
   it('answers "No file open" for a file step with no viewer (#130)', () => {
