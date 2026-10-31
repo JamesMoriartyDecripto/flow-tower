@@ -1,0 +1,42 @@
+ok   judge/quickfix-removal  check=command  tools=read_file  steps<=6
+ok   judge/steps-scope  check=command  tools=read_file  steps<=6
+ok   judge/temp-cleanup  check=command  tools=read_file  steps<=6
+
+plan: 5 models × 3 tasks × 2 runs = 30 runs (at most 180 model calls, 360 with retries)
+models: anthropic/claude-sonnet-5.5, openai/gpt-6.1-terra, z-ai/glm-5.3, google/gemini-3.8-flash, z-ai/glm-5.3-flash
+order: run-major, models interleaved, so a slow hour or a provider incident hits every model alike
+output: results/2026-10-31-lead/judge.jsonl  timeout: 180s + 1 retry  effort: low
+note: fewer than 3 runs per cell: label every result ILLUSTRATIVE
+[1/30] anthropic/claude-sonnet-5.5 quickfix-removal #1: answered · 10.4s · 2 steps · $0.0384 · cache 11%
+[2/30] openai/gpt-6.1-terra quickfix-removal #1: answered · 4.1s · 2 steps · $0.0108 · cache 0%
+[3/30] z-ai/glm-5.3 quickfix-removal #1: answered · 4.8s · 2 steps · $0.0028 · cache 10%
+[4/30] google/gemini-3.8-flash quickfix-removal #1: answered · 12.1s · 2 steps · $0.0078 · cache 0%
+[5/30] z-ai/glm-5.3-flash quickfix-removal #1: answered · 3.0s · 2 steps · $0.0009 · cache 9%
+[6/30] anthropic/claude-sonnet-5.5 steps-scope #1: answered · 13.5s · 2 steps · $0.0462 · cache 9%
+[7/30] openai/gpt-6.1-terra steps-scope #1: answered · 10.6s · 2 steps · $0.0152 · cache 0%
+[8/30] z-ai/glm-5.3 steps-scope #1: answered · 16.7s · 2 steps · $0.0041 · cache 0%
+[9/30] google/gemini-3.8-flash steps-scope #1: answered · 9.1s · 2 steps · $0.0092 · cache 0%
+[10/30] z-ai/glm-5.3-flash steps-scope #1: answered · 65.1s · 3 steps · $0.0007 · cache 26%
+[11/30] anthropic/claude-sonnet-5.5 temp-cleanup #1: answered · 8.5s · 2 steps · $0.0274 · cache 13%
+[12/30] openai/gpt-6.1-terra temp-cleanup #1: answered · 6.8s · 2 steps · $0.0090 · cache 0%
+[13/30] z-ai/glm-5.3 temp-cleanup #1: answered · 10.5s · 2 steps · $0.0027 · cache 18%
+[14/30] google/gemini-3.8-flash temp-cleanup #1: answered · 9.1s · 2 steps · $0.0059 · cache 0%
+[15/30] z-ai/glm-5.3-flash temp-cleanup #1: answered · 34.5s · 2 steps · $0.0002 · cache 12%
+[16/30] anthropic/claude-sonnet-5.5 quickfix-removal #2: answered · 9.1s · 2 steps · $0.0075 · cache 100%
+[17/30] openai/gpt-6.1-terra quickfix-removal #2: answered · 4.2s · 2 steps · $0.0110 · cache 0%
+[18/30] z-ai/glm-5.3 quickfix-removal #2: answered · 6.8s · 2 steps · $0.0143 · cache 10%
+[19/30] google/gemini-3.8-flash quickfix-removal #2: answered · 8.9s · 2 steps · $0.0051 · cache 41%
+[20/30] z-ai/glm-5.3-flash quickfix-removal #2: answered · 56.4s · 3 steps · $0.0006 · cache 10%
+[21/30] anthropic/claude-sonnet-5.5 steps-scope #2: answered · 14.2s · 2 steps · $0.0123 · cache 100%
+[22/30] openai/gpt-6.1-terra steps-scope #2: answered · 8.4s · 2 steps · $0.0147 · cache 0%
+[23/30] z-ai/glm-5.3 steps-scope #2: answered · 5.1s · 2 steps · $0.0033 · cache 11%
+[24/30] google/gemini-3.8-flash steps-scope #2: answered · 8.8s · 2 steps · $0.0038 · cache 69%
+[25/30] z-ai/glm-5.3-flash steps-scope #2: answered · 33.2s · 3 steps · $0.0006 · cache 26%
+[26/30] anthropic/claude-sonnet-5.5 temp-cleanup #2: answered · 7.5s · 2 steps · $0.0064 · cache 100%
+[27/30] openai/gpt-6.1-terra temp-cleanup #2: answered · 4.1s · 2 steps · $0.0083 · cache 0%
+[28/30] z-ai/glm-5.3 temp-cleanup #2: answered · 5.9s · 2 steps · $0.0029 · cache 19%
+[29/30] google/gemini-3.8-flash temp-cleanup #2: answered · 9.6s · 2 steps · $0.0032 · cache 54%
+[30/30] z-ai/glm-5.3-flash temp-cleanup #2: answered · 37.6s · 2 steps · $0.0002 · cache 99%
+
+done: 30 runs, $0.2755 in total → results/2026-10-31-lead/judge.jsonl
+next: node scripts/judge.mjs --in results/2026-10-31-lead/judge.jsonl --tasks tasks/judge/

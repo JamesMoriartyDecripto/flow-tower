@@ -1,0 +1,13 @@
+ok   planner/focus-links  check=command  tools=read_file  steps<=8
+
+plan: 3 models × 1 tasks × 1 runs = 3 runs (at most 24 model calls, 48 with retries)
+models: anthropic/claude-sonnet-5.5, openai/gpt-6.1-terra, z-ai/glm-5.3
+order: run-major, models interleaved, so a slow hour or a provider incident hits every model alike
+output: results/2026-10-31-lead/run3-planner-focus-links.jsonl  timeout: 180s + 1 retry  effort: low
+note: fewer than 3 runs per cell: label every result ILLUSTRATIVE
+[1/3] anthropic/claude-sonnet-5.5 focus-links #1: answered · 10.5s · 3 steps · $0.0342 · cache 26%
+[2/3] openai/gpt-6.1-terra focus-links #1: answered · 10.3s · 3 steps · $0.0100 · cache 0%
+[3/3] z-ai/glm-5.3 focus-links #1: answered · 16.0s · 3 steps · $0.0023 · cache 0%
+
+done: 3 runs, $0.0465 in total → results/2026-10-31-lead/run3-planner-focus-links.jsonl
+next: node scripts/judge.mjs --in results/2026-10-31-lead/run3-planner-focus-links.jsonl --tasks tasks/planner/focus-links.md

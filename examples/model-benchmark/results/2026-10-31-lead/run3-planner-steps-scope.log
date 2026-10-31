@@ -1,0 +1,13 @@
+ok   planner/steps-scope  check=command  tools=read_file  steps<=8
+
+plan: 3 models × 1 tasks × 1 runs = 3 runs (at most 24 model calls, 48 with retries)
+models: anthropic/claude-sonnet-5.5, openai/gpt-6.1-terra, z-ai/glm-5.3
+order: run-major, models interleaved, so a slow hour or a provider incident hits every model alike
+output: results/2026-10-31-lead/run3-planner-steps-scope.jsonl  timeout: 180s + 1 retry  effort: low
+note: fewer than 3 runs per cell: label every result ILLUSTRATIVE
+[1/3] anthropic/claude-sonnet-5.5 steps-scope #1: answered · 20.6s · 3 steps · $0.0634 · cache 19%
+[2/3] openai/gpt-6.1-terra steps-scope #1: answered · 15.6s · 3 steps · $0.0175 · cache 11%
+[3/3] z-ai/glm-5.3 steps-scope #1: answered · 15.8s · 3 steps · $0.0046 · cache 18%
+
+done: 3 runs, $0.0855 in total → results/2026-10-31-lead/run3-planner-steps-scope.jsonl
+next: node scripts/judge.mjs --in results/2026-10-31-lead/run3-planner-steps-scope.jsonl --tasks tasks/planner/steps-scope.md

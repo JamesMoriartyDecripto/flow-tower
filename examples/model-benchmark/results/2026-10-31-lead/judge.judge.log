@@ -1,0 +1,14 @@
+30 runs: 18 pass, 12 fail, 0 pending (rubric only)
+  fail openai/gpt-6.1-terra quickfix-removal #1: check failed: AssertionError [ERR_ASSERTION]: S1 must be keep
+  fail z-ai/glm-5.3 quickfix-removal #1: check failed: AssertionError [ERR_ASSERTION]: S1 must be keep
+  fail google/gemini-3.8-flash quickfix-removal #1: check failed: AssertionError [ERR_ASSERTION]: S1 must be keep
+  fail z-ai/glm-5.3-flash quickfix-removal #1: check failed: AssertionError [ERR_ASSERTION]: S1 must be keep
+  fail openai/gpt-6.1-terra steps-scope #1: check failed: AssertionError [ERR_ASSERTION]: S1 must be keep
+  fail openai/gpt-6.1-terra quickfix-removal #2: check failed: AssertionError [ERR_ASSERTION]: S1 must be keep
+  fail google/gemini-3.8-flash quickfix-removal #2: check failed: AssertionError [ERR_ASSERTION]: S1 must be keep
+  fail z-ai/glm-5.3-flash quickfix-removal #2: check failed: AssertionError [ERR_ASSERTION]: S1 must be keep
+  fail google/gemini-3.8-flash steps-scope #2: check failed: AssertionError [ERR_ASSERTION]: S2 must be keep
+  fail z-ai/glm-5.3-flash steps-scope #2: check failed: AssertionError [ERR_ASSERTION]: S1 must be keep
+  fail openai/gpt-6.1-terra temp-cleanup #2: check failed: AssertionError [ERR_ASSERTION]: 2/3 decisions match, need 3
+  fail z-ai/glm-5.3-flash temp-cleanup #2: check failed: AssertionError [ERR_ASSERTION]: S4 must be keep
+wrote /home/igris/flow-tower/examples/model-benchmark/results/2026-10-31-lead/judge.judged.jsonl

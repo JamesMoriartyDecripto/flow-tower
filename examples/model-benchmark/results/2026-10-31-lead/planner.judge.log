@@ -1,0 +1,10 @@
+36 runs: 28 pass, 8 fail, 0 pending (rubric only)
+  fail moonshotai/kimi-k2.6 focus-links #1: check failed: AssertionError [ERR_ASSERTION]: export default must be an object
+  fail moonshotai/kimi-k2.6 focus-links #2: check failed: AssertionError [ERR_ASSERTION]: export default must be an object
+  fail z-ai/glm-5.3 steps-scope #1: check failed: AssertionError [ERR_ASSERTION]: step 1: 1-3 items
+  fail moonshotai/kimi-k2.6 steps-scope #1: check failed: AssertionError [ERR_ASSERTION]: export default must be an object
+  fail moonshotai/kimi-k2.6 steps-scope #2: check failed: AssertionError [ERR_ASSERTION]: export default must be an object
+  fail z-ai/glm-5.3-flash steps-scope #2: check failed: AssertionError [ERR_ASSERTION]: step 2: 1-3 items
+  fail moonshotai/kimi-k2.6 temp-cleanup #1: check failed: AssertionError [ERR_ASSERTION]: export default must be an object
+  fail moonshotai/kimi-k2.6 temp-cleanup #2: check failed: AssertionError [ERR_ASSERTION]: export default must be an object
+wrote /home/igris/flow-tower/examples/model-benchmark/results/2026-10-31-lead/planner.judged.jsonl

@@ -1,0 +1,21 @@
+ok   judge/quickfix-removal  check=command  tools=read_file  steps<=6
+ok   judge/steps-scope  check=command  tools=read_file  steps<=6
+ok   judge/temp-cleanup  check=command  tools=read_file  steps<=6
+
+plan: 3 models × 3 tasks × 1 runs = 9 runs (at most 54 model calls, 108 with retries)
+models: anthropic/claude-sonnet-5.5, openai/gpt-6.1-terra, z-ai/glm-5.3
+order: run-major, models interleaved, so a slow hour or a provider incident hits every model alike
+output: results/2026-10-31-lead/run3-judge.jsonl  timeout: 180s + 1 retry  effort: low
+note: fewer than 3 runs per cell: label every result ILLUSTRATIVE
+[1/9] anthropic/claude-sonnet-5.5 quickfix-removal #1: answered · 8.6s · 2 steps · $0.0348 · cache 11%
+[2/9] openai/gpt-6.1-terra quickfix-removal #1: answered · 5.4s · 2 steps · $0.0109 · cache 0%
+[3/9] z-ai/glm-5.3 quickfix-removal #1: answered · 3.8s · 2 steps · $0.0019 · cache 99%
+[4/9] anthropic/claude-sonnet-5.5 steps-scope #1: answered · 13.5s · 2 steps · $0.0444 · cache 9%
+[5/9] openai/gpt-6.1-terra steps-scope #1: answered · 13.0s · 3 steps · $0.0163 · cache 48%
+[6/9] z-ai/glm-5.3 steps-scope #1: answered · 9.2s · 2 steps · $0.0057 · cache 100%
+[7/9] anthropic/claude-sonnet-5.5 temp-cleanup #1: answered · 7.7s · 2 steps · $0.0271 · cache 13%
+[8/9] openai/gpt-6.1-terra temp-cleanup #1: answered · 4.5s · 2 steps · $0.0085 · cache 0%
+[9/9] z-ai/glm-5.3 temp-cleanup #1: answered · 7.5s · 2 steps · $0.0101 · cache 11%
+
+done: 9 runs, $0.1597 in total → results/2026-10-31-lead/run3-judge.jsonl
+next: node scripts/judge.mjs --in results/2026-10-31-lead/run3-judge.jsonl --tasks tasks/judge/

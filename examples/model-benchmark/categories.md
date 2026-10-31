@@ -8,7 +8,8 @@ One category per role a tower node can have (issue #105). Each needs a task set 
 | reviewer | Real defects, no noise | planted bug: expected finding patterns | `tasks/reviewer/` (3) |
 | security | Exploitable issues, with an input | planted vulnerability + a decoy that must not be flagged | `tasks/security/` (2) |
 | orchestrator (lead / planner) | Orders the steps of a plan by stated rules | exact JSON | `tasks/orchestrator/` (2) |
-| planner (plans, task files) | Plans, task files, judgment | plan names the right steps, files and agents, then rubric | `tasks/planner/` (3) |
+| planner (plans, task files) | Plans, task files, judgment | plan names the right steps, files and agents, then rubric; or a JSON plan checked against the merged fix | `tasks/planner/` (6) |
+| judge (lead-judge) | Keep or drop each review finding, as the lead did | answer key from the real decision; critical findings exact | `tasks/judge/` (3) |
 | doc-writer | Accurate, short, verified | required facts as patterns, then rubric | `tasks/doc-writer/` (2) |
 | voice / chat agent | First sentence fast, tool use, spoken style | tool calls and answer facts; no Markdown in speech | planned (the six-model run of #70 is the template) |
 | intent / classifier | Cheap, fast, structured output | exact JSON | `tasks/intent/` (4: voice commands, airline routing and relevance) |
