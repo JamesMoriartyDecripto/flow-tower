@@ -168,7 +168,7 @@ layers:
         runtime: laptop
         label: Tower first
         description: "The tower that models the changed part gets the planned design, validated 0 errors / 0 warnings and committed before any code."
-        files: [dev-squad.tower.yaml]
+        files: [README.md]
       - id: signoff
         runtime: github
         type: human
@@ -374,7 +374,7 @@ layers:
         type: output
         label: Live tower
         description: "ev.sh posts start/end events to a running flow-tower viewer: the role's node lights up. Best effort: offline it is skipped."
-        files: [dev-squad.tower.yaml]
+        files: [README.md]
     edges:
       - "ledger -> live [data]: cost per role"
 
