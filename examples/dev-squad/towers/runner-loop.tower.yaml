@@ -1,0 +1,116 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Runner loop
+description: >-
+  What one run.mjs process does for a role: read the config and the key, build the prompt,
+  call OpenRouter in a tool loop (or once, for a packed review), fence every write, and end
+  with a report or a verdict.
+root: ..
+
+runtimes:
+  laptop:
+    kind: local
+    label: "Your machine"
+    description: "The runner process, the repository and its checks."
+  openrouter:
+    kind: saas
+    label: "OpenRouter"
+    description: "Chat completions with tool calls; the cost of each generation."
+    provider: "openrouter"
+    url: "https://openrouter.ai"
+
+layers:
+  - id: start
+    title: Start
+    description: "Everything that can fail cheaply fails before the first paid request."
+    nodes:
+      - id: args
+        runtime: laptop
+        type: entry
+        label: Role and task
+        description: "--role (one of nine), --task file, --issue, --write. An unknown role, a doc writer without --write or a bad folder is refused before the key is read."
+        files: [roles/coder.md]
+      - id: config
+        runtime: laptop
+        type: memory
+        label: squad.json
+        description: "The repo's commands, folders, base, rules and the role's model (its own, else its family's)."
+        files: [squad.example.json]
+      - id: key
+        runtime: laptop
+        type: memory
+        label: Key
+        description: "OPENROUTER_API_KEY from the environment, else the user folder. Never passed to child commands."
+        files: [README.md]
+      - id: mode
+        runtime: laptop
+        type: decision
+        label: Mode?
+        description: "Reviewer and security: oneshot by default (batch overnight). Every other role: the tool loop."
+        decision: { output: choice, candidates: [loop, oneshot, batch], fail: closed }
+        files: [roles/reviewer.md]
+    edges:
+      - "args -> config: repo"
+      - "config -> key: ready"
+      - "key -> mode: role"
+
+  - id: loop
+    title: Tool loop
+    description: "The model asks for tools; the runner executes them inside the fence and answers. A step cap ends runaway loops."
+    nodes:
+      - id: call
+        runtime: openrouter
+        type: model
+        label: Model call
+        description: "One chat completion with the role's tools. A cut answer (finish_reason other than stop) fails the run."
+        files: [squad.example.json]
+      - id: tools
+        runtime: laptop
+        type: tool
+        label: Tools
+        description: "list_files, read_file, grep for every role; edit_file, write_file, delete_file only for writers; run for the project's whitelisted commands (check, typecheck, test <file>, diff); finish."
+        tools: [list_files, read_file, grep, edit_file, write_file, delete_file, run, finish]
+        files: [roles/coder.md]
+      - id: fence
+        runtime: laptop
+        type: guard
+        label: Write fence
+        description: "Real path inside the role's folders, never a secret file; commands run without the API key."
+        files: [roles/coder.md]
+      - id: cap
+        runtime: laptop
+        type: decision
+        label: Steps left?
+        description: "Two calls before the cap, the model is told to finish. At the cap the run exits nonzero; its last text is a diagnostic, never a verdict."
+        decision: { output: binary, candidates: [continue, stop], fail: closed }
+        limits: { max_iterations: 70 }
+        files: [roles/coder.md]
+    edges:
+      - "call -> tools [call]: tool calls"
+      - "tools -> fence [call]: writes, commands"
+      - "fence -> cap [return]: results"
+      - "cap -> call: continue"
+
+  - id: end
+    title: End
+    description: "A role is complete only when it calls finish."
+    nodes:
+      - id: report
+        runtime: laptop
+        type: output
+        label: Report
+        description: "finish with the report and a Known gaps: line; for reviewer and security, the JSON verdict only (no verdict fails the run)."
+        files: [roles/reviewer.md]
+      - id: ledger
+        runtime: laptop
+        type: memory
+        label: Ledger line
+        description: "Role, model, mode, steps, tokens, cache share and the cost OpenRouter reports."
+        files: [README.md]
+    edges:
+      - "report -> ledger [data]: cost"
+
+links:
+  - "start.mode -> loop.call: loop"
+  - "start.mode -> end.report: oneshot, one request"
+  - "loop.cap -> end.report: finish or cap"

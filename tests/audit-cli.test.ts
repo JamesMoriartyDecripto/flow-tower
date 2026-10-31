@@ -37,7 +37,7 @@ describe('flow-tower audit (#173-03)', () => {
     const fits = dev.modelFit as { node: string; role: string; model?: string }[];
     expect(fits.find((f) => f.node === 'quality.reviewer')?.role).toBe('review');
     expect(fits.find((f) => f.node === 'specialists.coder')?.role).toBe('coding');
-    expect(fits.find((f) => f.node === 'orchestration.lead')?.role).toBe('orchestrator');
+    expect(fits.find((f) => f.node === 'intake.lead')?.role).toBe('orchestrator');
     // A fit with no model would mean a process, human or plain node leaked in.
     expect(fits.filter((f) => !f.model).map((f) => f.node)).toEqual([]);
   });

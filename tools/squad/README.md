@@ -19,12 +19,12 @@ Then ask your agent to work an issue with the squad: the [flow-tower-squad skill
 is the lead's procedure. `tools/squad/squad.json` holds what is specific to a project (below).
 
 The **single canonical Dev Squad tower** is [`examples/dev-squad`](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/examples/dev-squad/README.md).
-Init installs its full eight layers at `tools/squad/squad.tower.yaml` and its supporting files (including nested
-towers, agents, prompts and SDK source) in `tools/squad/dev-squad/`. It does not install a reduced tower.
+Init installs its eight layers at `tools/squad/squad.tower.yaml` and its supporting files (role cards, a sample
+`squad.json`, the task template and the nested runner-loop tower) in `tools/squad/dev-squad/`.
 The lead follows the portable skill to coordinate triage, planning, research, coding, testing, documentation,
 review, security and verification. These scripts execute the specialist tasks; they do not replace the lead
-with an autonomous scheduler. The SDK source is a reference backend: no mandatory Claude SDK, Claude account,
-webhook or deployment is needed. Runner settings do not rewrite that reference backend's model metadata.
+with an autonomous scheduler. The squad depends on no SDK: no Claude account, webhook or deployment, only Node,
+git and one OpenRouter key (#355).
 The skill is portable guidance; actual harness trials are tracked in #333, not inferred from installation.
 
 `--force` refreshes runner scripts and fills missing bundle files, but preserves existing towers and bundle edits.
@@ -333,4 +333,4 @@ The lead posts that table on the issue when it closes.
 
 - In flow-tower: [`src/server/plugin.ts`](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/src/server/plugin.ts) and [`src/core/secrets.ts`](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/src/core/secrets.ts), how the key file and the user folder are found and guarded.
 - `bin/flow-tower.js emit`: the event CLI `ev.sh` calls (never fails, never blocks long).
-- `examples/dev-squad`: the canonical complete Dev Squad tower and SDK source, distributed by init; these scripts remain its task runner, not a launcher for the full SDK pipeline.
+- `examples/dev-squad`: the canonical Dev Squad tower, distributed by init; it models these scripts.

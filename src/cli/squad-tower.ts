@@ -15,10 +15,14 @@ export const BUNDLE_DIR = 'dev-squad';
 /** The one main tower a squad has. The canonical main tower is never copied into BUNDLE_DIR. */
 export const MAIN_TOWER = 'squad.tower.yaml';
 const CANONICAL_MAIN = 'dev-squad.tower.yaml';
-/** The folders the canonical tower and its agents reference. Anything else in the example is not part of the squad. */
-const BUNDLE_DIRS = ['.claude', 'deploy', 'logs', 'memory', 'prompts', 'scripts', 'src', 'towers'];
+/**
+ * The folders the canonical tower and its agents reference. Anything else in the example is not part of the squad.
+ * The bundle holds no SDK code (#355): the Claude Agent SDK backend was removed, so only the OpenRouter runner's
+ * role prompts and nested tower are shipped.
+ */
+const BUNDLE_DIRS = ['roles', 'towers'];
 /** Top-level files of the bundle. The main tower is not listed: it is installed once, as MAIN_TOWER. */
-const BUNDLE_FILES = ['.mcp.json', 'CLAUDE.md', 'README.md'];
+const BUNDLE_FILES = ['README.md', 'squad.example.json', 'task-template.md'];
 const SKIP_DIRS = new Set(['node_modules', '.git']);
 
 /** Whether a path exists at all, a dangling symlink included (existsSync follows links and would miss it). */

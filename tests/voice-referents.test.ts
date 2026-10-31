@@ -65,7 +65,7 @@ describe('voice list referents (#130)', () => {
     s.select(undefined);
     expect(runItsFile(0)).toBe('No node selected');
     useStore.getState().select('intake.triage');
-    expect(runItsFile(0)).toBe('src/triage.ts');
+    expect(runItsFile(0)).toBe('roles/triage.md');
     expect(useStore.getState().file).toMatchObject({ index: 0 });
     expect(runItsFile(3)).toBe('Only 1 files');
     // A node without files says so, by its label.
@@ -107,11 +107,11 @@ describe('voice list referents (#130)', () => {
     const tower = s.workspace!.towers[s.stack[s.stack.length - 1]]!;
     s.openFile(undefined);
     s.select(undefined);
-    setList({ tower: tower.id, keys: ['orchestration.lead', 'intake.triage'], cursor: -1, source: 'search' });
-    const label = tower.layers.flatMap((l) => l.nodes).find((n) => n.key === 'orchestration.lead')!.label;
+    setList({ tower: tower.id, keys: ['intake.lead', 'intake.triage'], cursor: -1, source: 'search' });
+    const label = tower.layers.flatMap((l) => l.nodes).find((n) => n.key === 'intake.lead')!.label;
     expect(runStep(1, 'auto')).toBe(label);
-    expect(useStore.getState().selected).toBe('orchestration.lead');
-    expect(runStep(1, 'auto')).toBe('Triage router');
+    expect(useStore.getState().selected).toBe('intake.lead');
+    expect(runStep(1, 'auto')).toBe('Triage');
     expect(runStep(1, 'auto')).toBe('That was the last one');
     // A step past the end does not move the cursor, so going back returns the last one.
     expect(runStep(-1, 'auto')).toBe(label);

@@ -23,7 +23,7 @@ Presets by pattern: real multi-agent systems, one per architecture.
 
 | Folder | Layers | Use it as a model for |
 |---|---|---|
-| [`dev-squad`](dev-squad) | 8 | Coding agents on the Claude Agent SDK: orchestrator-workers, review loop, hooks, MCP, memory, `from:` agent files |
+| [`dev-squad`](dev-squad) | 8 | A coding squad on one OpenRouter key, led by your own session in any harness: plan, steps, packed review, merge gate |
 | [`game-studio`](game-studio) | 14 | Very large system: many departments, nesting depth 2, stress test |
 | [`course-studio`](course-studio) | 12 | Content production: parallel writers, review board, publishing |
 | [`web-studio`](web-studio) | 8 | Product build with separate frontend and backend sub-towers, client approvals, Lighthouse / axe evals, canary rollout |
