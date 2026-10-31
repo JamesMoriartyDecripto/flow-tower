@@ -2,9 +2,21 @@
 // well formed, its steps are small, and its Files: lines name every file the real fix had to touch. The real fix is
 // the merged pull request; alternatives are listed where another file would have done the same job.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
+// The answer is model output run as a module, and the task folder it may read holds the answer keys: a plan or a
+// verdict is plain data, so any code that could reach other files or the process is refused before it is imported.
+const CODE = /\b(import|require|process|globalThis|eval|Function|fetch|readFile|fs)\b/;
+function plainData(answerPath) {
+  const text = readFileSync(answerPath, 'utf8');
+  // String contents are prose (a plan may say "import the helper"); only the code around them is checked.
+  const body = text.replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`/g, '""').replace(/export\s+default/, '');
+  assert.ok(!CODE.test(body), 'the answer must be plain data: no import, require, process, file or eval access');
+}
+
 export async function checkPlan(answerPath, { must, maxSteps = 8, maxItems = 3 }) {
+  plainData(answerPath);
   const plan = (await import(pathToFileURL(answerPath).href)).default;
   assert.ok(plan && typeof plan === 'object', 'export default must be an object');
   assert.ok(Array.isArray(plan.criteria) && plan.criteria.length > 0, 'criteria: a nonempty array');
