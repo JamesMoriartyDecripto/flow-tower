@@ -30,6 +30,8 @@ export const DEFAULTS = {
   tower: 'Dev Squad',
   source: 'dev-squad',
   cli: '',
+  // The unattended runner's limits (#320): spend per issue in USD, wall clock in minutes, fix rounds, and the poll gap.
+  runner: { usdPerIssue: 3, minutes: 90, fixRounds: 2, pollMinutes: 10 },
 };
 
 // The two tools that exist only in Flow Tower's own CLI; a project opts in by listing them under extras.
@@ -55,13 +57,19 @@ export function loadConfig(repo) {
   let raw;
   try { raw = JSON.parse(readFileSync(file, 'utf8')); } catch (e) { throw new Error(`${file}: not valid JSON (${e.message})`); }
   if (!isObj(raw)) throw new Error(`${file}: the config must be a JSON object`);
-  for (const k of ['commands', 'models']) if (raw[k] !== undefined && !isObj(raw[k])) fail(k, 'must be an object');
+  for (const k of ['commands', 'models', 'runner']) if (raw[k] !== undefined && !isObj(raw[k])) fail(k, 'must be an object');
   const cfg = {
     ...structuredClone(DEFAULTS),
     ...raw,
     commands: { ...DEFAULTS.commands, ...raw.commands },
     models: { ...DEFAULTS.models, ...raw.models },
+    runner: { ...DEFAULTS.runner, ...raw.runner },
   };
+  // Every runner limit is a number above zero, except fixRounds, where zero means no fix round at all.
+  for (const [k, v] of Object.entries(cfg.runner)) {
+    const ok = typeof v === 'number' && Number.isFinite(v) && (k === 'fixRounds' ? v >= 0 : v > 0);
+    if (!ok) fail(`runner.${k}`, k === 'fixRounds' ? 'must be a number, 0 or more' : 'must be a number above 0');
+  }
   for (const k of ['project', 'base', 'tower', 'source', 'cli']) if (typeof cfg[k] !== 'string') fail(k, 'must be a string');
   for (const [name, cmd] of Object.entries(cfg.commands)) if (typeof cmd !== 'string') fail(`commands.${name}`, 'must be a string');
   if (!cfg.commands.check.trim()) fail('commands.check', 'must not be empty');
