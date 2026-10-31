@@ -42,6 +42,20 @@ describe('makeGh', () => {
     expect(makeGh(exec, REPO).claim(7)).toBe(false);
   });
 
+  it('claim also removes a stale squad:failed label', () => {
+    const { exec, calls } = fakeExec([ok(), ok(JSON.stringify({ labels: [{ name: 'squad:running' }] }))]);
+    makeGh(exec, REPO).claim(7);
+    expect(calls[0].args).toEqual(['issue', 'edit', '7', '-R', REPO, '--add-label', 'squad:running',
+      '--remove-label', 'squad:go', '--remove-label', 'squad:failed']);
+  });
+
+  it('release removes only squad:running, so the issue never reads as ready for review', () => {
+    const { exec, calls } = fakeExec();
+    makeGh(exec, REPO).release(4);
+    expect(calls[0].args).toEqual(['issue', 'edit', '4', '-R', REPO, '--remove-label', 'squad:running']);
+    expect(calls[0].args).not.toContain('squad:review');
+  });
+
   it('comment passes the body via input, never in the arguments', () => {
     const body = 'plan: --title evil\nline two';
     const { exec, calls } = fakeExec();

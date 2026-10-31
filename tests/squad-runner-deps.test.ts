@@ -115,13 +115,28 @@ describe('writeTasks', () => {
   });
 });
 
+describe('steps', () => {
+  it('runs the runner folder steps.sh, not the copy in the worktree the coder may edit', () => {
+    const { deps, calls } = setup();
+    deps.steps('/wt/7', '/tasks/7', { number: 7 });
+    const c = calls[0];
+    expect(c.cmd).toBe('bash');
+    expect(c.args[0]).toBe(join('/runner', 'steps.sh'));
+    expect(c.args).not.toContain(join('/wt/7', 'tools', 'squad', 'steps.sh'));
+    expect(c.opts.env.REPO).toBe('/wt/7');
+  });
+});
+
 describe('quality', () => {
-  it('reruns security with the reviewer model when the first answer has no verdict', async () => {
+  it('reruns security with the main checkout reviewer model, not the worktree copy', async () => {
     const home = tmp();
     const repo = tmp();
-    // squad.json names the reviewer model; the rerun must carry exactly that model.
+    const wt = tmp();
+    // The main checkout's squad.json names the fallback model; the worktree copy is the coder's to edit and must not be read.
     mkdirSync(join(repo, 'tools', 'squad'), { recursive: true });
     writeFileSync(join(repo, 'tools', 'squad', 'squad.json'), JSON.stringify({ models: { reviewer: 'rev/model' } }));
+    mkdirSync(join(wt, 'tools', 'squad'), { recursive: true });
+    writeFileSync(join(wt, 'tools', 'squad', 'squad.json'), JSON.stringify({ models: { reviewer: 'evil/model' } }));
     const securityRuns: string[][] = [];
     const exec = (_cmd: string, args: string[]) => {
       if (args[0].endsWith('pack.mjs')) return { status: 0, stdout: 'packed', stderr: '' };
@@ -133,7 +148,7 @@ describe('quality', () => {
       return { status: 0, stdout: VERDICT('approve'), stderr: '' };
     };
     const deps = makeDeps({ repo, home, exec, runner: '/runner' });
-    const q = deps.quality(repo, { number: 7 });
+    const q = deps.quality(wt, { number: 7 });
     expect(q.ok).toBe(true);
     expect(q.security).toEqual({ verdict: 'approve', findings: [] });
     expect(securityRuns).toHaveLength(2);
@@ -154,6 +169,21 @@ describe('push', () => {
     expect(() => deps.push(repo, 'main')).toThrow(/not a squad\/ branch/);
     expect(() => deps.push(repo, 'feature/x')).toThrow(/not a squad\/ branch/);
     expect(calls).toHaveLength(0);
+  });
+
+  it('runs git push without OPENROUTER_API_KEY, since project git hooks run inside push', () => {
+    const before = env.OPENROUTER_API_KEY;
+    process.env.OPENROUTER_API_KEY = 'sk-or-v1-testkey000000';
+    try {
+      const { deps, calls, repo } = setup();
+      deps.push(repo, 'squad/7-x');
+      const push = calls[calls.length - 1];
+      expect(push.opts.env).not.toHaveProperty('OPENROUTER_API_KEY');
+      expect(push.opts.env.PATH).toBe(env.PATH);
+    } finally {
+      if (before === undefined) delete process.env.OPENROUTER_API_KEY;
+      else process.env.OPENROUTER_API_KEY = before;
+    }
   });
 });
 

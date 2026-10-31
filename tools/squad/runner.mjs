@@ -8,7 +8,7 @@ import { dirname, join, resolve } from 'node:path';
 import { env, argv, exit } from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadConfig } from './config.mjs';
-import { makeDeps } from './runner-deps.mjs';
+import { envWithoutKey, makeDeps } from './runner-deps.mjs';
 import { makeGh } from './runner-gh.mjs';
 import { workIssue } from './runner-core.mjs';
 
@@ -72,8 +72,9 @@ function realExec(cmd, args, opts = {}) {
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 // The one place the deps are built: main and the tests both call it, so a dep the core needs cannot go missing here.
+// gh runs without the model key, the same as the git calls in runner-deps.mjs.
 export function buildDeps({ repo, home, exec, runner, nameWithOwner }) {
-  const gh = makeGh(exec, nameWithOwner);
+  const gh = makeGh((cmd, args, opts = {}) => exec(cmd, args, { ...opts, env: opts.env ?? envWithoutKey() }), nameWithOwner);
   return makeDeps({ repo, home, exec, runner, gh });
 }
 

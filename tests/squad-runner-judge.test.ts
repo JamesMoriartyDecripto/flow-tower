@@ -111,6 +111,11 @@ describe('fixTask', () => {
     expect(task.text).not.toContain('/etc/y');
   });
 
+  it('refuses a leading ~ path, which a shell would expand to the home folder', () => {
+    const home = [{ id: 'R1', file: '~/.ssh/x', what: 'a', fix: 'b' }];
+    expect(fixTask(home, { issue: '320', round: 1 })).toBeNull();
+  });
+
   it('returns null when every file is outside the repository', () => {
     const outside = [
       { id: 'R1', file: '../x', what: 'a', fix: 'b' },

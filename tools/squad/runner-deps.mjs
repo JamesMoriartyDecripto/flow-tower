@@ -25,8 +25,9 @@ function verdictOrNull(text) {
 }
 
 // pack.mjs and gate.mjs read the repo and the review files only, so they get the environment without the model key:
-// a child that needs no key should not be able to read one.
-function envWithoutKey() {
+// a child that needs no key should not be able to read one. git and gh get it too: a project's git hooks run inside
+// push, and those hooks are repo code the coder may have written.
+export function envWithoutKey() {
   const copy = { ...env };
   delete copy.OPENROUTER_API_KEY;
   return copy;
@@ -57,15 +58,18 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
     return { ok: r.status === 0, text: r.stdout };
   }
 
+  // Every git call goes through here, so none of them gets the model key.
+  const git = (args) => exec('git', args, { env: envWithoutKey() });
+
   // The branch and the folder are both derived from the issue, so the same issue always names the same place.
   function worktree(issue) {
     const branch = `squad/${issue.number}-${slugOf(issue.title)}`;
     const path = join(squadDir, 'worktrees', `${basename(repo)}-${issue.number}`);
     mkdirSync(join(squadDir, 'worktrees'), { recursive: true });
     // A failed issue keeps its worktree for inspection; a rerun is a new start, so the old folder is cleared first.
-    if (existsSync(path)) exec('git', ['-C', repo, 'worktree', 'remove', '--force', path]);
-    must(exec('git', ['-C', repo, 'fetch', 'origin', 'main']), 'git fetch');
-    must(exec('git', ['-C', repo, 'worktree', 'add', '-B', branch, path, 'origin/main']), 'git worktree add');
+    if (existsSync(path)) git(['-C', repo, 'worktree', 'remove', '--force', path]);
+    must(git(['-C', repo, 'fetch', 'origin', 'main']), 'git fetch');
+    must(git(['-C', repo, 'worktree', 'add', '-B', branch, path, 'origin/main']), 'git worktree add');
     return { path, branch };
   }
 
@@ -84,8 +88,10 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
   }
 
   // steps.sh is the one place that runs the repo's checks and commits each step. Its output is the evidence on a red run.
+  // It comes from the runner folder, never the worktree: the coder may edit the worktree's copy on its branch, and that
+  // copy would then run for the next steps. The worktree is only the folder the script works in (REPO).
   function steps(path, dir, issue) {
-    const r = exec('bash', [join(path, 'tools', 'squad', 'steps.sh'), String(issue.number), dir, '', `squad #${issue.number}`],
+    const r = exec('bash', [join(runner, 'steps.sh'), String(issue.number), dir, '', `squad #${issue.number}`],
       { env: { ...env, REPO: path } });
     return { ok: r.status === 0, tail: `${r.stdout ?? ''}${r.stderr ?? ''}` };
   }
@@ -101,6 +107,7 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
   }
 
   // Security gets one more pass on the reviewer's model when its first answer has no verdict; both outputs are kept.
+  // The fallback model comes from the main checkout's config: the worktree's squad.json is the coder's to edit.
   function quality(path, issue) {
     const n = issue.number;
     lastIssue = n;
@@ -108,7 +115,7 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
     let securityText = reviewPass(path, n, 'security');
     let security = verdictOrNull(securityText);
     if (!security) {
-      securityText = reviewPass(path, n, 'security', loadConfig(path).models.reviewer);
+      securityText = reviewPass(path, n, 'security', loadConfig(repo).models.reviewer);
       security = verdictOrNull(securityText);
     }
     const review = verdictOrNull(reviewText);
@@ -125,7 +132,7 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
   // may be forced, so a bad branch name (main, for one) is refused before git runs.
   function push(path, branch) {
     if (!branch.startsWith('squad/')) throw new Error(`refusing to push ${branch}: not a squad/ branch`);
-    must(exec('git', ['-C', path, 'push', '--force-with-lease', '-u', 'origin', branch]), 'git push');
+    must(git(['-C', path, 'push', '--force-with-lease', '-u', 'origin', branch]), 'git push');
   }
 
   // gate.mjs exits 1 when the PR is not ready, so its exit code is not an error here: the text carries the answer.

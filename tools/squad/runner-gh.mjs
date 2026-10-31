@@ -31,9 +31,10 @@ export function makeGh(exec, repo) {
   }
 
   // The swap is not atomic, so another runner may have claimed the issue in between. The labels are read back: only
-  // a claim that still shows squad:running and no squad:go counts as ours.
+  // a claim that still shows squad:running and no squad:go counts as ours. A stale squad:failed from an earlier run is
+  // removed too, so a rerun does not show the issue as both running and failed.
   function claim(n) {
-    gh(['issue', 'edit'], [String(n)], ['--add-label', 'squad:running', '--remove-label', 'squad:go']);
+    gh(['issue', 'edit'], [String(n)], ['--add-label', 'squad:running', '--remove-label', 'squad:go', '--remove-label', 'squad:failed']);
     const labels = labelsOf(n);
     return labels.includes('squad:running') && !labels.includes('squad:go');
   }
@@ -58,5 +59,11 @@ export function makeGh(exec, repo) {
     gh(['issue', 'edit'], [String(n)], ['--remove-label', 'squad:running', '--add-label', 'squad:review']);
   }
 
-  return { queue, claim, comment, fail, draftPr, done };
+  // Ends an issue that needs no review (rejected or waiting for the reporter): only the running label goes, so the
+  // issue never reads as ready for review.
+  function release(n) {
+    gh(['issue', 'edit'], [String(n)], ['--remove-label', 'squad:running']);
+  }
+
+  return { queue, claim, comment, fail, draftPr, done, release };
 }

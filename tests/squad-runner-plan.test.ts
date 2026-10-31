@@ -36,6 +36,8 @@ describe('parsePlan', () => {
     ['../x', plan({}, [step({ files: ['../x'] })]), 'step 1'],
     ['/etc/x', plan({}, [step({ files: ['/etc/x'] })]), 'step 1'],
     ['a\\b', plan({}, [step({ files: ['a\\b'] })]), 'step 1'],
+    ['~/.ssh/x', plan({}, [step({ files: ['~/.ssh/x'] })]), 'step 1'],
+    ['~/.ssh/x+', plan({}, [step({ files: ['~/.ssh/x+'] })]), 'step 1'],
     ['9 steps', plan({}, Array.from({ length: 9 }, () => step())), 'step'],
     ['empty criteria', plan({ criteria: [] }), 'criteria'],
   ])('rejects %s', (_name, bad, mention) => {

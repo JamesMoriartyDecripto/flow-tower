@@ -38,10 +38,14 @@ export function scrub(text) {
 
 // The PR title is public and lands in git history, so it is one line, secret-free, and short. Scrub runs first, on the
 // raw title, so the secret patterns see the text as written; the control characters are replaced after that.
-const TITLE_MAX = 60;
+// The limit is for the whole title, prefix and suffix included, so the title part is cut to what is left.
+const PR_TITLE_MAX = 70;
 export function prTitle(issue) {
-  const line = scrub(issue.title).replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, TITLE_MAX);
-  return `squad: ${line} (#${issue.number})`;
+  const prefix = 'squad: ';
+  const suffix = ` (#${issue.number})`;
+  const room = PR_TITLE_MAX - prefix.length - suffix.length;
+  const line = scrub(issue.title).replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, room).trimEnd();
+  return `${prefix}${line}${suffix}`;
 }
 
 // The issue text is data, not instructions: it is fenced, and the model is told so. The title sits inside the fence
@@ -142,12 +146,12 @@ export async function workIssue(issue, deps, limits) {
     if (!t) stop('triage gave no usable answer');
     if (t.route === 'reject') {
       await gh.comment(n, `Triage rejected this issue: ${t.rationale}`);
-      await gh.done(n);
+      await gh.release(n);
       return 'rejected';
     }
     if (t.route === 'needs_info') {
       await gh.comment(n, ['Triage needs more information:', ...t.questions.map((q) => `- ${q}`)].join('\n'));
-      await gh.done(n);
+      await gh.release(n);
       return 'needs_info';
     }
     if (SENSITIVE.test([issue.title, issue.body, ...t.areas].join('\n'))) {

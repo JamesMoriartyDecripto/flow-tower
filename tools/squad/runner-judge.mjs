@@ -74,8 +74,10 @@ export const FENCE_TAG = /<\s*\/?\s*(issue|plan|finding)-data\s*>/gi;
 export const stripFence = (text) => String(text ?? '').replace(FENCE_TAG, '');
 
 // A model-given path must stay inside the repository: absolute paths, '..' segments, backslashes and drive letters are
-// refused, because the fix step would otherwise be told to edit files outside the worktree.
-const insideRepo = (p) => p !== '' && !p.startsWith('/') && !/^[A-Za-z]:/.test(p) && !p.includes('\\') && !p.split('/').includes('..');
+// refused, because the fix step would otherwise be told to edit files outside the worktree. A leading "~" is refused
+// too: a shell expands it to the home folder, so "~/.ssh/x" would leave the repository.
+const insideRepo = (p) => p !== '' && !p.startsWith('/') && !p.startsWith('~') && !/^[A-Za-z]:/.test(p)
+  && !p.includes('\\') && !p.split('/').includes('..');
 
 // The fix step sorts after the plan's steps (9<round>-...), and its Files line lists each file once, without the
 // :line suffix, because steps.sh matches Files entries against paths. Findings outside the repository are left out;

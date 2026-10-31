@@ -21,6 +21,7 @@ function fakeDeps(over: Record<string, any> = {}, answers: Record<string, string
     comment: async (_n: number, body: string) => { calls.push(`comment:${body.split('\n')[0]}`); },
     fail: async (_n: number, reason: string) => { calls.push(`fail:${reason}`); },
     done: async () => { calls.push('done'); },
+    release: async () => { calls.push('release'); },
     draftPr: async (o: { bodyFile: string }) => { calls.push('draftPr'); return `https://pr/${o.bodyFile.length}`; },
     ...(over.gh ?? {}),
   };
@@ -117,13 +118,17 @@ describe('workIssue', () => {
     const { deps, calls } = fakeDeps({}, { triage: [fence({ route: 'reject', areas: [], questions: [], rationale: 'spam' })] });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('rejected');
     expect(calls).toContain('comment:Triage rejected this issue: spam');
-    expect(calls).toContain('done');
+    // A rejected issue is not ready for review, so it is released rather than handed to squad:review.
+    expect(calls).toContain('release');
+    expect(calls).not.toContain('done');
   });
 
-  it('asks the reporter for information on needs_info', async () => {
+  it('asks the reporter for information on needs_info, and releases without squad:review', async () => {
     const { deps, calls } = fakeDeps({}, { triage: [fence({ route: 'needs_info', areas: [], questions: ['which page?'], rationale: '' })] });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('needs_info');
     expect(calls).toContain('comment:Triage needs more information:');
+    expect(calls).toContain('release');
+    expect(calls).not.toContain('done');
   });
 
   it('stops a sensitive title before any worktree is made', async () => {
@@ -246,8 +251,18 @@ describe('workIssue', () => {
     expect(line).not.toContain('sk-or-v1-');
     expect(line.startsWith('squad: ')).toBe(true);
     expect(line.endsWith(' (#91)')).toBe(true);
-    // The prefix "squad: " and the suffix " (#91)" are added around the title, which is cut to 60 characters.
-    expect(line.length).toBeLessThanOrEqual(60 + 'squad: '.length + ' (#91)'.length);
+    // The limit covers the whole title, the prefix "squad: " and the suffix " (#91)" included.
+    expect(line.length).toBeLessThanOrEqual(70);
+  });
+
+  it('keeps a 200-character title within 70 characters in total', async () => {
+    const titles: string[] = [];
+    const { deps } = fakeDeps({ gh: { draftPr: async (o: { title: string }) => { titles.push(o.title); return 'https://pr/1'; } } },
+      { triage: [triageFull], architect: [fence(PLAN)], verifier: ['PASS'] });
+    expect(await workIssue({ ...ISSUE, title: 'b'.repeat(200) }, deps, LIMITS)).toBe('pr');
+    expect(titles[0].length).toBeLessThanOrEqual(70);
+    expect(titles[0].startsWith('squad: ')).toBe(true);
+    expect(titles[0].endsWith(' (#91)')).toBe(true);
   });
 
   it('stops a fix round whose kept finding names a sensitive file', async () => {
