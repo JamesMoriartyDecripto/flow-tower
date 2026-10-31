@@ -24,7 +24,7 @@ interface Props {
   lens: LensState;
   /** Map view: seen from above, links cross everything; keep them faint unless highlighted. */
   quiet: boolean;
-  /** Focus mode hides links that are not about the focused layer (#348). */
+  /** Focus mode hides every cross-layer link, since the other layers are out of view (#360). */
   focusedLayer: number | undefined;
 }
 
@@ -33,7 +33,7 @@ const LIFT = 0.16;
 
 /** Combined opacity of a curve: focus rule first, then the node fades of both endpoints. */
 function curveFade(c: Curve, visual: Visual, layerFade: (index: number) => number, focusedLayer: number | undefined): number {
-  return linkFocusFade(c.la, c.lb, focusedLayer, !!visual.edgeHighlight(c.link.id), layerFade)
+  return linkFocusFade(c.la, c.lb, focusedLayer, layerFade)
     * Math.min(visual.nodeFade(c.link.from), visual.nodeFade(c.link.to));
 }
 

@@ -5,20 +5,13 @@ const layerFade = (i: number) => [1, 0.1, 0.04][i];
 
 describe('linkFocusFade', () => {
   it('keeps today\'s behaviour when no layer is focused', () => {
-    expect(linkFocusFade(0, 1, undefined, false, layerFade)).toBe(0.1);
-    expect(linkFocusFade(0, 1, undefined, true, layerFade)).toBe(0.1);
+    expect(linkFocusFade(0, 1, undefined, layerFade)).toBe(0.1);
+    expect(linkFocusFade(1, 2, undefined, layerFade)).toBe(0.04);
   });
 
-  it('hides a link touching the focused layer unless highlighted', () => {
-    expect(linkFocusFade(0, 1, 0, false, layerFade)).toBe(0);
-  });
-
-  it('keeps a highlighted link touching the focused layer readable', () => {
-    expect(linkFocusFade(0, 1, 0, true, layerFade)).toBe(1);
-    expect(linkFocusFade(1, 0, 0, true, layerFade)).toBe(1);
-  });
-
-  it('hides a link that does not touch the focused layer', () => {
-    expect(linkFocusFade(1, 2, 0, true, layerFade)).toBe(0);
+  it('hides every cross-layer link in focus mode (#360)', () => {
+    expect(linkFocusFade(0, 1, 0, layerFade)).toBe(0);
+    expect(linkFocusFade(1, 0, 0, layerFade)).toBe(0);
+    expect(linkFocusFade(1, 2, 0, layerFade)).toBe(0);
   });
 });
