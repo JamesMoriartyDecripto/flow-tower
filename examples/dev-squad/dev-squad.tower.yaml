@@ -61,6 +61,15 @@ agents:
     model: z-ai/glm-5.3-flash
     harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true }
     files: [roles/architect.md]
+    meta: { unattended_model: openai/gpt-6.1-terra, why: "planned default for the unattended runner (#320): 9/9 plans at 1.8 cents in the #362 benchmark" }
+  lead-judge:
+    runtime: laptop
+    name: Lead judge
+    description: "Planned (#320). Read-only: keeps or drops each review finding with a reason, as the lead does by hand today. Kept findings become fix steps."
+    model: anthropic/claude-sonnet-5.5
+    harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
+    files: [roles/lead-judge.md]
+    meta: { why: "the only model with 9/9 on real review findings in the #362 benchmark, about 2.7 cents per round" }
   researcher:
     runtime: laptop
     name: Researcher
@@ -414,6 +423,67 @@ layers:
       - "openrouter -> glm [call]: judge"
       - "openrouter -> deepseek [call]: audit"
 
+  # 9 ───────────────────────────────────────────────────────────────
+  - id: autopilot
+    title: Unattended Runner (planned)
+    description: "Planned (#320): tools/squad/runner.mjs works labelled issues with no person in a session. The procedure lives in code; models make only the judgement calls. One issue at a time, on this laptop first, polling GitHub."
+    nodes:
+      - id: poll
+        runtime: laptop
+        status: planned
+        type: entry
+        label: Poll squad:go
+        description: "Every 10 minutes (--once for one pass) it lists open issues labelled squad:go, oldest first."
+        files: [README.md]
+      - id: claim
+        runtime: github
+        status: planned
+        label: Claim
+        description: "Swaps squad:go for squad:running, so two runners never take the same issue."
+        files: [README.md]
+      - id: driver
+        runtime: laptop
+        status: planned
+        type: process
+        label: runner.mjs
+        description: "The code-driven lead: triage, branch, architect plan as task files, steps.sh, pack, reviewer and security, lead-judge, fix steps (at most 2 rounds), verifier, draft PR, gate. Each arrow is a check in code; a failure stops the issue."
+        files: [README.md]
+      - id: judge
+        agent: lead-judge
+        label: Lead judge
+        status: planned
+      - id: limits
+        runtime: laptop
+        status: planned
+        type: guard
+        label: Limits
+        description: "From squad.json: issues in parallel (1), a dollar cap per issue summed from the ledger, a wall-clock timeout. Over a limit, the issue stops."
+        limits: { concurrency: 1 }
+        files: [squad.example.json]
+      - id: draft_pr
+        runtime: github
+        status: planned
+        type: output
+        label: Draft PR
+        description: "Stop point: a draft PR with the plan, findings kept and dropped with reasons, the cost and the gate result, also posted on the issue. The maintainer merges."
+        files: [README.md]
+      - id: failed
+        runtime: github
+        status: planned
+        type: output
+        label: squad:failed
+        description: "Red chain, over budget, timeout or no verdict: a comment with the reason, label squad:failed, the worktree kept for inspection."
+        files: [README.md]
+    edges:
+      - "poll -> claim: oldest issue"
+      - "claim -> driver [handoff]: issue"
+      - "driver -> limits [call]: before each stage"
+      - "driver -> judge [spawn]: findings"
+      - "judge -> driver [return]: keep / drop"
+      - "driver -> draft_pr: gate result"
+      - "driver -> failed: stop"
+      - "limits -> failed: over a limit"
+
 links:
   - "intake.route -> orchestration.branch [handoff]: full"
   - "intake.lead -> orchestration.architect [spawn]: plan"
@@ -430,3 +500,10 @@ links:
   - "setup.skill -> intake.lead [data]: procedure"
   - "quality.gate -> runner.gate_script [call]"
   - "quality.pack -> runner.run [spawn]: reviewer, security"
+  - "autopilot.driver -> intake.triage [spawn]: issue text"
+  - "autopilot.driver -> orchestration.architect [spawn]: plan"
+  - "autopilot.driver -> runner.steps [call]: task folder"
+  - "autopilot.driver -> quality.pack [call]: branch"
+  - "autopilot.driver -> quality.verifier [spawn]: criteria"
+  - "autopilot.driver -> quality.gate [call]: PR"
+  - "autopilot.limits -> observe.ledger [data]: spend so far"
