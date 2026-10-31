@@ -2,6 +2,15 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## After v0.15.0 — 2026-10-31
+
+- **Dev Squad quick-fix route removed** (#347, PR #349): triage routes to `full` / `needs_info` / `reject`; a trivial
+  issue gets a one-step plan and the same gates. The sensitive-area sign-off rule also reads the issue body.
+  Pre-existing SDK-reference hardening from that review is tracked in #350 (unattended path only, with #320).
+- **Focus mode hides cross-layer links** (#348, PR #351): in the tower view only highlighted links touching the
+  focused layer are drawn (`scene/linkFocus.ts`). Stubs, a per-node link marker and a fade animation were left out.
+- Gotcha: `tools/squad/steps.sh` commits every tracked change it finds; keep local operator edits stashed while it runs.
+
 ## v0.15.0 released — 2026-10-30
 
 - **[v0.15.0](https://github.com/JamesMoriartyDecripto/flow-tower/releases/tag/v0.15.0)** published, tag on `92ab9bc`
