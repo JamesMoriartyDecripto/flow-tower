@@ -1,21 +1,14 @@
 # Dev Squad
 
-A multi-agent **software delivery system** built on the
-[Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) (TypeScript).
-Label a GitHub issue `squad:go` and Dev Squad triages it, plans, researches, codes,
-tests, reviews, verifies and opens a **draft** pull request. A human merges.
+A coding squad that works your GitHub issues on **one OpenRouter key**. Your current coding session is the lead:
+Claude Code, Codex, Pi, Hermes, Cursor or any agent that loads skills. It plans, writes one task file per step and
+verifies. Nine specialist roles run through the Node runner in [`tools/squad`](../../tools/squad/README.md), each on
+the OpenRouter model its `squad.json` names. A maintainer merges.
 
-This is the **canonical Dev Squad**. `flow-tower squad init <project>` installs this complete eight-layer tower
-as `tools/squad/squad.tower.yaml`, with its nested towers, agents, prompts and source under
-`tools/squad/dev-squad/`. There is no separate reduced tower template.
+There is no SDK and no deployment. You need Node 22, git and an OpenRouter key; you do not need a Claude account.
 
-The installed [runner scripts](../../tools/squad/README.md) still execute individual coder, reviewer and security
-tasks with your coding agent as lead; installing this bundle does **not** activate the full SDK pipeline or its
-webhook/deployment. Those require separate runtime setup (#320).
-
-Updates preserve existing towers and bundle files, including on `--force`. For an older reduced installation,
-back up your tower, remove `tools/squad/squad.tower.yaml`, then run `flow-tower squad init <project> --force`.
-Review and port any customizations from the backup; the installer never silently discards them.
+This is the **canonical Dev Squad**. `flow-tower squad init <project>` installs this tower as
+`tools/squad/squad.tower.yaml`, with the files below under `tools/squad/dev-squad/`.
 
 ## Open it
 
@@ -23,106 +16,65 @@ Review and port any customizations from the backup; the installer never silently
 node bin/flow-tower.js examples/dev-squad/dev-squad.tower.yaml
 ```
 
-Click any node to see its prompt, tools, model and source files. The **researcher**
-and **coder** nodes drill down into their own towers.
+Click a role to see its model, its rules and how to run it. The **coder** and the **run.mjs** node drill down into
+the runner's tool loop.
 
-## What it demonstrates
+## Use it on your project
 
-| Pattern | Where |
+```bash
+node <flow-tower>/bin/flow-tower.js squad init ~/my-project    # runner, squad.json, this tower
+node <flow-tower>/bin/flow-tower.js squad key                  # your OpenRouter key, into the user folder
+node <flow-tower>/bin/flow-tower.js squad doctor ~/my-project  # local readiness, no paid call
+node <flow-tower>/bin/flow-tower.js install-skill --target <claude|codex|pi|hermes|cursor|agents>
+```
+
+Then ask your session to work an issue with the Dev Squad. The [flow-tower-squad skill](../../skills/flow-tower-squad/SKILL.md)
+is the lead's procedure.
+
+## What is in this folder
+
+| File | What it is |
 |---|---|
-| Routing | `src/triage.ts` (Haiku, JSON schema output, policy overrides) |
-| Cross-model review | `src/config.ts` (`ROLE_MODEL`), `src/openrouter-agent.ts` (Haiku codes, GLM reviews, DeepSeek audits, Claude verifies) |
-| Orchestrator-workers | `src/orchestrator.ts` (`query()` with `options.agents`) |
-| Parallelization | researcher tracks; reviewer + security auditor in `Promise.all` |
-| Evaluator-optimizer (max 3 rounds) | `src/loop/review-loop.ts` |
-| Prompt chaining with gates | `src/pipeline.ts` |
-| Fresh-context verifier | `src/loop/verify.ts` |
-| Human in the loop | `src/tools/request-approval.ts` + `src/loop/await-approval.ts` (the lead ends its session, the pipeline polls and resumes it); approve, approve with changes (`/squad approve <notes>`: parts moved out of scope become follow-up issues via `file_followup`) or revise, draft PRs, merge denied |
-| Failure path | `src/pipeline.ts`: any throw or the $15 issue budget comments on the issue and logs the run |
-| Lifecycle hooks | `src/hooks/` (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop) |
-| Least-privilege subagents | `.claude/agents/*.md` |
-| Memory | `CLAUDE.md`, `memory/patterns.md`, `memory/session-log.md` |
-| Simplicity rules | `memory/patterns.md` (every role) and the reviewer's `simplicity` score: Cognitive Complexity ≤ 15, comments consistent with the code, no helper without a caller |
-| Format + lint in every harness | `src/format-and-lint.ts`: the project's own Prettier and ESLint after each write, from the PostToolUse hook in Claude sessions and from the OpenRouter loop |
-| Dependency check | `src/tools/osv.ts`: OSV.dev advisories of a package version and the fix of its range; the security auditor's `osv_scan`, in the SDK and the OpenRouter loop |
+| [`dev-squad.tower.yaml`](dev-squad.tower.yaml) | The design: eight layers from the issue to the maintainer's merge |
+| [`towers/runner-loop.tower.yaml`](towers/runner-loop.tower.yaml) | One `run.mjs` process: config and key, mode, tool loop, write fence, step cap, report |
+| [`roles/`](roles) | One card per role: what it may do, its default model, the command that runs it |
+| [`squad.example.json`](squad.example.json) | A `tools/squad/squad.json`: commands, folders, base, rules, models per role |
+| [`task-template.md`](task-template.md) | The shape of one step file, with the `Files:` line the runner checks |
 
-## Mixed models
+## The flow
 
-The maintainer runs the squad with mixed models (`ROLE_MODEL` in `src/config.ts`). Claude plans,
-arbitrates and verifies; cheaper models code, review and audit through
-[OpenRouter](https://openrouter.ai), so the reviewer never shares the coder's blind spots.
+1. **Intake.** You pick the issue. Triage proposes `full`, `needs_info` or `reject`; the lead decides. Every change
+   takes the full path. A sensitive area (auth, billing, payments, secrets, personal data) named in the title, body
+   or areas needs your plan sign-off.
+2. **Plan.** On a feature branch, the architect plans. The lead first updates the tower of the part it changes, then
+   writes the task files: one or two items each, with a `Files:` line.
+3. **Steps.** `steps.sh` runs the coder on each step: the project's check must pass and every `Files:` entry must be
+   touched. Only the step's own files are committed; your uncommitted edits never are, and a rerun skips finished steps.
+4. **Quality.** Reviewer and security answer in one packed request each, started together. The lead checks every
+   finding in the code, fixes the real ones as new steps and records the dropped ones on the issue. The verifier
+   checks the criteria with fresh context.
+5. **Gate and merge.** `gate.mjs` says READY when CI is green and both verdicts approve the PR's exact head. You merge.
 
-| Role | Provider | Model | $ in / out per M tokens |
-|---|---|---|---|
-| Lead, fresh verifier, last-round fixer | Claude Agent SDK | `claude-opus-5-5` | Claude account |
-| Coder | OpenRouter | `anthropic/claude-haiku-5.5` | 0.10 / 0.50 |
-| Reviewer (read-only) | OpenRouter | `z-ai/glm-5.3-flashx` | 0.37 / 1.25 |
-| Security auditor (read-only) | OpenRouter | `deepseek/deepseek-v4.1-flash` | 0.30 / 1.20 |
-| Architect, researcher / triage, tester, doc-writer | Claude Agent SDK | Sonnet 5.5 / Haiku 5.5 | Claude account |
+## Models
 
-Prices as of 2026-10-10, from `https://openrouter.ai/api/v1/models`; Haiku's from
-`node skills/flow-tower-costs/models.mjs anthropic/claude-haiku-5.5`. Field numbers from issue #70
-of the flow-tower repo: coder round 1, 50 steps, $0.13, 231 tests green; reviewer 6 steps, $0.085, one
-blocking bug found; security auditor 9 steps, $0.06. The coder moved from DeepSeek to Haiku after the
-2026-10-11 benchmark and field trial: about a third of the steps and of the cost on a real task. Full GLM 5.3 was tried first as the reviewer: it
-reasoned 1-2.5 min per step and timed out at step 9 ($0.24), so the squad uses its FlashX variant.
+| Role | Default (OpenRouter) | Why |
+|---|---|---|
+| coder, triage, tester, doc writer | `anthropic/claude-haiku-5.5` | Field runs and the 2026-10-11 coder benchmark |
+| reviewer, architect, researcher, verifier | `z-ai/glm-5.3-flash` | Same score as FlashX on the squad's review cases at a quarter of the price (#322) |
+| security | `deepseek/deepseek-v4.1-flash` | Another family than coder and reviewer |
 
-This sample still runs FlashX in a tool loop. The squad kit (`tools/squad`) moved its reviewer to `z-ai/glm-5.3-flash`
-in one request in #322: measured on the kit's own runner, the cheap reviewers in a loop answered prose instead of the
-verdict on clean diffs. Bringing that to this sample is #328.
+Any role takes its own model in `squad.json` (`"models": { "verifier": "..." }`); a role without one uses its family's.
+Prices and scores move: see [skills/flow-tower-costs](../../skills/flow-tower-costs/SKILL.md) before changing them.
 
-The OpenRouter roles run in `src/openrouter-agent.ts`, an OpenAI-style tool loop (sample code: the
-real runner is session tooling outside this repo). Claude Code hooks do not run there, so the fences
-are in code: read tools for every role, `edit_file` / `write_file` / `delete_file` for the coder only and only under
-`src/`, `tests/`, `e2e/` (`write_file` refuses `tmp-`/`zz-`/`probe`/`scratch` names: throwaway probes
-belong in a real test), a command whitelist instead of a shell, a secret-path deny list, low reasoning effort,
-a `session_id` per run (OpenRouter keeps it on the provider that holds its prompt cache), a step and
-dollar cap, and a live tower event per tool call. SDK subagents are Claude only, so the lead reaches
-the coder through the `run_coder` tool (`src/tools/run-coder.ts`).
-What the hooks give Claude sessions is done in the loop too: the memory pack (`contextPack`: the
-`patterns.md` rules for the issue's areas and the last five run lessons, about 2-2.5k characters) closes
-the system prompt, so these providers see those lessons as well as the code under review (OpenRouter's
-`data_collection: deny` applies to both); the coder's writes go through the project's Prettier + ESLint
-(`src/format-and-lint.ts`) with paths relative to the worktree; the security auditor gets `osv_scan`. The loop's child processes (tests,
-checks, the formatter) run code the coder wrote, so they get only an allowlisted environment (PATH, locale, temp
-folders, `NODE_ENV`...: no key or token the host exports) and a scratch HOME per worktree (`src/child-env.ts`, #317), so
-tools that read `~` find no credentials. The real home is still readable by an absolute path: the isolation that holds
-is the container (`deploy/`), which is where the sample runs. The SDK harness fences every write to the issue worktree
-on the real path, symlinks followed (`src/hooks/fence.ts`): it refuses any `..` segment, a dangling link and a write call
-that names no path, and the OpenRouter loop's write tools use the same test. It checks before the tool runs, so a link
-swapped in between could still be followed: the container stays the boundary.
+## Limits
 
-## Operational fields used
-
-Top-level `budget` ($15 per issue run) and `limits` (4 concurrent subagents), agent `budget`
-(`maxBudgetUsd` per query from `src/config.ts`), `limits` (2 issues in flight, 3 review rounds),
-`approval` (plan sign-off only `when: "risk == high or steps > 6"`, 4h; merge via PR review),
-an edge `group` for the two plan-gate paths, `async: poll` on `request_approval`, and typed
-`decision` outputs (route, suite green, review verdict; all `fail: closed`, since an unreadable answer stops the run
-or goes back to the coder), and a `sandbox` on each agent with a shell or code tool: the worktree as the filesystem, network `open` (the
-container has no egress filter yet; see the optimizer report).
-
-## Layout
-
-```
-.claude/agents/   subagent definitions (frontmatter + system prompt)
-.claude/settings.json  permissions + shell hooks for interactive sessions
-.mcp.json         github, context7, playwright, semgrep
-prompts/          templated prompts ({{issue}}, {{plan}}, ...) for non-file agents
-src/              pipeline, hooks, tools, memory
-src/hooks/        lifecycle + safety hooks (format-lint, bash-guard, secret-scan, context-loader)
-src/tools/        delivery tools (run_tests, run_coder, open_pr, osv_scan, request_approval, file_followup)
-memory/           learned patterns and run journal
-towers/           nested towers for the coder and researcher
-```
+- The lead is a person's session: there is no unattended runner yet (#320).
+- No enforced global dollar cap: each run records its cost in the ledger, and the lead watches it.
+- The write fence keeps writes inside the role's folders and the key out of child commands. It is not a sandbox for
+  hostile code: run the squad on code and tests you trust.
 
 ## Sources
 
-- [Claude Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview) and [hooks](https://code.claude.com/docs/en/agent-sdk/hooks): `query()`, subagents in `options.agents`, hook callbacks.
-- [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) (Anthropic, 2024): the routing, prompt chaining, parallelization, orchestrator-workers and evaluator-optimizer patterns named in the table above.
-- [OSV.dev API, POST /v1/query](https://google.github.io/osv.dev/post-v1-query/): what `osv_scan` asks; each advisory lists one range per release line, so the fix is read from the range that holds the installed version.
-- Barón, Wyrich, Wagner, [An Empirical Validation of Cognitive Complexity as a Measure of Source Code Understandability](https://arxiv.org/abs/2007.12520) (ESEM 2020): the metric of the simplicity rule; the threshold 15 is SonarSource's default, not a finding of the paper.
-- Rani et al., [A Decade of Code Comment Quality Assessment: A Systematic Literature Review](https://arxiv.org/abs/2209.08165) (JSS 2023): consistency between comment and code is the comment quality the literature checks most.
-- [OpenRouter models API](https://openrouter.ai/api/v1/models): the prices in the mixed-models table (2026-10-10).
-- Field numbers: issue #70 of the flow-tower repository; the model choice: the 2026-10-11 benchmark in `skills/flow-tower-costs/reference.md`.
-- The rules in `.claude/agents/coder.md` (never rewrite an existing test file) and `verifier.md` (hold a change no test exercises end to end), and the empty-grader rule of the review loop, come from the flow-tower squad's own runs on 2026-10-13 (issues #187-#196).
+- Runner and its rules: [`tools/squad/README.md`](../../tools/squad/README.md).
+- Model defaults: `tools/squad/config.mjs` (`DEFAULTS`), benchmark notes in #322.
+- Harness trials (Pi, Claude Code, Codex): [docs/dev-squad-harness-trial.md](../../docs/dev-squad-harness-trial.md).

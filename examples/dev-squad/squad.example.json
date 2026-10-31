@@ -1,0 +1,17 @@
+{
+  "project": "Example app (TypeScript, vitest)",
+  "commands": {
+    "check": "npm run check",
+    "typecheck": "npm run typecheck",
+    "test": "npx vitest run {file}"
+  },
+  "write": ["src", "tests"],
+  "review": ["src"],
+  "base": "origin/main",
+  "rules": [],
+  "models": {
+    "coder": "anthropic/claude-haiku-5.5",
+    "reviewer": "z-ai/glm-5.3-flash",
+    "security": "deepseek/deepseek-v4.1-flash"
+  }
+}
