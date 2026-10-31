@@ -2,6 +2,26 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Dev Squad on one OpenRouter key — 2026-10-31
+
+- **No SDK anywhere** (#355, PR #356): the Claude Agent SDK backend (`examples/dev-squad/src`, deploy, Claude Code
+  settings, its tests) is gone. `examples/dev-squad` models the Node runner in `tools/squad`: the lead is the user's
+  session in any harness, every specialist runs on OpenRouter. Role node ids unchanged; role cards in `roles/`,
+  `squad.example.json`, `task-template.md`, nested `towers/runner-loop.tower.yaml`. #350 and #328 closed as superseded.
+- **`steps.sh` commits only the step's files** (#353, PR #354): local edits from before the run are never staged
+  (pathspec commit), finished steps are skipped on a rerun, the coder may write the folders its `Files:` line names,
+  the script runs from a copy of itself. Logic in `tools/squad/step-scope.mjs`. `pack.mjs` still refuses a dirty tree:
+  stash local edits for the review passes.
+- **Temp files cleaned** (#357, PR #358): each vitest run has its own `TMPDIR` (`tests/global-tmp.ts`); `steps.sh`
+  removes its output on ALL GREEN and its own folders older than 7 days; `run.mjs` prunes role logs (newest 200 or
+  under 14 days kept). 2205 leftover `/tmp/squad-*` folders had filled the `/tmp` quota.
+- **This machine:** `/tmp` is a 3.8 GB tmpfs and RAM is about 7.6 GB. Run the full check with `TMPDIR` on disk
+  (e.g. `/var/tmp/<dir>`, removed after) and `--maxWorkers=2`; never point `TMPDIR` inside the repo (the examples
+  viewer scans it and runs out of heap). DeepSeek security answers come back empty at times: rerun security with
+  `--model z-ai/glm-5.3-flash` (the documented fallback).
+- **Next:** #320, the unattended lead, rescoped to OpenRouter only over `tools/squad` (no `claude -p`, no SDK);
+  four decisions are open on the issue. #340 (benchmark plan, branch `docs/105-squad-benchmark-plan`) is still open.
+
 ## After v0.15.0 — 2026-10-31
 
 - **Dev Squad quick-fix route removed** (#347, PR #349): triage routes to `full` / `needs_info` / `reject`; a trivial
@@ -9,7 +29,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   Pre-existing SDK-reference hardening from that review is tracked in #350 (unattended path only, with #320).
 - **Focus mode hides cross-layer links** (#348, PR #351): in the tower view only highlighted links touching the
   focused layer are drawn (`scene/linkFocus.ts`). Stubs, a per-node link marker and a fade animation were left out.
-- Gotcha: `tools/squad/steps.sh` commits every tracked change it finds; keep local operator edits stashed while it runs.
+- (Superseded by #353: `steps.sh` no longer commits unrelated changes.)
 
 ## v0.15.0 released — 2026-10-30
 
