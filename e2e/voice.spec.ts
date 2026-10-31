@@ -45,13 +45,13 @@ test('voice: a command acts at once, a question gets a streamed answer that show
   expect(chatCalls).toBe(2);
   await expect(page.locator('.voice-caption .voice-heard')).toContainText('Poi il triage le smista.');
   // The node list of the focused layer is on the right.
-  await expect(page.locator('.nodelist')).toContainText('Triage router');
+  await expect(page.locator('.nodelist')).toContainText('Triage');
 });
 
 test('voice journal: turns are written, a correction marks the last one, accepted aliases apply first (#68)', async ({ page }) => {
   const id = ws.projects.find((p) => p.startsWith('dev-squad/'))!;
   const journal: { entry?: { ts: number; heard: string; route: string; did: string; outcome: string; node?: string; layer?: string }; mark?: { ts: number; outcome: string } }[] = [];
-  const memory = { aliases: [{ heard: 'smistatore', means: 'Triage router' }], notes: [], pending: [], reviewedUpTo: 0 };
+  const memory = { aliases: [{ heard: 'smistatore', means: 'Triage' }], notes: [], pending: [], reviewedUpTo: 0 };
   const stats = { days: 7, turns: 0, agentTurns: 0, notUnderstood: 0, corrected: 0, undone: 0, interrupted: 0, cost: 0, reviews: 0, reviewCost: 0 };
   // Every voice route answered here: nothing is billed, nothing reaches the server's journal folder.
   await page.route(/\/api\/voice(\/|\?|$)/, (r) => {
@@ -73,11 +73,11 @@ test('voice journal: turns are written, a correction marks the last one, accepte
   });
   const hear = (text: string) => page.evaluate((t) => (window as unknown as Hear).__flowTower.hear(t), text);
 
-  // "smistatore" names nothing on screen: the accepted alias makes it "Triage router" before the parser reads it.
+  // "smistatore" names nothing on screen: the accepted alias makes it "Triage" before the parser reads it.
   await hear('vai al nodo smistatore');
-  const triage = tower(id).layers.flatMap((l) => l.nodes).find((n) => n.label === 'Triage router')!;
+  const triage = tower(id).layers.flatMap((l) => l.nodes).find((n) => n.label === 'Triage')!;
   expect((await state(page)).selected).toBe(triage.key);
-  await expect(page.locator('.voice-caption')).toContainText('Triage router');
+  await expect(page.locator('.voice-caption')).toContainText('Triage');
   await expect.poll(() => journal.length).toBe(1);
   const first = journal[0].entry!;
   expect(first).toMatchObject({ heard: 'vai al nodo smistatore', route: 'parser', outcome: 'done' });

@@ -144,8 +144,10 @@ test('the project files appendix prints the full text of a referenced file, with
   test.setTimeout(120_000);
   await page.goto('/?doc=dev-squad&level=3&snap=0');
   await page.waitForSelector('html[data-doc-ready="1"]', { timeout: 110_000 });
-  const entry = page.locator('main .file-entry[data-file-key$=":: src/triage.ts"]');
-  await expect(entry, 'src/triage.ts is in the appendix').toHaveCount(1);
+  const entry = page.locator('main .file-entry[data-file-key$=":: roles/triage.md"]');
+  await expect(entry, 'roles/triage.md is in the appendix').toHaveCount(1);
+  // The first line of roles/triage.md is its heading; the printed text must carry it.
+  await expect(entry.locator('.file-text'), 'the text starts with the role heading').toContainText('# Triage');
   await expect(entry.locator('.file-text .file-no').first(), 'the text has line numbers').toHaveText('1');
   const shown = await entry.locator('.file-text').innerText();
   expect(shown.length, 'the full text, not a stub').toBeGreaterThan(100);
