@@ -1,6 +1,6 @@
 # Lead judge
 
-**Node:** `autopilot.judge` · **Writes:** nothing · **Verdict:** yes · **Model:** `anthropic/claude-sonnet-5.5` (planned default, #320) · **Status:** planned
+**Node:** `autopilot.judge` · **Writes:** nothing · **Verdict:** yes · **Model:** `models.lead-judge` (default `anthropic/claude-sonnet-5.5`, #320)
 
 Read-only: keep or drop each review finding; change nothing.
 
@@ -12,5 +12,5 @@ security auditor's findings. For each finding it answers keep or drop, with a re
 - **drop**: wrong, harmless, already handled, or a pre-existing defect the pull request does not affect. The reason
   goes on the issue; pre-existing defects go to a follow-up issue.
 
-Today the interactive lead makes this call by hand. On the squad's real findings (#362 benchmark), only Claude Sonnet 5.5
+`runner.mjs` calls it after every review round; the interactive lead makes the same call by hand. On the squad's real findings (#362 benchmark), only Claude Sonnet 5.5
 matched every critical decision; cheaper models dropped real security findings as "out of scope".

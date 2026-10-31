@@ -60,7 +60,9 @@ is the lead's procedure.
 | Role | Default (OpenRouter) | Why |
 |---|---|---|
 | coder, triage, tester, doc writer | `anthropic/claude-haiku-5.5` | Field runs and the 2026-10-11 coder benchmark |
-| reviewer, architect, researcher, verifier | `z-ai/glm-5.3-flash` | Same score as FlashX on the squad's review cases at a quarter of the price (#322) |
+| reviewer, researcher, verifier | `z-ai/glm-5.3-flash` | Same score as FlashX on the squad's review cases at a quarter of the price (#322) |
+| architect | `openai/gpt-6.1-terra` | 9/9 plans from real issues at 1.8 cents (#362) |
+| lead-judge (runner) | `anthropic/claude-sonnet-5.5` | The only model with 9/9 keep/drop decisions on real review findings (#362) |
 | security | `deepseek/deepseek-v4.1-flash` | Another family than coder and reviewer |
 
 Any role takes its own model in `squad.json` (`"models": { "verifier": "..." }`); a role without one uses its family's.
@@ -68,7 +70,7 @@ Prices and scores move: see [skills/flow-tower-costs](../../skills/flow-tower-co
 
 ## Limits
 
-- The lead is a person's session: there is no unattended runner yet (#320).
+- `tools/squad/runner.mjs` works labelled issues unattended (#320), one at a time, and stops at a draft PR; a sensitive area still needs a person as lead.
 - No enforced global dollar cap: each run records its cost in the ledger, and the lead watches it.
 - The write fence keeps writes inside the role's folders and the key out of child commands. It is not a sandbox for
   hostile code: run the squad on code and tests you trust.
