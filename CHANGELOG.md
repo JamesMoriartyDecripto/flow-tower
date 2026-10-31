@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Changed
+- Squad `steps.sh` (#353): each step commits only its own files: the write dirs, the folders of its `Files:` entries and the paths those entries match. It no longer stages every tracked change, and local edits from before the run are never staged; a step that modifies one of them is RED. Steps already committed are skipped on a rerun. The coder may write the folders its `Files:` line names. The script runs from a temporary copy, so a step can edit `steps.sh`. New runner file `step-scope.mjs`.
 - Focus mode hides cross-layer links (#348): with a layer focused in the tower view, links that do not touch it are no longer drawn, and links that leave it show only for the selected or hovered node and its related nodes, at full strength. They used to stay at 10% and cross the camera's view of the focused layer. Overview and map view are unchanged.
 - Dev Squad SDK reference (#347): the deprecated quick-fix route is gone. Triage routes to `full`, `needs_info` or `reject`; a trivial issue gets a one-step plan from the lead and the same review, verification and approval gates. The tower no longer shows the `quickfix` node. The sensitive-area rule that forces a human plan sign-off now also reads the issue body, not only the title and the model-chosen areas.
 
