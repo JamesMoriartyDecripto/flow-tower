@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+- Dev Squad tower, planned unattended runner (#320): a ninth layer shows how `runner.mjs` will work labelled issues with no session: poll `squad:go`, claim, a code-driven lead, the new `lead-judge` role, limits, a draft-PR stop point and `squad:failed`. All nodes are `planned`. Model choices come from the #362 benchmark: lead-judge Claude Sonnet 5.5, unattended architect GPT-6.1 Terra. Role card `roles/lead-judge.md`.
+
 ### Removed
 - Dev Squad Claude Agent SDK backend (#355): `examples/dev-squad/src` (the webhook pipeline on `@anthropic-ai/claude-agent-sdk`), its deploy files, Claude Code settings, prompts, memory and sample logs, and their tests. The squad depends on no SDK: one OpenRouter key, the user's own session as lead in any harness.
 
