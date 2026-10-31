@@ -185,6 +185,36 @@ Nobody acts on one before checking it in the code. Below high it does not block,
 good change. A critical or high one blocks even unverified: check it, and if it is not real, run the pass again (a
 made-up finding rarely comes back).
 
+## The unattended runner (#320)
+
+`node tools/squad/runner.mjs` works issues labelled `squad:go` with no session open. The procedure lives in code; models make only the judgement calls:
+triage, the architect's plan (`openai/gpt-6.1-terra` by default), the lead-judge's keep/drop on review findings (`anthropic/claude-sonnet-5.5`),
+the verifier. One issue at a time; it polls every `runner.pollMinutes` (10) minutes.
+
+```bash
+node tools/squad/runner.mjs --dry-run      # the queue and the limits; claims nothing
+node tools/squad/runner.mjs --issue 123    # one labelled issue, then stop
+node tools/squad/runner.mjs --once         # one pass over the queue
+node tools/squad/runner.mjs                # poll until stopped (Ctrl+C)
+```
+
+Per issue it:
+1. claims the issue (`squad:go` becomes `squad:running`, read back so two runners never share one);
+2. triages it (reject and needs_info are answered on the issue; a sensitive area stops it for a person);
+3. makes a worktree `squad/<n>-<slug>` under the user folder;
+4. plans as JSON, writes the task files and posts the plan on the issue;
+5. runs `steps.sh`;
+6. runs reviewer and security, has the lead-judge keep or drop each finding, and turns the kept ones into fix steps
+   (at most `runner.fixRounds`, 2);
+7. runs the verifier;
+8. pushes, opens a **draft** PR, runs the gate and comments the result; the label becomes `squad:review`.
+
+Any stop comments the reason and labels `squad:failed`; the worktree stays for inspection, and labelling the issue
+`squad:go` again starts over.
+
+Limits are in `squad.json` under `runner`: `usdPerIssue` (3, summed from the ledger before each stage), `minutes` (90),
+`fixRounds` (2) and `pollMinutes` (10). A lock in the user folder keeps a second runner out. The maintainer merges.
+
 ## The PR steward
 
 One local command reviews and gates the open pull requests: the sequence of the two sections above, for each one.

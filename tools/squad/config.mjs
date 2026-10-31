@@ -9,7 +9,9 @@ import { writeDirs } from './args.mjs';
 import { ROLES, isRole } from './roles.mjs';
 
 // The three model defaults come from the 2026-10-27 benchmark (#322): on the squad's own review cases, packed in one
-// request, the reviewer scored the same on glm-5.3-flash as on glm-5.3-flashx at a quarter of the price.
+// request, the reviewer scored the same on glm-5.3-flash as on glm-5.3-flashx at a quarter of the price. The architect
+// and lead-judge defaults come from the 2026-10-31 benchmark (#362): architect plans scored 9/9 at 1.8 cents, and
+// lead-judge scored 9/9 on claude-sonnet-5.5.
 export const DEFAULTS = {
   project: '',
   commands: { check: 'npm run check' },
@@ -18,10 +20,18 @@ export const DEFAULTS = {
   review: ['src'],
   rules: [],
   extras: [],
-  models: { coder: 'anthropic/claude-haiku-5.5', reviewer: 'z-ai/glm-5.3-flash', security: 'deepseek/deepseek-v4.1-flash' },
+  models: {
+    coder: 'anthropic/claude-haiku-5.5',
+    reviewer: 'z-ai/glm-5.3-flash',
+    security: 'deepseek/deepseek-v4.1-flash',
+    architect: 'openai/gpt-6.1-terra',
+    'lead-judge': 'anthropic/claude-sonnet-5.5',
+  },
   tower: 'Dev Squad',
   source: 'dev-squad',
   cli: '',
+  // The unattended runner's limits (#320): spend per issue in USD, wall clock in minutes, fix rounds, and the poll gap.
+  runner: { usdPerIssue: 3, minutes: 90, fixRounds: 2, pollMinutes: 10 },
 };
 
 // The two tools that exist only in Flow Tower's own CLI; a project opts in by listing them under extras.
@@ -47,13 +57,19 @@ export function loadConfig(repo) {
   let raw;
   try { raw = JSON.parse(readFileSync(file, 'utf8')); } catch (e) { throw new Error(`${file}: not valid JSON (${e.message})`); }
   if (!isObj(raw)) throw new Error(`${file}: the config must be a JSON object`);
-  for (const k of ['commands', 'models']) if (raw[k] !== undefined && !isObj(raw[k])) fail(k, 'must be an object');
+  for (const k of ['commands', 'models', 'runner']) if (raw[k] !== undefined && !isObj(raw[k])) fail(k, 'must be an object');
   const cfg = {
     ...structuredClone(DEFAULTS),
     ...raw,
     commands: { ...DEFAULTS.commands, ...raw.commands },
     models: { ...DEFAULTS.models, ...raw.models },
+    runner: { ...DEFAULTS.runner, ...raw.runner },
   };
+  // Every runner limit is a number above zero, except fixRounds, where zero means no fix round at all.
+  for (const [k, v] of Object.entries(cfg.runner)) {
+    const ok = typeof v === 'number' && Number.isFinite(v) && (k === 'fixRounds' ? v >= 0 : v > 0);
+    if (!ok) fail(`runner.${k}`, k === 'fixRounds' ? 'must be a number, 0 or more' : 'must be a number above 0');
+  }
   for (const k of ['project', 'base', 'tower', 'source', 'cli']) if (typeof cfg[k] !== 'string') fail(k, 'must be a string');
   for (const [name, cmd] of Object.entries(cfg.commands)) if (typeof cmd !== 'string') fail(`commands.${name}`, 'must be a string');
   if (!cfg.commands.check.trim()) fail('commands.check', 'must not be empty');

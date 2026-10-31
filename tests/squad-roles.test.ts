@@ -16,8 +16,8 @@ const NONE = { oneshot: false, batch: false, loop: false };
 const ALL = Object.keys(ROLES) as string[];
 
 describe('role registry (#334)', () => {
-  it('lists the nine squad roles', () => {
-    expect(ALL.sort()).toEqual(['architect', 'coder', 'doc-writer', 'researcher', 'reviewer', 'security', 'tester', 'triage', 'verifier'].sort());
+  it('lists the ten squad roles', () => {
+    expect(ALL.sort()).toEqual(['architect', 'coder', 'doc-writer', 'lead-judge', 'researcher', 'reviewer', 'security', 'tester', 'triage', 'verifier'].sort());
   });
 
   it('only reviewer and security are gated on a verdict', () => {
@@ -67,7 +67,17 @@ describe('modelFor', () => {
   });
 
   it('falls back to the reviewer family for the read-only graders', () => {
-    for (const r of ['architect', 'researcher', 'verifier']) expect(modelFor(DEFAULTS, r)).toBe(DEFAULTS.models.reviewer);
+    for (const r of ['researcher', 'verifier']) expect(modelFor(DEFAULTS, r)).toBe(DEFAULTS.models.reviewer);
+  });
+
+  it('uses the benchmarked defaults for architect and lead-judge (#362)', () => {
+    expect(modelFor(DEFAULTS, 'architect')).toBe('openai/gpt-6.1-terra');
+    expect(modelFor(DEFAULTS, 'lead-judge')).toBe('anthropic/claude-sonnet-5.5');
+  });
+
+  it('lead-judge is read-only and runs on the autopilot judge node (#320)', () => {
+    expect(ROLES['lead-judge'].node).toBe('autopilot.judge');
+    expect(canWrite('lead-judge')).toBe(false);
   });
 
   it('falls back to the coder family for triage, tester and doc-writer', () => {

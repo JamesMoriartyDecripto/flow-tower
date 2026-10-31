@@ -1,6 +1,6 @@
 # Architect
 
-**Node:** `orchestration.architect` · **Writes:** nothing · **Verdict:** no · **Model:** `models.architect`, else the reviewer's model
+**Node:** `orchestration.architect` · **Writes:** nothing · **Verdict:** no · **Model:** `models.architect` (default `openai/gpt-6.1-terra`, #320)
 
 Read-only: produce the plan the task asks for; change nothing.
 

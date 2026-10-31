@@ -102,6 +102,8 @@ describe('squad model defaults (#322)', () => {
       coder: 'anthropic/claude-haiku-5.5',
       reviewer: 'z-ai/glm-5.3-flash',
       security: 'deepseek/deepseek-v4.1-flash',
+      architect: 'openai/gpt-6.1-terra',
+      'lead-judge': 'anthropic/claude-sonnet-5.5',
     });
   });
 });

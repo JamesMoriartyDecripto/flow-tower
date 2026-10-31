@@ -26,7 +26,7 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
 Set a model for each role in `squad.json`; `--model` overrides it for one invocation. The family defaults for
 new roles are starting points, not benchmark claims. Model routing is independent of the lead harness.
 No Claude account, SDK installation or Claude-specific permissions are required by the portable runner.
-This is a lead-driven procedure, **not an unattended scheduler**. Skill installation does not prove that every
+This is a lead-driven procedure. For issues nobody needs to watch, `node tools/squad/runner.mjs` (#320) runs the same procedure unattended: label an issue `squad:go`, and it stops at a draft PR or with `squad:failed` and the reason (see tools/squad/README.md). A sensitive area still needs you as lead. Skill installation does not prove that every
 harness has been exercised: check the recorded trials before claiming support.
 
 ## Set up (once per project)

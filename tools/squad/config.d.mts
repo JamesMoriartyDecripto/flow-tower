@@ -12,6 +12,7 @@ export interface SquadConfig {
   tower: string;
   source: string;
   cli: string;
+  runner: { usdPerIssue: number; minutes: number; fixRounds: number; pollMinutes: number };
 }
 
 export const DEFAULTS: SquadConfig;
