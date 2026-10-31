@@ -47,7 +47,7 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 | `scene/batch.ts` | Shared geometries, color dimming, polyline to `LineSegments2` helpers |
 | `scene/BatchLine.tsx` | One batched `LineSegments2` for many segments (per-point colours, dashes) |
 | `scene/shiftPan.ts` | Shift + drag / two-finger scroll pans the camera |
-| `scene/Links.tsx`, `Particles.tsx` | Cross-layer links and animated flow |
+| `scene/Links.tsx`, `linkFocus.ts`, `Particles.tsx` | Cross-layer links and animated flow; with a layer focused (tower view) only the highlighted links that touch it are drawn (#348) |
 | `scene/LiveOverlay.tsx`, `chips.ts` | Live highlights and the DOM chips projected onto nodes |
 | `scene/Environment.tsx`, `Effects.tsx` | Base rings, scanner, sparkles, bloom |
 
