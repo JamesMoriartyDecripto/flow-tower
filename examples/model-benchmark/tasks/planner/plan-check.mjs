@@ -5,9 +5,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-// The answer is model output run as a module, and the task folder it may read holds the answer keys: a plan or a
-// verdict is plain data, so any code that could reach other files or the process is refused before it is imported.
-const CODE = /\b(import|require|process|globalThis|eval|Function|fetch|readFile|fs)\b/;
+// The answer is model output run as a module, and the task folder it may read holds the answer keys. A plan or a
+// verdict is plain data, so outside its strings only data syntax is allowed (an allowlist: a denylist of names was
+// bypassed in review with constructor chains). Without parentheses, dots, backticks or bare names nothing can run.
+// The same check lives in plan-check.mjs and judge-check.mjs: a task may read only its own folder.
 // The code of the answer with every '...' and "..." string emptied and comments dropped, scanned one character at a
 // time so a quote or a backtick inside a string is text. A backtick outside a string starts a template literal, which could hide code in
 // ${...}: plain data never needs one, so it is refused.
@@ -29,8 +30,10 @@ function codeOutsideStrings(text) {
 }
 
 function plainData(answerPath) {
-  const body = codeOutsideStrings(readFileSync(answerPath, 'utf8')).replace(/export\s+default/, '');
-  assert.ok(!CODE.test(body), 'the answer must be plain data: no import, require, process, file or eval access');
+  const code = codeOutsideStrings(readFileSync(answerPath, 'utf8')).replace(/^\s*export\s+default\b/, '');
+  // Numbers first (their dot and sign are the only ones allowed), then names: a key before a colon, or a literal.
+  const rest = code.replace(/-?\d+(\.\d+)?/g, '0').replace(/[A-Za-z_$][\w$]*(?=\s*:)|\b(true|false|null)\b/g, '');
+  assert.ok(/^[\s{}[\]:,;"0]*$/.test(rest), 'the answer must be plain data: an object literal of strings, numbers, arrays and objects');
 }
 
 export async function checkPlan(answerPath, { must, maxSteps = 8, maxItems = 3 }) {
