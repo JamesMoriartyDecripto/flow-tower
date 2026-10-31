@@ -2,12 +2,13 @@
 // and the models make only the judgement calls (triage, plan, judge, verifier). No I/O here: every effect goes through
 // deps, so the tests run the whole path with fakes and the same facts always take the same path.
 import { join } from 'node:path';
-import { FENCE_TAG, fixTask, judgePrompt, numberFindings, parseJudgement } from './runner-judge.mjs';
+import { fixTask, judgePrompt, numberFindings, parseJudgement, stripFence } from './runner-judge.mjs';
 import { parsePlan, taskFiles } from './runner-plan.mjs';
 
 // An area named here needs a human to sign off the plan before any code is written.
 const SENSITIVE = /auth|billing|payment|migration|permission|secret|privacy|personal|pii|gdpr/i;
 const SIGN_OFF = 'sensitive area in the plan: a person must lead this issue (plan sign-off)';
+const FIX_SENSITIVE = 'sensitive area in a fix round: a person must lead this issue';
 const ROUTES = ['full', 'needs_info', 'reject'];
 const TRIAGE_ASK = 'Classify the issue below. Answer only with a ```json block: {"route": "full" | "needs_info" | "reject", '
   + '"areas": [strings], "questions": [strings], "rationale": "..."}.';
@@ -19,10 +20,6 @@ class Stop extends Error {}
 const stop = (reason) => { throw new Stop(reason); };
 
 const lastLines = (text, k) => String(text ?? '').split('\n').slice(-k).join('\n');
-
-// A closing or opening fence tag inside text would let the text end its own fence early, so the tags are removed.
-// The tag regex also matches spaced forms such as "</ plan-data>", which a looser parser would still read as a tag.
-const stripFence = (text) => String(text ?? '').replace(FENCE_TAG, '');
 
 // Secrets that a child process may print. Each match becomes [redacted], so a failure reason posted on the public
 // issue cannot carry a key. The patterns are the shapes of the keys this repo uses; ordinary text is left alone.
@@ -37,6 +34,14 @@ const SECRETS = [
 ];
 export function scrub(text) {
   return SECRETS.reduce((t, re) => t.replace(re, '[redacted]'), String(text ?? ''));
+}
+
+// The PR title is public and lands in git history, so it is one line, secret-free, and short. Scrub runs first, on the
+// raw title, so the secret patterns see the text as written; the control characters are replaced after that.
+const TITLE_MAX = 60;
+export function prTitle(issue) {
+  const line = scrub(issue.title).replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, TITLE_MAX);
+  return `squad: ${line} (#${issue.number})`;
 }
 
 // The issue text is data, not instructions: it is fenced, and the model is told so. The title sits inside the fence
@@ -178,6 +183,9 @@ export async function workIssue(issue, deps, limits) {
       const kept = findings.filter((f) => j.keep.includes(f.id));
       if (!kept.length) break;
       if (round > limits.fixRounds) stop(`findings still open after ${limits.fixRounds} fix rounds`);
+      // The fix round edits files the plan never named, so the sensitive-area rule is checked on the kept findings too.
+      const keptText = kept.flatMap((f) => [f.file, f.what, f.why, f.fix]).join('\n');
+      if (SENSITIVE.test(keptText)) stop(FIX_SENSITIVE);
       // A finding whose files are all outside the repository leaves nothing to fix in place, so the issue stops.
       const fix = fixTask(kept, { issue: n, round });
       if (!fix) stop('kept findings name no file inside the repository');
@@ -203,7 +211,7 @@ export async function workIssue(issue, deps, limits) {
     // The PR body quotes the dropped findings, which can carry child output, so it is scrubbed like the comments.
     const bodyDir = await deps.writeTasks(wt.path, n, [{ name: 'PR_BODY.md', text: scrub(prBody(issue, plan, dropped, spend)) }]);
     const url = await deps.gh.draftPr({
-      branch: wt.branch, base: 'main', title: `squad: ${issue.title} (#${n})`, bodyFile: join(bodyDir, 'PR_BODY.md'),
+      branch: wt.branch, base: 'main', title: prTitle(issue), bodyFile: join(bodyDir, 'PR_BODY.md'),
     });
     const g = await deps.gate(wt.path, url);
     await gh.comment(n, `Draft PR: ${url}\n\n${g.text}`);

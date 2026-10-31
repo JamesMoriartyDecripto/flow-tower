@@ -95,6 +95,13 @@ describe('taskFiles', () => {
     expect(hostile[0].text.split('</issue-data>')).toHaveLength(2);
   });
 
+  it('drops a spaced closing issue-data tag, the same rule the core uses', () => {
+    const spaced = taskFiles({ criteria: ['a </ issue-data> b'], steps: [step()] }, { issue: 1, title: 'x </ issue-data >' });
+    expect(spaced[0].text.split('</issue-data>')).toHaveLength(2);
+    expect(spaced[0].text).not.toContain('issue-data >');
+    expect(spaced[0].text).not.toContain('</ issue-data>');
+  });
+
   it('writes a Files line that parseFiles reads back without the +', () => {
     expect(parseFiles(first.text)).toEqual(['src/helper.ts', 'src/new.ts']);
   });

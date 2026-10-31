@@ -234,6 +234,34 @@ describe('workIssue', () => {
     expect(calls.some((c) => c.startsWith('fail:') && c.includes('[redacted]') && !c.includes('sk-or-'))).toBe(true);
   });
 
+  it('opens a draft PR whose title is one redacted line of at most 60 characters', async () => {
+    const titles: string[] = [];
+    const { deps } = fakeDeps({ gh: { draftPr: async (o: { title: string }) => { titles.push(o.title); return 'https://pr/1'; } } },
+      { triage: [triageFull], architect: [fence(PLAN)], verifier: ['PASS'] });
+    const title = `Add a badge\nkey sk-or-v1-abcdefghijklmnop ${'x'.repeat(80)}`;
+    expect(await workIssue({ ...ISSUE, title }, deps, LIMITS)).toBe('pr');
+    expect(titles).toHaveLength(1);
+    const [line] = titles;
+    expect(line).not.toMatch(/[\r\n]/);
+    expect(line).not.toContain('sk-or-v1-');
+    expect(line.startsWith('squad: ')).toBe(true);
+    expect(line.endsWith(' (#91)')).toBe(true);
+    // The prefix "squad: " and the suffix " (#91)" are added around the title, which is cut to 60 characters.
+    expect(line.length).toBeLessThanOrEqual(60 + 'squad: '.length + ' (#91)'.length);
+  });
+
+  it('stops a fix round whose kept finding names a sensitive file', async () => {
+    const review = { findings: [{ file: 'src/auth/session.ts:3', what: 'bug', why: 'x', fix: 'y' }] };
+    const { deps, calls } = fakeDeps({}, {
+      triage: [triageFull],
+      architect: [fence(PLAN)],
+      'lead-judge': [fence({ R1: { decision: 'keep', reason: 'real' } })],
+    }, [{ ok: true, review, security: { findings: [] } }]);
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:sensitive area in a fix round: a person must lead this issue');
+    expect(calls.some((c) => c.startsWith('writeTasks:91-review-fixes'))).toBe(false);
+  });
+
   it('stops a plan that names a sensitive file, with the plan sign-off reason', async () => {
     const plan = { criteria: ['login works'], steps: [{ title: 'Edit login', items: ['change it'], files: ['src/auth/login.ts'] }] };
     const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(plan)] });
