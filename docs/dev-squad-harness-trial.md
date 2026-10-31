@@ -49,7 +49,7 @@ Pi/Claude Code/Codex trials below separately exercised real OpenRouter roles; th
 
 **Recipe (repository checkout).**
 1. Run `npm run check` in this checkout.
-2. Run the focused files: `npm exec -- vitest run tests/squad-acceptance.test.ts tests/squad-live-acceptance.test.ts tests/squad-terminal-events.test.ts tests/sdk-approval-events.test.ts tests/sdk-pipeline.test.ts tests/sdk-cli-status.test.ts tests/sdk-quality-gates.test.ts`.
+2. Run the focused files: `npm exec -- vitest run tests/squad-acceptance.test.ts tests/squad-live-acceptance.test.ts tests/squad-terminal-events.test.ts`. The `tests/sdk-*` files were removed with the SDK backend in #355.
 3. `TMPDIR` may point to a disk-backed temporary location, but only for automatic test fixtures. Keep tasks, logs
    and outputs in the ignored repository-local scratch folder. Do not create external task files or worktrees for
    this recipe, and do not move credentials into the project.
