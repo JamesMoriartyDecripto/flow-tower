@@ -106,7 +106,10 @@ run and stop for approval before exceeding the agreed budget. Do not advertise p
    - the `Files:` line: every file the step must touch (`+` new, `(optional)` may stay untouched). It is checked.
 6. **Run**: `REPO=../wt-<n> bash tools/squad/steps.sh <n> tools/squad/tasks/<n> "" "<title>"` (empty write dirs
    take squad.json's). One commit per green step; it stops at the first red step (coder failure, no change, red
-   check, a `Files:` entry not touched). Read the known gaps it prints before the next step.
+   check, a `Files:` entry not touched). Rerunning the folder skips steps already committed. Only the step's own
+   files are committed (its write dirs, the folders of its `Files:` entries); edits you had before the run stay out.
+   List any root file the step changes (`package.json`, `CHANGELOG.md`) in `Files:`. Read the known gaps it prints
+   before the next step.
 7. **Verify yourself**: run the tests, run the real thing; for UI, look at it (screenshots). Green is not done.
    Check the tower still matches what landed (its files exist, its descriptions are true) and validate it again.
 8. **Review and security**, one request each with the code packed, **started together**: they are independent and
