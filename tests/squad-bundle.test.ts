@@ -55,10 +55,10 @@ describe('squad bundle (#330)', () => {
     expect(doc.root).toBe('dev-squad');
     const layers = (doc.layers as { id: string }[]).map((l) => l.id);
     // The 8 layers of examples/dev-squad, in order: a tower that lost one is not the canonical squad.
-    expect(layers).toEqual(['intake', 'orchestration', 'specialists', 'quality', 'tools', 'harness', 'memory', 'models']);
+    expect(layers).toEqual(['intake', 'orchestration', 'specialists', 'quality', 'runner', 'setup', 'observe', 'models']);
 
-    // The support files the tower points at, with the nested towers and the agents.
-    for (const rel of ['towers/coder.tower.yaml', 'towers/researcher.tower.yaml', 'prompts/triage.md', 'src/main.ts', '.claude/agents/coder.md']) {
+    // The support files the tower points at, with the nested runner tower and the role prompts.
+    for (const rel of ['towers/runner-loop.tower.yaml', 'roles/triage.md', 'squad.example.json', 'task-template.md', 'README.md']) {
       expect(existsSync(join(squad, 'dev-squad', rel)), rel).toBe(true);
     }
     // Exactly one main tower: the canonical one is never copied into the support folder.
@@ -77,16 +77,16 @@ describe('squad bundle (#330)', () => {
 
     const squad = join(dir, 'tools', 'squad');
     const main = join(squad, 'squad.tower.yaml');
-    const coder = join(squad, 'dev-squad', 'towers', 'coder.tower.yaml');
+    const runner = join(squad, 'dev-squad', 'towers', 'runner-loop.tower.yaml');
     writeFileSync(main, 'version: 1\nname: Mine\n');
-    writeFileSync(coder, '# my edit\n');
-    rmSync(join(squad, 'dev-squad', 'prompts', 'triage.md'));
+    writeFileSync(runner, '# my edit\n');
+    rmSync(join(squad, 'dev-squad', 'roles', 'triage.md'));
 
     const forced = run('squad', 'init', dir, '--force');
     expect(forced.status, forced.stderr).toBe(0);
     expect(readFileSync(main, 'utf8')).toBe('version: 1\nname: Mine\n');
-    expect(readFileSync(coder, 'utf8')).toBe('# my edit\n');
-    expect(existsSync(join(squad, 'dev-squad', 'prompts', 'triage.md'))).toBe(true);
+    expect(readFileSync(runner, 'utf8')).toBe('# my edit\n');
+    expect(existsSync(join(squad, 'dev-squad', 'roles', 'triage.md'))).toBe(true);
   });
 
   it('installs only allowlisted files from the source and skips secrets, links and node_modules', () => {
@@ -95,13 +95,13 @@ describe('squad bundle (#330)', () => {
     const secret = join(source, 'secret.txt');
     writeFileSync(secret, 'OPENROUTER_API_KEY=sk-or-x\n');
     writeFileSync(join(source, 'dev-squad.tower.yaml'), 'version: 1\nname: Dev Squad\nroot: ../..\nlayers: []\n');
-    mkdirSync(join(source, 'src', 'node_modules', 'pkg'), { recursive: true });
-    writeFileSync(join(source, 'src', 'node_modules', 'pkg', 'i.js'), '');
-    mkdirSync(join(source, 'src', '.git'), { recursive: true });
-    writeFileSync(join(source, 'src', '.git', 'HEAD'), 'ref\n');
-    writeFileSync(join(source, 'src', '.env'), 'OPENROUTER_API_KEY=sk-or-y\n');
-    writeFileSync(join(source, 'src', 'ok.ts'), 'export {};\n');
-    symlinkSync(secret, join(source, 'src', 'linked.ts'));
+    mkdirSync(join(source, 'roles', 'node_modules', 'pkg'), { recursive: true });
+    writeFileSync(join(source, 'roles', 'node_modules', 'pkg', 'i.js'), '');
+    mkdirSync(join(source, 'roles', '.git'), { recursive: true });
+    writeFileSync(join(source, 'roles', '.git', 'HEAD'), 'ref\n');
+    writeFileSync(join(source, 'roles', '.env'), 'OPENROUTER_API_KEY=sk-or-y\n');
+    writeFileSync(join(source, 'roles', 'ok.md'), '# ok\n');
+    symlinkSync(secret, join(source, 'roles', 'linked.md'));
     mkdirSync(join(source, 'stray'), { recursive: true });
     writeFileSync(join(source, 'stray', 'x.md'), '');
     writeFileSync(join(source, 'README.md'), '# r\n');
@@ -110,12 +110,12 @@ describe('squad bundle (#330)', () => {
     const out = installTower(source, squad, 'Demo "quoted"');
     expect(out.main).toBe(true);
     const bundle = join(squad, 'dev-squad');
-    expect(existsSync(join(bundle, 'src', 'ok.ts'))).toBe(true);
+    expect(existsSync(join(bundle, 'roles', 'ok.md'))).toBe(true);
     expect(existsSync(join(bundle, 'README.md'))).toBe(true);
-    expect(existsSync(join(bundle, 'src', '.env'))).toBe(false);
-    expect(existsSync(join(bundle, 'src', 'linked.ts'))).toBe(false);
-    expect(existsSync(join(bundle, 'src', 'node_modules'))).toBe(false);
-    expect(existsSync(join(bundle, 'src', '.git'))).toBe(false);
+    expect(existsSync(join(bundle, 'roles', '.env'))).toBe(false);
+    expect(existsSync(join(bundle, 'roles', 'linked.md'))).toBe(false);
+    expect(existsSync(join(bundle, 'roles', 'node_modules'))).toBe(false);
+    expect(existsSync(join(bundle, 'roles', '.git'))).toBe(false);
     expect(existsSync(join(bundle, 'stray'))).toBe(false);
     // The name goes through the YAML document, so quotes survive and the main tower parses back to them.
     expect(parse(readFileSync(join(squad, 'squad.tower.yaml'), 'utf8')).name).toBe('Demo "quoted"');
@@ -136,8 +136,8 @@ describe('squad bundle (#330)', () => {
     // installTower is called directly: the bundle root is a link, so nothing may land in the outside folder.
     const source = tempDir('squad-tower-src2-');
     writeFileSync(join(source, 'dev-squad.tower.yaml'), 'version: 1\nname: Dev Squad\nroot: ../..\nlayers: []\n');
-    mkdirSync(join(source, 'src'), { recursive: true });
-    writeFileSync(join(source, 'src', 'ok.ts'), 'export {};\n');
+    mkdirSync(join(source, 'roles'), { recursive: true });
+    writeFileSync(join(source, 'roles', 'ok.md'), '# ok\n');
     const squad = tempDir('squad-tower-dst2-');
     const outside = tempDir('squad-tower-outside-');
     symlinkSync(outside, join(squad, 'dev-squad'));
@@ -178,12 +178,12 @@ describe('squad bundle (#330)', () => {
   it('refuses a nested folder inside the bundle that is a symlink', () => {
     const source = tempDir('squad-tower-src3-');
     writeFileSync(join(source, 'dev-squad.tower.yaml'), 'version: 1\nname: Dev Squad\nroot: ../..\nlayers: []\n');
-    mkdirSync(join(source, 'src', 'lib'), { recursive: true });
-    writeFileSync(join(source, 'src', 'lib', 'a.ts'), 'export {};\n');
+    mkdirSync(join(source, 'roles', 'lib'), { recursive: true });
+    writeFileSync(join(source, 'roles', 'lib', 'a.md'), '# a\n');
     const squad = tempDir('squad-tower-dst3-');
     const outside = tempDir('squad-tower-outside3-');
-    mkdirSync(join(squad, 'dev-squad', 'src'), { recursive: true });
-    symlinkSync(outside, join(squad, 'dev-squad', 'src', 'lib'));
+    mkdirSync(join(squad, 'dev-squad', 'roles'), { recursive: true });
+    symlinkSync(outside, join(squad, 'dev-squad', 'roles', 'lib'));
     expect(() => installTower(source, squad, 'Demo')).toThrow(/not a real folder/);
     expect(readdirSyncSafe(outside)).toEqual([]);
   });
@@ -191,17 +191,17 @@ describe('squad bundle (#330)', () => {
   it('skips a secret-named folder without reading inside it', () => {
     const source = tempDir('squad-tower-src4-');
     writeFileSync(join(source, 'dev-squad.tower.yaml'), 'version: 1\nname: Dev Squad\nroot: ../..\nlayers: []\n');
-    mkdirSync(join(source, 'src', '.ssh'), { recursive: true });
-    writeFileSync(join(source, 'src', '.ssh', 'notes.txt'), 'not a key, but the folder is a secret\n');
-    mkdirSync(join(source, 'src', 'keys.pem'), { recursive: true });
-    writeFileSync(join(source, 'src', 'keys.pem', 'a.txt'), '');
-    writeFileSync(join(source, 'src', 'ok.ts'), 'export {};\n');
+    mkdirSync(join(source, 'roles', '.ssh'), { recursive: true });
+    writeFileSync(join(source, 'roles', '.ssh', 'notes.txt'), 'not a key, but the folder is a secret\n');
+    mkdirSync(join(source, 'roles', 'keys.pem'), { recursive: true });
+    writeFileSync(join(source, 'roles', 'keys.pem', 'a.txt'), '');
+    writeFileSync(join(source, 'roles', 'ok.md'), '# ok\n');
     const squad = tempDir('squad-tower-dst4-');
     installTower(source, squad, 'Demo');
     const bundle = join(squad, 'dev-squad');
-    expect(existsSync(join(bundle, 'src', '.ssh'))).toBe(false);
-    expect(existsSync(join(bundle, 'src', 'keys.pem'))).toBe(false);
-    expect(existsSync(join(bundle, 'src', 'ok.ts'))).toBe(true);
+    expect(existsSync(join(bundle, 'roles', '.ssh'))).toBe(false);
+    expect(existsSync(join(bundle, 'roles', 'keys.pem'))).toBe(false);
+    expect(existsSync(join(bundle, 'roles', 'ok.md'))).toBe(true);
   });
 
   it('keeps the tower name from an edited squad.json on --force, even when the tower is missing', { timeout: 30_000 }, () => {
@@ -218,18 +218,6 @@ describe('squad bundle (#330)', () => {
     expect(forced.status, forced.stderr).toBe(0);
     expect(parse(readFileSync(join(squad, 'squad.tower.yaml'), 'utf8')).name).toBe('Custom Name');
     expect(JSON.parse(readFileSync(file, 'utf8')).tower).toBe('Custom Name');
-  });
-
-  it('lets the bundled example logs be tracked even when the repo ignores *.log', { timeout: 30_000 }, () => {
-    const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '', '.gitignore': '*.log\n' });
-    expect(run('squad', 'init', dir).status).toBe(0);
-    const check = (path: string) => spawnSync('git', ['-C', dir, 'check-ignore', '-q', path], { encoding: 'utf8' }).status;
-    // Each shipped sample log is trackable; a runtime log under tools/squad/ or the bundle's logs/ stays ignored.
-    for (const name of ['hooks.log', 'lead.log', 'review-loop.log', 'webhook.log']) {
-      expect(check(`tools/squad/dev-squad/logs/${name}`), name).toBe(1);
-    }
-    expect(check('tools/squad/dev-squad/logs/run.log')).toBe(0);
-    expect(check('tools/squad/run.log')).toBe(0);
   });
 
   it('does not echo malformed squad.json content in the error (#330 review)', { timeout: 30_000 }, () => {
