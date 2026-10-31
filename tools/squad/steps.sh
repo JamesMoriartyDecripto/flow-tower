@@ -3,6 +3,7 @@
 # repo's tools/squad/squad.json (CODER_MODEL overrides it); <write-dirs> is a comma-separated list, same as run.mjs --write,
 # e.g. src,tests, and when empty it is the config's "write" list;
 # after each, the project's check (config.mjs check, commands.check in squad.json) must pass, then one commit per step. Stops at the first red step.
+# Finished steps are skipped, and only the step's own files are committed: local edits from before the run are never staged (#353).
 # REPO (default: this checkout) is where the steps run; NODE (default: node) is the Node binary for every node call,
 # since the Linux test server's system Node is 20 and Node 22 can live elsewhere; SQUAD_TRAILERS adds extra commit trailer lines.
 set -u
@@ -25,8 +26,10 @@ if [ -n "${CODER_MODEL:-}" ]; then
 else
   CODER=$("$NODE" "$H/config.mjs" get models.coder "$R") || { echo "RED: bad squad config"; exit 1; }
 fi
-# Write dirs are split on commas; the array is what git add and the coder get.
-IFS=, read -ra writeDirs <<< "$write"
+# The snapshot records every local change that exists before the first step. A step may not stage these paths, and
+# if the coder edits one of them the step is RED: the maintainer's work must never end up in a squad commit (#353).
+"$NODE" "$H/step-scope.mjs" snapshot "$R" > "$OUT/foreign.tsv" || { echo "RED: snapshot failed"; exit 1; }
+if [ -s "$OUT/foreign.tsv" ]; then echo "local changes kept out of the squad commits:"; cut -f2- "$OUT/foreign.tsv"; fi
 # nullglob: a dir with no step files runs nothing instead of looping over the literal pattern.
 # The names are zero-padded, so glob order is the step order.
 shopt -s nullglob
@@ -34,12 +37,19 @@ for f in "$dir"/*.md; do
   step=${f##*/}
   step=${step%.md}
   echo "=== #$issue step $step"
+  # A step whose commit is already in the log is done: rerunning it would make a second commit for the same work.
+  if [ "$("$NODE" "$H/step-scope.mjs" done "$issue" "$step" "$R")" = yes ]; then echo "skip $step: already committed"; continue; fi
   # The commit base for the files check: the step's changes are everything since this commit.
   base=$(git -C "$R" rev-parse HEAD)
+  # The coder may write only the step's own dirs: the configured write list plus the directories of its Files entries.
+  stepWrite=$("$NODE" "$H/step-scope.mjs" write "$f" "$R" "$write") || { echo "RED: bad step scope"; exit 1; }
   # A coder run that fails (no key, HTTP error, step cap) must stop the chain: a green check on unchanged code is not a done step.
-  "$NODE" "$H/run.mjs" --model "$CODER" --role coder --node specialists.coder --task "$f" --steps 70 --issue "$issue" --repo "$R" --write "$write" > "$OUT/coder-$step.out" 2>&1; rc=$?
+  "$NODE" "$H/run.mjs" --model "$CODER" --role coder --node specialists.coder --task "$f" --steps 70 --issue "$issue" --repo "$R" --write "$stepWrite" > "$OUT/coder-$step.out" 2>&1; rc=$?
   tail -c 700 "$OUT/coder-$step.out"
   if [ "$rc" -ne 0 ] || grep -q "^step cap reached" "$OUT/coder-$step.out"; then echo "RED after step $step: coder run failed (exit $rc)"; exit 1; fi
+  # A file with local edits from before the run must not change: the coder would have written over the maintainer's work.
+  foreignTouched=$("$NODE" "$H/step-scope.mjs" foreign-touched "$OUT/foreign.tsv" "$R")
+  if [ -n "$foreignTouched" ]; then echo "RED after step $step: the coder changed files that had local edits before the run:"; echo "$foreignTouched"; exit 1; fi
   # Known gaps are the text after the last [finish] line of the coder output. They are printed for the lead and never stop the chain.
   awk '/^\[finish\]/ { buf = ""; found = 1; next } found { buf = buf $0 "\n" } END { printf "%s", buf }' "$OUT/coder-$step.out" > "$OUT/finish-$step.txt"
   gaps=$("$NODE" "$H/files-check.mjs" --gaps "$OUT/finish-$step.txt")
@@ -47,7 +57,8 @@ for f in "$dir"/*.md; do
   # The run's own total is on the "--- " line it prints last (#156): it goes into the commit as Squad-Cost, so the step's cost stays with its commit.
   # Take the last such line: the report printed before it can hold diff lines that start with "--- ".
   stepCost=$(grep '^--- ' "$OUT/coder-$step.out" | tail -1 | grep -o '\$[0-9.]*' | tail -1)
-  if [ -z "$(git -C "$R" status --porcelain)" ]; then echo "RED after step $step: the coder changed nothing"; exit 1; fi
+  staged=$("$NODE" "$H/step-scope.mjs" stage "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite")
+  if [ -z "$staged" ]; then echo "RED after step $step: the coder changed nothing"; exit 1; fi
   # The check is the project's own (config.mjs check), so a repo with another check command runs the same script.
   if ! ("$NODE" "$H/config.mjs" check "$R" > "$OUT/check-$step.log" 2>&1); then
     echo "RED after step $step: see $OUT/check-$step.log"; grep -E "error TS|FAIL|✗|×" "$OUT/check-$step.log" | head -8; exit 1
@@ -70,11 +81,17 @@ for f in "$dir"/*.md; do
     cd "$R" || exit 1
     # Probe files the coder left behind are removed before staging, so they never reach the commit.
     git ls-files --others --exclude-standard | grep -E "(^|/)(tmp[-_.]|zz[-_])|probe|scratch" | while read -r junk; do echo "removed coder probe file: $junk"; rm -f -- "$junk"; done
+    # Only the step's own paths are staged, recomputed so removed probes are not added. A deletion is staged too: git add -A on a missing path records it.
     # git add and git commit run without OPENROUTER_API_KEY: a project's pre-commit hook (husky, lint-staged) may run
     # the tests the coder wrote, and those must not see the key.
-    env -u OPENROUTER_API_KEY git add -u
-    for p in ${writeDirs[@]+"${writeDirs[@]}"}; do [ -e "$p" ] && env -u OPENROUTER_API_KEY git add -A -- "$p"; done
-    git status --short | grep "^??" && echo "UNTRACKED LEFT (outside the write dirs, not committed)"
+    staged=$("$NODE" "$H/step-scope.mjs" stage "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite")
+    while IFS= read -r p; do
+      [ -n "$p" ] && env -u OPENROUTER_API_KEY git add -A -- "$p"
+    done <<< "$staged"
+    git status --short | grep "^??" && echo "UNTRACKED LEFT (outside the step's scope, not committed)"
+    # Tracked changes that are neither staged nor foreign: the coder changed them outside the step's scope.
+    left=$(git diff --name-only | grep -vxF -f <(cut -f2- "$OUT/foreign.tsv"))
+    if [ -n "$left" ]; then echo "CHANGED, NOT COMMITTED (outside the step's scope):"; echo "$left"; fi
     env -u OPENROUTER_API_KEY git commit -s -q -m "$title, step $step (#$issue)
 
 Coder: $CODER.${trailerPara}" && git log --oneline -1
