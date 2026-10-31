@@ -1,0 +1,13 @@
+ok   planner/temp-cleanup  check=command  tools=read_file  steps<=8
+
+plan: 3 models × 1 tasks × 1 runs = 3 runs (at most 24 model calls, 48 with retries)
+models: anthropic/claude-sonnet-5.5, openai/gpt-6.1-terra, z-ai/glm-5.3
+order: run-major, models interleaved, so a slow hour or a provider incident hits every model alike
+output: results/2026-10-31-lead/run3-planner-temp-cleanup.jsonl  timeout: 180s + 1 retry  effort: low
+note: fewer than 3 runs per cell: label every result ILLUSTRATIVE
+[1/3] anthropic/claude-sonnet-5.5 temp-cleanup #1: answered · 26.9s · 3 steps · $0.1045 · cache 19%
+[2/3] openai/gpt-6.1-terra temp-cleanup #1: answered · 14.5s · 3 steps · $0.0275 · cache 14%
+[3/3] z-ai/glm-5.3 temp-cleanup #1: answered · 12.2s · 3 steps · $0.0076 · cache 18%
+
+done: 3 runs, $0.1397 in total → results/2026-10-31-lead/run3-planner-temp-cleanup.jsonl
+next: node scripts/judge.mjs --in results/2026-10-31-lead/run3-planner-temp-cleanup.jsonl --tasks tasks/planner/temp-cleanup.md

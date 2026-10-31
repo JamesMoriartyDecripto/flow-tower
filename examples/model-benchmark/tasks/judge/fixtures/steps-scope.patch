@@ -1,0 +1,444 @@
+diff --git a/src/cli/squad-local.ts b/src/cli/squad-local.ts
+index 2ddb98c..6edbef2 100644
+--- a/src/cli/squad-local.ts
++++ b/src/cli/squad-local.ts
+@@ -32,7 +32,7 @@ const MIN_NODE = [22, 12, 0];
+ export const RUNNER_FILES = [
+   'args.mjs', 'batch.mjs', 'batch.d.mts', 'config.mjs', 'config.d.mts', 'cost.mjs', 'ev.sh', 'files-check.mjs',
+   'gate.mjs', 'guard.mjs', 'ledger.mjs', 'mode.mjs', 'mode.d.mts', 'oneshot.mjs', 'pack.mjs', 'prs.mjs',
+-  'roles.mjs', 'run.mjs', 'step-limit.mjs', 'steps.sh', 'tool-schema.mjs',
++  'roles.mjs', 'run.mjs', 'step-limit.mjs', 'step-scope.mjs', 'steps.sh', 'tool-schema.mjs',
+ ];
+ 
+ const defaultExec: Exec = (cmd, args) => {
+diff --git a/tests/squad-scripts.test.ts b/tests/squad-scripts.test.ts
+index a44a0f8..f966e0c 100644
+--- a/tests/squad-scripts.test.ts
++++ b/tests/squad-scripts.test.ts
+@@ -116,4 +116,20 @@ describe('steps.sh (#265)', () => {
+     const r = spawnSync('bash', ['-n', join(squad, 'steps.sh')], { encoding: 'utf8' });
+     expect(r.status).toBe(0);
+   });
++
++  it('runs from a private copy so edits to steps.sh cannot break a run (#353)', () => {
++    const text = readFileSync(join(squad, 'steps.sh'), 'utf8');
++    expect(text).toContain('SQUAD_STEPS_COPY');
++    expect(text).toContain('SQUAD_STEPS_HOME');
++    const r = spawnSync('bash', ['-n', join(squad, 'steps.sh')], { encoding: 'utf8' });
++    expect(r.status).toBe(0);
++  });
++
++  it('skips done steps and stages only the step scope (#353)', () => {
++    const text = readFileSync(join(squad, 'steps.sh'), 'utf8');
++    expect(text).toContain('step-scope.mjs" done');
++    expect(text).toContain('step-scope.mjs" stage');
++    expect(text).toContain('foreign-touched');
++    expect(text).not.toContain('git add -u');
++  });
+ });
+diff --git a/tests/squad-step-scope.test.ts b/tests/squad-step-scope.test.ts
+new file mode 100644
+index 0000000..d9fc5d2
+--- /dev/null
++++ b/tests/squad-step-scope.test.ts
+@@ -0,0 +1,103 @@
++import { execFileSync, spawnSync } from 'node:child_process';
++import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { fileURLToPath } from 'node:url';
++import { describe, expect, it } from 'vitest';
++
++// The module has no declaration file (the task names only the .mjs), so it is loaded through a computed specifier:
++// TypeScript does not resolve that, and the types it needs are declared here.
++const SCRIPT = fileURLToPath(new URL('../tools/squad/step-scope.mjs', import.meta.url));
++interface StepScope {
++  stepDone(subjects: string[], step: number | string, issue: number | string): boolean;
++  toStage(changed: string[], foreign: string[], writeDirs: string[], files: string[]): string[];
++  touchedForeign(before: Record<string, string>, after: Record<string, string>): string[];
++  writeDirsFor(write: string[], files: string[]): string[];
++}
++const { stepDone, toStage, touchedForeign, writeDirsFor } = (await import(/* @vite-ignore */ SCRIPT)) as StepScope;
++
++function cli(...args: string[]): string {
++  const r = spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8' });
++  if (r.status !== 0) throw new Error(`exit ${r.status}: ${r.stderr}`);
++  return r.stdout.trim();
++}
++
++describe('writeDirsFor', () => {
++  it('adds the directory of each Files entry to the write list', () => {
++    expect(writeDirsFor(['src'], ['examples/dev-squad/src/a.ts', 'tests/x.test.ts', 'CHANGELOG.md', 'docs/**/*.md']))
++      .toEqual(['src', 'examples/dev-squad/src', 'tests', 'CHANGELOG.md', 'docs']);
++  });
++});
++
++describe('stepDone', () => {
++  const subjects = ['fix the parser, step 1 (#353)', 'other work'];
++
++  it('matches the step and issue of a subject', () => {
++    expect(stepDone(subjects, 1, 353)).toBe(true);
++  });
++
++  it('is false for a different issue number', () => {
++    expect(stepDone(subjects, 1, 35)).toBe(false);
++    expect(stepDone(subjects, 1, 3)).toBe(false);
++  });
++
++  it('is false for a different step', () => {
++    expect(stepDone(subjects, 12, 353)).toBe(false);
++  });
++});
++
++describe('toStage', () => {
++  const files = ['src/a.ts', 'CHANGELOG.md'];
++  const writeDirs = writeDirsFor(['src'], files);
++
++  it('drops foreign, drops paths outside write dirs and Files, keeps Files roots and nested write paths', () => {
++    const changed = ['src/a.ts', 'src/notes/b.ts', 'CHANGELOG.md', 'docs/x.md', 'src/foreign.ts'];
++    expect(toStage(changed, ['src/foreign.ts'], writeDirs, files))
++      .toEqual(['src/a.ts', 'src/notes/b.ts', 'CHANGELOG.md']);
++  });
++});
++
++describe('touchedForeign', () => {
++  it('reports a changed hash and a removed path, not an unchanged one', () => {
++    const before = { 'a.md': 'h1', 'b.md': 'h2', 'c.md': 'h3' };
++    const after = { 'a.md': 'h1', 'b.md': 'h9', 'c.md': '-' };
++    expect(touchedForeign(before, after)).toEqual(['b.md', 'c.md']);
++  });
++});
++
++describe('step-scope CLI in a temp repo', () => {
++  it('snapshots the foreign edit, stages only the step file, and flags the foreign file', () => {
++    const dir = mkdtempSync(join(tmpdir(), 'step-scope-'));
++    try {
++      const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
++      git('init', '-q');
++      git('config', 'user.email', 't@example.com');
++      git('config', 'user.name', 't');
++      mkdirSync(join(dir, 'src'));
++      mkdirSync(join(dir, 'tools', 'squad'), { recursive: true });
++      writeFileSync(join(dir, 'src', 'a.ts'), 'a\n');
++      writeFileSync(join(dir, 'NOTES.md'), 'notes\n');
++      writeFileSync(join(dir, 'tools', 'squad', 'squad.json'), JSON.stringify({ project: 't', base: 'HEAD', write: ['src'] }));
++      git('add', '-A');
++      git('commit', '-q', '-m', 'init');
++
++      // The maintainer's uncommitted edit is in the snapshot before the step runs.
++      writeFileSync(join(dir, 'NOTES.md'), 'maintainer edit\n');
++      const snapFile = join(dir, 'snapshot.txt');
++      const snapOut = cli('snapshot', dir);
++      writeFileSync(snapFile, `${snapOut}\n`);
++      expect(snapOut).toMatch(/\tNOTES\.md$/m);
++
++      // The step edits its own file and the foreign file again.
++      writeFileSync(join(dir, 'src', 'a.ts'), 'changed\n');
++      writeFileSync(join(dir, 'NOTES.md'), 'maintainer edit 2\n');
++      const task = join(dir, 'task.md');
++      writeFileSync(task, 'Files: src/a.ts\n');
++
++      expect(cli('stage', task, 'HEAD', dir, snapFile, '')).toBe('src/a.ts');
++      expect(cli('foreign-touched', snapFile, dir)).toBe('NOTES.md');
++    } finally {
++      rmSync(dir, { recursive: true, force: true });
++    }
++  }, 20_000);
++});
+diff --git a/tools/squad/README.md b/tools/squad/README.md
+index c735f71..875eefa 100644
+--- a/tools/squad/README.md
++++ b/tools/squad/README.md
+@@ -121,10 +121,14 @@ git worktree remove ../wt-113 && git branch -d fix/113-tools
+ `<write-dirs>` is a comma-separated list, same as `run.mjs --write` (e.g. `src,tests` or `tools/squad`). `REPO` picks the worktree
+ (default: this checkout); `NODE` picks the Node binary (default `node`; e.g. `NODE=/opt/node22/bin/node` where the
+ system Node is older than 22). For simple tasks, `CODER_MODEL=openai/gpt-6-luna`. It stops at the first red step: a failed
+-coder run, no change at all, a red check, or a `Files:` entry the step did not touch. Each commit stages every changed tracked path (`git add -u`),
+-not a fixed list, so files like `package.json` or `NEXT.md` are never left out; new files are staged inside the
+-`write-dirs`, and anything untracked outside them is reported as `UNTRACKED LEFT (not committed)`. Probe files the
+-coder dropped (`tmp*`, `probe`, `scratch`) are removed first. Trailers are session-specific, so pass them in
++coder run, no change at all, a red check, or a `Files:` entry the step did not touch. A step whose commit
++(`<title>, step <name> (#<issue>)`) is already on the branch is skipped, so a folder can be run again after a fix.
++The coder may write the `write-dirs` plus the folder of every `Files:` entry. Each commit stages only the step's own
++paths: changes inside those folders or matching `Files:`. A root file such as `package.json` must therefore be listed in
++`Files:`. Anything else the coder changed is reported as `CHANGED, NOT COMMITTED` or `UNTRACKED LEFT` and stays out.
++Local changes that exist before the run (your own uncommitted edits, the task files) are listed at the start and
++never staged; a step that modifies one of them is RED. Probe files the coder dropped (`tmp*`, `probe`, `scratch`) are
++removed first. The script runs from a temporary copy of itself, so a step may edit `steps.sh`. Trailers are session-specific, so pass them in
+ `SQUAD_TRAILERS` (one per line) or leave them out. Each step commit is signed off (`git commit -s`, the DCO rule in CONTRIBUTING.md) with the git identity of whoever runs the squad.
+ 
+ `run.mjs` needs `OPENROUTER_API_KEY`: the environment, else `~/.config/flow-tower/.env` (or `FLOW_TOWER_HOME`), else the
+diff --git a/tools/squad/files-check.mjs b/tools/squad/files-check.mjs
+index ac66772..47fd3e5 100644
+--- a/tools/squad/files-check.mjs
++++ b/tools/squad/files-check.mjs
+@@ -46,6 +46,11 @@ function satisfied(entry, changed) {
+   return changed.some((p) => p === entry || p.startsWith(dir));
+ }
+ 
++// One path against one entry, with the same rule as the check. step-scope.mjs reuses it so the two never disagree.
++export function matchesEntry(entry, path) {
++  return satisfied(entry, [path]);
++}
++
+ // Returns the entries no changed path satisfies, in the order the task lists them.
+ export function missingFiles(entries, changed) {
+   return entries.filter((e) => !satisfied(e, changed));
+diff --git a/tools/squad/step-scope.mjs b/tools/squad/step-scope.mjs
+new file mode 100644
+index 0000000..637ea87
+--- /dev/null
++++ b/tools/squad/step-scope.mjs
+@@ -0,0 +1,160 @@
++// Scope of a squad step's commit (#353). steps.sh used to stage every tracked change (`git add -u`), so a maintainer's
++// uncommitted edits went into squad commits, and it reran finished steps. These helpers decide what a step may stage,
++// which steps are already done, and which foreign files a step touched. The functions are pure: git runs only in the CLI.
++// node tools/squad/step-scope.mjs <subcommand> ...   (see USAGE)
++import { execFileSync, spawnSync } from 'node:child_process';
++import { existsSync, readFileSync } from 'node:fs';
++import { join } from 'node:path';
++import { pathToFileURL } from 'node:url';
++import { loadConfig } from './config.mjs';
++import { matchesEntry, parseFiles } from './files-check.mjs';
++
++const USAGE = [
++  'usage: node tools/squad/step-scope.mjs snapshot <repo>',
++  '       node tools/squad/step-scope.mjs write <task.md> <repo> [write-csv]',
++  '       node tools/squad/step-scope.mjs done <issue> <step> <repo>',
++  '       node tools/squad/step-scope.mjs stage <task.md> <base-rev> <repo> <snapshot-file> <write-csv>',
++  '       node tools/squad/step-scope.mjs foreign-touched <snapshot-file> <repo>',
++].join('\n');
++
++// The directory a Files entry lives in, which the step may write. A glob has no fixed directory, so the part before
++// its first wildcard decides it. An entry with no "/" there is taken whole: it names a root file or a root folder.
++function dirOf(entry) {
++  const star = entry.indexOf('*');
++  const head = star < 0 ? entry : entry.slice(0, star);
++  const slash = head.lastIndexOf('/');
++  if (slash >= 0) return head.slice(0, slash);
++  return entry.replace(/\/$/, '');
++}
++
++// The write dirs of a step: the configured write list plus the directory of every Files entry, so a task may name a
++// file outside the configured folders (its own tests, a doc at the root) without widening the config.
++export function writeDirsFor(write, files) {
++  const dirs = [...write, ...files.map(dirOf)];
++  return [...new Set(dirs)];
++}
++
++// A subject ends with the step marker that steps.sh writes on each commit, so a step counts as done only when its
++// own commit is in the log. The "(#issue)" part keeps issue 35 from matching issue 353.
++export function stepDone(subjects, step, issue) {
++  const tail = `, step ${step} (#${issue})`;
++  return subjects.some((s) => s.endsWith(tail));
++}
++
++// The changed paths a step may stage. A foreign path is never staged, even when the step's own folders contain it:
++// it belongs to the maintainer. Otherwise a path must sit under a write dir or match one of the task's Files entries.
++export function toStage(changed, foreign, writeDirs, files) {
++  const skip = new Set(foreign);
++  return changed.filter((p) => {
++    if (skip.has(p)) return false;
++    if (writeDirs.some((d) => p === d || p.startsWith(d + '/'))) return true;
++    return files.some((e) => matchesEntry(e, p));
++  });
++}
++
++// The foreign paths a step changed: the hash differs, or the file is gone (a "-" hash marks a missing file).
++export function touchedForeign(before, after) {
++  return Object.keys(before).filter((p) => after[p] !== before[p]);
++}
++
++// Every path git reports as changed, tracked or untracked. Porcelain -z gives a rename as "XY new\0old\0", so the
++// old name is skipped: only the path that exists now counts.
++function statusPaths(repo) {
++  const out = execFileSync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'],
++    { cwd: repo, encoding: 'utf8', maxBuffer: 20e6 });
++  const tokens = out.split('\0');
++  const paths = [];
++  for (let i = 0; i < tokens.length; i++) {
++    const t = tokens[i];
++    if (!t) continue;
++    paths.push(t.slice(3));
++    if (/[RC]/.test(t.slice(0, 2))) i++;
++  }
++  return [...new Set(paths)];
++}
++
++// Hashes of many paths in one git call. A missing path gets "-" and is not sent to git, which would fail on it.
++function hashPaths(repo, paths) {
++  const present = paths.filter((p) => existsSync(join(repo, p)));
++  const hashes = present.length
++    ? execFileSync('git', ['hash-object', '--stdin-paths'], { cwd: repo, encoding: 'utf8', input: `${present.join('\n')}\n` })
++      .split('\n').filter(Boolean)
++    : [];
++  const byPath = new Map(present.map((p, i) => [p, hashes[i]]));
++  return Object.fromEntries(paths.map((p) => [p, byPath.get(p) ?? '-']));
++}
++
++// Snapshot file lines are "<hash>\t<path>", as the snapshot command prints them.
++function readSnapshot(file) {
++  const map = {};
++  for (const line of readFileSync(file, 'utf8').split('\n')) {
++    const tab = line.indexOf('\t');
++    if (tab > 0) map[line.slice(tab + 1)] = line.slice(0, tab);
++  }
++  return map;
++}
++
++// Subjects of the commits since the base. A base that does not resolve (a fresh clone, a typo) falls back to the
++// last 200 commits, so a step is never wrongly reported as not done for want of a base.
++function subjectsSince(repo, base) {
++  const resolves = spawnSync('git', ['rev-parse', '--verify', '-q', `${base}^{commit}`], { cwd: repo }).status === 0;
++  const args = resolves ? ['log', '--format=%s', `${base}..HEAD`] : ['log', '--format=%s', '-n', '200'];
++  return execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).split('\n').filter(Boolean);
++}
++
++const splitCsv = (csv) => (csv ? csv.split(',').map((s) => s.trim()).filter(Boolean) : []);
++
++function main(args) {
++  const [cmd, ...rest] = args;
++  const write = (taskFile, repo, csv) => {
++    const cfgWrite = splitCsv(csv);
++    return writeDirsFor(cfgWrite.length ? cfgWrite : loadConfig(repo).write, parseFiles(readFileSync(taskFile, 'utf8')));
++  };
++  if (cmd === 'snapshot' && rest.length === 1) {
++    const repo = rest[0];
++    const paths = statusPaths(repo);
++    const hashes = hashPaths(repo, paths);
++    console.log(paths.map((p) => `${hashes[p]}\t${p}`).join('\n'));
++    return 0;
++  }
++  if (cmd === 'write' && (rest.length === 2 || rest.length === 3)) {
++    const [taskFile, repo, csv = ''] = rest;
++    console.log(write(taskFile, repo, csv).join(','));
++    return 0;
++  }
++  if (cmd === 'done' && rest.length === 3) {
++    const [issue, step, repo] = rest;
++    const subjects = subjectsSince(repo, loadConfig(repo).base);
++    console.log(stepDone(subjects, step, issue) ? 'yes' : 'no');
++    return 0;
++  }
++  if (cmd === 'stage' && rest.length === 5) {
++    const [taskFile, baseRev, repo, snapFile, csv] = rest;
++    const run = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 20e6 })
++      .split('\n').map((p) => p.trim()).filter(Boolean);
++    const changed = [...new Set([...run('diff', '--name-only', baseRev), ...run('ls-files', '--others', '--exclude-standard')])];
++    const foreign = Object.keys(readSnapshot(snapFile));
++    const files = parseFiles(readFileSync(taskFile, 'utf8'));
++    const dirs = write(taskFile, repo, csv);
++    console.log(toStage(changed, foreign, dirs, files).join('\n'));
++    return 0;
++  }
++  if (cmd === 'foreign-touched' && rest.length === 2) {
++    const [snapFile, repo] = rest;
++    const before = readSnapshot(snapFile);
++    const after = hashPaths(repo, Object.keys(before));
++    console.log(touchedForeign(before, after).join('\n'));
++    return 0;
++  }
++  throw new Error(USAGE);
++}
++
++// Runs as the CLI only when executed directly, so the tests can import the functions.
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
++  try {
++    process.exitCode = main(process.argv.slice(2));
++  } catch (e) {
++    console.error(`step scope: ${e.message}`);
++    process.exitCode = 2;
++  }
++}
+diff --git a/tools/squad/steps.sh b/tools/squad/steps.sh
+index c24e179..c3d2503 100755
+--- a/tools/squad/steps.sh
++++ b/tools/squad/steps.sh
+@@ -3,12 +3,21 @@
+ # repo's tools/squad/squad.json (CODER_MODEL overrides it); <write-dirs> is a comma-separated list, same as run.mjs --write,
+ # e.g. src,tests, and when empty it is the config's "write" list;
+ # after each, the project's check (config.mjs check, commands.check in squad.json) must pass, then one commit per step. Stops at the first red step.
++# Finished steps are skipped, and only the step's own files are committed: local edits from before the run are never staged (#353).
+ # REPO (default: this checkout) is where the steps run; NODE (default: node) is the Node binary for every node call,
+ # since the Linux test server's system Node is 20 and Node 22 can live elsewhere; SQUAD_TRAILERS adds extra commit trailer lines.
+ set -u
++# bash reads this file while it runs, so a step that edits steps.sh would corrupt the run: run from a private copy (#353).
++if [ -z "${SQUAD_STEPS_COPY:-}" ]; then
++  copy=$(mktemp "${TMPDIR:-/tmp}/squad-steps-XXXXXX.sh") || exit 1
++  cp "${BASH_SOURCE[0]}" "$copy" || exit 1
++  SQUAD_STEPS_COPY=1 SQUAD_STEPS_HOME=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd) bash "$copy" "$@"; rc=$?
++  rm -f -- "$copy"; exit "$rc"
++fi
+ R=${REPO:-$(git rev-parse --show-toplevel)}
+ NODE=${NODE:-node}
+-H=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
++# The copy cannot find its helpers next to itself, so the original folder is passed in as SQUAD_STEPS_HOME.
++H=${SQUAD_STEPS_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}
+ issue=$1; dir=$2; write=$3; title=$4
+ # Run outputs go to a temp folder: files dropped into the repo would make the "changed nothing" guard
+ # below see a dirty tree even when the coder did nothing.
+@@ -25,8 +34,10 @@ if [ -n "${CODER_MODEL:-}" ]; then
+ else
+   CODER=$("$NODE" "$H/config.mjs" get models.coder "$R") || { echo "RED: bad squad config"; exit 1; }
+ fi
+-# Write dirs are split on commas; the array is what git add and the coder get.
+-IFS=, read -ra writeDirs <<< "$write"
++# The snapshot records every local change that exists before the first step. A step may not stage these paths, and
++# if the coder edits one of them the step is RED: the maintainer's work must never end up in a squad commit (#353).
++"$NODE" "$H/step-scope.mjs" snapshot "$R" > "$OUT/foreign.tsv" || { echo "RED: snapshot failed"; exit 1; }
++if [ -s "$OUT/foreign.tsv" ]; then echo "local changes kept out of the squad commits:"; cut -f2- "$OUT/foreign.tsv"; fi
+ # nullglob: a dir with no step files runs nothing instead of looping over the literal pattern.
+ # The names are zero-padded, so glob order is the step order.
+ shopt -s nullglob
+@@ -34,12 +45,19 @@ for f in "$dir"/*.md; do
+   step=${f##*/}
+   step=${step%.md}
+   echo "=== #$issue step $step"
++  # A step whose commit is already in the log is done: rerunning it would make a second commit for the same work.
++  if [ "$("$NODE" "$H/step-scope.mjs" done "$issue" "$step" "$R")" = yes ]; then echo "skip $step: already committed"; continue; fi
+   # The commit base for the files check: the step's changes are everything since this commit.
+   base=$(git -C "$R" rev-parse HEAD)
++  # The coder may write only the step's own dirs: the configured write list plus the directories of its Files entries.
++  stepWrite=$("$NODE" "$H/step-scope.mjs" write "$f" "$R" "$write") || { echo "RED: bad step scope"; exit 1; }
+   # A coder run that fails (no key, HTTP error, step cap) must stop the chain: a green check on unchanged code is not a done step.
+-  "$NODE" "$H/run.mjs" --model "$CODER" --role coder --node specialists.coder --task "$f" --steps 70 --issue "$issue" --repo "$R" --write "$write" > "$OUT/coder-$step.out" 2>&1; rc=$?
++  "$NODE" "$H/run.mjs" --model "$CODER" --role coder --node specialists.coder --task "$f" --steps 70 --issue "$issue" --repo "$R" --write "$stepWrite" > "$OUT/coder-$step.out" 2>&1; rc=$?
+   tail -c 700 "$OUT/coder-$step.out"
+   if [ "$rc" -ne 0 ] || grep -q "^step cap reached" "$OUT/coder-$step.out"; then echo "RED after step $step: coder run failed (exit $rc)"; exit 1; fi
++  # A file with local edits from before the run must not change: the coder would have written over the maintainer's work.
++  foreignTouched=$("$NODE" "$H/step-scope.mjs" foreign-touched "$OUT/foreign.tsv" "$R")
++  if [ -n "$foreignTouched" ]; then echo "RED after step $step: the coder changed files that had local edits before the run:"; echo "$foreignTouched"; exit 1; fi
+   # Known gaps are the text after the last [finish] line of the coder output. They are printed for the lead and never stop the chain.
+   awk '/^\[finish\]/ { buf = ""; found = 1; next } found { buf = buf $0 "\n" } END { printf "%s", buf }' "$OUT/coder-$step.out" > "$OUT/finish-$step.txt"
+   gaps=$("$NODE" "$H/files-check.mjs" --gaps "$OUT/finish-$step.txt")
+@@ -47,7 +65,8 @@ for f in "$dir"/*.md; do
+   # The run's own total is on the "--- " line it prints last (#156): it goes into the commit as Squad-Cost, so the step's cost stays with its commit.
+   # Take the last such line: the report printed before it can hold diff lines that start with "--- ".
+   stepCost=$(grep '^--- ' "$OUT/coder-$step.out" | tail -1 | grep -o '\$[0-9.]*' | tail -1)
+-  if [ -z "$(git -C "$R" status --porcelain)" ]; then echo "RED after step $step: the coder changed nothing"; exit 1; fi
++  staged=$("$NODE" "$H/step-scope.mjs" stage "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite")
++  if [ -z "$staged" ]; then echo "RED after step $step: the coder changed nothing"; exit 1; fi
+   # The check is the project's own (config.mjs check), so a repo with another check command runs the same script.
+   if ! ("$NODE" "$H/config.mjs" check "$R" > "$OUT/check-$step.log" 2>&1); then
+     echo "RED after step $step: see $OUT/check-$step.log"; grep -E "error TS|FAIL|✗|×" "$OUT/check-$step.log" | head -8; exit 1
+@@ -70,11 +89,17 @@ for f in "$dir"/*.md; do
+     cd "$R" || exit 1
+     # Probe files the coder left behind are removed before staging, so they never reach the commit.
+     git ls-files --others --exclude-standard | grep -E "(^|/)(tmp[-_.]|zz[-_])|probe|scratch" | while read -r junk; do echo "removed coder probe file: $junk"; rm -f -- "$junk"; done
++    # Only the step's own paths are staged, recomputed so removed probes are not added. A deletion is staged too: git add -A on a missing path records it.
+     # git add and git commit run without OPENROUTER_API_KEY: a project's pre-commit hook (husky, lint-staged) may run
+     # the tests the coder wrote, and those must not see the key.
+-    env -u OPENROUTER_API_KEY git add -u
+-    for p in ${writeDirs[@]+"${writeDirs[@]}"}; do [ -e "$p" ] && env -u OPENROUTER_API_KEY git add -A -- "$p"; done
+-    git status --short | grep "^??" && echo "UNTRACKED LEFT (outside the write dirs, not committed)"
++    staged=$("$NODE" "$H/step-scope.mjs" stage "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite")
++    while IFS= read -r p; do
++      [ -n "$p" ] && env -u OPENROUTER_API_KEY git add -A -- "$p"
++    done <<< "$staged"
++    git status --short | grep "^??" && echo "UNTRACKED LEFT (outside the step's scope, not committed)"
++    # Tracked changes that are neither staged nor foreign: the coder changed them outside the step's scope.
++    left=$(git diff --name-only | grep -vxF -f <(cut -f2- "$OUT/foreign.tsv"))
++    if [ -n "$left" ]; then echo "CHANGED, NOT COMMITTED (outside the step's scope):"; echo "$left"; fi
+     env -u OPENROUTER_API_KEY git commit -s -q -m "$title, step $step (#$issue)
+ 
+ Coder: $CODER.${trailerPara}" && git log --oneline -1

@@ -1,0 +1,22 @@
+ok   planner/steps-scope  check=command  tools=read_file  steps<=8
+
+plan: 6 models × 1 tasks × 2 runs = 12 runs (at most 96 model calls, 192 with retries)
+models: anthropic/claude-sonnet-5.5, openai/gpt-6.1-terra, z-ai/glm-5.3, moonshotai/kimi-k2.6, google/gemini-3.8-flash, z-ai/glm-5.3-flash
+order: run-major, models interleaved, so a slow hour or a provider incident hits every model alike
+output: results/2026-10-31-lead/planner-steps-scope.jsonl  timeout: 180s + 1 retry  effort: low
+note: fewer than 3 runs per cell: label every result ILLUSTRATIVE
+[1/12] anthropic/claude-sonnet-5.5 steps-scope #1: answered · 21.4s · 3 steps · $0.0634 · cache 19%
+[2/12] openai/gpt-6.1-terra steps-scope #1: answered · 16.2s · 3 steps · $0.0178 · cache 11%
+[3/12] z-ai/glm-5.3 steps-scope #1: answered · 9.9s · 4 steps · $0.0227 · cache 30%
+[4/12] moonshotai/kimi-k2.6 steps-scope #1: answered · 47.6s · 3 steps · $0.0090 · cache 63%
+[5/12] google/gemini-3.8-flash steps-scope #1: answered · 17.6s · 8 steps · $0.0229 · cache 39%
+[6/12] z-ai/glm-5.3-flash steps-scope #1: answered · 42.5s · 3 steps · $0.0004 · cache 17%
+[7/12] anthropic/claude-sonnet-5.5 steps-scope #2: answered · 19.4s · 3 steps · $0.0260 · cache 100%
+[8/12] openai/gpt-6.1-terra steps-scope #2: answered · 15.7s · 3 steps · $0.0171 · cache 11%
+[9/12] z-ai/glm-5.3 steps-scope #2: answered · 12.4s · 4 steps · $0.0035 · cache 41%
+[10/12] moonshotai/kimi-k2.6 steps-scope #2: answered · 25.2s · 3 steps · $0.0224 · cache 10%
+[11/12] google/gemini-3.8-flash steps-scope #2: answered · 14.1s · 7 steps · $0.0196 · cache 27%
+[12/12] z-ai/glm-5.3-flash steps-scope #2: answered · 8.2s · 3 steps · $0.0009 · cache 5%
+
+done: 12 runs, $0.2256 in total → results/2026-10-31-lead/planner-steps-scope.jsonl
+next: node scripts/judge.mjs --in results/2026-10-31-lead/planner-steps-scope.jsonl --tasks tasks/planner/steps-scope.md

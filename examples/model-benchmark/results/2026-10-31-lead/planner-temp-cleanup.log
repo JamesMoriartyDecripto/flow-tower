@@ -1,0 +1,22 @@
+ok   planner/temp-cleanup  check=command  tools=read_file  steps<=8
+
+plan: 6 models × 1 tasks × 2 runs = 12 runs (at most 96 model calls, 192 with retries)
+models: anthropic/claude-sonnet-5.5, openai/gpt-6.1-terra, z-ai/glm-5.3, moonshotai/kimi-k2.6, google/gemini-3.8-flash, z-ai/glm-5.3-flash
+order: run-major, models interleaved, so a slow hour or a provider incident hits every model alike
+output: results/2026-10-31-lead/planner-temp-cleanup.jsonl  timeout: 180s + 1 retry  effort: low
+note: fewer than 3 runs per cell: label every result ILLUSTRATIVE
+[1/12] anthropic/claude-sonnet-5.5 temp-cleanup #1: answered · 25.4s · 3 steps · $0.1071 · cache 19%
+[2/12] openai/gpt-6.1-terra temp-cleanup #1: answered · 15.0s · 3 steps · $0.0275 · cache 14%
+[3/12] z-ai/glm-5.3 temp-cleanup #1: answered · 16.8s · 3 steps · $0.0052 · cache 19%
+[4/12] moonshotai/kimi-k2.6 temp-cleanup #1: answered · 45.6s · 3 steps · $0.0112 · cache 62%
+[5/12] google/gemini-3.8-flash temp-cleanup #1: answered · 33.1s · 7 steps · $0.0279 · cache 50%
+[6/12] z-ai/glm-5.3-flash temp-cleanup #1: answered · 40.6s · 3 steps · $0.0005 · cache 40%
+[7/12] anthropic/claude-sonnet-5.5 temp-cleanup #2: answered · 23.7s · 3 steps · $0.0344 · cache 100%
+[8/12] openai/gpt-6.1-terra temp-cleanup #2: answered · 13.9s · 3 steps · $0.0274 · cache 14%
+[9/12] z-ai/glm-5.3 temp-cleanup #2: answered · 16.6s · 3 steps · $0.0410 · cache 13%
+[10/12] moonshotai/kimi-k2.6 temp-cleanup #2: answered · 24.6s · 3 steps · $0.0264 · cache 17%
+[11/12] google/gemini-3.8-flash temp-cleanup #2: answered · 42.2s · 7 steps · $0.0261 · cache 54%
+[12/12] z-ai/glm-5.3-flash temp-cleanup #2: answered · 8.3s · 2 steps · $0.0024 · cache 0%
+
+done: 12 runs, $0.3372 in total → results/2026-10-31-lead/planner-temp-cleanup.jsonl
+next: node scripts/judge.mjs --in results/2026-10-31-lead/planner-temp-cleanup.jsonl --tasks tasks/planner/temp-cleanup.md

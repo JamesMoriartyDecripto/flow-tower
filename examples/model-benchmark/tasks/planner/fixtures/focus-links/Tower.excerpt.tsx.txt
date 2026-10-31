@@ -1,0 +1,63 @@
+  const layerIndex = useMemo(() => Object.fromEntries(tower.layers.map((l) => [l.id, l.index])), [tower]);
+  const focusKey = selected ?? hovered;
+  const rel = useMemo(() => (focusKey ? related(tower, focusKey) : undefined), [tower, focusKey]);
+  const hits = useMemo(() => {
+    if (!search.trim()) return undefined;
+    return new Set(tower.layers.flatMap((l) => l.nodes.filter((nd) => matches(nd, search)).map((nd) => nd.key)));
+  }, [tower, search]);
+
+  const types = useMemo(() => Object.fromEntries(tower.layers.flatMap((l) => l.nodes.map((nd) => [nd.key, nd.type]))), [tower]);
+  const runtimeOf = useMemo(() => Object.fromEntries(tower.layers.flatMap((l) => l.nodes.map((nd) => [nd.key, nd.runtime?.id]))), [tower]);
+  const visual = useMemo<Visual>(() => ({
+    selected,
+    hovered,
+    nodeFade(key) {
+      if (hiddenTypes.has(types[key])) return 0.08;
+      if (runtimeFocus) return runtimeOf[key] === runtimeFocus ? 1 : 0.14;
+      if (hits) return hits.has(key) ? 1 : 0.18;
+      if (rel) return rel.nodes.has(key) ? 1 : 0.22;
+      if (spotlight) return 0.38;
+      return 1;
+    },
+    edgeHighlight: (id) => rel?.edges.has(id),
+  }), [selected, hovered, hiddenTypes, types, runtimeFocus, runtimeOf, hits, rel, spotlight]);
+  const layerFade = useCallback((i: number) => {
+    if (focusedLayer !== undefined) return i === focusedLayer ? 1 : i < focusedLayer ? 0.04 : 0.1;
+    if (hoveredLayer === undefined) return 1;
+    if (view === 'map') return i === hoveredLayer ? 1 : 0.8; // neighbours in a list are not neighbours on a map
+    return [1, 0.72, 0.4][Math.min(Math.abs(i - hoveredLayer), 2)];
+  }, [focusedLayer, hoveredLayer, view]);
+
+  return (
+    <>
+      <Ambient w={width * 1.4} h={height + 12} d={depth * 2} sparkles={deco && show.sparkles} />
+      <CameraControls ref={controls} makeDefault minDistance={4} maxDistance={400} dollySpeed={0.6} smoothTime={0.35} />
+      <group ref={group}>
+        {tower.layers.map((l, i) => (
+          <Layer
+            key={l.id}
+            tower={tower.id}
+            layer={l}
+            layout={layout.layers[i]}
+            width={width}
+            depth={depth}
+            lens={lens}
+            fade={layerFade(i)}
+            interactive={focusedLayer === undefined || i === focusedLayer}
+            focused={focusedLayer === i}
+            mapView={view === 'map'}
+            layerCount={n}
+            visual={visual}
+            liveTint={live.tints[l.id]}
+            subtrees={live.subtrees}
+          />
+        ))}
+        {/* Map view: layers lie side by side, links never cross the focused one (#348). */}
+        <Links links={tower.links} layout={layout} layerIndex={layerIndex} visual={visual} layerFade={layerFade} lens={lens} quiet={view === 'map'} focusedLayer={view === 'tower' ? focusedLayer : undefined} />
+        <group ref={pillars}>
+          <Pillars width={width} depth={depth} bottom={-(n - 1) * LAYER_GAP} />
+        </group>
+      </group>
+      {deco && show.scanner && view === 'tower' && focusedLayer === undefined && <Scanner width={width} depth={depth} top={height / 2 + 1} bottom={-height / 2 - 1} />}
+      {show.base && <Base radius={view === 'map' ? Math.max(grid.width, grid.depth) * 0.6 : Math.max(width, depth) * 0.62} y={view === 'map' ? -3 : -height / 2 - 5} dim={focusedLayer !== undefined || view === 'map'} spin={deco} />}
+    </>
