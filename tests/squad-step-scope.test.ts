@@ -13,8 +13,9 @@ interface StepScope {
   toStage(changed: string[], foreign: string[], writeDirs: string[], files: string[]): string[];
   touchedForeign(before: Record<string, string>, after: Record<string, string>): string[];
   writeDirsFor(write: string[], files: string[]): string[];
+  badEntries(files: string[]): string[];
 }
-const { stepDone, toStage, touchedForeign, writeDirsFor } = (await import(/* @vite-ignore */ SCRIPT)) as StepScope;
+const { badEntries, stepDone, toStage, touchedForeign, writeDirsFor } = (await import(/* @vite-ignore */ SCRIPT)) as StepScope;
 
 function cli(...args: string[]): string {
   const r = spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8' });
@@ -26,6 +27,16 @@ describe('writeDirsFor', () => {
   it('adds the directory of each Files entry to the write list', () => {
     expect(writeDirsFor(['src'], ['examples/dev-squad/src/a.ts', 'tests/x.test.ts', 'CHANGELOG.md', 'docs/**/*.md']))
       .toEqual(['src', 'examples/dev-squad/src', 'tests', 'CHANGELOG.md', 'docs']);
+  });
+});
+
+describe('badEntries', () => {
+  it('flags an absolute entry and a ".." segment', () => {
+    expect(badEntries(['/etc/passwd', '../x', 'a/../b'])).toEqual(['/etc/passwd', '../x', 'a/../b']);
+  });
+
+  it('accepts entries inside the repo, globs and root files', () => {
+    expect(badEntries(['src/a.ts', 'docs/**/*.md', 'CHANGELOG.md'])).toEqual([]);
   });
 });
 
@@ -96,6 +107,53 @@ describe('step-scope CLI in a temp repo', () => {
 
       expect(cli('stage', task, 'HEAD', dir, snapFile, '')).toBe('src/a.ts');
       expect(cli('foreign-touched', snapFile, dir)).toBe('NOTES.md');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it('keeps a pre-staged foreign file out, stages a non-ASCII name, and reports out-of-scope root changes', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'step-scope-'));
+    try {
+      const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
+      git('init', '-q');
+      git('config', 'user.email', 't@example.com');
+      git('config', 'user.name', 't');
+      mkdirSync(join(dir, 'src'));
+      mkdirSync(join(dir, 'tools', 'squad'), { recursive: true });
+      writeFileSync(join(dir, 'src', 'a.ts'), 'a\n');
+      writeFileSync(join(dir, 'NOTES.md'), 'notes\n');
+      writeFileSync(join(dir, 'README.md'), 'readme\n');
+      writeFileSync(join(dir, 'tools', 'squad', 'squad.json'), JSON.stringify({ project: 't', base: 'HEAD', write: ['src'] }));
+      git('add', '-A');
+      git('commit', '-q', '-m', 'init');
+
+      // The maintainer edits and stages a file before the run: the snapshot sees it, and the step must not commit it.
+      writeFileSync(join(dir, 'NOTES.md'), 'maintainer edit\n');
+      git('add', 'NOTES.md');
+      // The snapshot and task files live beside the repo, not in it, so git does not report them as changes.
+      const aux = mkdtempSync(join(tmpdir(), 'step-scope-aux-'));
+      try {
+        const snapFile = join(aux, 'snapshot.txt');
+        writeFileSync(snapFile, `${cli('snapshot', dir)}\n`);
+
+        // The step adds a non-ASCII file under src; the coder also edits README.md, which is not in Files.
+        writeFileSync(join(dir, 'src', 'café.ts'), 'x\n');
+        writeFileSync(join(dir, 'README.md'), 'changed readme\n');
+        const task = join(aux, 'task.md');
+        writeFileSync(task, 'Files: src/a.ts\n');
+
+        const staged = cli('stage', task, 'HEAD', dir, snapFile, '').split('\n');
+        expect(staged).toContain('src/café.ts');
+        expect(staged).not.toContain('NOTES.md');
+        expect(cli('outside', task, 'HEAD', dir, snapFile, '')).toBe('README.md');
+
+        // A Files entry that leaves the repo is refused by write.
+        writeFileSync(task, 'Files: ../x\n');
+        expect(() => cli('write', task, dir)).toThrow(/exit 2/);
+      } finally {
+        rmSync(aux, { recursive: true, force: true });
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

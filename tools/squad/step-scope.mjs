@@ -14,6 +14,7 @@ const USAGE = [
   '       node tools/squad/step-scope.mjs write <task.md> <repo> [write-csv]',
   '       node tools/squad/step-scope.mjs done <issue> <step> <repo>',
   '       node tools/squad/step-scope.mjs stage <task.md> <base-rev> <repo> <snapshot-file> <write-csv>',
+  '       node tools/squad/step-scope.mjs outside <task.md> <base-rev> <repo> <snapshot-file> <write-csv>',
   '       node tools/squad/step-scope.mjs foreign-touched <snapshot-file> <repo>',
 ].join('\n');
 
@@ -52,6 +53,12 @@ export function toStage(changed, foreign, writeDirs, files) {
   });
 }
 
+// A Files entry must name a path inside the repo. An absolute entry or a ".." segment would give a write dir outside
+// it, so a step could write anywhere on disk.
+export function badEntries(files) {
+  return files.filter((e) => e.startsWith('/') || e.split('/').includes('..'));
+}
+
 // The foreign paths a step changed: the hash differs, or the file is gone (a "-" hash marks a missing file).
 export function touchedForeign(before, after) {
   return Object.keys(before).filter((p) => after[p] !== before[p]);
@@ -77,7 +84,7 @@ function statusPaths(repo) {
 function hashPaths(repo, paths) {
   const present = paths.filter((p) => existsSync(join(repo, p)));
   const hashes = present.length
-    ? execFileSync('git', ['hash-object', '--stdin-paths'], { cwd: repo, encoding: 'utf8', input: `${present.join('\n')}\n` })
+    ? execFileSync('git', ['hash-object', '--stdin-paths'], { cwd: repo, encoding: 'utf8', input: `${present.join('\n')}\n`, maxBuffer: 20e6 })
       .split('\n').filter(Boolean)
     : [];
   const byPath = new Map(present.map((p, i) => [p, hashes[i]]));
@@ -104,11 +111,34 @@ function subjectsSince(repo, base) {
 
 const splitCsv = (csv) => (csv ? csv.split(',').map((s) => s.trim()).filter(Boolean) : []);
 
+// Paths from a git list written with -z: NUL-separated and never quoted, so a name with non-ASCII or a backslash
+// matches the path on disk. The trim is gone too, since a name may start or end with a space.
+function nulList(repo, args) {
+  return execFileSync('git', args, { cwd: repo, encoding: 'utf8', maxBuffer: 20e6 }).split('\0').filter(Boolean);
+}
+
+// Tracked changes since the base plus untracked files, deduplicated.
+const changedSince = (repo, baseRev) => [...new Set([
+  ...nulList(repo, ['diff', '--name-only', '-z', baseRev]),
+  ...nulList(repo, ['ls-files', '--others', '--exclude-standard', '-z']),
+])];
+
 function main(args) {
   const [cmd, ...rest] = args;
   const write = (taskFile, repo, csv) => {
+    const files = parseFiles(readFileSync(taskFile, 'utf8'));
+    const bad = badEntries(files);
+    if (bad.length) throw new Error(`Files: entries must stay inside the repository: ${bad.join(', ')}`);
     const cfgWrite = splitCsv(csv);
-    return writeDirsFor(cfgWrite.length ? cfgWrite : loadConfig(repo).write, parseFiles(readFileSync(taskFile, 'utf8')));
+    return writeDirsFor(cfgWrite.length ? cfgWrite : loadConfig(repo).write, files);
+  };
+  // What a step may stage, with the inputs it was computed from. stage and outside both use it.
+  const stageOf = (taskFile, baseRev, repo, snapFile, csv) => {
+    const changed = changedSince(repo, baseRev);
+    const foreign = Object.keys(readSnapshot(snapFile));
+    const files = parseFiles(readFileSync(taskFile, 'utf8'));
+    const staged = toStage(changed, foreign, write(taskFile, repo, csv), files);
+    return { changed, foreign, staged };
   };
   if (cmd === 'snapshot' && rest.length === 1) {
     const repo = rest[0];
@@ -130,13 +160,15 @@ function main(args) {
   }
   if (cmd === 'stage' && rest.length === 5) {
     const [taskFile, baseRev, repo, snapFile, csv] = rest;
-    const run = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 20e6 })
-      .split('\n').map((p) => p.trim()).filter(Boolean);
-    const changed = [...new Set([...run('diff', '--name-only', baseRev), ...run('ls-files', '--others', '--exclude-standard')])];
-    const foreign = Object.keys(readSnapshot(snapFile));
-    const files = parseFiles(readFileSync(taskFile, 'utf8'));
-    const dirs = write(taskFile, repo, csv);
-    console.log(toStage(changed, foreign, dirs, files).join('\n'));
+    console.log(stageOf(taskFile, baseRev, repo, snapFile, csv).staged.join('\n'));
+    return 0;
+  }
+  // Changed paths that are neither foreign nor staged: the coder changed them outside the step's scope.
+  if (cmd === 'outside' && rest.length === 5) {
+    const [taskFile, baseRev, repo, snapFile, csv] = rest;
+    const { changed, foreign, staged } = stageOf(taskFile, baseRev, repo, snapFile, csv);
+    const skip = new Set([...foreign, ...staged]);
+    console.log(changed.filter((p) => !skip.has(p)).join('\n'));
     return 0;
   }
   if (cmd === 'foreign-touched' && rest.length === 2) {

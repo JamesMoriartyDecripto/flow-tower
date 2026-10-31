@@ -66,7 +66,12 @@ for f in "$dir"/*.md; do
   # Take the last such line: the report printed before it can hold diff lines that start with "--- ".
   stepCost=$(grep '^--- ' "$OUT/coder-$step.out" | tail -1 | grep -o '\$[0-9.]*' | tail -1)
   staged=$("$NODE" "$H/step-scope.mjs" stage "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite")
-  if [ -z "$staged" ]; then echo "RED after step $step: the coder changed nothing"; exit 1; fi
+  if [ -z "$staged" ]; then
+    # Changes outside the scope are named, not hidden: "changed nothing" would be wrong when the coder did change files.
+    outsideNow=$("$NODE" "$H/step-scope.mjs" outside "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite")
+    if [ -n "$outsideNow" ]; then echo "RED after step $step: the coder changed only files outside the step's scope:"; echo "$outsideNow"; exit 1; fi
+    echo "RED after step $step: the coder changed nothing"; exit 1
+  fi
   # The check is the project's own (config.mjs check), so a repo with another check command runs the same script.
   if ! ("$NODE" "$H/config.mjs" check "$R" > "$OUT/check-$step.log" 2>&1); then
     echo "RED after step $step: see $OUT/check-$step.log"; grep -E "error TS|FAIL|✗|×" "$OUT/check-$step.log" | head -8; exit 1
@@ -98,11 +103,13 @@ for f in "$dir"/*.md; do
     done <<< "$staged"
     git status --short | grep "^??" && echo "UNTRACKED LEFT (outside the step's scope, not committed)"
     # Tracked changes that are neither staged nor foreign: the coder changed them outside the step's scope.
-    left=$(git diff --name-only | grep -vxF -f <(cut -f2- "$OUT/foreign.tsv"))
+    left=$("$NODE" "$H/step-scope.mjs" outside "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite")
     if [ -n "$left" ]; then echo "CHANGED, NOT COMMITTED (outside the step's scope):"; echo "$left"; fi
+    # The commit takes only the step's paths: a pathspec commit leaves anything else already in the index staged but uncommitted.
+    mapfile -t stagedPaths <<< "$staged"
     env -u OPENROUTER_API_KEY git commit -s -q -m "$title, step $step (#$issue)
 
-Coder: $CODER.${trailerPara}" && git log --oneline -1
+Coder: $CODER.${trailerPara}" -- "${stagedPaths[@]}" && git log --oneline -1
   )
 done
 "$NODE" "$H/cost.mjs" "$issue" --repo "$R"
