@@ -39,12 +39,11 @@ export function makeDeps({ repo, home, exec, runner, now = Date.now }) {
     return file;
   }
 
-  function role(name, prompt, cwd = repo) {
+  // The caller names the issue, so every role run is charged to it, whatever its prompt says.
+  function role(name, prompt, cwd = repo, issue = undefined) {
     const file = freshTask(name, prompt);
-    // The run is tied to its issue only when the prompt says so; a prompt with no issue gets no --issue flag.
-    const m = /^Issue #(\d+)/.exec(prompt);
     const args = [join(runner, 'run.mjs'), '--role', name, '--node', ROLES[name].node, '--task', file, '--repo', cwd,
-      ...(m ? ['--issue', m[1]] : [])];
+      ...(issue !== undefined ? ['--issue', String(issue)] : [])];
     const r = exec('node', args);
     return { ok: r.status === 0, text: r.stdout };
   }
@@ -66,7 +65,10 @@ export function makeDeps({ repo, home, exec, runner, now = Date.now }) {
     const dir = join(path, 'tools', 'squad', 'tasks', String(n));
     mkdirSync(dir, { recursive: true });
     for (const { name, text } of files) {
-      if (!TASK_NAME.test(name)) throw new Error(`bad task file name: ${name}`);
+      // '.' and '..' match the pattern, and a leading dot would make a hidden file: all three are refused.
+      if (!TASK_NAME.test(name) || name === '.' || name === '..' || name.startsWith('.')) {
+        throw new Error(`bad task file name: ${name}`);
+      }
       writeFileSync(join(dir, name), text);
     }
     return dir;

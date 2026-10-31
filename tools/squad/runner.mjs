@@ -68,7 +68,14 @@ const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 async function main(args) {
   const opts = parseArgs(args);
-  const repo = resolve(opts.repo ?? realExec('git', ['rev-parse', '--show-toplevel']).stdout.trim());
+  let repo = opts.repo;
+  if (repo === undefined) {
+    // Outside a checkout the runner has no repo to work in, so it stops here with the folder it was started from.
+    const top = realExec('git', ['rev-parse', '--show-toplevel']);
+    if (top.status !== 0) throw new Error(`not a git repository: ${process.cwd()}`);
+    repo = top.stdout.trim();
+  }
+  repo = resolve(repo);
   const home = env.FLOW_TOWER_HOME || join(homedir(), '.config', 'flow-tower');
   const config = loadConfig(repo);
   const limits = { usdPerIssue: config.runner.usdPerIssue, minutes: config.runner.minutes, fixRounds: config.runner.fixRounds };

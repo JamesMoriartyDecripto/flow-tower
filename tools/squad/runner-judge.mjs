@@ -62,9 +62,16 @@ export function parseJudgement(text, ids) {
   return { ok: true, keep, drop };
 }
 
+// A model-given path must stay inside the repository: absolute paths, '..' segments, backslashes and drive letters are
+// refused, because the fix step would otherwise be told to edit files outside the worktree.
+const insideRepo = (p) => p !== '' && !p.startsWith('/') && !/^[A-Za-z]:/.test(p) && !p.includes('\\') && !p.split('/').includes('..');
+
 // The fix step sorts after the plan's steps (9<round>-...), and its Files line lists each file once, without the
-// :line suffix, because steps.sh matches Files entries against paths.
-export function fixTask(kept, { issue, round }) {
+// :line suffix, because steps.sh matches Files entries against paths. Findings outside the repository are left out;
+// with none left, the result is null.
+export function fixTask(allKept, { issue, round }) {
+  const kept = allKept.filter((f) => insideRepo(String(f.file).replace(/:\d+(?:-\d+)?$/, '')));
+  if (!kept.length) return null;
   const files = [...new Set(kept.map((f) => String(f.file).replace(/:\d+(?:-\d+)?$/, '')))];
   const items = kept.map((f, i) => `${i + 1}. ${f.file}: ${f.what} Fix: ${f.fix}`);
   const text = [

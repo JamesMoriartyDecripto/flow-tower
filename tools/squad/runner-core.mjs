@@ -42,22 +42,22 @@ export function parseTriage(text) {
 // The architect runs in the worktree (path), so it reads the branch the change will be made on.
 async function makePlan(deps, issue, path) {
   const ask = `${PLAN_ASK}\n\n${untrusted(issue)}`;
-  let p = parsePlan((await deps.role('architect', ask, path)).text);
+  let p = parsePlan((await deps.role('architect', ask, path, issue.number)).text);
   if (!p.ok) {
     const again = `${ask}\n\nYour last plan was refused: ${p.error}. Answer again with a valid plan.`;
-    p = parsePlan((await deps.role('architect', again, path)).text);
+    p = parsePlan((await deps.role('architect', again, path, issue.number)).text);
     if (!p.ok) stop(`no valid plan: ${p.error}`);
   }
   return p.plan;
 }
 
 // Keep or drop for each numbered finding. A bad answer is asked for once more, then the issue stops.
-async function judge(deps, findings, brief, path) {
+async function judge(deps, findings, brief, path, n) {
   const ids = findings.map((f) => f.id);
   const prompt = judgePrompt(findings, brief);
   for (let attempt = 0; attempt < 2; attempt++) {
     const ask = attempt === 0 ? prompt : `${prompt}\n\nYour last answer could not be read. Answer again with the json block.`;
-    const j = parseJudgement((await deps.role('lead-judge', ask, path)).text, ids);
+    const j = parseJudgement((await deps.role('lead-judge', ask, path, n)).text, ids);
     if (j.ok) return j;
   }
   return stop('lead-judge gave no usable answer');
@@ -100,7 +100,8 @@ export async function workIssue(issue, deps, limits) {
 
     // Triage: the route and the areas come from the model; the sensitive-area rule is checked here, not trusted to it.
     await guard();
-    const t = parseTriage((await deps.role('triage', `${TRIAGE_ASK}\n\n${untrusted(issue)}`)).text);
+    // The triage runs in the main checkout, so its cwd is left to the deps default (undefined).
+    const t = parseTriage((await deps.role('triage', `${TRIAGE_ASK}\n\n${untrusted(issue)}`, undefined, n)).text);
     if (!t) stop('triage gave no usable answer');
     if (t.route === 'reject') {
       await deps.gh.comment(n, `Triage rejected this issue: ${t.rationale}`);
@@ -134,23 +135,27 @@ export async function workIssue(issue, deps, limits) {
       const findings = numberFindings(q.review, q.security);
       if (!findings.length) break;
       const byId = new Map(findings.map((f) => [f.id, f]));
-      const j = await judge(deps, findings, `Issue #${n}: ${issue.title}. Criteria: ${plan.criteria.join('; ')}`, wt.path);
+      const j = await judge(deps, findings, `Issue #${n}: ${issue.title}. Criteria: ${plan.criteria.join('; ')}`, wt.path, n);
       for (const d of j.drop) dropped.push({ id: d.id, file: byId.get(d.id).file, reason: d.reason });
       if (j.drop.length) await deps.gh.comment(n, droppedComment(j.drop, byId));
       const kept = findings.filter((f) => j.keep.includes(f.id));
       if (!kept.length) break;
       if (round > limits.fixRounds) stop(`findings still open after ${limits.fixRounds} fix rounds`);
-      const fixDir = await deps.writeTasks(wt.path, n, [fixTask(kept, { issue: n, round })]);
+      // A finding whose files are all outside the repository leaves nothing to fix in place, so the issue stops.
+      const fix = fixTask(kept, { issue: n, round });
+      if (!fix) stop('kept findings name no file inside the repository');
+      const fixDir = await deps.writeTasks(wt.path, n, [fix]);
       await runSteps(deps, wt.path, fixDir, issue);
     }
 
     // Verifier: the change must be a PASS against the criteria; a HOLD, or no clear PASS, stops it.
     await guard();
-    // A run that failed (not ok) is no pass, even if its text happens to contain PASS.
+    // A run that failed (not ok) is no pass. The verdict is the first PASS or HOLD line, so a word inside prose is ignored.
     const vr = await deps.role('verifier', `Check the change against these criteria: ${plan.criteria.join('; ')}. `
-      + 'Answer PASS or HOLD, with the reason.', wt.path);
+      + 'Put the verdict alone on the first line: PASS or HOLD. Then the reason.', wt.path, n);
     const v = vr.text ?? '';
-    if (!vr.ok || !v.includes('PASS') || v.includes('HOLD')) stop(`verifier held the change\n${v}`);
+    const verdict = /^\s*(PASS|HOLD)\b/m.exec(v)?.[1];
+    if (!vr.ok || verdict !== 'PASS') stop(`verifier held the change\n${v}`);
 
     // Draft PR and gate: the body file is written through deps, so the PR opens from a file the lead can read back.
     const spend = await guard();
@@ -165,7 +170,12 @@ export async function workIssue(issue, deps, limits) {
     return 'pr';
   } catch (e) {
     const reason = e instanceof Stop ? e.message : `error: ${e?.message ?? e}`;
-    await deps.gh.fail(n, reason);
+    // A failure to report must not escape: the issue still ends as 'failed', and the report failure goes to stderr.
+    try {
+      await deps.gh.fail(n, reason);
+    } catch (err) {
+      console.error(`could not report the failure of #${n}: ${err?.message ?? err}`);
+    }
     return 'failed';
   }
 }

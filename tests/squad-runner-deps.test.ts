@@ -48,12 +48,18 @@ describe('role', () => {
     expect(readFileSync(file, 'utf8')).toBe('Classify this');
   });
 
-  it('passes the given folder and the issue number when the prompt starts with it', async () => {
+  it('passes the given folder and the issue number the caller names', async () => {
     const { deps, calls } = setup();
-    await deps.role('architect', 'Issue #7: fix', '/wt/7');
+    await deps.role('architect', 'Plan it', '/wt/7', 7);
     const args = calls[0].args;
     expect(args[args.indexOf('--repo') + 1]).toBe('/wt/7');
     expect(args[args.indexOf('--issue') + 1]).toBe('7');
+  });
+
+  it('does not read the issue from the prompt text', async () => {
+    const { deps, calls } = setup();
+    await deps.role('triage', 'Issue #7: fix');
+    expect(calls[0].args).not.toContain('--issue');
   });
 });
 
@@ -99,6 +105,13 @@ describe('writeTasks', () => {
   it('refuses a name that escapes the folder', () => {
     const { deps, repo } = setup();
     expect(() => deps.writeTasks(repo, 7, [{ name: '../x.md', text: 'x' }])).toThrow('bad task file name');
+  });
+
+  it('refuses the names . and .. and a hidden name', () => {
+    const { deps, repo } = setup();
+    expect(() => deps.writeTasks(repo, 7, [{ name: '..', text: 'x' }])).toThrow('bad task file name');
+    expect(() => deps.writeTasks(repo, 7, [{ name: '.', text: 'x' }])).toThrow('bad task file name');
+    expect(() => deps.writeTasks(repo, 7, [{ name: '.hidden', text: 'x' }])).toThrow('bad task file name');
   });
 });
 

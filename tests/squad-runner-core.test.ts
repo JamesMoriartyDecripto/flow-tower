@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 // The procedure is plain JavaScript; the fakes below record every call so each route can be checked in order.
 // @ts-expect-error plain .mjs without declarations
 import { workIssue } from '../tools/squad/runner-core.mjs';
@@ -158,6 +158,40 @@ describe('workIssue', () => {
     const { deps, calls } = fakeDeps({ now: () => (t += 31 * 60000) }, { triage: [triageFull] });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
     expect(calls.some((c) => c.startsWith('fail:timeout after 30 min'))).toBe(true);
+  });
+
+  it('passes the issue number on every role call', async () => {
+    const seen: [string, unknown][] = [];
+    const { deps } = fakeDeps({
+      role: async (name: string, _p: string, _c?: string, issue?: number) => {
+        seen.push([name, issue]);
+        const text = name === 'triage' ? triageFull : name === 'architect' ? fence(PLAN) : 'PASS';
+        return { ok: true, text };
+      },
+    });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(seen.every(([, i]) => i === 91)).toBe(true);
+    expect(seen.map(([name]) => name)).toEqual(['triage', 'architect', 'verifier']);
+  });
+
+  it('holds when the verifier text says HOLD after a PASS-like word in prose', async () => {
+    const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(PLAN)], verifier: ['The change does not PASS. HOLD'] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls.some((c) => c.startsWith('fail:verifier held the change'))).toBe(true);
+  });
+
+  it('passes when the verdict is alone on the first line', async () => {
+    const { deps } = fakeDeps({}, { triage: [triageFull], architect: [fence(PLAN)], verifier: ['PASS\nall criteria met'] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+  });
+
+  it('still returns failed when reporting the failure throws', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { deps } = fakeDeps({ worktree: async () => { throw new Error('disk full'); },
+      gh: { fail: async () => { throw new Error('gh down'); } } }, { triage: [triageFull] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(errors).toHaveBeenCalled();
+    errors.mockRestore();
   });
 
   it('reports a thrown dep error as failed with its message', async () => {

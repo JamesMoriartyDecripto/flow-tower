@@ -90,6 +90,25 @@ describe('fixTask', () => {
     expect(task.text.startsWith('# 320-91: fix the kept review findings (round 1)')).toBe(true);
   });
 
+  it('drops a file outside the repository from the Files line', () => {
+    const outside = [
+      { id: 'R1', file: '../x', what: 'a', fix: 'b' },
+      { id: 'R2', file: '/etc/y', what: 'c', fix: 'd' },
+      { id: 'R3', file: 'src/ok.ts:5', what: 'e', fix: 'f' },
+    ];
+    const task = fixTask(outside, { issue: '320', round: 1 });
+    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/ok.ts');
+    expect(task.text).not.toContain('/etc/y');
+  });
+
+  it('returns null when every file is outside the repository', () => {
+    const outside = [
+      { id: 'R1', file: '../x', what: 'a', fix: 'b' },
+      { id: 'R2', file: '/etc/y', what: 'c', fix: 'd' },
+    ];
+    expect(fixTask(outside, { issue: '320', round: 1 })).toBeNull();
+  });
+
   it('strips the line suffix and lists each file once', () => {
     const task = fixTask(kept, { issue: '320', round: 1 });
     expect(task.text).toContain('Files: src/a.ts\n');
