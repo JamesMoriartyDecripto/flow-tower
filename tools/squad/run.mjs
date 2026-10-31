@@ -17,6 +17,7 @@ import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './ba
 import { realRelIfAllowed, realTarget } from './guard.mjs';
 import { parseVerdict } from './gate.mjs';
 import { pickMode } from './mode.mjs';
+import { pruneLogs } from './log-prune.mjs';
 import { ONESHOT_TIMEOUT_MS, httpFailure, loopBody, oneshotBody, oneshotSystem } from './oneshot.mjs';
 import { STEP_DEFAULT, appendReminder, incompleteText, parseSteps } from './step-limit.mjs';
 import { toolSchema } from './tool-schema.mjs';
@@ -104,6 +105,8 @@ const hintCli = existsSync(checkoutCli) ? checkoutCli : env.FLOW_TOWER_CLI || cl
 const keyCommand = hintCli ? `node ${hintCli} squad key` : 'flow-tower squad key';
 if (!env.OPENROUTER_API_KEY) { console.error(`no key: run "${keyCommand}" (it stores the key in ${USER_ENV}), or export OPENROUTER_API_KEY`); exit(1); }
 
+// Old role logs are pruned before this run writes its own (#357). Pruning must never stop a run, so errors are ignored.
+try { pruneLogs(HERE); } catch { /* keep running */ }
 const log = join(HERE, `${role}-${Date.now()}.log`);
 // squad.json no longer names the checkout (machine-local, #265): init writes its path to .cli, git-ignored beside this script.
 // A squad.json that still has "cli" keeps working, and wins.
