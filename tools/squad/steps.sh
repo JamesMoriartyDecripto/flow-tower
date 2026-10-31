@@ -7,9 +7,17 @@
 # REPO (default: this checkout) is where the steps run; NODE (default: node) is the Node binary for every node call,
 # since the Linux test server's system Node is 20 and Node 22 can live elsewhere; SQUAD_TRAILERS adds extra commit trailer lines.
 set -u
+# bash reads this file while it runs, so a step that edits steps.sh would corrupt the run: run from a private copy (#353).
+if [ -z "${SQUAD_STEPS_COPY:-}" ]; then
+  copy=$(mktemp "${TMPDIR:-/tmp}/squad-steps-XXXXXX.sh") || exit 1
+  cp "${BASH_SOURCE[0]}" "$copy" || exit 1
+  SQUAD_STEPS_COPY=1 SQUAD_STEPS_HOME=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd) bash "$copy" "$@"; rc=$?
+  rm -f -- "$copy"; exit "$rc"
+fi
 R=${REPO:-$(git rev-parse --show-toplevel)}
 NODE=${NODE:-node}
-H=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# The copy cannot find its helpers next to itself, so the original folder is passed in as SQUAD_STEPS_HOME.
+H=${SQUAD_STEPS_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}
 issue=$1; dir=$2; write=$3; title=$4
 # Run outputs go to a temp folder: files dropped into the repo would make the "changed nothing" guard
 # below see a dirty tree even when the coder did nothing.
