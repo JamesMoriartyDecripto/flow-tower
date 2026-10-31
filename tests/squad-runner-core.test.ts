@@ -12,6 +12,8 @@ const fence = (v: unknown) => '```json\n' + JSON.stringify(v) + '\n```';
 // Every call is pushed to `calls` as a name, so a test can assert the order and the count.
 function fakeDeps(over: Record<string, any> = {}, answers: Record<string, string[]> = {}, qualities: any[] = []) {
   const calls: string[] = [];
+  // The folder each role ran in, by role name: the worktree for the roles that change or check it.
+  const folders: Record<string, string | undefined> = {};
   const queue = { ...answers };
   const qs = [...qualities];
   const gh = {
@@ -24,8 +26,9 @@ function fakeDeps(over: Record<string, any> = {}, answers: Record<string, string
   };
   const deps = {
     gh,
-    role: async (name: string) => {
+    role: async (name: string, _prompt: string, cwd?: string) => {
       calls.push(`role:${name}`);
+      folders[name] = cwd;
       const next = queue[name]?.shift();
       return { ok: true, text: next ?? '' };
     },
@@ -42,7 +45,7 @@ function fakeDeps(over: Record<string, any> = {}, answers: Record<string, string
     now: () => 0,
     ...over,
   };
-  return { deps: { ...deps, gh }, calls };
+  return { deps: { ...deps, gh }, calls, folders };
 }
 
 const triageFull = fence({ route: 'full', areas: ['ui'], questions: [], rationale: 'ok' });
@@ -54,6 +57,24 @@ describe('workIssue', () => {
     expect(calls.filter((c) => c === 'draftPr')).toHaveLength(1);
     expect(calls.filter((c) => c === 'done')).toHaveLength(1);
     expect(calls.some((c) => c.startsWith('fail'))).toBe(false);
+  });
+
+  it('runs architect and verifier in the worktree, and triage in the main checkout', async () => {
+    const { deps, folders } = fakeDeps({}, { triage: [triageFull], architect: [fence(PLAN)], verifier: ['PASS'] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(folders.architect).toBe('/wt');
+    expect(folders.verifier).toBe('/wt');
+    expect(folders.triage).toBeUndefined();
+  });
+
+  it('holds the change when the verifier run failed, even if its text says PASS', async () => {
+    const { deps, calls } = fakeDeps({ role: async (name: string) => {
+      calls.push(`role:${name}`);
+      if (name === 'verifier') return { ok: false, text: 'PASS' };
+      return { ok: true, text: name === 'triage' ? triageFull : fence(PLAN) };
+    } });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls.some((c) => c.startsWith('fail:verifier held the change'))).toBe(true);
   });
 
   it('skips when the claim is lost, without any role call', async () => {

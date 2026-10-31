@@ -39,24 +39,25 @@ export function parseTriage(text) {
 }
 
 // Asks the architect for a plan; a refused plan is asked for once more, with the reason appended.
-async function makePlan(deps, issue) {
+// The architect runs in the worktree (path), so it reads the branch the change will be made on.
+async function makePlan(deps, issue, path) {
   const ask = `${PLAN_ASK}\n\n${untrusted(issue)}`;
-  let p = parsePlan((await deps.role('architect', ask)).text);
+  let p = parsePlan((await deps.role('architect', ask, path)).text);
   if (!p.ok) {
     const again = `${ask}\n\nYour last plan was refused: ${p.error}. Answer again with a valid plan.`;
-    p = parsePlan((await deps.role('architect', again)).text);
+    p = parsePlan((await deps.role('architect', again, path)).text);
     if (!p.ok) stop(`no valid plan: ${p.error}`);
   }
   return p.plan;
 }
 
 // Keep or drop for each numbered finding. A bad answer is asked for once more, then the issue stops.
-async function judge(deps, findings, brief) {
+async function judge(deps, findings, brief, path) {
   const ids = findings.map((f) => f.id);
   const prompt = judgePrompt(findings, brief);
   for (let attempt = 0; attempt < 2; attempt++) {
     const ask = attempt === 0 ? prompt : `${prompt}\n\nYour last answer could not be read. Answer again with the json block.`;
-    const j = parseJudgement((await deps.role('lead-judge', ask)).text, ids);
+    const j = parseJudgement((await deps.role('lead-judge', ask, path)).text, ids);
     if (j.ok) return j;
   }
   return stop('lead-judge gave no usable answer');
@@ -118,7 +119,7 @@ export async function workIssue(issue, deps, limits) {
     // Plan: the architect's plan becomes the task files, and the plan is posted on the issue.
     await guard();
     const wt = await deps.worktree(issue);
-    const plan = await makePlan(deps, issue);
+    const plan = await makePlan(deps, issue, wt.path);
     await deps.gh.comment(n, planComment(plan));
     const taskDir = await deps.writeTasks(wt.path, n, taskFiles(plan, { issue: n, title: issue.title }));
     await guard();
@@ -133,7 +134,7 @@ export async function workIssue(issue, deps, limits) {
       const findings = numberFindings(q.review, q.security);
       if (!findings.length) break;
       const byId = new Map(findings.map((f) => [f.id, f]));
-      const j = await judge(deps, findings, `Issue #${n}: ${issue.title}. Criteria: ${plan.criteria.join('; ')}`);
+      const j = await judge(deps, findings, `Issue #${n}: ${issue.title}. Criteria: ${plan.criteria.join('; ')}`, wt.path);
       for (const d of j.drop) dropped.push({ id: d.id, file: byId.get(d.id).file, reason: d.reason });
       if (j.drop.length) await deps.gh.comment(n, droppedComment(j.drop, byId));
       const kept = findings.filter((f) => j.keep.includes(f.id));
@@ -145,9 +146,11 @@ export async function workIssue(issue, deps, limits) {
 
     // Verifier: the change must be a PASS against the criteria; a HOLD, or no clear PASS, stops it.
     await guard();
-    const v = (await deps.role('verifier', `Check the change against these criteria: ${plan.criteria.join('; ')}. `
-      + 'Answer PASS or HOLD, with the reason.')).text ?? '';
-    if (!v.includes('PASS') || v.includes('HOLD')) stop(`verifier held the change\n${v}`);
+    // A run that failed (not ok) is no pass, even if its text happens to contain PASS.
+    const vr = await deps.role('verifier', `Check the change against these criteria: ${plan.criteria.join('; ')}. `
+      + 'Answer PASS or HOLD, with the reason.', wt.path);
+    const v = vr.text ?? '';
+    if (!vr.ok || !v.includes('PASS') || v.includes('HOLD')) stop(`verifier held the change\n${v}`);
 
     // Draft PR and gate: the body file is written through deps, so the PR opens from a file the lead can read back.
     const spend = await guard();
