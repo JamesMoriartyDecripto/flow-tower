@@ -8,10 +8,28 @@ import { pathToFileURL } from 'node:url';
 // The answer is model output run as a module, and the task folder it may read holds the answer keys: a plan or a
 // verdict is plain data, so any code that could reach other files or the process is refused before it is imported.
 const CODE = /\b(import|require|process|globalThis|eval|Function|fetch|readFile|fs)\b/;
+// The code of the answer with every '...' and "..." string emptied and comments dropped, scanned one character at a
+// time so a quote or a backtick inside a string is text. A backtick outside a string starts a template literal, which could hide code in
+// ${...}: plain data never needs one, so it is refused.
+function codeOutsideStrings(text) {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '`') throw new assert.AssertionError({ message: 'the answer must be plain data: no template literals' });
+    // Comments are dropped (an apostrophe in one must not open a string); any other slash would be a regex or a division,
+    // which plain data never has, and a regex could hold a quote that throws the scan off.
+    if (c === '/' && text[i + 1] === '/') { while (i < text.length && text[i] !== '\n') i++; continue; }
+    if (c === '/' && text[i + 1] === '*') { const end = text.indexOf('*/', i + 2); i = end < 0 ? text.length : end + 1; continue; }
+    if (c === '/') throw new assert.AssertionError({ message: 'the answer must be plain data: no regex or division' });
+    if (c !== "'" && c !== '"') { out += c; continue; }
+    out += '""';
+    for (i++; i < text.length && text[i] !== c; i++) if (text[i] === '\\') i++;
+  }
+  return out;
+}
+
 function plainData(answerPath) {
-  const text = readFileSync(answerPath, 'utf8');
-  // String contents are prose (a plan may say "import the helper"); only the code around them is checked.
-  const body = text.replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`/g, '""').replace(/export\s+default/, '');
+  const body = codeOutsideStrings(readFileSync(answerPath, 'utf8')).replace(/export\s+default/, '');
   assert.ok(!CODE.test(body), 'the answer must be plain data: no import, require, process, file or eval access');
 }
 
