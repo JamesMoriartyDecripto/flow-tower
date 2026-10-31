@@ -19,6 +19,8 @@ export const ROLES = {
   reviewer: { node: 'quality.reviewer', writes: 'none', verdict: true, family: 'reviewer', rule: 'Read-only: judge the code in the task; change nothing.' },
   security: { node: 'quality.security', writes: 'none', verdict: true, family: 'security', rule: 'Read-only: audit for security defects; change nothing.' },
   verifier: { node: 'quality.verifier', writes: 'none', verdict: false, family: 'reviewer', rule: 'Read-only: check the branch against the criteria; change nothing.' },
+  // The unattended lead's judgement call: it keeps or drops each review finding (#320).
+  'lead-judge': { node: 'autopilot.judge', writes: 'none', verdict: false, family: 'reviewer', rule: 'Read-only: keep or drop each review finding with a reason; change nothing.' },
   // The doc writer never inherits src/ or tests/: it writes only the folders given with --write.
   'doc-writer': { node: 'specialists.doc_writer', writes: 'explicit', verdict: false, family: 'coder', rule: 'You may write only the doc folders named with --write; touch no code.' },
 };

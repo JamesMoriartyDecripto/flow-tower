@@ -9,7 +9,9 @@ import { writeDirs } from './args.mjs';
 import { ROLES, isRole } from './roles.mjs';
 
 // The three model defaults come from the 2026-10-27 benchmark (#322): on the squad's own review cases, packed in one
-// request, the reviewer scored the same on glm-5.3-flash as on glm-5.3-flashx at a quarter of the price.
+// request, the reviewer scored the same on glm-5.3-flash as on glm-5.3-flashx at a quarter of the price. The architect
+// and lead-judge defaults come from the 2026-10-31 benchmark (#362): architect plans scored 9/9 at 1.8 cents, and
+// lead-judge scored 9/9 on claude-sonnet-5.5.
 export const DEFAULTS = {
   project: '',
   commands: { check: 'npm run check' },
@@ -18,7 +20,13 @@ export const DEFAULTS = {
   review: ['src'],
   rules: [],
   extras: [],
-  models: { coder: 'anthropic/claude-haiku-5.5', reviewer: 'z-ai/glm-5.3-flash', security: 'deepseek/deepseek-v4.1-flash' },
+  models: {
+    coder: 'anthropic/claude-haiku-5.5',
+    reviewer: 'z-ai/glm-5.3-flash',
+    security: 'deepseek/deepseek-v4.1-flash',
+    architect: 'openai/gpt-6.1-terra',
+    'lead-judge': 'anthropic/claude-sonnet-5.5',
+  },
   tower: 'Dev Squad',
   source: 'dev-squad',
   cli: '',
