@@ -2,19 +2,25 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
-## Unattended runner (#320) — 2026-10-31
+## Unattended runner (#320) — merged 2026-10-31, real test next
 
-- `node tools/squad/runner.mjs` works issues labelled `squad:go` with no session and no SDK (PR #364): one issue at a
-  time on this laptop, polling every 10 min, `--once`, `--issue n` (needs the label), `--dry-run`. Code-driven procedure
-  (`runner-core.mjs`), real deps through one exec (`runner-deps.mjs`), gh wrapper, plan and judge parsers. Stops at a
-  draft PR (`squad:review`) or `squad:failed` with a scrubbed reason. Limits in `squad.json` `runner`: $3, 90 min,
-  2 fix rounds. Defaults from the #362 benchmark: architect `openai/gpt-6.1-terra`, lead-judge `anthropic/claude-sonnet-5.5`.
-- Twelve squad steps, four review rounds; the blocking catch was `deps.gh` never wired (fake deps hid it), now covered
-  by a wiring test. Tower layer 9 is active and matches the code; the skill names the runner.
-- **Next:** the first real `--once` on a small test issue (GitHub and OpenRouter for real), then #303 (pack and gate
-  robustness, both used by the runner) and a check of #75 (findings from the removed SDK pipeline: likely superseded).
-- **Key:** the user-folder OpenRouter key hit its weekly limit (resets 2026-11-02). This session ran the squad on the
-  repository's own key (weekly cap $50) with `FLOW_TOWER_HOME=.stress/squad-home`.
+- **Merged:** PR #362 (benchmark: architect `openai/gpt-6.1-terra`, lead-judge `anthropic/claude-sonnet-5.5`),
+  PR #363 (tower layer 9), PR #364 (`tools/squad/runner.mjs`). 18 squad steps, 11 review rounds; reviewer and
+  security approved, 2364 tests. Usage: `node tools/squad/runner.mjs --dry-run | --issue N | --once`, or no flag to
+  poll every 10 min. One issue at a time, stops at a draft PR (`squad:review`) or `squad:failed` with the reason.
+- **Resume here:** the first real run. Ask the maintainer:
+  1. which repository: flow-tower, or another project (then `squad init` it first);
+  2. which small issue to label `squad:go`.
+
+  Then run `runner.mjs --issue N` and follow each stage: triage, plan, steps, review and security, lead-judge,
+  verifier, draft PR, gate. Record cost and anything that breaks on #320.
+- **OpenRouter key:** the user-folder key hit its weekly limit (resets 2026-11-02). Squad work runs on the
+  repository's own key (weekly cap $50): `FLOW_TOWER_HOME=$PWD/.stress/squad-home` so `run.mjs` falls back to it.
+  The runner charges every role to the issue's ledger; the $3 cap per issue is checked before each stage.
+- **Then:** #303 (pack and gate robustness, both used by the runner) and a check of #75 (findings from the removed
+  SDK pipeline, likely superseded).
+- **Machine:** run the full check with its own `TMPDIR` on disk (`/var/tmp/<unique dir>`) and `--maxWorkers=2`;
+  never two suites at once on the same folder. `tests/sqlite-preview.test.ts` can time out under load: rerun it alone.
 
 ## Dev Squad on one OpenRouter key — 2026-10-31
 
