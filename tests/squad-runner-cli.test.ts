@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULTS, loadConfig } from '../tools/squad/config.mjs';
 // @ts-expect-error plain .mjs without declarations
-import { acquireLock, isQueued, parseArgs } from '../tools/squad/runner.mjs';
+import { acquireLock, buildDeps, isQueued, parseArgs } from '../tools/squad/runner.mjs';
 
 // config.d.mts does not describe the runner limits, so the test reads them through this type.
 type Runner = { usdPerIssue: number; minutes: number; fixRounds: number; pollMinutes: number };
@@ -63,6 +63,21 @@ describe('runner.mjs lock', () => {
     acquireLock(lock, 111, () => true);
     expect(acquireLock(lock, 222, () => false)).toEqual({ ok: true });
     expect(readFileSync(lock, 'utf8')).toBe('222');
+  });
+});
+
+// The regression: makeDeps once returned no gh, so a real run called deps.gh.claim on undefined. The fakes in the core
+// tests hid it, so this builds the deps exactly as main does and checks every function the core calls is there.
+describe('runner.mjs buildDeps', () => {
+  it('gives the core every dep and gh method it calls', () => {
+    const exec = () => ({ status: 0, stdout: '', stderr: '' });
+    const deps = buildDeps({ repo: '/repo', home: '/home', exec, runner: '/runner', nameWithOwner: 'o/r' });
+    for (const k of ['role', 'worktree', 'writeTasks', 'steps', 'quality', 'push', 'gate', 'spent', 'now']) {
+      expect(typeof deps[k], k).toBe('function');
+    }
+    for (const k of ['claim', 'comment', 'fail', 'done', 'draftPr']) {
+      expect(typeof deps.gh[k], `gh.${k}`).toBe('function');
+    }
   });
 });
 

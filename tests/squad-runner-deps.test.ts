@@ -142,6 +142,21 @@ describe('quality', () => {
   });
 });
 
+describe('push', () => {
+  it('force-with-leases only a squad/ branch, so a rerun can replace its own pushed branch', () => {
+    const { deps, calls, repo } = setup();
+    deps.push(repo, 'squad/7-x');
+    expect(calls[calls.length - 1].args).toEqual(['-C', repo, 'push', '--force-with-lease', '-u', 'origin', 'squad/7-x']);
+  });
+
+  it('refuses main and any non-squad branch before git runs', () => {
+    const { deps, calls, repo } = setup();
+    expect(() => deps.push(repo, 'main')).toThrow(/not a squad\/ branch/);
+    expect(() => deps.push(repo, 'feature/x')).toThrow(/not a squad\/ branch/);
+    expect(calls).toHaveLength(0);
+  });
+});
+
 describe('gate', () => {
   it('reads PR number 77 from the URL and reports READY from the output', async () => {
     // Every call answers with an approving verdict, and gate.mjs answers READY. quality runs first, since gate

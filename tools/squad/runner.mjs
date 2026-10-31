@@ -71,6 +71,12 @@ function realExec(cmd, args, opts = {}) {
 
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
+// The one place the deps are built: main and the tests both call it, so a dep the core needs cannot go missing here.
+export function buildDeps({ repo, home, exec, runner, nameWithOwner }) {
+  const gh = makeGh(exec, nameWithOwner);
+  return makeDeps({ repo, home, exec, runner, gh });
+}
+
 async function main(args) {
   const opts = parseArgs(args);
   let repo = opts.repo;
@@ -89,12 +95,12 @@ async function main(args) {
   const named = realExec('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd: repo });
   if (named.status !== 0) throw new Error(`gh repo view failed: ${named.stderr.split('\n')[0]}`);
   const nameWithOwner = named.stdout.trim();
-  const gh = makeGh(realExec, nameWithOwner);
+  const deps = buildDeps({ repo, home, exec: realExec, runner: HERE, nameWithOwner });
 
   const fetchOne = (n) => JSON.parse(realExec('gh', ['issue', 'view', String(n), '-R', nameWithOwner, '--json', ISSUE_FIELDS]).stdout);
   // --issue works an issue only when it carries squad:go, so a manual run cannot skip the queue's label rule.
   const nextIssues = () => {
-    if (opts.issue === undefined) return gh.queue();
+    if (opts.issue === undefined) return deps.gh.queue();
     const issue = fetchOne(opts.issue);
     if (!isQueued(issue.labels)) throw new Error(`#${opts.issue} is not labelled squad:go`);
     return [issue];
@@ -117,7 +123,6 @@ async function main(args) {
   process.on('exit', release);
   for (const [sig, code] of [['SIGINT', 130], ['SIGTERM', 143]]) process.on(sig, () => exit(code));
 
-  const deps = makeDeps({ repo, home, exec: realExec, runner: HERE });
   const once = opts.once || opts.issue !== undefined;
   // A pass per poll: the first issue of the queue, one at a time. The sleep is the poll gap, not a retry delay.
   for (;;) {

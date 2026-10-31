@@ -24,7 +24,8 @@ function verdictOrNull(text) {
   try { return parseVerdict(text); } catch { return null; }
 }
 
-export function makeDeps({ repo, home, exec, runner, now = Date.now }) {
+// gh is the GitHub adapter from runner-gh.mjs; it is passed in so the runner builds it once and the core reads it here.
+export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
   const squadDir = join(home, 'squad-runner');
   const outDir = join(squadDir, 'out');
   // The issue number from the last quality call: gate reads that call's review and security outputs.
@@ -110,8 +111,12 @@ export function makeDeps({ repo, home, exec, runner, now = Date.now }) {
     return ok ? { ok, review, security } : { ok, review, security, error: `no verdict from ${missing.join(' and ')}` };
   }
 
+  // A rerun recreates the branch from origin/main, so a plain push of a branch already on origin is rejected. The
+  // lease makes the force safe: it only replaces the remote branch we last saw. Only the runner's own squad/ branches
+  // may be forced, so a bad branch name (main, for one) is refused before git runs.
   function push(path, branch) {
-    must(exec('git', ['-C', path, 'push', '-u', 'origin', branch]), 'git push');
+    if (!branch.startsWith('squad/')) throw new Error(`refusing to push ${branch}: not a squad/ branch`);
+    must(exec('git', ['-C', path, 'push', '--force-with-lease', '-u', 'origin', branch]), 'git push');
   }
 
   // gate.mjs exits 1 when the PR is not ready, so its exit code is not an error here: the text carries the answer.
@@ -130,5 +135,5 @@ export function makeDeps({ repo, home, exec, runner, now = Date.now }) {
     return summarize(readRuns(ledgerPath({ ...env, FLOW_TOWER_HOME: home })), n).total.cost;
   }
 
-  return { role, worktree, writeTasks, steps, quality, push, gate, spent, now };
+  return { gh, role, worktree, writeTasks, steps, quality, push, gate, spent, now };
 }
