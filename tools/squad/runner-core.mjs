@@ -67,14 +67,20 @@ export function parseTriage(text) {
   return { route: raw.route, areas: strings(raw.areas), questions: strings(raw.questions), rationale: String(raw.rationale ?? '') };
 }
 
+// A run that did not finish (step cap, crash) is a failed attempt: its text is a diagnostic, never an answer, so it is
+// not parsed. The failure reads as unparseable, so the same retry applies.
+const NOT_FINISHED = 'the run did not finish';
+
 // Asks the architect for a plan; a refused plan is asked for once more, with the reason appended.
 // The architect runs in the worktree (path), so it reads the branch the change will be made on.
 async function makePlan(deps, issue, path) {
   const ask = `${PLAN_ASK}\n\n${untrusted(issue)}`;
-  let p = parsePlan((await deps.role('architect', ask, path, issue.number)).text);
+  const first = await deps.role('architect', ask, path, issue.number);
+  let p = first.ok ? parsePlan(first.text) : { ok: false, error: NOT_FINISHED };
   if (!p.ok) {
     const again = `${ask}\n\nYour last plan was refused: ${p.error}. Answer again with a valid plan.`;
-    p = parsePlan((await deps.role('architect', again, path, issue.number)).text);
+    const second = await deps.role('architect', again, path, issue.number);
+    p = second.ok ? parsePlan(second.text) : { ok: false, error: NOT_FINISHED };
     if (!p.ok) stop(`no valid plan: ${p.error}`);
   }
   return p.plan;
@@ -86,7 +92,8 @@ async function judge(deps, findings, brief, path, n) {
   const prompt = judgePrompt(findings, brief);
   for (let attempt = 0; attempt < 2; attempt++) {
     const ask = attempt === 0 ? prompt : `${prompt}\n\nYour last answer could not be read. Answer again with the json block.`;
-    const j = parseJudgement((await deps.role('lead-judge', ask, path, n)).text, ids);
+    const r = await deps.role('lead-judge', ask, path, n);
+    const j = r.ok ? parseJudgement(r.text, ids) : { ok: false };
     if (j.ok) return j;
   }
   return stop('lead-judge gave no usable answer');

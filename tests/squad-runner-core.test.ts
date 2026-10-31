@@ -138,6 +138,44 @@ describe('workIssue', () => {
     expect(calls).not.toContain('worktree');
   });
 
+  it('does not read a plan from a run that failed, and asks the architect again', async () => {
+    const seen: boolean[] = [];
+    const { deps, calls } = fakeDeps({
+      role: async (name: string) => {
+        calls.push(`role:${name}`);
+        if (name === 'triage') return { ok: true, text: triageFull };
+        if (name === 'architect') {
+          // The first run failed (step cap) but its text holds a valid-looking plan: it must not be accepted.
+          seen.push(true);
+          return seen.length === 1 ? { ok: false, text: fence(PLAN) } : { ok: true, text: fence(PLAN) };
+        }
+        return { ok: true, text: 'PASS' };
+      },
+    });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(calls.filter((c) => c === 'role:architect')).toHaveLength(2);
+  });
+
+  it('retries a judge run that failed, even when its text is a valid judgement', async () => {
+    const review = { findings: [{ file: 'src/a.ts:3', what: 'bug', why: 'x', fix: 'y' }] };
+    let judges = 0;
+    const { deps, calls } = fakeDeps({
+      role: async (name: string) => {
+        calls.push(`role:${name}`);
+        if (name === 'triage') return { ok: true, text: triageFull };
+        if (name === 'architect') return { ok: true, text: fence(PLAN) };
+        if (name === 'lead-judge') {
+          judges++;
+          const text = fence({ R1: { decision: 'drop', reason: 'noise' } });
+          return judges === 1 ? { ok: false, text } : { ok: true, text };
+        }
+        return { ok: true, text: 'PASS' };
+      },
+    }, {}, [{ ok: true, review, security: { findings: [] } }]);
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(calls.filter((c) => c === 'role:lead-judge')).toHaveLength(2);
+  });
+
   it('fails when the architect sends a bad plan twice', async () => {
     const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: ['no json', 'still no'] });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');

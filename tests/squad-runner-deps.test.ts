@@ -164,6 +164,22 @@ describe('push', () => {
     expect(calls[calls.length - 1].args).toEqual(['-C', repo, 'push', '--force-with-lease', '-u', 'origin', 'squad/7-x']);
   });
 
+  it('runs fetch --prune before the push, so the lease sees a remote branch deleted since the last run', () => {
+    const { deps, calls, repo } = setup();
+    deps.push(repo, 'squad/7-x');
+    const fetchAt = calls.findIndex((c) => c.args.includes('fetch'));
+    const pushAt = calls.findIndex((c) => c.args.includes('push'));
+    expect(calls[fetchAt].args).toEqual(['-C', repo, 'fetch', '--prune', 'origin']);
+    expect(calls[fetchAt].opts.env).not.toHaveProperty('OPENROUTER_API_KEY');
+    expect(pushAt).toBeGreaterThan(fetchAt);
+  });
+
+  it('still pushes when the fetch fails, since the push reports the real problem', () => {
+    const { deps, calls, repo } = setup((c) => (c.args.includes('fetch') ? { status: 1, stderr: 'offline' } : { status: 0 }));
+    expect(() => deps.push(repo, 'squad/7-x')).not.toThrow();
+    expect(calls[calls.length - 1].args).toContain('--force-with-lease');
+  });
+
   it('refuses main and any non-squad branch before git runs', () => {
     const { deps, calls, repo } = setup();
     expect(() => deps.push(repo, 'main')).toThrow(/not a squad\/ branch/);

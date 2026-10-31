@@ -140,8 +140,12 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
   // A rerun recreates the branch from origin/main, so a plain push of a branch already on origin is rejected. The
   // lease makes the force safe: it only replaces the remote branch we last saw. Only the runner's own squad/ branches
   // may be forced, so a bad branch name (main, for one) is refused before git runs.
+  // The lease compares with the local remote-tracking ref, which goes stale when the remote branch was deleted after an
+  // earlier run. Fetching with --prune first refreshes that ref, so the lease checks the remote as it is now. The fetch
+  // may fail (offline, no remote branch); its failure is ignored, since the push reports any real problem.
   function push(path, branch) {
     if (!branch.startsWith('squad/')) throw new Error(`refusing to push ${branch}: not a squad/ branch`);
+    git(['-C', path, 'fetch', '--prune', 'origin']);
     must(git(['-C', path, 'push', '--force-with-lease', '-u', 'origin', branch]), 'git push');
   }
 
