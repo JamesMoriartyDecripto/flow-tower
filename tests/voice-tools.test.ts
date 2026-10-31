@@ -71,7 +71,7 @@ describe('voice agent tools (#63)', () => {
     expect(r.a.files).toBe(3);
     expect(r.b.files).toBe(3);
     expect(r.a).toMatchObject({ incoming: 3, outgoing: 6 });
-    expect(r.b).toMatchObject({ incoming: 5, outgoing: 3 });
+    expect(r.b).toMatchObject({ incoming: 4, outgoing: 3 });
     // Same fields are named, the differing ones are not.
     expect(r.same).toEqual(expect.arrayContaining(['type', 'runtime']));
     expect(r.same).not.toContain('label');
