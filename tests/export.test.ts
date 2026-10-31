@@ -5,6 +5,8 @@ import { buildTower, loadLibrary } from '../src/core/loader';
 import { TowerSchema } from '../src/core/schema';
 
 const count = (s: string, re: RegExp) => (s.match(re) ?? []).length;
+/** Text as the SVG writes it: `&` is an entity, so "Plan & Steps" appears as "Plan &amp; Steps". */
+const escaped = (s: string) => s.replace(/&/g, '&amp;');
 const size = (svg: string) => /width="(\d+)" height="(\d+)" viewBox="0 0 (\d+) (\d+)"/.exec(svg)!.slice(1).map(Number);
 
 describe('SVG export', () => {
@@ -17,7 +19,8 @@ describe('SVG export', () => {
     expect(one.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(true);
     expect(count(one, /<g class="node"/g)).toBe(tower.layers[1].nodes.length);
     expect(count(one, /marker-end=/g)).toBe(tower.layers[1].edges.length);
-    expect(one).toContain(`${tower.name} — ${tower.layers[1].title}`);
+    // The SVG escapes the title ("Plan & Steps" becomes "&amp;"), so the expectation is escaped the same way.
+    expect(one).toContain(`${tower.name} — ${escaped(tower.layers[1].title)}`);
 
     const nodes = tower.layers.reduce((a, l) => a + l.nodes.length, 0);
     const stack = towerSvg(tower, layout);
@@ -64,14 +67,14 @@ describe('SVG export', () => {
     const full = towerSvg(tower, layout, { layers: [1] });
     const bare = towerSvg(tower, layout, { layers: [1], bare: true });
     // The accessible <title> keeps the layer name; only the visible title text and the caption are dropped.
-    expect(bare).not.toContain(`>${tower.layers[1].title}</text>`);
+    expect(bare).not.toContain(`>${escaped(tower.layers[1].title)}</text>`);
     expect(bare).not.toContain('· Flow Tower</text>');
     expect(count(bare, /<g class="node"/g)).toBe(tower.layers[1].nodes.length);
     expect(count(bare, /marker-end=/g)).toBe(tower.layers[1].edges.length);
     expect(count(bare, /<rect x="\d+(\.\d+)?" y="\d+(\.\d+)?" width="\d+(\.\d+)?" height="\d+(\.\d+)?" rx="6"/g)).toBe(1);
     expect(size(bare)).toEqual(size(full));
     // The default output is untouched: the title and caption are still there.
-    expect(full).toContain(tower.layers[1].title);
+    expect(full).toContain(escaped(tower.layers[1].title));
     expect(full).toContain('· Flow Tower');
   });
 
