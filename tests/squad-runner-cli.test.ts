@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULTS, loadConfig } from '../tools/squad/config.mjs';
 // @ts-expect-error plain .mjs without declarations
-import { acquireLock, parseArgs } from '../tools/squad/runner.mjs';
+import { acquireLock, isQueued, parseArgs } from '../tools/squad/runner.mjs';
 
 // config.d.mts does not describe the runner limits, so the test reads them through this type.
 type Runner = { usdPerIssue: number; minutes: number; fixRounds: number; pollMinutes: number };
@@ -23,6 +23,18 @@ describe('runner.mjs argument parsing', () => {
 
   it('refuses an unknown flag', () => {
     expect(() => parseArgs(['--loop'])).toThrow(/unknown argument/);
+  });
+});
+
+describe('runner.mjs --issue label rule', () => {
+  it('queues an issue that carries squad:go', () => {
+    expect(isQueued([{ name: 'bug' }, { name: 'squad:go' }])).toBe(true);
+  });
+
+  it('refuses an issue without the label, or with no labels', () => {
+    expect(isQueued([{ name: 'bug' }])).toBe(false);
+    expect(isQueued([])).toBe(false);
+    expect(isQueued(undefined)).toBe(false);
   });
 });
 

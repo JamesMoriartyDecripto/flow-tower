@@ -16,6 +16,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const USAGE = 'usage: node tools/squad/runner.mjs [--once] [--issue <n>] [--repo <path>] [--dry-run]';
 const ISSUE_FIELDS = 'number,title,body,labels,createdAt';
 
+// The queue label: gh issue view lists labels as objects with a name. Pure, so the --issue rule is testable.
+export function isQueued(labels) {
+  return Array.isArray(labels) && labels.some((l) => l?.name === 'squad:go');
+}
+
 // Plain argument parsing: the runner takes four flags, so no parser library is needed. A bad value throws with the usage.
 export function parseArgs(args) {
   const out = { once: false, issue: undefined, repo: undefined, dryRun: false };
@@ -87,7 +92,13 @@ async function main(args) {
   const gh = makeGh(realExec, nameWithOwner);
 
   const fetchOne = (n) => JSON.parse(realExec('gh', ['issue', 'view', String(n), '-R', nameWithOwner, '--json', ISSUE_FIELDS]).stdout);
-  const nextIssues = () => (opts.issue !== undefined ? [fetchOne(opts.issue)] : gh.queue());
+  // --issue works an issue only when it carries squad:go, so a manual run cannot skip the queue's label rule.
+  const nextIssues = () => {
+    if (opts.issue === undefined) return gh.queue();
+    const issue = fetchOne(opts.issue);
+    if (!isQueued(issue.labels)) throw new Error(`#${opts.issue} is not labelled squad:go`);
+    return [issue];
+  };
 
   if (opts.dryRun) {
     const issues = nextIssues();
