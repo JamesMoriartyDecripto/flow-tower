@@ -58,7 +58,8 @@ for f in "$dir"/*.md; do
   tail -c 700 "$OUT/coder-$step.out"
   if [ "$rc" -ne 0 ] || grep -q "^step cap reached" "$OUT/coder-$step.out"; then echo "RED after step $step: coder run failed (exit $rc)"; exit 1; fi
   # A file with local edits from before the run must not change: the coder would have written over the maintainer's work.
-  foreignTouched=$("$NODE" "$H/step-scope.mjs" foreign-touched "$OUT/foreign.tsv" "$R")
+  # A failed check must stop the run: an empty answer would read as "no foreign file changed" and let the step pass.
+  foreignTouched=$("$NODE" "$H/step-scope.mjs" foreign-touched "$OUT/foreign.tsv" "$R") || { echo "RED after step $step: step-scope foreign-touched failed"; exit 1; }
   if [ -n "$foreignTouched" ]; then echo "RED after step $step: the coder changed files that had local edits before the run:"; echo "$foreignTouched"; exit 1; fi
   # Known gaps are the text after the last [finish] line of the coder output. They are printed for the lead and never stop the chain.
   awk '/^\[finish\]/ { buf = ""; found = 1; next } found { buf = buf $0 "\n" } END { printf "%s", buf }' "$OUT/coder-$step.out" > "$OUT/finish-$step.txt"
@@ -67,10 +68,10 @@ for f in "$dir"/*.md; do
   # The run's own total is on the "--- " line it prints last (#156): it goes into the commit as Squad-Cost, so the step's cost stays with its commit.
   # Take the last such line: the report printed before it can hold diff lines that start with "--- ".
   stepCost=$(grep '^--- ' "$OUT/coder-$step.out" | tail -1 | grep -o '\$[0-9.]*' | tail -1)
-  staged=$("$NODE" "$H/step-scope.mjs" stage "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite")
+  staged=$("$NODE" "$H/step-scope.mjs" stage "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite") || { echo "RED after step $step: step-scope stage failed"; exit 1; }
   if [ -z "$staged" ]; then
     # Changes outside the scope are named, not hidden: "changed nothing" would be wrong when the coder did change files.
-    outsideNow=$("$NODE" "$H/step-scope.mjs" outside "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite")
+    outsideNow=$("$NODE" "$H/step-scope.mjs" outside "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite") || { echo "RED after step $step: step-scope outside failed"; exit 1; }
     if [ -n "$outsideNow" ]; then echo "RED after step $step: the coder changed only files outside the step's scope:"; echo "$outsideNow"; exit 1; fi
     echo "RED after step $step: the coder changed nothing"; exit 1
   fi
@@ -99,7 +100,7 @@ for f in "$dir"/*.md; do
     # Only the step's own paths are staged, recomputed so removed probes are not added. A deletion is staged too: git add -A on a missing path records it.
     # git add and git commit run without OPENROUTER_API_KEY: a project's pre-commit hook (husky, lint-staged) may run
     # the tests the coder wrote, and those must not see the key.
-    staged=$("$NODE" "$H/step-scope.mjs" stage "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite")
+    staged=$("$NODE" "$H/step-scope.mjs" stage "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite") || { echo "RED after step $step: step-scope stage failed"; exit 1; }
     # Nothing left to stage means the coder changed only probe files. An empty pathspec would make git commit the whole
     # index, including what the maintainer staged before the run, so this step is RED instead (#353).
     if [ -z "$staged" ]; then echo "RED after step $step: the coder changed only probe files"; exit 1; fi
@@ -111,7 +112,7 @@ for f in "$dir"/*.md; do
     done <<< "$staged"
     git status --short | grep "^??" && echo "UNTRACKED LEFT (outside the step's scope, not committed)"
     # Tracked changes that are neither staged nor foreign: the coder changed them outside the step's scope.
-    left=$("$NODE" "$H/step-scope.mjs" outside "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite")
+    left=$("$NODE" "$H/step-scope.mjs" outside "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite") || { echo "RED after step $step: step-scope outside failed"; exit 1; }
     if [ -n "$left" ]; then echo "CHANGED, NOT COMMITTED (outside the step's scope):"; echo "$left"; fi
     # The commit takes only the step's paths: a pathspec commit leaves anything else already in the index staged but uncommitted.
     mapfile -t stagedPaths <<< "$staged"

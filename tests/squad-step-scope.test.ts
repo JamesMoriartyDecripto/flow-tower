@@ -32,6 +32,10 @@ describe('writeDirsFor', () => {
   it('strips a trailing slash so src/ and src are one write dir', () => {
     expect(writeDirsFor(['src/'], ['tests/a.ts'])).toEqual(['src', 'tests']);
   });
+
+  it('drops a derived dir that still has a glob, since a root-level glob has no fixed folder', () => {
+    expect(writeDirsFor(['src'], ['*.ts', 'docs/**/*.md'])).toEqual(['src', 'docs']);
+  });
 });
 
 describe('badEntries', () => {

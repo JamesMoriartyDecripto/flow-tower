@@ -31,8 +31,11 @@ function dirOf(entry) {
 // The write dirs of a step: the configured write list plus the directory of every Files entry, so a task may name a
 // file outside the configured folders (its own tests, a doc at the root) without widening the config.
 // A trailing "/" is stripped before de-duplicating, so "src/" and "src" are the same write dir (no prefix mismatch).
+// A derived dir that still holds a "*" is dropped: a root-level glob such as "*.ts" has no fixed folder, and writing
+// "*" as a dir would match nothing useful. Its files still get staged through the Files match in toStage.
 export function writeDirsFor(write, files) {
-  const dirs = [...write, ...files.map(dirOf)].map((d) => d.replace(/\/+$/, ''));
+  const derived = files.map(dirOf).filter((d) => !d.includes('*'));
+  const dirs = [...write, ...derived].map((d) => d.replace(/\/+$/, ''));
   return [...new Set(dirs)];
 }
 
