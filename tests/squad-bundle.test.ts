@@ -42,7 +42,7 @@ const nodePackage = {
 };
 
 describe('squad bundle (#330)', () => {
-  it('installs the canonical Dev Squad tower: 8 layers, name and root set, validates clean (#330)', { timeout: 30_000 }, () => {
+  it('installs the canonical Dev Squad tower: 9 layers, name and root set, validates clean (#330)', { timeout: 30_000 }, () => {
     const dir = gitProject({ 'package.json': JSON.stringify(nodePackage), 'src/a.ts': '' });
     const r = run('squad', 'init', dir);
     expect(r.status, r.stderr).toBe(0);
@@ -54,8 +54,8 @@ describe('squad bundle (#330)', () => {
     expect(doc.name).toBe(JSON.parse(readFileSync(join(squad, 'squad.json'), 'utf8')).tower);
     expect(doc.root).toBe('dev-squad');
     const layers = (doc.layers as { id: string }[]).map((l) => l.id);
-    // The 8 layers of examples/dev-squad, in order: a tower that lost one is not the canonical squad.
-    expect(layers).toEqual(['intake', 'orchestration', 'specialists', 'quality', 'runner', 'setup', 'observe', 'models']);
+    // The 9 layers of examples/dev-squad, in order: a tower that lost one is not the canonical squad.
+    expect(layers).toEqual(['intake', 'orchestration', 'specialists', 'quality', 'runner', 'setup', 'observe', 'models', 'autopilot']);
 
     // The support files the tower points at, with the nested runner tower and the role prompts.
     for (const rel of ['towers/runner-loop.tower.yaml', 'roles/triage.md', 'squad.example.json', 'task-template.md', 'README.md']) {
