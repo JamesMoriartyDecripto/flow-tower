@@ -203,6 +203,24 @@ describe('workIssue fix scope', () => {
     expect(calls).toContain('fail:lead-judge gave no usable answer');
     expect(calls.some((c) => c.startsWith('writeTasks:91-review-fixes'))).toBe(false);
   });
+
+  it('tells the judge why its answer was refused on the retry', async () => {
+    const six = ['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js', 'src/e.js', 'src/f.js'];
+    const prompts: string[] = [];
+    const { deps } = fakeDeps({
+      triage: [triageFull],
+      architect: [fence(PLAN)],
+      'lead-judge': [KEEP({ supportingFiles: six }), KEEP({ supportingFiles: ['src/catalog.js'] })],
+    });
+    const role = deps.role as (...args: any[]) => Promise<{ ok: boolean; text: string }>;
+    (deps as any).role = async (name: string, prompt: string, ...rest: any[]) => {
+      if (name === 'lead-judge') prompts.push(prompt);
+      return role(name, prompt, ...rest);
+    };
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain('supportingFiles allows at most 5 files');
+  });
 });
 
 describe('fixTask finding file safety', () => {

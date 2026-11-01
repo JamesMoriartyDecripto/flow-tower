@@ -119,11 +119,14 @@ async function makePlan(deps, issue, path) {
 async function judge(deps, findings, brief, path, n) {
   const ids = findings.map((f) => f.id);
   const prompt = judgePrompt(findings, brief);
+  // The retry names the refusal reason (scope limits, unsafe paths), so the judge does not repeat the same mistake.
+  let reason = '';
   for (let attempt = 0; attempt < 2; attempt++) {
-    const ask = attempt === 0 ? prompt : `${prompt}\n\nYour last answer could not be read. Answer again with the json block.`;
+    const ask = attempt === 0 ? prompt : `${prompt}\n\nYour last answer was refused: ${reason}. Answer again with the json block.`;
     const r = await deps.role('lead-judge', ask, path, n);
-    const j = r.ok ? parseJudgement(r.text, ids) : { ok: false };
+    const j = r.ok ? parseJudgement(r.text, ids) : { ok: false, error: 'the run failed' };
     if (j.ok) return j;
+    reason = j.error ?? 'the answer could not be read';
   }
   return stop('lead-judge gave no usable answer');
 }
