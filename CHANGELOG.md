@@ -5,9 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-01
+
 ### Added
 - Unattended Dev Squad runner (#320): `node tools/squad/runner.mjs` works issues labelled `squad:go` on one OpenRouter key, with no session and no SDK, one at a time. The procedure is in code (triage, worktree, plan, steps, review and security, lead-judge, fix rounds, verifier, draft PR, gate); the models only judge. It stops at a draft PR or with `squad:failed` and the reason. Limits (`usdPerIssue`, `minutes`, `fixRounds`, `pollMinutes`) are in `squad.json`, and a lock allows one runner. New role `lead-judge` (default Claude Sonnet 5.5) and architect default GPT-6.1 Terra, both from the #362 benchmark. New runner files: `runner.mjs`, `runner-core.mjs`, `runner-deps.mjs`, `runner-gh.mjs`, `runner-plan.mjs`, `runner-judge.mjs`.
-- Dev Squad tower, planned unattended runner (#320): a ninth layer shows how `runner.mjs` will work labelled issues with no session: poll `squad:go`, claim, a code-driven lead, the new `lead-judge` role, limits, a draft-PR stop point and `squad:failed`. All nodes are `planned`. Model choices come from the #362 benchmark: lead-judge Claude Sonnet 5.5, unattended architect GPT-6.1 Terra. Role card `roles/lead-judge.md`.
+- Dev Squad tower, unattended runner (#320): a ninth layer shows how `runner.mjs` works labelled issues with no session: poll `squad:go`, claim, a code-driven lead, the new `lead-judge` role, limits, a draft-PR stop point and `squad:failed`. Model choices come from the #362 benchmark: lead-judge Claude Sonnet 5.5, unattended architect GPT-6.1 Terra. Role card `roles/lead-judge.md`.
+
+### Known limits
+- Unattended runner (#320): five external acceptance replays each stopped safely, with the work committed and the reason on the issue; none has yet reached the draft PR on its own. The last stop: a fix that needed a test file outside the fix scope. Project checks run in the runner's process, next to its OpenRouter key and GitHub token (#375): run it only on trusted repositories.
 
 ### Removed
 - Dev Squad Claude Agent SDK backend (#355): `examples/dev-squad/src` (the webhook pipeline on `@anthropic-ai/claude-agent-sdk`), its deploy files, Claude Code settings, prompts, memory and sample logs, and their tests. The squad depends on no SDK: one OpenRouter key, the user's own session as lead in any harness.

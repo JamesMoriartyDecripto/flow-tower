@@ -1,116 +1,116 @@
-# npm run e2e: passed, 115 tests, 0 not passed (2026-10-30T18:34Z)
-passed      0.2s  the file API refuses paths outside the tower root
-passed      0.3s  events endpoint rejects malformed bodies without crashing
-passed      1.9s  every referenced file is served by /api/file
-passed      2.3s  on a phone-sized window the open card stays inside the window
-passed      2.3s  the overview charts: the root chapter has the layer matrix and the sub-tower tree
-passed      2.5s  keyboard: Esc on the card's toggle returns focus to the scene
-passed      2.6s  a long tower name wraps whole, with the toggle on its first line (#301)
-passed      2.6s  every chart table fits its card: no table is wider than the card that holds it
-passed      2.6s  focusing a layer swaps the tower card for the node list; Escape brings it back
-passed      2.9s  at 390px no library name is cut
-passed      2.9s  the cover carries one wordmark, and the running header comes from the page margin under print
-passed      2.9s  without origins: the plain dev server shows no badge at all
+# npm run e2e: passed, 115 tests, 0 not passed (2026-11-01T22:25Z)
+passed      0.1s  the file API refuses paths outside the tower root
+passed      0.2s  events endpoint rejects malformed bodies without crashing
+passed      1.5s  the overview charts: the root chapter has the layer matrix and the sub-tower tree
+passed      1.6s  every chart table fits its card: no table is wider than the card that holds it
+passed      1.8s  the project files appendix prints the full text of a referenced file, with line numbers
+passed      1.9s  the cover carries one wordmark, and the running header comes from the page margin under print
+passed      2.0s  every referenced file is served by /api/file
+passed      2.5s  on a phone-sized window the open card stays inside the window
+passed      2.5s  the document view shows every node of the root tower, with anchors and a diagram per layer
+passed      2.7s  at 390px no library name is cut
+passed      2.8s  a long tower name wraps whole, with the toggle on its first line (#301)
+passed      2.8s  at 1440px no library name is cut
+passed      2.8s  focusing a layer swaps the tower card for the node list; Escape brings it back
+passed      2.9s  at 1440px the Sales Pipeline name wraps onto more than one line
+passed      2.9s  keyboard: Esc on the card's toggle returns focus to the scene
 passed      3.0s  the card's content clears the corner marks, open and reduced
+passed      3.0s  the document control table shows a 16-hex fingerprint, the same on every load
 passed      3.0s  without sources no source chip or row appears
-passed      3.1s  a source that shares nothing now is dropped from the URL and shows every project
-passed      3.1s  at 1440 px no title word is split and the chips sit below the title
-passed      3.2s  at 1440px the Sales Pipeline name wraps onto more than one line
-passed      3.3s  at 1440px no library name is cut
-passed      3.3s  at 1920px no library name is cut
+passed      3.1s  at 1920px no library name is cut
+passed      3.1s  without origins: the plain dev server shows no badge at all
+passed      3.2s  a source that shares nothing now is dropped from the URL and shows every project
+passed      3.3s  a one-word name wider than the card stays inside it and wraps
+passed      3.3s  at 1280 px no title word is split and the chips sit below the title
+passed      3.4s  Escape closes the Hub panel and the right panel comes back
+passed      3.4s  panel corners: the list panels scroll an inner element, not the frame
+passed      3.4s  selecting a node in the list shows the inspector and hides the tower card
+passed      3.4s  the SVG pack has every layer and map of the project and its sub-towers
+passed      3.5s  at 1440 px no title word is split and the chips sit below the title
 passed      3.5s  at overview the tower card shows the tower and the Nodes value of its library card
-passed      3.5s  panel corners: the list panels scroll an inner element, not the frame
-passed      3.5s  selecting a node in the list shows the inspector and hides the tower card
-passed      3.6s  Escape closes the Hub panel and the right panel comes back
-passed      3.6s  a one-word name wider than the card stays inside it and wraps
-passed      3.6s  at 1280 px no title word is split and the chips sit below the title
+passed      3.5s  now: one row per machine, runtime and starter, and no message anywhere
+passed      3.5s  tower: Research Helper
+passed      3.5s  with origins: the first project is MINE and the rest are EXAMPLE
 passed      3.6s  at 1920 px no title word is split and the chips sit below the title
-passed      3.6s  tower: Research Helper
-passed      3.6s  with origins: the first project is MINE and the rest are EXAMPLE
-passed      3.7s  math: KaTeX still renders after the bump
-passed      3.7s  now: one row per machine, runtime and starter, and no message anywhere
-passed      3.7s  tower: Docs Q&A Bot
-passed      3.7s  voice journal: turns are written, a correction marks the last one, accepted aliases apply first (#68)
-passed      3.8s  layout 720x900 at 1x
-passed      3.8s  the SVG pack has every layer and map of the project and its sub-towers
-passed      3.8s  voice: Esc silences the reply still being written, and the turn is journaled as interrupted
+passed      3.6s  math: KaTeX still renders after the bump
+passed      3.6s  tower: Docs Q&A Bot
+passed      3.7s  machines: senders, dots and shortened token labels
+passed      3.7s  md table: wide tables scroll instead of squeezing columns to one letter
+passed      3.8s  tower: PR Review Bot
+passed      3.8s  tower: Pocket Voice Assistant
 passed      3.8s  voice: a command acts at once, a question gets a streamed answer that shows what it talks about
-passed      3.9s  layout 1024x640 at 1x
-passed      3.9s  layout 1440x900 at 1x
+passed      3.9s  OTLP logs: tokens and cost per node, per tower and per project
+passed      3.9s  layout 720x900 at 1x
 passed      3.9s  tower: Docs Q&A
-passed      3.9s  tower: PR Review Bot
-passed      3.9s  tower: Pocket Voice Assistant
-passed      4.0s  layout 1280x720 at 1x
-passed      4.0s  md table: wide tables scroll instead of squeezing columns to one letter
-passed      4.0s  the PDF button opens the menu, and Overview opens the document in a new page
-passed      4.0s  the project files appendix prints the full text of a referenced file, with line numbers
-passed      4.0s  voice: 'cosa sta succedendo?' reports the error and selects the node (#160)
+passed      3.9s  voice journal: turns are written, a correction marks the last one, accepted aliases apply first (#68)
+passed      3.9s  voice: Esc silences the reply still being written, and the turn is journaled as interrupted
+passed      4.0s  layout 1024x640 at 1x
+passed      4.0s  live feed: mapped, error and unmapped events
+passed      4.0s  tower: Physics Notes: Mechanics
+passed      4.0s  updates: daily check, a forced check, the throttle and an offline answer
+passed      4.0s  voice: "chiudi il file" closes the viewer and keeps the node selected (#128)
+passed      4.1s  layout 1280x720 at 1x
+passed      4.1s  layout 1440x900 at 1x
+passed      4.1s  the PDF button opens the menu, and Overview opens the document in a new page
 passed      4.1s  tower: Command Center
-passed      4.1s  tower: Physics Notes: Mechanics
-passed      4.1s  updates: daily check, a forced check, the throttle and an offline answer
-passed      4.2s  tower: History Notes: The French Revolution
-passed      4.3s  OTLP logs: tokens and cost per node, per tower and per project
-passed      4.3s  layout 1440x900 at 1.3x
-passed      4.3s  live feed: mapped, error and unmapped events
-passed      4.3s  machines: senders, dots and shortened token labels
-passed      4.3s  the toggle reduces the card to its title bar, remembered across reloads
-passed      4.3s  tower: Legacy Portal Browser Worker
-passed      4.3s  voice: "chiudi il file" closes the viewer and keeps the node selected (#128)
-passed      4.4s  tower: Agent Council
-passed      4.4s  tower: Tower Optimizer
-passed      4.4s  voice: "apri il suo file" then "il prossimo" walk the files, then the layer (#130)
-passed      4.5s  layout 1920x1080 at 1.15x
-passed      4.5s  tooltip: a long node description stays inside the window
+passed      4.2s  layout 1440x900 at 1.3x
+passed      4.2s  tower: Agent Council
+passed      4.2s  tower: Tower Optimizer
+passed      4.2s  voice: "apri il suo file" then "il prossimo" walk the files, then the layer (#130)
+passed      4.2s  voice: 'cosa sta succedendo?' reports the error and selects the node (#160)
+passed      4.3s  tower: Fraud Review Desk
+passed      4.3s  tower: History Notes: The French Revolution
+passed      4.4s  layout 1920x1080 at 1.15x
+passed      4.4s  the toggle reduces the card to its title bar, remembered across reloads
+passed      4.4s  tower: Legacy Portal Browser Worker
 passed      4.5s  tower: Airline Customer Service
-passed      4.5s  tower: Fraud Review Desk
-passed      4.6s  the document control table shows a 16-hex fingerprint, the same on every load
+passed      4.5s  tower: Tutorial Studio
 passed      4.6s  tower: Report Studio
-passed      4.7s  tower: Team Hub
-passed      4.8s  layout 2560x1440 at 1.6x
-passed      4.9s  tower: Tutorial Studio
-passed      5.0s  tower: AI Co-Scientist
-passed      5.0s  tower: Database API Playbook
-passed      5.1s  the PNG pack is Full HD and includes the 3D view (eco)
+passed      4.9s  layout 2560x1440 at 1.6x
+passed      4.9s  voice: the new fixed phrases scroll, filter and open the hub, all on the parser (#145)
+passed      5.0s  the PNG pack is Full HD and includes the 3D view (balanced)
+passed      5.0s  tooltip: a long node description stays inside the window
+passed      5.0s  tower: Model Benchmark
+passed      5.0s  tower: Team Hub
+passed      5.1s  tower: AI Co-Scientist
 passed      5.1s  tower: Ambient Chief of Staff
 passed      5.1s  tower: Deep Research Team
-passed      5.1s  voice: the new fixed phrases scroll, filter and open the hub, all on the parser (#145)
-passed      5.2s  tower: Model Benchmark
-passed      5.3s  tower: A2A Purchasing Concierge
-passed      5.3s  tower: SRE Incident Responder
-passed      5.3s  tower: Voice Commands
-passed      5.4s  the PNG pack is Full HD and includes the 3D view (balanced)
-passed      5.4s  the document view shows every node of the root tower, with anchors and a diagram per layer
+passed      5.1s  tower: Jev Agent
+passed      5.2s  tower: A2A Purchasing Concierge
+passed      5.2s  tower: Database API Playbook
+passed      5.2s  tower: Voice Commands
+passed      5.4s  the PNG pack is Full HD and includes the 3D view (eco)
 passed      5.4s  tower: Release Auditor
 passed      5.5s  file viewer: formatted Markdown, source, wrap
-passed      5.6s  tower: Jev Agent
-passed      5.7s  tower: Social Media Studio
-passed      5.8s  tower: AI Commercialista (Italy)
+passed      5.5s  tower: AI Commercialista (Italy)
+passed      5.5s  tower: SRE Incident Responder
+passed      5.6s  tower: Social Media Studio
+passed      5.7s  tower: Ebook Studio
 passed      5.8s  tower: Invoicing with Fatture in Cloud
-passed      5.9s  tower: Ebook Studio
+passed      5.9s  hub chip: a read-only viewer sees the counters, a plain server shows no chip
+passed      6.0s  each card names its source; the row filters by machine and the URL keeps it
 passed      6.0s  tower: AI Video Studio
+passed      6.0s  tower: Marketing Studio
+passed      6.1s  reducing the card re-frames the scene
+passed      6.1s  tower: Sales Pipeline: prospect to invoice
+passed      6.1s  voice tour: "livello 3" during a tour ends it and leaves layer 3 focused
 passed      6.2s  remote activity: chips and library cards name the machines (#95)
-passed      6.2s  tower: Sales Pipeline: prospect to invoice
-passed      6.2s  voice tour: "livello 3" during a tour ends it and leaves layer 3 focused
-passed      6.2s  voice tour: Esc stops the tour, and the focused layer does not change afterwards
-passed      6.3s  each card names its source; the row filters by machine and the URL keeps it
-passed      6.3s  reducing the card re-frames the scene
-passed      6.4s  tower: Dev Squad
-passed      6.4s  tower: Marketing Studio
+passed      6.2s  tower: Dev Squad
+passed      6.3s  voice tour: Esc stops the tour, and the focused layer does not change afterwards
 passed      6.5s  keyboard: ArrowRight moves the Hub tabs and leaves the camera alone
-passed      6.5s  tower: Website & Web Design Studio
-passed      6.6s  hub chip: a read-only viewer sees the counters, a plain server shows no chip
-passed      7.0s  tower: Mobile App Studio
-passed      7.2s  tower: Legal Due Diligence
-passed      7.5s  export --pdf --level 3 passes when a referenced file contains JSON (#277)
+passed      6.6s  tower: Website & Web Design Studio
+passed      6.7s  tower: Legal Due Diligence
+passed      6.8s  tower: Mobile App Studio
+passed      8.0s  zoom is kept when moving to the next node of the same layer
+passed      8.2s  export --pdf --level 3 passes when a referenced file contains JSON (#277)
 passed      8.3s  voice tour: "panoramica guidata" walks the layers with captions, and avanti / indietro / stop move it
-passed      8.8s  tower: Syllabus Forge
-passed      9.2s  accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)
-passed      9.9s  zoom is kept when moving to the next node of the same layer
-passed     12.8s  tower: Forge Studio
-passed     13.9s  selecting a node zooms in on it and the camera follows the next ones
-passed     14.4s  machines: a later poll failing keeps the rows and warns
-passed     15.2s  export --pdf writes a checked PDF and exits 0
-passed     18.3s  the library (level 4) prints every named project with its own cover, and no dead link
-passed     50.3s  the 3D figures: the level-2 page draws every figure, three runs in a row
-passed     50.3s  the full document links node names to their sheets and prints no raw JSON
-passed    263.7s  the document prints to PDF at each level, and the full one is larger
+passed      8.8s  the full document links node names to their sheets and prints no raw JSON
+passed      9.3s  tower: Syllabus Forge
+passed      9.8s  selecting a node zooms in on it and the camera follows the next ones
+passed      9.9s  accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)
+passed      9.9s  the library (level 4) prints every named project with its own cover, and no dead link
+passed     13.4s  tower: Forge Studio
+passed     14.1s  export --pdf writes a checked PDF and exits 0
+passed     14.1s  machines: a later poll failing keeps the rows and warns
+passed     28.3s  the 3D figures: the level-2 page draws every figure, three runs in a row
+passed    163.0s  the document prints to PDF at each level, and the full one is larger

@@ -1,3 +1,6 @@
 # Findings checked by hand and kept: gitleaks scans the whole history, so a fingerprint names the commit that added the line.
 # The fake OpenRouter key the squad key tests write (#265), never a real one.
 195f8ae558fd8bc8a2d57d03b99e68df1b4c895e:tests/squad-key.test.ts:generic-api-key:9
+# Fake values in the scrub() redaction tests of the unattended runner (#320), never real credentials.
+67d4337490db80ad8727983f3de69be7fdf27667:tests/squad-runner-core.test.ts:generic-api-key:60
+67d4337490db80ad8727983f3de69be7fdf27667:tests/squad-runner-core.test.ts:generic-api-key:61

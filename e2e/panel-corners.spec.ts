@@ -7,7 +7,9 @@ declare global {
   }
 }
 
-const ID = ws.projects.find((p) => p.startsWith('dev-squad/'))!;
+// Pick the project with the largest layer: the window is short, so only a big layer overflows and gives the lists something to scroll.
+const largestLayer = (id: string) => Math.max(...ws.towers[id].layers.map((l) => l.nodes.length));
+const ID = ws.projects.reduce((best, p) => (largestLayer(p) > largestLayer(best) ? p : best));
 
 /**
  * The white corner marks sit on the .panel frame. An absolute child of a scroll container scrolls with it, so a
