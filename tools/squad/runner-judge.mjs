@@ -53,7 +53,8 @@ export function judgePrompt(findings, brief) {
 // back as { ok: false, error } so the lead can ask again instead of crashing the run.
 // A concrete supporting file goes straight into the Files line that steps.sh matches, so the grammar is strict: anything
 // parseFiles, a shell or a glob could read differently is refused. Protected paths (.git, .env) are refused, not granted.
-const PROTECTED = /(^|\/)(\.git|\.env)(\.[^/]*)?(\/|$)/;
+// Matching is case-insensitive because macOS and Windows folders are case-insensitive: ".GIT/config" is the real .git folder.
+const PROTECTED = /(^|\/)(\.git|\.env)(\.[^/]*)?(\/|$)/i;
 export function isConcreteFile(p) {
   if (typeof p !== 'string' || p === '' || p.startsWith('/') || p.startsWith('~')) return false;
   // Controls, whitespace, backslash, comma, wildcards, colon (line suffix), '+' (Files modifier) and braces are refused.
@@ -112,11 +113,16 @@ const insideRepo = (p) => p !== '' && !p.startsWith('/') && !p.startsWith('~') &
 // with none left, the result is null.
 // The extra files are checked again here, even though parseJudgement checked them: a direct caller must not widen the
 // Files line with an unsafe path, so any bad extra fails the whole task closed (null).
+// A finding file inside the repository that is not a concrete path (say "src/a.ts, .git/config", which would add a
+// second Files entry) also fails the task closed, instead of being left out like an outside path.
 export function fixTask(allKept, { issue, round, supportingFiles = [] }) {
   if (!Array.isArray(supportingFiles) || !supportingFiles.every(isConcreteFile)) return null;
-  const kept = allKept.filter((f) => insideRepo(String(f.file).replace(/:\d+(?:-\d+)?$/, '')));
+  const fileOf = (f) => String(f.file).replace(/:\d+(?:-\d+)?$/, '');
+  const inside = allKept.filter((f) => insideRepo(fileOf(f)));
+  if (inside.some((f) => !isConcreteFile(fileOf(f)))) return null;
+  const kept = inside;
   if (!kept.length) return null;
-  const files = [...new Set([...kept.map((f) => String(f.file).replace(/:\d+(?:-\d+)?$/, '')), ...supportingFiles])];
+  const files = [...new Set([...kept.map(fileOf), ...supportingFiles])];
   const items = kept.map((f, i) => stripFence(`${i + 1}. ${f.file}: ${f.what} Fix: ${f.fix}`));
   const text = [
     `# ${issue}-9${round}: fix the kept review findings (round ${round})`,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 // The procedure and its helpers are plain JavaScript; the fakes below record every call so the scope is checked in order.
 // @ts-expect-error plain .mjs without declarations
-import { fixTask, numberFindings, parseJudgement } from '../tools/squad/runner-judge.mjs';
+import { fixTask, isConcreteFile, numberFindings, parseJudgement } from '../tools/squad/runner-judge.mjs';
 // @ts-expect-error plain .mjs without declarations
 import { parseFiles } from '../tools/squad/files-check.mjs';
 // @ts-expect-error plain .mjs without declarations
@@ -198,5 +198,41 @@ describe('workIssue fix scope', () => {
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
     expect(calls).toContain('fail:lead-judge gave no usable answer');
     expect(calls.some((c) => c.startsWith('writeTasks:91-review-fixes'))).toBe(false);
+  });
+});
+
+describe('fixTask finding file safety', () => {
+  const finding = (file: string) => ({ id: 'R1', file, what: 'bug', why: 'x', fix: 'y' });
+
+  it('fails closed when a finding file smuggles a second path with a comma', () => {
+    expect(fixTask([finding('src/a.ts, .git/config')], { issue: '320', round: 1 })).toBeNull();
+  });
+
+  it('fails closed when one kept finding is unsafe, even next to a safe one', () => {
+    const task = fixTask([finding('src/a.ts'), finding('src/b.ts, .env')], { issue: '320', round: 1 });
+    expect(task).toBeNull();
+  });
+
+  it('still leaves out a finding outside the repository and keeps the rest', () => {
+    const task = fixTask([finding('../outside.ts'), finding('src/a.ts')], { issue: '320', round: 1 });
+    expect(parseFiles(task.text)).toEqual(['src/a.ts']);
+  });
+
+  it('keeps ordinary finding files with a line suffix or a range', () => {
+    const task = fixTask([finding('src/index.html:12'), finding('src/a.ts:3-9')], { issue: '320', round: 1 });
+    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/index.html, src/a.ts');
+  });
+
+  it('keeps the plain html finding file line', () => {
+    const task = fixTask([finding('src/index.html:12')], { issue: '320', round: 1 });
+    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/index.html');
+  });
+
+  it.each(['.GIT/config', '.ENV', 'app/.Env.local', '.git/hooks/pre-commit'])('isConcreteFile refuses %s', (p) => {
+    expect(isConcreteFile(p)).toBe(false);
+  });
+
+  it.each(['.GIT/config', '.ENV'])('refuses %s as a supporting file', (p) => {
+    expect(fixTask([finding('src/index.html')], { issue: '320', round: 1, supportingFiles: [p] })).toBeNull();
   });
 });

@@ -217,7 +217,7 @@ export async function workIssue(issue, deps, limits) {
       if (SENSITIVE.test(keptText)) stop(FIX_SENSITIVE);
       // A finding whose files are all outside the repository leaves nothing to fix in place, so the issue stops.
       const fix = fixTask(kept, { issue: n, round, supportingFiles: [...new Set(supportingFiles)] });
-      if (!fix) stop('kept findings name no file inside the repository');
+      if (!fix) stop('kept findings name no safe file inside the repository');
       const fixDir = await deps.writeTasks(wt.path, n, [fix]);
       await runSteps(deps, wt.path, fixDir, issue);
     }
