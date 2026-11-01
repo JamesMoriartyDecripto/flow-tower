@@ -51,17 +51,17 @@ export function judgePrompt(findings, brief) {
 
 // The last ```json block is the answer; a reply with no fence is read as bare JSON. Never throws: a bad answer comes
 // back as { ok: false, error } so the lead can ask again instead of crashing the run.
-// A concrete supporting file goes straight into the Files line that steps.sh matches, so the grammar is strict: anything
-// parseFiles, a shell or a glob could read differently is refused. Protected paths (.git, .env) are refused, not granted.
-// Matching is case-insensitive because macOS and Windows folders are case-insensitive: ".GIT/config" is the real .git folder.
-const PROTECTED = /(^|\/)(\.git|\.env)(\.[^/]*)?(\/|$)/i;
+// A concrete supporting file goes straight into the Files line that steps.sh matches, so the grammar is an allowlist:
+// any character a shell, a glob or parseFiles could read differently is refused, and so is a leading '-' (an option).
+// Secret paths are refused, not granted. SECRET mirrors run.mjs, gate.mjs and pack.mjs, so one list decides what is secret;
+// keep the four copies in step. Matching is case-insensitive because macOS and Windows folders are case-insensitive.
+const SAFE_SEGMENT = /^[A-Za-z0-9._@][A-Za-z0-9._@-]*$/;
+const SECRET = /(^|\/)(\.env[^/]*|.*\.(key|pem|p12|pfx|crt)|id_rsa[^/]*|\.npmrc|\.git|node_modules|\.ssh|\.config\/flow-tower)(\/|$)/i;
 export function isConcreteFile(p) {
-  if (typeof p !== 'string' || p === '' || p.startsWith('/') || p.startsWith('~')) return false;
-  // Controls, whitespace, backslash, comma, wildcards, colon (line suffix), '+' (Files modifier) and braces are refused.
-  if (/[\x00-\x20\x7f\\,*?[\]{}:+]/.test(p)) return false;
-  if (p.endsWith('/')) return false;
-  if (p.split('/').some((s) => s === '' || s === '.' || s === '..')) return false;
-  return !PROTECTED.test(p);
+  if (typeof p !== 'string' || p === '' || p.startsWith('/')) return false;
+  const segments = p.split('/');
+  if (!segments.every((s) => SAFE_SEGMENT.test(s) && s !== '.' && s !== '..')) return false;
+  return !SECRET.test(p);
 }
 
 // Keep or drop per id. A kept id may carry supportingFiles; a dropped id's supportingFiles are still validated (a malformed
@@ -120,14 +120,21 @@ const insideRepo = (p) => p !== '' && !p.startsWith('/') && !p.startsWith('~') &
 // Files line with an unsafe path, so any bad extra fails the whole task closed (null).
 // A finding file inside the repository that is not a concrete path (say "src/a.ts, .git/config", which would add a
 // second Files entry) also fails the task closed, instead of being left out like an outside path.
+// The finding files without their line suffix, then the supporting files, each once. Only findings inside the repository
+// count, so this is every path the Files line will name; the core checks these on disk before any task is written.
+const fileOf = (f) => String(f.file).replace(/:\d+(?:-\d+)?$/, '');
+export function fixPaths(allKept, supportingFiles = []) {
+  const inside = allKept.filter((f) => insideRepo(fileOf(f)));
+  return [...new Set([...inside.map(fileOf), ...supportingFiles])];
+}
+
 export function fixTask(allKept, { issue, round, supportingFiles = [] }) {
   if (!Array.isArray(supportingFiles) || !supportingFiles.every(isConcreteFile)) return null;
-  const fileOf = (f) => String(f.file).replace(/:\d+(?:-\d+)?$/, '');
   const inside = allKept.filter((f) => insideRepo(fileOf(f)));
   if (inside.some((f) => !isConcreteFile(fileOf(f)))) return null;
   const kept = inside;
   if (!kept.length) return null;
-  const files = [...new Set([...kept.map(fileOf), ...supportingFiles])];
+  const files = fixPaths(kept, supportingFiles);
   const items = kept.map((f, i) => stripFence(`${i + 1}. ${f.file}: ${f.what} Fix: ${f.fix}`));
   const text = [
     `# ${issue}-9${round}: fix the kept review findings (round ${round})`,

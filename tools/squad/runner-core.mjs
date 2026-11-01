@@ -1,15 +1,17 @@
 // The unattended lead's procedure (#320) as code. Each arrow is a check; a failed check stops the issue with a reason,
-// and the models make only the judgement calls (triage, plan, judge, verifier). No I/O here: every effect goes through
-// deps, so the tests run the whole path with fakes and the same facts always take the same path.
-import { statSync } from 'node:fs';
+// and the models make only the judgement calls (triage, plan, judge, verifier). Every effect goes through deps, so the
+// tests run the whole path with fakes and the same facts always take the same path. The one exception is the read-only
+// lstat of the Files paths below: it must see the worktree as it is, before any task is written, and it never writes.
+import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { fixTask, judgePrompt, numberFindings, parseJudgement, stripFence } from './runner-judge.mjs';
+import { fixPaths, fixTask, judgePrompt, numberFindings, parseJudgement, stripFence } from './runner-judge.mjs';
 import { parsePlan, taskFiles } from './runner-plan.mjs';
 
 // An area named here needs a human to sign off the plan before any code is written.
 const SENSITIVE = /auth|billing|payment|migration|permission|secret|privacy|personal|pii|gdpr/i;
 const SIGN_OFF = 'sensitive area in the plan: a person must lead this issue (plan sign-off)';
 const FIX_SENSITIVE = 'sensitive area in a fix round: a person must lead this issue';
+const FILES_NOT_REGULAR = 'fix files must name regular files, not directories or links';
 const ROUTES = ['full', 'needs_info', 'reject'];
 // The finish tool's report is the only text the caller gets back, so each prompt says the actual JSON goes in it.
 const FINISH_JSON = 'Call finish with the actual ```json block as the report (not a summary of it), then a `Known gaps:` line '
@@ -24,9 +26,10 @@ const PLAN_ASK = 'Plan the change for the issue below. Answer only with a ```jso
 class Stop extends Error {}
 const stop = (reason) => { throw new Stop(reason); };
 
-// A missing path is not a directory: statSync throws, and a fix may create that file.
-const isDirectory = (p) => {
-  try { return statSync(p).isDirectory(); } catch { return false; }
+// A Files path must be a regular file or a path that does not exist yet (a fix may create it). lstat, not stat, so a
+// symbolic link is seen as a link: following it could point the fix at a file outside the worktree.
+const isDirOrLink = (p) => {
+  try { const s = lstatSync(p); return s.isDirectory() || s.isSymbolicLink(); } catch { return false; }
 };
 
 const lastLines = (text, k) => String(text ?? '').split('\n').slice(-k).join('\n');
@@ -219,9 +222,10 @@ export async function workIssue(issue, deps, limits) {
       // Only kept ids carry supporting files (parseJudgement drops the rest), and their names are checked like the
       // finding files, so an extra file named for a sensitive area stops the issue before any task is written.
       const supportingFiles = kept.flatMap((f) => j.supporting?.[f.id] ?? []);
-      // A directory granted as a supporting file would match every file under it by prefix in files-check, so it is refused.
-      // A file that does not exist yet is allowed, because a fix may create it; only an existing directory is a stop.
-      if (supportingFiles.some((p) => isDirectory(join(wt.path, p)))) stop('supporting file names a directory, not a file');
+      // Every path the Files line will name is checked on disk, finding files included: a directory would match every file
+      // under it by prefix in files-check, and a link could lead outside the worktree. A missing path is allowed (it may be created).
+      const filePaths = fixPaths(kept, [...new Set(supportingFiles)]);
+      if (filePaths.some((p) => isDirOrLink(join(wt.path, p)))) stop(FILES_NOT_REGULAR);
       const keptText = [...kept.flatMap((f) => [f.file, f.what, f.why, f.fix]), ...supportingFiles].join('\n');
       if (SENSITIVE.test(keptText)) stop(FIX_SENSITIVE);
       // A finding whose files are all outside the repository leaves nothing to fix in place, so the issue stops.

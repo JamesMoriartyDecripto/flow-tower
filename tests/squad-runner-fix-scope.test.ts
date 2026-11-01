@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -275,7 +275,52 @@ describe('supporting file limits and prompt', () => {
     });
     deps.worktree = async () => ({ path: wtPath, branch: 'squad/91' });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
-    expect(calls).toContain('fail:supporting file names a directory, not a file');
+    expect(calls).toContain('fail:fix files must name regular files, not directories or links');
+    expect(calls.some((c) => c.startsWith('writeTasks:91-review-fixes'))).toBe(false);
+  });
+});
+
+describe('isConcreteFile allowlist', () => {
+  it.each(['src/a;id', 'src/$(id)', '-rf', 'src/a b'])('refuses %s', (p) => {
+    expect(isConcreteFile(p)).toBe(false);
+  });
+
+  it.each(['.ssh/config', 'keys/x.pem', 'id_rsa', '.npmrc'])('refuses the secret path %s', (p) => {
+    expect(isConcreteFile(p)).toBe(false);
+  });
+
+  it.each(['src/index.html', 'src/@types/x.d.ts', '.gitignore', 'docs/a-b_c.md'])('accepts %s', (p) => {
+    expect(isConcreteFile(p)).toBe(true);
+  });
+});
+
+describe('workIssue Files path on disk', () => {
+  it('stops when a kept finding file is an existing directory, before writeTasks', async () => {
+    const wtPath = mkdtempSync(join(tmpdir(), 'squad-wt-'));
+    mkdirSync(join(wtPath, 'src'));
+    const { deps, calls } = fakeDeps({
+      triage: [triageFull],
+      architect: [fence(PLAN)],
+      'lead-judge': [KEEP()],
+    }, { findings: [{ file: 'src', what: 'bug', why: 'x', fix: 'y' }] });
+    deps.worktree = async () => ({ path: wtPath, branch: 'squad/91' });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:fix files must name regular files, not directories or links');
+    expect(calls.some((c) => c.startsWith('writeTasks:91-review-fixes'))).toBe(false);
+  });
+
+  it('stops when a supporting file is a symbolic link, before writeTasks', async () => {
+    const wtPath = mkdtempSync(join(tmpdir(), 'squad-wt-'));
+    const outside = mkdtempSync(join(tmpdir(), 'squad-out-'));
+    symlinkSync(outside, join(wtPath, 'linked'));
+    const { deps, calls } = fakeDeps({
+      triage: [triageFull],
+      architect: [fence(PLAN)],
+      'lead-judge': [KEEP({ supportingFiles: ['linked'] })],
+    });
+    deps.worktree = async () => ({ path: wtPath, branch: 'squad/91' });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:fix files must name regular files, not directories or links');
     expect(calls.some((c) => c.startsWith('writeTasks:91-review-fixes'))).toBe(false);
   });
 });
