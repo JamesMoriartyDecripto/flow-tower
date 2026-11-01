@@ -136,13 +136,13 @@ describe('fixTask supportingFiles', () => {
     const task = fixTask([...kept, { id: 'R9', file: 'src/catalog.js:5', what: 'c', fix: 'd' }], {
       issue: '320', round: 1, supportingFiles: ['src/index.html', 'src/catalog.js'],
     });
-    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/index.html, src/catalog.js');
-    expect(parseFiles(task.text)).toEqual(['src/index.html', 'src/catalog.js']);
+    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/index.html (optional), src/catalog.js (optional)');
+    expect(parseFiles(task.text, { all: true })).toEqual(['src/index.html', 'src/catalog.js']);
   });
 
   it('keeps the legacy Files line when no supporting files are given', () => {
     const task = fixTask(kept, { issue: '320', round: 1 });
-    expect(parseFiles(task.text)).toEqual(['src/index.html']);
+    expect(parseFiles(task.text, { all: true })).toEqual(['src/index.html']);
   });
 
   it.each([
@@ -167,7 +167,7 @@ describe('workIssue fix scope', () => {
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
     expect(calls).toContain('writeTasks:91-review-fixes.md');
     const fixText = written.find((t) => t.includes('fix the kept review findings'));
-    expect(parseFiles(fixText)).toEqual(['src/index.html', 'src/catalog.js']);
+    expect(parseFiles(fixText, { all: true })).toEqual(['src/index.html', 'src/catalog.js']);
   });
 
   it('stops before any fix write when a kept supporting file is sensitive', async () => {
@@ -189,7 +189,7 @@ describe('workIssue fix scope', () => {
     });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
     expect(calls.filter((c) => c === 'role:lead-judge')).toHaveLength(2);
-    expect(parseFiles(written.find((t) => t.includes('fix the kept review findings'))))
+    expect(parseFiles(written.find((t) => t.includes('fix the kept review findings')), { all: true }))
       .toEqual(['src/index.html', 'src/catalog.js']);
   });
 
@@ -237,17 +237,24 @@ describe('fixTask finding file safety', () => {
 
   it('still leaves out a finding outside the repository and keeps the rest', () => {
     const task = fixTask([finding('../outside.ts'), finding('src/a.ts')], { issue: '320', round: 1 });
-    expect(parseFiles(task.text)).toEqual(['src/a.ts']);
+    expect(parseFiles(task.text, { all: true })).toEqual(['src/a.ts']);
   });
 
   it('keeps ordinary finding files with a line suffix or a range', () => {
     const task = fixTask([finding('src/index.html:12'), finding('src/a.ts:3-9')], { issue: '320', round: 1 });
-    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/index.html, src/a.ts');
+    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/index.html (optional), src/a.ts (optional)');
   });
 
   it('keeps the plain html finding file line', () => {
     const task = fixTask([finding('src/index.html:12')], { issue: '320', round: 1 });
-    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/index.html');
+    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/index.html (optional)');
+  });
+
+  it('marks every fix entry optional and parseFiles with all keeps the paths', () => {
+    const task = fixTask([finding('README.md'), finding('src/index.html:4')], { issue: '320', round: 1 });
+    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: README.md (optional), src/index.html (optional)');
+    expect(parseFiles(task.text, { all: true })).toEqual(['README.md', 'src/index.html']);
+    expect(parseFiles(task.text)).toEqual([]);
   });
 
   it.each(['.GIT/config', '.ENV', 'app/.Env.local', '.git/hooks/pre-commit'])('isConcreteFile refuses %s', (p) => {
@@ -422,5 +429,15 @@ describe('control files named through Files entry markers and directories', () =
 
   it('controlEntry is false for a non-control file with stacked markers', () => {
     expect(controlEntry('src/app.js (optional)+')).toBe(false);
+  });
+});
+
+describe('parseFiles optional entries', () => {
+  it('with all keeps an optional entry as its bare path', () => {
+    expect(parseFiles('Files: README.md (optional), src/a.ts+', { all: true })).toEqual(['README.md', 'src/a.ts']);
+  });
+
+  it('by default still drops an optional entry', () => {
+    expect(parseFiles('Files: README.md (optional), src/a.ts+')).toEqual(['src/a.ts']);
   });
 });

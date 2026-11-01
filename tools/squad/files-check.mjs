@@ -10,8 +10,9 @@ const USAGE = 'usage: node tools/squad/files-check.mjs <task.md> <base-rev> [rep
   + '       node tools/squad/files-check.mjs --gaps <report.txt>';
 
 // The last Files: line wins: a task may quote an earlier one in its prose. A trailing "+" marks a new file (the
-// check does not need it), and "(optional)" marks a path that need not be touched.
-export function parseFiles(taskText) {
+// check does not need it), and "(optional)" marks a path that need not be touched. With { all: true } the optional
+// paths are kept too (marker removed): they may still be written, so the write scope must cover them.
+export function parseFiles(taskText, { all = false } = {}) {
   const lines = String(taskText).split('\n').filter((l) => /^Files:/.test(l));
   if (!lines.length) return [];
   return lines[lines.length - 1]
@@ -19,7 +20,8 @@ export function parseFiles(taskText) {
     .split(',')
     .map((e) => e.trim())
     .filter(Boolean)
-    .filter((e) => !/\s\(optional\)$/.test(e))
+    .filter((e) => all || !/\s\(optional\)$/.test(e))
+    .map((e) => e.replace(/\s\(optional\)$/, ''))
     .map((e) => e.replace(/\+$/, '').trim())
     .filter(Boolean);
 }

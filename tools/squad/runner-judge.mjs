@@ -149,7 +149,9 @@ export function fixTask(allKept, { issue, round, supportingFiles = [] }) {
     ...items,
     '</finding-data>',
     '',
-    `Files: ${files.join(', ')}`,
+    // Every fix file is optional: a fix round bounds where the coder may write, and a finding may be fixed in another
+    // file than the one it quotes (say README.md quoted, src/index.html fixed). A required entry would fail the check.
+    `Files: ${files.map((f) => `${f} (optional)`).join(', ')}`,
     '',
   ].join('\n');
   return { name: `9${round}-review-fixes.md`, text };
