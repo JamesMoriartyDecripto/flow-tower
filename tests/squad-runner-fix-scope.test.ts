@@ -393,3 +393,26 @@ describe('control files are checked on paths, not prose', () => {
     }
   });
 });
+
+describe('control files named through Files entry markers and directories', () => {
+  it.each([
+    ['package.json+'],
+    ['package.json (optional)'],
+    ['tools/squad'],
+    ['.github'],
+    ['tools/**'],
+  ])('stops the plan when a step file is %s', async (entry) => {
+    const plan = { ...PLAN, steps: [{ title: 'Edit', items: ['change it'], files: [entry] }] };
+    const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(plan)] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:sensitive area in the plan: a person must lead this issue (plan sign-off)');
+    expect(calls.some((c) => c.startsWith('writeTasks:'))).toBe(false);
+  });
+
+  it('reaches pr when the plan names a glob and a new file that are not control files', async () => {
+    const plan = { ...PLAN, steps: [{ title: 'Add app', items: ['write it'], files: ['src/**', 'src/app.js+'] }] };
+    const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(plan)], 'lead-judge': [KEEP()] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(calls).toContain('draftPr');
+  });
+});
