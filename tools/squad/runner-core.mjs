@@ -166,10 +166,14 @@ function droppedComment(drop, byId) {
   return ['Lead judge dropped these review findings:', ...lines].join('\n');
 }
 
-function prBody(issue, plan, dropped, spend) {
+// Open findings are the kept ones left after the last fix round; the section is omitted when there are none.
+function prBody(issue, plan, dropped, open, spend) {
+  const openLines = open.length
+    ? ['', 'Open findings (after the last fix round):', ...open.map((o) => `- ${o.id} (\`${o.file}\`): ${o.what}`)]
+    : [];
   return [`Refs #${issue.number}`, '', 'Plan:', ...plan.criteria.map((c) => `- ${c}`), '',
     'Dropped findings:', ...(dropped.length ? dropped.map((d) => `- ${d.id} (\`${d.file}\`): ${d.reason}`) : ['- none']),
-    '', `Spend: $${spend}`, ''].join('\n');
+    ...openLines, '', `Spend: $${spend}`, ''].join('\n');
 }
 
 // Runs one issue through the whole procedure and returns 'skipped', 'rejected', 'needs_info', 'pr' or 'failed'.
@@ -227,6 +231,7 @@ export async function workIssue(issue, deps, limits) {
 
     // Quality: each round the findings are judged; kept ones become one fix step, then the steps run again.
     const dropped = [];
+    let open = [];
     for (let round = 1; round <= limits.fixRounds + 1; round++) {
       await guard();
       const q = await deps.quality(wt.path, issue);
@@ -239,7 +244,15 @@ export async function workIssue(issue, deps, limits) {
       if (j.drop.length) await gh.comment(n, droppedComment(j.drop, byId));
       const kept = findings.filter((f) => j.keep.includes(f.id));
       if (!kept.length) break;
-      if (round > limits.fixRounds) stop(`findings still open after ${limits.fixRounds} fix rounds`);
+      // Past the last round, a kept security finding stops the issue unless its severity is clearly low or medium. Severity
+      // is model text, so anything else (High., missing, "critical (CVSS 9)") fails closed. Other kept findings are recorded
+      // as open, so the verifier and the draft PR see them and a person reviews them there.
+      if (round > limits.fixRounds) {
+        const blocking = kept.some((f) => f.role === 'security' && !/^(medium|low)$/i.test(String(f.severity ?? '').trim()));
+        if (blocking) stop(`findings still open after ${limits.fixRounds} fix rounds`);
+        open = kept.map((f) => ({ id: f.id, file: f.file, what: f.what }));
+        break;
+      }
       // The fix round edits files the plan never named, so the sensitive-area rule is checked on the kept findings too.
       // Only kept ids carry supporting files (parseJudgement drops the rest), and their names are checked like the
       // finding files, so an extra file named for a sensitive area stops the issue before any task is written.
@@ -274,7 +287,7 @@ export async function workIssue(issue, deps, limits) {
     const spend = await guard();
     await deps.push(wt.path, wt.branch);
     // The PR body quotes the dropped findings, which can carry child output, so it is scrubbed like the comments.
-    const bodyDir = await deps.writeTasks(wt.path, n, [{ name: 'PR_BODY.md', text: scrub(prBody(issue, plan, dropped, spend)) }]);
+    const bodyDir = await deps.writeTasks(wt.path, n, [{ name: 'PR_BODY.md', text: scrub(prBody(issue, plan, dropped, open, spend)) }]);
     const url = await deps.gh.draftPr({
       branch: wt.branch, base: 'main', title: prTitle(issue), bodyFile: join(bodyDir, 'PR_BODY.md'),
     });
