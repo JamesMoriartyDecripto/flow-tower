@@ -1,0 +1,9 @@
+{
+  "project": "Synthetic pilot case A: price formatter (plain Node, no dependencies)",
+  "commands": {
+    "check": "node --test",
+    "test": "node --test {file}"
+  },
+  "write": ["src", "tests"],
+  "review": ["src", "tests"]
+}

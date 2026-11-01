@@ -1,0 +1,8 @@
+{"ts":"2026-10-29T15:43:49.299Z","project":"105-smoke-repo","issue":"105","role":"triage","model":"anthropic/claude-haiku-5.5","steps":1,"cost":0.000454,"promptTokens":1304,"cachedTokens":0,"outcome":"finish","mode":"loop"}
+{"ts":"2026-10-29T15:44:19.045Z","project":"105-smoke-repo","issue":"105","role":"triage","model":"z-ai/glm-5.3-flash","steps":1,"cost":0.000068,"promptTokens":808,"cachedTokens":0,"outcome":"finish","mode":"loop"}
+{"ts":"2026-10-29T15:44:21.044Z","project":"105-smoke-repo","issue":"105","role":"triage","model":"deepseek/deepseek-v4.1-flash","steps":1,"cost":0.000572,"promptTokens":920,"cachedTokens":0,"outcome":"finish","mode":"loop"}
+{"ts":"2026-10-29T15:44:23.489Z","project":"105-smoke-repo","issue":"105","role":"triage","model":"openai/gpt-6-luna","steps":1,"cost":0.000083,"promptTokens":544,"cachedTokens":0,"outcome":"finish","mode":"loop"}
+{"ts":"2026-10-29T15:44:26.249Z","project":"105-smoke-repo","issue":"105","role":"triage","model":"xiaomi/mimo-v2.6-flash","steps":1,"cost":0.000173,"promptTokens":752,"cachedTokens":0,"outcome":"finish","mode":"loop"}
+{"ts":"2026-10-29T15:44:28.345Z","project":"105-smoke-repo","issue":"105","role":"triage","model":"minimax/minimax-m3.1-flash","steps":1,"cost":0.000289,"promptTokens":1065,"cachedTokens":128,"outcome":"finish","mode":"loop"}
+{"ts":"2026-10-29T15:44:35.912Z","project":"105-smoke-repo","issue":"105","role":"triage","model":"qwen/qwen3.8-flash","steps":1,"cost":0.000353,"promptTokens":978,"cachedTokens":0,"outcome":"finish","mode":"loop"}
+{"ts":"2026-10-29T15:44:39.883Z","project":"105-smoke-repo","issue":"105","role":"triage","model":"google/gemini-3.8-flash","steps":1,"cost":0.000973,"promptTokens":533,"cachedTokens":0,"outcome":"finish","mode":"loop"}
