@@ -34,7 +34,7 @@ const FINISH_JSON = 'Call finish with the actual ```json block as the report (no
 const TRIAGE_ASK = 'Classify the issue below. Answer only with a ```json block: {"route": "full" | "needs_info" | "reject", '
   + '"areas": [strings], "questions": [strings], "rationale": "..."}. ' + FINISH_JSON;
 const PLAN_ASK = 'Plan the change for the issue below. Answer only with a ```json block: {"criteria": [strings], "steps": '
-  + '[{"title": "...", "items": [1 to 3 strings], "files": ["relative/path", "new/path+"]}]}, with 1 to 8 steps. A "+" marks a new file. '
+  + '[{"title": "...", "items": [1 to 3 strings], "files": ["relative/path", "new/path+"]}]}, with 1 to 8 steps. A "+" marks a new file. Each step is a code change the coder makes with file tools and the project checks; list only the files that step must edit. The runner itself runs the checks, review and verifier and opens the draft PR, so no step does those. '
   + FINISH_JSON;
 
 // A stop is a failed check: its message is the reason the issue is written up with.

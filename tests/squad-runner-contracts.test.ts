@@ -164,3 +164,17 @@ describe('original requirements reach the judge and the verifier', () => {
     expect(prompts.verifier).toContain('<plan-data>\nCriteria: tests exist\n</plan-data>');
   });
 });
+
+describe('architect plan scope', () => {
+  it('tells the architect that steps hold only code changes and the runner opens the draft PR', async () => {
+    const { deps, prompts } = fakeDeps((name) => {
+      if (name === 'triage') return { ok: true, text: TRIAGE };
+      if (name === 'architect') return { ok: true, text: PLAN_REPORT };
+      if (name === 'lead-judge') return { ok: true, text: report(fence({ R1: { decision: 'drop', reason: 'noise' } })) };
+      return { ok: true, text: PASS };
+    }, { findings: [{ file: 'src/a.ts:3', what: 'bug', why: 'x', fix: 'y' }] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(prompts.architect).toContain('list only the files that step must edit');
+    expect(prompts.architect).toContain('opens the draft PR, so no step does those');
+  });
+});
