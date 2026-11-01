@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Fixed
+
+- Squad: `squad.json` refuses a command with shell syntax (`&&`, pipes, redirects, `$(…)`, quotes) when it is loaded, and `squad doctor` reports it: the runner runs commands without a shell, so such a command could only fail at every step (#382).
+
 ## [0.16.0] - 2026-11-01
 
 ### Added

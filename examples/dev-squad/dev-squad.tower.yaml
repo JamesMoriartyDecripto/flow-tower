@@ -347,7 +347,7 @@ layers:
         runtime: laptop
         type: memory
         label: squad.json
-        description: "Per project: check/test commands, write and review folders, the diff base, project rules and the model of each role."
+        description: "Per project: check/test commands, write and review folders, the diff base, project rules and the model of each role. The runner runs commands without a shell, so a command with shell syntax is refused when loaded."
         files: [squad.example.json]
       - id: doctor
         runtime: laptop
