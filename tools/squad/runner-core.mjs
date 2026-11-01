@@ -27,7 +27,8 @@ class Stop extends Error {}
 const stop = (reason) => { throw new Stop(reason); };
 
 // A Files path must be a regular file or a path that does not exist yet (a fix may create it). lstat, not stat, so a
-// symbolic link is seen as a link: following it could point the fix at a file outside the worktree.
+// link in the last segment is seen as a link. A link in a parent folder is left to run.mjs, which checks every coder
+// write on its real path (#169).
 const isDirOrLink = (p) => {
   try { const s = lstatSync(p); return s.isDirectory() || s.isSymbolicLink(); } catch { return false; }
 };
