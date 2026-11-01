@@ -9,7 +9,7 @@ import { fixTask, isConcreteFile, judgePrompt, numberFindings, parseJudgement } 
 // @ts-expect-error plain .mjs without declarations
 import { parseFiles } from '../tools/squad/files-check.mjs';
 // @ts-expect-error plain .mjs without declarations
-import { workIssue } from '../tools/squad/runner-core.mjs';
+import { controlEntry, workIssue } from '../tools/squad/runner-core.mjs';
 
 const ISSUE = { number: 91, title: 'Add a badge', body: 'Show a badge on the card.' };
 const LIMITS = { usdPerIssue: 5, minutes: 30, fixRounds: 1 };
@@ -366,5 +366,61 @@ describe('workIssue Files path on disk', () => {
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
     expect(calls).toContain('fail:fix files must name regular files, not directories or links');
     expect(calls.some((c) => c.startsWith('writeTasks:91-review-fixes'))).toBe(false);
+  });
+});
+
+describe('control files are checked on paths, not prose', () => {
+  it('reaches pr when the issue body only names package.json and tools/squad/squad.json in prose', async () => {
+    const issue = { ...ISSUE, body: 'The repo already has package.json and project rules in tools/squad/squad.json.' };
+    const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(PLAN)], 'lead-judge': [KEEP()] });
+    expect(await workIssue(issue, deps, LIMITS)).toBe('pr');
+    expect(calls).toContain('draftPr');
+  });
+
+  it('stops with the plan sign-off message when a plan step file is package.json', async () => {
+    const plan = { ...PLAN, steps: [{ title: 'Bump dep', items: ['edit manifest'], files: ['package.json'] }] };
+    const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(plan)] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:sensitive area in the plan: a person must lead this issue (plan sign-off)');
+    expect(calls.some((c) => c.startsWith('writeTasks:'))).toBe(false);
+  });
+
+  it('still stops a fix round that names .github/workflows/ci.yml or tools/squad/squad.json as a path', async () => {
+    for (const p of ['.github/workflows/ci.yml', 'tools/squad/squad.json']) {
+      const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(PLAN)], 'lead-judge': [KEEP({ supportingFiles: [p] })] });
+      expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+      expect(calls).toContain('fail:sensitive area in a fix round: a person must lead this issue');
+    }
+  });
+});
+
+describe('control files named through Files entry markers and directories', () => {
+  it.each([
+    ['package.json+'],
+    ['package.json (optional)'],
+    ['tools/squad'],
+    ['.github'],
+    ['tools/**'],
+  ])('stops the plan when a step file is %s', async (entry) => {
+    const plan = { ...PLAN, steps: [{ title: 'Edit', items: ['change it'], files: [entry] }] };
+    const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(plan)] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:sensitive area in the plan: a person must lead this issue (plan sign-off)');
+    expect(calls.some((c) => c.startsWith('writeTasks:'))).toBe(false);
+  });
+
+  it('reaches pr when the plan names a glob and a new file that are not control files', async () => {
+    const plan = { ...PLAN, steps: [{ title: 'Add app', items: ['write it'], files: ['src/**', 'src/app.js+'] }] };
+    const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(plan)], 'lead-judge': [KEEP()] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(calls).toContain('draftPr');
+  });
+
+  it.each(['package.json (optional)+', 'package.json++', 'package.json+ (optional)'])('controlEntry strips every marker in %s', (entry) => {
+    expect(controlEntry(entry)).toBe(true);
+  });
+
+  it('controlEntry is false for a non-control file with stacked markers', () => {
+    expect(controlEntry('src/app.js (optional)+')).toBe(false);
   });
 });

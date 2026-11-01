@@ -200,8 +200,9 @@ node tools/squad/runner.mjs                # poll until stopped (Ctrl+C)
 
 Per issue it:
 1. claims the issue (`squad:go` becomes `squad:running`, read back so two runners never share one);
-2. triages it (reject and needs_info are answered on the issue; a sensitive area stops it for a person: auth, billing,
-   secrets, personal data, and the files that run CI or the runner itself: `.github/`, `tools/squad/`, `package.json`);
+2. triages it (reject and needs_info are answered on the issue; a sensitive area such as auth, billing, secrets or
+   personal data stops it for a person, and so does a plan or fix that edits `.github/`, `tools/squad/` or
+   `package.json`, the files that run CI or the runner itself);
 3. makes a worktree `squad/<n>-<slug>` under the user folder;
 4. plans as JSON, writes the task files and posts the plan on the issue;
 5. runs `steps.sh`;
