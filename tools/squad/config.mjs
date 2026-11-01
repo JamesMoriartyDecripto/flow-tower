@@ -38,7 +38,7 @@ export const DEFAULTS = {
 const EXTRAS = ['validate', 'dryrun'];
 
 // The style sentence is shared on purpose: the loop's system prompt and the one-request prompts must say the same thing.
-export const STYLE_RULES = 'English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines; prefer the efficient approach when it adds no complexity: batch work instead of handling items one by one, do not repeat work, run independent I/O concurrently (e.g. Promise.all); no premature optimization. Write the minimum that meets the task: no abstraction, option or check it does not ask for. Never touch secret files.';
+export const STYLE_RULES = 'English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines, but change only the lines the task needs: if a file would pass ~400 lines, say so in Known gaps instead of trimming other code; prefer the efficient approach when it adds no complexity: batch work instead of handling items one by one, do not repeat work, run independent I/O concurrently (e.g. Promise.all); no premature optimization. Write the minimum that meets the task: no abstraction, option or check it does not ask for. Never touch secret files.';
 
 export function configPath(repo) {
   return join(repo, 'tools', 'squad', 'squad.json');

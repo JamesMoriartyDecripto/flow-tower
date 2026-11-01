@@ -53,3 +53,10 @@ describe('reviewed line header', () => {
     expect(text).not.toContain('if (reviewed) console.log(`');
   });
 });
+
+describe('STYLE_RULES line scope', () => {
+  it('asks the coder to change only the needed lines and report a long file in Known gaps', () => {
+    expect(STYLE_RULES).toContain('change only the lines the task needs');
+    expect(STYLE_RULES).toContain('say so in Known gaps instead of trimming other code');
+  });
+});
