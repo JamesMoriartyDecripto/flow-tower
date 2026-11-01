@@ -210,10 +210,13 @@ export async function workIssue(issue, deps, limits) {
       if (!kept.length) break;
       if (round > limits.fixRounds) stop(`findings still open after ${limits.fixRounds} fix rounds`);
       // The fix round edits files the plan never named, so the sensitive-area rule is checked on the kept findings too.
-      const keptText = kept.flatMap((f) => [f.file, f.what, f.why, f.fix]).join('\n');
+      // Only kept ids carry supporting files (parseJudgement drops the rest), and their names are checked like the
+      // finding files, so an extra file named for a sensitive area stops the issue before any task is written.
+      const supportingFiles = kept.flatMap((f) => j.supporting?.[f.id] ?? []);
+      const keptText = [...kept.flatMap((f) => [f.file, f.what, f.why, f.fix]), ...supportingFiles].join('\n');
       if (SENSITIVE.test(keptText)) stop(FIX_SENSITIVE);
       // A finding whose files are all outside the repository leaves nothing to fix in place, so the issue stops.
-      const fix = fixTask(kept, { issue: n, round });
+      const fix = fixTask(kept, { issue: n, round, supportingFiles: [...new Set(supportingFiles)] });
       if (!fix) stop('kept findings name no file inside the repository');
       const fixDir = await deps.writeTasks(wt.path, n, [fix]);
       await runSteps(deps, wt.path, fixDir, issue);
