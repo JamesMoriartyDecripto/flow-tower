@@ -1,0 +1,7 @@
+# 320-01: explicit machine-readable finish reports
+
+Rules: English only; never touch secret files; edit only Files; preserve existing work; never rewrite or empty an existing test file, append cases. Files under 400 lines, comments explain why. Verify: run check, then finish with real checks and Known gaps.
+Read tools/squad/runner-core.mjs, tools/squad/runner-judge.mjs, tools/squad/roles.mjs and tests/squad-runner-core.test.ts.
+1. Explicitly instruct triage, architect, lead-judge and verifier in their runner prompts to put the ACTUAL requested result inside the finish tool report. Earlier assistant messages are not returned to callers. JSON roles: fenced JSON plus Known gaps outside the fence. Verifier: PASS/HOLD first line inside finish.report, then evidence and Known gaps. Preserve generic role finishRule and existing parsers (do not recover intermediate prose or broaden accepted outcomes). Keep retry/error paths.
+2. Add tests/squad-runner-contracts.test.ts with a small fake deps fixture capturing prompts and role returns: assert four stage prompts request finish report, realistic fenced finish JSON followed by Known gaps parses and reaches draft PR, and a failed role result with valid-looking JSON does not pass. Include a judge route in the fixture so its prompt is captured. Preserve all existing tests.
+Files: tools/squad/runner-core.mjs, tools/squad/runner-judge.mjs, tests/squad-runner-contracts.test.ts+

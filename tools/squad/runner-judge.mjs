@@ -25,7 +25,7 @@ export function judgePrompt(findings, brief) {
     const tag = f.severity ? `${f.role}, ${f.severity}` : f.role;
     return stripFence(`- **${f.id}** (${tag}) \`${f.file}\`: ${f.what} Why: ${f.why} Fix: ${f.fix}`);
   });
-  const ids = findings.map((f) => `"${f.id}": {"decision": "keep" | "drop", "reason": "..."}`);
+  const ids = findings.map((f) => `"${f.id}": {"decision": "keep" | "drop", "reason": "...", "supportingFiles": ["relative/file.ext"]}`);
   return [
     String(brief ?? '').trim(),
     '',
@@ -37,15 +37,38 @@ export function judgePrompt(findings, brief) {
     '',
     'Rule: keep: a real defect this pull request introduces, or makes reachable or worse even on a line it does not touch; drop: wrong, harmless, already handled, or a pre-existing defect this pull request does not affect.',
     '',
+    // Extra files widen the fix step's write scope, so the judge names them only when a kept fix must edit them.
+    'supportingFiles is optional and only for a keep: list at most 5 concrete relative paths (no spaces, commas, wildcards, line numbers or trailing slash) that the fix must actually edit, other than the finding file itself. Never list a directory, read-only dependencies, paths that only appear in prose, or the whole plan. Leave the field out when the finding file is enough.',
+    '',
     'Answer only with a ```json block, with every id:',
     '```json',
     `{${ids.join(', ')}}`,
     '```',
+    // The finish report is the only text the lead gets back, so the JSON block must be in it, not summarised.
+    'Call finish with the actual ```json block as the report (not a summary of it), then a `Known gaps:` line after the block.',
   ].join('\n');
 }
 
 // The last ```json block is the answer; a reply with no fence is read as bare JSON. Never throws: a bad answer comes
 // back as { ok: false, error } so the lead can ask again instead of crashing the run.
+// A concrete supporting file goes straight into the Files line that steps.sh matches, so the grammar is an allowlist:
+// any character a shell, a glob or parseFiles could read differently is refused, and so is a leading '-' (an option).
+// Secret paths are refused, not granted. SECRET mirrors run.mjs, gate.mjs and pack.mjs, so one list decides what is secret;
+// keep the four copies in step. Matching is case-insensitive because macOS and Windows folders are case-insensitive.
+const SAFE_SEGMENT = /^[A-Za-z0-9._@][A-Za-z0-9._@-]*$/;
+const SECRET = /(^|\/)(\.env[^/]*|.*\.(key|pem|p12|pfx|crt)|id_rsa[^/]*|\.npmrc|\.git|node_modules|\.ssh|\.config\/flow-tower)(\/|$)/i;
+export function isConcreteFile(p) {
+  if (typeof p !== 'string' || p === '' || p.startsWith('/')) return false;
+  const segments = p.split('/');
+  if (!segments.every((s) => SAFE_SEGMENT.test(s) && s !== '.' && s !== '..')) return false;
+  return !SECRET.test(p);
+}
+
+// Keep or drop per id. A kept id may carry supportingFiles; a dropped id's supportingFiles are still validated (a malformed
+// answer is refused) but never granted. Unknown ids in the answer are ignored, so they grant nothing. The result has a
+// supporting map only when some kept finding names extra files, so the legacy answer keeps its exact shape.
+// More than 5 extra files would widen the fix step's write scope past what one finding needs, so the answer is refused.
+const MAX_SUPPORTING_FILES = 5;
 export function parseJudgement(text, ids) {
   const s = String(text ?? '');
   const fences = [...s.matchAll(/```json\s*([\s\S]*?)```/g)];
@@ -55,16 +78,27 @@ export function parseJudgement(text, ids) {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'answer is not an object' };
   const keep = [];
   const drop = [];
+  const supporting = {};
   for (const id of ids) {
     const entry = raw[id];
     if (entry === null || typeof entry !== 'object') return { ok: false, error: `${id}: no decision` };
     if (entry.decision !== 'keep' && entry.decision !== 'drop') return { ok: false, error: `${id}: decision must be keep or drop` };
     const reason = typeof entry.reason === 'string' ? entry.reason.trim() : '';
     if (!reason) return { ok: false, error: `${id}: reason is empty` };
+    const files = entry.supportingFiles;
+    if (files !== undefined) {
+      if (!Array.isArray(files) || !files.every(isConcreteFile)) {
+        return { ok: false, error: `${id}: supportingFiles must be concrete relative paths inside the repository` };
+      }
+      if (files.length > MAX_SUPPORTING_FILES) {
+        return { ok: false, error: `${id}: supportingFiles allows at most ${MAX_SUPPORTING_FILES} files` };
+      }
+      if (entry.decision === 'keep' && files.length) supporting[id] = [...new Set(files)];
+    }
     if (entry.decision === 'keep') keep.push(id);
     else drop.push({ id, reason });
   }
-  return { ok: true, keep, drop };
+  return Object.keys(supporting).length ? { ok: true, keep, drop, supporting } : { ok: true, keep, drop };
 }
 
 // The one fence rule, shared by the plan, the core and this module. The reviewer's text and the issue are both model or
@@ -82,10 +116,25 @@ const insideRepo = (p) => p !== '' && !p.startsWith('/') && !p.startsWith('~') &
 // The fix step sorts after the plan's steps (9<round>-...), and its Files line lists each file once, without the
 // :line suffix, because steps.sh matches Files entries against paths. Findings outside the repository are left out;
 // with none left, the result is null.
-export function fixTask(allKept, { issue, round }) {
-  const kept = allKept.filter((f) => insideRepo(String(f.file).replace(/:\d+(?:-\d+)?$/, '')));
+// The extra files are checked again here, even though parseJudgement checked them: a direct caller must not widen the
+// Files line with an unsafe path, so any bad extra fails the whole task closed (null).
+// A finding file inside the repository that is not a concrete path (say "src/a.ts, .git/config", which would add a
+// second Files entry) also fails the task closed, instead of being left out like an outside path.
+// The finding files without their line suffix, then the supporting files, each once. Only findings inside the repository
+// count, so this is every path the Files line will name; the core checks these on disk before any task is written.
+const fileOf = (f) => String(f.file).replace(/:\d+(?:-\d+)?$/, '');
+export function fixPaths(allKept, supportingFiles = []) {
+  const inside = allKept.filter((f) => insideRepo(fileOf(f)));
+  return [...new Set([...inside.map(fileOf), ...supportingFiles])];
+}
+
+export function fixTask(allKept, { issue, round, supportingFiles = [] }) {
+  if (!Array.isArray(supportingFiles) || !supportingFiles.every(isConcreteFile)) return null;
+  const inside = allKept.filter((f) => insideRepo(fileOf(f)));
+  if (inside.some((f) => !isConcreteFile(fileOf(f)))) return null;
+  const kept = inside;
   if (!kept.length) return null;
-  const files = [...new Set(kept.map((f) => String(f.file).replace(/:\d+(?:-\d+)?$/, '')))];
+  const files = fixPaths(kept, supportingFiles);
   const items = kept.map((f, i) => stripFence(`${i + 1}. ${f.file}: ${f.what} Fix: ${f.fix}`));
   const text = [
     `# ${issue}-9${round}: fix the kept review findings (round ${round})`,

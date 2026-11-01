@@ -2,6 +2,16 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## Checkpoint: #320 real-run contract fixes — 2026-11-01
+
+- Branch `fix/320-real-run-contracts`, existing checkout. Saved at the maintainer's request before session close; no merge or new real run.
+- Tower design updated and validated 0/0 first (`1a65de6`). Step 01 (`80aa6bc`) explicitly requests the actual result inside `finish.report` for triage, architect, judge and verifier. Independent full check: 205 files, 2368 pass / 1 skip, clean typecheck.
+- Step 02 implementation is committed as a checkpoint: judge and verifier receive the complete original issue plus separately fenced plan criteria. Seven contract tests, 44 core tests and 18 judge tests pass; typecheck passes. Its full check was interrupted to save the session, so do not claim the current head has passed the full suite.
+- **Resume:** run the full check, then run **only task 03** in `tools/squad/tasks/320-contracts/` through the Squad. Do not replay unchanged task 02: `steps.sh` would stop because the coder changes nothing. Task 03 adds optional validated supporting files to kept judge findings, checks their sensitivity before writing fix tasks, and covers unsafe paths with regression tests. It is not implemented yet.
+- Keep `tools/squad/squad.json` unchanged. Use a unique disk `TMPDIR` and `VITEST_MAX_WORKERS=2` (supported by the installed Vitest). Do not export `SQUAD_LEDGER` during checks: it interferes with the runner's ledger tests. The first failed check used the lead's temporary settings; those are restored.
+- After task 03: tester, independent checks, README/changelog and tower consistency, final-head review/security, verifier, CI and merge gate. The maintainer merges. A fresh issue for the external acceptance replay is prepared but unqueued; preserve the first trial's draft PR and worktree.
+- Local logs, cost ledger, launcher and private replay coordinates: ignored `.stress/evidence/320-contracts-*`, especially `320-contracts-resume.json`. No credentials were copied there. Existing untracked task `tools/squad/tasks/353/07-fail-closed.md` is preserved and unrelated. Two viewers serving this checkout (ports 5317 and 5318) were stopped before the branch switch and remain stopped.
+
 ## Unattended runner (#320) — merged 2026-10-31, real test next
 
 - **Merged:** PR #362 (benchmark: architect `openai/gpt-6.1-terra`, lead-judge `anthropic/claude-sonnet-5.5`),
