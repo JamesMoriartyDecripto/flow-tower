@@ -35,6 +35,20 @@ describe('parsePlan', () => {
     expect(parsePlan(text).ok).toBe(true);
   });
 
+  it('reads the answer that precedes a later correction, not the correction itself', () => {
+    // A real answer (#94): the model writes the block and then corrects its own prose inside another fence. Taking the
+    // last block read half a sentence and refused a plan that was there all along.
+    const text = `${asText(plan())}\n\nCorrection: step 1 also edits src/other.ts.\n\n\`\`\`json\nnot json\n\`\`\`\n`;
+    expect(parsePlan(text).ok).toBe(true);
+  });
+
+  it('ignores the schema fence the prompt itself contains', () => {
+    // Every prompt shows the answer shape, and the model echoes the prompt back. A reader that took the last fence read
+    // the template instead of the answer.
+    const text = 'Answer only with a ```json block: {"criteria": ["..."], "steps": []}\n```\n\n' + asText(plan());
+    expect(parsePlan(text).ok).toBe(true);
+  });
+
   it.each([
     ['4 items', plan({}, [step({ items: ['a', 'b', 'c', 'd'] })]), 'step 1'],
     ['no files', plan({}, [step({ files: [] })]), 'step 1'],

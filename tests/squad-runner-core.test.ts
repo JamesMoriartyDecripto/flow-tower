@@ -346,6 +346,42 @@ describe('workIssue', () => {
     expect(calls).not.toContain('steps');
   });
 
+  it('goes on past the plan sign-off when the lead approved this run, and says so on the issue', async () => {
+    // A plan that adds one test file names package.json, which is in the sensitive list: with no way to release it the
+    // issue was blocked for good, so the lead's approval for this one run has to let it through (#94).
+    const plan = { criteria: ['a test exists'], steps: [{ title: 'Add a test', items: ['write it'], files: ['tests/a.test.ts', 'package.json'] }] };
+    const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(plan)], verifier: ['PASS fine'] });
+    process.env.SQUAD_APPROVE = '1';
+    try {
+      expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    } finally {
+      delete process.env.SQUAD_APPROVE;
+    }
+    expect(calls.some((c) => c.startsWith('comment:This plan names a sensitive area'))).toBe(true);
+    expect(calls).toContain('done');
+  });
+
+  it('gives the triage a second chance with the reason, instead of losing the issue on one unreadable answer', async () => {
+    // A real answer that could only be read on the second try (#94): the first one had the block, then the model
+    // corrected its own prose in a second fence, so the answer sat one block earlier than the reader looked.
+    const v = JSON.stringify({ route: 'reject', areas: [], questions: [], rationale: 'spam' });
+    const muddled = '```json\n' + v + '\n```\n\nCorrection: the area is `src`.\n\n```json\nnot json\n```';
+    const { deps, calls } = fakeDeps({}, { triage: [muddled] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('rejected');
+    expect(calls.filter((c) => c === 'role:triage')).toHaveLength(1);
+    expect(calls).toContain('comment:Triage rejected this issue: spam');
+  });
+
+  it('asks the triage again when the first answer cannot be read at all', async () => {
+    const { deps, calls } = fakeDeps({}, {
+      triage: ['Classification: route "full", areas: src.', triageFull],
+      architect: [fence(PLAN)],
+      verifier: ['PASS fine'],
+    });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(calls.filter((c) => c === 'role:triage')).toHaveLength(2);
+  });
+
   it('fences the criteria in the verifier prompt', async () => {
     const prompts: Record<string, string> = {};
     const { deps } = fakeDeps({ role: async (name: string, prompt: string) => {

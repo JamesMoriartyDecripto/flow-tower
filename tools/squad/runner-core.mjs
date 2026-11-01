@@ -4,21 +4,31 @@
 // lstat of the Files paths below: it must see the worktree as it is, before any task is written, and it never writes.
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { fixPaths, fixTask, judgePrompt, numberFindings, parseJudgement, stripFence } from './runner-judge.mjs';
+import { fixPaths, fixTask, judgePrompt, jsonCandidates, numberFindings, parseJudgement, stripFence } from './runner-judge.mjs';
 import { parsePlan, taskFiles } from './runner-plan.mjs';
 
 // An area named here needs a human to sign off the plan before any code is written. The CI and runner files are here
 // because a change to them changes how the checks and the squad itself run, so a person must see it first.
 const SENSITIVE = /auth|billing|payment|migration|permission|secret|privacy|personal|pii|gdpr|\.github\/|tools\/squad\/|package(-lock)?\.json/i;
 const SIGN_OFF = 'sensitive area in the plan: a person must lead this issue (plan sign-off)';
+// A gate that can never be released is a block, not a gate: a plan that adds one test file names package.json, so it
+// stopped every run for good. The lead who exported SQUAD_APPROVE=1 for that one issue is the human sign-off, and the
+// comment below says so, so the consent stays traceable on the issue instead of living only in a shell history. It is
+// read at each call, not at load, so a test can exercise both sides of the gate.
+const approved = () => process.env.SQUAD_APPROVE === '1';
 const FIX_SENSITIVE = 'sensitive area in a fix round: a person must lead this issue';
 const FILES_NOT_REGULAR = 'fix files must name regular files, not directories or links';
 const ROUTES = ['full', 'needs_info', 'reject'];
+const NO_TRIAGE = 'triage gave no usable answer';
 // The finish tool's report is the only text the caller gets back, so each prompt says the actual JSON goes in it.
 const FINISH_JSON = 'Call finish with the actual ```json block as the report (not a summary of it), then a `Known gaps:` line '
   + 'after the block.';
-const TRIAGE_ASK = 'Classify the issue below. Answer only with a ```json block: {"route": "full" | "needs_info" | "reject", '
-  + '"areas": [strings], "questions": [strings], "rationale": "..."}. ' + FINISH_JSON;
+// The shape is shown without a ```json fence: the model echoes the prompt back, and a second fence in its own report
+// would leave the reader two blocks to choose from. The words to spell are named too, because a model that writes
+// "route: full" in prose has answered nothing that can be read (#94).
+const TRIAGE_ASK = 'Classify the issue below. Answer only with one json object, in a ```json block: {'
+  + '"route": "full" | "needs_info" | "reject", "areas": [strings], "questions": [strings], "rationale": "..."}. '
+  + 'Write no prose outside the block, and never reword the fields: the block is read as JSON. ' + FINISH_JSON;
 const PLAN_ASK = 'Plan the change for the issue below. Answer only with a ```json block: {"criteria": [strings], "steps": '
   + '[{"title": "...", "items": [1 to 3 strings], "files": ["relative/path", "new/path+"]}]}, with 1 to 8 steps. A "+" marks a new file. '
   + FINISH_JSON;
@@ -83,17 +93,23 @@ function evidence(issue, plan) {
   return [untrusted(issue), '', PLAN_NOTE, '<plan-data>', `Criteria: ${criteria}`, '</plan-data>'].join('\n');
 }
 
-// The last ```json block is the answer, or the whole text when there is no block (same rule as parsePlan). A route
-// outside the three, or text that is not JSON, is not usable.
-export function parseTriage(text) {
-  const src = String(text ?? '');
-  const fences = [...src.matchAll(/```json\s*([\s\S]*?)```/g)];
-  const body = fences.length ? fences[fences.length - 1][1] : src;
+// The answer is read the same way as the plan and the judgement (runner-judge.mjs jsonCandidates): json blocks from the
+// last back to the first, then the whole text, keeping the first that carries a route. A route outside the three, or
+// text that is not JSON, is not usable. Never throws.
+function triageOf(body) {
   let raw;
   try { raw = JSON.parse(body); } catch { return null; }
-  if (raw === null || typeof raw !== 'object' || !ROUTES.includes(raw.route)) return null;
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw) || !ROUTES.includes(raw.route)) return null;
   const strings = (v) => (Array.isArray(v) ? v.map(String) : []);
   return { route: raw.route, areas: strings(raw.areas), questions: strings(raw.questions), rationale: String(raw.rationale ?? '') };
+}
+
+export function parseTriage(text) {
+  for (const body of jsonCandidates(text)) {
+    const t = triageOf(body);
+    if (t) return t;
+  }
+  return null;
 }
 
 // A run that did not finish (step cap, crash) is a failed attempt: its text is a diagnostic, never an answer, so it is
@@ -183,8 +199,15 @@ export async function workIssue(issue, deps, limits) {
     // The triage runs in the main checkout, so its cwd is left to the deps default (undefined).
     // A triage run that did not finish is no answer, even when its text happens to parse.
     const tr = await deps.role('triage', `${TRIAGE_ASK}\n\n${untrusted(issue)}`, undefined, n);
-    const t = tr.ok ? parseTriage(tr.text) : null;
-    if (!t) stop('triage gave no usable answer');
+    let t = tr.ok ? parseTriage(tr.text) : null;
+    // A single answer that could not be read used to lose the whole issue, and the reason was invisible (#94): one
+    // retry, naming what was wrong, costs a fraction of a cent and saves the run. The judge gets the same second chance.
+    if (!t) {
+      const again = `${TRIAGE_ASK}\n\n${untrusted(issue)}\n\nYour last answer could not be read as JSON. Answer again with one json object, in a json fence, and no prose.`;
+      const tr2 = await deps.role('triage', again, undefined, n);
+      t = tr2.ok ? parseTriage(tr2.text) : null;
+    }
+    if (!t) stop(NO_TRIAGE);
     if (t.route === 'reject') {
       await gh.comment(n, `Triage rejected this issue: ${t.rationale}`);
       await gh.release(n);
@@ -204,7 +227,8 @@ export async function workIssue(issue, deps, limits) {
     const wt = await deps.worktree(issue);
     const plan = await makePlan(deps, issue, wt.path);
     // The plan was written by a model that read the untrusted issue, so the sensitive-area rule is checked again here.
-    if (sensitivePlan(plan)) stop(SIGN_OFF);
+    if (sensitivePlan(plan) && !approved()) stop(SIGN_OFF);
+    if (sensitivePlan(plan)) await gh.comment(n, 'This plan names a sensitive area; the lead approved this one run (SQUAD_APPROVE=1).');
     await gh.comment(n, planComment(plan));
     const taskDir = await deps.writeTasks(wt.path, n, taskFiles(plan, { issue: n, title: issue.title }));
     await guard();
@@ -237,7 +261,11 @@ export async function workIssue(issue, deps, limits) {
       if (SENSITIVE.test(keptText)) stop(FIX_SENSITIVE);
       // A finding whose files are all outside the repository leaves nothing to fix in place, so the issue stops.
       const fix = fixTask(kept, { issue: n, round, supportingFiles: [...new Set(supportingFiles)] });
-      if (!fix) stop('kept findings name no safe file inside the repository');
+      // The message must not blame a file when the answer itself could not be read: the next person would go looking for
+      // an unsafe path that never existed (#94). No kept finding means the judge named none in a readable form.
+      if (!fix) stop(kept.length
+        ? 'kept findings name no safe file inside the repository'
+        : 'the judge named no kept finding in a readable form');
       const fixDir = await deps.writeTasks(wt.path, n, [fix]);
       await runSteps(deps, wt.path, fixDir, issue);
     }

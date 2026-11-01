@@ -230,6 +230,26 @@ describe('fixTask finding file safety', () => {
     expect(fixTask([finding('src/a.ts, .git/config')], { issue: '320', round: 1 })).toBeNull();
   });
 
+  it('reads a line suffix written with a tilde, as the security auditor writes it', () => {
+    // A real finding (#94) cited `collettore-menzioni.mjs:~200`; the "~" stayed in the path, no file was concrete any
+    // more, and the issue stopped saying it named no safe file.
+    const task = fixTask([finding('scripts/a.mjs:~200')], { issue: '94', round: 1 });
+    expect(task?.text).toContain('Files: scripts/a.mjs');
+  });
+
+  it('keeps reading the two exact forms too', () => {
+    expect(fixTask([finding('src/a.ts:12')], { issue: '94', round: 1 })?.text).toContain('Files: src/a.ts');
+    expect(fixTask([finding('src/a.ts:12-18')], { issue: '94', round: 1 })?.text).toContain('Files: src/a.ts');
+  });
+
+  it('reads the judgement that follows the schema fence the prompt contains', () => {
+    // The prompt shows the answer shape; a model echoes the prompt and then answers. Taking the last fence read the
+    // template, and the run stopped saying the kept findings named no safe file.
+    const echoed = 'Answer only with a ```json block, with every id. The shape is:\n    {"R1": {"decision": "keep" | "drop"}}\n```\n\n'
+      + '```json\n{"R1": {"decision": "keep", "reason": "a real defect"}}\n```';
+    expect(parseJudgement(echoed, ['R1'])).toEqual({ ok: true, keep: ['R1'], drop: [] });
+  });
+
   it('fails closed when one kept finding is unsafe, even next to a safe one', () => {
     const task = fixTask([finding('src/a.ts'), finding('src/b.ts, .env')], { issue: '320', round: 1 });
     expect(task).toBeNull();

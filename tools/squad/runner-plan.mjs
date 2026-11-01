@@ -1,10 +1,7 @@
 // Turns the architect's JSON plan into task files for steps.sh (#320). The unattended lead asks the architect for a
 // plan as JSON; this module checks it and writes one NN-<slug>.md task per step, in the shape of kit/TEMPLATE.md.
 // Both functions are pure: no git, no disk. A bad plan is reported in words, never thrown, so the lead can ask again.
-import { stripFence } from './runner-judge.mjs';
-
-// Same fence rule as parseTriage and parseJudgement: whitespace, newline or not, may follow the tag.
-const FENCE = /```json\s*([\s\S]*?)```/g;
+import { jsonCandidates, stripFence } from './runner-judge.mjs';
 const RULES = 'Rules: English only; never touch secret files; edit only the files named below; comments explain why; '
   + 'files under ~400 lines; never rewrite or empty an existing test file (add to the new one only).';
 const VERIFY = 'Verify: `run check`; `finish` with the output and a `Known gaps:` line.';
@@ -46,21 +43,26 @@ function problemOf(plan) {
   return '';
 }
 
-// Takes the last ```json fence of the text (the architect may quote an earlier draft in its prose), or the whole
-// text when there is no fence. Never throws.
+// Reads the plan from the json blocks, from the last back to the first, then the whole text: the architect may quote
+// an earlier draft, and a model that corrects its own prose after the block would otherwise hide the answer (#94).
+// The first candidate that yields a valid plan wins. Never throws.
 export function parsePlan(text) {
   try {
-    const src = String(text);
-    const fences = [...src.matchAll(FENCE)];
-    const body = fences.length ? fences[fences.length - 1][1] : src;
-    let plan;
-    try {
-      plan = JSON.parse(body);
-    } catch {
-      return { ok: false, error: 'the plan is not valid JSON' };
+    let first = null;
+    for (const body of jsonCandidates(text)) {
+      let plan;
+      try {
+        plan = JSON.parse(body);
+      } catch {
+        first ??= { ok: false, error: 'the plan is not valid JSON' };
+        continue;
+      }
+      const error = problemOf(plan);
+      if (!error) return { ok: true, plan };
+      // The first readable text is the newest answer, so its problem is the one the retry must name.
+      first ??= { ok: false, error };
     }
-    const error = problemOf(plan);
-    return error ? { ok: false, error } : { ok: true, plan };
+    return first ?? { ok: false, error: 'the plan is not valid JSON' };
   } catch (e) {
     return { ok: false, error: `could not read the plan: ${e.message}` };
   }

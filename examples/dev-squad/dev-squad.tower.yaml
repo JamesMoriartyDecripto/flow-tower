@@ -141,6 +141,7 @@ layers:
       - id: triage
         agent: triage
         label: Triage
+        description: "A triage answer that does not carry the JSON block is not an answer: the model is asked once more, with its own text kept out of the decision, because a single unparsed answer used to lose the whole issue (#94)."
       - id: route
         runtime: laptop
         type: decision
@@ -182,7 +183,7 @@ layers:
         runtime: github
         type: human
         label: Plan sign-off
-        description: "For a sensitive area or a large plan, the maintainer approves or revises the plan on the issue before any step runs."
+        description: "For a sensitive area or a large plan, the maintainer approves or revises the plan on the issue before any step runs. A gate that can never be released is a block, not a gate: when the lead exported SQUAD_APPROVE=1 for that one issue it goes on, and says so in a comment, so the sign-off is still traceable."
         approval: { by: maintainer, via: issue comment, actions: [approve, edit, respond], when: "sensitive area or many steps" }
         files: [README.md]
       - id: tasks

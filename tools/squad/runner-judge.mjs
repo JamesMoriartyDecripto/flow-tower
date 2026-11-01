@@ -40,10 +40,10 @@ export function judgePrompt(findings, brief) {
     // Extra files widen the fix step's write scope, so the judge names them only when a kept fix must edit them.
     'supportingFiles is optional and only for a keep: list at most 5 concrete relative paths (no spaces, commas, wildcards, line numbers or trailing slash) that the fix must actually edit, other than the finding file itself. Never list a directory, read-only dependencies, paths that only appear in prose, or the whole plan. Leave the field out when the finding file is enough.',
     '',
-    'Answer only with a ```json block, with every id:',
-    '```json',
-    `{${ids.join(', ')}}`,
-    '```',
+    // The schema is shown indented, never inside a ```json fence: an example fence travels back in the model's own
+    // report, and a reader that takes the last fence then reads the example instead of the answer (#94).
+    'Answer only with a ```json block, with every id. The shape is:',
+    `    {${ids.join(', ')}}`,
     // The finish report is the only text the lead gets back, so the JSON block must be in it, not summarised.
     'Call finish with the actual ```json block as the report (not a summary of it), then a `Known gaps:` line after the block.',
   ].join('\n');
@@ -70,9 +70,18 @@ export function isConcreteFile(p) {
 // More than 5 extra files would widen the fix step's write scope past what one finding needs, so the answer is refused.
 const MAX_SUPPORTING_FILES = 5;
 export function parseJudgement(text, ids) {
-  const s = String(text ?? '');
-  const fences = [...s.matchAll(/```json\s*([\s\S]*?)```/g)];
-  const body = fences.length > 0 ? fences[fences.length - 1][1] : s;
+  const candidates = jsonCandidates(text);
+  let first;
+  for (const body of candidates) {
+    const r = judgementOf(body, ids);
+    if (r.ok) return r;
+    // The retry names the refusal reason, so it must come from the newest answer, not from a quoted draft.
+    first ??= r;
+  }
+  return first ?? { ok: false, error: 'answer is not JSON' };
+}
+
+function judgementOf(body, ids) {
   let raw;
   try { raw = JSON.parse(body); } catch { return { ok: false, error: 'answer is not JSON' }; }
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'answer is not an object' };
@@ -107,6 +116,21 @@ export function parseJudgement(text, ids) {
 export const FENCE_TAG = /<\s*\/?\s*(issue|plan|finding)-data\s*>/gi;
 export const stripFence = (text) => String(text ?? '').replace(FENCE_TAG, '');
 
+// A model's answer is read as its json blocks, from the last back to the first, then the whole text: the last block is
+// not always the answer. The architect quotes an earlier draft in its prose; the cheapest models write the block and
+// then correct their own prose inside another fence (#94), so the last block holds half a sentence and the answer sits
+// one block earlier. A caller keeps the first candidate that it accepts, so a quoted block never wins over an answer.
+// A block counts only when it starts with '{': every answer here is an object, and the prompts themselves contain the
+// words "```json block", which would otherwise leave an unclosed fence ahead of the model's real one and shift every
+// block by one. The unfenced whole text stays as the last candidate, for a bare JSON answer.
+export function jsonCandidates(text) {
+  const src = String(text ?? '');
+  const blocks = [...src.matchAll(/```json\s*([\s\S]*?)```/g)]
+    .map((m) => m[1].trim())
+    .filter((b) => b.startsWith('{'));
+  return [...blocks.reverse(), src];
+}
+
 // A model-given path must stay inside the repository: absolute paths, '..' segments, backslashes and drive letters are
 // refused, because the fix step would otherwise be told to edit files outside the worktree. A leading "~" is refused
 // too: a shell expands it to the home folder, so "~/.ssh/x" would leave the repository.
@@ -122,7 +146,10 @@ const insideRepo = (p) => p !== '' && !p.startsWith('/') && !p.startsWith('~') &
 // second Files entry) also fails the task closed, instead of being left out like an outside path.
 // The finding files without their line suffix, then the supporting files, each once. Only findings inside the repository
 // count, so this is every path the Files line will name; the core checks these on disk before any task is written.
-const fileOf = (f) => String(f.file).replace(/:\d+(?:-\d+)?$/, '');
+// The line suffix is written as "path:12", "path:12-18", but also "path:~200" when the model is not sure of the line
+// (the security auditor writes that form). All three name the same file, so all three are stripped: a "~" left in
+// the path made every fix task null, and the issue stopped with a message about an unsafe file that never existed (#94).
+const fileOf = (f) => String(f.file).replace(/:~?\d+(?:-\d+)?$/, '');
 export function fixPaths(allKept, supportingFiles = []) {
   const inside = allKept.filter((f) => insideRepo(fileOf(f)));
   return [...new Set([...inside.map(fileOf), ...supportingFiles])];
