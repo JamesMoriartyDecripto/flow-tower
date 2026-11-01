@@ -443,11 +443,12 @@ layers:
         runtime: laptop
         type: process
         label: runner.mjs
-        description: "The code-driven lead: triage, worktree under the user folder, plan as task files, steps.sh, review and security, lead-judge, at most 2 fix rounds, verifier, draft PR, gate. A failed check stops the issue. Issue and plan text reach models fenced as data; anything posted is scrubbed of keys and tokens."
+        description: "The code-driven lead: triage, worktree under the user folder, plan as task files, steps.sh, review and security, lead-judge, at most 2 fix rounds, verifier, draft PR, gate. A failed check stops the issue. Structured role results must be returned through finish. The original issue and plan criteria reach the judge and verifier fenced as data; anything posted is scrubbed of keys and tokens."
         files: [README.md]
       - id: judge
         agent: lead-judge
         label: Lead judge
+        description: "Keeps or drops findings against the original issue and plan. Kept fixes include validated supporting files needed for the change, beyond the quoted location."
       - id: limits
         runtime: laptop
         type: guard
