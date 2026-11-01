@@ -266,7 +266,7 @@ layers:
         runtime: laptop
         type: decision
         label: Merge gate
-        description: "gate.mjs: CI green, not a draft, reviewer and security approve the PR's exact head. READY or NOT READY with the reasons."
+        description: "gate.mjs: CI green, not a draft, reviewer and security approve the PR's exact head. READY or NOT READY with the reasons, and a note when a pass saw a pack trimmed to fit."
         decision: { output: binary, candidates: [ready, not_ready], fail: closed }
         files: [roles/reviewer.md, roles/security.md]
       - id: merge
