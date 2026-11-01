@@ -448,7 +448,7 @@ layers:
       - id: judge
         agent: lead-judge
         label: Lead judge
-        description: "Keeps or drops findings against the original issue and plan. Kept fixes include validated supporting files needed for the change, beyond the quoted location."
+        description: "Keeps or drops findings against the original issue and plan. A kept fix may name up to 5 supporting files it must edit; every Files path must be a concrete regular file outside secret paths, and CI or runner files need a person."
       - id: limits
         runtime: laptop
         type: guard
