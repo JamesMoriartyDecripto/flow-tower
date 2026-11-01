@@ -5,7 +5,7 @@ import { workIssue } from '../tools/squad/runner-core.mjs';
 
 const ISSUE = { number: 320, title: 'Explicit finish reports', body: 'Report the actual result.' };
 const LIMITS = { usdPerIssue: 5, minutes: 30, fixRounds: 1 };
-const PLAN = { criteria: ['reports are explicit'], steps: [{ title: 'Edit prompts', items: ['add the rule'], files: ['tools/squad/runner-core.mjs'] }] };
+const PLAN = { criteria: ['reports are explicit'], steps: [{ title: 'Edit prompts', items: ['add the rule'], files: ['src/prompts.ts'] }] };
 const fence = (v: unknown) => '```json\n' + JSON.stringify(v, null, 2) + '\n```';
 const report = (json: string) => `${json}\nKnown gaps: none`;
 
