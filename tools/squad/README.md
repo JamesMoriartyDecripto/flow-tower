@@ -208,7 +208,7 @@ Per issue it:
 5. runs `steps.sh`;
 6. runs reviewer and security, has the lead-judge keep or drop each finding against the original issue and the plan,
    and turns the kept ones into fix steps (at most `runner.fixRounds`, 2; findings still kept after the last round are listed
-   in the draft PR, except a critical or high security finding, which stops the issue). A kept finding may name up to 5
+   in the draft PR, except a security finding whose severity is not clearly `medium` or `low`, which stops the issue). A kept finding may name up to 5
    `supportingFiles` the fix must also edit; every path on the fix step's `Files:` line must be a concrete relative
    file (no secrets, directories or links), or the issue stops. A refused judge answer is asked once more, with the reason;
 7. runs the verifier;
