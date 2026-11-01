@@ -2,7 +2,8 @@
 
 **Node:** `quality.security` · **Writes:** nothing · **Verdict:** yes · **Model:** `models.security` (default `deepseek/deepseek-v4.1-flash`)
 
-Read-only: audit for security defects; change nothing.
+Read-only: audit for security defects; change nothing. Before proposing a new check, it says whether an existing
+guard already covers the case (#367): a check that duplicates one is not a finding.
 
 Same packed, one-request form as the reviewer, with a severity on each finding. An empty or cut answer runs once more;
 then the security brief goes to the reviewer's model. Started together with the reviewer: both are read-only.

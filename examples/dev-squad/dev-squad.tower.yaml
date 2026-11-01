@@ -80,7 +80,7 @@ agents:
   coder:
     runtime: laptop
     name: Coder
-    description: "Implements one step in a tool loop, writes only the step's folders, runs the checks, ends with Known gaps."
+    description: "Implements one step in a tool loop with the minimum the task needs, writes only the step's folders, runs the checks, ends with Known gaps."
     model: anthropic/claude-haiku-5.5
     tower: towers/runner-loop.tower.yaml
     harness: { provider: openrouter, runner: steps.sh, mode: loop, max_steps: 70 }
@@ -103,7 +103,7 @@ agents:
   reviewer:
     runtime: laptop
     name: Reviewer
-    description: "One packed request, JSON verdict only. Another model family than the coder's."
+    description: "One packed request, JSON verdict only. Another model family than the coder's. Flags bugs and unneeded complexity: code the brief does not ask for, duplicates, oversized solutions."
     model: z-ai/glm-5.3-flash
     harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
     files: [roles/reviewer.md]
@@ -111,7 +111,7 @@ agents:
   security:
     runtime: laptop
     name: Security auditor
-    description: "One packed request, JSON verdict with severities; falls back to the reviewer's model on an empty answer."
+    description: "One packed request, JSON verdict with severities; falls back to the reviewer's model on an empty answer. Names the existing guard before proposing a new check."
     model: deepseek/deepseek-v4.1-flash
     harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
     files: [roles/security.md]
