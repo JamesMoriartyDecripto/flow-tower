@@ -246,6 +246,35 @@ describe('control files are checked on paths, not prose', () => {
   });
 });
 
+describe('findings still open after the last fix round', () => {
+  it('reaches pr and lists the kept reviewer finding under Open findings', async () => {
+    const { deps, calls, written } = fakeDeps({
+      triage: [triageFull],
+      architect: [fence(PLAN)],
+      'lead-judge': [KEEP(), KEEP()],
+    });
+    (deps as any).quality = async () => { calls.push('quality'); return { ok: true, review: REVIEW, security: { findings: [] } }; };
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    const body = written.find((t) => t.includes('Open findings'));
+    expect(body).toContain('Open findings (after the last fix round):\n- R1 (`src/index.html:3`): bug');
+    expect(calls).toContain('draftPr');
+  });
+
+  it('stops with the still-open message when a kept security finding is high every round', async () => {
+    const security = { findings: [{ file: 'src/cache.js:1', what: 'leak', why: 'x', fix: 'y', severity: 'High' }] };
+    const keepS = fence({ S1: { decision: 'keep', reason: 'real' } });
+    const { deps, calls } = fakeDeps({
+      triage: [triageFull],
+      architect: [fence(PLAN)],
+      'lead-judge': [keepS, keepS],
+    });
+    (deps as any).quality = async () => { calls.push('quality'); return { ok: true, review: { findings: [] }, security }; };
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:findings still open after 1 fix rounds');
+    expect(calls).not.toContain('draftPr');
+  });
+});
+
 describe('control files named through Files entry markers and directories', () => {
   it.each([
     ['package.json+'],

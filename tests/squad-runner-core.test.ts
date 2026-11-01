@@ -220,13 +220,14 @@ describe('workIssue', () => {
     expect(calls.filter((c) => c === 'steps')).toHaveLength(2);
   });
 
-  it('fails when findings stay kept after the fix rounds', async () => {
+  it('opens the draft PR with the findings still kept after the fix rounds', async () => {
     const review = { findings: [{ file: 'src/a.ts:3', what: 'bug', why: 'x', fix: 'y' }] };
     const keep = fence({ R1: { decision: 'keep', reason: 'real' } });
     const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(PLAN)], 'lead-judge': [keep, keep] },
       [{ ok: true, review, security: {} }, { ok: true, review, security: {} }]);
-    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
-    expect(calls).toContain('fail:findings still open after 1 fix rounds');
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(calls).toContain('draftPr');
+    expect(calls).not.toContain('fail:findings still open after 1 fix rounds');
   });
 
   it('stops when the verifier holds the change', async () => {
