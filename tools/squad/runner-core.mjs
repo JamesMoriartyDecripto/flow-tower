@@ -20,7 +20,8 @@ const CONTROL_FILE = /(^|\/)(\.github|tools\/squad)\/|(^|\/)package(-lock)?\.jso
 // first, then the same matchesEntry rule files-check uses decides whether it covers one of the sample control paths.
 const CONTROL_SAMPLES = ['.github/x', 'tools/squad/x', 'package.json', 'package-lock.json'];
 export function controlEntry(entry) {
-  const path = String(entry).replace(/\s\(optional\)$/, '').replace(/\+$/, '').trim();
+  // One pass over any trailing run of markers, so "+ (optional)", "++" and "(optional)+" all strip fully.
+  const path = String(entry).replace(/(\s*\(optional\)|\+)+$/, '').trim();
   return CONTROL_FILE.test(path) || CONTROL_SAMPLES.some((c) => matchesEntry(path, c));
 }
 const SIGN_OFF = 'sensitive area in the plan: a person must lead this issue (plan sign-off)';

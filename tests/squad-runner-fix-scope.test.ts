@@ -9,7 +9,7 @@ import { fixTask, isConcreteFile, judgePrompt, numberFindings, parseJudgement } 
 // @ts-expect-error plain .mjs without declarations
 import { parseFiles } from '../tools/squad/files-check.mjs';
 // @ts-expect-error plain .mjs without declarations
-import { workIssue } from '../tools/squad/runner-core.mjs';
+import { controlEntry, workIssue } from '../tools/squad/runner-core.mjs';
 
 const ISSUE = { number: 91, title: 'Add a badge', body: 'Show a badge on the card.' };
 const LIMITS = { usdPerIssue: 5, minutes: 30, fixRounds: 1 };
@@ -414,5 +414,13 @@ describe('control files named through Files entry markers and directories', () =
     const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(plan)], 'lead-judge': [KEEP()] });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
     expect(calls).toContain('draftPr');
+  });
+
+  it.each(['package.json (optional)+', 'package.json++', 'package.json+ (optional)'])('controlEntry strips every marker in %s', (entry) => {
+    expect(controlEntry(entry)).toBe(true);
+  });
+
+  it('controlEntry is false for a non-control file with stacked markers', () => {
+    expect(controlEntry('src/app.js (optional)+')).toBe(false);
   });
 });
