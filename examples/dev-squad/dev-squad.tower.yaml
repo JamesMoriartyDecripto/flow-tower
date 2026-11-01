@@ -300,7 +300,7 @@ layers:
         runtime: laptop
         type: process
         label: steps.sh
-        description: "Runs the coder on each task file in order; check, Files: check and one commit per green step. Runs from a copy of itself."
+        description: "Runs the coder on each task file in order; check, Files: check and one commit per green step. Runs from a copy of itself. Every file of the folder is a coder step: tasks of other roles live in their own folder."
         files: [roles/coder.md]
       - id: guard
         runtime: laptop

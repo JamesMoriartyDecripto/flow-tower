@@ -117,7 +117,7 @@ git -C ../wt-113 status -s && git -C ../wt-113 log @{u}..   # both empty, or ask
 git worktree remove ../wt-113 && git branch -d fix/113-tools
 ```
 
-`steps.sh <issue> <dir> <write-dirs> <title>` (bash) runs `run.mjs` on every `dir/*.md` in order, one commit per step.
+`steps.sh <issue> <dir> <write-dirs> <title>` (bash) runs `run.mjs` on every `dir/*.md` in order, one commit per step. Every file in `dir` runs as a coder step, so keep a doc-writer or other role task in its own folder.
 `<write-dirs>` is a comma-separated list, same as `run.mjs --write` (e.g. `src,tests` or `tools/squad`). `REPO` picks the worktree
 (default: this checkout); `NODE` picks the Node binary (default `node`; e.g. `NODE=/opt/node22/bin/node` where the
 system Node is older than 22). For simple tasks, `CODER_MODEL=openai/gpt-6-luna`. It stops at the first red step: a failed
