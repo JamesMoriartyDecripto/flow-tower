@@ -41,6 +41,8 @@ export function judgePrompt(findings, brief) {
     '```json',
     `{${ids.join(', ')}}`,
     '```',
+    // The finish report is the only text the lead gets back, so the JSON block must be in it, not summarised.
+    'Call finish with the actual ```json block as the report (not a summary of it), then a `Known gaps:` line after the block.',
   ].join('\n');
 }
 
