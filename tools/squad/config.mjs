@@ -72,6 +72,10 @@ export function loadConfig(repo) {
   }
   for (const k of ['project', 'base', 'tower', 'source', 'cli']) if (typeof cfg[k] !== 'string') fail(k, 'must be a string');
   for (const [name, cmd] of Object.entries(cfg.commands)) if (typeof cmd !== 'string') fail(`commands.${name}`, 'must be a string');
+  // commandArgv runs a command without a shell, so shell syntax would reach the tool as literal arguments.
+  for (const [name, cmd] of Object.entries(cfg.commands)) {
+    if (/&&|\|\||[|;<>`'"]|\$\(/.test(cmd)) fail(`commands.${name}`, 'uses shell syntax, but the runner runs it without a shell: put it in a script of the project and call that script');
+  }
   if (!cfg.commands.check.trim()) fail('commands.check', 'must not be empty');
   // base reaches git diff as an argument: a leading '-' would make it an option (pack.mjs refuses the same).
   if (cfg.base.startsWith('-')) fail('base', 'must be a revision, not an option');
