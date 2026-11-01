@@ -2,6 +2,22 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## v0.16.0 released — 2026-11-01
+
+- **[v0.16.0](https://github.com/JamesMoriartyDecripto/flow-tower/releases/tag/v0.16.0)** published, tag on `ebc9b06`;
+  CI and Pages green. 6/6 gates, hardware-GPU e2e 115/115. [Release report](reports/v0.16.0.md).
+- Shipped: the unattended runner (#320) with today's fixes (#372 control files on paths, #374 code-only plan steps,
+  #376 optional fix-round Files, #377 open findings into the draft PR, security fails closed), #367 (every role
+  favours the simplest change), #378 (panel-corners e2e fixture).
+- **Runner status:** five external replays (private trial project, issue 3), each stopping safely further along;
+  none reached the draft PR alone. Last stop: a fix needed a test file outside the fix scope (the judge did not
+  name it in supportingFiles). Next candidate fix, only if a new replay shows it again (KISS).
+- **Open:** #375 (run checks isolated from the runner's credentials), #303, #75, #340, #317.
+- Replay launcher: ignored `.stress/evidence/320-replay-launch.mjs` (trial repo, runner home under /tmp).
+  Refresh the trial's runner with `squad init <trial> --force` and commit it there before each replay.
+- In a task's `Files:` line, list every test file whose assertions the step changes: three continuation steps
+  today came from that omission.
+
 ## #320 real-run contract fixes — merged 2026-11-01
 
 - **Merged:** PR #366 (`de7366e`). The runner asks every judging role for its result inside `finish.report`; judge and
