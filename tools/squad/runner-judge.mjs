@@ -25,7 +25,7 @@ export function judgePrompt(findings, brief) {
     const tag = f.severity ? `${f.role}, ${f.severity}` : f.role;
     return stripFence(`- **${f.id}** (${tag}) \`${f.file}\`: ${f.what} Why: ${f.why} Fix: ${f.fix}`);
   });
-  const ids = findings.map((f) => `"${f.id}": {"decision": "keep" | "drop", "reason": "...", "supportingFiles": [optional]}`);
+  const ids = findings.map((f) => `"${f.id}": {"decision": "keep" | "drop", "reason": "...", "supportingFiles": ["relative/file.ext"]}`);
   return [
     String(brief ?? '').trim(),
     '',
@@ -38,7 +38,7 @@ export function judgePrompt(findings, brief) {
     'Rule: keep: a real defect this pull request introduces, or makes reachable or worse even on a line it does not touch; drop: wrong, harmless, already handled, or a pre-existing defect this pull request does not affect.',
     '',
     // Extra files widen the fix step's write scope, so the judge names them only when a kept fix must edit them.
-    'supportingFiles is optional and only for a keep: list concrete relative paths (no spaces, commas, wildcards, line numbers or trailing slash) that the fix must actually edit, other than the finding file itself. Never list read-only dependencies, paths that only appear in prose, or the whole plan. Leave the field out when the finding file is enough.',
+    'supportingFiles is optional and only for a keep: list at most 5 concrete relative paths (no spaces, commas, wildcards, line numbers or trailing slash) that the fix must actually edit, other than the finding file itself. Never list a directory, read-only dependencies, paths that only appear in prose, or the whole plan. Leave the field out when the finding file is enough.',
     '',
     'Answer only with a ```json block, with every id:',
     '```json',
@@ -67,6 +67,8 @@ export function isConcreteFile(p) {
 // Keep or drop per id. A kept id may carry supportingFiles; a dropped id's supportingFiles are still validated (a malformed
 // answer is refused) but never granted. Unknown ids in the answer are ignored, so they grant nothing. The result has a
 // supporting map only when some kept finding names extra files, so the legacy answer keeps its exact shape.
+// More than 5 extra files would widen the fix step's write scope past what one finding needs, so the answer is refused.
+const MAX_SUPPORTING_FILES = 5;
 export function parseJudgement(text, ids) {
   const s = String(text ?? '');
   const fences = [...s.matchAll(/```json\s*([\s\S]*?)```/g)];
@@ -87,6 +89,9 @@ export function parseJudgement(text, ids) {
     if (files !== undefined) {
       if (!Array.isArray(files) || !files.every(isConcreteFile)) {
         return { ok: false, error: `${id}: supportingFiles must be concrete relative paths inside the repository` };
+      }
+      if (files.length > MAX_SUPPORTING_FILES) {
+        return { ok: false, error: `${id}: supportingFiles allows at most ${MAX_SUPPORTING_FILES} files` };
       }
       if (entry.decision === 'keep' && files.length) supporting[id] = [...new Set(files)];
     }

@@ -1,7 +1,10 @@
+import { mkdirSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 // The procedure and its helpers are plain JavaScript; the fakes below record every call so the scope is checked in order.
 // @ts-expect-error plain .mjs without declarations
-import { fixTask, isConcreteFile, numberFindings, parseJudgement } from '../tools/squad/runner-judge.mjs';
+import { fixTask, isConcreteFile, judgePrompt, numberFindings, parseJudgement } from '../tools/squad/runner-judge.mjs';
 // @ts-expect-error plain .mjs without declarations
 import { parseFiles } from '../tools/squad/files-check.mjs';
 // @ts-expect-error plain .mjs without declarations
@@ -234,5 +237,45 @@ describe('fixTask finding file safety', () => {
 
   it.each(['.GIT/config', '.ENV'])('refuses %s as a supporting file', (p) => {
     expect(fixTask([finding('src/index.html')], { issue: '320', round: 1, supportingFiles: [p] })).toBeNull();
+  });
+});
+
+describe('supporting file limits and prompt', () => {
+  const five = ['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js', 'src/e.js'];
+
+  it('accepts exactly 5 supporting files for one kept id', () => {
+    const text = fence({ R1: { decision: 'keep', reason: 'r', supportingFiles: five }, R2: { decision: 'drop', reason: 'h' } });
+    const r = parseJudgement(text, ['R1', 'R2']);
+    expect(r.ok).toBe(true);
+    expect(r.supporting).toEqual({ R1: five });
+  });
+
+  it('rejects 6 supporting files for one id, kept or dropped', () => {
+    const six = [...five, 'src/f.js'];
+    const kept = fence({ R1: { decision: 'keep', reason: 'r', supportingFiles: six }, R2: { decision: 'drop', reason: 'h' } });
+    expect(parseJudgement(kept, ['R1', 'R2'])).toEqual({ ok: false, error: 'R1: supportingFiles allows at most 5 files' });
+    const dropped = fence({ R1: { decision: 'keep', reason: 'r' }, R2: { decision: 'drop', reason: 'h', supportingFiles: six } });
+    expect(parseJudgement(dropped, ['R1', 'R2']).ok).toBe(false);
+  });
+
+  it('shows the concrete example in the judge template, never the bare [optional] placeholder', () => {
+    const prompt = judgePrompt(numberFindings(REVIEW, null), 'brief');
+    expect(prompt).toContain('"supportingFiles": ["relative/file.ext"]');
+    expect(prompt).not.toContain('[optional]');
+    expect(prompt).toContain('supportingFiles is optional and only for a keep');
+  });
+
+  it('stops before the fix task is written when a supporting src is an existing directory', async () => {
+    const wtPath = mkdtempSync(join(tmpdir(), 'squad-wt-'));
+    mkdirSync(join(wtPath, 'src'));
+    const { deps, calls } = fakeDeps({
+      triage: [triageFull],
+      architect: [fence(PLAN)],
+      'lead-judge': [KEEP({ supportingFiles: ['src'] })],
+    });
+    deps.worktree = async () => ({ path: wtPath, branch: 'squad/91' });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:supporting file names a directory, not a file');
+    expect(calls.some((c) => c.startsWith('writeTasks:91-review-fixes'))).toBe(false);
   });
 });
