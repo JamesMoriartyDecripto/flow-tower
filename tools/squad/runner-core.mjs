@@ -7,9 +7,13 @@ import { join } from 'node:path';
 import { fixPaths, fixTask, judgePrompt, numberFindings, parseJudgement, stripFence } from './runner-judge.mjs';
 import { parsePlan, taskFiles } from './runner-plan.mjs';
 
-// An area named here needs a human to sign off the plan before any code is written. The CI and runner files are here
-// because a change to them changes how the checks and the squad itself run, so a person must see it first.
-const SENSITIVE = /auth|billing|payment|migration|permission|secret|privacy|personal|pii|gdpr|\.github\/|tools\/squad\/|package(-lock)?\.json/i;
+// An area named here needs a human to sign off the plan before any code is written. It is tested on the issue text and
+// the plan's words, so naming a word in prose is enough. The control files are a separate rule (CONTROL_FILE): they are
+// tested on file paths only, so an issue that mentions package.json as context is not stopped by the mention alone.
+const SENSITIVE = /auth|billing|payment|migration|permission|secret|privacy|personal|pii|gdpr/i;
+// CI and runner files need a person because a change to them changes how the checks and the squad itself run. Tested on
+// file paths (plan step files and fix files), never on prose.
+const CONTROL_FILE = /(^|\/)(\.github|tools\/squad)\/|(^|\/)package(-lock)?\.json$/i;
 const SIGN_OFF = 'sensitive area in the plan: a person must lead this issue (plan sign-off)';
 const FIX_SENSITIVE = 'sensitive area in a fix round: a person must lead this issue';
 const FILES_NOT_REGULAR = 'fix files must name regular files, not directories or links';
@@ -140,7 +144,8 @@ async function runSteps(deps, path, taskDir, issue) {
 // The sensitive-area rule applied to the plan's own words: a plan can name an auth file the issue never mentioned.
 function sensitivePlan(plan) {
   const words = [...plan.criteria, ...plan.steps.flatMap((s) => [s.title, ...s.items, ...s.files])];
-  return SENSITIVE.test(words.join('\n'));
+  const files = plan.steps.flatMap((s) => s.files);
+  return SENSITIVE.test(words.join('\n')) || files.some((f) => CONTROL_FILE.test(f));
 }
 
 const planComment = (plan) => ['Plan:', ...plan.criteria.map((c) => `- criterion: ${c}`),
@@ -234,7 +239,7 @@ export async function workIssue(issue, deps, limits) {
       const filePaths = fixPaths(kept, [...new Set(supportingFiles)]);
       if (filePaths.some((p) => isNotRegular(join(wt.path, p)))) stop(FILES_NOT_REGULAR);
       const keptText = [...kept.flatMap((f) => [f.file, f.what, f.why, f.fix]), ...supportingFiles].join('\n');
-      if (SENSITIVE.test(keptText)) stop(FIX_SENSITIVE);
+      if (SENSITIVE.test(keptText) || filePaths.some((p) => CONTROL_FILE.test(p))) stop(FIX_SENSITIVE);
       // A finding whose files are all outside the repository leaves nothing to fix in place, so the issue stops.
       const fix = fixTask(kept, { issue: n, round, supportingFiles: [...new Set(supportingFiles)] });
       if (!fix) stop('kept findings name no safe file inside the repository');

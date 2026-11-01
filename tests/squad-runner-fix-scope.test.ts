@@ -368,3 +368,28 @@ describe('workIssue Files path on disk', () => {
     expect(calls.some((c) => c.startsWith('writeTasks:91-review-fixes'))).toBe(false);
   });
 });
+
+describe('control files are checked on paths, not prose', () => {
+  it('reaches pr when the issue body only names package.json and tools/squad/squad.json in prose', async () => {
+    const issue = { ...ISSUE, body: 'The repo already has package.json and project rules in tools/squad/squad.json.' };
+    const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(PLAN)], 'lead-judge': [KEEP()] });
+    expect(await workIssue(issue, deps, LIMITS)).toBe('pr');
+    expect(calls).toContain('draftPr');
+  });
+
+  it('stops with the plan sign-off message when a plan step file is package.json', async () => {
+    const plan = { ...PLAN, steps: [{ title: 'Bump dep', items: ['edit manifest'], files: ['package.json'] }] };
+    const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(plan)] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:sensitive area in the plan: a person must lead this issue (plan sign-off)');
+    expect(calls.some((c) => c.startsWith('writeTasks:'))).toBe(false);
+  });
+
+  it('still stops a fix round that names .github/workflows/ci.yml or tools/squad/squad.json as a path', async () => {
+    for (const p of ['.github/workflows/ci.yml', 'tools/squad/squad.json']) {
+      const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(PLAN)], 'lead-judge': [KEEP({ supportingFiles: [p] })] });
+      expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+      expect(calls).toContain('fail:sensitive area in a fix round: a person must lead this issue');
+    }
+  });
+});
