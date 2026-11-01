@@ -244,10 +244,11 @@ export async function workIssue(issue, deps, limits) {
       if (j.drop.length) await gh.comment(n, droppedComment(j.drop, byId));
       const kept = findings.filter((f) => j.keep.includes(f.id));
       if (!kept.length) break;
-      // Past the last round, a kept security finding of high or critical severity still stops the issue. Any other kept
-      // finding is recorded as open, so the verifier and the draft PR see it and a person reviews it there.
+      // Past the last round, a kept security finding stops the issue unless its severity is clearly low or medium. Severity
+      // is model text, so anything else (High., missing, "critical (CVSS 9)") fails closed. Other kept findings are recorded
+      // as open, so the verifier and the draft PR see them and a person reviews them there.
       if (round > limits.fixRounds) {
-        const blocking = kept.some((f) => f.role === 'security' && /^(critical|high)$/i.test(String(f.severity ?? '')));
+        const blocking = kept.some((f) => f.role === 'security' && !/^(medium|low)$/i.test(String(f.severity ?? '').trim()));
         if (blocking) stop(`findings still open after ${limits.fixRounds} fix rounds`);
         open = kept.map((f) => ({ id: f.id, file: f.file, what: f.what }));
         break;

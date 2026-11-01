@@ -273,6 +273,26 @@ describe('findings still open after the last fix round', () => {
     expect(calls).toContain('fail:findings still open after 1 fix rounds');
     expect(calls).not.toContain('draftPr');
   });
+
+  it.each([['High.'], [undefined], ['critical (CVSS 9)']])('fails closed when a kept security finding has severity %s', async (severity) => {
+    const security = { findings: [{ file: 'src/cache.js:1', what: 'leak', why: 'x', fix: 'y', severity }] };
+    const keepS = fence({ S1: { decision: 'keep', reason: 'real' } });
+    const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(PLAN)], 'lead-judge': [keepS, keepS] });
+    (deps as any).quality = async () => { calls.push('quality'); return { ok: true, review: { findings: [] }, security }; };
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:findings still open after 1 fix rounds');
+    expect(calls).not.toContain('draftPr');
+  });
+
+  it('reaches pr and lists a kept low security finding under Open findings', async () => {
+    const security = { findings: [{ file: 'src/cache.js:1', what: 'leak', why: 'x', fix: 'y', severity: 'low' }] };
+    const keepS = fence({ S1: { decision: 'keep', reason: 'real' } });
+    const { deps, calls, written } = fakeDeps({ triage: [triageFull], architect: [fence(PLAN)], 'lead-judge': [keepS, keepS] });
+    (deps as any).quality = async () => { calls.push('quality'); return { ok: true, review: { findings: [] }, security }; };
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(written.find((t) => t.includes('Open findings'))).toContain('Open findings (after the last fix round):\n- S1');
+    expect(calls).toContain('draftPr');
+  });
 });
 
 describe('control files named through Files entry markers and directories', () => {
