@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Dev Squad Claude Agent SDK backend (#355): `examples/dev-squad/src` (the webhook pipeline on `@anthropic-ai/claude-agent-sdk`), its deploy files, Claude Code settings, prompts, memory and sample logs, and their tests. The squad depends on no SDK: one OpenRouter key, the user's own session as lead in any harness.
 
 ### Fixed
+- Unattended Squad role prompts explicitly require the machine-readable result in the finish report; the judge and verifier receive the original issue alongside the plan, preserving requirements omitted by a summary (#320).
 - Temp files no longer fill the disk (#357). Each test run uses its own `TMPDIR`, removed at the end; folders left by crashed runs are swept after 24 h. On 2026-10-31, 2205 leftover folders had filled a `/tmp` quota. `steps.sh` deletes its output folder when every step is green, and its own folders older than 7 days. `run.mjs` prunes role logs beyond the newest 200 that are older than 14 days (new runner file `log-prune.mjs`).
 
 ### Changed
