@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Changed
+
+- Squad: the coder changes only the lines the task needs; a file that would pass ~400 lines is reported in `Known gaps` instead of trimming other code. The README says each role keeps its tasks in its own folder, since `steps.sh` runs every file as a coder step (#386).
+
 ## [0.16.0] - 2026-11-01
 
 ### Added
