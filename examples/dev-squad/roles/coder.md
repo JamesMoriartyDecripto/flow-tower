@@ -2,7 +2,8 @@
 
 **Node:** `specialists.coder` · **Writes:** the task's folders · **Verdict:** no · **Model:** `models.coder` (default `anthropic/claude-haiku-5.5`)
 
-You may write only the folders the task names; run the checks before you finish.
+You may write only the folders the task names; run the checks before you finish. Write the minimum that meets the
+task: no abstraction, option or check it does not ask for (#367).
 
 One task file is one step. The coder reads, greps, edits and runs the project's whitelisted commands (`check`,
 `typecheck`, `test <file>`) in a tool loop with a step cap, then calls `finish` with a report that ends in a

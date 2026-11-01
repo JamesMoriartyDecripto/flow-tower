@@ -49,12 +49,14 @@ const inRepo = (p) => {
 const FOCUS = {
   reviewer: [
     'Focus: correctness bugs, missed edge cases, races, behaviour that contradicts the brief,',
-    'and files over ~400 lines. Do not comment on style.',
+    'files over ~400 lines, and unneeded complexity: code or checks the brief does not ask for,',
+    'a second copy of an existing mechanism, a solution bigger than the task. Do not comment on style.',
   ],
   security: [
     'Focus: who can mint or use a credential; header spoofing; path traversal and symlinks;',
     'secrets leaving the machine; one sender touching another\'s data; body and file-count DoS;',
     'tokens in logs; CSRF. Give a severity per finding (critical, high, medium, low).',
+    'Before proposing a new check, name the existing guard that could cover the case; if one covers it, it is not a finding.',
   ],
 };
 // The quote lets a script check each finding against the real file, so a line the model made up is caught.
