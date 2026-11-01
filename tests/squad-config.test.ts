@@ -107,3 +107,15 @@ describe('squad model defaults (#322)', () => {
     });
   });
 });
+
+describe('squad config refuses shell syntax (#382)', () => {
+  const SHELL = /"commands.check" uses shell syntax, but the runner runs it without a shell/;
+
+  it.each(['docker build . >/dev/null && bash x.sh', 'a | b', 'echo $(pwd)'])('refuses "%s"', (check) => {
+    expect(() => loadConfig(repoWith(JSON.stringify({ commands: { check } })))).toThrow(SHELL);
+  });
+
+  it.each(['bash tools/ci/check.sh', 'npm run check', 'pytest -q {file}'])('accepts "%s"', (check) => {
+    expect(loadConfig(repoWith(JSON.stringify({ commands: { check } }))).commands.check).toBe(check);
+  });
+});

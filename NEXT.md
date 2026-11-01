@@ -12,7 +12,7 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
 - **Runner status:** five external replays (private trial project, issue 3), each stopping safely further along;
   none reached the draft PR alone. Last stop: a fix needed a test file outside the fix scope (the judge did not
   name it in supportingFiles). Next candidate fix, only if a new replay shows it again (KISS).
-- **Open:** #375 (run checks isolated from the runner's credentials), #303, #75, #340, #317.
+- **Open:** #303, #75, #340, #317. #375 (isolated checks) closed as not planned: the runner runs only on our trusted repos.
 - Replay launcher: ignored `.stress/evidence/320-replay-launch.mjs` (trial repo, runner home under /tmp).
   Refresh the trial's runner with `squad init <trial> --force` and commit it there before each replay.
 - In a task's `Files:` line, list every test file whose assertions the step changes: three continuation steps
