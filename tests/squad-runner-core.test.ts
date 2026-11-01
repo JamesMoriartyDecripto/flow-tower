@@ -223,7 +223,7 @@ describe('workIssue', () => {
   it('opens the draft PR with the findings still kept after the fix rounds', async () => {
     const review = { findings: [{ file: 'src/a.ts:3', what: 'bug', why: 'x', fix: 'y' }] };
     const keep = fence({ R1: { decision: 'keep', reason: 'real' } });
-    const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(PLAN)], 'lead-judge': [keep, keep] },
+    const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(PLAN)], 'lead-judge': [keep, keep], verifier: ['PASS'] },
       [{ ok: true, review, security: {} }, { ok: true, review, security: {} }]);
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
     expect(calls).toContain('draftPr');
