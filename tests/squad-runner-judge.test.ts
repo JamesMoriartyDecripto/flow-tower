@@ -107,7 +107,7 @@ describe('fixTask', () => {
       { id: 'R3', file: 'src/ok.ts:5', what: 'e', fix: 'f' },
     ];
     const task = fixTask(outside, { issue: '320', round: 1 });
-    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/ok.ts');
+    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/ok.ts (optional)');
     expect(task.text).not.toContain('/etc/y');
   });
 
@@ -143,15 +143,15 @@ describe('fixTask', () => {
 
   it('keeps the Files line readable by parseFiles', () => {
     const task = fixTask(kept, { issue: '320', round: 1 });
-    expect(parseFiles(task.text)).toEqual(['src/a.ts']);
+    expect(parseFiles(task.text, { all: true })).toEqual(['src/a.ts']);
   });
 
   it('strips the line suffix and lists each file once', () => {
     const task = fixTask(kept, { issue: '320', round: 1 });
-    expect(task.text).toContain('Files: src/a.ts\n');
+    expect(task.text).toContain('Files: src/a.ts (optional)\n');
     // The line stays in the numbered items (the fixer needs it), but the Files line names the file alone.
     expect(task.text).toContain('2. src/a.ts:42: eval on input. Fix: drop eval');
-    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/a.ts');
+    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/a.ts (optional)');
     expect(task.text).toContain('Verify: `run check`');
   });
 });

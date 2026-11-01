@@ -133,7 +133,8 @@ const changedSince = (repo, baseRev) => [...new Set([
 function main(args) {
   const [cmd, ...rest] = args;
   const write = (taskFile, repo, csv) => {
-    const files = parseFiles(readFileSync(taskFile, 'utf8'));
+    // An optional file may be written, so it is in scope: all: true keeps it for the write dirs and the stage match.
+    const files = parseFiles(readFileSync(taskFile, 'utf8'), { all: true });
     const bad = badEntries(files);
     if (bad.length) throw new Error(`Files: entries must stay inside the repository: ${bad.join(', ')}`);
     const cfgWrite = splitCsv(csv);
@@ -143,7 +144,7 @@ function main(args) {
   const stageOf = (taskFile, baseRev, repo, snapFile, csv) => {
     const changed = changedSince(repo, baseRev);
     const foreign = Object.keys(readSnapshot(snapFile));
-    const files = parseFiles(readFileSync(taskFile, 'utf8'));
+    const files = parseFiles(readFileSync(taskFile, 'utf8'), { all: true });
     const staged = toStage(changed, foreign, write(taskFile, repo, csv), files);
     return { changed, foreign, staged };
   };
