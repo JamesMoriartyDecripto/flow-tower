@@ -7,8 +7,9 @@ import { join } from 'node:path';
 import { fixPaths, fixTask, judgePrompt, numberFindings, parseJudgement, stripFence } from './runner-judge.mjs';
 import { parsePlan, taskFiles } from './runner-plan.mjs';
 
-// An area named here needs a human to sign off the plan before any code is written.
-const SENSITIVE = /auth|billing|payment|migration|permission|secret|privacy|personal|pii|gdpr/i;
+// An area named here needs a human to sign off the plan before any code is written. The CI and runner files are here
+// because a change to them changes how the checks and the squad itself run, so a person must see it first.
+const SENSITIVE = /auth|billing|payment|migration|permission|secret|privacy|personal|pii|gdpr|\.github\/|tools\/squad\/|package(-lock)?\.json/i;
 const SIGN_OFF = 'sensitive area in the plan: a person must lead this issue (plan sign-off)';
 const FIX_SENSITIVE = 'sensitive area in a fix round: a person must lead this issue';
 const FILES_NOT_REGULAR = 'fix files must name regular files, not directories or links';
@@ -29,8 +30,10 @@ const stop = (reason) => { throw new Stop(reason); };
 // A Files path must be a regular file or a path that does not exist yet (a fix may create it). lstat, not stat, so a
 // link in the last segment is seen as a link. A link in a parent folder is left to run.mjs, which checks every coder
 // write on its real path (#169).
-const isDirOrLink = (p) => {
-  try { const s = lstatSync(p); return s.isDirectory() || s.isSymbolicLink(); } catch { return false; }
+// Only a regular file passes, so a FIFO, socket, device or directory is refused. Only ENOENT means the path does not
+// exist yet; any other error (e.g. EACCES) is refused, since the check cannot see what is there.
+const isNotRegular = (p) => {
+  try { return !lstatSync(p).isFile(); } catch (err) { return err.code !== 'ENOENT'; }
 };
 
 const lastLines = (text, k) => String(text ?? '').split('\n').slice(-k).join('\n');
@@ -226,7 +229,7 @@ export async function workIssue(issue, deps, limits) {
       // Every path the Files line will name is checked on disk, finding files included: a directory would match every file
       // under it by prefix in files-check, and a link could lead outside the worktree. A missing path is allowed (it may be created).
       const filePaths = fixPaths(kept, [...new Set(supportingFiles)]);
-      if (filePaths.some((p) => isDirOrLink(join(wt.path, p)))) stop(FILES_NOT_REGULAR);
+      if (filePaths.some((p) => isNotRegular(join(wt.path, p)))) stop(FILES_NOT_REGULAR);
       const keptText = [...kept.flatMap((f) => [f.file, f.what, f.why, f.fix]), ...supportingFiles].join('\n');
       if (SENSITIVE.test(keptText)) stop(FIX_SENSITIVE);
       // A finding whose files are all outside the repository leaves nothing to fix in place, so the issue stops.

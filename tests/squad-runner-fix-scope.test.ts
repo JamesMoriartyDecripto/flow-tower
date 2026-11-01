@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -295,6 +296,31 @@ describe('isConcreteFile allowlist', () => {
 });
 
 describe('workIssue Files path on disk', () => {
+  it.each(['.github/workflows/ci.yml', 'tools/squad/squad.json'])('stops when a kept supporting file is %s, before writeTasks', async (p) => {
+    const { deps, calls } = fakeDeps({
+      triage: [triageFull],
+      architect: [fence(PLAN)],
+      'lead-judge': [KEEP({ supportingFiles: [p] })],
+    });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:sensitive area in a fix round: a person must lead this issue');
+    expect(calls.some((c) => c.startsWith('writeTasks:91-review-fixes'))).toBe(false);
+  });
+
+  it.skipIf(process.platform === 'win32')('stops when a supporting file is a FIFO, before writeTasks', async () => {
+    const wtPath = mkdtempSync(join(tmpdir(), 'squad-wt-'));
+    execFileSync('mkfifo', [join(wtPath, 'pipe')]);
+    const { deps, calls } = fakeDeps({
+      triage: [triageFull],
+      architect: [fence(PLAN)],
+      'lead-judge': [KEEP({ supportingFiles: ['pipe'] })],
+    });
+    deps.worktree = async () => ({ path: wtPath, branch: 'squad/91' });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:fix files must name regular files, not directories or links');
+    expect(calls.some((c) => c.startsWith('writeTasks:91-review-fixes'))).toBe(false);
+  });
+
   it('stops when a kept finding file is an existing directory, before writeTasks', async () => {
     const wtPath = mkdtempSync(join(tmpdir(), 'squad-wt-'));
     mkdirSync(join(wtPath, 'src'));
