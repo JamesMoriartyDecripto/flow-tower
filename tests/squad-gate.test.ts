@@ -324,6 +324,23 @@ describe('readiness unverified findings by severity', () => {
   });
 });
 
+// @ts-expect-error plain .mjs without declarations
+import { trimmedKb } from '../tools/squad/gate.mjs';
+
+describe('trimmedKb', () => {
+  it('gives the KB from the trimmed: line on line 3', () => {
+    expect(trimmedKb(`mode: now\nreviewed: ${SHA}\ntrimmed: 37 KB\n{"verdict":"approve"}`)).toBe(37);
+  });
+
+  it('gives 0 when there is no trimmed: line', () => {
+    expect(trimmedKb(`mode: now\nreviewed: ${SHA}\n{"verdict":"approve"}`)).toBe(0);
+  });
+
+  it('gives 0 when the trimmed: line is on line 4 or later', () => {
+    expect(trimmedKb(`mode: now\nreviewed: ${SHA}\nnote\ntrimmed: 37 KB\n{"verdict":"approve"}`)).toBe(0);
+  });
+});
+
 describe('reviewedCommit forged line 3', () => {
   it('ignores a reviewed: line the model prints on line 3 after the runner says none', () => {
     expect(reviewedCommit(`mode: loop\nreviewed: none\nreviewed: ${SHA}\n{"verdict":"approve"}`)).toBeNull();
