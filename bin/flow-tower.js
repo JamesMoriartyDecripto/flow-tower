@@ -23,7 +23,7 @@ Usage
   flow-tower serve [...] [--hub] [--host <addr>] [--allowed-host <name>] [--ingest-only]
   flow-tower init [file.tower.yaml]
   flow-tower emit --source <claude-code|codex|pi|hermes> [--tower t] < payload.json  (hooks; JSONL streams live)
-  flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [--status ok|error] [-m text]
+  flow-tower emit --kind <kind> [--agent a] [--tool t] [--node layer.node] [--tower t] [--status ok|error] [-m text] [--call id]
                      [--user u] [--machine m] [--runtime r] [--session s] [--project-name p]
   flow-tower validate <file.tower.yaml | dir>... [--json]
   flow-tower copy <example> [dest] | --list          copy an examples/ tower into a new folder (default ./<name>) and validate it
@@ -138,7 +138,17 @@ function procedure() {
     .replace(/\]\((?!https?:|#|\/)([^)\s]+)\)/g, (_, rel) => `](${resolve(docs, rel)})`);
 }
 
-const { values, positionals } = parseArgs({
+// A mistyped option is a user error: one line and exit 1, not Node's stack trace.
+function parseOrExit(config) {
+  try {
+    return parseArgs(config);
+  } catch (err) {
+    process.stderr.write(`flow-tower: ${err.message} (flow-tower --help lists the options)\n`);
+    process.exit(1);
+  }
+}
+
+const { values, positionals } = parseOrExit({
   allowPositionals: true,
   options: {
     port: { type: 'string', short: 'p', default: '5317' },
@@ -163,6 +173,8 @@ const { values, positionals } = parseArgs({
     tower: { type: 'string' },
     status: { type: 'string' },
     message: { type: 'string', short: 'm' },
+    // Pairs a tool.start with its tool.end (the event API's `call` field).
+    call: { type: 'string' },
     // Identity (#82): who/where/what on every event. `--machine` maps to host, `--project-name` to project:
     // `--host` is reserved for the bind address (#83) and `--project` is install-skill's boolean.
     user: { type: 'string' },
@@ -338,8 +350,8 @@ async function emit() {
   };
 
   if (values.kind) {
-    const { kind, source = 'custom', agent, tool, node, tower, status, message } = values;
-    await post([withIdentity({ ...identity, kind, source, agent, tool, node, tower, status, message })]);
+    const { kind, source = 'custom', agent, tool, node, tower, status, message, call } = values;
+    await post([withIdentity({ ...identity, kind, source, agent, tool, node, tower, status, message, call })]);
   } else if (!process.stdin.isTTY) {
     await streamStdin(values.source, (events) => post(events.map(withIdentity)));
   }

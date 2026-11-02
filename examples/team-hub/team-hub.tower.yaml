@@ -32,6 +32,7 @@ layers:
         label: Hook emit
         runtime: laptop
         description: "Claude Code, Codex, Pi and Hermes, wired in one step by `flow-tower hooks install` (#189): it merges the entries of integrations/ into each harness's config on the port of the running library, keeping the user's own hooks (backup, atomic write, POSIX-quoted command). HTTP hooks post to the local library; command hooks run `flow-tower emit`."
+        meta: { emit: "--call pairs a start with its end; an unknown option prints one line and exits 1, never a stack trace (#400)" }
         files: [bin/flow-tower.js, src/cli/hooks.ts, src/cli/hooks-merge.ts, src/cli/hooks-merge-yaml.ts, integrations/claude-code/settings.json, integrations/codex/hooks.json, integrations/pi/flow-tower.ts, integrations/hermes/config.yaml, integrations/agent-sdk/flow-tower-hooks.ts]
       - id: identity-cli
         type: process
@@ -57,6 +58,12 @@ layers:
         runtime: laptop
         description: "flow-tower service install|status|uninstall (#194): a systemd user unit or a launchd agent keeps the library running at login, so hooks always find it. The unit runs the node on PATH and reads exits 130/143 as a clean stop; install says when the library is empty, status points a failed unit to journalctl, uninstall clears the failed state."
         files: [src/cli/service.ts, src/cli/service-files.ts]
+      - id: library-watch
+        type: hook
+        label: Library watch
+        runtime: laptop
+        description: "The library reloads when a tower or a file it references changes. Inside a library folder only folders, *.tower.yaml and referenced files are watched, never node_modules or hidden folders (the scanner's rule), so a project with a Python venv or a data folder does not use up the system's file watchers (#401)."
+        files: [src/server/plugin.ts, vite.config.ts]
       - id: supervisor
         type: process
         label: Relay supervisor
@@ -122,6 +129,7 @@ layers:
       - "connect-cli -> config-file [data]: config.json"
       - "local-server -> hooks [data]: local port"
       - "service-cli -> supervisor: keeps the library running"
+      - "service-cli -> library-watch: reloads on change"
       - "supervisor -> relay [call]: build, new credentials"
       - "supervisor -> share-sync [call]: start, stop"
       - "relay -> sharing [data]: state"

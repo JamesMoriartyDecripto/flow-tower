@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -156,6 +156,92 @@ describe('squad doctor, portable (#334)', () => {
     const config = configCheck(root, { ...healthyOpts(root), exec: fakeExec(root).exec });
     expect(config?.ok).toBe(false);
     expect(config?.detail).toContain('squad init');
+  });
+
+  it('fails the check command when its module does not answer --version, and names the command', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'python3 -m pytest' } }));
+    const base = fakeExec(root).exec;
+    const exec: Exec = (cmd, args) => (cmd === 'python3' ? fail(1) : base(cmd, args));
+    const check = doctor(root, { ...healthyOpts(root), exec }).find((c) => c.name === 'check command');
+    expect(check?.ok).toBe(false);
+    expect(check?.detail).toContain('python3 -m pytest');
+  });
+
+  it('passes the check command when its module is found, probed without importing it', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'python3 -m pytest' } }));
+    const { exec } = fakeExec(root);
+    const probes: string[][] = [];
+    const python: Exec = (cmd, args) => {
+      if (cmd === 'python3') probes.push(args);
+      return cmd === 'python3' ? ok() : exec(cmd, args);
+    };
+    const check = doctor(root, { ...healthyOpts(root), exec: python }).find((c) => c.name === 'check command');
+    expect(check?.ok).toBe(true);
+    // The probe is find_spec with the module name as an argument: the module's code never runs.
+    expect(probes).toHaveLength(1);
+    expect(probes[0][0]).toBe('-c');
+    expect(probes[0][probes[0].length - 1]).toBe('pytest');
+  });
+
+  it('runs the find_spec probe from a private folder that is removed after the probe', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'python3 -m pytest' } }));
+    const base = fakeExec(root).exec;
+    const cwds: string[] = [];
+    const python: Exec = (cmd, args, opts) => {
+      if (cmd === 'python3') cwds.push(opts?.cwd ?? '');
+      return cmd === 'python3' ? ok() : base(cmd, args);
+    };
+    doctor(root, { ...healthyOpts(root), exec: python });
+    expect(cwds).toHaveLength(1);
+    expect(cwds[0].startsWith(join(tmpdir(), 'flow-tower-doctor-'))).toBe(true);
+    expect(existsSync(cwds[0])).toBe(false);
+  });
+
+  it('does not start a dotted -m module through the find_spec probe', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'node -m a.b' } }));
+    const { exec, calls } = fakeExec(root);
+    const check = doctor(root, { ...healthyOpts(root), exec }).find((c) => c.name === 'check command');
+    expect(calls.some((c) => c.args.includes('-c'))).toBe(false);
+    expect(check?.ok).toBe(true);
+  });
+
+  it('never starts a repo-relative interpreter for the find_spec probe, and checks only that it exists', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: './tools/x -m foo' } }));
+    mkdirSync(join(root, 'tools'), { recursive: true });
+    writeFileSync(join(root, 'tools', 'x'), '');
+    const { exec, calls } = fakeExec(root);
+    const check = doctor(root, { ...healthyOpts(root), exec }).find((c) => c.name === 'check command');
+    expect(calls.some((c) => c.args.includes('-c'))).toBe(false);
+    expect(calls.some((c) => c.cmd === './tools/x')).toBe(false);
+    expect(check?.ok).toBe(true);
+  });
+
+  it('resolves a relative check path from the repo root, not the process cwd', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: './scripts/check.sh' } }));
+    mkdirSync(join(root, 'scripts'));
+    writeFileSync(join(root, 'scripts', 'check.sh'), '');
+    const check = doctor(root, healthyOpts(root)).find((c) => c.name === 'check command');
+    expect(check?.ok).toBe(true);
+  });
+
+  it('fails the check command when a relative check path is missing from the repo root', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: './scripts/check.sh' } }));
+    const check = doctor(root, healthyOpts(root)).find((c) => c.name === 'check command');
+    expect(check?.ok).toBe(false);
+    expect(check?.detail).toContain('./scripts/check.sh');
+  });
+
+  it('fails the check command when its program is not on PATH', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'definitely-not-a-program-xyz run' } }));
+    const check = doctor(root, healthyOpts(root)).find((c) => c.name === 'check command');
+    expect(check?.ok).toBe(false);
+    expect(check?.detail).toContain('cannot start');
+  });
+
+  it('passes the check command when its program is on PATH', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'node x.js' } }));
+    const check = doctor(root, healthyOpts(root)).find((c) => c.name === 'check command');
+    expect(check?.ok).toBe(true);
   });
 
   it('stops at the git check when the folder is not a repository, and starts no other program', () => {

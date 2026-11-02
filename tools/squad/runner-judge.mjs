@@ -1,6 +1,7 @@
 // The unattended lead's judge step (#320): numbers the reviewer's and the security auditor's findings, asks lead-judge
 // to keep or drop each one with a reason, and turns the kept ones into one fix step. These are pure functions: the
 // lead's command line does the model call and the file writes, so the same answers always give the same plan.
+import { taskRules } from './config.mjs';
 
 // Reviewer findings come first (R1, R2..), then security findings (S1..), each in the order the model gave them.
 // The id and role are set after the spread, so a finding cannot pick its own id.
@@ -147,7 +148,8 @@ export function fixPaths(allKept, supportingFiles = []) {
   return [...new Set([...inside.map(fileOf), ...supportingFiles])];
 }
 
-export function fixTask(allKept, { issue, round, supportingFiles = [] }) {
+// The rules line is the project's own (rules defaults to taskRules()), the same line the planner writes.
+export function fixTask(allKept, { issue, round, supportingFiles = [], rules = taskRules() }) {
   if (!Array.isArray(supportingFiles) || !supportingFiles.every(isConcreteFile)) return null;
   const inside = allKept.filter((f) => insideRepo(fileOf(f)));
   if (inside.some((f) => !isConcreteFile(fileOf(f)))) return null;
@@ -158,7 +160,7 @@ export function fixTask(allKept, { issue, round, supportingFiles = [] }) {
   const text = [
     `# ${issue}-9${round}: fix the kept review findings (round ${round})`,
     '',
-    'Rules: English only; never touch secret files; edit only the files named below; comments explain why; files under ~400 lines; never rewrite or empty an existing test file (add to the new one only).',
+    rules,
     'Verify: `run check`; `finish` with the output and a `Known gaps:` line.',
     '',
     'The review and the security pass found these defects in this pull request, and lead-judge kept each one. Fix each item and nothing else.',
