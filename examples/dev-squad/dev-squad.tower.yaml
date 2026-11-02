@@ -267,6 +267,7 @@ layers:
         type: decision
         label: Merge gate
         description: "gate.mjs: CI green, not a draft, reviewer and security approve the PR's exact head. READY or NOT READY with the reasons, and a note when a pass saw a pack trimmed to fit (run.mjs counts only a cut marker alone on its line, not one inside a packed file, #422)."
+        meta: { severity: "Reviewer and security findings carry one scale (critical, high, medium, low); the gate blocks on a changes verdict or a verified critical/high finding, so a low note never fails it. An outside gate keys on the same two (#427)." }
         decision: { output: binary, candidates: [ready, not_ready], fail: closed }
         files: [roles/reviewer.md, roles/security.md]
       - id: merge

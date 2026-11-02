@@ -51,6 +51,7 @@ const FOCUS = {
     'Focus: correctness bugs, missed edge cases, races, behaviour that contradicts the brief,',
     `files over ~${config.style.maxFileLines} lines, and unneeded complexity: code or checks the brief does not ask for,`,
     'a second copy of an existing mechanism, a solution bigger than the task. Do not comment on style.',
+    'Give a severity per finding (critical, high, medium, low): low for a note that should not block the merge.',
   ],
   security: [
     'Focus: who can mint or use a credential; header spoofing; path traversal and symlinks;',
@@ -62,8 +63,8 @@ const FOCUS = {
 // The quote lets a script check each finding against the real file, so a line the model made up is caught.
 const FORMAT = [
   'Answer with JSON only, no prose around it:',
-  '{"verdict":"approve"|"changes","findings":[{'
-    + (role === 'security' ? '"severity":"critical|high|medium|low", ' : '')
+  // Every role gives a severity, so one gate rule (block on critical and high) covers both passes.
+  '{"verdict":"approve"|"changes","findings":[{"severity":"critical|high|medium|low", '
     + '"file":"path:line","quote":"...","what":"...","why":"...","fix":"..."}]}',
   'quote is the exact text of that line as shown in the diff or the files below, copied character by character, without the line number and without the leading + or - of a diff line. A finding whose quote is not at that line is dropped as unverified, so never paraphrase it and never cite a line you were not shown.',
 ];

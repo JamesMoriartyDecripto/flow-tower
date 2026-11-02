@@ -178,7 +178,12 @@ The last check before you merge, and a script, not a model, so it cannot halluci
 `gh pr view` and `git rev-parse HEAD`, parses the two passes' answers and prints `READY` (exit 0) or `NOT READY`
 (exit 1) with one line per reason: a CI check not passed, a draft, a pull request that is not mergeable, a worktree not
 at the pull request head or with uncommitted changes, a missing or `changes` verdict, a pass that did not review the
-pull request head, a critical or high finding. It never merges and never approves.
+pull request head, a critical or high finding. It never merges and never approves. Both passes give every finding a
+severity (critical, high, medium, low). `gate.mjs` blocks on critical and high, and on a finding with no known severity
+(a malformed answer fails closed); medium and low do not block it. A gate of your own keys on the verdict
+and those severities, never on an empty findings list (#427). Both are the model's judgement, not proof: a pass
+steered by the diff can call a real issue `low` as easily as it can approve with no finding, so the lead still reads
+every finding before a merge.
 
 Only a packed review counts. `pack.mjs` writes `Reviewed commit: <sha>` on the task's third line when the tree is
 clean (it leaves the line out, with a warning, when it is not: the diff would hold uncommitted edits). `run.mjs`
