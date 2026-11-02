@@ -86,6 +86,10 @@ console.log(`mode: ${mode}${why === 'pace' ? ` (SQUAD_PACE=${env.SQUAD_PACE})` :
 // start on line 2, where the gate reads the commit, and the model could print a forged "reviewed:" line there.
 const reviewed = /^Reviewed commit: ([0-9a-f]{40})$/.exec(task.split('\n')[2] ?? '');
 console.log(`reviewed: ${reviewed?.[1] ?? 'none'}`);
+// pack.mjs leaves a "[… cut N KB]" marker where it trimmed the diff. The gate reads this header line, so a pass that
+// saw a cut diff cannot read as full coverage. Printed only when there is a marker, and before the model answers.
+const cuts = [...task.matchAll(/\[… cut (\d+) KB\]/g)];
+if (cuts.length > 0) console.log(`trimmed: ${cuts.reduce((sum, m) => sum + Number(m[1]), 0)} KB`);
 const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or
 // FLOW_TOWER_HOME. The git-ignored .env of the checkout is the fallback. Real environment variables win.

@@ -39,6 +39,15 @@ export function reviewedCommit(text) {
   return m ? m[1] : null;
 }
 
+// The KB that pack.mjs cut from the task, from the header line run.mjs prints third (after mode and reviewed). A pass
+// that saw a cut diff is still READY by the rules; the note tells the lead to review the cut part. Zero when absent.
+export function trimmedKb(text) {
+  const lines = String(text ?? '').split('\n').map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l));
+  if (!lines[0]?.startsWith('mode: ')) return 0;
+  const m = lines[2]?.match(/^trimmed: (\d+) KB$/);
+  return m ? Number(m[1]) : 0;
+}
+
 // Whitespace is collapsed on both sides, so a quote that differs only in spacing still matches the file.
 const norm = (s) => s.trim().replace(/\s+/g, ' ');
 
@@ -169,6 +178,7 @@ function verdictOf(role, file, readFile) {
     role,
     verdict: parsed.verdict,
     commit: reviewedCommit(text),
+    trimmed: trimmedKb(text),
     findings: parsed.findings.map((f) => checkFinding(f, readFile)),
   };
 }
@@ -210,6 +220,9 @@ function main() {
     .filter((f) => f.status === 'unverified')
     .map((f) => `- ${v.role} ${clean(f.file)}: ${clean(f.reason)}`));
   if (unverified.length > 0) lines.push('Unverified findings (check them in the code before acting):', ...unverified);
+  for (const v of verdicts.filter((x) => x.trimmed > 0)) {
+    lines.push(`Note: ${v.role} pass saw a trimmed pack (cut ${v.trimmed} KB): rerun with a larger --max-kb or review the cut part`);
+  }
   stdout.write(`${lines.join('\n')}\n`);
   return reasons.length === 0 ? 0 : 1;
 }
