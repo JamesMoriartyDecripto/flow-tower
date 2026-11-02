@@ -49,3 +49,19 @@ export async function httpFailure(r) {
   const short = typeof code === 'string' || typeof code === 'number' ? String(code) : '';
   return `HTTP ${r.status}${/^[\w.-]{1,40}$/.test(short) ? ` ${short}` : ''}`;
 }
+
+// One line saying why an answer came back empty. Reasoning tokens are billed, so the counts show where the budget went.
+// The finish reason and the generation id come from the provider: they are printed only when they are plain tokens.
+export function emptyReport(answer) {
+  const u = answer.usage ?? {};
+  const reason = typeof answer.finishReason === 'string' && /^[\w.-]{1,40}$/.test(answer.finishReason) ? answer.finishReason : 'unknown';
+  const id = typeof answer.generationId === 'string' && /^[\w.-]{1,80}$/.test(answer.generationId) ? answer.generationId : '?';
+  const reasoning = u.completion_tokens_details?.reasoning_tokens ?? '?';
+  return `empty answer (finish_reason: ${reason}, tokens: prompt ${u.prompt_tokens ?? '?'}, completion ${u.completion_tokens ?? '?'}, reasoning ${reasoning}, generation ${id})`;
+}
+
+// A reply cut at the token cap with no content: the reasoning used the whole output budget, so a retry with more can answer.
+export const budgetCut = (answer) => (answer.content ?? '') === '' && answer.finishReason === 'length';
+
+// The same request with twice the output budget.
+export const withBudget = (body) => ({ ...body, max_tokens: body.max_tokens * 2 });
