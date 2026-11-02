@@ -200,7 +200,16 @@ const tools = {
     const lines = readFileSync(abs, 'utf8').split('\n');
     return cap(lines.slice(from - 1, to).map((l, i) => `${from + i}\t${l}`).join('\n'));
   },
-  grep: ({ pattern, path = '.' }) => { try { return cap(git('grep', '-n', '-I', '-E', String(pattern), '--', path === '.' ? '.' : readRel(path).rel), 15_000); } catch { return 'no match'; } },
+  // -e keeps a pattern that starts with a dash (e.g. --pattern) from being read as a git option. Only git grep's
+  // exit 1 means no match; any other failure (a bad regex, a git error) is reported instead of read as an empty search.
+  grep: ({ pattern, path = '.' }) => {
+    try { return cap(git('grep', '-n', '-I', '-E', '-e', String(pattern), '--', path === '.' ? '.' : readRel(path).rel), 15_000); }
+    catch (e) {
+      if (e.status === 1) return 'no match';
+      // A refused path throws before git runs, so it has no stderr: its message is the reason.
+      return `grep failed: ${String(e.stderr || e.message || '').trim().split('\n')[0].slice(0, 200)}`;
+    }
+  },
   // A write goes where its real path (symlinks followed) says, so that path is what is checked (guard.mjs).
   edit_file: ({ path, old, new: next }) => {
     const { abs, rel } = inRepo(path);
@@ -395,6 +404,8 @@ for (let step = 0; step < maxSteps; step++) {
   emit('log', node, `step ${step + 1} · $${cost.toFixed(3)} · cache ${cached}%${msg.content ? ` · ${msg.content.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`);
   if (!msg.tool_calls?.length) { messages.push({ role: 'user', content: 'Use the tools; call finish with your report when done.' }); continue; }
   let reask = false;
+  // A finish sent with other calls was written before their results existed: it is refused until it comes alone.
+  const mixed = msg.tool_calls.some((c) => c.function.name === 'finish') && msg.tool_calls.some((c) => c.function.name !== 'finish');
   // One ask per reply, however many of its finish calls are refused: a reply with two prose reports is still one request
   // for a verdict. The run fails only when a later reply is refused again.
   let askedThisReply = false;
@@ -402,6 +413,12 @@ for (let step = 0; step < maxSteps; step++) {
     let a = {};
     try { a = JSON.parse(c.function.arguments || '{}'); } catch { /* reported below */ }
     if (c.function.name === 'finish') {
+      // The other calls of this reply still run and get their results; the loop then asks the model again as usual.
+      if (mixed) {
+        note(`\n[finish] refused: sent with other tool calls`);
+        messages.push({ role: 'tool', tool_call_id: c.id, content: 'Not accepted: call finish alone, in a later reply, after you have read the results of your other tool calls.' });
+        continue;
+      }
       // One re-ask for the verdict; a second prose report ends the run. The tool result keeps the call paired.
       if (needsVerdict(role) && !hasVerdict(a.report)) {
         note(`\n[finish] no JSON verdict: ${String(a.report ?? '').slice(0, 300)}`);
