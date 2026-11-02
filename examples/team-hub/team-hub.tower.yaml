@@ -80,7 +80,8 @@ layers:
         label: share CLI
         runtime: laptop
         description: "flow-tower share <dir> [--files], share --list, unshare <name|dir> [--force] (#164): lists the files that leave the machine (the first 30, then a count) and any it skipped, then calls the share actions."
-        files: [src/cli/share.ts]
+        meta: { referenced: "--files sends the files the loader referenced: node files, prompts and an agent's required files too (#406)." }
+        files: [src/cli/share.ts, src/core/loader.ts]
       - id: share-ui
         type: entry
         label: Share UI
