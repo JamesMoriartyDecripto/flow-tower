@@ -25,7 +25,7 @@ import { toolSchema } from './tool-schema.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 ? argv[i + 1] : d; };
 // A missing --task used to reach readFileSync and fail with a raw fs error: a usage line is the answer.
-const USAGE = 'usage: node tools/squad/run.mjs --role <triage|architect|researcher|coder|tester|reviewer|security|verifier|doc-writer> --task <file> [--model <id>] [--node <tower node>] [--steps 40] [--issue <n>] [--write a,b] [--repo <path>] [--oneshot | --batch | --loop]';
+const USAGE = 'usage: node tools/squad/run.mjs --role <triage|architect|researcher|coder|tester|reviewer|security|verifier|doc-writer> --task <file> [--model <id>] [--node <tower node>] [--steps 40] [--issue <n>] [--write a,b] [--repo <path>] [--base <rev>] [--oneshot | --batch | --loop]';
 if (argv.includes('--help')) { console.log(USAGE); exit(0); }
 const taskFile = arg('task');
 // Checked before any git call, so a bare invocation fails on the usage, not on the checkout.
@@ -36,6 +36,24 @@ const REPO = resolve(arg('repo') ?? execFileSync('git', ['rev-parse', '--show-to
 // The repo's own settings (tools/squad/squad.json): a bad file stops the run before anything is run or sent.
 let config;
 try { config = loadConfig(REPO); } catch (e) { console.error(e.message); exit(1); }
+// --base sets the diff base for this run only (a branch stacked on an open PR diffs against its parent, not the global base).
+// It is refused as an option, the same as squad.json's base, because git would read it as one.
+// A bare `--base` (last, or followed by another flag) must not fall back to the global base silently.
+const baseAt = argv.indexOf('--base');
+if (baseAt > 0 && (argv[baseAt + 1] === undefined || argv[baseAt + 1].startsWith('--'))) { console.error('--base needs a revision'); exit(1); }
+const base = arg('base') ?? config.base;
+if (base.startsWith('-')) { console.error('--base must be a revision, not an option'); exit(1); }
+// A base that is not an ancestor of HEAD (HEAD itself, another branch) yields an empty or wrong diff and hides the changes under review.
+// Only the explicit flag is checked; config.base keeps its existing behaviour.
+if (baseAt > 0) {
+  try { execFileSync('git', ['merge-base', '--is-ancestor', base, 'HEAD'], { cwd: REPO, stdio: 'ignore' }); }
+  catch { console.error(`--base ${/^[\w./~^-]{1,100}$/.test(base) ? base : 'the given value'} is not an ancestor of HEAD`); exit(1); }
+  // HEAD is its own ancestor, so the check above passes for it; it diffs nothing, so it is refused here.
+  const baseSha = execFileSync('git', ['rev-parse', '--verify', `${base}^{commit}`], { cwd: REPO, encoding: 'utf8' }).trim();
+  if (baseSha === execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim()) {
+    console.error(`--base ${/^[\w./~^-]{1,100}$/.test(base) ? base : 'the given value'} is HEAD: it must be an earlier commit`); exit(1);
+  }
+}
 // squad.json "cli" is a path that runs as node on every live event, so it is trusted only in this runner's own checkout (#324).
 // A --repo pointed at someone else's worktree could otherwise pick the code that runs here. Compared by real path.
 const CHECKOUT = resolve(HERE, '..', '..');
@@ -178,7 +196,8 @@ const RUNS = {
   ...Object.fromEntries(['check', 'typecheck', 'lint'].filter((n) => config.commands[n]).map((n) => [n, () => runCmd(n)])),
   ...(config.commands.test && { test: (f) => runCmd('test', readRel(f).rel) }),
   // The dirs a task may touch (--write) are the ones worth reviewing: a reviewer of tools/ would see nothing otherwise.
-  diff: () => cap(git('diff', config.base, '--', ...dirs)),
+  // The commit list comes first, so a read-only role can confirm the commits it judges (a step's commit must exist).
+  diff: () => cap(`${git('log', '--oneline', '-n', '50', `${base}..HEAD`)}\n${git('diff', base, '--', ...dirs)}`),
   status: () => git('status', '--short'),
   ...(config.extras.includes('validate') && { validate: (f) => sh('node', [cliPath, 'validate', f ? readRel(f).rel : 'examples', '--json']) }),
   // An example script in dry-run mode (the coder could not verify scripts/*.mjs otherwise, #75). The key is
@@ -244,7 +263,7 @@ const tools = {
     return f(file);
   },
 };
-const TOOLS = toolSchema({ role, dirs, runNames: Object.keys(RUNS), base: config.base });
+const TOOLS = toolSchema({ role, dirs, runNames: Object.keys(RUNS), base });
 
 // A reviewer or security answer is read by the merge gate, which needs the JSON verdict (gate.mjs): prose is refused.
 // The coder's report is free text, so its prompt keeps the report rule.

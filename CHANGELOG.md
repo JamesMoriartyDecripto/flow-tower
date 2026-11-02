@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Changed
 
+- Squad: `run.mjs --base <rev>` sets the `diff` base for one run, and the `diff` tool starts with the commit list, so a read-only role on a stacked branch judges only its own commits and can confirm them (#425).
 - Squad: reviewer findings carry the same severity scale as security (critical, high, medium, low; `low` is a note that should not block), so a verified critical or high reviewer finding now stops the gate even with an `approve` verdict, a finding with no known severity stops it too (fails closed), and a gate of your own can key on severities instead of an empty findings list (#427).
 
 ## [0.17.0] - 2026-11-02
