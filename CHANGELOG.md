@@ -12,6 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- Sharing: an agent's required files (in `agents:` without `optional`) enter the loader's referenced files, so `share --files` sends them and the hub opens them instead of answering 403; validation output is unchanged (#406).
 - Squad: `squad doctor` checks that the check command can start (`python3 -m pytest`: the module is found with `find_spec`, never run; any other program is on PATH or, as a relative path, in the repo root) and fails naming it, before a paid step goes red on it (#405).
 - Squad: `squad.json` takes `style: { language, maxFileLines }` (default `English`, `400`); every prompt, task Rules line and review focus uses them, so a project's rules (say, Italian comments and 800 lines) no longer sit next to "English only" and "~400 lines" (#404).
 - Squad: an empty oneshot answer prints its `finish_reason`, tokens (prompt, completion, reasoning) and generation id, and the ledger records its real cost (null when unknown, never 0); an empty answer cut at the output budget is retried once with twice the budget (#412).

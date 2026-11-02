@@ -72,6 +72,17 @@ describe('loadLibrary', () => {
     expect(lib.referenced.has(doc)).toBe(true);
     expect(lib.watched.has(doc)).toBe(false);
   });
+
+  it('referenced holds an agent required file, so the hub can serve it (share --files)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ft-'));
+    writeFileSync(join(dir, 'richiesto.py'), 'x = 1');
+    writeFileSync(join(dir, 'proprio.py'), 'y = 2');
+    writeFileSync(join(dir, 'main.tower.yaml'), 'name: M\nagents:\n  a:\n    model: sonnet\n    files: [richiesto.py]\nlayers:\n  - id: l\n    title: L\n    nodes:\n      - { id: n1, agent: a }\n      - { id: n2, files: [proprio.py] }\n');
+
+    const lib = await loadLibrary([dir]);
+    expect([...lib.referenced]).toEqual(expect.arrayContaining([join(dir, 'richiesto.py'), join(dir, 'proprio.py')]));
+    expect(JSON.stringify(lib.workspace)).not.toContain('file not found: richiesto.py');
+  });
 });
 
 /**
