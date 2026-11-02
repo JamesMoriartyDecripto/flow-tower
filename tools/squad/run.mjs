@@ -404,6 +404,8 @@ for (let step = 0; step < maxSteps; step++) {
   emit('log', node, `step ${step + 1} · $${cost.toFixed(3)} · cache ${cached}%${msg.content ? ` · ${msg.content.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`);
   if (!msg.tool_calls?.length) { messages.push({ role: 'user', content: 'Use the tools; call finish with your report when done.' }); continue; }
   let reask = false;
+  // A finish sent with other calls was written before their results existed: it is refused until it comes alone.
+  const mixed = msg.tool_calls.some((c) => c.function.name === 'finish') && msg.tool_calls.some((c) => c.function.name !== 'finish');
   // One ask per reply, however many of its finish calls are refused: a reply with two prose reports is still one request
   // for a verdict. The run fails only when a later reply is refused again.
   let askedThisReply = false;
@@ -411,6 +413,12 @@ for (let step = 0; step < maxSteps; step++) {
     let a = {};
     try { a = JSON.parse(c.function.arguments || '{}'); } catch { /* reported below */ }
     if (c.function.name === 'finish') {
+      // The other calls of this reply still run and get their results; the loop then asks the model again as usual.
+      if (mixed) {
+        note(`\n[finish] refused: sent with other tool calls`);
+        messages.push({ role: 'tool', tool_call_id: c.id, content: 'Not accepted: call finish alone, in a later reply, after you have read the results of your other tool calls.' });
+        continue;
+      }
       // One re-ask for the verdict; a second prose report ends the run. The tool result keeps the call paired.
       if (needsVerdict(role) && !hasVerdict(a.report)) {
         note(`\n[finish] no JSON verdict: ${String(a.report ?? '').slice(0, 300)}`);
