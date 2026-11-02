@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- Sharing: an agent's required files (in `agents:` without `optional`) enter the loader's referenced files, so `share --files` sends them and the hub opens them instead of answering 403; validation output is unchanged (#406).
 
 ## [0.16.1] - 2026-11-02
 
