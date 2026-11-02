@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- Scene: a live chip that would cover another one moves above it, so nearby working nodes keep readable chips (#398).
 
 ## [0.16.1] - 2026-11-02
 
