@@ -125,6 +125,8 @@ for f in "$dir"/*.md; do
     # A plain read loop: macOS ships bash 3.2, which lacks the array-reading builtin (#396).
     stagedPaths=()
     while IFS= read -r p; do [ -n "$p" ] && stagedPaths+=(":(literal)$p"); done <<< "$staged"
+    # bash 3.2 with set -u fails on an empty array, and an empty pathspec would make git commit the whole index (#353).
+    if [ "${#stagedPaths[@]}" -eq 0 ]; then echo "RED after step $step: the coder changed only probe files"; exit 1; fi
     env -u OPENROUTER_API_KEY git commit -s -q -m "$title, step $step (#$issue)
 
 Coder: $CODER.${trailerPara}" -- "${stagedPaths[@]}" && git log --oneline -1 || exit 1
