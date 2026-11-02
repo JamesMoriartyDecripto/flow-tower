@@ -31,7 +31,8 @@ layers:
         type: entry
         label: Hook emit
         runtime: laptop
-        description: "Claude Code, Codex, Pi and Hermes, wired in one step by `flow-tower hooks install` (#189): it merges the entries of integrations/ into each harness's config on the port of the running library, keeping the user's own hooks (backup, atomic write, POSIX-quoted command). HTTP hooks post to the local library; command hooks run `flow-tower emit` (`--call` pairs a start with its end; an unknown option prints one line and exits 1, never a stack trace, #400)."
+        description: "Claude Code, Codex, Pi and Hermes, wired in one step by `flow-tower hooks install` (#189): it merges the entries of integrations/ into each harness's config on the port of the running library, keeping the user's own hooks (backup, atomic write, POSIX-quoted command). HTTP hooks post to the local library; command hooks run `flow-tower emit`."
+        meta: { emit: "--call pairs a start with its end; an unknown option prints one line and exits 1, never a stack trace (#400)" }
         files: [bin/flow-tower.js, src/cli/hooks.ts, src/cli/hooks-merge.ts, src/cli/hooks-merge-yaml.ts, integrations/claude-code/settings.json, integrations/codex/hooks.json, integrations/pi/flow-tower.ts, integrations/hermes/config.yaml, integrations/agent-sdk/flow-tower-hooks.ts]
       - id: identity-cli
         type: process
