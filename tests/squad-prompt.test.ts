@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 // The squad's prompt helpers are plain ESM with no types, so they are imported as untyped modules here.
-// @ts-expect-error plain .mjs without declarations
 import { DEFAULTS, STYLE_RULES } from '../tools/squad/config.mjs';
 // @ts-expect-error plain .mjs without declarations
 import { oneshotSystem } from '../tools/squad/oneshot.mjs';
@@ -39,7 +38,7 @@ describe('oneshotSystem', () => {
 describe('loop system prompt', () => {
   it('uses STYLE_RULES instead of a copied sentence', () => {
     const text = readFileSync(RUN, 'utf8');
-    expect(text).toContain('${STYLE_RULES}');
+    expect(text).toContain('${styleRules(config)}');
     expect(text).not.toContain('files under ~400 lines. Never touch secret files.');
   });
 });
@@ -51,6 +50,17 @@ describe('reviewed line header', () => {
     expect(line).toBeDefined();
     expect(line).toContain(`?? 'none'`);
     expect(text).not.toContain('if (reviewed) console.log(`');
+  });
+});
+
+describe('style setting in the reviewer prompt (#404)', () => {
+  it('a project that asks for Italian and 800 lines gets those rules, and no English-only sentence', () => {
+    const cfg = { ...DEFAULTS, style: { language: 'Italian', maxFileLines: 800 } };
+    const system: string = oneshotSystem('reviewer', '/repo', cfg);
+    expect(system).toContain('Italian only in code and comments');
+    expect(system).toContain('~800 lines');
+    expect(system).not.toContain('English only');
+    expect(system).not.toContain('~400 lines');
   });
 });
 
