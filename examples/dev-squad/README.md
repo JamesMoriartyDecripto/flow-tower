@@ -35,7 +35,7 @@ is the lead's procedure.
 
 | File | What it is |
 |---|---|
-| [`dev-squad.tower.yaml`](dev-squad.tower.yaml) | The design: eight layers from the issue to the maintainer's merge |
+| [`dev-squad.tower.yaml`](dev-squad.tower.yaml) | The design: nine layers from the issue to the maintainer's merge, the last one the unattended runner (#320) |
 | [`towers/runner-loop.tower.yaml`](towers/runner-loop.tower.yaml) | One `run.mjs` process: config and key, mode, tool loop, write fence, step cap, report |
 | [`roles/`](roles) | One card per role: what it may do, its default model, the command that runs it |
 | [`squad.example.json`](squad.example.json) | A `tools/squad/squad.json`: commands, folders, base, rules, models per role |
