@@ -78,6 +78,21 @@ describe('parsePlan', () => {
     const text = `${asText(plan())}\n\`\`\`json\n["done"]\n\`\`\``;
     expect(parsePlan(text).ok).toBe(true);
   });
+
+  it('refuses a comma inside one file, since the Files line splits on commas', () => {
+    const r = parsePlan(asText(plan({}, [step({ files: ['src/a.js, .github/x'] })])));
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain('src/a.js, .github/x');
+  });
+
+  it('refuses a line break inside one file', () => {
+    const r = parsePlan(asText(plan({}, [step({ files: ['src/a\n.github/x'] })])));
+    expect(r.ok).toBe(false);
+  });
+
+  it('still accepts a plain file path', () => {
+    expect(parsePlan(asText(plan({}, [step({ files: ['src/a.js'] })]))).ok).toBe(true);
+  });
 });
 
 describe('taskFiles', () => {

@@ -11,9 +11,11 @@ const isText = (v) => typeof v === 'string' && v.trim() !== '';
 
 // A file must be a relative path inside the repo: an absolute path, a backslash, a drive letter or a ".." segment
 // would let a step write outside it, the same rule step-scope.mjs applies to Files entries. A leading "~" is refused
-// as well: a shell expands it to the home folder.
+// as well: a shell expands it to the home folder. A comma or a line break is refused too: the Files line is split on
+// commas and read line by line, so one entry must be exactly one path, or a second path would slip past the check.
 function badPath(file) {
   if (file.startsWith('/') || file.startsWith('~') || file.includes('\\') || /^[A-Za-z]:/.test(file)) return true;
+  if (/[,\r\n]/.test(file)) return true;
   return file.split('/').includes('..');
 }
 
