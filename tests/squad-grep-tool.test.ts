@@ -1,5 +1,5 @@
-import { execFile } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFile, execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -91,5 +91,35 @@ describe('squad grep tool', () => {
     ]);
     await run(args, {}, dir);
     expect(toolContent(secondRequest(requests))).toMatch(/^grep failed: \S/);
+  });
+});
+
+const RUN_DIFF = (id: string) => ({ role: 'assistant', content: null, tool_calls: [{ id, type: 'function', function: { name: 'run', arguments: JSON.stringify({ command: 'diff' }) } }] });
+
+describe('squad diff tool', () => {
+  it('starts the diff with the commit list of the base..HEAD range', { timeout: 60_000 }, async () => {
+    const { dir, args, requests } = setup([
+      RUN_DIFF('d1'),
+      FINISH('f1', JSON.stringify({ verdict: 'approve', findings: [] })),
+    ]);
+    const repo = join(dir, 'repo');
+    const git = (...a: string[]) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: repo, encoding: 'utf8' });
+    mkdirSync(repo);
+    git('init', '-q');
+    writeFileSync(join(repo, 'a.txt'), 'a\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'first step');
+    writeFileSync(join(repo, 'a.txt'), 'b\n');
+    git('commit', '-q', '-am', 'second step');
+    await run([...args, '--repo', repo, '--base', 'HEAD~1'], {}, dir);
+    expect(toolContent(secondRequest(requests))).toMatch(/^[0-9a-f]+ second step\n/);
+  });
+
+  it('refuses a --base that starts with a dash, before any model call', { timeout: 60_000 }, async () => {
+    const { dir, args, requests } = setup([FINISH('f1', JSON.stringify({ verdict: 'approve', findings: [] }))]);
+    const result = await run([...args, '--base', '-x'], {}, dir);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('--base must be a revision, not an option');
+    expect(existsSync(requests)).toBe(false);
   });
 });
