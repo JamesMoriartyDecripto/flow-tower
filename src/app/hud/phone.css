@@ -4,7 +4,9 @@
 @media (max-width: 600px) {
   /* Selectors start with .hud so they outrank the single-class rules in styles.css. */
   .hud .phone-tabs { display: flex; left: 14px; right: 14px; bottom: 74px; gap: 4px; padding: 4px; }
-  .phone-tabs button { flex: 1; }
+  .phone-tabs button { flex: 1; padding: 8px 0; font: 600 11px var(--display); letter-spacing: .14em; text-transform: uppercase; }
+  /* Same orange fill as the open segment in the library header, so the open tab reads as pressed. */
+  .phone-tabs button.on { background: var(--orange); color: var(--bg); }
 
   /* The bottom bar scrolls sideways inside the window instead of running off the screen. */
   .hud .controls { left: 14px; right: 14px; overflow-x: auto; }
