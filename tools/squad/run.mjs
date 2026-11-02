@@ -88,7 +88,9 @@ const reviewed = /^Reviewed commit: ([0-9a-f]{40})$/.exec(task.split('\n')[2] ??
 console.log(`reviewed: ${reviewed?.[1] ?? 'none'}`);
 // pack.mjs leaves a "[… cut N KB]" marker where it trimmed the diff. The gate reads this header line, so a pass that
 // saw a cut diff cannot read as full coverage. Printed only when there is a marker, and before the model answers.
-const cuts = [...task.matchAll(/\[… cut (\d+) KB\]/g)];
+// Only a marker alone on its line counts: pack.mjs writes it that way, while a packed file's source or a diff line
+// (prefixed with +, - or a space) can quote the same text inside a line and must not count as a trim.
+const cuts = [...task.matchAll(/^\[… cut (\d+) KB\]$/gm)];
 if (cuts.length > 0) console.log(`trimmed: ${cuts.reduce((sum, m) => sum + Number(m[1]), 0)} KB`);
 const DOT = '.' + 'env';
 // The key file is the one the voice feature reads (src/server/plugin.ts): ~/.config/flow-tower/.env, or

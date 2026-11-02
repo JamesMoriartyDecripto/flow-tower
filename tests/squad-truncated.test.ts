@@ -132,6 +132,28 @@ describe('finish_reason is checked before it is shown', () => {
   });
 });
 
+describe('only a cut marker alone on its line counts as a trimmed pack', () => {
+  // Writes the task with the given body and runs a oneshot review of it, so each case controls the marker lines.
+  function runTask(body: string) {
+    const { ledger, args } = setup();
+    writeFileSync(args[args.indexOf('--task') + 1], body);
+    choice = { content: '{"verdict":"approve","findings":[]}', finish_reason: 'stop' };
+    return run([...args, '--oneshot'], {}, ledger);
+  }
+
+  it('a marker quoted inside a source line or a diff line does not print trimmed', SPAWN, async () => {
+    const r = await runTask("12 | const x = '[… cut 999999 KB]';\n+  bytes(`\\n[… cut 5 KB]\\n`)\n");
+    expect(r.code).toBe(0);
+    expect(r.stdout).not.toContain('trimmed:');
+  });
+
+  it('a line that is exactly a cut marker prints its size as trimmed', SPAWN, async () => {
+    const r = await runTask('Review this diff.\n[… cut 7 KB]\n');
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain('trimmed: 7 KB');
+  });
+});
+
 describe('an empty answer says why and what it cost', () => {
   it('a reply cut at the budget is retried once with twice max_tokens, and the empty retry is billed and reported', SPAWN, async () => {
     const { ledger, args } = setup();
