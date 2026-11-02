@@ -2,12 +2,13 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 // The squad's config helpers are plain ESM with no types, so they are imported as untyped modules here.
 // @ts-expect-error plain .mjs without declarations
 import { DEFAULTS, commandArgv, loadConfig, systemLine } from '../tools/squad/config.mjs';
 
-const ROOT = resolve(dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CONFIG = join(ROOT, 'tools', 'squad', 'config.mjs');
 
 // A temp repo, optionally with a tools/squad/squad.json holding the given text.

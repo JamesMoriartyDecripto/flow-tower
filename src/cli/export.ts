@@ -19,6 +19,7 @@ import { fileKey } from '../core/docFiles.ts';
 import { libraryDoc, libraryProjects } from '../core/docLibrary.ts';
 import { loadLibrary } from '../core/loader.ts';
 import { glMode, launchBrowser } from './browser.ts';
+import { isMainModule } from './main-module.ts';
 
 /** The file-name slug; the app's own copy lives in exportSvg.ts, which Node cannot load here (extensionless imports). */
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'tower';
@@ -243,4 +244,4 @@ export async function main(args = argv.slice(2)): Promise<void> {
   }
 }
 
-if (import.meta.url === `file://${argv[1]}`) void main();
+if (isMainModule(import.meta.url)) void main();
