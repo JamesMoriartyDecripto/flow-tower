@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-11-02
+
 ### Changed
 
 - Squad: the coder changes only the lines the task needs; a file that would pass ~400 lines is reported in `Known gaps` instead of trimming other code. The README says each role keeps its tasks in its own folder, since `steps.sh` runs every file as a coder step (#386).
@@ -540,7 +542,10 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.16.1...HEAD
+[0.16.1]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.16.0...v0.16.1
+[0.16.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.15.0...v0.16.0
+[0.15.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.11.0...v0.12.0
