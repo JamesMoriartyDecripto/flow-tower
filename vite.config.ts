@@ -15,5 +15,7 @@ export default defineConfig({
     fs: {
       deny: ['.env', '.env.*', '*.{crt,pem,key,p12,pfx,cer,der}', '.npmrc', '.yarnrc.yml', 'flow-tower.local.json', '**/.git/**', '**/voice-journal.jsonl', '**/voice-memory.json'],
     },
+    // Role logs and stress output are not app code, and each watched file costs an inotify watch (~15,000 here).
+    watch: { ignored: ['**/tools/squad/*.log', '**/.stress/**'] },
   },
 });
