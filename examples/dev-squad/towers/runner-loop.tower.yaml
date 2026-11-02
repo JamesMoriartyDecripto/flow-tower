@@ -69,6 +69,7 @@ layers:
         type: tool
         label: Tools
         description: "list_files, read_file, grep for every role; edit_file, write_file, delete_file only for writers; run for the project's whitelisted commands (check, typecheck, test <file>, diff); finish."
+        meta: { grep: "The pattern goes to git grep with -e, so a leading dash is a pattern, not an option; no match is git exit 1, any other failure is shown as an error (#424)." }
         tools: [list_files, read_file, grep, edit_file, write_file, delete_file, run, finish]
         files: [roles/coder.md]
       - id: fence
