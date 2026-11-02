@@ -323,13 +323,15 @@ async function loadTower(
       } catch { missing.add(abs); return undefined; }
     },
   };
-  const tower = await buildTower(def, id, fs, issues, (p, where) => {
+  // `quiet` (an agent's required file, checked only to be recorded) reports nothing: the same file is
+  // already reported by whoever lists it, and a second warning would change what the tower shows today.
+  const tower = await buildTower(def, id, fs, issues, (p, where, quiet = false) => {
     const abs = safeJoin(project, resolve(root, p));
-    if (!abs) { outside(p); return false; }
-    if (isForbiddenSync(abs, p)) { secret(p); return false; } // not even whether it exists
+    if (!abs) { if (!quiet) outside(p); return false; }
+    if (isForbiddenSync(abs, p)) { if (!quiet) secret(p); return false; } // not even whether it exists
     if (!existsSync(abs)) { missing.add(abs); return false; }
     // A folder listed as a file reads fine here but 404s from /api/file in the app (issue #118): report it
-    // like a missing file. Only node `files` carry the node's path, so a folder resource stays accepted.
+    // like a missing file. Only node `files` carry the node's path (quiet calls pass none), so a folder resource stays accepted.
     if (statSync(abs).isDirectory()) {
       if (where) issues.push({ level: 'warning', message: `files entry "${p}" is a folder; list the files inside it instead`, path: where });
       return true;
@@ -351,7 +353,7 @@ async function loadTower(
 
 /** Turns a validated definition into the resolved model and collects issues. Pure aside from `fs`. */
 export async function buildTower(
-  def: TowerDef, id: string, fs: FileReader, issues: Issue[], exists: (p: string, where?: string) => boolean = () => true,
+  def: TowerDef, id: string, fs: FileReader, issues: Issue[], exists: (p: string, where?: string, quiet?: boolean) => boolean = () => true,
 ): Promise<ResolvedTower> {
   const prompts: Record<string, ResolvedPrompt> = {};
   for (const [pid, p] of Object.entries(def.prompts)) prompts[pid] = await resolvePromptDef(p, fs, issues, `prompts.${pid}`, pid);
@@ -395,8 +397,9 @@ export async function buildTower(
       const own = new Set(fileRefs(n.files).map((r) => r.path));
       const missingOptional: string[] = [];
       for (const r of refs) {
-        // An agent's required file is not checked here, as before: only the node's own entries and optional ones.
-        if (!r.optional && !own.has(r.path)) continue;
+        // An agent's required file gets no warning here, as before, but it is still recorded in `referenced`:
+        // share --files sends only that set, and the hub answers 403 for a file it never received.
+        if (!r.optional && !own.has(r.path)) { exists(r.path, undefined, true); continue; }
         if (exists(r.path, own.has(r.path) ? where : undefined)) continue;
         if (r.optional) missingOptional.push(r.path);
         else issues.push({ level: 'warning', message: `file not found: ${r.path}`, path: where, code: 'missing-file' });
