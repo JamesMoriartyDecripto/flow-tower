@@ -323,8 +323,9 @@ if (mode !== 'loop') {
     if (typeof callCost !== 'number' && a.generationId) {
       callCost = await generationCost({ key: env.OPENROUTER_API_KEY, id: a.generationId, log: (l) => note(l) });
     }
-    costUnknown = typeof callCost !== 'number';
-    if (!costUnknown) cost += callCost;
+    // Once any call's cost is unknown, the run's cost is unknown (null in the ledger): a retry must not overwrite that.
+    if (typeof callCost !== 'number') costUnknown = true;
+    else cost += callCost;
     promptTokens += a.usage.prompt_tokens ?? 0;
     cachedTokens += a.usage.prompt_tokens_details?.cached_tokens ?? 0;
   };
