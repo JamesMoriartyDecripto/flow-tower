@@ -200,7 +200,15 @@ const tools = {
     const lines = readFileSync(abs, 'utf8').split('\n');
     return cap(lines.slice(from - 1, to).map((l, i) => `${from + i}\t${l}`).join('\n'));
   },
-  grep: ({ pattern, path = '.' }) => { try { return cap(git('grep', '-n', '-I', '-E', String(pattern), '--', path === '.' ? '.' : readRel(path).rel), 15_000); } catch { return 'no match'; } },
+  // -e keeps a pattern that starts with a dash (e.g. --pattern) from being read as a git option. Only git grep's
+  // exit 1 means no match; any other failure (a bad regex, a git error) is reported instead of read as an empty search.
+  grep: ({ pattern, path = '.' }) => {
+    try { return cap(git('grep', '-n', '-I', '-E', '-e', String(pattern), '--', path === '.' ? '.' : readRel(path).rel), 15_000); }
+    catch (e) {
+      if (e.status === 1) return 'no match';
+      return `grep failed: ${String(e.stderr ?? '').trim().split('\n')[0].slice(0, 200)}`;
+    }
+  },
   // A write goes where its real path (symlinks followed) says, so that path is what is checked (guard.mjs).
   edit_file: ({ path, old, new: next }) => {
     const { abs, rel } = inRepo(path);
