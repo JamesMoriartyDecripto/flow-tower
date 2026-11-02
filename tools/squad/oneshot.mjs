@@ -2,7 +2,7 @@
 // in a single request with no tools. The tool loop timed out three times on the 180 s per-call cap on #164, while a
 // single request answered in 2.5 min. Both the direct call (--oneshot) and the batch (--batch) send this body.
 
-import { DEFAULTS, STYLE_RULES, systemLine } from './config.mjs';
+import { DEFAULTS, styleRules, systemLine } from './config.mjs';
 
 // One long answer, not a loop: the direct call waits up to 10 min for it.
 export const ONESHOT_TIMEOUT_MS = 600_000;
@@ -14,7 +14,7 @@ export const cacheControl = (id) => (id.startsWith('anthropic/') ? { cache_contr
 // The project line and the rules come from the repo's config (config.mjs), so the prompt names the repo it runs on.
 export function oneshotSystem(role, repo, config = DEFAULTS) {
   const rules = config.rules.map((r) => ` ${r}`).join('');
-  return `You are the ${role} of a dev squad working on ${systemLine(config, repo)}. You have no tools: answer from the task, which holds all the code you need, in the format it asks for. ${STYLE_RULES}${rules}`;
+  return `You are the ${role} of a dev squad working on ${systemLine(config, repo)}. You have no tools: answer from the task, which holds all the code you need, in the format it asks for. ${styleRules(config)}${rules}`;
 }
 
 // The settings both requests share (the loop's and the one-request review's), so the two cannot drift apart.

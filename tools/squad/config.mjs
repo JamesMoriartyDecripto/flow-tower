@@ -32,13 +32,26 @@ export const DEFAULTS = {
   cli: '',
   // The unattended runner's limits (#320): spend per issue in USD, wall clock in minutes, fix rounds, and the poll gap.
   runner: { usdPerIssue: 3, minutes: 90, fixRounds: 2, pollMinutes: 10 },
+  // The language and the file size every prompt states (#404), so a project can change them in squad.json.
+  style: { language: 'English', maxFileLines: 400 },
 };
 
 // The two tools that exist only in Flow Tower's own CLI; a project opts in by listing them under extras.
 const EXTRAS = ['validate', 'dryrun'];
 
 // The style sentence is shared on purpose: the loop's system prompt and the one-request prompts must say the same thing.
-export const STYLE_RULES = 'English only in code and comments; match the surrounding style; comments explain why; files under ~400 lines, but change only the lines the task needs: if a file would pass ~400 lines, say so in Known gaps instead of trimming other code; prefer the efficient approach when it adds no complexity: batch work instead of handling items one by one, do not repeat work, run independent I/O concurrently (e.g. Promise.all); no premature optimization. Write the minimum that meets the task: no abstraction, option or check it does not ask for. Never touch secret files.';
+// The language and the file size come from the repo's style setting, so a project's own rules are not overridden.
+export function styleRules(config = DEFAULTS) {
+  const { language, maxFileLines } = config.style;
+  return `${language} only in code and comments; match the surrounding style; comments explain why; files under ~${maxFileLines} lines, but change only the lines the task needs: if a file would pass ~${maxFileLines} lines, say so in Known gaps instead of trimming other code; prefer the efficient approach when it adds no complexity: batch work instead of handling items one by one, do not repeat work, run independent I/O concurrently (e.g. Promise.all); no premature optimization. Write the minimum that meets the task: no abstraction, option or check it does not ask for. Never touch secret files.`;
+}
+export const STYLE_RULES = styleRules(DEFAULTS);
+
+// The task-file rules the planner writes into each task (runner-plan.mjs), built from the same style setting.
+export function taskRules(config = DEFAULTS) {
+  const { language, maxFileLines } = config.style;
+  return `Rules: ${language} only; never touch secret files; edit only the files named below; comments explain why; files under ~${maxFileLines} lines; never rewrite or empty an existing test file (add to the new one only).`;
+}
 
 export function configPath(repo) {
   return join(repo, 'tools', 'squad', 'squad.json');
@@ -57,14 +70,18 @@ export function loadConfig(repo) {
   let raw;
   try { raw = JSON.parse(readFileSync(file, 'utf8')); } catch (e) { throw new Error(`${file}: not valid JSON (${e.message})`); }
   if (!isObj(raw)) throw new Error(`${file}: the config must be a JSON object`);
-  for (const k of ['commands', 'models', 'runner']) if (raw[k] !== undefined && !isObj(raw[k])) fail(k, 'must be an object');
+  for (const k of ['commands', 'models', 'runner', 'style']) if (raw[k] !== undefined && !isObj(raw[k])) fail(k, 'must be an object');
   const cfg = {
     ...structuredClone(DEFAULTS),
     ...raw,
     commands: { ...DEFAULTS.commands, ...raw.commands },
     models: { ...DEFAULTS.models, ...raw.models },
     runner: { ...DEFAULTS.runner, ...raw.runner },
+    style: { ...DEFAULTS.style, ...raw.style },
   };
+  // The style lands in every prompt: a language must be a name, and a file limit a whole number above zero.
+  if (typeof cfg.style.language !== 'string' || !cfg.style.language.trim()) fail('style.language', 'must be a non-empty string');
+  if (!Number.isInteger(cfg.style.maxFileLines) || cfg.style.maxFileLines <= 0) fail('style.maxFileLines', 'must be a positive integer');
   // Every runner limit is a number above zero, except fixRounds, where zero means no fix round at all.
   for (const [k, v] of Object.entries(cfg.runner)) {
     const ok = typeof v === 'number' && Number.isFinite(v) && (k === 'fixRounds' ? v >= 0 : v > 0);

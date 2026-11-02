@@ -10,7 +10,7 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { STYLE_RULES, commandArgv, loadConfig, modelFor, systemLine } from './config.mjs';
+import { commandArgv, loadConfig, modelFor, styleRules, systemLine } from './config.mjs';
 import { ROLES, canWrite, finishRule as roleFinishRule, isRole, needsVerdict, roleRule, startupWrite } from './roles.mjs';
 import { appendRun, issueOf, ledgerPath, projectOf } from './ledger.mjs';
 import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
@@ -240,7 +240,7 @@ const TOOLS = toolSchema({ role, dirs, runNames: Object.keys(RUNS), base: config
 const finishRule = roleFinishRule(role);
 const hasVerdict = (text) => { try { parseVerdict(text); return true; } catch { return false; } };
 const messages = [
-  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${STYLE_RULES}${config.rules.map((r) => ` ${r}`).join('')} ${roleRule(role)} ${finishRule}` },
+  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${styleRules(config)}${config.rules.map((r) => ` ${r}`).join('')} ${roleRule(role)} ${finishRule}` },
   { role: 'user', content: task },
 ];
 let cost = 0;

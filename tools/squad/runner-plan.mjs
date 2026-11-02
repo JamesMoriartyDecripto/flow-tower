@@ -1,10 +1,9 @@
 // Turns the architect's JSON plan into task files for steps.sh (#320). The unattended lead asks the architect for a
 // plan as JSON; this module checks it and writes one NN-<slug>.md task per step, in the shape of kit/TEMPLATE.md.
 // Both functions are pure: no git, no disk. A bad plan is reported in words, never thrown, so the lead can ask again.
+import { taskRules } from './config.mjs';
 import { firstAccepted, stripFence } from './runner-judge.mjs';
 
-const RULES = 'Rules: English only; never touch secret files; edit only the files named below; comments explain why; '
-  + 'files under ~400 lines; never rewrite or empty an existing test file (add to the new one only).';
 const VERIFY = 'Verify: `run check`; `finish` with the output and a `Known gaps:` line.';
 
 const isText = (v) => typeof v === 'string' && v.trim() !== '';
@@ -79,7 +78,8 @@ export function slugOf(title) {
 
 // One task file per step. The coder reads the step's own files (new files do not exist yet, so they are left out
 // of the Read line) and the readFirst files; the Files line keeps the "+" marks for the check to parse.
-export function taskFiles(plan, { issue, title, readFirst = [] }) {
+// The rules line comes from the project's style setting (rules defaults to taskRules()), so a project's language is used.
+export function taskFiles(plan, { issue, title, readFirst = [], rules = taskRules() }) {
   const criteria = plan.criteria.join('; ');
   return plan.steps.map((step, i) => {
     const nn = String(i + 1).padStart(2, '0');
@@ -89,7 +89,7 @@ export function taskFiles(plan, { issue, title, readFirst = [] }) {
     const text = [
       `# ${issue}-${nn}: ${step.title}`,
       '',
-      RULES,
+      rules,
       readLine,
       VERIFY,
       '',
