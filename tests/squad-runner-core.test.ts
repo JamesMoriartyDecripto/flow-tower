@@ -421,6 +421,59 @@ describe('workIssue', () => {
   });
 });
 
+describe('triage retry and plan sign-off release', () => {
+  it('asks triage once more after an unreadable answer, and goes on with the valid one', async () => {
+    const triageAsks: string[] = [];
+    const { deps, calls } = fakeDeps({ role: async (name: string, prompt: string) => {
+      calls.push(`role:${name}`);
+      if (name === 'triage') {
+        triageAsks.push(prompt);
+        return { ok: true, text: triageAsks.length === 1 ? 'no json here' : triageFull };
+      }
+      return { ok: true, text: name === 'architect' ? fence(PLAN) : 'PASS' };
+    } });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(triageAsks).toHaveLength(2);
+    expect(triageAsks[1]).toContain('Your last answer could not be read. Answer only with the json block, no prose outside it.');
+  });
+
+  it('stops with no usable triage answer when both answers are unreadable', async () => {
+    const { deps, calls } = fakeDeps({}, { triage: ['no json', 'still no'] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls).toContain('fail:triage gave no usable answer');
+    expect(calls.filter((c) => c === 'role:triage')).toHaveLength(2);
+  });
+
+  it('runs a sensitive plan with SQUAD_APPROVE=1 and posts the approval comment', async () => {
+    const before = process.env.SQUAD_APPROVE;
+    process.env.SQUAD_APPROVE = '1';
+    try {
+      const plan = { criteria: ['login works'], steps: [{ title: 'Edit login', items: ['change it'], files: ['src/auth/login.ts'] }] };
+      const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(plan)], verifier: ['PASS'] });
+      expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+      expect(calls).toContain('comment:Plan approved by a person (SQUAD_APPROVE=1): sensitive area in the plan.');
+      expect(calls).toContain('steps');
+    } finally {
+      if (before === undefined) delete process.env.SQUAD_APPROVE;
+      else process.env.SQUAD_APPROVE = before;
+    }
+  });
+
+  it('stops a sensitive plan with the sign-off message when SQUAD_APPROVE is not set', async () => {
+    const before = process.env.SQUAD_APPROVE;
+    delete process.env.SQUAD_APPROVE;
+    try {
+      const plan = { criteria: ['login works'], steps: [{ title: 'Edit login', items: ['change it'], files: ['src/auth/login.ts'] }] };
+      const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(plan)] });
+      expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+      expect(calls).toContain('fail:sensitive area in the plan: a person must lead this issue (plan sign-off)');
+      expect(calls.some((c) => c.startsWith('comment:Plan approved'))).toBe(false);
+    } finally {
+      if (before !== undefined) process.env.SQUAD_APPROVE = before;
+    }
+  });
+});
+
 describe('parseTriage reads the answer block', () => {
   const full = { route: 'full', areas: ['ui'], questions: [], rationale: 'ok' };
 

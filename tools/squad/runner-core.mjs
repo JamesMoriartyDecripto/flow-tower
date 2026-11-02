@@ -4,6 +4,7 @@
 // lstat of the Files paths below: it must see the worktree as it is, before any task is written, and it never writes.
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
+import { env } from 'node:process';
 import { firstAccepted, fixPaths, fixTask, judgePrompt, numberFindings, parseJudgement, stripFence } from './runner-judge.mjs';
 import { parsePlan, taskFiles } from './runner-plan.mjs';
 import { matchesEntry } from './files-check.mjs';
@@ -25,6 +26,9 @@ export function controlEntry(entry) {
   return CONTROL_FILE.test(path) || CONTROL_SAMPLES.some((c) => matchesEntry(path, c));
 }
 const SIGN_OFF = 'sensitive area in the plan: a person must lead this issue (plan sign-off)';
+// A person releases the plan sign-off for one run by setting SQUAD_APPROVE=1. It is read at call time so each run (and
+// each test) sees the value it was started with. It does not release a sensitive fix round: that stays with a person.
+const approved = () => env.SQUAD_APPROVE === '1';
 const FIX_SENSITIVE = 'sensitive area in a fix round: a person must lead this issue';
 const FILES_NOT_REGULAR = 'fix files must name regular files, not directories or links';
 const ROUTES = ['full', 'needs_info', 'reject'];
@@ -32,7 +36,10 @@ const ROUTES = ['full', 'needs_info', 'reject'];
 const FINISH_JSON = 'Call finish with the actual ```json block as the report (not a summary of it), then a `Known gaps:` line '
   + 'after the block.';
 const TRIAGE_ASK = 'Classify the issue below. Answer only with a ```json block: {"route": "full" | "needs_info" | "reject", '
-  + '"areas": [strings], "questions": [strings], "rationale": "..."}. ' + FINISH_JSON;
+  + '"areas": [strings], "questions": [strings], "rationale": "..."}. Answer only with the json block, no prose outside it. '
+  + FINISH_JSON;
+// Appended when the first triage answer was not usable, so the second run is told what went wrong.
+const TRIAGE_RETRY = 'Your last answer could not be read. Answer only with the json block, no prose outside it.';
 const PLAN_ASK = 'Plan the change for the issue below. Answer only with a ```json block: {"criteria": [strings], "steps": '
   + '[{"title": "...", "items": [1 to 3 strings], "files": ["relative/path", "new/path+"]}]}, with 1 to 8 steps. A "+" marks a new file. Each step is a code change the coder makes with file tools and the project checks; list only the files that step must edit. The runner itself runs the checks, review and verifier and opens the draft PR, so no step does those. '
   + FINISH_JSON;
@@ -201,8 +208,14 @@ export async function workIssue(issue, deps, limits) {
     await guard();
     // The triage runs in the main checkout, so its cwd is left to the deps default (undefined).
     // A triage run that did not finish is no answer, even when its text happens to parse.
-    const tr = await deps.role('triage', `${TRIAGE_ASK}\n\n${untrusted(issue)}`, undefined, n);
-    const t = tr.ok ? parseTriage(tr.text) : null;
+    // An unreadable first answer (failed run or no valid block) gets one more ask; only a second failure stops the issue.
+    const triageAsk = `${TRIAGE_ASK}\n\n${untrusted(issue)}`;
+    const first = await deps.role('triage', triageAsk, undefined, n);
+    let t = first.ok ? parseTriage(first.text) : null;
+    if (!t) {
+      const again = await deps.role('triage', `${triageAsk}\n\n${TRIAGE_RETRY}`, undefined, n);
+      t = again.ok ? parseTriage(again.text) : null;
+    }
     if (!t) stop('triage gave no usable answer');
     if (t.route === 'reject') {
       await gh.comment(n, `Triage rejected this issue: ${t.rationale}`);
@@ -214,7 +227,8 @@ export async function workIssue(issue, deps, limits) {
       await gh.release(n);
       return 'needs_info';
     }
-    if (SENSITIVE.test([issue.title, issue.body, ...t.areas].join('\n'))) {
+    const sensitiveTriage = SENSITIVE.test([issue.title, issue.body, ...t.areas].join('\n'));
+    if (sensitiveTriage && !approved()) {
       stop('sensitive area: a person must lead this issue (plan sign-off)');
     }
 
@@ -223,8 +237,11 @@ export async function workIssue(issue, deps, limits) {
     const wt = await deps.worktree(issue);
     const plan = await makePlan(deps, issue, wt.path);
     // The plan was written by a model that read the untrusted issue, so the sensitive-area rule is checked again here.
-    if (sensitivePlan(plan)) stop(SIGN_OFF);
+    const sensitive = sensitivePlan(plan);
+    if (sensitive && !approved()) stop(SIGN_OFF);
     await gh.comment(n, planComment(plan));
+    // A release is posted on the issue, so anyone can trace which run went past the sign-off.
+    if (sensitiveTriage || sensitive) await gh.comment(n, 'Plan approved by a person (SQUAD_APPROVE=1): sensitive area in the plan.');
     const taskDir = await deps.writeTasks(wt.path, n, taskFiles(plan, { issue: n, title: issue.title }));
     await guard();
     await runSteps(deps, wt.path, taskDir, issue);
