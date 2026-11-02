@@ -49,8 +49,25 @@ export function judgePrompt(findings, brief) {
   ].join('\n');
 }
 
-// The last ```json block is the answer; a reply with no fence is read as bare JSON. Never throws: a bad answer comes
-// back as { ok: false, error } so the lead can ask again instead of crashing the run.
+// The answer shapes are in every prompt, so a model may echo a template fence or quote a draft before the real block.
+// The candidates are tried from the last ```json fence back to the first, skipping fences whose body is not an object
+// (every answer here is one), and the whole text comes last, so a reply with no fence is read as bare JSON. Each parser
+// takes the first candidate it accepts. Never throws.
+export function jsonCandidates(text) {
+  const s = String(text ?? '');
+  const bodies = [...s.matchAll(/```json\s*([\s\S]*?)```/g)].map((m) => m[1].trim()).filter((b) => b.startsWith('{'));
+  return [...bodies.reverse(), s.trim()];
+}
+
+// Tries each candidate in order with parse(body) and returns the first result that isOk. When none is accepted, the
+// result for the first candidate is returned, so the caller's refusal reads the same as before.
+export function firstAccepted(text, parse, isOk) {
+  const results = jsonCandidates(text).map(parse);
+  return results.find(isOk) ?? results[0];
+}
+
+// Answers are read with jsonCandidates: an answer is refused with { ok: false, error } so the lead can ask again instead
+// of crashing the run.
 // A concrete supporting file goes straight into the Files line that steps.sh matches, so the grammar is an allowlist:
 // any character a shell, a glob or parseFiles could read differently is refused, and so is a leading '-' (an option).
 // Secret paths are refused, not granted. SECRET mirrors run.mjs, gate.mjs and pack.mjs, so one list decides what is secret;
@@ -70,9 +87,10 @@ export function isConcreteFile(p) {
 // More than 5 extra files would widen the fix step's write scope past what one finding needs, so the answer is refused.
 const MAX_SUPPORTING_FILES = 5;
 export function parseJudgement(text, ids) {
-  const s = String(text ?? '');
-  const fences = [...s.matchAll(/```json\s*([\s\S]*?)```/g)];
-  const body = fences.length > 0 ? fences[fences.length - 1][1] : s;
+  return firstAccepted(text, (body) => judgeBody(body, ids), (r) => r.ok);
+}
+
+function judgeBody(body, ids) {
   let raw;
   try { raw = JSON.parse(body); } catch { return { ok: false, error: 'answer is not JSON' }; }
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'answer is not an object' };
@@ -122,7 +140,8 @@ const insideRepo = (p) => p !== '' && !p.startsWith('/') && !p.startsWith('~') &
 // second Files entry) also fails the task closed, instead of being left out like an outside path.
 // The finding files without their line suffix, then the supporting files, each once. Only findings inside the repository
 // count, so this is every path the Files line will name; the core checks these on disk before any task is written.
-const fileOf = (f) => String(f.file).replace(/:\d+(?:-\d+)?$/, '');
+// The "~" form (file:~200, an approximate line) is stripped too, or the Files line would name a path that does not exist.
+const fileOf = (f) => String(f.file).replace(/:~?\d+(?:-\d+)?$/, '');
 export function fixPaths(allKept, supportingFiles = []) {
   const inside = allKept.filter((f) => insideRepo(fileOf(f)));
   return [...new Set([...inside.map(fileOf), ...supportingFiles])];

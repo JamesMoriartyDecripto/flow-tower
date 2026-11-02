@@ -19,6 +19,27 @@ const must = (r, what) => {
   return r;
 };
 
+// run.mjs prints its header (mode, reviewed, trimmed) before the model's answer and a `--- <model>` footer after it.
+// A caller that reads the answer's first line would read the header, so the header and footer are stripped here.
+// The header lines come in a fixed order, so each one is stripped only at its own position: a model line that starts with
+// "mode: " after "reviewed: " is kept, and so is any line after the first one that does not match.
+const HEADER = ['mode: ', 'reviewed: ', 'trimmed: '];
+export function reportOf(stdout) {
+  const lines = String(stdout ?? '').split('\n');
+  let head = 0;
+  while (head < HEADER.length && head < lines.length && lines[head].startsWith(HEADER[head])) head++;
+  let end = lines.length;
+  // The footer is only the last non-empty line. A `--- ` line earlier in the answer is part of the answer.
+  let foot = lines.length - 1;
+  while (foot >= head && lines[foot] === '') foot--;
+  if (foot >= head && lines[foot].startsWith('--- ')) {
+    end = foot;
+    // The blank line before the footer is run.mjs's separator, not part of the answer.
+    if (end > head && lines[end - 1] === '') end--;
+  }
+  return lines.slice(head, end).join('\n');
+}
+
 // The reviewer's verdict, or null when the answer has none: a verdict that is not JSON counts as no verdict.
 function verdictOrNull(text) {
   try { return parseVerdict(text); } catch { return null; }
@@ -55,7 +76,7 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
     const args = [join(runner, 'run.mjs'), '--role', name, '--node', ROLES[name].node, '--task', file, '--repo', cwd,
       ...(issue !== undefined ? ['--issue', String(issue)] : [])];
     const r = exec('node', args);
-    return { ok: r.status === 0, text: r.stdout };
+    return { ok: r.status === 0, text: reportOf(r.stdout) };
   }
 
   // Every git call goes through here, so none of them gets the model key.

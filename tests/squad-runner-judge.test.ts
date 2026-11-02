@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error plain .mjs without declarations
-import { fixTask, judgePrompt, numberFindings, parseJudgement } from '../tools/squad/runner-judge.mjs';
+import { fixTask, judgePrompt, jsonCandidates, numberFindings, parseJudgement } from '../tools/squad/runner-judge.mjs';
 // @ts-expect-error plain .mjs without declarations
 import { parseFiles } from '../tools/squad/files-check.mjs';
 
@@ -153,5 +153,38 @@ describe('fixTask', () => {
     expect(task.text).toContain('2. src/a.ts:42: eval on input. Fix: drop eval');
     expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/a.ts (optional)');
     expect(task.text).toContain('Verify: `run check`');
+  });
+
+  it('strips a :~line suffix from a finding file, so the Files line names the real path', () => {
+    const approx = [{ id: 'S1', file: 'src/a.mjs:~200', what: 'a', fix: 'b' }];
+    const task = fixTask(approx, { issue: '320', round: 1 });
+    expect(task).not.toBeNull();
+    expect(task.text.match(/^Files: .*$/m)?.[0]).toBe('Files: src/a.mjs (optional)');
+  });
+});
+
+describe('the answer block is read from the candidates, not only the last fence', () => {
+  const ids = ['R1'];
+  const keep = { R1: { decision: 'keep', reason: 'real' } };
+
+  it('keeps the valid block when a second fence follows it with prose', () => {
+    const text = `\`\`\`json\n${JSON.stringify(keep)}\n\`\`\`\nNotes:\n\`\`\`json\nI keep all of them.\n\`\`\``;
+    expect(parseJudgement(text, ids).keep).toEqual(['R1']);
+  });
+
+  it('skips a schema template echoed before the real block', () => {
+    const template = '```json\n{"R1": {"decision": "keep" | "drop", "reason": "..."}}\n```';
+    const text = `${template}\nFinal answer:\n\`\`\`json\n${JSON.stringify(keep)}\n\`\`\``;
+    expect(parseJudgement(text, ids).keep).toEqual(['R1']);
+  });
+
+  it('keeps the valid block when a non-object fence follows it', () => {
+    const text = `\`\`\`json\n${JSON.stringify(keep)}\n\`\`\`\n\`\`\`json\n[1, 2]\n\`\`\``;
+    expect(parseJudgement(text, ids).keep).toEqual(['R1']);
+  });
+
+  it('lists the object fences from the last back to the first, then the whole text', () => {
+    const text = '```json\n{"a": 1}\n```\n```json\n[2]\n```\n```json\n{"b": 2}\n```';
+    expect(jsonCandidates(text)).toEqual(['{"b": 2}', '{"a": 1}', text.trim()]);
   });
 });

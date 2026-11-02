@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { env } from 'node:process';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error plain .mjs without declarations
-import { makeDeps } from '../tools/squad/runner-deps.mjs';
+import { makeDeps, reportOf } from '../tools/squad/runner-deps.mjs';
 
 // The fake exec records every call and answers from a script keyed by the command's first argument after node/git/bash.
 // Nothing here starts a real process: git, gh, node and OpenRouter are all replaced by this function.
@@ -276,6 +276,30 @@ describe('pack and gate env', () => {
       if (before === undefined) delete process.env.OPENROUTER_API_KEY;
       else process.env.OPENROUTER_API_KEY = before;
     }
+  });
+});
+
+describe('reportOf', () => {
+  it('drops the run header and the footer with its blank line', () => {
+    expect(reportOf('mode: tools (default for verifier)\nreviewed: none\nPASS\nall good\n\n--- m · 3 steps · $0.01 · log x'))
+      .toBe('PASS\nall good');
+  });
+
+  it('leaves a text with no header unchanged except the footer', () => {
+    expect(reportOf('PASS\nall good\n--- m · log x')).toBe('PASS\nall good');
+    expect(reportOf('PASS\nall good')).toBe('PASS\nall good');
+  });
+
+  it('keeps a mode line that comes after the first content line', () => {
+    expect(reportOf('PASS\nmode: kept\n\n--- m · log x')).toBe('PASS\nmode: kept');
+  });
+
+  it('keeps a --- line that is not the last non-empty line', () => {
+    expect(reportOf('PASS\n--- a note\nmore')).toBe('PASS\n--- a note\nmore');
+  });
+
+  it('strips the header lines in order only, so a model mode line after a reviewed line is kept', () => {
+    expect(reportOf('mode: x\nreviewed: none\nmode: y\nPASS')).toBe('mode: y\nPASS');
   });
 });
 
