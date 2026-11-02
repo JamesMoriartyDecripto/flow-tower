@@ -232,6 +232,7 @@ layers:
         label: Shared towers
         runtime: hub
         description: "PUT /api/hub/towers/<name> (#164, #190): the upload is staged, loaded with its project pinned to the share folder, refused with 422 on a structural error (the last valid copy stays), then swapped in atomically, one writer per share. YAML-only towers show their missing files as info."
+        meta: { text_files: "Text formats only, secret names refused first; systemd units, .conf, .ini, .cfg and Dockerfile, Containerfile, Makefile, Procfile are text too (#407)." }
         files: [src/server/shared-towers.ts, src/server/share-rules.ts, src/server/sources.ts]
     edges:
       - "events -> limits [call]: admit?"
