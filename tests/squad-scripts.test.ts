@@ -142,6 +142,12 @@ describe('steps.sh (#265)', () => {
     expect(text.indexOf('rm -rf -- "$OUT"')).toBeGreaterThan(costLine);
   });
 
+  it('keeps the task folder out of the probe sweep (#420)', () => {
+    const text = readFileSync(join(squad, 'steps.sh'), 'utf8');
+    expect(text).toContain('tasksRel');
+    expect(text.indexOf('tasksRel=')).toBeLessThan(text.indexOf('removed coder probe file'));
+  });
+
   it('makes REPO and the task folder absolute before the first cd "$R" (#394)', () => {
     const text = readFileSync(join(squad, 'steps.sh'), 'utf8');
     expect(text).toContain('R=$(cd "$R" && pwd)');

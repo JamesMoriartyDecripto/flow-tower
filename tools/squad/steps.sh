@@ -103,7 +103,12 @@ for f in "$dir"/*.md; do
   (
     cd "$R" || exit 1
     # Probe files the coder left behind are removed before staging, so they never reach the commit.
-    git ls-files --others --exclude-standard | grep -E "(^|/)(tmp[-_.]|zz[-_])|probe|scratch" | while read -r junk; do echo "removed coder probe file: $junk"; rm -f -- "$junk"; done
+    # The task folder is the lead's input and is often untracked, so a step named like a probe (01-check-probe.md) must not be swept away.
+    case "$dir/" in "$R"/*) tasksRel=${dir#"$R"/}/ ;; *) tasksRel= ;; esac
+    git ls-files --others --exclude-standard | grep -E "(^|/)(tmp[-_.]|zz[-_])|probe|scratch" | while read -r junk; do
+      [ -n "$tasksRel" ] && case "$junk" in "$tasksRel"*) continue ;; esac
+      echo "removed coder probe file: $junk"; rm -f -- "$junk"
+    done
     # Only the step's own paths are staged, recomputed so removed probes are not added. A deletion is staged too: git add -A on a missing path records it.
     # git add and git commit run without OPENROUTER_API_KEY: a project's pre-commit hook (husky, lint-staged) may run
     # the tests the coder wrote, and those must not see the key.
