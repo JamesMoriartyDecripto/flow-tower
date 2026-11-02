@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- Live feed: the header counts the scope on screen, so Tower agrees with the `LIVE ERR` chip; the Tower scope says how many events matched no node, with a link to them; repeated errors on one node fold into one row (`×5`); a failed layer stays red in the layer list, with its count, until the feed's Clear (#397).
 
 ## [0.16.1] - 2026-11-02
 
