@@ -300,6 +300,8 @@ input[type=range] { accent-color: var(--orange); width: 110px; }
 .feed-row.error { border-left-color: var(--live-error); background: color-mix(in srgb, var(--live-error) 7%, transparent); }
 .feed-row.error .k, .feed-row.error .who { color: var(--live-error); }
 .feed-row.unmapped { opacity: .6; }
+.feed-repeat { margin-left: 6px; font-size: 10px; color: var(--live-error); }
+.feed-unmapped { display: block; margin: 6px 0; }
 .live { cursor: pointer; }
 .live.on { color: var(--orange); }
 

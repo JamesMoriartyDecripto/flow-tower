@@ -101,8 +101,8 @@ layers:
         type: process
         label: Live feed
         runtime: chrome
-        description: "F opens the feed; error count, unmapped marker, clicking a row selects the node. While it is open, chips float over working nodes; a chip that would cover another moves above it (#398)."
-        files: [src/app/hud/LiveFeed.tsx, src/app/hud/LiveChips.tsx, src/app/scene/chips.ts]
+        description: "F opens the feed; error count, unmapped marker, clicking a row selects the node. The header counts the scope on screen, so Tower agrees with the LIVE ERR chip; repeated errors fold into one row (#397). While it is open, chips float over working nodes; a chip that would cover another moves above it (#398)."
+        files: [src/app/hud/LiveFeed.tsx, src/app/live.ts, src/app/hud/LiveChips.tsx, src/app/scene/chips.ts]
       - id: malformed
         type: guard
         label: Malformed bodies
