@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- Sharing: systemd units (`.service`, `.timer`, `.socket`, `.path`, `.target`), `.conf`, `.ini`, `.cfg` and `Dockerfile`, `Containerfile`, `Makefile`, `Procfile` are shared as text; secret names are still refused first, and the extension is read from the file name, not its folder (#407).
 
 ## [0.16.1] - 2026-11-02
 
