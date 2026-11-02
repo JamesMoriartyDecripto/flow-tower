@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- Squad: `squad.json` takes `style: { language, maxFileLines }` (default `English`, `400`); every prompt, task Rules line and review focus uses them, so a project's rules (say, Italian comments and 800 lines) no longer sit next to "English only" and "~400 lines" (#404).
 
 ## [0.16.1] - 2026-11-02
 
