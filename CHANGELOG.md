@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- Squad: an empty oneshot answer prints its `finish_reason`, tokens (prompt, completion, reasoning) and generation id, and the ledger records its real cost (null when unknown, never 0); an empty answer cut at the output budget is retried once with twice the budget (#412).
 
 ## [0.16.1] - 2026-11-02
 
