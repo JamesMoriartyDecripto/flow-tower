@@ -22,19 +22,30 @@ const MARGIN = 16;
 
 /** The visible area not covered by HUD panels, in CSS pixels of the canvas. */
 export function freeRect(width: number, height: number): FreeRect {
-  const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect();
-  const nav = box('.layernav');
+  // A hidden panel (display: none) reports a 0x0 box at 0,0: it is not on screen, so it is no panel at all.
+  const box = (sel: string) => {
+    const r = document.querySelector(sel)?.getBoundingClientRect();
+    return r && r.width > 0 && r.height > 0 ? r : undefined;
+  };
+  const navBox = box('.layernav');
   // The node list holds the inspector's place on the right while no node is selected, and the open tower
   // card holds it at Tower overview. A reduced card is only a title bar, so the scene keeps the full width.
-  const inspector = box('.inspector') ?? box('.nodelist') ?? box('.towerinfo:not(.reduced)');
-  const feed = box('.livefeed');
+  const inspectorBox = box('.inspector') ?? box('.nodelist') ?? box('.towerinfo:not(.reduced)');
+  const feedBox = box('.livefeed');
+  // A panel nearly as wide as the window is a bottom sheet: it does not limit the sides, only the bottom.
+  const isSheet = (b?: DOMRect) => !!b && b.width > width * 0.8;
+  const sheetTops = [navBox, inspectorBox, feedBox].filter(isSheet).map((b) => b!.top);
+  const side = (b?: DOMRect) => (isSheet(b) ? undefined : b);
+  const nav = side(navBox);
+  const inspector = side(inspectorBox);
+  const feed = side(feedBox);
   // The live feed docks on the right; with the inspector open it moves next to it, low on the screen:
   // then it only limits the area from below.
   const feedBelow = !!(feed && inspector);
   const left = (nav?.right ?? 0) + MARGIN;
   const right = Math.min(width, inspector?.left ?? width, feed && !feedBelow ? feed.left : width) - MARGIN;
   const top = (box('.topbar')?.bottom ?? 0) + MARGIN;
-  const bottom = Math.min(height, box('.controls')?.top ?? height, feedBelow ? feed.top : height) - MARGIN;
+  const bottom = Math.min(height, box('.controls')?.top ?? height, feedBelow ? feed.top : height, ...sheetTops) - MARGIN;
   // Never let panels squeeze the scene into a sliver (tiny windows): fall back to the full canvas.
   if (right - left < width * 0.3 || bottom - top < height * 0.3) return { left: 0, top: 0, right: width, bottom: height, w: width, h: height };
   return { left, top, right, bottom, w: right - left, h: bottom - top };
