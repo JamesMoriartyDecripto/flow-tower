@@ -12,6 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- CLI: a mistyped option prints one line (`flow-tower: Unknown option '--x' … (flow-tower --help lists the options)`) and exits 1 instead of Node's stack trace; `emit` takes `--call` to pair a start with its end (#400).
 - Server: inside a library folder only folders, `*.tower.yaml` files and the files towers reference are watched (never `node_modules` or hidden folders), and Vite no longer watches the squad's role logs or `.stress`. A library holding a Python venv used up the system's file watchers, so other servers logged `ENOSPC` for every file (#401).
 
 ## [0.16.1] - 2026-11-02
