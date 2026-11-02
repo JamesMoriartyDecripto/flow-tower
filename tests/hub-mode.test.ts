@@ -228,7 +228,7 @@ describe('cli hub flags (#83)', () => {
     const r = run('--hub');
     expect(r.status).toBe(1);
     // The hint names this checkout's CLI: bare on PATH, else the node form (#193).
-    expect(r.stderr).toMatch(/(flow-tower|node \S+bin\/flow-tower\.js) token add/);
+    expect(r.stderr).toMatch(/(flow-tower|node (?:\S+bin\/flow-tower\.js|'[^']+bin\/flow-tower\.js')) token add/);
   });
 });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { shellPath } from '../bin/cli-name.js';
 import { libraryHint } from '../src/app/libraryHint';
 
 describe('libraryHint', () => {
@@ -23,7 +24,7 @@ describe('flow-tower guide', () => {
   const out = spawnSync(process.execPath, [bin, 'guide'], { encoding: 'utf8' }).stdout;
 
   it('states the checkout path after substitution', () => {
-    expect(out).toContain(`Commands below use this checkout: node ${bin}.`);
+    expect(out).toContain(`Commands below use this checkout: node ${shellPath(bin)}.`);
     expect(out).not.toContain('<path>');
   });
 
