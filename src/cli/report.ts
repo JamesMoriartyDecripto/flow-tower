@@ -19,6 +19,7 @@ import type { ReportDoc, Section, Source } from '../report/model.ts';
 import { asObject, optStringList, reqString } from '../report/types/input.ts';
 import { REPORT_TYPES, type ReportType } from '../report/types/index.ts';
 import { glMode, launchBrowser } from './browser.ts';
+import { isMainModule } from './main-module.ts';
 
 const USAGE = 'usage: flow-tower report <type> <input.yaml|json> [--source file]... [--drafts drafts.json] [--out file.pdf] [--html file.html] [--list]';
 const INSTALL_HINT = 'install a browser: npx playwright install chromium';
@@ -222,4 +223,4 @@ export async function main(args = argv.slice(2)): Promise<void> {
   }
 }
 
-if (import.meta.url === `file://${argv[1]}`) void main();
+if (isMainModule(import.meta.url)) void main();
