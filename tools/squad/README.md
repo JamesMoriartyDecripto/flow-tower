@@ -217,7 +217,7 @@ Per issue it:
 Any stop comments the reason and labels `squad:failed`; the worktree stays for inspection, and labelling the issue
 `squad:go` again starts over.
 
-A person can release the plan sign-off for one run with `SQUAD_APPROVE=1` in its environment (the release is posted on the issue). It does not release a sensitive fix round.
+A person can release the plan sign-off for one issue with `SQUAD_APPROVE=<issue number>` in the runner's environment (the release is posted on the issue). It does not release a sensitive fix round.
 
 Limits are in `squad.json` under `runner`: `usdPerIssue` (3, summed from the ledger before each stage), `minutes` (90),
 `fixRounds` (2) and `pollMinutes` (10). A lock in the user folder keeps a second runner out. The maintainer merges.

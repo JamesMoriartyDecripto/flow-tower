@@ -297,6 +297,10 @@ describe('reportOf', () => {
   it('keeps a --- line that is not the last non-empty line', () => {
     expect(reportOf('PASS\n--- a note\nmore')).toBe('PASS\n--- a note\nmore');
   });
+
+  it('strips the header lines in order only, so a model mode line after a reviewed line is kept', () => {
+    expect(reportOf('mode: x\nreviewed: none\nmode: y\nPASS')).toBe('mode: y\nPASS');
+  });
 });
 
 describe('spent', () => {

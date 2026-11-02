@@ -21,11 +21,13 @@ const must = (r, what) => {
 
 // run.mjs prints its header (mode, reviewed, trimmed) before the model's answer and a `--- <model>` footer after it.
 // A caller that reads the answer's first line would read the header, so the header and footer are stripped here.
-// Only leading header lines count, so a model line that happens to start with "mode: " is kept.
+// The header lines come in a fixed order, so each one is stripped only at its own position: a model line that starts with
+// "mode: " after "reviewed: " is kept, and so is any line after the first one that does not match.
+const HEADER = ['mode: ', 'reviewed: ', 'trimmed: '];
 export function reportOf(stdout) {
   const lines = String(stdout ?? '').split('\n');
   let head = 0;
-  while (head < lines.length && head < 3 && /^(mode|reviewed|trimmed): /.test(lines[head])) head++;
+  while (head < HEADER.length && head < lines.length && lines[head].startsWith(HEADER[head])) head++;
   let end = lines.length;
   // The footer is only the last non-empty line. A `--- ` line earlier in the answer is part of the answer.
   let foot = lines.length - 1;

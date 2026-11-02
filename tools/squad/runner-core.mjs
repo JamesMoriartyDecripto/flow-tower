@@ -26,9 +26,10 @@ export function controlEntry(entry) {
   return CONTROL_FILE.test(path) || CONTROL_SAMPLES.some((c) => matchesEntry(path, c));
 }
 const SIGN_OFF = 'sensitive area in the plan: a person must lead this issue (plan sign-off)';
-// A person releases the plan sign-off for one run by setting SQUAD_APPROVE=1. It is read at call time so each run (and
-// each test) sees the value it was started with. It does not release a sensitive fix round: that stays with a person.
-const approved = () => env.SQUAD_APPROVE === '1';
+// A person releases the plan sign-off for one issue by setting SQUAD_APPROVE to that issue's number. The runner works many
+// issues in one process, so a bare flag would release the sign-off of every sensitive issue it picks up. It is read at
+// call time so each run (and each test) sees the value it was started with. It does not release a sensitive fix round.
+const approved = (n) => env.SQUAD_APPROVE === String(n);
 const FIX_SENSITIVE = 'sensitive area in a fix round: a person must lead this issue';
 const FILES_NOT_REGULAR = 'fix files must name regular files, not directories or links';
 const ROUTES = ['full', 'needs_info', 'reject'];
@@ -228,7 +229,7 @@ export async function workIssue(issue, deps, limits) {
       return 'needs_info';
     }
     const sensitiveTriage = SENSITIVE.test([issue.title, issue.body, ...t.areas].join('\n'));
-    if (sensitiveTriage && !approved()) {
+    if (sensitiveTriage && !approved(n)) {
       stop('sensitive area: a person must lead this issue (plan sign-off)');
     }
 
@@ -238,10 +239,10 @@ export async function workIssue(issue, deps, limits) {
     const plan = await makePlan(deps, issue, wt.path);
     // The plan was written by a model that read the untrusted issue, so the sensitive-area rule is checked again here.
     const sensitive = sensitivePlan(plan);
-    if (sensitive && !approved()) stop(SIGN_OFF);
+    if (sensitive && !approved(n)) stop(SIGN_OFF);
     await gh.comment(n, planComment(plan));
     // A release is posted on the issue, so anyone can trace which run went past the sign-off.
-    if (sensitiveTriage || sensitive) await gh.comment(n, 'Plan approved by a person (SQUAD_APPROVE=1): sensitive area in the plan.');
+    if (sensitiveTriage || sensitive) await gh.comment(n, `Plan approved by a person (SQUAD_APPROVE=${n}): sensitive area in the plan.`);
     const taskDir = await deps.writeTasks(wt.path, n, taskFiles(plan, { issue: n, title: issue.title }));
     await guard();
     await runSteps(deps, wt.path, taskDir, issue);

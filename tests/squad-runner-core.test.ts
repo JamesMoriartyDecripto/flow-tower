@@ -444,15 +444,30 @@ describe('triage retry and plan sign-off release', () => {
     expect(calls.filter((c) => c === 'role:triage')).toHaveLength(2);
   });
 
-  it('runs a sensitive plan with SQUAD_APPROVE=1 and posts the approval comment', async () => {
+  it('runs a sensitive plan with SQUAD_APPROVE set to its issue number and posts the approval comment', async () => {
     const before = process.env.SQUAD_APPROVE;
-    process.env.SQUAD_APPROVE = '1';
+    process.env.SQUAD_APPROVE = '91';
     try {
       const plan = { criteria: ['login works'], steps: [{ title: 'Edit login', items: ['change it'], files: ['src/auth/login.ts'] }] };
       const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(plan)], verifier: ['PASS'] });
       expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
-      expect(calls).toContain('comment:Plan approved by a person (SQUAD_APPROVE=1): sensitive area in the plan.');
+      expect(calls).toContain('comment:Plan approved by a person (SQUAD_APPROVE=91): sensitive area in the plan.');
       expect(calls).toContain('steps');
+    } finally {
+      if (before === undefined) delete process.env.SQUAD_APPROVE;
+      else process.env.SQUAD_APPROVE = before;
+    }
+  });
+
+  it('stops a sensitive plan when SQUAD_APPROVE names another issue', async () => {
+    const before = process.env.SQUAD_APPROVE;
+    process.env.SQUAD_APPROVE = '92';
+    try {
+      const plan = { criteria: ['login works'], steps: [{ title: 'Edit login', items: ['change it'], files: ['src/auth/login.ts'] }] };
+      const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(plan)] });
+      expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+      expect(calls).toContain('fail:sensitive area in the plan: a person must lead this issue (plan sign-off)');
+      expect(calls).not.toContain('steps');
     } finally {
       if (before === undefined) delete process.env.SQUAD_APPROVE;
       else process.env.SQUAD_APPROVE = before;
