@@ -162,7 +162,7 @@ describe('flow-tower hooks', () => {
     const r = await hooks(['status'], box);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain(`node not found at ${gone}: run `);
-    expect(r.stdout).toMatch(/run (flow-tower|node \S+bin\/flow-tower\.js) hooks install again/);
+    expect(r.stdout).toMatch(/run (flow-tower|node (?:\S+bin\/flow-tower\.js|'[^']+bin\/flow-tower\.js')) hooks install again/);
   });
 
   it('uninstall deletes a settings file that held only our hooks, and keeps the backup', TIMEOUT, async () => {

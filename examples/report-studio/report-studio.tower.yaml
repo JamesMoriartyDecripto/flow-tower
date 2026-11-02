@@ -13,7 +13,7 @@ runtimes:
   laptop:
     kind: local
     label: User machine
-    description: "Node 22, the flow-tower CLI and a Playwright Chromium (npx playwright install chromium). Sources stay here."
+    description: "Node 22, the flow-tower CLI and a Playwright Chromium (npx playwright install chromium). Sources stay here. Runs from any checkout path, spaces included (#307)."
   openrouter:
     kind: saas
     label: OpenRouter

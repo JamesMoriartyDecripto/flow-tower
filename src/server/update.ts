@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { env } from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { shellPath } from '../../bin/cli-name.js';
 
 /**
  * Update notice: is a newer release of Flow Tower on GitHub? The only outbound call Flow Tower makes,
@@ -14,7 +15,9 @@ export const RELEASES_API = 'https://api.github.com/repos/JamesMoriartyDecripto/
 const DAY = 24 * 60 * 60 * 1000;
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 // A git checkout updates with git; anything else (a package install) points to the release page.
-export const UPDATE_COMMAND = existsSync(join(PKG_ROOT, '.git')) ? `cd ${PKG_ROOT} && git pull && npm install` : undefined;
+// The path is quoted when it has a space or shell metacharacter, so the pasted command stays one word.
+export const updateCommand = (root: string): string => `cd ${shellPath(root)} && git pull && npm install`;
+export const UPDATE_COMMAND = existsSync(join(PKG_ROOT, '.git')) ? updateCommand(PKG_ROOT) : undefined;
 
 export interface UpdateInfo {
   current: string;
