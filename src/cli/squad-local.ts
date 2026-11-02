@@ -7,6 +7,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { accessSync, constants, existsSync, lstatSync, readFileSync, statSync, type Stats } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { userHome } from '../core/secrets.ts';
 import { onPath } from './squad-detect.ts';
@@ -15,8 +16,8 @@ import { loadConfig } from '../../tools/squad/config.mjs';
 
 /** A finished subprocess: status null means it did not run to an exit code (missing binary, signal). */
 export interface Probe { status: number | null; stdout: string; stderr: string; error?: Error }
-/** Starts a fixed binary with an argument list, no shell. Injected so tests can fake it. */
-export type Exec = (cmd: string, args: string[]) => Probe;
+/** Starts a fixed binary with an argument list, no shell, optionally from a given folder. Injected so tests can fake it. */
+export type Exec = (cmd: string, args: string[], opts?: { cwd?: string }) => Probe;
 
 export interface Check { name: string; ok: boolean; detail: string }
 
@@ -36,8 +37,8 @@ export const RUNNER_FILES = [
   'roles.mjs', 'run.mjs', 'runner-core.mjs', 'runner-deps.mjs', 'runner-gh.mjs', 'runner-judge.mjs', 'runner-plan.mjs', 'runner.mjs', 'step-limit.mjs', 'step-scope.mjs', 'steps.sh', 'tool-schema.mjs',
 ];
 
-const defaultExec: Exec = (cmd, args) => {
-  const r = spawnSync(cmd, args, { encoding: 'utf8', stdio: 'pipe', shell: false });
+const defaultExec: Exec = (cmd, args, opts) => {
+  const r = spawnSync(cmd, args, { encoding: 'utf8', stdio: 'pipe', shell: false, cwd: opts?.cwd });
   return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '', error: r.error };
 };
 
@@ -133,7 +134,9 @@ function checkCommand(check: string, root: string, exec: Exec): Check {
   let ok: boolean;
   if (pyModule) {
     const probe = 'import importlib.util,sys; sys.exit(0 if importlib.util.find_spec(sys.argv[1]) else 1)';
-    const r = exec(argv[0], ['-c', probe, pyModule]);
+    // `python -c` puts the current folder on sys.path, and startup imports any sitecustomize.py found there. Running
+    // from a neutral folder keeps a repo file of that name from running; the interpreter's and user's site-packages still load.
+    const r = exec(argv[0], ['-c', probe, pyModule], { cwd: tmpdir() });
     ok = r.status === 0 && !r.error;
   } else {
     // The runner starts the check from the repo root, so a relative path is resolved there, not from the process cwd.

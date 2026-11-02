@@ -183,6 +183,18 @@ describe('squad doctor, portable (#334)', () => {
     expect(probes[0][probes[0].length - 1]).toBe('pytest');
   });
 
+  it('runs the find_spec probe from a neutral folder, so a repo sitecustomize.py is not on sys.path', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'python3 -m pytest' } }));
+    const base = fakeExec(root).exec;
+    const cwds: (string | undefined)[] = [];
+    const python: Exec = (cmd, args, opts) => {
+      if (cmd === 'python3') cwds.push(opts?.cwd);
+      return cmd === 'python3' ? ok() : base(cmd, args);
+    };
+    doctor(root, { ...healthyOpts(root), exec: python });
+    expect(cwds).toEqual([tmpdir()]);
+  });
+
   it('does not start a dotted -m module through the find_spec probe', () => {
     const root = installedProject(JSON.stringify({ commands: { check: 'node -m a.b' } }));
     const { exec, calls } = fakeExec(root);
