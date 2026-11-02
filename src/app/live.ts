@@ -205,6 +205,44 @@ export function towerScope(events: FlowEvent[], towerId: string, desc: Map<strin
   return events.filter((e) => e.targets.some((t) => towers.has(splitTarget(t)[0])));
 }
 
+/** An event that failed: a non-ok status or an `error` kind. */
+export const isLiveError = (e: FlowEvent) => e.status === 'error' || e.kind === 'error';
+
+/**
+ * Failed layers of one tower (layer id → count of error events). Counted from the kept events, so they
+ * stay until the feed's Clear, unlike the node's live state, which decays after a few seconds.
+ */
+export function errorLayers(events: FlowEvent[], towerId: string): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const e of events) {
+    if (!isLiveError(e)) continue;
+    // One count per event even when it names several nodes of the same layer.
+    const layers = new Set<string>();
+    for (const t of e.targets) {
+      const [tower, node] = splitTarget(t);
+      if (tower === towerId) layers.add(node.split('.')[0]);
+    }
+    for (const layer of layers) out.set(layer, (out.get(layer) ?? 0) + 1);
+  }
+  return out;
+}
+
+/**
+ * Folds adjacent repeats of the same error (same kind, tool, agent and first target) into one row, so five
+ * identical failures take one feed row. `e` is the first row of the run: rows arrive newest first.
+ */
+export function foldRepeats<T extends FlowEvent>(rows: T[]): { e: T; n: number }[] {
+  const out: { e: T; n: number }[] = [];
+  for (const e of rows) {
+    const last = out[out.length - 1];
+    const target = e.targets[0];
+    if (last && target !== undefined && isLiveError(e) && isLiveError(last.e)
+      && last.e.kind === e.kind && last.e.tool === e.tool && last.e.agent === e.agent && last.e.targets[0] === target) last.n++;
+    else out.push({ e, n: 1 });
+  }
+  return out;
+}
+
 /** Aggregated live state of a whole tower subtree (the tower itself + its nested towers). */
 export function subtreeState(towers: Set<string>, nodes: Map<string, NodeLive>, now: number) {
   const states = [];
