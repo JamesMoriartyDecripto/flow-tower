@@ -73,7 +73,16 @@ export function touchedForeign(before, after) {
 // The paths a lead adopted (SQUAD_ADOPT) are left out of the snapshot, so they read as this step's own work. An entry
 // ending in "/" names every path under that folder; any other entry names one path.
 export function adopted(paths, adopt) {
-  return paths.filter((p) => !adopt.some((a) => (a.endsWith('/') ? p.startsWith(a) : p === a)));
+  return paths.filter((p) => !adopt.some((a) => adopts(a, p)));
+}
+
+// One adopt entry against one path: the rule adopted and unmatchedAdopt share.
+const adopts = (a, p) => (a.endsWith('/') ? p.startsWith(a) : p === a);
+
+// The adopt entries that match no changed path. A mistyped entry would otherwise be ignored, so the leftovers stay
+// kept out and the rerun fails the same way with no hint (#416).
+export function unmatchedAdopt(paths, adopt) {
+  return adopt.filter((a) => !paths.some((p) => adopts(a, p)));
 }
 
 // The foreign paths a task's Files entries name exactly, deduplicated. A folder ("src") or a glob covers a maintainer
@@ -163,7 +172,11 @@ function main(args) {
   };
   if (cmd === 'snapshot' && rest.length === 1) {
     const repo = rest[0];
-    const paths = adopted(statusPaths(repo), splitCsv(process.env.SQUAD_ADOPT));
+    const changed = statusPaths(repo);
+    const adopt = splitCsv(process.env.SQUAD_ADOPT);
+    const unmatched = unmatchedAdopt(changed, adopt);
+    if (unmatched.length) throw new Error(`SQUAD_ADOPT names no local change: ${unmatched.join(', ')}`);
+    const paths = adopted(changed, adopt);
     const hashes = hashPaths(repo, paths);
     console.log(paths.map((p) => `${hashes[p]}\t${p}`).join('\n'));
     return 0;

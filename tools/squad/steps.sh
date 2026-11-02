@@ -66,7 +66,7 @@ for f in "$dir"/*.md; do
   if [ -n "$keptOut" ]; then
     echo "RED before step $step: listed in Files but kept out as local edits:"
     echo "$keptOut"
-    echo "If this step continues a red step's work, rerun with SQUAD_ADOPT=$(echo "$keptOut" | paste -sd, -)."
+    echo "If this step continues a red step's work, rerun with SQUAD_ADOPT set to these paths, comma-separated."
     exit 1
   fi
   # A coder run that fails (no key, HTTP error, step cap) must stop the chain: a green check on unchanged code is not a done step.

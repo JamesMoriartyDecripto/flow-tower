@@ -16,8 +16,9 @@ interface StepScope {
   badEntries(files: string[]): string[];
   adopted(paths: string[], adopt: string[]): string[];
   keptOut(files: string[], foreign: string[]): string[];
+  unmatchedAdopt(paths: string[], adopt: string[]): string[];
 }
-const { adopted, badEntries, keptOut, stepDone, toStage, touchedForeign, writeDirsFor } = (await import(/* @vite-ignore */ SCRIPT)) as StepScope;
+const { adopted, badEntries, keptOut, stepDone, toStage, touchedForeign, unmatchedAdopt, writeDirsFor } = (await import(/* @vite-ignore */ SCRIPT)) as StepScope;
 
 function cli(...args: string[]): string {
   const r = spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8' });
@@ -268,4 +269,33 @@ describe('adopted and keptOut', () => {
     expect(keptOut(['src'], ['src/a.ts'])).toEqual([]);
     expect(keptOut(['src/'], ['src/a.ts'])).toEqual([]);
   });
+
+  it('unmatchedAdopt returns the adopt entries that match no path, and none when a folder covers one', () => {
+    expect(unmatchedAdopt(['src/a.ts'], ['src/a.ts', 'typo.ts'])).toEqual(['typo.ts']);
+    expect(unmatchedAdopt(['src/a.ts'], ['src/'])).toEqual([]);
+  });
+
+  it('snapshot exits non-zero and names a SQUAD_ADOPT entry that matches no local change', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'step-scope-typo-'));
+    try {
+      const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
+      git('init', '-q');
+      git('config', 'user.email', 't@example.com');
+      git('config', 'user.name', 't');
+      writeFileSync(join(dir, 'a.ts'), 'a\n');
+      git('add', '-A');
+      git('commit', '-q', '-m', 'init');
+      writeFileSync(join(dir, 'a.ts'), 'local\n');
+
+      const out = spawnSync(process.execPath, [SCRIPT, 'snapshot', dir], {
+        encoding: 'utf8',
+        env: { ...process.env, SQUAD_ADOPT: 'typo.ts' },
+        timeout: 20_000,
+      });
+      expect(out.status).not.toBe(0);
+      expect(out.stderr).toContain('typo.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 20_000);
 });
