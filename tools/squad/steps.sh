@@ -6,6 +6,7 @@
 # Finished steps are skipped, and only the step's own files are committed: local edits from before the run are never staged (#353).
 # REPO (default: this checkout) is where the steps run; NODE (default: node) is the Node binary for every node call,
 # since the Linux test server's system Node is 20 and Node 22 can live elsewhere; SQUAD_TRAILERS adds extra commit trailer lines.
+# SQUAD_ADOPT=<paths> (comma-separated) adopts a red step's leftover local edits so a continuation step may commit them (#416).
 set -u
 # bash reads this file while it runs, so a step that edits steps.sh would corrupt the run: run from a private copy (#353).
 if [ -z "${SQUAD_STEPS_COPY:-}" ]; then
@@ -60,6 +61,14 @@ for f in "$dir"/*.md; do
   base=$(git -C "$R" rev-parse HEAD)
   # The coder may write only the step's own dirs: the configured write list plus the directories of its Files entries.
   stepWrite=$("$NODE" "$H/step-scope.mjs" write "$f" "$R" "$write") || { echo "RED: bad step scope"; exit 1; }
+  # A Files path that the snapshot kept out is a red step's leftover or the maintainer's work. The lead adopts the leftovers with SQUAD_ADOPT.
+  keptOut=$("$NODE" "$H/step-scope.mjs" kept-out "$f" "$OUT/foreign.tsv") || { echo "RED before step $step: step-scope kept-out failed"; exit 1; }
+  if [ -n "$keptOut" ]; then
+    echo "RED before step $step: listed in Files but kept out as local edits:"
+    echo "$keptOut"
+    echo "If this step continues a red step's work, rerun with SQUAD_ADOPT set to these paths, comma-separated."
+    exit 1
+  fi
   # A coder run that fails (no key, HTTP error, step cap) must stop the chain: a green check on unchanged code is not a done step.
   "$NODE" "$H/run.mjs" --model "$CODER" --role coder --node specialists.coder --task "$f" --steps 70 --issue "$issue" --repo "$R" --write "$stepWrite" > "$OUT/coder-$step.out" 2>&1; rc=$?
   tail -c 700 "$OUT/coder-$step.out"

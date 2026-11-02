@@ -16,6 +16,7 @@ const USAGE = [
   '       node tools/squad/step-scope.mjs stage <task.md> <base-rev> <repo> <snapshot-file> <write-csv>',
   '       node tools/squad/step-scope.mjs outside <task.md> <base-rev> <repo> <snapshot-file> <write-csv>',
   '       node tools/squad/step-scope.mjs foreign-touched <snapshot-file> <repo>',
+  '       node tools/squad/step-scope.mjs kept-out <task.md> <snapshot-file>',
 ].join('\n');
 
 // The directory a Files entry lives in, which the step may write. A glob has no fixed directory, so the part before
@@ -67,6 +68,27 @@ export function badEntries(files) {
 // The foreign paths a step changed: the hash differs, or the file is gone (a "-" hash marks a missing file).
 export function touchedForeign(before, after) {
   return Object.keys(before).filter((p) => after[p] !== before[p]);
+}
+
+// The paths a lead adopted (SQUAD_ADOPT) are left out of the snapshot, so they read as this step's own work. An entry
+// ending in "/" names every path under that folder; any other entry names one path.
+export function adopted(paths, adopt) {
+  return paths.filter((p) => !adopt.some((a) => adopts(a, p)));
+}
+
+// One adopt entry against one path: the rule adopted and unmatchedAdopt share.
+const adopts = (a, p) => (a.endsWith('/') ? p.startsWith(a) : p === a);
+
+// The adopt entries that match no changed path. A mistyped entry would otherwise be ignored, so the leftovers stay
+// kept out and the rerun fails the same way with no hint (#416).
+export function unmatchedAdopt(paths, adopt) {
+  return adopt.filter((a) => !paths.some((p) => adopts(a, p)));
+}
+
+// The foreign paths a task's Files entries name exactly, deduplicated. A folder ("src") or a glob covers a maintainer
+// edit without naming it, so it must not block the step: only an exact path means the step meant to commit it.
+export function keptOut(files, foreign) {
+  return [...new Set(foreign.filter((p) => files.includes(p)))];
 }
 
 // Every path git reports as changed, tracked or untracked. Porcelain -z gives a rename as "XY new\0old\0", so the
@@ -150,9 +172,19 @@ function main(args) {
   };
   if (cmd === 'snapshot' && rest.length === 1) {
     const repo = rest[0];
-    const paths = statusPaths(repo);
+    const changed = statusPaths(repo);
+    const adopt = splitCsv(process.env.SQUAD_ADOPT);
+    const unmatched = unmatchedAdopt(changed, adopt);
+    if (unmatched.length) throw new Error(`SQUAD_ADOPT names no local change: ${unmatched.join(', ')}`);
+    const paths = adopted(changed, adopt);
     const hashes = hashPaths(repo, paths);
     console.log(paths.map((p) => `${hashes[p]}\t${p}`).join('\n'));
+    return 0;
+  }
+  if (cmd === 'kept-out' && rest.length === 2) {
+    const [taskFile, snapFile] = rest;
+    const files = parseFiles(readFileSync(taskFile, 'utf8'), { all: true });
+    console.log(keptOut(files, Object.keys(readSnapshot(snapFile))).join('\n'));
     return 0;
   }
   if (cmd === 'write' && (rest.length === 2 || rest.length === 3)) {
