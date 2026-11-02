@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- Squad: `steps.sh` passes each path as `:(literal)` instead of exporting `GIT_LITERAL_PATHSPECS`, so a project's pre-commit hook that globs (`git ls-files -- 'dir/*'`) sees its files again (#403); it runs on macOS bash 3.2 (no `mapfile`) and its private copy gets a random name there (#396).
 
 ## [0.16.1] - 2026-11-02
 
