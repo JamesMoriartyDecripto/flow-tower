@@ -13,10 +13,13 @@ const isText = (v) => typeof v === 'string' && v.trim() !== '';
 // would let a step write outside it, the same rule step-scope.mjs applies to Files entries. A leading "~" is refused
 // as well: a shell expands it to the home folder. A comma or a line break is refused too: the Files line is split on
 // commas and read line by line, so one entry must be exactly one path, or a second path would slip past the check.
+// A "." or an empty segment ("./tools/x", "tools//squad") is refused too: the control check compares the text of an
+// entry with control paths, so every entry must be one normalized path. One trailing "/" is allowed (a folder entry).
 function badPath(file) {
   if (file.startsWith('/') || file.startsWith('~') || file.includes('\\') || /^[A-Za-z]:/.test(file)) return true;
   if (/[,\r\n]/.test(file)) return true;
-  return file.split('/').includes('..');
+  const segments = file.replace(/\/$/, '').split('/');
+  return segments.some((s) => s === '..' || s === '.' || s === '');
 }
 
 // The first problem in a parsed plan, in plain words, or '' when the plan is valid.
