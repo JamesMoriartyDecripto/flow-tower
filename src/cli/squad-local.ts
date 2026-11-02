@@ -7,7 +7,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { accessSync, constants, existsSync, lstatSync, readFileSync, statSync, type Stats } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { userHome } from '../core/secrets.ts';
 import { onPath } from './squad-detect.ts';
 // The runner's own loader: doctor and `squad run` must agree on what a valid squad.json is. It only reads data.
@@ -127,7 +127,8 @@ function checkCommand(root: string, exec: Exec): Check {
     const r = exec(argv[0], ['-m', argv[2], '--version']);
     ok = r.status === 0 && !r.error;
   } else {
-    ok = argv[0].includes('/') ? existsSync(argv[0]) : onPath(argv[0]);
+    // The runner starts the check from the repo root, so a relative path is resolved there, not from the process cwd.
+    ok = argv[0].includes('/') ? existsSync(resolve(root, argv[0])) : onPath(argv[0]);
   }
   return {
     name,

@@ -181,6 +181,21 @@ describe('squad doctor, portable (#334)', () => {
     expect(probes).toEqual([['-m', 'pytest', '--version']]);
   });
 
+  it('resolves a relative check path from the repo root, not the process cwd', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: './scripts/check.sh' } }));
+    mkdirSync(join(root, 'scripts'));
+    writeFileSync(join(root, 'scripts', 'check.sh'), '');
+    const check = doctor(root, healthyOpts(root)).find((c) => c.name === 'check command');
+    expect(check?.ok).toBe(true);
+  });
+
+  it('fails the check command when a relative check path is missing from the repo root', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: './scripts/check.sh' } }));
+    const check = doctor(root, healthyOpts(root)).find((c) => c.name === 'check command');
+    expect(check?.ok).toBe(false);
+    expect(check?.detail).toContain('./scripts/check.sh');
+  });
+
   it('fails the check command when its program is not on PATH', () => {
     const root = installedProject(JSON.stringify({ commands: { check: 'definitely-not-a-program-xyz run' } }));
     const check = doctor(root, healthyOpts(root)).find((c) => c.name === 'check command');
