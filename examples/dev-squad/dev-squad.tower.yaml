@@ -302,7 +302,7 @@ layers:
         type: process
         label: steps.sh
         description: "Runs the coder on each task file in order; check, Files: check and one commit per green step. Runs from a copy of itself; REPO and the task folder are made absolute first, so relative ones work (#394). Every file of the folder is a coder step: tasks of other roles live in their own folder."
-        meta: { portability: "Runs on macOS bash 3.2 and passes paths as :(literal), so project hooks keep their globs (#396, #403).", probe_sweep: "The sweep of coder probe files never touches the task folder (#420)." }
+        meta: { portability: "Runs on macOS bash 3.2 and passes paths as :(literal), so project hooks keep their globs (#396, #403).", probe_sweep: "The sweep of coder probe files never touches the task folder (#420).", adopt: "Local edits are kept out of squad commits; SQUAD_ADOPT=<paths> lets the lead hand a red step's leftovers to the step that continues it, and a literal Files: entry kept out turns the step RED before the coder runs (#416)." }
         files: [roles/coder.md]
       - id: guard
         runtime: laptop
