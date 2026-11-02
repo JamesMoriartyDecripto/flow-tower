@@ -409,7 +409,7 @@ layers:
         type: model
         label: GLM 5.3 Flash
         model: z-ai/glm-5.3-flash
-        description: "Default reviewer (and architect, researcher, verifier by family). Another family than the coder's."
+        description: "Default reviewer (and researcher, verifier by family; the architect defaults to GPT 6.1 Terra). Another family than the coder's."
         files: [squad.example.json]
       - id: deepseek
         runtime: openrouter
