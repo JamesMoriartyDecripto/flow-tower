@@ -85,6 +85,10 @@ export function checkFinding(finding, readFile) {
 const ROLES = ['reviewer', 'security'];
 const PASSING = ['pass', 'skipping'];
 const BLOCKING_SEVERITY = ['critical', 'high'];
+const KNOWN_SEVERITY = ['critical', 'high', 'medium', 'low'];
+// A finding with a missing or unknown severity is a malformed answer, so it blocks: reading it as a harmless note
+// would let a pass hide a real problem behind a bad field.
+const blocks = (severity) => BLOCKING_SEVERITY.includes(severity) || !KNOWN_SEVERITY.includes(severity);
 
 // Returns the list of reasons the PR is not ready; it is ready only when that list is empty. Unverified findings below
 // high are not reasons: they are listed for the lead to check by hand, since a wrong quote should not block a good
@@ -119,10 +123,15 @@ export function readiness(facts) {
       reasons.push(`${v.role}: no reviewed commit (pack the review from a clean tree with pack.mjs), run it again`);
     }
     for (const f of v.findings ?? []) {
-      if (f.status === 'verified' && BLOCKING_SEVERITY.includes(f.severity)) {
-        reasons.push(`${v.role}: ${clean(f.severity)} finding at ${clean(f.file)}`);
-      } else if (f.status === 'unverified' && BLOCKING_SEVERITY.includes(f.severity)) {
-        reasons.push(`${v.role}: unverified ${clean(f.severity)} finding at ${clean(f.file)}, check it in the code and run the pass again`);
+      const known = KNOWN_SEVERITY.includes(f.severity);
+      if (f.status === 'verified' && blocks(f.severity)) {
+        reasons.push(known
+          ? `${v.role}: ${clean(f.severity)} finding at ${clean(f.file)}`
+          : `${v.role}: finding with no known severity at ${clean(f.file)}`);
+      } else if (f.status === 'unverified' && blocks(f.severity)) {
+        reasons.push(known
+          ? `${v.role}: unverified ${clean(f.severity)} finding at ${clean(f.file)}, check it in the code and run the pass again`
+          : `${v.role}: unverified finding with no known severity at ${clean(f.file)}, check it in the code and run the pass again`);
       }
     }
   }

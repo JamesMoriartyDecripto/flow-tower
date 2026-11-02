@@ -323,6 +323,26 @@ describe('readiness reviewer severity', () => {
   });
 });
 
+describe('readiness finding with no known severity', () => {
+  const verdictWith = (finding: Record<string, unknown>) =>
+    [{ ...green.verdicts[0], findings: [finding] }, green.verdicts[1]];
+
+  it('a verified finding with no severity is a reason', () => {
+    const verdicts = verdictWith({ file: 'src/a.ts:3', status: 'verified' });
+    expect(readiness(with_({ verdicts })).reasons).toEqual(['reviewer: finding with no known severity at src/a.ts:3']);
+  });
+
+  it('a verified finding with an unknown severity is a reason', () => {
+    const verdicts = verdictWith({ file: 'src/a.ts:3', severity: 'banana', status: 'verified' });
+    expect(readiness(with_({ verdicts })).reasons).toEqual(['reviewer: finding with no known severity at src/a.ts:3']);
+  });
+
+  it('a verified medium finding gives no reason', () => {
+    const verdicts = verdictWith({ file: 'src/a.ts:3', severity: 'medium', status: 'verified' });
+    expect(readiness(with_({ verdicts }))).toEqual({ ready: true, reasons: [] });
+  });
+});
+
 describe('readiness unverified findings by severity', () => {
   it('an unverified high finding gives the exact reason', () => {
     const finding = { file: 'src/a.ts:3', severity: 'high', status: 'unverified', reason: 'no quote' };
