@@ -19,6 +19,9 @@ NODE=${NODE:-node}
 # The copy cannot find its helpers next to itself, so the original folder is passed in as SQUAD_STEPS_HOME.
 H=${SQUAD_STEPS_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}
 issue=$1; dir=$2; write=$3; title=$4
+# Both paths are made absolute here: the commit block runs inside cd "$R", where a relative REPO or task folder no longer resolves.
+R=$(cd "$R" && pwd) || { echo "RED: REPO not found: $R"; exit 1; }
+dir=$(cd "$dir" && pwd) || { echo "RED: task folder not found: $dir"; exit 1; }
 # A red run keeps its folder for the lead, and nothing removes it after that. Folders a lead never came back to would pile up,
 # so this run removes this user's own old ones first (older than 7 days). The user check keeps other users' folders out of reach.
 find "${TMPDIR:-/tmp}" -maxdepth 1 -type d -name 'squad-*-??????' -user "$(id -u)" -mtime +7 -exec rm -rf -- {} + 2>/dev/null || true
