@@ -61,6 +61,23 @@ describe('parsePlan', () => {
     expect(r.ok).toBe(false);
     expect(typeof r.error).toBe('string');
   });
+
+  it('keeps the valid plan when a second fence with prose follows it', () => {
+    const text = `${asText(plan())}\nNotes:\n\`\`\`json\nI will add the helper.\n\`\`\``;
+    expect(parsePlan(text).ok).toBe(true);
+  });
+
+  it('skips a schema template echoed before the real plan', () => {
+    const template = '```json\n{"criteria": ["..."], "steps": [{"title": "...", "items": ["..."], "files": ["relative/path"]}]}\n```';
+    const r = parsePlan(`${template}\nFinal plan:\n${asText(plan())}`);
+    expect(r.ok).toBe(true);
+    expect(r.plan.steps[0].title).toBe('Add the helper!');
+  });
+
+  it('keeps the valid plan when a non-object fence follows it', () => {
+    const text = `${asText(plan())}\n\`\`\`json\n["done"]\n\`\`\``;
+    expect(parsePlan(text).ok).toBe(true);
+  });
 });
 
 describe('taskFiles', () => {

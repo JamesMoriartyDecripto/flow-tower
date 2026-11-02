@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 // The procedure is plain JavaScript; the fakes below record every call so each route can be checked in order.
 // @ts-expect-error plain .mjs without declarations
-import { scrub, workIssue } from '../tools/squad/runner-core.mjs';
+import { parseTriage, scrub, workIssue } from '../tools/squad/runner-core.mjs';
 
 const ISSUE = { number: 91, title: 'Add a badge', body: 'Show a badge on the card.' };
 const LIMITS = { usdPerIssue: 5, minutes: 30, fixRounds: 1 };
@@ -418,5 +418,23 @@ describe('workIssue', () => {
     const { deps, calls } = fakeDeps({ worktree: async () => { throw new Error('disk full'); } }, { triage: [triageFull] });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
     expect(calls).toContain('fail:error: disk full');
+  });
+});
+
+describe('parseTriage reads the answer block', () => {
+  const full = { route: 'full', areas: ['ui'], questions: [], rationale: 'ok' };
+
+  it('keeps the valid block when a second fence with prose follows it', () => {
+    const text = `${fence(full)}\nNotes:\n\`\`\`json\nI route it in full.\n\`\`\``;
+    expect(parseTriage(text)?.route).toBe('full');
+  });
+
+  it('skips a schema template echoed before the real block', () => {
+    const template = '```json\n{"route": "full" | "needs_info" | "reject", "areas": [], "questions": [], "rationale": "..."}\n```';
+    expect(parseTriage(`${template}\nAnswer:\n${fence(full)}`)?.route).toBe('full');
+  });
+
+  it('keeps the valid block when a non-object fence follows it', () => {
+    expect(parseTriage(`${fence(full)}\n\`\`\`json\n["full"]\n\`\`\``)?.route).toBe('full');
   });
 });

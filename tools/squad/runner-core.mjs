@@ -4,7 +4,7 @@
 // lstat of the Files paths below: it must see the worktree as it is, before any task is written, and it never writes.
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { fixPaths, fixTask, judgePrompt, numberFindings, parseJudgement, stripFence } from './runner-judge.mjs';
+import { firstAccepted, fixPaths, fixTask, judgePrompt, numberFindings, parseJudgement, stripFence } from './runner-judge.mjs';
 import { parsePlan, taskFiles } from './runner-plan.mjs';
 import { matchesEntry } from './files-check.mjs';
 
@@ -97,12 +97,12 @@ function evidence(issue, plan) {
   return [untrusted(issue), '', PLAN_NOTE, '<plan-data>', `Criteria: ${criteria}`, '</plan-data>'].join('\n');
 }
 
-// The last ```json block is the answer, or the whole text when there is no block (same rule as parsePlan). A route
-// outside the three, or text that is not JSON, is not usable.
+// The first candidate (see jsonCandidates) with a route outside the three is skipped; text that is not JSON is not usable.
 export function parseTriage(text) {
-  const src = String(text ?? '');
-  const fences = [...src.matchAll(/```json\s*([\s\S]*?)```/g)];
-  const body = fences.length ? fences[fences.length - 1][1] : src;
+  return firstAccepted(text, triageBody, (r) => r !== null);
+}
+
+function triageBody(body) {
   let raw;
   try { raw = JSON.parse(body); } catch { return null; }
   if (raw === null || typeof raw !== 'object' || !ROUTES.includes(raw.route)) return null;
