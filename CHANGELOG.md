@@ -12,6 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- Squad: an empty oneshot answer prints its `finish_reason`, tokens (prompt, completion, reasoning) and generation id, and the ledger records its real cost (null when unknown, never 0); an empty answer cut at the output budget is retried once with twice the budget (#412).
 - Squad: `steps.sh` passes each path as `:(literal)` instead of exporting `GIT_LITERAL_PATHSPECS`, so a project's pre-commit hook that globs (`git ls-files -- 'dir/*'`) sees its files again (#403); it runs on macOS bash 3.2 (no `mapfile`) and its private copy gets a random name there (#396).
 - Scene: a live chip that would cover another one moves above it, so nearby working nodes keep readable chips (#398).
 - Live feed: the header counts the scope on screen, so Tower agrees with the `LIVE ERR` chip; the Tower scope says how many events matched no node, with a link to them; repeated errors on one node fold into one row (`×5`); a failed layer stays red in the layer list, with its count, until the feed's Clear (#397).
