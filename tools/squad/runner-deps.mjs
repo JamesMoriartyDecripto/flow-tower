@@ -27,9 +27,10 @@ export function reportOf(stdout) {
   let head = 0;
   while (head < lines.length && head < 3 && /^(mode|reviewed|trimmed): /.test(lines[head])) head++;
   let end = lines.length;
+  // The footer is only the last non-empty line. A `--- ` line earlier in the answer is part of the answer.
   let foot = lines.length - 1;
-  while (foot >= head && !lines[foot].startsWith('--- ')) foot--;
-  if (foot >= head) {
+  while (foot >= head && lines[foot] === '') foot--;
+  if (foot >= head && lines[foot].startsWith('--- ')) {
     end = foot;
     // The blank line before the footer is run.mjs's separator, not part of the answer.
     if (end > head && lines[end - 1] === '') end--;

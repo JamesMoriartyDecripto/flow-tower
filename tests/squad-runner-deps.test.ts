@@ -293,6 +293,10 @@ describe('reportOf', () => {
   it('keeps a mode line that comes after the first content line', () => {
     expect(reportOf('PASS\nmode: kept\n\n--- m · log x')).toBe('PASS\nmode: kept');
   });
+
+  it('keeps a --- line that is not the last non-empty line', () => {
+    expect(reportOf('PASS\n--- a note\nmore')).toBe('PASS\n--- a note\nmore');
+  });
 });
 
 describe('spent', () => {
