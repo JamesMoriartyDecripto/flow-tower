@@ -158,7 +158,7 @@ The coder always runs the loop. Details: [tools/squad § Pace](../../tools/squad
   before discarding anything. A security pass that answers empty: retry once; if a different model is needed,
   report the failure and get approval for the substitution rather than silently changing providers/models.
 - Tests that spawn a CLI or a server need explicit timeouts.
-- A step left red with useful changes: write the next step to finish them ("keep that work") instead of starting over.
+- A step left red with useful changes: edit that step's task to finish them ("keep that work") and rerun with `SQUAD_ADOPT=<its changed paths>` (tools/squad/README.md), instead of starting over.
 
 ## Never
 

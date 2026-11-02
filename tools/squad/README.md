@@ -3,7 +3,11 @@
 One Dev Squad workflow driven by your existing Pi, Codex, Claude Code, Hermes or other skill-capable session
 as lead. Specialists use configurable OpenRouter models, independently of the lead harness. A few scripts and
 a task file, no build step, no dependency beyond Node >=22.12, git and an OpenRouter key. It ran
-every field session of this repo, and it runs on **your own project** too (#265):
+every field session of this repo, and it runs on **your own project** too (#265). It cannot cover every project's
+case: an edge case gets an explicit setting (`squad.json`, an env variable, a flag) with today's behaviour as the
+default, never a guess, so each project adapts it to its own rules.
+
+Get started:
 
 ```bash
 node <flow-tower>/bin/flow-tower.js squad init ~/my-project   # runner into tools/squad/, squad.json detected
@@ -128,7 +132,9 @@ The coder may write the `write-dirs` plus the folder of every `Files:` entry. Ea
 paths: changes inside those folders or matching `Files:`. A root file such as `package.json` must therefore be listed in
 `Files:`. Anything else the coder changed is reported as `CHANGED, NOT COMMITTED` or `UNTRACKED LEFT` and stays out.
 Local changes that exist before the run (your own uncommitted edits, the task files) are listed at the start and
-never staged; a step that modifies one of them is RED. Probe files the coder dropped (`tmp*`, `probe`, `scratch`) are
+never staged; a step that modifies one of them, or that names one exactly in `Files:`, is RED. To continue a red step,
+edit its task file (it runs again first, on its own leftovers) and rerun with `SQUAD_ADOPT=<paths>` (comma-separated, a
+trailing `/` names a folder): those leftovers count as the step's work, not yours (#416). Probe files the coder dropped (`tmp*`, `probe`, `scratch`) are
 removed first. The script runs from a temporary copy of itself, so a step may edit `steps.sh`. Trailers are session-specific, so pass them in
 `SQUAD_TRAILERS` (one per line) or leave them out. Each step commit is signed off (`git commit -s`, the DCO rule in CONTRIBUTING.md) with the git identity of whoever runs the squad.
 
