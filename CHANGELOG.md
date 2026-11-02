@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- Squad: `run.mjs` counts a `[… cut N KB]` marker only when it is a whole line, as `pack.mjs` writes it, so a pack that embeds `pack.mjs` itself no longer reads as `trimmed: 999999 KB` (#422).
 
 ## [0.16.1] - 2026-11-02
 
