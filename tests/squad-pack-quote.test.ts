@@ -26,6 +26,11 @@ describe('squad pack answer format', () => {
     expect(out).toContain('copied character by character');
   });
 
+  it('asks reviewers for a severity before the file and the quote', { timeout: 30_000 }, () => {
+    const out = pack('reviewer');
+    expect(out).toContain('"severity":"critical|high|medium|low", "file":"path:line"');
+  });
+
   it('asks security reviewers for a quote after the severity', { timeout: 30_000 }, () => {
     const out = pack('security');
     expect(out).toContain('"severity":"critical|high|medium|low", "file":"path:line","quote":"..."');

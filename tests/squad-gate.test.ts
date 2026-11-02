@@ -309,6 +309,20 @@ describe('readiness dirty worktree', () => {
   });
 });
 
+describe('readiness reviewer severity', () => {
+  it('a reviewer approval with a verified low note is ready', () => {
+    const finding = { file: 'src/a.ts:3', severity: 'low', status: 'verified' };
+    const verdicts = [{ ...green.verdicts[0], findings: [finding] }, green.verdicts[1]];
+    expect(readiness(with_({ verdicts }))).toEqual({ ready: true, reasons: [] });
+  });
+
+  it('a verified high reviewer finding is a reason', () => {
+    const finding = { file: 'src/a.ts:3', severity: 'high', status: 'verified' };
+    const verdicts = [{ ...green.verdicts[0], findings: [finding] }, green.verdicts[1]];
+    expect(readiness(with_({ verdicts })).reasons).toEqual(['reviewer: high finding at src/a.ts:3']);
+  });
+});
+
 describe('readiness unverified findings by severity', () => {
   it('an unverified high finding gives the exact reason', () => {
     const finding = { file: 'src/a.ts:3', severity: 'high', status: 'unverified', reason: 'no quote' };
