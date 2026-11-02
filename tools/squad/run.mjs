@@ -332,6 +332,10 @@ if (mode !== 'loop') {
   await account(answer);
   // Reasoning can use the whole output budget and leave the content empty: one retry with twice the budget.
   if (mode === 'oneshot' && budgetCut(answer)) {
+    // The first answer is logged and printed before the retry, so a run that cost two calls shows both.
+    const first = emptyReport(answer);
+    note(first);
+    console.log(first);
     const retry = withBudget(body);
     console.log(`the model used its whole output budget reasoning: retrying once with max_tokens ${retry.max_tokens}`);
     answer = await oneshotCall(retry);
