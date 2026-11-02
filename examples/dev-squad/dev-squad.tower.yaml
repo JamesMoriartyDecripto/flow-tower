@@ -443,8 +443,9 @@ layers:
         runtime: laptop
         type: process
         label: runner.mjs
-        description: "The code-driven lead: triage, worktree under the user folder, plan as task files, steps.sh, review and security, lead-judge, at most 2 fix rounds (findings still open after them go into the draft PR; a security one not clearly medium or low stops), verifier, draft PR, gate. A failed check stops the issue. An answer is the first json object block that validates (an echoed template or a quoted draft never wins), read from the role report without run.mjs header lines; an unreadable triage answer is asked for once more. The plan sign-off is released by a person with SQUAD_APPROVE=1, which posts an approval comment on the issue. Issue and plan reach models fenced as data; anything posted is scrubbed of keys and tokens."
+        description: "The code-driven lead: triage, worktree under the user folder, plan as task files, steps.sh, review and security, lead-judge, at most 2 fix rounds (findings still open after them go into the draft PR; a security one not clearly medium or low stops), verifier, draft PR, gate. A failed check stops the issue. Issue and plan reach models fenced as data; anything posted is scrubbed of keys and tokens."
         files: [README.md]
+        meta: { answers: "An answer is the first json object block that validates (an echoed template or a quoted draft never wins), read from the role report without run.mjs header lines; an unreadable triage answer is asked for once more. The plan sign-off is released by a person with SQUAD_APPROVE=1, which posts an approval comment on the issue. (#369)" }
       - id: judge
         agent: lead-judge
         label: Lead judge
