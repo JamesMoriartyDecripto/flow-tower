@@ -13,8 +13,15 @@ export interface SquadConfig {
   source: string;
   cli: string;
   runner: { usdPerIssue: number; minutes: number; fixRounds: number; pollMinutes: number };
+  style: { language: string; maxFileLines: number };
 }
 
 export const DEFAULTS: SquadConfig;
+export const STYLE_RULES: string;
+export function styleRules(config?: SquadConfig): string;
+export function taskRules(config?: SquadConfig): string;
+export function configPath(repo: string): string;
 export function loadConfig(repo: string): SquadConfig;
+export function commandArgv(command: string, file?: string): string[] | null;
 export function modelFor(config: SquadConfig, role: string): string | undefined;
+export function systemLine(config: SquadConfig, repo: string): string;

@@ -21,7 +21,7 @@ const workspace = (nested: Record<string, string[]>) => ({
 
 // Imported dynamically: `src/app/live` reads `location.search` while building its store at import time.
 vi.stubGlobal('location', { search: '' });
-const { descendants, towerScope } = await import('../src/app/live');
+const { descendants, towerScope, errorLayers, foldRepeats } = await import('../src/app/live');
 const desc = descendants(workspace({ parent: ['child'], child: ['grand'], sibling: [] }));
 
 describe('towerScope', () => {
@@ -40,5 +40,34 @@ describe('towerScope', () => {
 
   it('drops every event when the tower has no descendants', () => {
     expect(towerScope([ev(['parent#l.a']), ev(['child#l.b'])], 'sibling', desc)).toEqual([]);
+  });
+});
+
+describe('errorLayers', () => {
+  const err = (targets: string[]) => ({ ...ev(targets), kind: 'error' as const });
+  it('counts error events per layer of one tower and ignores other towers and non-errors', () => {
+    const events = [err(['t#a.x']), err(['t#a.y']), err(['t#b.y']), ev(['t#a.z']), err(['u#a.x'])];
+    expect(errorLayers(events, 't')).toEqual(new Map([['a', 2], ['b', 1]]));
+  });
+});
+
+describe('foldRepeats', () => {
+  const err = (targets: string[]) => ({ ...ev(targets), kind: 'error' as const });
+  it('folds adjacent errors on the same target into one row keeping the first', () => {
+    const first = err(['t#a.x']);
+    const rows = [first, err(['t#a.x']), err(['t#a.x'])];
+    const out = foldRepeats(rows);
+    expect(out).toHaveLength(1);
+    expect(out[0].n).toBe(3);
+    expect(out[0].e).toBe(first);
+  });
+  it('does not fold errors on different targets', () => {
+    expect(foldRepeats([err(['t#a.x']), err(['t#a.y'])]).map((r) => r.n)).toEqual([1, 1]);
+  });
+  it('does not fold non-errors', () => {
+    expect(foldRepeats([ev(['t#a.x']), ev(['t#a.x'])]).map((r) => r.n)).toEqual([1, 1]);
+  });
+  it('does not fold unmapped errors', () => {
+    expect(foldRepeats([err([]), err([])]).map((r) => r.n)).toEqual([1, 1]);
   });
 });

@@ -10,7 +10,7 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { STYLE_RULES, commandArgv, loadConfig, modelFor, systemLine } from './config.mjs';
+import { commandArgv, loadConfig, modelFor, styleRules, systemLine } from './config.mjs';
 import { ROLES, canWrite, finishRule as roleFinishRule, isRole, needsVerdict, roleRule, startupWrite } from './roles.mjs';
 import { appendRun, issueOf, ledgerPath, projectOf } from './ledger.mjs';
 import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
@@ -18,7 +18,7 @@ import { realRelIfAllowed, realTarget } from './guard.mjs';
 import { parseVerdict } from './gate.mjs';
 import { pickMode } from './mode.mjs';
 import { pruneLogs } from './log-prune.mjs';
-import { ONESHOT_TIMEOUT_MS, httpFailure, loopBody, oneshotBody, oneshotSystem } from './oneshot.mjs';
+import { ONESHOT_TIMEOUT_MS, budgetCut, emptyReport, httpFailure, loopBody, oneshotBody, oneshotSystem, withBudget } from './oneshot.mjs';
 import { STEP_DEFAULT, appendReminder, incompleteText, parseSteps } from './step-limit.mjs';
 import { toolSchema } from './tool-schema.mjs';
 
@@ -242,7 +242,7 @@ const TOOLS = toolSchema({ role, dirs, runNames: Object.keys(RUNS), base: config
 const finishRule = roleFinishRule(role);
 const hasVerdict = (text) => { try { parseVerdict(text); return true; } catch { return false; } };
 const messages = [
-  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${STYLE_RULES}${config.rules.map((r) => ` ${r}`).join('')} ${roleRule(role)} ${finishRule}` },
+  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${styleRules(config)}${config.rules.map((r) => ` ${r}`).join('')} ${roleRule(role)} ${finishRule}` },
   { role: 'user', content: task },
 ];
 let cost = 0;
@@ -291,7 +291,7 @@ async function oneshotCall(body) {
   });
   if (!r.ok) { const f = await httpFailure(r); note(f); record('http-error', 0); console.log(f); exit(1); }
   const out = await r.json();
-  return { content: out.choices?.[0]?.message?.content, usage: out.usage ?? {}, finishReason: out.choices?.[0]?.finish_reason };
+  return { content: out.choices?.[0]?.message?.content, usage: out.usage ?? {}, finishReason: out.choices?.[0]?.finish_reason, generationId: out.id };
 }
 // One session per run: OpenRouter keeps it on the provider that holds its prompt cache (cached input: DeepSeek 0.1x, Z.ai ~0.2x).
 const session = `${role}-${Date.now()}`;
@@ -318,18 +318,34 @@ if (mode !== 'loop') {
       answer = { content: res.content, usage: res.usage, generationId: res.generationId, finishReason: res.finishReason };
     }
   }
-  const { content, usage } = answer;
-  if (typeof content !== 'string' || content === '') { note('empty answer'); record('empty-answer', 0); console.log('empty answer'); exit(1); }
-  stepsDone = 1;
-  // A batch result has no usage.cost: it is read from the generation endpoint. Still unknown is null, never a false 0.
-  let callCost = usage.cost;
-  if (typeof callCost !== 'number' && answer.generationId) {
-    callCost = await generationCost({ key: env.OPENROUTER_API_KEY, id: answer.generationId, log: (l) => note(l) });
+  // Every answer is accounted, empty or not: a reply cut at the cap still bills its reasoning tokens.
+  const account = async (a) => {
+    // A batch result has no usage.cost: it is read from the generation endpoint. Still unknown is null, never a false 0.
+    let callCost = a.usage.cost;
+    if (typeof callCost !== 'number' && a.generationId) {
+      callCost = await generationCost({ key: env.OPENROUTER_API_KEY, id: a.generationId, log: (l) => note(l) });
+    }
+    // Once any call's cost is unknown, the run's cost is unknown (null in the ledger): a retry must not overwrite that.
+    if (typeof callCost !== 'number') costUnknown = true;
+    else cost += callCost;
+    promptTokens += a.usage.prompt_tokens ?? 0;
+    cachedTokens += a.usage.prompt_tokens_details?.cached_tokens ?? 0;
+  };
+  await account(answer);
+  // Reasoning can use the whole output budget and leave the content empty: one retry with twice the budget.
+  if (mode === 'oneshot' && budgetCut(answer)) {
+    // The first answer is logged and printed before the retry, so a run that cost two calls shows both.
+    const first = emptyReport(answer);
+    note(first);
+    console.log(first);
+    const retry = withBudget(body);
+    console.log(`the model used its whole output budget reasoning: retrying once with max_tokens ${retry.max_tokens}`);
+    answer = await oneshotCall(retry);
+    await account(answer);
   }
-  costUnknown = typeof callCost !== 'number';
-  if (!costUnknown) cost += callCost;
-  promptTokens += usage.prompt_tokens ?? 0;
-  cachedTokens += usage.prompt_tokens_details?.cached_tokens ?? 0;
+  const { content } = answer;
+  if (typeof content !== 'string' || content === '') { const why = emptyReport(answer); note(why); record('empty-answer', 1); console.log(`${why} · ${model} · ${costUnknown ? 'cost unknown' : `$${cost.toFixed(4)}`}`); exit(1); }
+  stepsDone = 1;
   const cached = promptTokens ? Math.round((100 * cachedTokens) / promptTokens) : 0;
   const shown = costUnknown ? 'cost unknown' : `$${cost.toFixed(4)}`;
   // A cut answer (finish_reason 'length' at the token cap) is not a finished review: its JSON is incomplete, and the

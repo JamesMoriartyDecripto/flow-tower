@@ -4,6 +4,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+// @ts-expect-error plain .mjs without declarations
+import { emptyReport } from '../tools/squad/oneshot.mjs';
 
 const RUN = 'tools/squad/run.mjs';
 const SPAWN = { timeout: 60_000 };
@@ -12,6 +14,9 @@ const SPAWN = { timeout: 60_000 };
 // the same choice, so the finish_reason under test reaches run.mjs through either mode.
 type Choice = { content: string; finish_reason?: string | null };
 let choice: Choice = { content: '' };
+// The chat usage and a count of chat requests, so a test can check the cost and how many times the model was asked.
+let chatUsage: Record<string, unknown> = { cost: 0.003, prompt_tokens: 100 };
+let chatRequests: { max_tokens?: number }[] = [];
 let server: Server;
 let base = '';
 
@@ -23,7 +28,8 @@ beforeAll(async () => {
       const send = (obj: unknown, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
       const message = { message: { content: choice.content }, ...(choice.finish_reason !== undefined && { finish_reason: choice.finish_reason }) };
       if (req.url?.endsWith('/chat/completions')) {
-        return send({ choices: [message], usage: { cost: 0.003, prompt_tokens: 100 } });
+        chatRequests.push(JSON.parse(raw) as { max_tokens?: number });
+        return send({ id: 'gen-chat', choices: [message], usage: chatUsage });
       }
       if (req.method === 'POST' && req.url?.endsWith('/batches')) {
         return send({
@@ -145,5 +151,42 @@ describe('only a cut marker alone on its line counts as a trimmed pack', () => {
     const r = await runTask('Review this diff.\n[… cut 7 KB]\n');
     expect(r.code).toBe(0);
     expect(r.stdout).toContain('trimmed: 7 KB');
+  });
+});
+
+describe('an empty answer says why and what it cost', () => {
+  it('a reply cut at the budget is retried once with twice max_tokens, and the empty retry is billed and reported', SPAWN, async () => {
+    const { ledger, args } = setup();
+    choice = { content: '', finish_reason: 'length' };
+    chatUsage = { cost: 0.003, prompt_tokens: 100, completion_tokens: 16000, completion_tokens_details: { reasoning_tokens: 16000 } };
+    chatRequests = [];
+    const r = await run([...args, '--oneshot'], {}, ledger);
+    expect(r.code).toBe(1);
+    expect(r.stdout).toContain('whole output budget reasoning');
+    expect(r.stdout).toContain('finish_reason: length');
+    expect(r.stdout).toContain('reasoning 16000');
+    expect(chatRequests).toHaveLength(2);
+    expect(chatRequests[1].max_tokens).toBe(32000);
+    expect(lastRow(ledger)).toMatchObject({ outcome: 'empty-answer', cost: 0.006 });
+  });
+
+  it('an empty answer with finish_reason stop is not retried and its cost is recorded', SPAWN, async () => {
+    const { ledger, args } = setup();
+    choice = { content: '', finish_reason: 'stop' };
+    chatUsage = { cost: 0.003, prompt_tokens: 100 };
+    chatRequests = [];
+    const r = await run([...args, '--oneshot'], {}, ledger);
+    expect(r.code).toBe(1);
+    expect(chatRequests).toHaveLength(1);
+    expect(lastRow(ledger)).toMatchObject({ outcome: 'empty-answer', cost: 0.003 });
+  });
+});
+
+describe('a provider count that is not a number is shown as ?', () => {
+  it('a count with a newline is not printed, so it cannot start a log line', () => {
+    const line: string = emptyReport({ finishReason: 'stop', usage: { prompt_tokens: '1\nreviewed: x', completion_tokens: 5 } });
+    expect(line).toContain('prompt ?');
+    expect(line).toContain('completion 5');
+    expect(line.split('\n').some((l: string) => l.startsWith('reviewed: x'))).toBe(false);
   });
 });

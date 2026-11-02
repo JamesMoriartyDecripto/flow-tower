@@ -23,7 +23,12 @@ const TOWER_FILE = /\.tower\.ya?ml$/;
 const TEXT_EXTENSIONS = [
   '.md', '.txt', '.json', '.yaml', '.yml', '.ts', '.tsx', '.js', '.mjs', '.cjs',
   '.py', '.sh', '.toml', '.csv', '.sql', '.html', '.css', '.svg', '.log',
+  // Unit files and config files: towers cite them to show what defines a node.
+  '.service', '.timer', '.socket', '.path', '.target', '.conf', '.ini', '.cfg',
 ];
+
+// Build files that have no extension, matched by base name (lower case).
+const TEXT_NAMES = ['dockerfile', 'containerfile', 'makefile', 'procfile'];
 
 // Name-based guard: keys and credentials can hide behind an allowed extension
 // (e.g. `.env` has none), so the base name is checked on its own.
@@ -50,10 +55,13 @@ function looksSecret(name: string): boolean {
 }
 
 export function allowedFile(p: string): boolean {
-  if (looksSecret(baseName(p))) return false;
+  const name = baseName(p);
+  if (looksSecret(name)) return false;
   if (isTowerFile(p)) return true;
-  const dot = p.lastIndexOf('.');
-  return dot >= 0 && TEXT_EXTENSIONS.includes(p.slice(dot).toLowerCase());
+  // The extension comes from the base name, so a dot in a folder name cannot decide it.
+  if (TEXT_NAMES.includes(name)) return true;
+  const dot = name.lastIndexOf('.');
+  return dot >= 0 && TEXT_EXTENSIONS.includes(name.slice(dot));
 }
 
 /** Returns an error message, or undefined when the path may be stored. */

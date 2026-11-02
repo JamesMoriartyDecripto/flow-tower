@@ -9,7 +9,8 @@
 set -u
 # bash reads this file while it runs, so a step that edits steps.sh would corrupt the run: run from a private copy (#353).
 if [ -z "${SQUAD_STEPS_COPY:-}" ]; then
-  copy=$(mktemp "${TMPDIR:-/tmp}/squad-steps-XXXXXX.sh") || exit 1
+  # No .sh suffix: macOS mktemp only randomizes a template that ends in X, and bash runs the copy by path anyway.
+  copy=$(mktemp "${TMPDIR:-/tmp}/squad-steps-XXXXXX") || exit 1
   cp "${BASH_SOURCE[0]}" "$copy" || exit 1
   SQUAD_STEPS_COPY=1 SQUAD_STEPS_HOME=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd) bash "$copy" "$@"; rc=$?
   rm -f -- "$copy"; exit "$rc"
@@ -102,7 +103,12 @@ for f in "$dir"/*.md; do
   (
     cd "$R" || exit 1
     # Probe files the coder left behind are removed before staging, so they never reach the commit.
-    git ls-files --others --exclude-standard | grep -E "(^|/)(tmp[-_.]|zz[-_])|probe|scratch" | while read -r junk; do echo "removed coder probe file: $junk"; rm -f -- "$junk"; done
+    # The task folder is the lead's input and is often untracked, so a step named like a probe (01-check-probe.md) must not be swept away.
+    case "$dir/" in "$R"/*) tasksRel=${dir#"$R"/}/ ;; *) tasksRel= ;; esac
+    git ls-files --others --exclude-standard | grep -E "(^|/)(tmp[-_.]|zz[-_])|probe|scratch" | while read -r junk; do
+      [ -n "$tasksRel" ] && case "$junk" in "$tasksRel"*) continue ;; esac
+      echo "removed coder probe file: $junk"; rm -f -- "$junk"
+    done
     # Only the step's own paths are staged, recomputed so removed probes are not added. A deletion is staged too: git add -A on a missing path records it.
     # git add and git commit run without OPENROUTER_API_KEY: a project's pre-commit hook (husky, lint-staged) may run
     # the tests the coder wrote, and those must not see the key.
@@ -110,18 +116,22 @@ for f in "$dir"/*.md; do
     # Nothing left to stage means the coder changed only probe files. An empty pathspec would make git commit the whole
     # index, including what the maintainer staged before the run, so this step is RED instead (#353).
     if [ -z "$staged" ]; then echo "RED after step $step: the coder changed only probe files"; exit 1; fi
-    # Paths come from git output and must match literally: a name like a[1].ts would otherwise be read as a glob,
-    # for git add and for the pathspec git commit below alike.
-    export GIT_LITERAL_PATHSPECS=1
+    # Paths come from git output and must match literally: a name like a[1].ts would otherwise be read as a glob.
+    # The :(literal) prefix applies to each path only. A global literal-pathspec setting would also reach the project's
+    # git hooks, where a hook's 'dir/*' pathspec would then match nothing (#403).
     while IFS= read -r p; do
-      [ -n "$p" ] && env -u OPENROUTER_API_KEY git add -A -- "$p"
+      [ -n "$p" ] && env -u OPENROUTER_API_KEY git add -A -- ":(literal)$p"
     done <<< "$staged"
     git status --short | grep "^??" && echo "UNTRACKED LEFT (outside the step's scope, not committed)"
     # Tracked changes that are neither staged nor foreign: the coder changed them outside the step's scope.
     left=$("$NODE" "$H/step-scope.mjs" outside "$f" "$base" "$R" "$OUT/foreign.tsv" "$stepWrite") || { echo "RED after step $step: step-scope outside failed"; exit 1; }
     if [ -n "$left" ]; then echo "CHANGED, NOT COMMITTED (outside the step's scope):"; echo "$left"; fi
     # The commit takes only the step's paths: a pathspec commit leaves anything else already in the index staged but uncommitted.
-    mapfile -t stagedPaths <<< "$staged"
+    # A plain read loop: macOS ships bash 3.2, which lacks the array-reading builtin (#396).
+    stagedPaths=()
+    while IFS= read -r p; do [ -n "$p" ] && stagedPaths+=(":(literal)$p"); done <<< "$staged"
+    # bash 3.2 with set -u fails on an empty array, and an empty pathspec would make git commit the whole index (#353).
+    if [ "${#stagedPaths[@]}" -eq 0 ]; then echo "RED after step $step: the coder changed only probe files"; exit 1; fi
     env -u OPENROUTER_API_KEY git commit -s -q -m "$title, step $step (#$issue)
 
 Coder: $CODER.${trailerPara}" -- "${stagedPaths[@]}" && git log --oneline -1 || exit 1
