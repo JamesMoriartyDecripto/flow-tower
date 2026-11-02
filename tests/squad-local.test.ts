@@ -167,18 +167,28 @@ describe('squad doctor, portable (#334)', () => {
     expect(check?.detail).toContain('python3 -m pytest');
   });
 
-  it('passes the check command when its module answers --version', () => {
+  it('passes the check command when its module is found, probed without importing it', () => {
     const root = installedProject(JSON.stringify({ commands: { check: 'python3 -m pytest' } }));
     const { exec } = fakeExec(root);
     const probes: string[][] = [];
     const python: Exec = (cmd, args) => {
       if (cmd === 'python3') probes.push(args);
-      return cmd === 'python3' ? ok('pytest 8.0\n') : exec(cmd, args);
+      return cmd === 'python3' ? ok() : exec(cmd, args);
     };
     const check = doctor(root, { ...healthyOpts(root), exec: python }).find((c) => c.name === 'check command');
     expect(check?.ok).toBe(true);
-    // The probe is the module's --version, never the project's test run.
-    expect(probes).toEqual([['-m', 'pytest', '--version']]);
+    // The probe is find_spec with the module name as an argument: the module's code never runs.
+    expect(probes).toHaveLength(1);
+    expect(probes[0][0]).toBe('-c');
+    expect(probes[0][probes[0].length - 1]).toBe('pytest');
+  });
+
+  it('does not start a dotted -m module through the find_spec probe', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'node -m a.b' } }));
+    const { exec, calls } = fakeExec(root);
+    const check = doctor(root, { ...healthyOpts(root), exec }).find((c) => c.name === 'check command');
+    expect(calls.some((c) => c.args.includes('-c'))).toBe(false);
+    expect(check?.ok).toBe(true);
   });
 
   it('resolves a relative check path from the repo root, not the process cwd', () => {

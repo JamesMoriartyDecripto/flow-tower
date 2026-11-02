@@ -92,18 +92,19 @@ function safeReason(e: unknown): string {
 /**
  * The squad config check, through the runner's loader (config.mjs), from the git root as run.mjs does.
  * A non-regular file (directory, FIFO) is refused before the loader reads it, so no read can block or throw a stack.
+ * The loaded check command comes back with the Check, so doctor never loads the config a second time.
  */
-function configCheck(root: string, file: string, dir: string): Check {
+function configCheck(root: string, file: string, dir: string): { check: Check; command?: string } {
   const name = 'squad config';
   const st = entry(file);
-  if (!st) return { name, ok: false, detail: `missing: run flow-tower squad init ${dir}` };
-  if (!st.isFile()) return { name, ok: false, detail: `${file}: not a regular file` };
+  if (!st) return { check: { name, ok: false, detail: `missing: run flow-tower squad init ${dir}` } };
+  if (!st.isFile()) return { check: { name, ok: false, detail: `${file}: not a regular file` } };
   try {
     accessSync(file, constants.R_OK);
-    loadConfig(root);
-    return { name, ok: true, detail: file };
+    const command: string = loadConfig(root).commands.check;
+    return { check: { name, ok: true, detail: file }, command };
   } catch (e) {
-    return { name, ok: false, detail: `${file}: ${safeReason(e)}` };
+    return { check: { name, ok: false, detail: `${file}: ${safeReason(e)}` } };
   }
 }
 
@@ -113,18 +114,23 @@ function layout(root: string) {
   return { squadDir, config: join(squadDir, 'squad.json') };
 }
 
+/** A top-level Python module name: the only form probed, since a dotted name imports its parent packages. */
+const PY_MODULE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 /**
- * Whether the configured check command can start. `python -m <module>` is probed with the module's `--version`,
- * which never runs the project's tests. Any other command only needs its program on PATH (a path with `/` must exist).
+ * Whether the configured check command can start. `python -m <module>` is probed with importlib's find_spec, which
+ * finds the module without executing it, so the repo's code never runs. The name is an argument, never code.
+ * A dotted `-m` name and any other command only need the program on PATH (a path with `/` must exist).
  * The runner splits the command on whitespace and starts it without a shell, so this does the same.
  */
-function checkCommand(root: string, exec: Exec): Check {
+function checkCommand(check: string, root: string, exec: Exec): Check {
   const name = 'check command';
-  const check: string = loadConfig(root).commands.check;
   const argv = check.trim().split(/\s+/);
+  const pyModule = argv[1] === '-m' && PY_MODULE.test(argv[2] ?? '') ? argv[2] : undefined;
   let ok: boolean;
-  if (argv[1] === '-m' && argv[2]) {
-    const r = exec(argv[0], ['-m', argv[2], '--version']);
+  if (pyModule) {
+    const probe = 'import importlib.util,sys; sys.exit(0 if importlib.util.find_spec(sys.argv[1]) else 1)';
+    const r = exec(argv[0], ['-c', probe, pyModule]);
     ok = r.status === 0 && !r.error;
   } else {
     // The runner starts the check from the repo root, so a relative path is resolved there, not from the process cwd.
@@ -145,8 +151,8 @@ function gitCheck(exec: Exec): Check {
 }
 
 /**
- * Every doctor check, in order. Makes no paid or model call and starts only `git --version` and `git rev-parse`,
- * plus the check's module with `--version` when the check is `python -m <module>`, never the project's tests.
+ * Every doctor check, in order. Makes no paid or model call and starts only `git --version`, `git rev-parse` and,
+ * for a `python -m <module>` check, the interpreter's find_spec probe. Doctor never runs code of the repo or its tests.
  * Node is read from the running process, not probed. A failing check says what to do next.
  */
 export function doctor(dir: string, opts: { exec?: Exec; env?: NodeJS.ProcessEnv; keyFile?: string; nodeVersion?: string } = {}): Check[] {
@@ -169,9 +175,9 @@ export function doctor(dir: string, opts: { exec?: Exec; env?: NodeJS.ProcessEnv
   });
 
   const config = configCheck(root, p.config, dir);
-  checks.push(config);
+  checks.push(config.check);
   // Only a config that loaded has a check command to probe.
-  if (config.ok) checks.push(checkCommand(root, exec));
+  if (config.command !== undefined) checks.push(checkCommand(config.command, root, exec));
 
   const missing = RUNNER_FILES.filter((f) => !entry(join(p.squadDir, f))?.isFile());
   checks.push({
