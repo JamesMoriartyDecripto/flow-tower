@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Fixed
 
+- Squad runner: an answer is the first json object block that validates, so an echoed template or a quoted draft no longer wins; a role answer is read without `run.mjs` header lines, so a verifier PASS is read (it was always held); an unreadable triage answer is asked for once more; `file:~200` citations resolve; a person can release the plan sign-off with `SQUAD_APPROVE=1`, posted on the issue (#369).
 - Squad: when `pack.mjs` trimmed a review or security task to fit, `run.mjs` prints a `trimmed: N KB` header and `gate.mjs` adds a note that the pass did not see the whole change, so READY no longer reads as full coverage (#383).
 - Squad: `squad.json` refuses a command with shell syntax (`&&`, pipes, redirects, `$(…)`, quotes) when it is loaded, and `squad doctor` reports it: the runner runs commands without a shell, so such a command could only fail at every step (#382).
 
