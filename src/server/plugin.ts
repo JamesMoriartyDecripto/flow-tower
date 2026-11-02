@@ -35,6 +35,7 @@ import { relaxSharedIssues, sharedTowersHandler } from './shared-towers.ts';
 import { openHistory } from './history/db.ts';
 import { createHistory } from './history/store.ts';
 import { historyHandler } from './history/api.ts';
+import { watchIgnored } from './watch-filter.ts';
 
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const VERSION = (JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
@@ -98,6 +99,10 @@ export function flowTower(entries: string[] = JSON.parse(env.FLOW_TOWER_ENTRIES 
 
   return {
     name: 'flow-tower',
+    // Vite appends this to its default ignore list: without it every file under an entry folder is watched.
+    config: () => ({
+      server: { watch: { ignored: [watchIgnored(entries.filter(isDirectory).map((e) => resolve(e)), (p) => !!state && (state.watched.has(p) || state.missing.has(p)))] } },
+    }),
     async configureServer(server) {
       await reload();
       if (state) watch(server, [...state.watched, ...existingDirs(state.missing), ...entries.map((e) => resolve(e))]);
