@@ -6,7 +6,7 @@
  * The one external program is a fixed `git --version` probe, started without a shell and injected for tests.
  */
 import { spawnSync } from 'node:child_process';
-import { accessSync, constants, existsSync, lstatSync, readFileSync, statSync, type Stats } from 'node:fs';
+import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, statSync, type Stats } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { userHome } from '../core/secrets.ts';
@@ -134,10 +134,16 @@ function checkCommand(check: string, root: string, exec: Exec): Check {
   let ok: boolean;
   if (pyModule) {
     const probe = 'import importlib.util,sys; sys.exit(0 if importlib.util.find_spec(sys.argv[1]) else 1)';
-    // `python -c` puts the current folder on sys.path, and startup imports any sitecustomize.py found there. Running
-    // from a neutral folder keeps a repo file of that name from running; the interpreter's and user's site-packages still load.
-    const r = exec(argv[0], ['-c', probe, pyModule], { cwd: tmpdir() });
-    ok = r.status === 0 && !r.error;
+    // `python -c` puts the current folder on sys.path, and startup imports any sitecustomize.py found there. The system
+    // temp folder is shared, so another user could plant one there. A folder made for this probe (mkdtemp, mode 0700) is
+    // empty and private; the interpreter's and user's site-packages still load.
+    const dir = mkdtempSync(join(tmpdir(), 'flow-tower-doctor-'));
+    try {
+      const r = exec(argv[0], ['-c', probe, pyModule], { cwd: dir });
+      ok = r.status === 0 && !r.error;
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   } else {
     // The runner starts the check from the repo root, so a relative path is resolved there, not from the process cwd.
     ok = argv[0].includes('/') ? existsSync(resolve(root, argv[0])) : onPath(argv[0]);

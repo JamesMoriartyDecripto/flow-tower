@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -183,16 +183,18 @@ describe('squad doctor, portable (#334)', () => {
     expect(probes[0][probes[0].length - 1]).toBe('pytest');
   });
 
-  it('runs the find_spec probe from a neutral folder, so a repo sitecustomize.py is not on sys.path', () => {
+  it('runs the find_spec probe from a private folder that is removed after the probe', () => {
     const root = installedProject(JSON.stringify({ commands: { check: 'python3 -m pytest' } }));
     const base = fakeExec(root).exec;
-    const cwds: (string | undefined)[] = [];
+    const cwds: string[] = [];
     const python: Exec = (cmd, args, opts) => {
-      if (cmd === 'python3') cwds.push(opts?.cwd);
+      if (cmd === 'python3') cwds.push(opts?.cwd ?? '');
       return cmd === 'python3' ? ok() : base(cmd, args);
     };
     doctor(root, { ...healthyOpts(root), exec: python });
-    expect(cwds).toEqual([tmpdir()]);
+    expect(cwds).toHaveLength(1);
+    expect(cwds[0].startsWith(join(tmpdir(), 'flow-tower-doctor-'))).toBe(true);
+    expect(existsSync(cwds[0])).toBe(false);
   });
 
   it('does not start a dotted -m module through the find_spec probe', () => {
