@@ -76,15 +76,10 @@ export function adopted(paths, adopt) {
   return paths.filter((p) => !adopt.some((a) => (a.endsWith('/') ? p.startsWith(a) : p === a)));
 }
 
-// The foreign paths a task's literal Files entries cover, deduplicated. A glob is skipped: it may span a folder that
-// holds a maintainer edit, and that must not block the step (only the named paths count).
+// The foreign paths a task's Files entries name exactly, deduplicated. A folder ("src") or a glob covers a maintainer
+// edit without naming it, so it must not block the step: only an exact path means the step meant to commit it.
 export function keptOut(files, foreign) {
-  const hit = new Set();
-  for (const e of files) {
-    if (e.includes('*')) continue;
-    for (const p of foreign) if (matchesEntry(e, p)) hit.add(p);
-  }
-  return [...hit];
+  return [...new Set(foreign.filter((p) => files.includes(p)))];
 }
 
 // Every path git reports as changed, tracked or untracked. Porcelain -z gives a rename as "XY new\0old\0", so the

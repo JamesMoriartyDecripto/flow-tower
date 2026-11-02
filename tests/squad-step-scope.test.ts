@@ -263,4 +263,9 @@ describe('adopted and keptOut', () => {
   it('keptOut returns literal Files matches only, skipping globs', () => {
     expect(keptOut(['src/a.ts', 'docs/**'], ['src/a.ts', 'docs/x.md', 'NOTES.md'])).toEqual(['src/a.ts']);
   });
+
+  it('keptOut ignores a folder entry, with or without its trailing slash, since it names no path exactly', () => {
+    expect(keptOut(['src'], ['src/a.ts'])).toEqual([]);
+    expect(keptOut(['src/'], ['src/a.ts'])).toEqual([]);
+  });
 });
