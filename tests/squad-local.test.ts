@@ -191,6 +191,17 @@ describe('squad doctor, portable (#334)', () => {
     expect(check?.ok).toBe(true);
   });
 
+  it('never starts a repo-relative interpreter for the find_spec probe, and checks only that it exists', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: './tools/x -m foo' } }));
+    mkdirSync(join(root, 'tools'), { recursive: true });
+    writeFileSync(join(root, 'tools', 'x'), '');
+    const { exec, calls } = fakeExec(root);
+    const check = doctor(root, { ...healthyOpts(root), exec }).find((c) => c.name === 'check command');
+    expect(calls.some((c) => c.args.includes('-c'))).toBe(false);
+    expect(calls.some((c) => c.cmd === './tools/x')).toBe(false);
+    expect(check?.ok).toBe(true);
+  });
+
   it('resolves a relative check path from the repo root, not the process cwd', () => {
     const root = installedProject(JSON.stringify({ commands: { check: './scripts/check.sh' } }));
     mkdirSync(join(root, 'scripts'));

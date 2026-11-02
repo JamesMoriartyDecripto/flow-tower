@@ -120,13 +120,16 @@ const PY_MODULE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /**
  * Whether the configured check command can start. `python -m <module>` is probed with importlib's find_spec, which
  * finds the module without executing it, so the repo's code never runs. The name is an argument, never code.
- * A dotted `-m` name and any other command only need the program on PATH (a path with `/` must exist).
- * The runner splits the command on whitespace and starts it without a shell, so this does the same.
+ * Only a bare program name found on PATH is started for the probe: a path with `/` could be a repo file, and doctor
+ * never runs repo code, so such a path only has to exist in the repo root. A dotted `-m` name and any other command
+ * take that same generic check. The runner splits the command on whitespace and starts it without a shell, so this does the same.
  */
 function checkCommand(check: string, root: string, exec: Exec): Check {
   const name = 'check command';
   const argv = check.trim().split(/\s+/);
-  const pyModule = argv[1] === '-m' && PY_MODULE.test(argv[2] ?? '') ? argv[2] : undefined;
+  const pyModule = argv[1] === '-m' && PY_MODULE.test(argv[2] ?? '') && !argv[0].includes('/') && onPath(argv[0])
+    ? argv[2]
+    : undefined;
   let ok: boolean;
   if (pyModule) {
     const probe = 'import importlib.util,sys; sys.exit(0 if importlib.util.find_spec(sys.argv[1]) else 1)';
