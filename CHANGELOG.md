@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- Squad: `steps.sh`'s sweep of coder probe files skips the task folder, so a task named like a probe (`01-check-probe.md`) is no longer deleted before staging (#420).
 
 ## [0.16.1] - 2026-11-02
 
