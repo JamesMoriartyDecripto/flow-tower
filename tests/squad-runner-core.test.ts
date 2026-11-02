@@ -487,6 +487,14 @@ describe('triage retry and plan sign-off release', () => {
       if (before !== undefined) process.env.SQUAD_APPROVE = before;
     }
   });
+
+  it('stops a plan whose file has a comma, since no task file may grant the extra path', async () => {
+    const plan = { criteria: ['login works'], steps: [{ title: 'Edit login', items: ['change it'], files: ['src/a.js, .github/x'] }] };
+    const { deps, calls } = fakeDeps({}, { triage: [triageFull], architect: [fence(plan), fence(plan)] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('failed');
+    expect(calls.some((c) => c.startsWith('fail:no valid plan'))).toBe(true);
+    expect(calls.some((c) => c.startsWith('writeTasks:'))).toBe(false);
+  });
 });
 
 describe('parseTriage reads the answer block', () => {

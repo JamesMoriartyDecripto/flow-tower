@@ -17,6 +17,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Squad: when `pack.mjs` trimmed a review or security task to fit, `run.mjs` prints a `trimmed: N KB` header and `gate.mjs` adds a note that the pass did not see the whole change, so READY no longer reads as full coverage (#383).
 - Squad: `squad.json` refuses a command with shell syntax (`&&`, pipes, redirects, `$(…)`, quotes) when it is loaded, and `squad doctor` reports it: the runner runs commands without a shell, so such a command could only fail at every step (#382).
 
+### Security
+
+- Squad runner: a plan file entry with a comma or a line break is refused, so `src/a.js, .github/x` can no longer pass the control-file sign-off as one path and then reach the coder as two (#391).
+
 ## [0.16.0] - 2026-11-01
 
 ### Added
