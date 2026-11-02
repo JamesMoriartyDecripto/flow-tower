@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error plain .mjs without declarations
 import { STYLE_RULES } from '../tools/squad/config.mjs';
 
 // The reviewer and security prompts must ask for the simplest change that meets the task (#367).

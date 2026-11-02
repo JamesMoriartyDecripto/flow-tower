@@ -165,4 +165,34 @@ describe('steps.sh (#265)', () => {
     expect(r.stdout).toContain('RED: task folder not found');
     expect(r.status).toBe(1);
   });
+
+  it('uses no mapfile or GIT_LITERAL_PATHSPECS, and every mktemp template ends in XXXXXX (#396, #403)', () => {
+    const text = readFileSync(join(squad, 'steps.sh'), 'utf8');
+    expect(text).not.toContain('mapfile');
+    expect(text).not.toContain('GIT_LITERAL_PATHSPECS');
+    const templates = [...text.matchAll(/mktemp (?:-d )?"([^"]*)"/g)].map((m) => m[1]);
+    expect(templates.length).toBeGreaterThan(0);
+    for (const t of templates) expect(t).toMatch(/XXXXXX$/);
+  });
+
+  it('commits a name with brackets while a pre-commit hook still sees normal pathspecs (#403)', { timeout: 20000 }, () => {
+    const repo = join(tmp, 'repo');
+    mkdirSync(join(repo, 'a'), { recursive: true });
+    writeFileSync(join(repo, 'a', 'b.txt'), 'b\n');
+    writeFileSync(join(repo, 'a', 'c[1].txt'), 'c\n');
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'add', '.');
+    git(repo, 'commit', '-q', '-m', 'base');
+    // The hook records what git ls-files matches for a glob: it must see both files.
+    const seen = join(tmp, 'seen.txt');
+    writeFileSync(join(repo, '.git', 'hooks', 'pre-commit'), `#!/bin/sh\ngit ls-files -- 'a/*.txt' > ${JSON.stringify(seen)}\n`, { mode: 0o755 });
+    writeFileSync(join(repo, 'a', 'c[1].txt'), 'c2\n');
+    const opts = { cwd: repo, encoding: 'utf8' as const, timeout: 20000 };
+    const ident = ['-c', 'user.email=t@t', '-c', 'user.name=t'];
+    execFileSync('git', ['add', '--', ':(literal)a/c[1].txt'], opts);
+    execFileSync('git', [...ident, 'commit', '-q', '-m', 't', '--', ':(literal)a/c[1].txt'], opts);
+    const lines = readFileSync(seen, 'utf8').trim().split('\n');
+    expect(lines).toContain('a/b.txt');
+    expect(lines).toContain('a/c[1].txt');
+  });
 });

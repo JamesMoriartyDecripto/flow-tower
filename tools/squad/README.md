@@ -44,6 +44,7 @@ it from what the project's files say. A missing file gives the defaults.
 | `review` | folders the review diff covers | `src` |
 | `base` | the branch diffs are taken against | `origin/main` |
 | `rules` | extra lines every model sees, after the shared style line (`STYLE_RULES` in `config.mjs`: language, comments, file size, efficiency without added complexity) | none |
+| `style` | `language` and `maxFileLines` the shared style line, the task Rules line and the review focus state, so a project's own `rules` never contradict them (#404) | `English`, `400` |
 | `extras` | flow-tower-only tools (`validate`, `dryrun`) | none |
 | `models` | per-role model IDs; `--model` overrides one call | the table below; extra roles inherit a family unless explicitly configured |
 | `tower`, `source`, `cli` | the tower name the live events go to, their source, the flow-tower CLI path | `Dev Squad`, `dev-squad`; the CLI from `FLOW_TOWER_CLI`, then `tools/squad/.cli` (written by init, git-ignored), then PATH |

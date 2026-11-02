@@ -67,7 +67,7 @@ function detectNode(project: string, folder: string): Found | undefined {
  * Whether an executable named `name` is in a PATH folder. Read by hand, no shell: the detector must not run anything.
  * Windows has no executable bit, so there a file of that name is enough.
  */
-function onPath(name: string): boolean {
+export function onPath(name: string): boolean {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => {
     if (!dir) return false;
     try {

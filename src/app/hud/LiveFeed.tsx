@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { splitTarget, type FlowEvent } from '../../core/events';
 import { towerPath } from '../graph';
 import { glyph } from '../hub';
-import { formatUsage, useLive, usageOf, declaredRuntime, towerScope } from '../live';
+import { formatUsage, useLive, usageOf, declaredRuntime, towerScope, isLiveError, foldRepeats } from '../live';
 import { useDescendants } from '../liveHooks';
 import { usePrefs } from '../settings';
 import { findNode, useStore, useTower } from '../store';
@@ -12,10 +12,9 @@ type Filter = 'all' | 'run' | 'error';
 const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
 /** HH:MM:SS. toLocaleTimeString with options builds an Intl formatter per call: far too slow per row. */
 export const time = (ts: number) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
-const isError = (e: FlowEvent) => e.status === 'error' || e.kind === 'error';
 const isStart = (e: FlowEvent) => e.kind === 'tool.start' || e.kind === 'agent.start';
 /** Row tone, same palette as the 3D overlay: cyan running, green done, red error. */
-const tone = (e: FlowEvent) => (isError(e) ? 'error' : isStart(e) ? 'run' : e.kind.endsWith('.end') ? 'done' : 'info');
+const tone = (e: FlowEvent) => (isLiveError(e) ? 'error' : isStart(e) ? 'run' : e.kind.endsWith('.end') ? 'done' : 'info');
 
 /** Live feed: color-coded events, filters, pause, spotlight/follow toggles, jump to any tower. */
 export function LiveFeed() {
@@ -40,12 +39,17 @@ function FeedPanel() {
 
   // No tower on screen (library view): there is no subtree to narrow to, so Tower shows everything.
   const inTower = useMemo(() => (tower ? towerScope(events, tower.id, desc) : events), [events, tower, desc]);
-  const rows = useMemo(() => [...(scope === 'all' ? events : inTower)].reverse().filter((e) =>
-    filter === 'all' || (filter === 'error' ? isError(e) : isStart(e))).slice(0, 150), [events, inTower, scope, filter]);
+  // The header and the error count describe the scope on screen, so they match the LIVE ERR chip in Tower scope.
+  const shown = scope === 'all' ? events : inTower;
+  // Rows are capped before folding, so a burst of repeats still shows up to 150 underlying events.
+  const rows = useMemo(() => foldRepeats([...shown].reverse().filter((e) =>
+    filter === 'all' || (filter === 'error' ? isLiveError(e) : isStart(e))).slice(0, 150)), [shown, filter]);
   // The Tower scope is a subset of the Library one: when it holds nothing while the library does, the
   // feed says how much is elsewhere instead of pretending nothing happened.
   const elsewhere = scope === 'tower' && rows.length === 0 && events.length > 0 && inTower.length === 0 ? events.length : 0;
-  const errors = useMemo(() => events.filter(isError).length, [events]);
+  const errors = useMemo(() => shown.filter(isLiveError).length, [shown]);
+  // Events no node matched never reach the Tower scope: say how many, and offer the Library view.
+  const unmapped = useMemo(() => (scope === 'tower' ? events.filter((e) => !e.targets.length).length : 0), [events, scope]);
   /** Where an event lands: prefer the tower on screen, otherwise its first target anywhere. */
   const where = useCallback((e: FlowEvent) => {
     const t = (tower && e.targets.find((x) => x.startsWith(`${tower.id}#`))) ?? e.targets[0];
@@ -69,7 +73,7 @@ function FeedPanel() {
   return (
     <aside className={`panel livefeed ${inspecting ? 'shifted' : listing ? 'beside-list' : ''}`}>
       <header>
-        <span className="title">Live · {events.length}{errors ? <em className="err-count"> · {errors} err</em> : null}</span>
+        <span className="title">Live · {shown.length}{errors ? <em className="err-count"> · {errors} err</em> : null}</span>
         {usage && <span className="feed-usage mono" title={`Reported by live telemetry, from the events the local server keeps (the last 2000), for this tower and its sub-towers: ${usage.calls} model calls`}>{formatUsage(usage)}</span>}
         <button className="chip clickable" onClick={() => toggleFeed(false)} title="Close (the scene keeps showing activity)">✕</button>
       </header>
@@ -88,6 +92,9 @@ function FeedPanel() {
         <button className={`chip clickable ${paused ? 'on' : ''}`} onClick={() => setOption({ paused: !paused })} title="Freeze the list (the tower keeps updating)">{paused ? 'Resume' : 'Pause'}</button>
         <button className="chip clickable" onClick={clear} title="Clear the feed and node states">Clear</button>
       </div>
+      {unmapped > 0 && (
+        <button className="chip clickable feed-unmapped" onClick={() => setScope('all')} title="Events no node matched: add a match: rule (docs/realtime.md)">{unmapped} matched no node · show</button>
+      )}
       <div className="feed-legend">
         <span className="run">● running</span><span className="done">● done</span><span className="error">● error</span><span className="dim">○ unmapped</span>
       </div>
@@ -97,9 +104,9 @@ function FeedPanel() {
             ? <p className="mono dim">No events in this tower. {elsewhere} in other towers: switch to Library.</p>
             : <p className="mono dim">No events{filter !== 'all' ? ' for this filter' : ''}. Connect an agent (docs/realtime.md) or run <b>npm run simulate</b>.</p>
         )}
-        {rows.map((e) => {
+        {rows.map(({ e, n }) => {
           const w = where(e);
-          return <FeedRow key={e.id} e={e} label={w?.node?.label} away={w && !w.here ? w.towerName : undefined} mapped={!!w} onJump={jump} />;
+          return <FeedRow key={e.id} e={e} n={n} label={w?.node?.label} away={w && !w.here ? w.towerName : undefined} mapped={!!w} onJump={jump} />;
         })}
       </div>
     </aside>
@@ -107,8 +114,8 @@ function FeedPanel() {
 }
 
 /** One feed line. Memoized: when an event arrives only the new rows render. */
-const FeedRow = memo(function FeedRow({ e, label, away, mapped, onJump }: {
-  e: FlowEvent; label?: string; away?: string; mapped: boolean; onJump(e: FlowEvent): void;
+const FeedRow = memo(function FeedRow({ e, n, label, away, mapped, onJump }: {
+  e: FlowEvent; n: number; label?: string; away?: string; mapped: boolean; onJump(e: FlowEvent): void;
 }) {
   return (
     <button className={`feed-row ${tone(e)} ${mapped ? '' : 'unmapped'}`} onClick={() => onJump(e)} title={mapped ? 'Select the node this event landed on' : 'No node matched this event: add a match: rule (docs/realtime.md)'}>
@@ -116,6 +123,7 @@ const FeedRow = memo(function FeedRow({ e, label, away, mapped, onJump }: {
       <span className="k" title={e.kind}>{glyph(e)}</span>
       <span className="who">
         {[e.agent, e.tool].filter(Boolean).join(' → ') || label || e.source}
+        {n > 1 && <b className="feed-repeat">×{n}</b>}
         {away && <em> ↗ {away}</em>}
         {!mapped && <em> unmapped</em>}
       </span>
@@ -129,7 +137,7 @@ const FeedRow = memo(function FeedRow({ e, label, away, mapped, onJump }: {
       )}
     </button>
   );
-}, (a, b) => a.e === b.e && a.label === b.label && a.away === b.away && a.mapped === b.mapped && a.onJump === b.onJump);
+}, (a, b) => a.e === b.e && a.n === b.n && a.label === b.label && a.away === b.away && a.mapped === b.mapped && a.onJump === b.onJump);
 
 /** Live section of the inspector for the selected node. */
 export function NodeLiveInfo({ nodeKey }: { nodeKey: string }) {

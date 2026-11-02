@@ -49,6 +49,24 @@ describe('share rules', () => {
     expect(checkPath('notes/deep/readme.md')).toBeUndefined();
   });
 
+  it('allows unit, build and config files by name', () => {
+    expect(allowedFile('systemd/x.service')).toBe(true);
+    expect(allowedFile('systemd/x.timer')).toBe(true);
+    expect(allowedFile('deploy/Dockerfile')).toBe(true);
+    expect(allowedFile('deploy.d/Dockerfile')).toBe(true);
+    expect(allowedFile('nginx/site.conf')).toBe(true);
+    expect(allowedFile('app/setup.cfg')).toBe(true);
+    expect(allowedFile('Makefile')).toBe(true);
+  });
+
+  it('still refuses secrets and unknown extensionless files', () => {
+    expect(allowedFile('.env')).toBe(false);
+    expect(allowedFile('id_rsa')).toBe(false);
+    expect(allowedFile('x.pem')).toBe(false);
+    expect(allowedFile('deploy/secrets.conf')).toBe(false);
+    expect(allowedFile('bin/tool')).toBe(false);
+  });
+
   it('enforces the file count limit', () => {
     const many = Array.from({ length: MAX_FILES + 1 }, (_, i) => ({ path: `f${i}.md`, content: '' }));
     expect('error' in checkFiles([TOWER, ...many])).toBe(true);
