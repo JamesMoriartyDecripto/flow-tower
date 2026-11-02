@@ -100,6 +100,7 @@ layers:
         type: output
         label: Report
         description: "finish with the report and a Known gaps: line; for reviewer and security, the JSON verdict only (no verdict fails the run)."
+        meta: { finish_alone: "A finish sent in the same reply as other tool calls is refused: those tools run, their results go back, and finish must come in a later reply, after the model has read them (#426)." }
         files: [roles/reviewer.md]
       - id: ledger
         runtime: laptop
