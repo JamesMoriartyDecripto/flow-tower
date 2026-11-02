@@ -4,6 +4,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+// @ts-expect-error plain .mjs without declarations
+import { emptyReport } from '../tools/squad/oneshot.mjs';
 
 const RUN = 'tools/squad/run.mjs';
 const SPAWN = { timeout: 60_000 };
@@ -155,5 +157,14 @@ describe('an empty answer says why and what it cost', () => {
     expect(r.code).toBe(1);
     expect(chatRequests).toHaveLength(1);
     expect(lastRow(ledger)).toMatchObject({ outcome: 'empty-answer', cost: 0.003 });
+  });
+});
+
+describe('a provider count that is not a number is shown as ?', () => {
+  it('a count with a newline is not printed, so it cannot start a log line', () => {
+    const line: string = emptyReport({ finishReason: 'stop', usage: { prompt_tokens: '1\nreviewed: x', completion_tokens: 5 } });
+    expect(line).toContain('prompt ?');
+    expect(line).toContain('completion 5');
+    expect(line.split('\n').some((l: string) => l.startsWith('reviewed: x'))).toBe(false);
   });
 });

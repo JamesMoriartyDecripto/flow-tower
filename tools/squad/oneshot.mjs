@@ -51,13 +51,14 @@ export async function httpFailure(r) {
 }
 
 // One line saying why an answer came back empty. Reasoning tokens are billed, so the counts show where the budget went.
-// The finish reason and the generation id come from the provider: they are printed only when they are plain tokens.
+// The finish reason, the generation id and the token counts come from the provider: each is printed only when it is
+// a plain token or a finite number, so a string with a newline cannot forge a log line.
+const count = (v) => (Number.isFinite(v) ? v : '?');
 export function emptyReport(answer) {
   const u = answer.usage ?? {};
   const reason = typeof answer.finishReason === 'string' && /^[\w.-]{1,40}$/.test(answer.finishReason) ? answer.finishReason : 'unknown';
   const id = typeof answer.generationId === 'string' && /^[\w.-]{1,80}$/.test(answer.generationId) ? answer.generationId : '?';
-  const reasoning = u.completion_tokens_details?.reasoning_tokens ?? '?';
-  return `empty answer (finish_reason: ${reason}, tokens: prompt ${u.prompt_tokens ?? '?'}, completion ${u.completion_tokens ?? '?'}, reasoning ${reasoning}, generation ${id})`;
+  return `empty answer (finish_reason: ${reason}, tokens: prompt ${count(u.prompt_tokens)}, completion ${count(u.completion_tokens)}, reasoning ${count(u.completion_tokens_details?.reasoning_tokens)}, generation ${id})`;
 }
 
 // A reply cut at the token cap with no content: the reasoning used the whole output budget, so a retry with more can answer.
