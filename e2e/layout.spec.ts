@@ -17,13 +17,22 @@ const SIZES = [
   { width: 720, height: 900, uiScale: 1 }, // half of a laptop screen
 ];
 
-async function rects(page: Page) {
-  return page.evaluate((sel) => sel.flatMap((s) => {
+type Box = { s: string; x: number; y: number; r: number; b: number };
+
+async function rects(page: Page, sels = PANELS): Promise<Box[]> {
+  return page.evaluate((list) => list.flatMap((s) => {
     const el = document.querySelector<HTMLElement>(s);
     if (!el || !el.offsetParent) return [];
     const r = el.getBoundingClientRect();
     return [{ s, x: r.left, y: r.top, r: r.right, b: r.bottom }];
-  }), PANELS);
+  }), sels);
+}
+
+/** Message when two boxes overlap by more than a pixel or two, else undefined. */
+function overlap(a: Box, b: Box): string | undefined {
+  const w = Math.min(a.r, b.r) - Math.max(a.x, b.x);
+  const h = Math.min(a.b, b.b) - Math.max(a.y, b.y);
+  if (w > 2 && h > 2) return `${a.s} overlaps ${b.s} (${Math.round(w)}x${Math.round(h)})`;
 }
 
 for (const size of SIZES) {
@@ -48,9 +57,8 @@ for (const size of SIZES) {
       if (a.x < -1 || a.y < -1 || a.r > size.width + 1 || a.b > size.height + 1) problems.push(`${a.s} leaves the window`);
       for (const b of boxes) {
         if (a.s >= b.s) continue;
-        const w = Math.min(a.r, b.r) - Math.max(a.x, b.x);
-        const h = Math.min(a.b, b.b) - Math.max(a.y, b.y);
-        if (w > 2 && h > 2) problems.push(`${a.s} overlaps ${b.s} (${Math.round(w)}x${Math.round(h)})`);
+        const o = overlap(a, b);
+        if (o) problems.push(o);
       }
     }
     await emit('layout.panels', 'tool.end', `${problems.length} layout problems`, problems.length ? 'error' : 'ok');
@@ -86,4 +94,50 @@ test('accessibility of the HUD (axe, WCAG 2 A/AA, canvas excluded)', async ({ pa
   await test.info().attach('axe.json', { body: JSON.stringify(summary, null, 2), contentType: 'application/json' });
   await emit('layout.axe', 'tool.end', `${summary.length} axe rules violated`, summary.length ? 'error' : 'ok');
   expect(summary).toEqual([]);
+});
+
+test('phone layout 390x844: one panel at a time', async ({ page }) => {
+  const width = 390;
+  const height = 844;
+  await page.setViewportSize({ width, height });
+  await emit('layout.panels', 'tool.start', `${width}x${height} phone sheets`);
+  await openProject(page, BIG);
+
+  // With no sheet open, only the tab bar and the controls show; the side panels are hidden.
+  for (const sel of ['.layernav', '.legend', '.towerinfo']) await expect(page.locator(sel)).toBeHidden();
+  await expect(page.locator('.phone-tabs')).toBeVisible();
+
+  // Hidden overflow scrolls inside the bar, so the bar itself is measured, not its buttons.
+  const [bar] = await rects(page, ['.controls']);
+  const problems: string[] = [];
+  if (bar.x < -1 || bar.r > width + 1) problems.push('.controls leaves the window');
+
+  const sheets: [string, string][] = [['Layers', '.layernav'], ['Info', '.towerinfo'], ['Legend', '.legend']];
+  for (const [tab, sel] of sheets) {
+    await page.locator('.phone-tabs button', { hasText: tab }).click();
+    await expect(page.locator(sel)).toBeVisible();
+    const [panel, ...others] = await rects(page, [sel, '.topbar', '.phone-tabs', '.controls']);
+    if (panel.s !== sel) problems.push(`${sel} is not visible under ${tab}`);
+    if (panel.x < -1 || panel.y < -1 || panel.r > width + 1 || panel.b > height + 1) problems.push(`${sel} leaves the window`);
+    for (const other of others) {
+      const o = overlap(panel, other);
+      if (o) problems.push(o);
+    }
+  }
+
+  // Picking a layer closes the sheet so the tower shows again.
+  await page.locator('.phone-tabs button', { hasText: 'Layers' }).click();
+  await page.locator('.layernav button').filter({ hasNotText: 'Tower overview' }).first().click();
+  await expect(page.locator('.layernav')).toBeHidden();
+
+  // Selecting a node shows the inspector full width and no sheet.
+  await pressUntil(page, 'ArrowRight', (s) => !!s.selected);
+  await page.keyboard.press('f');
+  await expect(page.locator('.inspector')).toBeVisible();
+  const [insp] = await rects(page, ['.inspector']);
+  if (insp.x < -1 || insp.y < -1 || insp.r > width + 1 || insp.b > height + 1) problems.push('.inspector leaves the window');
+  for (const sel of ['.layernav', '.legend', '.towerinfo', '.nodelist']) await expect(page.locator(sel)).toBeHidden();
+
+  await emit('layout.panels', 'tool.end', `${problems.length} phone layout problems`, problems.length ? 'error' : 'ok');
+  expect(problems).toEqual([]);
 });
