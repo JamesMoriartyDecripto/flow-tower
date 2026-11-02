@@ -37,7 +37,7 @@ describe('squad pack (#169)', () => {
     expect(out).toContain('# 169 reviewer review');
     expect(out).toContain('read-only review');
     expect(out).toContain('Focus: correctness bugs');
-    expect(out).not.toContain('severity');
+    expect(out).toContain('"severity":"critical|high|medium|low"');
     expect(out).toContain('Make a bigger.');
     expect(out).toContain('+export const b = 3;');
     expect(out).toContain('Tests are not included');
