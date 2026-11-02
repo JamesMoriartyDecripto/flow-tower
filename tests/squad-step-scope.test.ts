@@ -14,8 +14,10 @@ interface StepScope {
   touchedForeign(before: Record<string, string>, after: Record<string, string>): string[];
   writeDirsFor(write: string[], files: string[]): string[];
   badEntries(files: string[]): string[];
+  adopted(paths: string[], adopt: string[]): string[];
+  keptOut(files: string[], foreign: string[]): string[];
 }
-const { badEntries, stepDone, toStage, touchedForeign, writeDirsFor } = (await import(/* @vite-ignore */ SCRIPT)) as StepScope;
+const { adopted, badEntries, keptOut, stepDone, toStage, touchedForeign, writeDirsFor } = (await import(/* @vite-ignore */ SCRIPT)) as StepScope;
 
 function cli(...args: string[]): string {
   const r = spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8' });
@@ -191,4 +193,74 @@ describe('step-scope CLI in a temp repo', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 20_000);
+
+  it('adopts a red step leftover by exact path or folder, and keeps the rest in the snapshot', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'step-scope-adopt-'));
+    try {
+      const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
+      git('init', '-q');
+      git('config', 'user.email', 't@example.com');
+      git('config', 'user.name', 't');
+      mkdirSync(join(dir, 'src'));
+      writeFileSync(join(dir, 'src', 'a.ts'), 'a\n');
+      writeFileSync(join(dir, 'NOTES.md'), 'notes\n');
+      git('add', '-A');
+      git('commit', '-q', '-m', 'init');
+
+      // The red step's leftovers and the maintainer's own edit are all uncommitted.
+      writeFileSync(join(dir, 'src', 'a.ts'), 'leftover\n');
+      writeFileSync(join(dir, 'NOTES.md'), 'maintainer edit\n');
+      const out = spawnSync(process.execPath, [SCRIPT, 'snapshot', dir], {
+        encoding: 'utf8',
+        env: { ...process.env, SQUAD_ADOPT: 'src/a.ts' },
+        timeout: 20_000,
+      });
+      expect(out.status).toBe(0);
+      expect(out.stdout).toMatch(/\tNOTES\.md$/m);
+      expect(out.stdout).not.toMatch(/\tsrc\/a\.ts$/m);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it('reports a Files entry kept out as local edits, but a glob over the same folder is skipped', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'step-scope-kept-'));
+    try {
+      const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
+      git('init', '-q');
+      git('config', 'user.email', 't@example.com');
+      git('config', 'user.name', 't');
+      mkdirSync(join(dir, 'src'));
+      writeFileSync(join(dir, 'src', 'a.ts'), 'a\n');
+      git('add', '-A');
+      git('commit', '-q', '-m', 'init');
+      writeFileSync(join(dir, 'src', 'a.ts'), 'local\n');
+
+      const aux = mkdtempSync(join(tmpdir(), 'step-scope-kept-aux-'));
+      try {
+        const snapFile = join(aux, 'snapshot.txt');
+        writeFileSync(snapFile, `${cli('snapshot', dir)}\n`);
+        const task = join(aux, 'task.md');
+        writeFileSync(task, 'Files: src/a.ts\n');
+        expect(cli('kept-out', task, snapFile)).toBe('src/a.ts');
+        writeFileSync(task, 'Files: src/*.ts\n');
+        expect(cli('kept-out', task, snapFile)).toBe('');
+      } finally {
+        rmSync(aux, { recursive: true, force: true });
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 20_000);
+});
+
+describe('adopted and keptOut', () => {
+  it('adopted drops an exact path and the paths under a folder, and keeps the rest', () => {
+    expect(adopted(['src/a.ts', 'src/x/b.ts', 'docs/c.md', 'src2/d.ts'], ['src/a.ts', 'docs/']))
+      .toEqual(['src/x/b.ts', 'src2/d.ts']);
+  });
+
+  it('keptOut returns literal Files matches only, skipping globs', () => {
+    expect(keptOut(['src/a.ts', 'docs/**'], ['src/a.ts', 'docs/x.md', 'NOTES.md'])).toEqual(['src/a.ts']);
+  });
 });
