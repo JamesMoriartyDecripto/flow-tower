@@ -27,7 +27,7 @@ export function controlEntry(entry) {
   // A glob can reach any name under its literal prefix, so a sample cannot stand for it: "tools/*/runner-core.mjs" matches
   // no sample, yet it reaches tools/squad/runner-core.mjs. An empty prefix ("**/x", "*.json") reaches everything.
   const star = path.indexOf('*');
-  return star >= 0 && [...CONTROL_SAMPLES, '.github/', 'tools/squad/'].some((c) => c.startsWith(path.slice(0, star)));
+  return star >= 0 && CONTROL_SAMPLES.some((c) => c.startsWith(path.slice(0, star)));
 }
 const SIGN_OFF = 'sensitive area in the plan: a person must lead this issue (plan sign-off)';
 // A person releases the plan sign-off for one issue by setting SQUAD_APPROVE to that issue's number. The runner works many
