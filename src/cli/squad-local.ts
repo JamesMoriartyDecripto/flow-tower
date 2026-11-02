@@ -6,9 +6,10 @@
  * The one external program is a fixed `git --version` probe, started without a shell and injected for tests.
  */
 import { spawnSync } from 'node:child_process';
-import { accessSync, constants, lstatSync, readFileSync, statSync, type Stats } from 'node:fs';
+import { accessSync, constants, existsSync, lstatSync, readFileSync, statSync, type Stats } from 'node:fs';
 import { join } from 'node:path';
 import { userHome } from '../core/secrets.ts';
+import { onPath } from './squad-detect.ts';
 // The runner's own loader: doctor and `squad run` must agree on what a valid squad.json is. It only reads data.
 import { loadConfig } from '../../tools/squad/config.mjs';
 
@@ -112,6 +113,29 @@ function layout(root: string) {
   return { squadDir, config: join(squadDir, 'squad.json') };
 }
 
+/**
+ * Whether the configured check command can start. `python -m <module>` is probed with the module's `--version`,
+ * which never runs the project's tests. Any other command only needs its program on PATH (a path with `/` must exist).
+ * The runner splits the command on whitespace and starts it without a shell, so this does the same.
+ */
+function checkCommand(root: string, exec: Exec): Check {
+  const name = 'check command';
+  const check: string = loadConfig(root).commands.check;
+  const argv = check.trim().split(/\s+/);
+  let ok: boolean;
+  if (argv[1] === '-m' && argv[2]) {
+    const r = exec(argv[0], ['-m', argv[2], '--version']);
+    ok = r.status === 0 && !r.error;
+  } else {
+    ok = argv[0].includes('/') ? existsSync(argv[0]) : onPath(argv[0]);
+  }
+  return {
+    name,
+    ok,
+    detail: ok ? check : `cannot start "${check}": install it or set commands.check in tools/squad/squad.json`,
+  };
+}
+
 /** The check for a fixed prerequisite binary, probed with its `--version`. Never a repo script. */
 function gitCheck(exec: Exec): Check {
   const r = exec('git', ['--version']);
@@ -120,7 +144,8 @@ function gitCheck(exec: Exec): Check {
 }
 
 /**
- * Every doctor check, in order. Makes no paid or model call and starts only `git --version` and `git rev-parse`.
+ * Every doctor check, in order. Makes no paid or model call and starts only `git --version` and `git rev-parse`,
+ * plus the check's module with `--version` when the check is `python -m <module>`, never the project's tests.
  * Node is read from the running process, not probed. A failing check says what to do next.
  */
 export function doctor(dir: string, opts: { exec?: Exec; env?: NodeJS.ProcessEnv; keyFile?: string; nodeVersion?: string } = {}): Check[] {
@@ -142,7 +167,10 @@ export function doctor(dir: string, opts: { exec?: Exec; env?: NodeJS.ProcessEnv
     detail: node ? `v${nodeVersion.replace(/^v/, '')}` : `Node ${MIN_NODE.join('.')} or newer is needed (found v${nodeVersion.replace(/^v/, '')})`,
   });
 
-  checks.push(configCheck(root, p.config, dir));
+  const config = configCheck(root, p.config, dir);
+  checks.push(config);
+  // Only a config that loaded has a check command to probe.
+  if (config.ok) checks.push(checkCommand(root, exec));
 
   const missing = RUNNER_FILES.filter((f) => !entry(join(p.squadDir, f))?.isFile());
   checks.push({

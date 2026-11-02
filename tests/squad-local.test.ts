@@ -158,6 +158,42 @@ describe('squad doctor, portable (#334)', () => {
     expect(config?.detail).toContain('squad init');
   });
 
+  it('fails the check command when its module does not answer --version, and names the command', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'python3 -m pytest' } }));
+    const base = fakeExec(root).exec;
+    const exec: Exec = (cmd, args) => (cmd === 'python3' ? fail(1) : base(cmd, args));
+    const check = doctor(root, { ...healthyOpts(root), exec }).find((c) => c.name === 'check command');
+    expect(check?.ok).toBe(false);
+    expect(check?.detail).toContain('python3 -m pytest');
+  });
+
+  it('passes the check command when its module answers --version', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'python3 -m pytest' } }));
+    const { exec } = fakeExec(root);
+    const probes: string[][] = [];
+    const python: Exec = (cmd, args) => {
+      if (cmd === 'python3') probes.push(args);
+      return cmd === 'python3' ? ok('pytest 8.0\n') : exec(cmd, args);
+    };
+    const check = doctor(root, { ...healthyOpts(root), exec: python }).find((c) => c.name === 'check command');
+    expect(check?.ok).toBe(true);
+    // The probe is the module's --version, never the project's test run.
+    expect(probes).toEqual([['-m', 'pytest', '--version']]);
+  });
+
+  it('fails the check command when its program is not on PATH', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'definitely-not-a-program-xyz run' } }));
+    const check = doctor(root, healthyOpts(root)).find((c) => c.name === 'check command');
+    expect(check?.ok).toBe(false);
+    expect(check?.detail).toContain('cannot start');
+  });
+
+  it('passes the check command when its program is on PATH', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'node x.js' } }));
+    const check = doctor(root, healthyOpts(root)).find((c) => c.name === 'check command');
+    expect(check?.ok).toBe(true);
+  });
+
   it('stops at the git check when the folder is not a repository, and starts no other program', () => {
     const { exec, calls } = fakeExec('/none');
     const failing: Exec = (cmd, args) => (cmd === 'git' && args.includes('rev-parse') ? fail(128) : exec(cmd, args));
