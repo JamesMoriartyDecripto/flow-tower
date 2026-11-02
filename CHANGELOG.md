@@ -12,6 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - CLI: `report` and `export` run from a checkout path with spaces (the entry guard compared a percent-encoded URL with a raw path), the update command quotes the folder, and the tests pass there (#307).
+- dev-squad example: the README counts nine layers (the unattended runner is the ninth) and the GLM node no longer claims the architect, which defaults to GPT 6.1 Terra (#371).
 - Squad: when `pack.mjs` trimmed a review or security task to fit, `run.mjs` prints a `trimmed: N KB` header and `gate.mjs` adds a note that the pass did not see the whole change, so READY no longer reads as full coverage (#383).
 - Squad: `squad.json` refuses a command with shell syntax (`&&`, pipes, redirects, `$(…)`, quotes) when it is loaded, and `squad doctor` reports it: the runner runs commands without a shell, so such a command could only fail at every step (#382).
 
