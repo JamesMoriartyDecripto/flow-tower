@@ -49,7 +49,7 @@ const inRepo = (p) => {
 const FOCUS = {
   reviewer: [
     'Focus: correctness bugs, missed edge cases, races, behaviour that contradicts the brief,',
-    'files over ~400 lines, and unneeded complexity: code or checks the brief does not ask for,',
+    `files over ~${config.style.maxFileLines} lines, and unneeded complexity: code or checks the brief does not ask for,`,
     'a second copy of an existing mechanism, a solution bigger than the task. Do not comment on style.',
   ],
   security: [

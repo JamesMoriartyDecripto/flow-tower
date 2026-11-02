@@ -1,6 +1,6 @@
 # <issue>-<nn>: <what this step delivers, in one line>
 
-Rules: English only; never touch secret files; edit only the files named below; comments explain why; files under ~400 lines; never rewrite or empty an existing test file (add to the new one only).
+Rules: English only (or squad.json style.language); never touch secret files; edit only the files named below; comments explain why; files under ~400 lines (style.maxFileLines); never rewrite or empty an existing test file (add to the new one only).
 Read <the files the coder needs to understand first>.
 Verify: `run check`; `finish` with the output and a `Known gaps:` line.
 
