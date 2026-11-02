@@ -197,6 +197,22 @@ describe('the reminder keeps the roles alternating and every tool call paired', 
     expect(noConsecutiveUsers(second)).toBe(true);
   });
 
+  it('a finish sent with another call is refused; the other call runs and the finish is sent again alone', SPAWN, async () => {
+    const mix = { role: 'assistant', content: null, tool_calls: [
+      { id: 'm1', type: 'function', function: { name: 'list_files', arguments: '{"dir":"tools/squad"}' } },
+      { id: 'm2', type: 'function', function: { name: 'finish', arguments: JSON.stringify({ report: 'early report' }) } },
+    ] };
+    const t = setup([mix, FINISH('c2', 'final report\n\nKnown gaps: none')]);
+    const r = await run([...t.args, '--steps', '2'], {}, t.dir);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain('final report');
+    expect(r.stdout).not.toContain('early report');
+    const second = sent(t.requests)[1];
+    expect(second.find((m) => m.role === 'tool' && m.tool_call_id === 'm2')?.content).toMatch(/^Not accepted: call finish alone/);
+    expect(second.find((m) => m.role === 'tool' && m.tool_call_id === 'm1')?.content).toBeDefined();
+    expect(pairedOk(second)).toBe(true);
+  });
+
   it('appendReminder leaves the history alone outside the last two calls', () => {
     const history: Message[] = [{ role: 'user', content: 'task' }];
     expect(appendReminder(history, 3)).toEqual([{ role: 'user', content: 'task' }]);
