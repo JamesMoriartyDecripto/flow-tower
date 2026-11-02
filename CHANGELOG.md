@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Security
+
+- Squad runner: a glob plan entry needs the plan sign-off when a control path (`.github/`, `tools/squad/`, `package.json`) starts with its text before the first `*`, so `tools/*/runner-core.mjs`, `**/x` or `*.json` no longer reach a control file without a person (#391).
+
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
