@@ -141,4 +141,22 @@ describe('steps.sh (#265)', () => {
     expect(costLine).toBeGreaterThan(-1);
     expect(text.indexOf('rm -rf -- "$OUT"')).toBeGreaterThan(costLine);
   });
+
+  it('makes REPO and the task folder absolute before the first cd "$R" (#394)', () => {
+    const text = readFileSync(join(squad, 'steps.sh'), 'utf8');
+    expect(text).toContain('R=$(cd "$R" && pwd)');
+    expect(text).toContain('dir=$(cd "$dir" && pwd)');
+    expect(text.indexOf('R=$(cd "$R" && pwd)')).toBeLessThan(text.indexOf('cd "$R" || exit 1'));
+  });
+
+  it('resolves a relative REPO and stops on a missing task folder before any coder call (#394)', () => {
+    const repo = join(tmp, 'repo');
+    mkdirSync(repo);
+    git(repo, 'init', '-q', '-b', 'main');
+    const r = spawnSync('bash', [join(squad, 'steps.sh'), '1', 'no-such-folder', '', 't'], {
+      encoding: 'utf8', cwd: tmp, env: { ...process.env, REPO: 'repo' }, timeout: 20_000,
+    });
+    expect(r.stdout).toContain('RED: task folder not found');
+    expect(r.status).toBe(1);
+  });
 });
