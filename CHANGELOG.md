@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Changed
+
+- Squad: the coder changes only the lines the task needs; a file that would pass ~400 lines is reported in `Known gaps` instead of trimming other code. The README says each role keeps its tasks in its own folder, since `steps.sh` runs every file as a coder step (#386).
+
 ### Fixed
 
 - Squad: when `pack.mjs` trimmed a review or security task to fit, `run.mjs` prints a `trimmed: N KB` header and `gate.mjs` adds a note that the pass did not see the whole change, so READY no longer reads as full coverage (#383).
