@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
+- Squad: `squad doctor` checks that the check command can start (`python3 -m pytest` answers `--version`; any other program is on PATH or, as a relative path, in the repo root) and fails naming it, before a paid step goes red on it (#405).
 
 ## [0.16.1] - 2026-11-02
 
