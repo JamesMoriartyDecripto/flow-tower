@@ -28,6 +28,13 @@ async function rects(page: Page, sels = PANELS): Promise<Box[]> {
   }), sels);
 }
 
+/** Panels slide in (transform): wait until their animations are over before measuring. */
+async function settle(page: Page): Promise<void> {
+  await page.evaluate(() => Promise.all(document.getAnimations()
+    .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity) // live pulses never finish
+    .map((a) => a.finished.catch(() => undefined))));
+}
+
 /** Message when two boxes overlap by more than a pixel or two, else undefined. */
 function overlap(a: Box, b: Box): string | undefined {
   const w = Math.min(a.r, b.r) - Math.max(a.x, b.x);
@@ -46,10 +53,7 @@ for (const size of SIZES) {
     await page.keyboard.press('f');
     await expect(page.locator('.inspector')).toBeVisible();
     await expect(page.locator('.livefeed')).toBeVisible();
-    // Panels slide in (transform): measure once their animations are over, not mid-flight.
-    await page.evaluate(() => Promise.all(document.getAnimations()
-      .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity) // live pulses never finish
-      .map((a) => a.finished.catch(() => undefined))));
+    await settle(page);
 
     const boxes = await rects(page);
     const problems: string[] = [];
@@ -116,6 +120,7 @@ test('phone layout 390x844: one panel at a time', async ({ page }) => {
   for (const [tab, sel] of sheets) {
     await page.locator('.phone-tabs button', { hasText: tab }).click();
     await expect(page.locator(sel)).toBeVisible();
+    await settle(page);
     const [panel, ...others] = await rects(page, [sel, '.topbar', '.phone-tabs', '.controls']);
     if (panel.s !== sel) problems.push(`${sel} is not visible under ${tab}`);
     if (panel.x < -1 || panel.y < -1 || panel.r > width + 1 || panel.b > height + 1) problems.push(`${sel} leaves the window`);
@@ -134,6 +139,7 @@ test('phone layout 390x844: one panel at a time', async ({ page }) => {
   await pressUntil(page, 'ArrowRight', (s) => !!s.selected);
   await page.keyboard.press('f');
   await expect(page.locator('.inspector')).toBeVisible();
+  await settle(page);
   const [insp] = await rects(page, ['.inspector']);
   if (insp.x < -1 || insp.y < -1 || insp.r > width + 1 || insp.b > height + 1) problems.push('.inspector leaves the window');
   for (const sel of ['.layernav', '.legend', '.towerinfo', '.nodelist']) await expect(page.locator(sel)).toBeHidden();
