@@ -27,6 +27,8 @@
 .share-control { flex-wrap: wrap; min-width: 0; }
 .share-control select { max-width: 100%; font: 10px var(--mono); padding: 3px 6px; background: transparent; color: var(--white); border: 1px solid var(--line-soft); border-radius: 4px; }
 .share-control select:disabled { opacity: .6; }
+/* The "on the hub · 1 h ago" badge wrapped one word per line in a narrow card: keep it on one line (#436a). */
+.share-chip { white-space: nowrap; }
 .share-chip.on { color: var(--live-done); }
 .share-chip.dim { color: var(--dim); }
 .share-chip.err { color: var(--live-error); }
