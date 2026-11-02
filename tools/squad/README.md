@@ -74,6 +74,9 @@ node tools/squad/run.mjs --role architect --task /tmp/plan.md --repo ../wt-123 -
 node tools/squad/run.mjs --role doc-writer --write docs --task /tmp/docs.md --repo ../wt-123 --issue 123
 ```
 
+The `diff` tool of a run compares against `squad.json`'s `base`; `--base <rev>` sets it for one run, so a tester on a
+branch stacked on an open PR judges only its own commits. The diff starts with `git log --oneline` of those commits (#425).
+
 Path guards constrain direct file tools, not test-command side effects. All loop roles can run configured
 project checks; only do this in trusted projects (use OS isolation where appropriate). No global issue spending
 cap is enforced: agree a budget, bound calls with `--steps`, inspect the ledger and stop before exceeding it.

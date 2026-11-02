@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Changed
+
+- Squad: `run.mjs --base <rev>` sets the `diff` base for one run, and the `diff` tool starts with the commit list, so a read-only role on a stacked branch judges only its own commits and can confirm them (#425).
+
 ## [0.17.0] - 2026-11-02
 
 ### Security
