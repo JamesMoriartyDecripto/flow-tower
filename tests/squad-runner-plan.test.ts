@@ -93,6 +93,16 @@ describe('parsePlan', () => {
   it('still accepts a plain file path', () => {
     expect(parsePlan(asText(plan({}, [step({ files: ['src/a.js'] })]))).ok).toBe(true);
   });
+
+  it.each(['./tools/*/runner-core.mjs', 'tools/./squad/x', 'tools//squad/*'])('refuses a non-normalized path %s', (file) => {
+    const r = parsePlan(asText(plan({}, [step({ files: [file] })])));
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain(file);
+  });
+
+  it('still accepts a folder entry with one trailing slash', () => {
+    expect(parsePlan(asText(plan({}, [step({ files: ['src/'] })]))).ok).toBe(true);
+  });
 });
 
 describe('taskFiles', () => {

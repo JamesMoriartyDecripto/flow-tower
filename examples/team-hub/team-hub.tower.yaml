@@ -58,6 +58,12 @@ layers:
         runtime: laptop
         description: "flow-tower service install|status|uninstall (#194): a systemd user unit or a launchd agent keeps the library running at login, so hooks always find it. The unit runs the node on PATH and reads exits 130/143 as a clean stop; install says when the library is empty, status points a failed unit to journalctl, uninstall clears the failed state."
         files: [src/cli/service.ts, src/cli/service-files.ts]
+      - id: library-watch
+        type: hook
+        label: Library watch
+        runtime: laptop
+        description: "The library reloads when a tower or a file it references changes. Inside a library folder only folders, *.tower.yaml and referenced files are watched, never node_modules or hidden folders (the scanner's rule), so a project with a Python venv or a data folder does not use up the system's file watchers (#401)."
+        files: [src/server/plugin.ts, vite.config.ts]
       - id: supervisor
         type: process
         label: Relay supervisor
@@ -122,6 +128,7 @@ layers:
       - "connect-cli -> config-file [data]: config.json"
       - "local-server -> hooks [data]: local port"
       - "service-cli -> supervisor: keeps the library running"
+      - "service-cli -> library-watch: reloads on change"
       - "supervisor -> relay [call]: build, new credentials"
       - "supervisor -> share-sync [call]: start, stop"
       - "relay -> sharing [data]: state"
