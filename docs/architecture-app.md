@@ -55,6 +55,7 @@ Rendering is batched per layer: instanced meshes, `LineSegments2`, troika `Batch
 
 | File | Open it when |
 |---|---|
+| `hud/PhoneTabs.tsx`, `hud/phone.css` | Phone layout (`max-width: 600px`, #436): a Layers / Info / Legend tab bar; one panel at a time as a full-width bottom sheet (`data-sheet` on `.hud`), closed by picking a layer or a node; the Inspector, live feed, Hub and Issues take the sheet's place. Wider windows never see these rules. `scene/hudFrame.ts` ignores hidden (0×0) panels and lets a full-width sheet limit the scene from below |
 | `hud/Chrome.tsx` | Top bar (validation chips `YAML n ERR/WARN`, the live `LIVE n ERR` chip, #192), Layers panel (with sub-towers list), legend, bottom controls |
 | `hud/Inspector.tsx`, `Connections.tsx`, `OpsInfo.tsx` | Node panel: overview, connections, operations / data / evals, prompt, tools, files |
 | `hud/NodeList.tsx` | Right panel while a layer is focused and no node is selected: the nodes of that layer in flow order |

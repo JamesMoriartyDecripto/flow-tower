@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+
+- Phone layout: at phone width the tower view shows one panel at a time (Layers, Info, Legend tabs) as a bottom sheet, the bottom bar scrolls sideways, and the mouse and keyboard hint is hidden; the library's hub badge no longer wraps word by word (#436).
+
 ### Changed
 
 - Squad: `run.mjs --base <rev>` sets the `diff` base for one run, and the `diff` tool starts with the commit list, so a read-only role on a stacked branch judges only its own commits and can confirm them (#425).
