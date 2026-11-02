@@ -138,4 +138,12 @@ describe('squad diff tool', () => {
     expect(result.stderr).toContain('is not an ancestor of HEAD');
     expect(existsSync(requests)).toBe(false);
   });
+
+  it('refuses a --base that is HEAD itself, before any model call', { timeout: 60_000 }, async () => {
+    const { dir, args, requests } = setup([FINISH('f1', JSON.stringify({ verdict: 'approve', findings: [] }))]);
+    const result = await run([...args, '--base', 'HEAD'], {}, dir);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('is HEAD');
+    expect(existsSync(requests)).toBe(false);
+  });
 });

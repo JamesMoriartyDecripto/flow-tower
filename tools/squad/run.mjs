@@ -48,6 +48,11 @@ if (base.startsWith('-')) { console.error('--base must be a revision, not an opt
 if (baseAt > 0) {
   try { execFileSync('git', ['merge-base', '--is-ancestor', base, 'HEAD'], { cwd: REPO, stdio: 'ignore' }); }
   catch { console.error(`--base ${/^[\w./~^-]{1,100}$/.test(base) ? base : 'the given value'} is not an ancestor of HEAD`); exit(1); }
+  // HEAD is its own ancestor, so the check above passes for it; it diffs nothing, so it is refused here.
+  const baseSha = execFileSync('git', ['rev-parse', '--verify', `${base}^{commit}`], { cwd: REPO, encoding: 'utf8' }).trim();
+  if (baseSha === execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim()) {
+    console.error(`--base ${/^[\w./~^-]{1,100}$/.test(base) ? base : 'the given value'} is HEAD: it must be an earlier commit`); exit(1);
+  }
 }
 // squad.json "cli" is a path that runs as node on every live event, so it is trusted only in this runner's own checkout (#324).
 // A --repo pointed at someone else's worktree could otherwise pick the code that runs here. Compared by real path.
