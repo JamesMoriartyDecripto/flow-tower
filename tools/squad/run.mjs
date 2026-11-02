@@ -38,8 +38,17 @@ let config;
 try { config = loadConfig(REPO); } catch (e) { console.error(e.message); exit(1); }
 // --base sets the diff base for this run only (a branch stacked on an open PR diffs against its parent, not the global base).
 // It is refused as an option, the same as squad.json's base, because git would read it as one.
+// A bare `--base` (last, or followed by another flag) must not fall back to the global base silently.
+const baseAt = argv.indexOf('--base');
+if (baseAt > 0 && (argv[baseAt + 1] === undefined || argv[baseAt + 1].startsWith('--'))) { console.error('--base needs a revision'); exit(1); }
 const base = arg('base') ?? config.base;
 if (base.startsWith('-')) { console.error('--base must be a revision, not an option'); exit(1); }
+// A base that is not an ancestor of HEAD (HEAD itself, another branch) yields an empty or wrong diff and hides the changes under review.
+// Only the explicit flag is checked; config.base keeps its existing behaviour.
+if (baseAt > 0) {
+  try { execFileSync('git', ['merge-base', '--is-ancestor', base, 'HEAD'], { cwd: REPO, stdio: 'ignore' }); }
+  catch { console.error(`--base ${/^[\w./~^-]{1,100}$/.test(base) ? base : 'the given value'} is not an ancestor of HEAD`); exit(1); }
+}
 // squad.json "cli" is a path that runs as node on every live event, so it is trusted only in this runner's own checkout (#324).
 // A --repo pointed at someone else's worktree could otherwise pick the code that runs here. Compared by real path.
 const CHECKOUT = resolve(HERE, '..', '..');

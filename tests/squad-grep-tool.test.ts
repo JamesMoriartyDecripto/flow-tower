@@ -122,4 +122,20 @@ describe('squad diff tool', () => {
     expect(result.stderr).toContain('--base must be a revision, not an option');
     expect(existsSync(requests)).toBe(false);
   });
+
+  it('refuses a --base with no value, before any model call', { timeout: 60_000 }, async () => {
+    const { dir, args, requests } = setup([FINISH('f1', JSON.stringify({ verdict: 'approve', findings: [] }))]);
+    const result = await run([...args, '--base'], {}, dir);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('--base needs a revision');
+    expect(existsSync(requests)).toBe(false);
+  });
+
+  it('refuses a --base that is not an ancestor of HEAD, before any model call', { timeout: 60_000 }, async () => {
+    const { dir, args, requests } = setup([FINISH('f1', JSON.stringify({ verdict: 'approve', findings: [] }))]);
+    const result = await run([...args, '--base', '0123456789abcdef0123456789abcdef01234567'], {}, dir);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('is not an ancestor of HEAD');
+    expect(existsSync(requests)).toBe(false);
+  });
 });
