@@ -6,16 +6,18 @@
  * The one external program is a fixed `git --version` probe, started without a shell and injected for tests.
  */
 import { spawnSync } from 'node:child_process';
-import { accessSync, constants, lstatSync, readFileSync, statSync, type Stats } from 'node:fs';
-import { join } from 'node:path';
+import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, statSync, type Stats } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { userHome } from '../core/secrets.ts';
+import { onPath } from './squad-detect.ts';
 // The runner's own loader: doctor and `squad run` must agree on what a valid squad.json is. It only reads data.
 import { loadConfig } from '../../tools/squad/config.mjs';
 
 /** A finished subprocess: status null means it did not run to an exit code (missing binary, signal). */
 export interface Probe { status: number | null; stdout: string; stderr: string; error?: Error }
-/** Starts a fixed binary with an argument list, no shell. Injected so tests can fake it. */
-export type Exec = (cmd: string, args: string[]) => Probe;
+/** Starts a fixed binary with an argument list, no shell, optionally from a given folder. Injected so tests can fake it. */
+export type Exec = (cmd: string, args: string[], opts?: { cwd?: string }) => Probe;
 
 export interface Check { name: string; ok: boolean; detail: string }
 
@@ -35,8 +37,8 @@ export const RUNNER_FILES = [
   'roles.mjs', 'run.mjs', 'runner-core.mjs', 'runner-deps.mjs', 'runner-gh.mjs', 'runner-judge.mjs', 'runner-plan.mjs', 'runner.mjs', 'step-limit.mjs', 'step-scope.mjs', 'steps.sh', 'tool-schema.mjs',
 ];
 
-const defaultExec: Exec = (cmd, args) => {
-  const r = spawnSync(cmd, args, { encoding: 'utf8', stdio: 'pipe', shell: false });
+const defaultExec: Exec = (cmd, args, opts) => {
+  const r = spawnSync(cmd, args, { encoding: 'utf8', stdio: 'pipe', shell: false, cwd: opts?.cwd });
   return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '', error: r.error };
 };
 
@@ -91,18 +93,19 @@ function safeReason(e: unknown): string {
 /**
  * The squad config check, through the runner's loader (config.mjs), from the git root as run.mjs does.
  * A non-regular file (directory, FIFO) is refused before the loader reads it, so no read can block or throw a stack.
+ * The loaded check command comes back with the Check, so doctor never loads the config a second time.
  */
-function configCheck(root: string, file: string, dir: string): Check {
+function configCheck(root: string, file: string, dir: string): { check: Check; command?: string } {
   const name = 'squad config';
   const st = entry(file);
-  if (!st) return { name, ok: false, detail: `missing: run flow-tower squad init ${dir}` };
-  if (!st.isFile()) return { name, ok: false, detail: `${file}: not a regular file` };
+  if (!st) return { check: { name, ok: false, detail: `missing: run flow-tower squad init ${dir}` } };
+  if (!st.isFile()) return { check: { name, ok: false, detail: `${file}: not a regular file` } };
   try {
     accessSync(file, constants.R_OK);
-    loadConfig(root);
-    return { name, ok: true, detail: file };
+    const command: string = loadConfig(root).commands.check;
+    return { check: { name, ok: true, detail: file }, command };
   } catch (e) {
-    return { name, ok: false, detail: `${file}: ${safeReason(e)}` };
+    return { check: { name, ok: false, detail: `${file}: ${safeReason(e)}` } };
   }
 }
 
@@ -110,6 +113,46 @@ function configCheck(root: string, file: string, dir: string): Check {
 function layout(root: string) {
   const squadDir = join(root, 'tools', 'squad');
   return { squadDir, config: join(squadDir, 'squad.json') };
+}
+
+/** A top-level Python module name: the only form probed, since a dotted name imports its parent packages. */
+const PY_MODULE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * Whether the configured check command can start. `python -m <module>` is probed with importlib's find_spec, which
+ * finds the module without executing it, so the repo's code never runs. The name is an argument, never code.
+ * Only a bare program name found on PATH is started for the probe: a path with `/` could be a repo file, and doctor
+ * never runs repo code, so such a path only has to exist in the repo root. A dotted `-m` name and any other command
+ * take that same generic check. The runner splits the command on whitespace and starts it without a shell, so this does the same.
+ */
+function checkCommand(check: string, root: string, exec: Exec): Check {
+  const name = 'check command';
+  const argv = check.trim().split(/\s+/);
+  const pyModule = argv[1] === '-m' && PY_MODULE.test(argv[2] ?? '') && !argv[0].includes('/') && onPath(argv[0])
+    ? argv[2]
+    : undefined;
+  let ok: boolean;
+  if (pyModule) {
+    const probe = 'import importlib.util,sys; sys.exit(0 if importlib.util.find_spec(sys.argv[1]) else 1)';
+    // `python -c` puts the current folder on sys.path, and startup imports any sitecustomize.py found there. The system
+    // temp folder is shared, so another user could plant one there. A folder made for this probe (mkdtemp, mode 0700) is
+    // empty and private; the interpreter's and user's site-packages still load.
+    const dir = mkdtempSync(join(tmpdir(), 'flow-tower-doctor-'));
+    try {
+      const r = exec(argv[0], ['-c', probe, pyModule], { cwd: dir });
+      ok = r.status === 0 && !r.error;
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  } else {
+    // The runner starts the check from the repo root, so a relative path is resolved there, not from the process cwd.
+    ok = argv[0].includes('/') ? existsSync(resolve(root, argv[0])) : onPath(argv[0]);
+  }
+  return {
+    name,
+    ok,
+    detail: ok ? check : `cannot start "${check}": install it or set commands.check in tools/squad/squad.json`,
+  };
 }
 
 /** The check for a fixed prerequisite binary, probed with its `--version`. Never a repo script. */
@@ -120,7 +163,8 @@ function gitCheck(exec: Exec): Check {
 }
 
 /**
- * Every doctor check, in order. Makes no paid or model call and starts only `git --version` and `git rev-parse`.
+ * Every doctor check, in order. Makes no paid or model call and starts only `git --version`, `git rev-parse` and,
+ * for a `python -m <module>` check, the interpreter's find_spec probe. Doctor never runs code of the repo or its tests.
  * Node is read from the running process, not probed. A failing check says what to do next.
  */
 export function doctor(dir: string, opts: { exec?: Exec; env?: NodeJS.ProcessEnv; keyFile?: string; nodeVersion?: string } = {}): Check[] {
@@ -142,7 +186,10 @@ export function doctor(dir: string, opts: { exec?: Exec; env?: NodeJS.ProcessEnv
     detail: node ? `v${nodeVersion.replace(/^v/, '')}` : `Node ${MIN_NODE.join('.')} or newer is needed (found v${nodeVersion.replace(/^v/, '')})`,
   });
 
-  checks.push(configCheck(root, p.config, dir));
+  const config = configCheck(root, p.config, dir);
+  checks.push(config.check);
+  // Only a config that loaded has a check command to probe.
+  if (config.command !== undefined) checks.push(checkCommand(config.command, root, exec));
 
   const missing = RUNNER_FILES.filter((f) => !entry(join(p.squadDir, f))?.isFile());
   checks.push({

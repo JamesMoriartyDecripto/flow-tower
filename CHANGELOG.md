@@ -5,10 +5,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Security
+
+- Squad runner: a glob plan entry needs the plan sign-off when a control path (`.github/`, `tools/squad/`, `package.json`) starts with its text before the first `*`, so `tools/*/runner-core.mjs`, `**/x` or `*.json` no longer reach a control file without a person (#391).
+
 ### Fixed
 
 - Squad: `steps.sh` makes `REPO` and the task folder absolute before it starts, so a relative path no longer turns a green step RED at commit (#394).
 - Sharing: systemd units (`.service`, `.timer`, `.socket`, `.path`, `.target`), `.conf`, `.ini`, `.cfg` and `Dockerfile`, `Containerfile`, `Makefile`, `Procfile` are shared as text; secret names are still refused first, and the extension is read from the file name, not its folder (#407).
+- Sharing: an agent's required files (in `agents:` without `optional`) enter the loader's referenced files, so `share --files` sends them and the hub opens them instead of answering 403; validation output is unchanged (#406).
+- Squad: `squad doctor` checks that the check command can start (`python3 -m pytest`: the module is found with `find_spec`, never run; any other program is on PATH or, as a relative path, in the repo root) and fails naming it, before a paid step goes red on it (#405).
+- Squad: `squad.json` takes `style: { language, maxFileLines }` (default `English`, `400`); every prompt, task Rules line and review focus uses them, so a project's rules (say, Italian comments and 800 lines) no longer sit next to "English only" and "~400 lines" (#404).
+- Squad: an empty oneshot answer prints its `finish_reason`, tokens (prompt, completion, reasoning) and generation id, and the ledger records its real cost (null when unknown, never 0); an empty answer cut at the output budget is retried once with twice the budget (#412).
+- Squad: `steps.sh` passes each path as `:(literal)` instead of exporting `GIT_LITERAL_PATHSPECS`, so a project's pre-commit hook that globs (`git ls-files -- 'dir/*'`) sees its files again (#403); it runs on macOS bash 3.2 (no `mapfile`) and its private copy gets a random name there (#396).
+- Scene: a live chip that would cover another one moves above it, so nearby working nodes keep readable chips (#398).
+- Live feed: the header counts the scope on screen, so Tower agrees with the `LIVE ERR` chip; the Tower scope says how many events matched no node, with a link to them; repeated errors on one node fold into one row (`×5`); a failed layer stays red in the layer list, with its count, until the feed's Clear (#397).
+- CLI: a mistyped option prints one line (`flow-tower: Unknown option '--x' … (flow-tower --help lists the options)`) and exits 1 instead of Node's stack trace; `emit` takes `--call` to pair a start with its end (#400).
+- Server: inside a library folder only folders, `*.tower.yaml` files and the files towers reference are watched (never `node_modules` or hidden folders), and Vite no longer watches the squad's role logs or `.stress`. A library holding a Python venv used up the system's file watchers, so other servers logged `ENOSPC` for every file (#401).
 
 ## [0.16.1] - 2026-11-02
 

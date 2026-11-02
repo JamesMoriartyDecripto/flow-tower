@@ -23,7 +23,11 @@ const CONTROL_SAMPLES = ['.github/x', 'tools/squad/x', 'package.json', 'package-
 export function controlEntry(entry) {
   // One pass over any trailing run of markers, so "+ (optional)", "++" and "(optional)+" all strip fully.
   const path = String(entry).replace(/(\s*\(optional\)|\+)+$/, '').trim();
-  return CONTROL_FILE.test(path) || CONTROL_SAMPLES.some((c) => matchesEntry(path, c));
+  if (CONTROL_FILE.test(path) || CONTROL_SAMPLES.some((c) => matchesEntry(path, c))) return true;
+  // A glob can reach any name under its literal prefix, so a sample cannot stand for it: "tools/*/runner-core.mjs" matches
+  // no sample, yet it reaches tools/squad/runner-core.mjs. An empty prefix ("**/x", "*.json") reaches everything.
+  const star = path.indexOf('*');
+  return star >= 0 && CONTROL_SAMPLES.some((c) => c.startsWith(path.slice(0, star)));
 }
 const SIGN_OFF = 'sensitive area in the plan: a person must lead this issue (plan sign-off)';
 // A person releases the plan sign-off for one issue by setting SQUAD_APPROVE to that issue's number. The runner works many
@@ -243,7 +247,7 @@ export async function workIssue(issue, deps, limits) {
     await gh.comment(n, planComment(plan));
     // A release is posted on the issue, so anyone can trace which run went past the sign-off.
     if (sensitiveTriage || sensitive) await gh.comment(n, `Plan approved by a person (SQUAD_APPROVE=${n}): sensitive area in the plan.`);
-    const taskDir = await deps.writeTasks(wt.path, n, taskFiles(plan, { issue: n, title: issue.title }));
+    const taskDir = await deps.writeTasks(wt.path, n, taskFiles(plan, { issue: n, title: issue.title, rules: limits.rules }));
     await guard();
     await runSteps(deps, wt.path, taskDir, issue);
 
@@ -282,7 +286,7 @@ export async function workIssue(issue, deps, limits) {
       const keptText = [...kept.flatMap((f) => [f.file, f.what, f.why, f.fix]), ...supportingFiles].join('\n');
       if (SENSITIVE.test(keptText) || filePaths.some(controlEntry)) stop(FIX_SENSITIVE);
       // A finding whose files are all outside the repository leaves nothing to fix in place, so the issue stops.
-      const fix = fixTask(kept, { issue: n, round, supportingFiles: [...new Set(supportingFiles)] });
+      const fix = fixTask(kept, { issue: n, round, supportingFiles: [...new Set(supportingFiles)], rules: limits.rules });
       if (!fix) stop('kept findings name no safe file inside the repository');
       const fixDir = await deps.writeTasks(wt.path, n, [fix]);
       await runSteps(deps, wt.path, fixDir, issue);

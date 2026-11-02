@@ -7,7 +7,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { env, argv, exit } from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { loadConfig } from './config.mjs';
+import { loadConfig, taskRules } from './config.mjs';
 import { envWithoutKey, makeDeps } from './runner-deps.mjs';
 import { makeGh } from './runner-gh.mjs';
 import { workIssue } from './runner-core.mjs';
@@ -106,7 +106,7 @@ async function main(args) {
   repo = resolve(repo);
   const home = env.FLOW_TOWER_HOME || join(homedir(), '.config', 'flow-tower');
   const config = loadConfig(repo);
-  const limits = { usdPerIssue: config.runner.usdPerIssue, minutes: config.runner.minutes, fixRounds: config.runner.fixRounds };
+  const limits = { usdPerIssue: config.runner.usdPerIssue, minutes: config.runner.minutes, fixRounds: config.runner.fixRounds, rules: taskRules(config) };
 
   // gh needs owner/name for -R; the repo's own remote gives it, so the runner never guesses a repository.
   const named = quietExec('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd: repo });

@@ -2,7 +2,7 @@
 // in a single request with no tools. The tool loop timed out three times on the 180 s per-call cap on #164, while a
 // single request answered in 2.5 min. Both the direct call (--oneshot) and the batch (--batch) send this body.
 
-import { DEFAULTS, STYLE_RULES, systemLine } from './config.mjs';
+import { DEFAULTS, styleRules, systemLine } from './config.mjs';
 
 // One long answer, not a loop: the direct call waits up to 10 min for it.
 export const ONESHOT_TIMEOUT_MS = 600_000;
@@ -14,7 +14,7 @@ export const cacheControl = (id) => (id.startsWith('anthropic/') ? { cache_contr
 // The project line and the rules come from the repo's config (config.mjs), so the prompt names the repo it runs on.
 export function oneshotSystem(role, repo, config = DEFAULTS) {
   const rules = config.rules.map((r) => ` ${r}`).join('');
-  return `You are the ${role} of a dev squad working on ${systemLine(config, repo)}. You have no tools: answer from the task, which holds all the code you need, in the format it asks for. ${STYLE_RULES}${rules}`;
+  return `You are the ${role} of a dev squad working on ${systemLine(config, repo)}. You have no tools: answer from the task, which holds all the code you need, in the format it asks for. ${styleRules(config)}${rules}`;
 }
 
 // The settings both requests share (the loop's and the one-request review's), so the two cannot drift apart.
@@ -49,3 +49,20 @@ export async function httpFailure(r) {
   const short = typeof code === 'string' || typeof code === 'number' ? String(code) : '';
   return `HTTP ${r.status}${/^[\w.-]{1,40}$/.test(short) ? ` ${short}` : ''}`;
 }
+
+// One line saying why an answer came back empty. Reasoning tokens are billed, so the counts show where the budget went.
+// The finish reason, the generation id and the token counts come from the provider: each is printed only when it is
+// a plain token or a finite number, so a string with a newline cannot forge a log line.
+const count = (v) => (Number.isFinite(v) ? v : '?');
+export function emptyReport(answer) {
+  const u = answer.usage ?? {};
+  const reason = typeof answer.finishReason === 'string' && /^[\w.-]{1,40}$/.test(answer.finishReason) ? answer.finishReason : 'unknown';
+  const id = typeof answer.generationId === 'string' && /^[\w.-]{1,80}$/.test(answer.generationId) ? answer.generationId : '?';
+  return `empty answer (finish_reason: ${reason}, tokens: prompt ${count(u.prompt_tokens)}, completion ${count(u.completion_tokens)}, reasoning ${count(u.completion_tokens_details?.reasoning_tokens)}, generation ${id})`;
+}
+
+// A reply cut at the token cap with no content: the reasoning used the whole output budget, so a retry with more can answer.
+export const budgetCut = (answer) => (answer.content ?? '') === '' && answer.finishReason === 'length';
+
+// The same request with twice the output budget.
+export const withBudget = (body) => ({ ...body, max_tokens: body.max_tokens * 2 });

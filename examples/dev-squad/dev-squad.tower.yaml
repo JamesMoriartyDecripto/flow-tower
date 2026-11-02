@@ -294,13 +294,14 @@ layers:
         type: process
         label: run.mjs
         description: "One role, one process: picks the model from squad.json, the mode (tool loop for most roles, oneshot or batch for reviewer and security), calls OpenRouter, records the cost."
+        meta: { empty_answer: "An empty oneshot answer prints finish_reason, tokens (prompt, completion, reasoning) and the generation id, and is recorded at its real cost, null when unknown, never 0. An empty answer cut at the output budget is retried once with a doubled budget (#412)." }
         tower: towers/runner-loop.tower.yaml
         files: [towers/runner-loop.tower.yaml, roles/coder.md]
       - id: steps
         runtime: laptop
         type: process
         label: steps.sh
-        description: "Runs the coder on each task file in order; check, Files: check and one commit per green step. Runs from a copy of itself; REPO and the task folder are made absolute first, so relative ones work (#394). Every file of the folder is a coder step: tasks of other roles live in their own folder."
+        description: "Runs the coder on each task file in order; check, Files: check and one commit per green step. Runs from a copy of itself; REPO and the task folder are made absolute first, so relative ones work (#394); it runs on macOS bash 3.2 and passes paths as :(literal), so project hooks keep their globs (#396, #403). Every file of the folder is a coder step: tasks of other roles live in their own folder."
         files: [roles/coder.md]
       - id: guard
         runtime: laptop
@@ -348,12 +349,13 @@ layers:
         type: memory
         label: squad.json
         description: "Per project: check/test commands, write and review folders, the diff base, project rules and the model of each role. The runner runs commands without a shell, so a command with shell syntax is refused when loaded."
+        meta: { style: "style.language and style.maxFileLines (default English, 400) feed every prompt and task rule line, so project rules never contradict them (#404)." }
         files: [squad.example.json]
       - id: doctor
         runtime: laptop
         type: guard
         label: squad doctor
-        description: "Checks git, Node, the config, the runner files and the key, with no paid call."
+        description: "Checks git, Node, the config, the runner files, the key and that the check command can start (its program on PATH; a python -m module is found with find_spec, never imported), with no paid call and no code of the repo run (#405)."
         files: [README.md]
       - id: skill
         runtime: laptop
@@ -445,7 +447,7 @@ layers:
         label: runner.mjs
         description: "The code-driven lead: triage, worktree under the user folder, plan as task files, steps.sh, review and security, lead-judge, at most 2 fix rounds (findings still open after them go into the draft PR; a security one not clearly medium or low stops), verifier, draft PR, gate. A failed check stops the issue. Issue and plan reach models fenced as data; anything posted is scrubbed of keys and tokens."
         files: [README.md]
-        meta: { answers: "An answer is the first json object block that validates (an echoed template or a quoted draft never wins), read from the role report without run.mjs header lines; an unreadable triage answer is asked for once more. The plan sign-off is released for one issue by a person with SQUAD_APPROVE=<issue number>, which posts an approval comment on the issue. (#369)", plan_files: "A plan file entry is one path: a comma or a line break is refused, since the Files line splits there and a second path would skip the control-file sign-off (#391)." }
+        meta: { answers: "An answer is the first json object block that validates (an echoed template or a quoted draft never wins), read from the role report without run.mjs header lines; an unreadable triage answer is asked for once more. The plan sign-off is released for one issue by a person with SQUAD_APPROVE=<issue number>, which posts an approval comment on the issue. (#369)", plan_files: "A plan file entry is one path: a comma or a line break is refused, since the Files line splits there and a second path would skip the control-file sign-off; a glob entry needs the sign-off when a control path starts with its text before the first * (tools/*/x, **/x, *.json) (#391)." }
       - id: judge
         agent: lead-judge
         label: Lead judge

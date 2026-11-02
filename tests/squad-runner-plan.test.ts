@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { parsePlan, taskFiles } from '../tools/squad/runner-plan.mjs';
 // @ts-expect-error plain .mjs module without type declarations
 import { parseFiles } from '../tools/squad/files-check.mjs';
+// @ts-expect-error plain .mjs module without type declarations
+import { fixTask } from '../tools/squad/runner-judge.mjs';
 
 const step = (over: Record<string, unknown> = {}) => ({
   title: 'Add the helper!',
@@ -93,6 +95,16 @@ describe('parsePlan', () => {
   it('still accepts a plain file path', () => {
     expect(parsePlan(asText(plan({}, [step({ files: ['src/a.js'] })]))).ok).toBe(true);
   });
+
+  it.each(['./tools/*/runner-core.mjs', 'tools/./squad/x', 'tools//squad/*'])('refuses a non-normalized path %s', (file) => {
+    const r = parsePlan(asText(plan({}, [step({ files: [file] })])));
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain(file);
+  });
+
+  it('still accepts a folder entry with one trailing slash', () => {
+    expect(parsePlan(asText(plan({}, [step({ files: ['src/'] })]))).ok).toBe(true);
+  });
 });
 
 describe('taskFiles', () => {
@@ -143,5 +155,26 @@ describe('taskFiles', () => {
 
   it('writes a Files line that parseFiles reads back without the +', () => {
     expect(parseFiles(first.text)).toEqual(['src/helper.ts', 'src/new.ts']);
+  });
+
+  it('writes the project rules line when one is given, not the English default', () => {
+    const [t] = taskFiles(p, { issue: 1, title: 'x', rules: 'Rules: Italian only; x' });
+    expect(t.text.split('\n')[2]).toBe('Rules: Italian only; x');
+    expect(t.text).not.toContain('English only');
+  });
+});
+
+describe('fixTask rules line', () => {
+  const kept = [{ file: 'src/a.ts', what: 'bug', fix: 'fix it' }];
+
+  it('keeps the English default when no rules are given', () => {
+    const t = fixTask(kept, { issue: 320, round: 1 });
+    expect(t.text.split('\n')[2]).toMatch(/^Rules: English only; never touch secret files;/);
+  });
+
+  it('writes the project rules line when one is given', () => {
+    const t = fixTask(kept, { issue: 320, round: 1, rules: 'Rules: Italian only; x' });
+    expect(t.text.split('\n')[2]).toBe('Rules: Italian only; x');
+    expect(t.text).not.toContain('English only');
   });
 });
