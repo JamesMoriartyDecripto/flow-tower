@@ -206,7 +206,8 @@ const tools = {
     try { return cap(git('grep', '-n', '-I', '-E', '-e', String(pattern), '--', path === '.' ? '.' : readRel(path).rel), 15_000); }
     catch (e) {
       if (e.status === 1) return 'no match';
-      return `grep failed: ${String(e.stderr ?? '').trim().split('\n')[0].slice(0, 200)}`;
+      // A refused path throws before git runs, so it has no stderr: its message is the reason.
+      return `grep failed: ${String(e.stderr || e.message || '').trim().split('\n')[0].slice(0, 200)}`;
     }
   },
   // A write goes where its real path (symlinks followed) says, so that path is what is checked (guard.mjs).

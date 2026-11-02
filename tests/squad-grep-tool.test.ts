@@ -83,4 +83,13 @@ describe('squad grep tool', () => {
     await run(args, {}, dir);
     expect(toolContent(secondRequest(requests))).toMatch(/^grep failed: /);
   });
+
+  it('gives the reason when a path is refused before git runs', { timeout: 60_000 }, async () => {
+    const { dir, args, requests } = setup([
+      GREP('g1', 'x', '../outside'),
+      FINISH('f1', JSON.stringify({ verdict: 'approve', findings: [] })),
+    ]);
+    await run(args, {}, dir);
+    expect(toolContent(secondRequest(requests))).toMatch(/^grep failed: \S/);
+  });
 });
