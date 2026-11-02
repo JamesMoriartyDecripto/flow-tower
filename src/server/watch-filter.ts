@@ -1,19 +1,20 @@
-import { relative, resolve, sep } from 'node:path';
+import { relative, sep } from 'node:path';
 
 /**
  * Ignore rule for the library watcher. Only folders (a new tower shows up), *.tower.yaml files and the files the
  * towers reference matter; everything else under an entry folder would take one inotify watch per file, and a
  * venv or a data folder can use up the system's limit. Inside an entry folder the segment rule matches
- * loader.ts walk(), which never reads node_modules or hidden folders either. Paths outside the entries are not
- * ours to ignore.
+ * loader.ts walk(), which never reads node_modules or hidden folders either. Paths outside the entry folders belong
+ * to Vite's root (the app's own code, watched for HMR); vite.config.ts skips its heavy parts.
  */
 export function watchIgnored(entries: string[], keep: (path: string) => boolean) {
-  const folders = entries.map((e) => resolve(e));
+  const folders = entries;
   return (path: string, stats?: { isDirectory(): boolean }): boolean => {
     const folder = folders.find((f) => path === f || path.startsWith(f + sep));
     if (!folder) return false;
     if (relative(folder, path).split(sep).some((s) => s === 'node_modules' || s.startsWith('.'))) return true;
     // Chokidar calls the rule once without stats (for a path it may descend into): decide on segments only.
+    // It then calls again with stats, so a plain file is still decided here on the second call.
     if (!stats || stats.isDirectory()) return false;
     return !path.endsWith('.tower.yaml') && !keep(path);
   };
