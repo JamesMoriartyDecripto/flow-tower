@@ -353,7 +353,7 @@ layers:
         runtime: laptop
         type: guard
         label: squad doctor
-        description: "Checks git, Node, the config, the runner files, the key and that the check command can start (its program on PATH; a python -m module answers --version), with no paid call and no project code run (#405)."
+        description: "Checks git, Node, the config, the runner files, the key and that the check command can start (its program on PATH; a python -m module is found with find_spec, never imported), with no paid call and no code of the repo run (#405)."
         files: [README.md]
       - id: skill
         runtime: laptop
