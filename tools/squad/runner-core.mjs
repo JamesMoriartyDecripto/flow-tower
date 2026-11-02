@@ -23,7 +23,11 @@ const CONTROL_SAMPLES = ['.github/x', 'tools/squad/x', 'package.json', 'package-
 export function controlEntry(entry) {
   // One pass over any trailing run of markers, so "+ (optional)", "++" and "(optional)+" all strip fully.
   const path = String(entry).replace(/(\s*\(optional\)|\+)+$/, '').trim();
-  return CONTROL_FILE.test(path) || CONTROL_SAMPLES.some((c) => matchesEntry(path, c));
+  if (CONTROL_FILE.test(path) || CONTROL_SAMPLES.some((c) => matchesEntry(path, c))) return true;
+  // A glob can reach any name under its literal prefix, so a sample cannot stand for it: "tools/*/runner-core.mjs" matches
+  // no sample, yet it reaches tools/squad/runner-core.mjs. An empty prefix ("**/x", "*.json") reaches everything.
+  const star = path.indexOf('*');
+  return star >= 0 && CONTROL_SAMPLES.some((c) => c.startsWith(path.slice(0, star)));
 }
 const SIGN_OFF = 'sensitive area in the plan: a person must lead this issue (plan sign-off)';
 // A person releases the plan sign-off for one issue by setting SQUAD_APPROVE to that issue's number. The runner works many

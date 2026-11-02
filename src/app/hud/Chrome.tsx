@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { EDGE_KINDS, NODE_TYPES } from '../../core/schema';
 import { search as rank } from '../graph';
 import { errorCount } from '../hub';
-import { towerScope, useLive } from '../live';
+import { errorLayers, towerScope, useLive } from '../live';
 import { chooseView, usePrefs } from '../settings';
 import { useDemo } from '../demo';
 import { exportPng, exportSvg, useExport } from '../exporter';
@@ -168,13 +168,17 @@ export function LayerNav() {
   const tower = useTower();
   const { focusedLayer, hoveredLayer, focusLayer, hoverLayer, resetView } = useStore();
   const { states } = useCurrentTowerLive();
+  // Failed events of this tower's scope, kept until Clear: the node states above decay after a few seconds.
+  const liveEvents = useLive((s) => s.events);
+  const desc = useDescendants();
+  const failed = useMemo(() => (tower ? errorLayers(towerScope(liveEvents, tower.id, desc), tower.id) : new Map<string, number>()), [liveEvents, tower, desc]);
   if (!tower) return null;
-  // Per layer: how many nodes are running, and whether any failed recently.
+  // Per layer: how many nodes are running, and whether any failed (recently, or since the feed was cleared).
   const liveOf = (layerId: string) => {
     let run = 0;
     let error = false;
     for (const [key, st] of states) if (key.startsWith(`${layerId}.`)) { if (st === 'run') run++; if (st === 'error') error = true; }
-    return { run, error };
+    return { run, error: error || (failed.get(layerId) ?? 0) > 0, failed: failed.get(layerId) ?? 0 };
   };
   return (
     <nav className="panel layernav">
@@ -239,9 +243,10 @@ function SubTowers() {
 }
 
 /** Node count, or a pulsing live badge when agents on the layer are working (red if one failed). */
-function LiveCount({ run, error, total }: { run: number; error: boolean; total: number }) {
+function LiveCount({ run, error, failed, total }: { run: number; error: boolean; failed: number; total: number }) {
   if (!run && !error) return <span className="count">{total}</span>;
-  return <span className={`count live-badge ${error ? 'error' : 'run'}`} title={`${run} running${error ? ', recent error' : ''}`}>● {run || '!'}</span>;
+  const errorTitle = failed ? `${failed} error${failed === 1 ? '' : 's'} since the feed was cleared` : 'recent error';
+  return <span className={`count live-badge ${error ? 'error' : 'run'}`} title={`${run} running${error ? `, ${errorTitle}` : ''}`}>● {run || failed || '!'}</span>;
 }
 
 /** Bottom-left key: node types (click to hide), edge kinds, and runtimes (click to spotlight). */
