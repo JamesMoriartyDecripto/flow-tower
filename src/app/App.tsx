@@ -20,7 +20,7 @@ import { TowerInfo } from './hud/TowerInfo';
 import { VoiceCaption } from './hud/Voice';
 import { useVoice } from './voice/voice';
 import { converse } from './voice/agent';
-import { STATIC } from './staticData';
+import { CHROME, STATIC } from './staticData';
 import { chooseView, usePrefs, viewFor } from './settings';
 import { useLive, useLiveSync } from './live';
 import { useDemoSimulator } from './demo';
@@ -75,12 +75,12 @@ export function App() {
       <div className="scanlines" />
       <LiveChips />
       <div className="hud" data-sheet={sheet ?? ''}>
-        <TopBar onIssues={() => setShowIssues((v) => !v)} />
-        <LayerNav />
-        <Legend />
-        <Controls />
+        {CHROME && <TopBar onIssues={() => setShowIssues((v) => !v)} />}
+        {CHROME && <LayerNav />}
+        {CHROME && <Legend />}
+        {CHROME && <Controls />}
         <PhoneTabs sheet={sheet} onSheet={setSheet} />
-        {!selected && hints && !feedOpen && (
+        {CHROME && !selected && hints && !feedOpen && (
           <div className="hint">DRAG rotate · SHIFT+DRAG pan · SCROLL zoom · CLICK inspect · DBL-CLICK enter · ARROWS move · M map · ESC back · ? all keys</div>
         )}
         <HubPanel />
@@ -88,7 +88,7 @@ export function App() {
         {!hubOpen && <Inspector />}
         {!hubOpen && <NodeList />}
         {/* Issues takes the same top-right place as the card, so the card waits until Issues is closed. */}
-        {!hubOpen && !(showIssues || broken) && <TowerInfo />}
+        {CHROME && !hubOpen && !(showIssues || broken) && <TowerInfo />}
         <LiveFeed />
         {(showIssues || broken) && <Issues onClose={() => setShowIssues(false)} />}
       </div>
@@ -97,7 +97,7 @@ export function App() {
       <Shortcuts />
       <PdfMenu />
       <Tooltip />
-      <Library />
+      {CHROME && <Library />}
       <VoiceCaption />
       </>}
       {snap === undefined && !tower && (

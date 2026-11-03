@@ -17,7 +17,7 @@ Which browser file owns what: navigation and live state (zustand stores), the th
 | `src/app/hud/ShareControl.tsx` | The Share with hub menu on a local library card, on a satellite only (#266); stopping asks first |
 | `src/app/hub.ts` | Pure model of the Hub panel (#92): Now rows per machine and session with tower › node and the last error, never event text (#192; machine / runtime / project / starter without a session, `AUTO` for CI), `workingCount`, the live `errorCount` and the feed `glyph`, the state thresholds (● under 2 min, ◐ under 15 min, ○ silent), the `HUB n/m` pill and the Machines dots. No React, no fetch, no DOM |
 | `src/app/main.tsx` | Entry point: fonts, styles, prefs, the React root, and the dev-only `window.__flowTower` hook for E2E |
-| `src/app/staticData.ts`, `demo.ts` | Static demo mode (Vite mode `demo`): data from `data/`, in-browser live simulator, DEMO chip |
+| `src/app/staticData.ts`, `demo.ts`, `embed.ts` | Static demo mode (Vite mode `demo`): data from `data/`, in-browser live simulator, DEMO chip; `?embed=1` turns the simulator off and `embed.ts` exposes `window.flowTowerEmbed` (`apply`, `open`) for a host app, `&chrome=0` hides the top bar and library (#444) |
 | `src/app/theme.ts`, `themes.ts` | Node / edge styles and bloom colors; theme switching (shared colors mutated in place, scene remounted) |
 | `src/app/graph.ts` | Neighbours, related nodes, search, breadcrumb paths, deep links (`?tower=&layer=&node=`) |
 | `src/app/voice/commands.ts` | Voice command parser, Italian and English: matches the transcript against project, layer, node and agent names, tolerates misheard words, returns a numbered choice when ambiguous. Pure, tested in `tests/voice-commands.test.ts` |
