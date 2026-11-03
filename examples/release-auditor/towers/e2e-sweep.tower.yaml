@@ -116,11 +116,11 @@ layers:
     nodes:
       - id: panels
         type: process
-        label: Panels at 7 sizes
+        label: Panels at 8 sizes
         runtime: chrome
-        description: 720 (half a laptop screen) to 2560 px, interface size 1x to 1.6x, inspector and feed open; no overlap, nothing off screen.
+        description: A 390 px phone (one panel at a time, as a bottom sheet), then 720 (half a laptop screen) to 2560 px, interface size 1x to 1.6x, inspector and feed open; no overlap, nothing off screen.
         files: [e2e/layout.spec.ts, src/app/scene/hudFrame.ts, src/app/styles.css]
-        fanout: 7
+        fanout: 8
         limits: { concurrency: 3, description: "Playwright workers: `workers: CI ? 2 : 3` in playwright.config.ts; 3 is the local maximum." }
       - id: axe
         type: tool

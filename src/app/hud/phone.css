@@ -1,0 +1,39 @@
+/* Phone layout (#436a): one HUD panel at a time, as a bottom sheet above the controls bar. Desktop never sees these rules. */
+.phone-tabs { display: none; }
+
+@media (max-width: 600px) {
+  /* Selectors start with .hud so they outrank the single-class rules in styles.css. */
+  .hud .phone-tabs { display: flex; left: 14px; right: 14px; bottom: 74px; gap: 4px; padding: 4px; }
+  .phone-tabs button { flex: 1; padding: 8px 0; font: 600 11px var(--display); letter-spacing: .14em; text-transform: uppercase; }
+  /* Same orange fill as the open segment in the library header, so the open tab reads as pressed. */
+  .phone-tabs button.on { background: var(--orange); color: var(--bg); }
+
+  /* The bottom bar scrolls sideways inside the window instead of running off the screen. */
+  .hud .controls { left: 14px; right: 14px; overflow-x: auto; }
+  .controls > * { flex: none; }
+  /* The hint talks about mouse and keys: there are neither on a phone. */
+  .hud .hint { display: none; }
+
+  /* The sheet panels are hidden until the tab bar picks one. */
+  .hud .layernav, .hud .legend, .hud .towerinfo, .hud .nodelist { display: none; }
+  .hud[data-sheet="layers"] .layernav,
+  .hud[data-sheet="legend"] .legend,
+  .hud[data-sheet="info"] .towerinfo,
+  .hud[data-sheet="info"] .nodelist { display: flex; }
+
+  /* Sheet geometry: full width, above the controls bar. */
+  .hud .layernav, .hud .legend, .hud .towerinfo, .hud .nodelist,
+  .hud .inspector, .hud .livefeed, .hud .hub, .hud .issues {
+    left: 14px; right: 14px; width: auto; top: auto; bottom: 124px; max-height: calc(55 * var(--vh));
+  }
+  /* styles.css pins .inspector and .issues to bottom / max-height from a longer selector (.hud:has(.livefeed) …,
+     specificity 0,3,0), so these two need !important to win while the live feed is open. */
+  .hud:has(.livefeed) .inspector, .hud:has(.livefeed) .issues { bottom: 124px !important; max-height: calc(55 * var(--vh)) !important; }
+  /* The shifted slots (.issues.shifted, .livefeed.shifted, .livefeed.beside-list) would keep the desktop right edge. */
+  .hud .issues.shifted, .hud .livefeed.shifted, .hud .livefeed.beside-list { right: 14px !important; }
+
+  /* A panel that takes the sheet's place hides the sheets: an open Inspector, live feed, Hub or Issues wins. */
+  .hud:has(.inspector, .livefeed, .hub, .issues) :is(.layernav, .legend, .towerinfo, .nodelist) { display: none; }
+
+  .lib-cardtags { min-width: 0; overflow-wrap: anywhere; }
+}

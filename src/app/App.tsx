@@ -2,6 +2,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { useWorkspaceSync } from './api';
 import { Controls, Issues, LayerNav, Legend, TopBar } from './hud/Chrome';
+import { PhoneTabs, type PhoneSheet } from './hud/PhoneTabs';
 import { FileViewer } from './hud/FileViewer';
 import { HubPanel, useHub } from './hud/Hub';
 import { Inspector } from './hud/Inspector';
@@ -50,6 +51,7 @@ export function App() {
   const snap = snapTowerOf(location.search);
   useSnapshotPost(snap);
   const [showIssues, setShowIssues] = useState(false);
+  const [sheet, setSheet] = useState<PhoneSheet>();
   const broken = tower && tower.layers.length === 0;
 
   return (
@@ -72,11 +74,12 @@ export function App() {
       {snap === undefined && <>
       <div className="scanlines" />
       <LiveChips />
-      <div className="hud">
+      <div className="hud" data-sheet={sheet ?? ''}>
         <TopBar onIssues={() => setShowIssues((v) => !v)} />
         <LayerNav />
         <Legend />
         <Controls />
+        <PhoneTabs sheet={sheet} onSheet={setSheet} />
         {!selected && hints && !feedOpen && (
           <div className="hint">DRAG rotate · SHIFT+DRAG pan · SCROLL zoom · CLICK inspect · DBL-CLICK enter · ARROWS move · M map · ESC back · ? all keys</div>
         )}
