@@ -76,11 +76,11 @@ export function App() {
       <LiveChips />
       <div className="hud" data-sheet={sheet ?? ''}>
         {CHROME && <TopBar onIssues={() => setShowIssues((v) => !v)} />}
-        <LayerNav />
-        <Legend />
-        <Controls />
+        {CHROME && <LayerNav />}
+        {CHROME && <Legend />}
+        {CHROME && <Controls />}
         <PhoneTabs sheet={sheet} onSheet={setSheet} />
-        {!selected && hints && !feedOpen && (
+        {CHROME && !selected && hints && !feedOpen && (
           <div className="hint">DRAG rotate · SHIFT+DRAG pan · SCROLL zoom · CLICK inspect · DBL-CLICK enter · ARROWS move · M map · ESC back · ? all keys</div>
         )}
         <HubPanel />
@@ -88,7 +88,7 @@ export function App() {
         {!hubOpen && <Inspector />}
         {!hubOpen && <NodeList />}
         {/* Issues takes the same top-right place as the card, so the card waits until Issues is closed. */}
-        {!hubOpen && !(showIssues || broken) && <TowerInfo />}
+        {CHROME && !hubOpen && !(showIssues || broken) && <TowerInfo />}
         <LiveFeed />
         {(showIssues || broken) && <Issues onClose={() => setShowIssues(false)} />}
       </div>

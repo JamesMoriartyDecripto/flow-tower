@@ -15,7 +15,7 @@ export function embedApi() {
     open(towerId: string): void {
       const ws = useStore.getState().workspace;
       if (!ws) return;
-      if (ws.towers[towerId] || ws.projects.includes(towerId)) useStore.getState().openProject(towerId);
+      if (Object.hasOwn(ws.towers, towerId) || ws.projects.includes(towerId)) useStore.getState().openProject(towerId);
     },
   };
 }

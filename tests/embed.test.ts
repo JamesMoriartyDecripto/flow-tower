@@ -97,4 +97,15 @@ describe('window.flowTowerEmbed (#444)', () => {
 
     expect(useStore.getState().stack).toBe(stack);
   });
+
+  it('open ignores inherited object keys', async () => {
+    const { workspace } = await loadLibrary(['examples/dev-squad']);
+    useStore.setState({ workspace });
+    const { stack } = useStore.getState();
+
+    embedApi().open('constructor');
+    embedApi().open('__proto__');
+
+    expect(useStore.getState().stack).toBe(stack);
+  });
 });
