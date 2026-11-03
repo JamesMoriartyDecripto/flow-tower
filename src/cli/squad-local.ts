@@ -95,15 +95,15 @@ function safeReason(e: unknown): string {
  * A non-regular file (directory, FIFO) is refused before the loader reads it, so no read can block or throw a stack.
  * The loaded check command comes back with the Check, so doctor never loads the config a second time.
  */
-function configCheck(root: string, file: string, dir: string): { check: Check; command?: string } {
+function configCheck(root: string, file: string, dir: string): { check: Check; command?: string; skills?: Record<string, string[]> } {
   const name = 'squad config';
   const st = entry(file);
   if (!st) return { check: { name, ok: false, detail: `missing: run flow-tower squad init ${dir}` } };
   if (!st.isFile()) return { check: { name, ok: false, detail: `${file}: not a regular file` } };
   try {
     accessSync(file, constants.R_OK);
-    const command: string = loadConfig(root).commands.check;
-    return { check: { name, ok: true, detail: file }, command };
+    const cfg = loadConfig(root);
+    return { check: { name, ok: true, detail: file }, command: cfg.commands.check, skills: cfg.skills };
   } catch (e) {
     return { check: { name, ok: false, detail: `${file}: ${safeReason(e)}` } };
   }
@@ -155,6 +155,21 @@ function checkCommand(check: string, root: string, exec: Exec): Check {
   };
 }
 
+/**
+ * Whether each configured skill has its Markdown file. Only the lstat is read: a symlink or a folder with the name is
+ * missing, and the file is never opened, so doctor reads no skill text.
+ */
+function skillsCheck(squadDir: string, names: string[]): Check {
+  const missing = names.filter((n) => !entry(join(squadDir, 'skills', `${n}.md`))?.isFile());
+  return {
+    name: 'skills',
+    ok: missing.length === 0,
+    detail: missing.length === 0
+      ? `${names.length} present`
+      : `missing: ${missing.join(', ')}: add tools/squad/skills/<name>.md or remove it from squad.json skills`,
+  };
+}
+
 /** The check for a fixed prerequisite binary, probed with its `--version`. Never a repo script. */
 function gitCheck(exec: Exec): Check {
   const r = exec('git', ['--version']);
@@ -190,6 +205,9 @@ export function doctor(dir: string, opts: { exec?: Exec; env?: NodeJS.ProcessEnv
   checks.push(config.check);
   // Only a config that loaded has a check command to probe.
   if (config.command !== undefined) checks.push(checkCommand(config.command, root, exec));
+  // Skill names are listed per role, and one skill can be named by several roles, so they are de-duplicated first.
+  const skills = [...new Set(Object.values(config.skills ?? {}).flat())];
+  if (skills.length > 0) checks.push(skillsCheck(p.squadDir, skills));
 
   const missing = RUNNER_FILES.filter((f) => !entry(join(p.squadDir, f))?.isFile());
   checks.push({
