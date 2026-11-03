@@ -12,9 +12,10 @@ export const cacheControl = (id) => (id.startsWith('anthropic/') ? { cache_contr
 
 // The loop's system prompt minus the tool sentences: a model told it has tools would try to call them.
 // The project line and the rules come from the repo's config (config.mjs), so the prompt names the repo it runs on.
-export function oneshotSystem(role, repo, config = DEFAULTS) {
+// The skills text (skills.mjs) goes last, so the prompt before it stays the same when a role has no skills.
+export function oneshotSystem(role, repo, config = DEFAULTS, skills = '') {
   const rules = config.rules.map((r) => ` ${r}`).join('');
-  return `You are the ${role} of a dev squad working on ${systemLine(config, repo)}. You have no tools: answer from the task, which holds all the code you need, in the format it asks for. ${styleRules(config)}${rules}`;
+  return `You are the ${role} of a dev squad working on ${systemLine(config, repo)}. You have no tools: answer from the task, which holds all the code you need, in the format it asks for. ${styleRules(config)}${rules}${skills}`;
 }
 
 // The settings both requests share (the loop's and the one-request review's), so the two cannot drift apart.

@@ -4,6 +4,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+// @ts-expect-error plain .mjs without declarations
+import { oneshotSystem } from '../tools/squad/oneshot.mjs';
 
 const RUN = 'tools/squad/run.mjs';
 const ANSWER = '{"verdict":"approve","findings":[]}';
@@ -257,5 +259,15 @@ describe('squad --oneshot and --batch', () => {
     const chats = seen.filter((s) => s.url.endsWith('/chat/completions'));
     expect(chats).toHaveLength(1);
     expect(chats[0].body).not.toHaveProperty('tools');
+  });
+});
+
+describe('oneshotSystem skills', () => {
+  it('an empty skills string gives the same prompt as no argument, and a skills string is appended last', () => {
+    const plain = oneshotSystem('reviewer', '/repo');
+    expect(oneshotSystem('reviewer', '/repo', undefined, '')).toBe(plain);
+    const withSkills = oneshotSystem('reviewer', '/repo', undefined, '\n\nProject skills (apply them where they fit the task):');
+    expect(withSkills.startsWith(plain)).toBe(true);
+    expect(withSkills.endsWith('Project skills (apply them where they fit the task):')).toBe(true);
   });
 });
