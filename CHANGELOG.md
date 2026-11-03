@@ -16,6 +16,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Fixed
 
+- e2e: the tower-card test on a phone opens the Info tab, as the phone layout does (#441).
 - Squad: the step-scope tests no longer inherit `SQUAD_ADOPT`, so a continued step's check is not RED for that alone (#438).
 
 ### Changed
