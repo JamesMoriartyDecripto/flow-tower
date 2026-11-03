@@ -193,7 +193,8 @@ instead of the in-browser simulator. Open it as `index.html?embed=1`:
 
 - the simulator is off and the `DEMO · SIM` chip is hidden;
 - `window.flowTowerEmbed.apply(events)` takes an array of events in the shape `/api/events` serves and returns how
-  many it applied. Each one is validated; `id` and `targets` are recomputed against the embedded
+  many it applied (at most the last 300 of a batch, as many as the feed keeps; a `ts` in the future is clamped to
+  now). Each one is validated; `id` and `targets` are recomputed against the embedded
   `data/workspace.json`, so the host does not need to know how matching works. Invalid events are dropped, and
   the call returns 0 until the workspace has loaded: a polling host simply sends the batch again;
 - `window.flowTowerEmbed.open(towerId)` shows a tower by its id in the workspace (its file path, for example
