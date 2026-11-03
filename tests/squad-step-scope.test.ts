@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+// Keep the caller's SQUAD_ADOPT (set by a continued step run) out of the spawned CLI; the temp repos lack those paths.
+const { SQUAD_ADOPT: _inheritedAdopt, ...BASE_ENV } = process.env;
+
 // The module has no declaration file (the task names only the .mjs), so it is loaded through a computed specifier:
 // TypeScript does not resolve that, and the types it needs are declared here.
 const SCRIPT = fileURLToPath(new URL('../tools/squad/step-scope.mjs', import.meta.url));
@@ -21,7 +24,7 @@ interface StepScope {
 const { adopted, badEntries, keptOut, stepDone, toStage, touchedForeign, unmatchedAdopt, writeDirsFor } = (await import(/* @vite-ignore */ SCRIPT)) as StepScope;
 
 function cli(...args: string[]): string {
-  const r = spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8', env: BASE_ENV });
   if (r.status !== 0) throw new Error(`exit ${r.status}: ${r.stderr}`);
   return r.stdout.trim();
 }
@@ -213,7 +216,7 @@ describe('step-scope CLI in a temp repo', () => {
       writeFileSync(join(dir, 'NOTES.md'), 'maintainer edit\n');
       const out = spawnSync(process.execPath, [SCRIPT, 'snapshot', dir], {
         encoding: 'utf8',
-        env: { ...process.env, SQUAD_ADOPT: 'src/a.ts' },
+        env: { ...BASE_ENV, SQUAD_ADOPT: 'src/a.ts' },
         timeout: 20_000,
       });
       expect(out.status).toBe(0);
@@ -289,7 +292,7 @@ describe('adopted and keptOut', () => {
 
       const out = spawnSync(process.execPath, [SCRIPT, 'snapshot', dir], {
         encoding: 'utf8',
-        env: { ...process.env, SQUAD_ADOPT: 'typo.ts' },
+        env: { ...BASE_ENV, SQUAD_ADOPT: 'typo.ts' },
         timeout: 20_000,
       });
       expect(out.status).not.toBe(0);
