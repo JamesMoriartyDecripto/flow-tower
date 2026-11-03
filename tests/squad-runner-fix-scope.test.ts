@@ -306,6 +306,7 @@ describe('control files named through Files entry markers and directories', () =
     ['**/runner-core.mjs'],
     ['*.json'],
     ['.git*/workflows/ci.yml'],
+    ['tools/helper.mjs'],
   ])('stops the plan when a step file is %s', async (entry) => {
     const plan = { ...PLAN, steps: [{ title: 'Edit', items: ['change it'], files: [entry] }] };
     const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(plan)] });
@@ -323,6 +324,13 @@ describe('control files named through Files entry markers and directories', () =
 
   it('reaches pr when the plan names a glob under src that is not a control file', async () => {
     const plan = { ...PLAN, steps: [{ title: 'Add app', items: ['write it'], files: ['src/*/app.js'] }] };
+    const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(plan)], 'lead-judge': [KEEP()] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(calls).toContain('draftPr');
+  });
+
+  it('reaches pr when sibling folders of a control folder are named', async () => {
+    const plan = { ...PLAN, steps: [{ title: 'Add helpers', items: ['write them'], files: ['src/helper.mjs', 'tools2/helper.mjs'] }] };
     const { deps, calls } = fakeDeps({ triage: [triageFull], architect: [fence(plan)], 'lead-judge': [KEEP()] });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
     expect(calls).toContain('draftPr');

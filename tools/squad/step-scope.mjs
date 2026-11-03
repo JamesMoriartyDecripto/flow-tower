@@ -21,7 +21,7 @@ const USAGE = [
 
 // The directory a Files entry lives in, which the step may write. A glob has no fixed directory, so the part before
 // its first wildcard decides it. An entry with no "/" there is taken whole: it names a root file or a root folder.
-function dirOf(entry) {
+export function dirOf(entry) {
   const star = entry.indexOf('*');
   const head = star < 0 ? entry : entry.slice(0, star);
   const slash = head.lastIndexOf('/');

@@ -8,6 +8,7 @@ import { env } from 'node:process';
 import { firstAccepted, fixPaths, fixTask, judgePrompt, numberFindings, parseJudgement, stripFence } from './runner-judge.mjs';
 import { parsePlan, taskFiles } from './runner-plan.mjs';
 import { matchesEntry } from './files-check.mjs';
+import { dirOf } from './step-scope.mjs';
 
 // An area named here needs a human to sign off the plan before any code is written. It is tested on the issue text and
 // the plan's words, so naming a word in prose is enough. The control files are a separate rule (CONTROL_FILE): they are
@@ -24,6 +25,9 @@ export function controlEntry(entry) {
   // One pass over any trailing run of markers, so "+ (optional)", "++" and "(optional)+" all strip fully.
   const path = String(entry).replace(/(\s*\(optional\)|\+)+$/, '').trim();
   if (CONTROL_FILE.test(path) || CONTROL_SAMPLES.some((c) => matchesEntry(path, c))) return true;
+  // The coder may write the whole folder of a literal entry (writeDirsFor), so the sign-off must look at that folder too:
+  // "tools/helper.mjs" lets the coder write all of tools/, which holds tools/squad/x.
+  if (!path.includes('*') && CONTROL_SAMPLES.some((c) => c.startsWith(dirOf(path) + '/'))) return true;
   // A glob can reach any name under its literal prefix, so a sample cannot stand for it: "tools/*/runner-core.mjs" matches
   // no sample, yet it reaches tools/squad/runner-core.mjs. An empty prefix ("**/x", "*.json") reaches everything.
   const star = path.indexOf('*');
