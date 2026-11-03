@@ -201,6 +201,9 @@ instead of the in-browser simulator. Open it as `index.html?embed=1`:
   `starters/pr-reviewer/pr-reviewer.tower.yaml`); an unknown id is ignored;
 - `&chrome=0` also hides the top bar and the library: only the tower, the live feed and the node panel remain.
 
+The host must pass only events the hub has already accepted and assigned to the tower on screen: the embed
+recomputes targets but applies no sender filter of its own.
+
 The page is read-only (no voice, hub admin, sharing or POST) and fetches only relative `data/...` files, so the host
 can serve them itself and keep its tokens out of JavaScript. Known limit: glyphs outside the bundled latin subset
 are fetched from a CDN at runtime (#208); a host that refuses every other request shows them as blanks. Latin-script
