@@ -20,7 +20,7 @@ import { TowerInfo } from './hud/TowerInfo';
 import { VoiceCaption } from './hud/Voice';
 import { useVoice } from './voice/voice';
 import { converse } from './voice/agent';
-import { STATIC } from './staticData';
+import { CHROME, STATIC } from './staticData';
 import { chooseView, usePrefs, viewFor } from './settings';
 import { useLive, useLiveSync } from './live';
 import { useDemoSimulator } from './demo';
@@ -75,7 +75,7 @@ export function App() {
       <div className="scanlines" />
       <LiveChips />
       <div className="hud" data-sheet={sheet ?? ''}>
-        <TopBar onIssues={() => setShowIssues((v) => !v)} />
+        {CHROME && <TopBar onIssues={() => setShowIssues((v) => !v)} />}
         <LayerNav />
         <Legend />
         <Controls />
@@ -97,7 +97,7 @@ export function App() {
       <Shortcuts />
       <PdfMenu />
       <Tooltip />
-      <Library />
+      {CHROME && <Library />}
       <VoiceCaption />
       </>}
       {snap === undefined && !tower && (

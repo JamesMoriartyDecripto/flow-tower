@@ -60,3 +60,41 @@ describe('ingest (#444)', () => {
     expect(ingest([{ kind: 'tool.start' }])).toBe(0);
   });
 });
+
+describe('window.flowTowerEmbed (#444)', () => {
+  let embedApi: typeof import('../src/app/embed').embedApi;
+  let useStore: typeof import('../src/app/store').useStore;
+  let useLive: typeof import('../src/app/live').useLive;
+
+  beforeAll(async () => {
+    vi.stubGlobal('location', { search: '' });
+    ({ useStore } = await import('../src/app/store'));
+    ({ useLive } = await import('../src/app/live'));
+    ({ embedApi } = await import('../src/app/embed'));
+  });
+
+  it('apply ignores a value that is not an array', () => {
+    expect(embedApi().apply('x' as never)).toBe(0);
+  });
+
+  it('apply adds a valid event to the live feed', async () => {
+    const { workspace } = await loadLibrary(['examples/dev-squad']);
+    useStore.setState({ workspace });
+    const node = Object.values(workspace.towers)[0].layers[0].nodes[0].key;
+    const before = useLive.getState().events.length;
+
+    expect(embedApi().apply([{ kind: 'tool.start', node }])).toBe(1);
+
+    expect(useLive.getState().events.slice(before)).toHaveLength(1);
+  });
+
+  it('open ignores an unknown id', async () => {
+    const { workspace } = await loadLibrary(['examples/dev-squad']);
+    useStore.setState({ workspace });
+    const { stack } = useStore.getState();
+
+    embedApi().open('missing');
+
+    expect(useStore.getState().stack).toBe(stack);
+  });
+});
