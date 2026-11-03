@@ -179,6 +179,10 @@ describe('controlEntry folder of a literal entry', () => {
     expect(controlEntry('tools/helper.mjs')).toBe(true);
   });
 
+  it.each(['Tools/helper.mjs', 'Tools/squad'])('controlEntry is true for %s on a case-insensitive file system', (entry) => {
+    expect(controlEntry(entry)).toBe(true);
+  });
+
   it.each(['src/helper.mjs', 'tools2/x.mjs', 'helper.mjs'])('controlEntry is false for %s', (entry) => {
     expect(controlEntry(entry)).toBe(false);
   });

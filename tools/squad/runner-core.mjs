@@ -27,7 +27,8 @@ export function controlEntry(entry) {
   if (CONTROL_FILE.test(path) || CONTROL_SAMPLES.some((c) => matchesEntry(path, c))) return true;
   // The coder may write the whole folder of a literal entry (writeDirsFor), so the sign-off must look at that folder too:
   // "tools/helper.mjs" lets the coder write all of tools/, which holds tools/squad/x.
-  if (!path.includes('*') && CONTROL_SAMPLES.some((c) => c.startsWith(dirOf(path) + '/'))) return true;
+  // Lower-cased because macOS file systems ignore case, so "Tools/helper.mjs" reaches the same folder.
+  if (!path.includes('*') && CONTROL_SAMPLES.some((c) => c.startsWith(dirOf(path).toLowerCase() + '/'))) return true;
   // A glob can reach any name under its literal prefix, so a sample cannot stand for it: "tools/*/runner-core.mjs" matches
   // no sample, yet it reaches tools/squad/runner-core.mjs. An empty prefix ("**/x", "*.json") reaches everything.
   const star = path.indexOf('*');
