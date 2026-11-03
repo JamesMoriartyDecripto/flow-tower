@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeDirs } from './args.mjs';
 import { ROLES, isRole } from './roles.mjs';
+import { SKILL_NAME } from './skills.mjs';
 
 // The three model defaults come from the 2026-10-27 benchmark (#322): on the squad's own review cases, packed in one
 // request, the reviewer scored the same on glm-5.3-flash as on glm-5.3-flashx at a quarter of the price. The architect
@@ -34,6 +35,8 @@ export const DEFAULTS = {
   runner: { usdPerIssue: 3, minutes: 90, fixRounds: 2, pollMinutes: 10 },
   // The language and the file size every prompt states (#404), so a project can change them in squad.json.
   style: { language: 'English', maxFileLines: 400 },
+  // The project skills each role gets (#432): role -> skill names. A task's own Skills: line adds to them.
+  skills: {},
 };
 
 // The two tools that exist only in Flow Tower's own CLI; a project opts in by listing them under extras.
@@ -88,6 +91,11 @@ export function loadConfig(repo) {
     if (!ok) fail(`runner.${k}`, k === 'fixRounds' ? 'must be a number, 0 or more' : 'must be a number above 0');
   }
   for (const k of ['project', 'base', 'tower', 'source', 'cli']) if (typeof cfg[k] !== 'string') fail(k, 'must be a string');
+  // A skill is a name, checked here; that its file exists is checked where it is read (skills.mjs), not here.
+  if (!isObj(cfg.skills)) fail('skills', 'must be an object');
+  for (const [role, names] of Object.entries(cfg.skills)) {
+    if (!isStrings(names) || names.some((n) => !SKILL_NAME.test(n))) fail(`skills.${role}`, 'must be an array of skill names');
+  }
   for (const [name, cmd] of Object.entries(cfg.commands)) if (typeof cmd !== 'string') fail(`commands.${name}`, 'must be a string');
   // commandArgv runs a command without a shell, so shell syntax would reach the tool as literal arguments.
   for (const [name, cmd] of Object.entries(cfg.commands)) {
