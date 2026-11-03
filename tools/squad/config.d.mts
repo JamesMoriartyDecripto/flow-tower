@@ -14,6 +14,7 @@ export interface SquadConfig {
   cli: string;
   runner: { usdPerIssue: number; minutes: number; fixRounds: number; pollMinutes: number };
   style: { language: string; maxFileLines: number };
+  skills: Record<string, string[]>;
 }
 
 export const DEFAULTS: SquadConfig;

@@ -7,7 +7,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Added
 
+- Squad: project skills. `tools/squad/skills/<name>.md` holds know-how only some jobs need; `squad.json` `skills` gives a role its skills, a task's `Skills:` line adds them for one run; names only, size-capped, checked by `squad doctor`; with none set, prompts are unchanged. This repo ships `bash-3-2`, `untyped-mjs` and `file-size` (#432).
 - Phone layout: at phone width the tower view shows one panel at a time (Layers, Info, Legend tabs) as a bottom sheet, the bottom bar scrolls sideways, and the mouse and keyboard hint is hidden; the library's hub badge no longer wraps word by word (#436).
+
+### Fixed
+
+- Squad: the step-scope tests no longer inherit `SQUAD_ADOPT`, so a continued step's check is not RED for that alone (#438).
 
 ### Changed
 

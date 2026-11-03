@@ -370,3 +370,31 @@ describe('squad run is not a launch (#334)', () => {
     expect(text).toContain('nothing was started');
   });
 });
+
+describe('squad doctor skills check (#432)', () => {
+  it('adds no skills check when no skill is configured', () => {
+    const root = installedProject();
+    const checks = doctor(root, healthyOpts(root));
+    expect(checks.some((c) => c.name === 'skills')).toBe(false);
+  });
+
+  it('passes when every configured skill file exists, and fails naming the missing one', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'npm run check' }, skills: { coder: ['present', 'absent'] } }));
+    mkdirSync(join(root, 'tools', 'squad', 'skills'));
+    writeFileSync(join(root, 'tools', 'squad', 'skills', 'present.md'), '');
+    const skills = doctor(root, healthyOpts(root)).find((c) => c.name === 'skills');
+    expect(skills?.ok).toBe(false);
+    expect(skills?.detail).toContain('absent');
+    expect(skills?.detail).not.toContain('present,');
+    expect(skills?.detail).toContain('tools/squad/skills/<name>.md');
+  });
+
+  it('passes the skills check when each configured skill file is present', () => {
+    const root = installedProject(JSON.stringify({ commands: { check: 'npm run check' }, skills: { coder: ['present'], lead: ['present'] } }));
+    mkdirSync(join(root, 'tools', 'squad', 'skills'));
+    writeFileSync(join(root, 'tools', 'squad', 'skills', 'present.md'), '');
+    const skills = doctor(root, healthyOpts(root)).find((c) => c.name === 'skills');
+    expect(skills?.ok).toBe(true);
+    expect(skills?.detail).toBe('1 present');
+  });
+});

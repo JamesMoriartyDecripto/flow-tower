@@ -16,6 +16,7 @@ import { appendRun, issueOf, ledgerPath, projectOf } from './ledger.mjs';
 import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
 import { realRelIfAllowed, realTarget } from './guard.mjs';
 import { parseVerdict } from './gate.mjs';
+import { skillsFor } from './skills.mjs';
 import { pickMode } from './mode.mjs';
 import { pruneLogs } from './log-prune.mjs';
 import { ONESHOT_TIMEOUT_MS, budgetCut, emptyReport, httpFailure, loopBody, oneshotBody, oneshotSystem, withBudget } from './oneshot.mjs';
@@ -85,6 +86,9 @@ if (!dirs) {
 // The canonical node is the registry's, unless --node names one explicitly.
 const node = arg('node') ?? ROLES[role].node;
 const task = readFileSync(taskFile, 'utf8');
+// Read before any request: a missing or refused skill fails the run here, naming it, with no paid call.
+let skills;
+try { skills = skillsFor(REPO, config, role, task); } catch (e) { console.error(e.message); exit(1); }
 // Checked before any key or request: NaN, 0, a fraction, an empty value or a trailing --steps (arg gives undefined) is refused.
 const maxSteps = argv.includes('--steps') ? parseSteps(arg('steps') ?? '') : STEP_DEFAULT;
 if (maxSteps === null) { console.error(`--steps must be a whole number of at least 1, got "${arg('steps') ?? ''}"`); exit(1); }
@@ -270,7 +274,7 @@ const TOOLS = toolSchema({ role, dirs, runNames: Object.keys(RUNS), base });
 const finishRule = roleFinishRule(role);
 const hasVerdict = (text) => { try { parseVerdict(text); return true; } catch { return false; } };
 const messages = [
-  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${styleRules(config)}${config.rules.map((r) => ` ${r}`).join('')} ${roleRule(role)} ${finishRule}` },
+  { role: 'system', content: `You are the ${role} of a dev squad working on ${systemLine(config, REPO)}. You work only through the tools. ${styleRules(config)}${config.rules.map((r) => ` ${r}`).join('')} ${roleRule(role)} ${finishRule}${skills}` },
   { role: 'user', content: task },
 ];
 let cost = 0;
@@ -327,7 +331,7 @@ agentStart(`${role} on ${model}`);
 note(`# ${role} ${model}\n${task}\n`);
 // One request (or one batch) with the task as the whole input: no tool loop, one step, then exit.
 if (mode !== 'loop') {
-  const body = oneshotBody({ model, system: oneshotSystem(role, REPO, config), task, session });
+  const body = oneshotBody({ model, system: oneshotSystem(role, REPO, config, skills), task, session });
   let answer;
   if (mode === 'oneshot') answer = await oneshotCall(body);
   else {

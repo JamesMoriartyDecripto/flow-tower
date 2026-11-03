@@ -156,3 +156,10 @@ describe('squad style setting (#404)', () => {
     expect(() => loadConfig(repoWith(JSON.stringify({ style: { language: '' } })))).toThrow(/"style.language"/);
   });
 });
+
+describe('squad skills setting (#432)', () => {
+  it('refuses a skills value whose role is not an array of skill names, naming skills.coder', () => {
+    expect(() => loadConfig(repoWith(JSON.stringify({ skills: { coder: 'tests' } })))).toThrow(/"skills.coder"/);
+    expect(() => loadConfig(repoWith(JSON.stringify({ skills: { coder: ['../x'] } })))).toThrow(/"skills.coder"/);
+  });
+});
