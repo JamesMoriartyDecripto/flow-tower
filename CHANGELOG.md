@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Security
+
+- Squad runner: a literal plan entry whose folder holds a control path needs the plan sign-off, since the coder may write that whole folder (`tools/helper.mjs` granted `tools/`, so `tools/squad/`) (#435).
+
 ### Added
 
 - Squad: project skills. `tools/squad/skills/<name>.md` holds know-how only some jobs need; `squad.json` `skills` gives a role its skills, a task's `Skills:` line adds them for one run; names only, size-capped, checked by `squad doctor`; with none set, prompts are unchanged. This repo ships `bash-3-2`, `untyped-mjs` and `file-size` (#432).
