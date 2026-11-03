@@ -174,6 +174,20 @@ describe('controlEntry markers', () => {
   });
 });
 
+describe('controlEntry folder of a literal entry', () => {
+  it('controlEntry is true for a file whose folder holds a control path', () => {
+    expect(controlEntry('tools/helper.mjs')).toBe(true);
+  });
+
+  it.each(['Tools/helper.mjs', 'Tools/squad'])('controlEntry is true for %s on a case-insensitive file system', (entry) => {
+    expect(controlEntry(entry)).toBe(true);
+  });
+
+  it.each(['src/helper.mjs', 'tools2/x.mjs', 'helper.mjs'])('controlEntry is false for %s', (entry) => {
+    expect(controlEntry(entry)).toBe(false);
+  });
+});
+
 describe('parseFiles optional entries', () => {
   it('with all keeps an optional entry as its bare path', () => {
     expect(parseFiles('Files: README.md (optional), src/a.ts+', { all: true })).toEqual(['README.md', 'src/a.ts']);
