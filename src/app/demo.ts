@@ -31,11 +31,16 @@ let seq = 0;
 export function ingest(events: unknown[]): number {
   const ws = useStore.getState().workspace;
   if (!ws) return 0;
-  const fresh: FlowEvent[] = events.flatMap((x) => {
+  // The live feed keeps the last 300 (see live.ts FEED), so a longer batch only wastes work.
+  const MAX_BATCH = 300;
+  // Read the clock once per batch, and never accept a host ts ahead of it: a future ts would sort
+  // ahead of every later event.
+  const now = Date.now();
+  const fresh: FlowEvent[] = events.slice(-MAX_BATCH).flatMap((x) => {
     const parsed = FlowEventSchema.safeParse(x);
     if (!parsed.success) return [];
     const e = parsed.data;
-    return [{ ...e, id: ++seq, ts: e.ts ?? Date.now(), targets: resolveTargets(ws, e) }];
+    return [{ ...e, id: ++seq, ts: Math.min(e.ts ?? now, now), targets: resolveTargets(ws, e) }];
   });
   if (fresh.length) useLive.getState().apply(fresh);
   return fresh.length;

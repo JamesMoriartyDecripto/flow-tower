@@ -59,6 +59,36 @@ describe('ingest (#444)', () => {
     useStore.setState({ workspace: undefined });
     expect(ingest([{ kind: 'tool.start' }])).toBe(0);
   });
+
+  it('applies at most the last 300 events of a host batch', async () => {
+    const { workspace } = await loadLibrary(['examples/dev-squad']);
+    useStore.setState({ workspace });
+    const node = Object.values(workspace.towers)[0].layers[0].nodes[0].key;
+    useLive.setState({ events: [] });
+    const batch = Array.from({ length: 301 }, () => ({ kind: 'tool.start', node }));
+
+    expect(ingest(batch)).toBe(300);
+    expect(useLive.getState().events).toHaveLength(300);
+    // The feed is full now; empty it so later tests start from a known state.
+    useLive.setState({ events: [] });
+  });
+
+  it('clamps a future host ts to now and keeps a past ts', async () => {
+    const { workspace } = await loadLibrary(['examples/dev-squad']);
+    useStore.setState({ workspace });
+    const node = Object.values(workspace.towers)[0].layers[0].nodes[0].key;
+    useLive.setState({ events: [] });
+    const past = Date.now() - 60_000;
+
+    ingest([
+      { kind: 'tool.start', node, ts: Date.now() + 3_600_000 },
+      { kind: 'tool.start', node, ts: past },
+    ]);
+
+    const [future, old] = useLive.getState().events;
+    expect(future.ts).toBeLessThanOrEqual(Date.now());
+    expect(old.ts).toBe(past);
+  });
 });
 
 describe('window.flowTowerEmbed (#444)', () => {
