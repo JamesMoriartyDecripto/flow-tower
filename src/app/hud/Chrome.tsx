@@ -7,7 +7,7 @@ import { chooseView, usePrefs } from '../settings';
 import { useDemo } from '../demo';
 import { exportPng, exportSvg, useExport } from '../exporter';
 import { budgetsText, limitsText } from '../ops';
-import { STATIC } from '../staticData';
+import { EMBED, STATIC } from '../staticData';
 import { useCurrentTowerLive, useDescendants } from '../liveHooks';
 import { useStore, useTower } from '../store';
 import { EDGE_STYLE, NODE_STYLE, RUNTIME_ICON } from '../theme';
@@ -141,7 +141,8 @@ function UpdateChip() {
 /** Static demo only: the live events are simulated in the browser; click to pause or resume them. */
 function DemoChip() {
   const { on, toggle } = useDemo();
-  if (!STATIC) return null;
+  // Embedded: there is no simulator to pause.
+  if (!STATIC || EMBED) return null;
   return (
     <button className={`btn demo-chip ${on ? 'on' : ''}`} onClick={toggle}
       title={on ? 'Demo: live events are simulated in your browser. Click to pause them.' : 'Demo: simulated live events are paused. Click to resume.'}>

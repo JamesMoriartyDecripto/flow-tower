@@ -5,7 +5,7 @@ import { FlowEventSchema, resolveTargets, type FlowEvent } from '../core/events'
 import { otlpLogsToEvents, sampleApiRequest } from '../core/otlp';
 import type { ResolvedNode, ResolvedTower } from '../core/types';
 import { useLive } from './live';
-import { STATIC } from './staticData';
+import { EMBED, STATIC } from './staticData';
 import { useStore, useTower } from './store';
 
 /**
@@ -14,7 +14,8 @@ import { useStore, useTower } from './store';
  * plain tool events. Walkers follow the edges of the tower on screen and stop in hidden tabs.
  */
 export const useDemo = create<{ on: boolean; toggle(): void }>()((set, get) => ({
-  on: true,
+  // An embedded page gets only the events its host pushes: the simulator stays off.
+  on: !EMBED,
   toggle: () => set({ on: !get().on }),
 }));
 
@@ -23,16 +24,25 @@ const TOOLS = ['Read', 'Grep', 'Edit', 'Bash', 'WebSearch'];
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 let seq = 0;
 
-function emit(raw: unknown, source?: string) {
+/**
+ * The one way events enter the live feed. Targets are always recomputed against this workspace, so an
+ * incoming `targets` or `id` (from a host page) is overwritten, never trusted. Returns how many were applied.
+ */
+export function ingest(events: unknown[]): number {
   const ws = useStore.getState().workspace;
-  if (!ws) return;
-  const events: FlowEvent[] = normalize(source, raw).flatMap((x) => {
+  if (!ws) return 0;
+  const fresh: FlowEvent[] = events.flatMap((x) => {
     const parsed = FlowEventSchema.safeParse(x);
     if (!parsed.success) return [];
     const e = parsed.data;
-    return [{ ...e, id: ++seq, ts: Date.now(), targets: resolveTargets(ws, e) }];
+    return [{ ...e, id: ++seq, ts: e.ts ?? Date.now(), targets: resolveTargets(ws, e) }];
   });
-  if (events.length) useLive.getState().apply(events);
+  if (fresh.length) useLive.getState().apply(fresh);
+  return fresh.length;
+}
+
+function emit(raw: unknown, source?: string) {
+  ingest(normalize(source, raw));
 }
 
 async function walk(tower: ResolvedTower, alive: () => boolean, n: number) {
