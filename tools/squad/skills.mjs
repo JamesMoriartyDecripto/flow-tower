@@ -1,6 +1,6 @@
 // Project skills (#432): a named Markdown file in tools/squad/skills/ that a role or one task opts into, so the know-how
 // only some jobs need is not repeated by hand in every task file. Read here, never run: a skill is text in the prompt.
-import { lstatSync, readFileSync } from 'node:fs';
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // A name, never a path: no slash, no dot (so no "..", no hidden or secret file, no extension).
@@ -36,13 +36,26 @@ export function skillsFor(repo, config, role, task) {
   let out = '\n\nProject skills (apply them where they fit the task):';
   for (const name of names) {
     if (!SKILL_NAME.test(name)) throw new Error(`bad skill name: "${name}"`);
-    const st = entry(join(dir, `${name}.md`));
-    if (!st) throw new Error(`skill not found: ${name} (tools/squad/skills/${name}.md)`);
-    if (st.isSymbolicLink() || !st.isFile()) throw new Error(`skill ${name} is not a regular file`);
-    if (st.size > SKILL_MAX_BYTES) throw new Error(`skill ${name} is ${st.size} bytes, over the ${SKILL_MAX_BYTES} cap`);
-    total += st.size;
-    if (total > SKILLS_MAX_BYTES) throw new Error(`skill ${name} brings the skills to ${total} bytes, over the ${SKILLS_MAX_BYTES} cap`);
-    out += `\n\n## ${name}\n${readFileSync(join(dir, `${name}.md`), 'utf8').trim()}`;
+    // One descriptor for the check and the read: a path could be swapped for a link between two path lookups.
+    // O_NOFOLLOW makes a symlink fail with ELOOP instead of being followed out of the repo.
+    let fd;
+    try {
+      fd = openSync(join(dir, `${name}.md`), constants.O_RDONLY | constants.O_NOFOLLOW);
+    } catch (e) {
+      if (e.code === 'ENOENT') throw new Error(`skill not found: ${name} (tools/squad/skills/${name}.md)`);
+      if (e.code === 'ELOOP') throw new Error(`skill ${name} is not a regular file`);
+      throw e;
+    }
+    try {
+      const st = fstatSync(fd);
+      if (!st.isFile()) throw new Error(`skill ${name} is not a regular file`);
+      if (st.size > SKILL_MAX_BYTES) throw new Error(`skill ${name} is ${st.size} bytes, over the ${SKILL_MAX_BYTES} cap`);
+      total += st.size;
+      if (total > SKILLS_MAX_BYTES) throw new Error(`skill ${name} brings the skills to ${total} bytes, over the ${SKILLS_MAX_BYTES} cap`);
+      out += `\n\n## ${name}\n${readFileSync(fd, 'utf8').trim()}`;
+    } finally {
+      closeSync(fd);
+    }
   }
   return out;
 }
