@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Added
+
+- Embed mode for the static build: `index.html?embed=1` turns the simulator off and exposes `window.flowTowerEmbed` (`apply(events)`, `open(towerId)`) so a host app can push real hub events; targets are recomputed against the embedded workspace; `&chrome=0` hides the top bar and library. Glyphs outside the latin subset still need the CDN (#208) (#444).
+
 ## [0.18.0] - 2026-11-03
 
 ### Security
