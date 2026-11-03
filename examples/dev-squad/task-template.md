@@ -9,4 +9,5 @@ Verify: `run check`; `finish` with the output and a `Known gaps:` line.
 1. <file>: <the change, precise enough that a green check means it is done>.
 2. New file <tests/…>: <the cases that prove item 1, each with its input and expected result>.
 
+Skills: <name>, <name>   (optional: tools/squad/skills/<name>.md the coder needs for this step)
 Files: <path>, <new/path>+, <path that may stay untouched> (optional)

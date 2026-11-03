@@ -49,6 +49,7 @@ it from what the project's files say. A missing file gives the defaults.
 | `base` | the branch diffs are taken against | `origin/main` |
 | `rules` | extra lines every model sees, after the shared style line (`STYLE_RULES` in `config.mjs`: language, comments, file size, efficiency without added complexity) | none |
 | `style` | `language` and `maxFileLines` the shared style line, the task Rules line and the review focus state, so a project's own `rules` never contradict them (#404) | `English`, `400` |
+| `skills` | `{ "<role>": ["<name>", …] }`: [project skills](#project-skills) added to that role's system prompt | none |
 | `extras` | flow-tower-only tools (`validate`, `dryrun`) | none |
 | `models` | per-role model IDs; `--model` overrides one call | the table below; extra roles inherit a family unless explicitly configured |
 | `tower`, `source`, `cli` | the tower name the live events go to, their source, the flow-tower CLI path | `Dev Squad`, `dev-squad`; the CLI from `FLOW_TOWER_CLI`, then `tools/squad/.cli` (written by init, git-ignored), then PATH |
@@ -114,6 +115,16 @@ matching it; a trailing `+` marks a new file; `(optional)` drops the entry from 
 
 Coders end their report with `Known gaps:` (or `Known gaps: none`); `steps.sh` prints them under each step, and the
 lead reads them before the next step: gaps never stop the chain.
+
+## Project skills
+
+Know-how that only some jobs need (a shell version, how tests import a module) goes in a skill, not in every task
+file (#432). A skill is `tools/squad/skills/<name>.md`: when it applies and what to do, a few lines. `squad.json`
+`skills` gives a role its skills for every run; a task's `Skills: <name>, <name>` line adds skills for that run
+only, chosen by the lead. `run.mjs` appends them to the system prompt, after every other rule. Names only
+(`a-z`, `0-9`, `-`), regular files only, 4 KB per skill and 12 KB per run; a missing or refused skill stops the run
+before any request, naming it, and `squad doctor` checks the configured ones. With none set, prompts are unchanged.
+This repo's: `bash-3-2`, `untyped-mjs`, `file-size`.
 
 ## A step chain
 
