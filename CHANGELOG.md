@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-03
+
 ### Security
 
 - Squad runner: a literal plan entry whose folder holds a control path needs the plan sign-off, since the coder may write that whole folder (`tools/helper.mjs` granted `tools/`, so `tools/squad/`) (#435).
@@ -586,7 +588,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.15.0...v0.16.0
