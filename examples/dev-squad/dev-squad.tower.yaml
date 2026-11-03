@@ -353,6 +353,12 @@ layers:
         description: "Per project: check/test commands, write and review folders, the diff base, project rules and the model of each role. The runner runs commands without a shell, so a command with shell syntax is refused when loaded."
         meta: { style: "style.language and style.maxFileLines (default English, 400) feed every prompt and task rule line, so project rules never contradict them (#404)." }
         files: [squad.example.json]
+      - id: skills
+        runtime: laptop
+        type: memory
+        label: Project skills
+        description: "tools/squad/skills/<name>.md: project know-how only some jobs need (a shell version, a test convention). squad.json skills gives a role its skills; a task's Skills: line adds them for one run. Inlined into the system prompt by name only, size-capped, secret names refused; none set, prompts unchanged (#432)."
+        files: [README.md]
       - id: doctor
         runtime: laptop
         type: guard
@@ -369,6 +375,8 @@ layers:
       - "init -> config [data]: detected"
       - "key -> doctor [data]: present?"
       - "config -> doctor [data]: valid?"
+      - "config -> skills [data]: per role"
+      - "skills -> doctor [data]: exist?"
 
   # 7 ───────────────────────────────────────────────────────────────
   - id: observe
