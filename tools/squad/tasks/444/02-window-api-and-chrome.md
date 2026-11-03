@@ -8,4 +8,4 @@ Why: issue #444. The host calls `window.flowTowerEmbed.apply(events)` every ~2 s
 1. New file src/app/embed.ts: export `embedApi()` returning `{ apply(events: unknown[]): number { return ingest(Array.isArray(events) ? events : []) }, open(towerId: string): void }`; `open` calls `useStore.getState().openProject(towerId)` only when the workspace has a tower or project with that id (else does nothing). Export `installEmbed()` that sets `window.flowTowerEmbed = embedApi()` (declare the global type). In src/app/mountApp.tsx call `installEmbed()` only when `EMBED`.
 2. In src/app/App.tsx render `<TopBar>` and `<Library />` only when `CHROME` is true.
 Append to tests/embed.test.ts: `embedApi().apply('x' as never)` returns 0; `apply([valid event])` returns 1 and the event is in `useLive.getState().events`; `open('missing')` leaves `useStore.getState().stack` unchanged.
-Files: +src/app/embed.ts, src/app/mountApp.tsx, src/app/App.tsx, tests/embed.test.ts
+Files: src/app/embed.ts+, src/app/mountApp.tsx, src/app/App.tsx, tests/embed.test.ts
