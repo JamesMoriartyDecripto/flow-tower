@@ -73,7 +73,10 @@ test('the toggle reduces the card to its title bar, remembered across reloads', 
 
 test('on a phone-sized window the open card stays inside the window', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await openTowerInfo(page);
+  await page.goto('/?tower=team-hub&quality=eco');
+  // On a phone one panel shows at a time, and the tower card sits under the Info tab.
+  await page.locator('.phone-tabs button', { hasText: 'Info' }).click();
+  await expect(page.locator('.towerinfo')).toBeVisible();
   const box = await page.locator('.towerinfo').boundingBox();
   expect(box, 'tower card box').not.toBeNull();
   expect(box!.x + box!.width, 'right edge of the tower card').toBeLessThanOrEqual(390);
