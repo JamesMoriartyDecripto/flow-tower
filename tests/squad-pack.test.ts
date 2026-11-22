@@ -84,4 +84,10 @@ describe('squad pack (#169)', () => {
     const outside = run(['--role', 'reviewer', '--issue', '169', '--files', '../x']);
     expect(outside.status).not.toBe(0);
   });
+
+  it('says when the verdict must be changes', () => {
+    const r = run(['--role', 'reviewer', '--issue', '169', '--files', 'src/a.ts']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('verdict is "changes" when at least one finding is critical or high');
+  });
 });
