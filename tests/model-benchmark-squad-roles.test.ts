@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 // @ts-expect-error plain .mjs without declarations
-import { answerOf, planJobs, rescoreLine } from '../examples/model-benchmark/scripts/squad-roles.mjs';
+import { planJobs, rescoreLine } from '../examples/model-benchmark/scripts/squad-roles.mjs';
 // @ts-expect-error plain .mjs without declarations
 import { parseVerdict, checkFinding } from '../tools/squad/gate.mjs';
 
@@ -34,12 +34,6 @@ describe('squad-roles rescoreLine', () => {
   it('passes a defect case whose key matches, keeping cost, seconds and answer', () => {
     const out = rescoreLine(line, { id: 'D2', kind: 'defect', head: 'abc', keys: [{ id: 'M2', file: 'a.sh', pattern: 'mapfile' }] }, deps);
     expect(out).toMatchObject({ pass: true, keys: ['M2'], kind: 'defect', case: 'D2', cost: 0.01, seconds: 4.2, answer, role: 'reviewer' });
-  });
-});
-
-describe('squad-roles answerOf', () => {
-  it('drops the mode and reviewed lines', () => {
-    expect(answerOf('mode: oneshot\nreviewed: x\n{"verdict":"approve"}\nend')).toBe('{"verdict":"approve"}\nend');
   });
 });
 

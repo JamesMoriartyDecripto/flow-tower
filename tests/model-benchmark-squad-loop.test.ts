@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 // @ts-expect-error plain .mjs without declarations
-import { planJobs, reportOf } from '../examples/model-benchmark/scripts/squad-loop.mjs';
+import { planJobs } from '../examples/model-benchmark/scripts/squad-loop.mjs';
 
 const script = resolve('examples/model-benchmark/scripts/squad-loop.mjs');
 const judge = resolve('examples/model-benchmark/tasks/judge');
@@ -15,18 +15,6 @@ describe('squad-loop planJobs', () => {
       [1, 'a', 't1'], [1, 'b', 't1'], [1, 'a', 't2'], [1, 'b', 't2'],
     ]);
     expect(jobs[4].run).toBe(2);
-  });
-});
-
-describe('squad-loop reportOf', () => {
-  it('drops the header and the footer', () => {
-    const stdout = 'mode: tool\nreviewed: no\nthe answer\n\n--- model-x · 3 steps\n';
-    expect(reportOf(stdout)).toBe('the answer');
-  });
-
-  it('keeps a --- line that sits inside the answer', () => {
-    const stdout = 'mode: tool\nreviewed: no\nfirst\n---\nsecond\n\n--- model-x · 2 steps\n';
-    expect(reportOf(stdout)).toBe('first\n---\nsecond');
   });
 });
 

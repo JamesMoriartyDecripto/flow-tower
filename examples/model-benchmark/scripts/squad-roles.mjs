@@ -10,12 +10,14 @@
 // A pack is <packs>/<case id>.<role>.md. Every run writes its own cost ledger in a temp folder, so the benchmark
 // never adds to the user's cost ledger, and it posts no live events.
 import { appendFileSync, mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { argv, env, exit } from 'node:process';
+import { argv, exit } from 'node:process';
 import { scoreRun, summarize, table } from './squad-score.mjs';
+// @ts-expect-error plain .mjs without declarations
+import { doneSet, pool, runSquad } from './squad-child.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -29,13 +31,8 @@ export function planJobs({ cases, roles, models, runs }) {
 }
 
 // A finished job is identified by its four fields; an interrupted run skips these on resume.
-export function doneKey(line) {
+function doneKey(line) {
   return JSON.stringify([line.model, line.role, line.case, line.run]);
-}
-
-// The runner prints `mode:` and `reviewed:` first; the answer is what follows.
-export function answerOf(stdout) {
-  return stdout.split('\n').slice(2).join('\n');
 }
 
 const packFile = (packs, c, role) => join(packs, `${c.id}.${role}.md`);
@@ -52,39 +49,12 @@ function readAt(repo, head) {
   };
 }
 
-function runChild(args, ledger, timeoutS) {
-  return new Promise((ok) => {
-    const child = spawn(process.execPath, args, {
-      env: { ...env, SQUAD_LEDGER: ledger, FLOW_TOWER_URL: 'http://127.0.0.1:9' },
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    let stdout = '';
-    let timedOut = false;
-    child.stdout.on('data', (d) => { stdout += d; });
-    const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutS * 1000);
-    child.on('close', () => { clearTimeout(timer); ok({ stdout, timedOut }); });
-  });
-}
-
-// The last ledger line holds this run's outcome and cost; no line at all means the runner died before recording.
-function lastLedgerLine(path) {
-  let text = '';
-  try { text = readFileSync(path, 'utf8'); } catch { return null; }
-  const lines = text.split('\n').filter((l) => l.trim());
-  return lines.length ? JSON.parse(lines[lines.length - 1]) : null;
-}
-
 async function runJob(job, ctx) {
   const { case: c, role, model, run } = job;
   const pack = packFile(ctx.packs, c, role);
-  const ledger = join(ctx.tmp, `${ctx.seq++}.jsonl`);
-  const args = [join(ctx.squad, 'run.mjs'), '--role', role, '--model', model, '--task', pack, '--oneshot', '--issue', String(c.issue), '--repo', ctx.repo];
-  const t0 = Date.now();
-  const { stdout, timedOut } = await runChild(args, ledger, ctx.timeout);
-  const seconds = Math.round((Date.now() - t0) / 100) / 10;
-  const rec = lastLedgerLine(ledger);
-  const outcome = timedOut ? 'timeout' : rec ? rec.outcome : 'crash';
-  const answer = answerOf(stdout);
+  const args = ['--role', role, '--model', model, '--task', pack, '--oneshot', '--issue', String(c.issue), '--repo', ctx.repo];
+  const { rec, outcome, seconds, stdout } = await runSquad({ runMjs: join(ctx.squad, 'run.mjs'), args, timeoutS: ctx.timeout, tmp: ctx.tmp });
+  const answer = ctx.reportOf(stdout);
   const { parseVerdict, checkFinding } = ctx.gate;
   const score = scoreRun({ kase: c, outcome, answer, readFile: readAt(ctx.repo, c.head), parseVerdict, checkFinding });
   const line = {
@@ -179,22 +149,16 @@ async function main() {
   if (argv.includes('--dry-run')) exit(0);
 
   // Jobs already in --out are skipped, so an interrupted run resumes where it stopped.
-  const done = new Set();
-  try {
-    for (const l of readFileSync(out, 'utf8').split('\n')) if (l.trim()) done.add(doneKey(JSON.parse(l)));
-  } catch { /* no output yet */ }
+  const done = doneSet(out, doneKey);
   const todo = jobs.filter((j) => !done.has(doneKey({ model: j.model, role: j.role, case: j.case.id, run: j.run })));
   console.log(`${todo.length} to run, ${jobs.length - todo.length} already done`);
 
   const gate = await import(pathToFileURL(join(squad, 'gate.mjs')).href);
+  const { reportOf } = await import(pathToFileURL(join(squad, 'runner-deps.mjs')).href);
   const tmp = mkdtempSync(join(tmpdir(), 'squad-roles-'));
-  const ctx = { packs, repo, squad, out, timeout, gate, tmp, seq: 0 };
-  let next = 0;
-  const worker = async () => {
-    while (next < todo.length) await runJob(todo[next++], ctx);
-  };
+  const ctx = { packs, repo, squad, out, timeout, gate, reportOf, tmp };
   try {
-    await Promise.all(Array.from({ length: Math.min(parallel, todo.length) }, worker));
+    await pool(todo, parallel, (job) => runJob(job, ctx));
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

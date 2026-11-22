@@ -6,13 +6,15 @@
 //   node scripts/squad-loop.mjs ... --dry-run     prints the plan and spawns nothing
 //
 // Every run writes its own cost ledger in a temp folder, so the benchmark never adds to the user's cost ledger.
-import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { execFileSync, spawn } from 'node:child_process';
+import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { argv, env, exit } from 'node:process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { argv, exit } from 'node:process';
 import { loadTasks } from './tasks.mjs';
+// @ts-expect-error plain .mjs without declarations
+import { doneSet, pool, runSquad } from './squad-child.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -26,65 +28,22 @@ export function planJobs({ tasks, models, runs }) {
 }
 
 // A finished job is identified by its three fields; an interrupted run skips these on resume.
-export function doneKey(line) {
+function doneKey(line) {
   return JSON.stringify([line.model, line.task, line.run]);
-}
-
-// run.mjs prints `mode:`, `reviewed:` and `trimmed:` first and a `--- <model>` footer last. Only the last non-empty
-// line is a footer, so a `--- ` line inside the answer is kept. The blank line before the footer is a separator.
-const HEADER = ['mode: ', 'reviewed: ', 'trimmed: '];
-export function reportOf(stdout) {
-  const lines = String(stdout ?? '').split('\n');
-  let head = 0;
-  while (head < HEADER.length && head < lines.length && lines[head].startsWith(HEADER[head])) head++;
-  let end = lines.length;
-  let foot = lines.length - 1;
-  while (foot >= head && lines[foot] === '') foot--;
-  if (foot >= head && lines[foot].startsWith('--- ')) {
-    end = foot;
-    if (end > head && lines[end - 1] === '') end--;
-  }
-  return lines.slice(head, end).join('\n');
-}
-
-function runChild(args, ledger, timeoutS) {
-  return new Promise((ok) => {
-    const child = spawn(process.execPath, args, {
-      env: { ...env, SQUAD_LEDGER: ledger, FLOW_TOWER_URL: 'http://127.0.0.1:9' },
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    let stdout = '';
-    let timedOut = false;
-    child.stdout.on('data', (d) => { stdout += d; });
-    const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutS * 1000);
-    child.on('close', () => { clearTimeout(timer); ok({ stdout, timedOut }); });
-  });
-}
-
-// The last ledger line holds this run's outcome and cost; no line at all means the runner died before recording.
-function lastLedgerLine(path) {
-  let text = '';
-  try { text = readFileSync(path, 'utf8'); } catch { return null; }
-  const lines = text.split('\n').filter((l) => l.trim());
-  return lines.length ? JSON.parse(lines[lines.length - 1]) : null;
 }
 
 async function runJob(job, ctx) {
   const { task, model, run } = job;
   const file = join(ctx.tmp, `${ctx.seq++}.md`);
   writeFileSync(file, task.prompt);
-  const ledger = `${file}.jsonl`;
-  const args = [join(ctx.squad, 'run.mjs'), '--role', ctx.role, '--model', model, '--task', file, '--repo', task.dir, '--issue', '0', '--steps', String(ctx.steps)];
-  const t0 = Date.now();
-  const { stdout, timedOut } = await runChild(args, ledger, ctx.timeout);
-  const rec = lastLedgerLine(ledger);
-  const outcome = timedOut ? 'timeout' : rec ? rec.outcome : 'crash';
+  const args = ['--role', ctx.role, '--model', model, '--task', file, '--repo', task.dir, '--issue', '0', '--steps', String(ctx.steps)];
+  const { rec, outcome, seconds, stdout } = await runSquad({ runMjs: join(ctx.squad, 'run.mjs'), args, timeoutS: ctx.timeout, tmp: ctx.tmp });
   const ok = outcome === 'finish';
   const line = {
     date: new Date().toISOString().slice(0, 10), category: ctx.category, task: task.id, model, run, warm: false, effort: 'low',
-    ok, firstOutputMs: null, totalMs: Date.now() - t0, steps: rec?.steps ?? 0, retries: 0,
+    ok, firstOutputMs: null, totalMs: Math.round(seconds * 1000), steps: rec?.steps ?? 0, retries: 0,
     promptTokens: rec?.promptTokens ?? 0, completionTokens: 0, cachedTokens: rec?.cachedTokens ?? 0, cachedFirstStep: 0,
-    cost: rec?.cost ?? null, providers: [], answer: ok ? reportOf(stdout) : null, error: ok ? null : outcome,
+    cost: rec?.cost ?? null, providers: [], answer: ok ? ctx.reportOf(stdout) : null, error: ok ? null : outcome,
   };
   appendFileSync(ctx.out, `${JSON.stringify(line)}\n`);
   const cost = line.cost == null ? 'cost n/a' : `$${line.cost.toFixed(4)}`;
@@ -118,21 +77,15 @@ async function main() {
   if (argv.includes('--dry-run')) exit(0);
 
   // Jobs already in --out are skipped, so an interrupted run resumes where it stopped.
-  const done = new Set();
-  try {
-    for (const l of readFileSync(out, 'utf8').split('\n')) if (l.trim()) done.add(doneKey(JSON.parse(l)));
-  } catch { /* no output yet */ }
+  const done = doneSet(out, doneKey);
   const todo = jobs.filter((j) => !done.has(doneKey({ model: j.model, task: j.task.id, run: j.run })));
   console.log(`${todo.length} to run, ${jobs.length - todo.length} already done`);
 
+  const { reportOf } = await import(pathToFileURL(join(squad, 'runner-deps.mjs')).href);
   const tmp = mkdtempSync(join(tmpdir(), 'squad-loop-'));
-  const ctx = { role, category, squad, out, timeout, steps, tmp, seq: 0 };
-  let next = 0;
-  const worker = async () => {
-    while (next < todo.length) await runJob(todo[next++], ctx);
-  };
+  const ctx = { role, category, squad, out, timeout, steps, reportOf, tmp, seq: 0 };
   try {
-    await Promise.all(Array.from({ length: Math.min(parallel, todo.length) }, worker));
+    await pool(todo, parallel, (job) => runJob(job, ctx));
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
