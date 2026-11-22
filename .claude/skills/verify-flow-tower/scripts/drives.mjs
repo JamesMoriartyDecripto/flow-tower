@@ -72,10 +72,24 @@ async function openAsUser(page, url, id) {
 async function inBrowser(evidence, label, fn) {
   // Loaded here, not at the top: launch, doctor and stop never need Playwright.
   const { chromium } = await import('@playwright/test');
-  // Playwright's bundled Chromium does not run on macOS 13, so the installed Chrome is used, as in playwright.config.ts.
-  const browser = await chromium.launch({ channel: 'chrome', headless: true });
   const consoleErrors = [];
   let error;
+  // Only the first failure is kept: it is the one that stopped the drive, the rest follow from it (#448).
+  const fail = (text) => {
+    if (error !== undefined) return;
+    error = text;
+    console.log(`FAIL ${text.split('\n')[0]}`);
+  };
+  // Playwright's bundled Chromium does not run on macOS 13, so the installed Chrome is used, as in playwright.config.ts.
+  let browser;
+  try {
+    browser = await chromium.launch({ channel: 'chrome', headless: true });
+  } catch (e) {
+    const message = String(e.message);
+    const missing = /not installed|doesn't exist|is not found/i.test(message.split('\n')[0]);
+    fail(missing ? message.split('\n')[0] + ': install Google Chrome, the drives use the installed browser' : message);
+    return { error, consoleErrors };
+  }
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     // Started before the first navigation so the trace holds the DOM and network of the whole drive (#448).
@@ -86,12 +100,13 @@ async function inBrowser(evidence, label, fn) {
       await fn(page);
     } catch (e) {
       // The whole message goes to evidence: Playwright's call log says why a step waited (#448).
-      error = String(e.message);
-      console.log(`FAIL ${error.split('\n')[0]}`);
+      fail(String(e.message));
     }
     await page.screenshot({ path: join(evidence, `${label}.png`) });
     console.log(`wrote ${join(evidence, `${label}.png`)}`);
     await stopTrace(context, error !== undefined ? join(evidence, `${label}.trace.zip`) : undefined);
+  } catch (e) {
+    fail(String(e.message));
   } finally {
     await browser.close();
   }

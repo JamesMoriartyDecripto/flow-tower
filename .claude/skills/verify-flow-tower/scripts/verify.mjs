@@ -2,7 +2,7 @@
 // Each run gets its own FLOW_TOWER_HOME, so the server never reads the user's config or joins a hub,
 // and the port is refused when something already answers there (it may be someone's live server).
 import { execFileSync, spawn } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -128,6 +128,12 @@ async function launch(args) {
     console.log(`port ${args.port} is in use: pick another with --port`);
     return 1;
   }
+  // The runs hold a server's home and evidence, so a base that another user owns is not written into.
+  if (existsSync(args.base) && process.getuid && statSync(args.base).uid !== process.getuid()) {
+    console.log(`FAIL ${args.base} belongs to another user: pass --base`);
+    return 1;
+  }
+  mkdirSync(args.base, { recursive: true, mode: 0o700 });
   const plan = planRun({ base: args.base, port: args.port });
   const { dir } = plan;
   mkdirSync(plan.home, { recursive: true });
@@ -170,26 +176,51 @@ async function launch(args) {
   return 1;
 }
 
-/** Reads run.json from a run folder; null (with a FAIL line printed) when it is missing or broken. */
+/**
+ * The only reader of run.json. Its fields are checked before anything is signalled, removed or written, since a
+ * bad value would reach a RegExp, a process group or a path (#448). Returns { dir, run }, or null with one FAIL line.
+ * evidence and home always come from the run folder, never from the file.
+ */
 function readRun(dir) {
   if (!dir) {
     console.log('FAIL run.json: no run folder (launch first, or pass --run)');
     return null;
   }
   const file = join(dir, 'run.json');
-  let run;
+  let raw;
   try {
-    run = JSON.parse(readFileSync(file, 'utf8'));
+    raw = JSON.parse(readFileSync(file, 'utf8'));
   } catch {
     console.log(`FAIL run.json: cannot read ${file}`);
     return null;
   }
-  // A pid of 0 or 1 would reach signalRun as a group that is not the server's: refuse it here too.
-  if (run.pid !== undefined && !(Number.isInteger(run.pid) && run.pid > 1)) {
-    console.log(`FAIL run.json: pid ${run.pid} is not a server PID`);
+  const problem = runProblem(dir, raw);
+  if (problem) {
+    console.log(`FAIL run.json: ${problem}`);
     return null;
   }
-  return { dir, run };
+  return { dir, run: { ...raw, evidence: join(dir, 'evidence'), home: join(dir, 'home') } };
+}
+
+/** Why a parsed run.json cannot be trusted, or null when every field it has is in range. */
+function runProblem(dir, raw) {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return 'not a JSON object';
+  const { pid, port, url } = raw;
+  if (pid !== undefined) {
+    // A pid of 0 or 1 would reach signalRun as a group that is not the server's.
+    if (!(Number.isInteger(pid) && pid > 1)) return `pid ${pid} is not a server PID`;
+    // Only a folder launch named may be removed, so a launched run must say which folder it is.
+    if (raw.runId !== basename(dir)) return `runId ${JSON.stringify(raw.runId)} is not the run folder name ${basename(dir)}`;
+  }
+  if (port !== undefined && !(Number.isInteger(port) && port >= 1024 && port <= 65535)) {
+    return `port ${JSON.stringify(port)} is not a number from 1024 to 65535`;
+  }
+  if (url !== undefined) {
+    // With a port the URL must be that port on 127.0.0.1; without one, only digits may follow the address.
+    const ok = port !== undefined ? url === `http://127.0.0.1:${port}` : /^http:\/\/127\.0\.0\.1:\d+$/.test(url);
+    if (!ok) return `url ${JSON.stringify(url)} is not http://127.0.0.1:<port>`;
+  }
+  return null;
 }
 
 async function doctor(args) {
@@ -208,6 +239,11 @@ async function doctor(args) {
   return lines.every(([ok]) => ok) ? 0 : 1;
 }
 
+/** True when the command line passes --port <port> as a whole argument. Plain text, so the port never becomes a pattern. */
+function hasPortFlag(cmd, port) {
+  return cmd.split(`--port ${port}`).slice(1).some((rest) => rest === '' || rest.startsWith(' ') || rest.startsWith('\n'));
+}
+
 /** The command line of a PID, or null when no such process exists. */
 function commandLineOf(pid) {
   try {
@@ -221,14 +257,9 @@ async function stop(args) {
   const found = readRun(runDirOf(args));
   if (!found) return 1;
   const { dir, run } = found;
-  // The home is removed below, so only a folder this script named after its runId may be touched.
-  if (basename(dir) !== run.runId) {
-    console.log(`FAIL ${dir} is not a run folder of this script`);
-    return 1;
-  }
   // run.json can outlive its server: after a reboot the PID may belong to another process, so it is checked first.
   const cmd = commandLineOf(run.pid);
-  const ours = cmd !== null && cmd.includes('flow-tower.js') && new RegExp(`--port ${run.port}(\\s|$)`).test(cmd);
+  const ours = cmd !== null && cmd.includes('flow-tower.js') && hasPortFlag(cmd, run.port);
   if (cmd !== null && !ours) {
     console.log(`FAIL pid ${run.pid} is not this run's server: nothing was signalled`);
     return 1;
@@ -268,4 +299,10 @@ async function main(argv) {
   return validateDrive(args, found, git(['rev-parse', '--show-toplevel']));
 }
 
-main(process.argv.slice(2)).then((code) => { process.exitCode = code; });
+// An error no drive expected ends here as one FAIL line; a stack trace would only show the script's internals.
+main(process.argv.slice(2))
+  .then((code) => { process.exitCode = code; })
+  .catch((e) => {
+    console.log(`FAIL ${String(e.message).split('\n')[0]}`);
+    process.exitCode = 1;
+  });

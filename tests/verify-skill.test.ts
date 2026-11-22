@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-// Every test spawns the script; none starts a server or a browser.
+// Every test spawns the script; none starts a Flow Tower server or a browser. Some start a stub HTTP or TCP server on 127.0.0.1,
+// and some use the test process's own PID as a live process that stop must refuse to signal.
 const SCRIPT = join(import.meta.dirname, '..', '.claude', 'skills', 'verify-flow-tower', 'scripts', 'verify.mjs');
 const temps: string[] = [];
 afterAll(() => temps.forEach((d) => rmSync(d, { recursive: true, force: true })));
@@ -48,7 +49,7 @@ describe('verify.mjs CLI', () => {
 
   it('doctor refuses a run.json whose pid is 1 before any signal', async () => {
     const dir = tempDir();
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', port: 1, pid: 1, commit: '' }));
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', pid: 1, commit: '' }));
     const { code, out } = await verify(['doctor', '--run', dir]);
     expect(code).toBe(1);
     expect(out).toContain('FAIL run.json: pid 1 is not a server PID');
@@ -56,7 +57,7 @@ describe('verify.mjs CLI', () => {
 
   it('validate runs the CLI on a starter and keeps its JSON as evidence', async () => {
     const dir = tempDir();
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', port: 1, commit: '' }));
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', commit: '' }));
     const { code } = await verifyWith(['validate', 'examples/starters', '--run', dir, '--name', 'v'], 60000);
     expect(code).toBe(0);
     const ev = JSON.parse(readFileSync(join(dir, 'evidence', 'v.json'), 'utf8'));
@@ -66,7 +67,7 @@ describe('verify.mjs CLI', () => {
 
   it('open on a run whose server is stopped prints one FAIL line, not a stack trace', { timeout: 20000 }, async () => {
     const dir = tempDir();
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:9', port: 9, commit: '' }));
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:9', commit: '' }));
     const { code, out } = await verify(['open', 'anything', '--run', dir]);
     expect(code).toBe(1);
     expect(out).toContain('FAIL no instance answers at http://127.0.0.1:9');
@@ -83,7 +84,7 @@ describe('verify.mjs CLI', () => {
     try {
       const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
       const dir = tempDir();
-      writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url, port: 1, commit: '' }));
+      writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url, commit: '' }));
       const { code, out } = await verify(['open', 'anything', '--run', dir]);
       expect(code).toBe(1);
       expect(out).toContain('FAIL no instance answers at');
@@ -133,7 +134,7 @@ describe('verify.mjs CLI', () => {
     const tower = join(dir, 'broken');
     mkdirSync(tower);
     writeFileSync(join(tower, 'broken.tower.yaml'), 'name: Broken\nlayers:\n  - id: a\n    title: A\n    nodes:\n      - { id: x, type: agent, label: X }\n    edges:\n      - x -> nowhere\n');
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', port: 1, commit: '' }));
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', commit: '' }));
     const { code, out } = await verifyWith(['validate', tower, '--run', dir, '--name', 'broken'], 60000);
     expect(code).toBe(1);
     expect(out.split('\n').filter((l) => l.startsWith('FAIL validate exited'))).toHaveLength(1);
@@ -144,11 +145,31 @@ describe('verify.mjs CLI', () => {
 
   it('validate refuses a --name that leaves the evidence folder and writes nothing', { timeout: 20000 }, async () => {
     const dir = tempDir();
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', port: 1, commit: '' }));
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', commit: '' }));
     const { code, out } = await verifyWith(['validate', 'examples/starters', '--run', dir, '--name', '../escape'], 20000);
     expect(code).toBe(1);
     expect(out).toContain('FAIL --name takes');
     expect(existsSync(join(dir, 'escape.json'))).toBe(false);
     expect(existsSync(join(dir, 'evidence'))).toBe(false);
+  });
+
+  it('stop refuses a run.json whose port is a pattern and signals nothing', { timeout: 20000 }, async () => {
+    const dir = join(tempDir(), 'r2');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 'r2', pid: process.pid, port: '.*', url: 'http://127.0.0.1:5399' }));
+    const { code, out } = await verify(['stop', '--run', dir]);
+    expect(code).toBe(1);
+    expect(out).toContain('FAIL run.json: port');
+    expect(() => process.kill(process.pid, 0)).not.toThrow();
+  });
+
+  it('validate keeps its evidence in the run folder even when run.json names another evidence path', { timeout: 70000 }, async () => {
+    const dir = tempDir();
+    const elsewhere = join(tempDir(), 'elsewhere');
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: elsewhere, url: 'http://127.0.0.1:1024', port: 1024, commit: '' }));
+    const { code } = await verifyWith(['validate', 'examples/starters', '--run', dir, '--name', 'v'], 60000);
+    expect(code).toBe(0);
+    expect(existsSync(join(dir, 'evidence', 'v.json'))).toBe(true);
+    expect(existsSync(elsewhere)).toBe(false);
   });
 });
