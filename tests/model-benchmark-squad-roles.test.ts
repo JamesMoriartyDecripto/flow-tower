@@ -4,7 +4,9 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 // @ts-expect-error plain .mjs without declarations
-import { answerOf, planJobs } from '../examples/model-benchmark/scripts/squad-roles.mjs';
+import { answerOf, planJobs, rescoreLine } from '../examples/model-benchmark/scripts/squad-roles.mjs';
+// @ts-expect-error plain .mjs without declarations
+import { parseVerdict, checkFinding } from '../tools/squad/gate.mjs';
 
 const script = resolve('examples/model-benchmark/scripts/squad-roles.mjs');
 
@@ -15,6 +17,23 @@ describe('squad-roles planJobs', () => {
     expect(jobs).toHaveLength(2 * 2 * 1 * 2);
     expect(jobs.slice(0, 4).map((j) => `${j.run}${j.case.id}${j.model}`)).toEqual(['1am1', '1am2', '1bm1', '1bm2']);
     expect(jobs[4].run).toBe(2);
+  });
+});
+
+describe('squad-roles rescoreLine', () => {
+  const answer = '{"verdict":"changes","findings":[{"severity":"high","file":"a.sh:1","quote":"mapfile -t x","what":"mapfile is missing in bash 3.2","why":"w","fix":"f"}]}';
+  const line = { ts: 't', role: 'reviewer', model: 'm1', case: 'old', kind: 'clean', run: 1, seconds: 4.2, outcome: 'finish', cost: 0.01, promptTokens: 9, cachedTokens: 0, pass: false, keys: [], answer };
+  const deps = { parseVerdict, checkFinding, readFile: () => 'mapfile -t x\n' };
+
+  it('fails a clean case that the run flagged', () => {
+    const out = rescoreLine(line, { id: 'C2', kind: 'clean', head: 'abc', keys: [] }, deps);
+    expect(out.pass).toBe(false);
+    expect(out.case).toBe('C2');
+  });
+
+  it('passes a defect case whose key matches, keeping cost, seconds and answer', () => {
+    const out = rescoreLine(line, { id: 'D2', kind: 'defect', head: 'abc', keys: [{ id: 'M2', file: 'a.sh', pattern: 'mapfile' }] }, deps);
+    expect(out).toMatchObject({ pass: true, keys: ['M2'], kind: 'defect', case: 'D2', cost: 0.01, seconds: 4.2, answer, role: 'reviewer' });
   });
 });
 

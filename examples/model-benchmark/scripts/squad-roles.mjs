@@ -9,7 +9,7 @@
 //
 // A pack is <packs>/<case id>.<role>.md. Every run writes its own cost ledger in a temp folder, so the benchmark
 // never adds to the user's cost ledger, and it posts no live events.
-import { appendFileSync, mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { execFileSync, spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -102,8 +102,54 @@ function report(file) {
   console.log(table(summarize(lines)));
 }
 
+// Scores a stored line again against a changed case. The outcome and answer were paid for once and are kept;
+// only the case key and the score fields are replaced.
+export function rescoreLine(line, kase, deps) {
+  const score = scoreRun({ kase, outcome: line.outcome, answer: line.answer, ...deps });
+  return { ...line, case: kase.id, kind: kase.kind, ...score };
+}
+
+async function rescore() {
+  const src = arg('rescore');
+  const casesPath = arg('cases');
+  const out = arg('out');
+  if (!src || !casesPath || !out) {
+    console.error('usage: squad-roles.mjs --rescore <in.jsonl> --cases <cases.json> --out <out.jsonl> [--squad <tools/squad>] [--repo <git repo>] [--rename old=new,old2=new2]');
+    exit(2);
+  }
+  // Reading and writing the same file would lose lines halfway, so the output must be a new path.
+  if (out === src) {
+    console.error('--out must differ from --rescore');
+    exit(2);
+  }
+  const repo = arg('repo', execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: scriptDir, encoding: 'utf8' }).trim());
+  const squad = resolve(arg('squad', join(repo, 'tools', 'squad')));
+  const rename = Object.fromEntries((arg('rename', '') || '').split(',').filter(Boolean).map((p) => p.split('=')));
+  const cases = new Map(JSON.parse(readFileSync(casesPath, 'utf8')).cases.map((c) => [c.id, c]));
+  const gate = await import(pathToFileURL(join(squad, 'gate.mjs')).href);
+  const lines = readFileSync(src, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
+
+  let dropped = 0;
+  let changed = 0;
+  const kept = [];
+  for (const line of lines) {
+    const kase = cases.get(rename[line.case] ?? line.case);
+    if (!kase) {
+      dropped++;
+      continue;
+    }
+    const next = rescoreLine(line, kase, { parseVerdict: gate.parseVerdict, checkFinding: gate.checkFinding, readFile: readAt(repo, kase.head) });
+    if (next.pass !== line.pass) changed++;
+    kept.push(next);
+  }
+  writeFileSync(out, kept.map((l) => `${JSON.stringify(l)}\n`).join(''));
+  console.log(`rescored ${kept.length} lines, dropped ${dropped}, pass changed on ${changed}`);
+  exit(0);
+}
+
 async function main() {
   if (argv.includes('--report')) return report(arg('report'));
+  if (argv.includes('--rescore')) return rescore();
   const casesPath = arg('cases');
   const packs = arg('packs');
   const models = (arg('models') || '').split(',').map((m) => m.trim()).filter(Boolean);
