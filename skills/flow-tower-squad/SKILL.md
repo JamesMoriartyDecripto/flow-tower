@@ -15,12 +15,12 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
 | Lead (you) | the session model | the tower, task files, commits, the issue |
 | Triage | `models.triage`, otherwise coder model | nothing |
 | Architect | `models.architect`, otherwise reviewer model | nothing |
-| Researcher | `models.researcher`, otherwise reviewer model | nothing |
+| Researcher | `models.researcher` (default `z-ai/glm-5.3-flash`) | nothing |
 | Coder | `models.coder` (default `anthropic/claude-haiku-5.5`) | configured `write` folders |
 | Tester | `models.tester`, otherwise coder model | no direct file tools; may run project checks |
 | Reviewer | `models.reviewer` (default `minimax/minimax-m3.1-flash`) | nothing (JSON verdict) |
 | Security | `models.security` (default `minimax/minimax-m3.1-flash`) | nothing (JSON findings) |
-| Verifier | `models.verifier`, otherwise reviewer model | nothing |
+| Verifier | `models.verifier` (default `z-ai/glm-5.3-flash`) | nothing |
 | Doc writer | `models.doc-writer`, otherwise coder model | explicit `--write` folders only |
 
 Set a model for each role in `squad.json`; `--model` overrides it for one invocation. The family defaults for
