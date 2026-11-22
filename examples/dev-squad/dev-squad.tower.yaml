@@ -295,7 +295,7 @@ layers:
         type: process
         label: run.mjs
         description: "One role, one process: picks the model from squad.json, the mode (tool loop for most roles, oneshot or batch for reviewer and security), calls OpenRouter, records the cost."
-        meta: { empty_answer: "An empty oneshot answer prints finish_reason, tokens (prompt, completion, reasoning) and the generation id, and is recorded at its real cost, null when unknown, never 0. An empty answer cut at the output budget is retried once with a doubled budget (#412).", logs: "Each run writes its role log to squad-logs/ beside the cost ledger (so it follows SQUAD_LEDGER and FLOW_TOWER_HOME), or to SQUAD_LOGS, never beside the runner, in a folder only its user can read (0700, like the steward root), and keeps the newest 200 or those under 14 days: 2154 logs (116 MB) there slowed every test that copies tools/squad (#453)." }
+        meta: { empty_answer: "An empty oneshot answer prints finish_reason, tokens (prompt, completion, reasoning) and the generation id, and is recorded at its real cost, null when unknown, never 0. An empty answer cut at the output budget is retried once with a doubled budget (#412).", logs: "Each run writes its role log to squad-logs/ beside the cost ledger (so it follows SQUAD_LEDGER and FLOW_TOWER_HOME), or to SQUAD_LOGS, never beside the runner, in a folder created private to its user (0700; an existing folder, such as one named by SQUAD_LOGS, keeps its mode), and keeps the newest 200 or those under 14 days: 2154 logs (116 MB) there slowed every test that copies tools/squad (#453)." }
         tower: towers/runner-loop.tower.yaml
         files: [towers/runner-loop.tower.yaml, roles/coder.md]
       - id: steps
