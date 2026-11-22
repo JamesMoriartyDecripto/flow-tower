@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ### Added
 
+- A verification skill for agents that change this repository, `.claude/skills/verify-flow-tower`: one helper launches an isolated instance (its own port and user folder), checks it, drives the viewer, the events API and `validate` as a user would, keeps screenshots, app state, HTTP answers and CLI output as evidence, and stops the instance by its recorded PID. A feature map covers the library, layers and views, live events and `validate` (#448).
 - Embed mode for the static build: `index.html?embed=1` turns the simulator off and exposes `window.flowTowerEmbed` (`apply(events)`, `open(towerId)`) so a host app can push real hub events; targets are recomputed against the embedded workspace; `&chrome=0` hides the top bar and library. Glyphs outside the latin subset still need the CDN (#208) (#444).
 
 ## [0.18.0] - 2026-11-03

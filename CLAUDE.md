@@ -22,6 +22,7 @@
 | How the hub works inside | [examples/team-hub](examples/team-hub/README.md): the tower of the hub's own code |
 | Model benchmarks | [examples/model-benchmark/README.md](examples/model-benchmark/README.md) |
 | The agent skill | [skills/flow-tower/SKILL.md](skills/flow-tower/SKILL.md), [reference.md](skills/flow-tower/reference.md) |
+| Prove a change on the real app (launch an isolated instance, drive it, keep evidence) | [.claude/skills/verify-flow-tower](.claude/skills/verify-flow-tower/SKILL.md), its [feature map](.claude/skills/verify-flow-tower/features/README.md) |
 | Build work with the squad (coder/reviewer through OpenRouter); the squad on another project (`squad init`, `squad key`) | [tools/squad/README.md](tools/squad/README.md), [skills/flow-tower-squad](skills/flow-tower-squad/SKILL.md) |
 
 ## Conventions
@@ -45,7 +46,7 @@
 - Files under ~400 lines; plain functions over classes; comments explain *why*.
 - Schema change: `npm run schema`, then docs/schema.md and skills/flow-tower/reference.md.
 - Examples: researched and realistic, real files behind every reference, 0 errors and 0 warnings (`tests/examples.test.ts`), README with sources, illustrative numbers labelled.
-- Verify UI changes in a browser (Playwright screenshots), not only via typecheck.
+- Verify UI changes in a browser (Playwright screenshots), not only via typecheck. The [verify-flow-tower skill](.claude/skills/verify-flow-tower/SKILL.md) launches an isolated instance, drives it and keeps the evidence.
 
 ## Gotchas
 
