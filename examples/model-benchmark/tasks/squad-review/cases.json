@@ -13,9 +13,9 @@
       "id": "steps-scope-defect", "issue": 353, "kind": "defect", "base": "662c38e", "head": "a76aba3",
       "keys": [
         { "id": "R1", "file": "tools/squad/step-scope.mjs", "pattern": "quot|-z\\b|\\bNUL\\b|non-ascii|unicode", "note": "git lists without -z: quoted non-ASCII names never match" },
-        { "id": "R2", "file": "tools/squad/steps.sh", "pattern": "changed nothing|out-of-scope|out of scope|outside|not committed", "note": "only out-of-scope changes: the run says the coder changed nothing" },
-        { "id": "S1", "file": "tools/squad/steps.sh", "pattern": "index|staged|git add", "note": "the commit takes the whole index, files staged before the run included" },
-        { "id": "S2", "file": "tools/squad/step-scope.mjs", "pattern": "absolute|\\.\\.|travers|outside|escape", "note": "an absolute or ../ Files: entry gives a write dir outside the repository" },
+        { "id": "R2", "file": "tools/squad/steps.sh", "pattern": "changed nothing|nothing changed|never reached|not reached|hid(es|den|ing)", "note": "only out-of-scope changes: the run says the coder changed nothing" },
+        { "id": "S1", "file": "tools/squad/steps.sh", "pattern": "index|pre-?staged|already staged|staged before", "note": "the commit takes the whole index, files staged before the run included" },
+        { "id": "S2", "file": "tools/squad/step-scope.mjs", "pattern": "absolute|\\.\\./|travers|outside the repo|escap", "note": "an absolute or ../ Files: entry gives a write dir outside the repository" },
         { "id": "S4", "file": "tools/squad/step-scope.mjs", "pattern": "maxbuffer|buffer", "note": "hash-object runs with the default 1 MB buffer" }
       ]
     },
@@ -23,16 +23,16 @@
     {
       "id": "temp-cleanup-defect", "issue": 357, "kind": "defect", "base": "cb24efb", "head": "b9c6acb",
       "keys": [
-        { "id": "S4", "file": "tests/global-tmp.ts", "pattern": "owner|uid|other user|another user|shared", "note": "the sweep never checks the folder's owner" }
+        { "id": "S4", "file": "tests/global-tmp.ts", "pattern": "owner|uid|other user|another user|different user", "note": "the sweep never checks the folder's owner" }
       ]
     },
     { "id": "temp-cleanup-clean", "issue": 357, "kind": "clean", "base": "cb24efb", "head": "ce3308b", "keys": [] },
     {
       "id": "embed-defect", "issue": 444, "kind": "defect", "base": "89c6951", "head": "58ce92c",
       "keys": [
-        { "id": "R1", "file": "src/app/App.tsx", "pattern": "chrome", "note": "chrome=0 still shows LayerNav, Legend, Controls, the hint line and TowerInfo" },
+        { "id": "R1", "file": "src/app/App.tsx", "pattern": "layernav|legend|controls|towerinfo|hint", "note": "chrome=0 still shows LayerNav, Legend, Controls, the hint line and TowerInfo" },
         { "id": "R2", "file": "src/app/embed.ts", "pattern": "prototype|constructor|__proto__|hasown|inherit", "note": "open('constructor') passes the guard through the prototype" },
-        { "id": "S1", "file": "src/app/demo.ts", "pattern": "batch|unbounded|limit|\\bcap\\b|size|future|timestamp|\\bts\\b", "note": "a host batch of any size is resolved; a future ts sorts ahead of later events" }
+        { "id": "S1", "file": "src/app/demo.ts", "pattern": "unbounded|any size|no (limit|cap|bound)|without (a )?(limit|cap|bound)|(large|huge|oversized) (batch|array)|future|ahead of", "note": "a host batch of any size is resolved; a future ts sorts ahead of later events" }
       ]
     },
     { "id": "embed-clean", "issue": 444, "kind": "clean", "base": "89c6951", "head": "969b047", "keys": [] }
