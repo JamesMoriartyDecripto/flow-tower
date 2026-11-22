@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { env } from 'node:process';
-import { loadConfig } from './config.mjs';
+import { commandArgv, loadConfig } from './config.mjs';
 import { parseVerdict } from './gate.mjs';
 import { ROLES } from './roles.mjs';
 import { slugOf } from './runner-plan.mjs';
@@ -91,6 +91,9 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
     if (existsSync(path)) git(['-C', repo, 'worktree', 'remove', '--force', path]);
     must(git(['-C', repo, 'fetch', 'origin', 'main']), 'git fetch');
     must(git(['-C', repo, 'worktree', 'add', '-B', branch, path, 'origin/main']), 'git worktree add');
+    // A fresh worktree has no dependencies yet. The command is read from the main checkout, since the worktree's copy is the coder's to edit.
+    const setup = commandArgv(loadConfig(repo).commands.setup);
+    if (setup) must(exec(setup[0], setup.slice(1), { cwd: path, env: envWithoutKey(), timeout: 15 * 60 * 1000 }), 'setup');
     return { path, branch };
   }
 
