@@ -290,10 +290,11 @@ layers:
         type: process
         label: Squad runner
         description: >-
-          For the squad's own roles: each packed review case goes through tools/squad/run.mjs in one
-          request, as the squad sends it, with a private cost ledger per run. The answer is scored with
-          the merge gate's parseVerdict and checkFinding; an empty, cut or verdict-less answer is a
-          failed run (#447).
+          Each packed review case goes through tools/squad/run.mjs in one request, with a private cost
+          ledger per run, and is scored with the merge gate's parseVerdict and checkFinding: an empty,
+          cut or verdict-less answer is a failed run (#447). The loop roles (architect, lead-judge) run
+          the planner and judge tasks the same way.
+        files: [scripts/squad-roles.mjs, scripts/squad-score.mjs]
       - id: api
         type: tool
         label: chat/completions
