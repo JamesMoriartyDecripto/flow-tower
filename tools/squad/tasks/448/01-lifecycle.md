@@ -17,4 +17,6 @@ Data: a run is a folder `<base>/<runId>/` holding `run.json` (`{ runId, port, pi
    - Export the pure helpers `planRun({ base, port, now })` (returns the run.json fields except pid and commit, with `runId` built from the time and the port) and `parseArgs(argv)`. Run the CLI only when the file is the entry script.
 2. New file tests/verify-skill.test.ts: `planRun` gives paths under base and a runId that contains the port; `--help` exits 0 and names `launch`, `doctor` and `stop`; `doctor --run <empty temp dir>` exits 1 and prints `FAIL run.json`; with a `node:net` server listening on a free port, `launch --port <that port> --base <temp dir>` exits 1 with `is in use` and creates no run folder. Every spawn has an explicit `{ timeout: 20000 }`. Do not start a real server in the tests.
 
+Continuation: both files hold a finished first attempt. Its full check failed only on an unrelated 60 s timeout in tests/squad-trusted-cli.test.ts, which passes alone in 3 s. Read the two files, run typecheck and the test file, fix only what is wrong, and finish.
+
 Files: .claude/skills/verify-flow-tower/scripts/verify.mjs+, tests/verify-skill.test.ts+
