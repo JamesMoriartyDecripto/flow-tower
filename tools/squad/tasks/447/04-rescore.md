@@ -14,4 +14,6 @@ Why: issue #447. After the first run, two case keys changed on evidence from the
    - Print `rescored N lines, dropped M, pass changed on K` and exit 0.
 2. Append to tests/model-benchmark-squad-roles.test.ts: `rescoreLine` on a stored line whose answer is `{"verdict":"changes","findings":[{"severity":"high","file":"a.sh:1","quote":"mapfile -t x","what":"mapfile is missing in bash 3.2","why":"w","fix":"f"}]}`: with a clean case it gives `pass: false`; with a defect case whose key is `{ id: 'M2', file: 'a.sh', pattern: 'mapfile' }` it gives `pass: true`, `keys: ['M2']`, `kind: 'defect'`, the new case id, and keeps `cost`, `seconds` and `answer`. Use the real parseVerdict and checkFinding from tools/squad/gate.mjs and a `readFile` returning `'mapfile -t x\n'`.
 
+Continuation: both files already hold a finished first attempt. Its full check failed only on an unrelated 5 s timeout in tests/cli.test.ts while the machine was busy. Read the two files, run typecheck and the test file, fix only what is wrong, and finish.
+
 Files: examples/model-benchmark/scripts/squad-roles.mjs, tests/model-benchmark-squad-roles.test.ts
