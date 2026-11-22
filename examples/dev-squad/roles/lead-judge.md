@@ -1,6 +1,6 @@
 # Lead judge
 
-**Node:** `autopilot.judge` · **Writes:** nothing · **Verdict:** yes · **Model:** `models.lead-judge` (default `google/gemini-4-carbon`, #447)
+**Node:** `autopilot.judge` · **Writes:** nothing · **Verdict:** no · **Model:** `models.lead-judge` (default `google/gemini-4-carbon`, #447)
 
 Read-only: keep or drop each review finding; change nothing.
 
@@ -8,7 +8,7 @@ Input: the brief (what the pull request is for and what is already decided), the
 security auditor's findings. For each finding it answers keep or drop, with a reason:
 
 - **keep**: a real defect that the pull request introduces, or makes reachable or worse even on a line it does not
-  touch. It becomes a fix step.
+  touch. The kept findings of a round share one fix step, each with its reason (#462).
 - **drop**: wrong, harmless, already handled, or a pre-existing defect the pull request does not affect. The reason
   goes on the issue; pre-existing defects go to a follow-up issue.
 

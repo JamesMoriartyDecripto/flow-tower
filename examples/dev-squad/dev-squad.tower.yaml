@@ -67,7 +67,7 @@ agents:
     name: Lead judge
     description: "#320. Read-only: keeps or drops each review finding with a reason, as the lead does by hand today. Kept findings become one fix step that carries each keep reason, so a conditional fix is read the way the judge meant it (#462)."
     model: google/gemini-4-carbon
-    harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
+    harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true }
     files: [roles/lead-judge.md]
     meta: { why: "18/18 keep/drop decisions on real review findings in the #447 benchmark (Sonnet 5.5: 15/18, one critical finding dropped), about 5 cents per round" }
   researcher:
@@ -311,7 +311,7 @@ layers:
         type: process
         label: steps.sh
         description: "Runs the coder on each task file in order; check, Files: check and one commit per green step. Runs from a copy of itself; REPO and the task folder are made absolute first, so relative ones work (#394). Every file of the folder is a coder step: tasks of other roles live in their own folder."
-        meta: { portability: "Runs on macOS bash 3.2 and passes paths as :(literal), so project hooks keep their globs (#396, #403).", probe_sweep: "The sweep of coder probe files never touches the task folder (#420).", adopt: "Local edits are kept out of squad commits; SQUAD_ADOPT=<paths> lets the lead hand a red step's leftovers to the step that continues it, and a literal Files: entry kept out turns the step RED before the coder runs (#416)." }
+        meta: { portability: "Runs on macOS bash 3.2 and passes paths as :(literal), so project hooks keep their globs (#396, #403).", probe_sweep: "The sweep of coder probe files never touches the task folder (#420).", adopt: "Local edits are kept out of squad commits; SQUAD_ADOPT=<paths> lets the lead hand a red step's leftovers to the step that continues it, and a literal Files: entry kept out turns the step RED before the coder runs (#416). Undo first the part of the leftovers that made the step red: the next run builds on what is adopted (#462)." }
         files: [roles/coder.md]
       - id: guard
         runtime: laptop
@@ -402,7 +402,7 @@ layers:
         runtime: laptop
         type: output
         label: Live tower
-        description: "ev.sh posts start/end events to a running flow-tower viewer: the role's node lights up. Best effort: offline it is skipped."
+        description: "ev.sh posts start/end events to a running flow-tower viewer: the role's node lights up. Best effort: offline it is skipped. Test runs point FLOW_TOWER_URL at a closed port, so they never light it (#462)."
         files: [README.md]
 
   # 8 ───────────────────────────────────────────────────────────────
@@ -472,7 +472,7 @@ layers:
         label: runner.mjs
         description: "The code-driven lead: triage, worktree under the user folder, plan as task files, steps.sh, review and security, lead-judge, at most 2 fix rounds (findings still open after them go into the draft PR; a security one not clearly medium or low stops), verifier, draft PR, gate. A failed check stops the issue. Issue and plan reach models fenced as data; anything posted is scrubbed of keys and tokens."
         files: [README.md]
-        meta: { answers: "An answer is the first json object block that validates (an echoed template or a quoted draft never wins), read from the role report without run.mjs header lines; an unreadable triage answer is asked for once more. The plan sign-off is released for one issue by a person with SQUAD_APPROVE=<issue number>, which posts an approval comment on the issue. (#369)", plan_files: "A plan file entry is one path: a comma or a line break is refused, since the Files line splits there and a second path would skip the control-file sign-off; a glob entry needs the sign-off when a control path starts with its text before the first * (tools/*/x, **/x, *.json) (#391); so does a literal entry whose folder holds a control path, since the coder may write that whole folder (tools/helper.mjs grants tools/) (#435)." }
+        meta: { answers: "An answer is the first json object block that validates (an echoed template or a quoted draft never wins), read from the role report without run.mjs header lines; an unreadable triage answer is asked for once more. The plan sign-off is released for one issue by a person with SQUAD_APPROVE=<issue number>, which posts an approval comment on the issue. (#369)", plan_files: "A plan file entry is one path: a comma or a line break is refused, since the Files line splits there and a second path would skip the control-file sign-off; a glob entry needs the sign-off when a control path starts with its text before the first * (tools/*/x, **/x, *.json) (#391); so does a literal entry whose folder holds a control path, since the coder may write that whole folder (tools/helper.mjs grants tools/) (#435). A step's optional reads (existing paths: no + mark, nothing outside the repo) go on its Read line, never on Files, and the plan sign-off does not look at them, since a read changes nothing (#462)." }
       - id: judge
         agent: lead-judge
         label: Lead judge
@@ -501,7 +501,7 @@ layers:
       - "claim -> driver [handoff]: issue"
       - "driver -> limits [call]: before each stage"
       - "driver -> judge [spawn]: findings"
-      - "judge -> driver [return]: keep / drop"
+      - "judge -> driver [return]: keep or drop + reason"
       - "driver -> draft_pr: gate result"
       - "driver -> failed: stop"
       - "limits -> failed: over a limit"
@@ -512,7 +512,7 @@ links:
   - "intake.lead -> orchestration.architect [spawn]: plan"
   - "orchestration.tasks -> runner.steps [call]: run the folder"
   - "runner.steps -> specialists.coder [spawn]: step N"
-  - "orchestration.architect -> specialists.researcher [spawn]: open questions"
+  - "orchestration.architect -> specialists.researcher [data]: open questions"
   - "specialists.doc_writer -> quality.pack [handoff]: branch ready"
   - "quality.triage_findings -> orchestration.tasks [return]: fix steps"
   - "runner.run -> observe.ledger [data]: cost"
