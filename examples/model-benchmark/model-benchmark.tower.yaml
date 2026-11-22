@@ -119,6 +119,11 @@ layers:
         label: security tasks
         description: "A prefix-check path bypass; an API key logged with the request headers, next to a decoy (execFileSync with an argument array) that must not be reported as command injection."
         files: [tasks/security/path-prefix.md, tasks/security/fixtures/serve-file.mjs, tasks/security/key-in-log.md, tasks/security/fixtures/run-agent.mjs]
+      - id: squad_review
+        type: memory
+        label: squad review cases
+        description: "Four real pull requests of this repository at their real size (110-150 KB packed): the head the first review saw, keyed on the findings the lead kept and fixed, and the merged head as the clean case. For the squad's reviewer and security roles (#447)."
+        files: [tasks/squad-review/cases.json, tasks/squad-review/README.md]
       - id: intent
         type: memory
         label: intent tasks
@@ -177,6 +182,7 @@ layers:
       - "coder -> keyfirst [data]"
       - "reviewer -> keyfirst [data]"
       - "security -> keyfirst [data]"
+      - "squad_review -> keyfirst [data]"
       - "intent -> keyfirst [data]"
       - "docs -> keyfirst [data]"
       - "writer -> keyfirst [data]"
@@ -280,6 +286,15 @@ layers:
         runtime: openrouter
         description: "Calls the endpoint a task names: decisions, embeddings, rerank, images, videos (submit, poll, download), speech (a voice the model lists; PCM wrapped as WAV), transcriptions."
         files: [scripts/endpoints.mjs, scripts/endpoints-media.mjs]
+      - id: squad
+        type: process
+        label: Squad runner
+        description: >-
+          Each packed review case goes through tools/squad/run.mjs in one request, with a private cost
+          ledger per run, and is scored with the merge gate's parseVerdict and checkFinding: an empty,
+          cut or verdict-less answer is a failed run (#447). The loop roles (architect, lead-judge) run
+          the planner and judge tasks the same way.
+        files: [scripts/squad-roles.mjs, scripts/squad-score.mjs]
       - id: api
         type: tool
         label: chat/completions
@@ -306,6 +321,8 @@ layers:
       - "cap -> loop [return]: tool calls, max steps"
       - "cap -> jsonl [data]: run record"
       - "loop -> endpoints [call]: non-chat task"
+      - "dryrun -> squad: squad roles"
+      - "squad -> jsonl [data]: scored run"
 
   # 5 ───────────────────────────────────────────────────────────────
   - id: measure

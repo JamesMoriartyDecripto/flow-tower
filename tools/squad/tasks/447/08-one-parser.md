@@ -1,0 +1,16 @@
+# 447-08: one parser of run.mjs output, one child runner, a resume that never pays twice
+
+Rules: English only; edit only Files; write the minimum; plain functions; files under ~400 lines; comments explain why, never what the next line does. Whenever a step changes what a function returns, update the tests that relied on it. Verify: run test on tests/model-benchmark-squad-roles.test.ts and tests/model-benchmark-squad-loop.test.ts; finish with real checks and Known gaps. steps.sh runs the full check after finish: do not run it yourself.
+Skills: untyped-mjs
+Read tools/squad/runner-deps.mjs (reportOf, lines 20-41), examples/model-benchmark/scripts/squad-roles.mjs, examples/model-benchmark/scripts/squad-loop.mjs, tests/model-benchmark-squad-roles.test.ts, tests/model-benchmark-squad-loop.test.ts.
+
+Why: review of #447. The two drivers copy runChild, lastLedgerLine, the outcome line, the resume block and the worker pool. squad-loop.mjs copies reportOf from runner-deps.mjs line for line, and squad-roles.mjs has a weaker answerOf that keeps the `trimmed:` header and the footer. The resume block wraps JSON.parse of every line in one catch: one torn last line after an interrupted append drops every finished job, and they are paid for again.
+
+1. New file examples/model-benchmark/scripts/squad-child.mjs, with a .d.mts next to it, exporting:
+   - `runSquad({ runMjs, args, timeoutS, tmp })`: spawns `process.execPath` with `[runMjs, ...args]`, env = the current env plus `SQUAD_LEDGER` = a fresh file in `tmp` and `FLOW_TOWER_URL` = the constant `NO_EVENTS` (`http://127.0.0.1:9`, with one comment: port 9 has no listener, so the runner's live events fail fast and no tower the user has open receives benchmark events). Returns `{ stdout, rec, outcome, seconds }` where `rec` is the last ledger line or null, and `outcome` is `timeout` when killed, else `rec.outcome`, else `crash`.
+   - `doneSet(outFile, keyOf)`: a Set of `keyOf(line)` for every line of `outFile`. A missing file gives an empty set; any other read error is thrown. A line that does not parse is skipped and counted, and the function prints `skipped N unreadable lines in <file>` once when N > 0.
+   - `pool(items, parallel, fn)`: runs `fn(item)` with at most `parallel` at once, resolves when all are done.
+2. squad-roles.mjs and squad-loop.mjs use these three and drop their own copies. Both take the answer with `reportOf` loaded from `<squad>/runner-deps.mjs` by dynamic import, as squad-roles.mjs already loads gate.mjs. Delete `answerOf` and squad-loop's `reportOf` with their tests. Drop `export` from `doneKey` in both files.
+3. Tests: in tests/model-benchmark-squad-roles.test.ts or a new tests/model-benchmark-squad-child.test.ts: `doneSet` on a file whose last line is cut halfway keeps the keys of the complete lines before it; `doneSet` on a missing file is empty. Explicit timeouts on spawns.
+
+Files: examples/model-benchmark/scripts/squad-child.mjs+, examples/model-benchmark/scripts/squad-child.d.mts+, examples/model-benchmark/scripts/squad-roles.mjs, examples/model-benchmark/scripts/squad-loop.mjs, tests/model-benchmark-squad-roles.test.ts, tests/model-benchmark-squad-loop.test.ts, tests/model-benchmark-squad-child.test.ts+ (optional)

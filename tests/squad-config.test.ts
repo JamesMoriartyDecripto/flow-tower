@@ -97,13 +97,15 @@ describe('squad config validation (#265 review)', () => {
 });
 
 describe('squad model defaults (#322)', () => {
-  it('with no squad.json the reviewer default is z-ai/glm-5.3-flash', () => {
+  it('with no squad.json the reviewer default is minimax/minimax-m3.1-flash (#447)', () => {
     expect(loadConfig(repoWith()).models).toEqual({
       coder: 'anthropic/claude-haiku-5.5',
-      reviewer: 'z-ai/glm-5.3-flash',
-      security: 'deepseek/deepseek-v4.1-flash',
+      reviewer: 'minimax/minimax-m3.1-flash',
+      security: 'minimax/minimax-m3.1-flash',
       architect: 'openai/gpt-6.1-terra',
-      'lead-judge': 'anthropic/claude-sonnet-5.5',
+      researcher: 'z-ai/glm-5.3-flash',
+      verifier: 'z-ai/glm-5.3-flash',
+      'lead-judge': 'google/gemini-4-carbon',
     });
   });
 });

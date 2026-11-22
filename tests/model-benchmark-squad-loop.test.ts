@@ -1,0 +1,32 @@
+import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { planJobs } from '../examples/model-benchmark/scripts/squad-loop.mjs';
+
+const script = resolve('examples/model-benchmark/scripts/squad-loop.mjs');
+const judge = resolve('examples/model-benchmark/tasks/judge');
+const out = join(tmpdir(), 'loop-test.jsonl');
+
+describe('squad-loop planJobs', () => {
+  it('runs run-major with models interleaved', () => {
+    const jobs = planJobs({ tasks: ['t1', 't2'], models: ['a', 'b'], runs: 2 });
+    expect(jobs).toHaveLength(8);
+    expect(jobs.slice(0, 4).map((j) => [j.run, j.model, j.task])).toEqual([
+      [1, 'a', 't1'], [1, 'b', 't1'], [1, 'a', 't2'], [1, 'b', 't2'],
+    ]);
+    expect(jobs[4].run).toBe(2);
+  });
+});
+
+describe('squad-loop CLI', () => {
+  it('dry-run prints the plan for two models and two runs', () => {
+    const stdout = execFileSync(process.execPath, [script, '--role', 'architect', '--category', 'judge', '--tasks', judge, '--models', 'a,b', '--out', out, '--runs', '2', '--dry-run'], { encoding: 'utf8', timeout: 20000 });
+    expect(stdout).toContain('2 models × 3 tasks × 2 runs = 12 runs');
+  });
+
+  it('dry-run with --only keeps one task', () => {
+    const stdout = execFileSync(process.execPath, [script, '--role', 'lead-judge', '--category', 'judge', '--tasks', judge, '--models', 'a', '--out', out, '--only', 'steps-scope', '--dry-run'], { encoding: 'utf8', timeout: 20000 });
+    expect(stdout).toContain('1 models × 1 tasks × 3 runs = 3 runs');
+  });
+});

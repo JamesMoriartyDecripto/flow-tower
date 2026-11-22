@@ -5,8 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Changed
+
+- Dev squad model defaults, measured on four real pull requests of this repository (#447, [results](examples/model-benchmark/results/2026-11-22-squad-roles.md)): reviewer and security move to `minimax/minimax-m3.1-flash` (it saw 7 of 12 kept defects, against 4 for `z-ai/glm-5.3-flash`, and had no failed run, against 3 empty answers in 16 for `deepseek/deepseek-v4.1-flash`), the lead-judge to `google/gemini-4-carbon` (18 of 18 keep/drop sets, against 15 for `anthropic/claude-sonnet-5.5`). Researcher and verifier keep `z-ai/glm-5.3-flash` as their own default: a project that sets only `models.reviewer` no longer moves them with it.
+- `pack.mjs` tells the reviewer and the security pass to answer `changes` only when a finding is critical or high (#449). On clean heads, 62 of 97 failed reviews had been a `changes` verdict with medium or low findings only, which the merge gate blocks on.
+
 ### Added
 
+- `examples/model-benchmark`: the squad review cases from four real pull requests, and `scripts/squad-roles.mjs` and `scripts/squad-loop.mjs`, which run benchmark tasks through `tools/squad/run.mjs` as the squad sends them and score them with the merge gate's own checks (#447).
 - Embed mode for the static build: `index.html?embed=1` turns the simulator off and exposes `window.flowTowerEmbed` (`apply(events)`, `open(towerId)`) so a host app can push real hub events; targets are recomputed against the embedded workspace; `&chrome=0` hides the top bar and library. Glyphs outside the latin subset still need the CDN (#208) (#444).
 
 ## [0.18.0] - 2026-11-03

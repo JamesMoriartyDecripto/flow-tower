@@ -60,10 +60,11 @@ is the lead's procedure.
 | Role | Default (OpenRouter) | Why |
 |---|---|---|
 | coder, triage, tester, doc writer | `anthropic/claude-haiku-5.5` | Field runs and the 2026-10-11 coder benchmark |
-| reviewer, researcher, verifier | `z-ai/glm-5.3-flash` | Same score as FlashX on the squad's review cases at a quarter of the price (#322) |
-| architect | `openai/gpt-6.1-terra` | 9/9 plans from real issues at 1.8 cents (#362) |
-| lead-judge (runner) | `anthropic/claude-sonnet-5.5` | The only model with 9/9 keep/drop decisions on real review findings (#362) |
-| security | `deepseek/deepseek-v4.1-flash` | Another family than coder and reviewer |
+| reviewer | `minimax/minimax-m3.1-flash` | Saw 7 of 12 kept defects on four real pull requests, no critical or high finding on a clean head (#447) |
+| security | `minimax/minimax-m3.1-flash` | No failed run in 24, 6 of 12 defects seen (#447) |
+| researcher, verifier | `z-ai/glm-5.3-flash` | The model they ran on before #447; not measured |
+| architect | `openai/gpt-6.1-terra` | 9/9 plans from real issues at 2.2 cents (#362, #447) |
+| lead-judge (runner) | `google/gemini-4-carbon` | 18/18 keep/drop sets on real review findings (#447) |
 
 Any role takes its own model in `squad.json` (`"models": { "verifier": "..." }`); a role without one uses its family's.
 Prices and scores move: see [skills/flow-tower-costs](../../skills/flow-tower-costs/SKILL.md) before changing them.

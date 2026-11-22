@@ -66,14 +66,14 @@ agents:
     runtime: laptop
     name: Lead judge
     description: "#320. Read-only: keeps or drops each review finding with a reason, as the lead does by hand today. Kept findings become fix steps."
-    model: anthropic/claude-sonnet-5.5
+    model: google/gemini-4-carbon
     harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
     files: [roles/lead-judge.md]
-    meta: { why: "the only model with 9/9 on real review findings in the #362 benchmark, about 2.7 cents per round" }
+    meta: { why: "18/18 keep/drop decisions on real review findings in the #447 benchmark (Sonnet 5.5: 15/18, one critical finding dropped), about 5 cents per round" }
   researcher:
     runtime: laptop
     name: Researcher
-    description: "Read-only: answers the plan's open questions with file:line citations."
+    description: "Read-only: answers the plan's open questions with file:line citations. Pinned to its own model since #447: it no longer follows the reviewer's."
     model: z-ai/glm-5.3-flash
     harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true }
     files: [roles/researcher.md]
@@ -103,22 +103,22 @@ agents:
   reviewer:
     runtime: laptop
     name: Reviewer
-    description: "One packed request, JSON verdict only. Another model family than the coder's. Flags bugs and unneeded complexity: code the brief does not ask for, duplicates, oversized solutions."
-    model: z-ai/glm-5.3-flash
+    description: "One packed request, JSON verdict only: changes only when a finding is critical or high. Another model family than the coder's. Flags bugs and unneeded complexity: code the brief does not ask for, duplicates, oversized solutions."
+    model: minimax/minimax-m3.1-flash
     harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
     files: [roles/reviewer.md]
-    meta: { pattern: evaluator-optimizer, role: evaluator, cross_model: "GLM reviews Haiku's code" }
+    meta: { pattern: evaluator-optimizer, role: evaluator, cross_model: "MiniMax reviews Haiku's code", why: "#447, four real pull requests at their real size: saw 7 of 12 kept defects (GLM 5.3 Flash: 4) and raised no critical or high finding on a clean head" }
   security:
     runtime: laptop
     name: Security auditor
-    description: "One packed request, JSON verdict with severities; falls back to the reviewer's model on an empty answer. Names the existing guard before proposing a new check."
-    model: deepseek/deepseek-v4.1-flash
+    description: "One packed request, JSON verdict with severities: changes only when a finding is critical or high. Names the existing guard before proposing a new check. Same model as the reviewer since #447, so the retry on an empty answer runs the same model again."
+    model: minimax/minimax-m3.1-flash
     harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
     files: [roles/security.md]
   verifier:
     runtime: laptop
     name: Verifier
-    description: "Fresh context: the criteria and the branch, PASS or HOLD per criterion with evidence."
+    description: "Fresh context: the criteria and the branch, PASS or HOLD per criterion with evidence. Pinned to its own model since #447: it no longer follows the reviewer's."
     model: z-ai/glm-5.3-flash
     harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true, context: fresh }
     files: [roles/verifier.md]
@@ -267,7 +267,7 @@ layers:
         type: decision
         label: Merge gate
         description: "gate.mjs: CI green, not a draft, reviewer and security approve the PR's exact head. READY or NOT READY with the reasons, and a note when a pass saw a pack trimmed to fit (run.mjs counts only a cut marker alone on its line, not one inside a packed file, #422)."
-        meta: { severity: "Reviewer and security findings carry one scale (critical, high, medium, low); the gate blocks on a changes verdict or a verified critical/high finding, so a low note never fails it. An outside gate keys on the same two (#427)." }
+        meta: { severity: "Reviewer and security findings carry one scale (critical, high, medium, low); the gate blocks on a changes verdict or a verified critical/high finding, so a low note never fails it. Since #447 the pack tells both passes to answer changes only for a critical or high finding: before, 62 of 97 failed clean-head reviews were a changes verdict with medium or low findings only. An outside gate keys on the same two (#427)." }
         decision: { output: binary, candidates: [ready, not_ready], fail: closed }
         files: [roles/reviewer.md, roles/security.md]
       - id: merge
@@ -407,7 +407,7 @@ layers:
         runtime: openrouter
         type: model
         label: OpenRouter
-        description: "One OpenAI-style endpoint. A role with no model of its own uses its family's: coder for writers and triage, reviewer for read-only graders."
+        description: "One OpenAI-style endpoint. Reviewer, security, architect, lead-judge, researcher and verifier have their own default; triage, tester and doc writer use the coder's. A models entry in squad.json replaces a default. Before #447, researcher and verifier followed the reviewer's model."
         files: [squad.example.json]
       - id: haiku
         runtime: openrouter
@@ -416,24 +416,32 @@ layers:
         model: anthropic/claude-haiku-5.5
         description: "Default coder (and triage, tester, doc writer by family)."
         files: [squad.example.json]
+      - id: minimax
+        runtime: openrouter
+        type: model
+        label: MiniMax M3.1 Flash
+        model: minimax/minimax-m3.1-flash
+        description: "Default reviewer and security auditor since #447. Another family than the coder's."
+        files: [squad.example.json]
       - id: glm
         runtime: openrouter
         type: model
         label: GLM 5.3 Flash
         model: z-ai/glm-5.3-flash
-        description: "Default reviewer (and researcher, verifier by family; the architect defaults to GPT 6.1 Terra). Another family than the coder's."
+        description: "Default researcher and verifier. It was the reviewer until #447, which measured it approving 11 of 12 clean heads and asking for changes on 1 of 12 defective ones."
         files: [squad.example.json]
-      - id: deepseek
+      - id: carbon
         runtime: openrouter
         type: model
-        label: DeepSeek 4.1 Flash
-        model: deepseek/deepseek-v4.1-flash
-        description: "Default security auditor."
+        label: Gemini 4 Carbon
+        model: google/gemini-4-carbon
+        description: "Default lead-judge of the unattended runner since #447."
         files: [squad.example.json]
     edges:
       - "openrouter -> haiku [call]: write"
-      - "openrouter -> glm [call]: judge"
-      - "openrouter -> deepseek [call]: audit"
+      - "openrouter -> minimax [call]: review and audit"
+      - "openrouter -> glm [call]: research and verify"
+      - "openrouter -> carbon [call]: keep or drop"
 
   # 9 ───────────────────────────────────────────────────────────────
   - id: autopilot
