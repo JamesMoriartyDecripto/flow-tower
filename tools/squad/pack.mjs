@@ -66,7 +66,7 @@ const FORMAT = [
   // Every role gives a severity, so one gate rule (block on critical and high) covers both passes.
   '{"verdict":"approve"|"changes","findings":[{"severity":"critical|high|medium|low", '
     + '"file":"path:line","quote":"...","what":"...","why":"...","fix":"..."}]}',
-  'verdict is "changes" when at least one finding is critical or high, and "approve" otherwise, even when there are medium or low findings: the merge gate blocks on changes, and the lead reads every finding either way.',
+  'verdict is "changes" when at least one finding is critical or high, and "approve" otherwise, even when there are medium or low findings: the merge gate blocks on critical and high findings, and the lead reads every finding either way.',
   'quote is the exact text of that line as shown in the diff or the files below, copied character by character, without the line number and without the leading + or - of a diff line. A finding whose quote is not at that line is dropped as unverified, so never paraphrase it and never cite a line you were not shown.',
 ];
 

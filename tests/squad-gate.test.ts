@@ -121,9 +121,9 @@ describe('readiness', () => {
       .toEqual(['security: no verdict']);
   });
 
-  it('a changes verdict is a reason', () => {
+  it('a changes verdict with no critical or high finding is not a reason', () => {
     const verdicts = [{ ...green.verdicts[0], verdict: 'changes' }, green.verdicts[1]];
-    expect(readiness(with_({ verdicts })).reasons).toEqual(['reviewer: changes requested']);
+    expect(readiness(with_({ verdicts })).reasons).toEqual([]);
   });
 
   it('a verdict with no commit, however new its file, is a reason', () => {

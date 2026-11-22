@@ -90,6 +90,8 @@ const KNOWN_SEVERITY = ['critical', 'high', 'medium', 'low'];
 // would let a pass hide a real problem behind a bad field.
 const blocks = (severity) => BLOCKING_SEVERITY.includes(severity) || !KNOWN_SEVERITY.includes(severity);
 
+// The verdict is not a reason since #449, because the pack asks for `changes` exactly when a finding is critical or high
+// and the findings are what the gate reads.
 // Returns the list of reasons the PR is not ready; it is ready only when that list is empty. Unverified findings below
 // high are not reasons: they are listed for the lead to check by hand, since a wrong quote should not block a good
 // change. Unverified critical and high findings do block: failing closed on the findings that matter means a real one
@@ -113,7 +115,6 @@ export function readiness(facts) {
     if (!verdicts.some((v) => v.role === role)) reasons.push(`${role}: no verdict`);
   }
   for (const v of verdicts) {
-    if (v.verdict === 'changes') reasons.push(`${v.role}: changes requested`);
     // A packed review names the commit it read, so that commit decides. A review with no commit is refused: its file's
     // age or mtime says nothing about what it reviewed (a rerun of an old task, or a touch), so only a pack from a
     // clean tree, which writes the commit, counts before a merge.
