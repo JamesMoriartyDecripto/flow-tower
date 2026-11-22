@@ -58,7 +58,7 @@ node $V validate examples/starters --name validate-starters
 
 A drive that fails its own expectation prints `FAIL <what>` and exits 1. It still writes the evidence it has, and the JSON's `error` field holds the full error, with Playwright's call log for a browser failure.
 
-One first `open` after a `launch` timed out on the card click in 16 tries, with the library on screen, and never again in 9 repeats of the same sequence. The cause is not known. If it happens, keep the JSON, run `doctor`, and run the drive once more. Report it as a failure of the drive, with the `error` text, not as a defect of the feature.
+A known failure of the drive, not yet explained: the first `open` after a `launch` timed out on the card click 2 times in 17. The library was on screen, and Playwright's call log ended with `waiting for element to be visible, enabled and stable`: the card was found and never settled. Later drives on the same instance passed. If it happens, keep the JSON, run `doctor`, and run the drive once more. Report it as a failure of the drive, with the `error` text, not as a defect of the feature you are verifying.
 
 For a path these drives do not cover, use the repository's Playwright specs in `e2e/` against the instance you launched. Do not point them at port 5317.
 
