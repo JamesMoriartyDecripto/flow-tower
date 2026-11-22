@@ -277,9 +277,19 @@ async function stop(args) {
   if (ours && (await workspaceOf(run.url, 2000))) signalRun(run.pid, 'SIGKILL');
   // Only the home goes: the evidence and the log are what the run leaves for review.
   rmSync(join(dir, 'home'), { recursive: true, force: true });
+  // A server that still answers keeps its Vite cache, since the cache is in use until the server is gone.
+  if (run.port !== undefined && !(await workspaceOf(run.url, 2000))) removeViteCache(run.port);
   console.log(`stopped pid ${run.pid}`);
   console.log(`evidence kept in ${join(dir, 'evidence')}`);
   return 0;
+}
+
+/** Each server start leaves node_modules/.vite/port-<port> in the checkout, which git status cannot show (#448). */
+function removeViteCache(port) {
+  const cache = join(git(['rev-parse', '--show-toplevel']), 'node_modules', '.vite', `port-${port}`);
+  if (!existsSync(cache)) return;
+  rmSync(cache, { recursive: true, force: true });
+  console.log(`removed the Vite cache of port ${port}`);
 }
 
 async function main(argv) {

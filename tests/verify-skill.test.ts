@@ -147,4 +147,21 @@ describe('verify.mjs CLI', () => {
     expect(() => process.kill(process.pid, 0)).not.toThrow();
   });
 
+  it('stop removes the Vite cache of the run port from the checkout', { timeout: 20000 }, async () => {
+    const dir = join(tempDir(), 'r3');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 'r3', port: 5398, url: 'http://127.0.0.1:5398' }));
+    const cache = join(import.meta.dirname, '..', 'node_modules', '.vite', 'port-5398');
+    mkdirSync(cache, { recursive: true });
+    writeFileSync(join(cache, 'deps.json'), '{}');
+    try {
+      const { code, out } = await verify(['stop', '--run', dir]);
+      expect(code).toBe(0);
+      expect(out).toContain('removed the Vite cache of port 5398');
+      expect(existsSync(cache)).toBe(false);
+    } finally {
+      rmSync(cache, { recursive: true, force: true });
+    }
+  });
+
 });
