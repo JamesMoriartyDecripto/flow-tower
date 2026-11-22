@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -24,8 +24,12 @@ function tempDir() {
 
 /** Runs the script and resolves with its exit code and output; a spawn that hangs is killed at 20 s. */
 function verify(args: string[]) {
+  return verifyWith(args, 20000);
+}
+
+function verifyWith(args: string[], timeout: number) {
   return new Promise<{ code: number; out: string }>((done) => {
-    execFile(process.execPath, [SCRIPT, ...args], { timeout: 20000 }, (err, stdout, stderr) => {
+    execFile(process.execPath, [SCRIPT, ...args], { timeout }, (err, stdout, stderr) => {
       const code = err && typeof err.code === 'number' ? err.code : err ? 1 : 0;
       done({ code, out: `${stdout}${stderr}` });
     });
@@ -66,6 +70,24 @@ describe('verify.mjs CLI', () => {
     const { code, out } = await verify(['doctor', '--run', dir]);
     expect(code).toBe(1);
     expect(out).toContain('FAIL run.json');
+  });
+
+  it('validate runs the CLI on a starter and keeps its JSON as evidence', async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', port: 1, pid: 0, commit: '' }));
+    const { code } = await verifyWith(['validate', 'examples/starters', '--run', dir, '--name', 'v'], 60000);
+    expect(code).toBe(0);
+    const ev = JSON.parse(readFileSync(join(dir, 'evidence', 'v.json'), 'utf8'));
+    expect(ev.exit).toBe(0);
+    expect(JSON.parse(ev.stdout).ok).toBe(true);
+  }, 70000);
+
+  it('--help names open, events and validate', async () => {
+    const { code, out } = await verify(['--help']);
+    expect(code).toBe(0);
+    expect(out).toContain('open');
+    expect(out).toContain('events');
+    expect(out).toContain('validate');
   });
 
   it('launch refuses a port that is already taken and creates no run folder', async () => {
