@@ -111,7 +111,7 @@ agents:
   security:
     runtime: laptop
     name: Security auditor
-    description: "One packed request, JSON verdict with severities: changes only when a finding is critical or high. Names the existing guard before proposing a new check. Same model as the reviewer since #447, so the retry on an empty answer runs the same model again."
+    description: "One packed request, JSON verdict with severities: changes only when a finding is critical or high. Names the existing guard before proposing a new check. Same model as the reviewer since #447: an empty, cut or no-verdict answer gets one more try, and the fallback to the reviewer's model runs only when it is another model (#456)."
     model: minimax/minimax-m3.1-flash
     harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
     files: [roles/security.md]
@@ -239,12 +239,12 @@ layers:
   # 4 ───────────────────────────────────────────────────────────────
   - id: quality
     title: Quality Gate
-    description: "Reviewer and security answer in one request each with the code packed, started together. The merge gate reads their verdicts; the maintainer merges."
+    description: "Reviewer and security answer in one request each with the code packed, started together. The merge gate reads their findings; the maintainer merges."
     nodes:
       - id: pack
         runtime: laptop
         label: Pack
-        description: "pack.mjs: role rules, the brief (what is already decided), the diff against the base and the changed files, in one prompt; it records the reviewed commit."
+        description: "pack.mjs: role rules, the brief (what is already decided), the diff from the merge base of the base and the head (a base that moved on is not shown as reverted, #452) and the changed files, in one prompt; it records the reviewed commit and the merge base."
         files: [roles/reviewer.md]
       - id: reviewer
         agent: reviewer
@@ -266,8 +266,8 @@ layers:
         runtime: laptop
         type: decision
         label: Merge gate
-        description: "gate.mjs: CI green, not a draft, reviewer and security approve the PR's exact head. READY or NOT READY with the reasons, and a note when a pass saw a pack trimmed to fit (run.mjs counts only a cut marker alone on its line, not one inside a packed file, #422)."
-        meta: { severity: "Reviewer and security findings carry one scale (critical, high, medium, low); the gate blocks on a changes verdict or a verified critical/high finding, so a low note never fails it. Since #447 the pack tells both passes to answer changes only for a critical or high finding: before, 62 of 97 failed clean-head reviews were a changes verdict with medium or low findings only. An outside gate keys on the same two (#427)." }
+        description: "gate.mjs: CI green, not a draft, reviewer and security answered on the PR's exact head with no critical or high finding. READY or NOT READY with the reasons, and a note when a pass saw a pack trimmed to fit (run.mjs counts only a cut marker alone on its line, not one inside a packed file, #422)."
+        meta: { severity: "Reviewer and security findings carry one scale (critical, high, medium, low); the gate blocks on a critical or high finding, verified or not, and on one with no known severity, so a low note never fails it. It does not read the verdict since #449: the pack tells both passes to answer changes only for a critical or high finding, after which 31 of 31 verdicts matched the severities, and in 662 stored answers a changes verdict never blocked a head the severities let through. An outside gate keys on the same two (#427)." }
         decision: { output: binary, candidates: [ready, not_ready], fail: closed }
         files: [roles/reviewer.md, roles/security.md]
       - id: merge
@@ -295,7 +295,7 @@ layers:
         type: process
         label: run.mjs
         description: "One role, one process: picks the model from squad.json, the mode (tool loop for most roles, oneshot or batch for reviewer and security), calls OpenRouter, records the cost."
-        meta: { empty_answer: "An empty oneshot answer prints finish_reason, tokens (prompt, completion, reasoning) and the generation id, and is recorded at its real cost, null when unknown, never 0. An empty answer cut at the output budget is retried once with a doubled budget (#412)." }
+        meta: { empty_answer: "An empty oneshot answer prints finish_reason, tokens (prompt, completion, reasoning) and the generation id, and is recorded at its real cost, null when unknown, never 0. An empty answer cut at the output budget is retried once with a doubled budget (#412).", logs: "Each run writes its role log to squad-logs/ in the user folder, or SQUAD_LOGS, never beside the runner: 2154 logs (116 MB) there slowed every test that copies tools/squad (#453)." }
         tower: towers/runner-loop.tower.yaml
         files: [towers/runner-loop.tower.yaml, roles/coder.md]
       - id: steps
@@ -315,7 +315,7 @@ layers:
         runtime: laptop
         type: process
         label: gate.mjs
-        description: "Reads the two verdicts and the PR state; the reviewed commit must be the PR head."
+        description: "Reads the findings of the two answers and the PR state; the reviewed commit must be the PR head."
         files: [roles/reviewer.md]
       - id: steward
         runtime: laptop
