@@ -13,7 +13,6 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { argv, exit } from 'node:process';
 import { loadTasks } from './tasks.mjs';
-// @ts-expect-error plain .mjs without declarations
 import { doneSet, pool, runSquad } from './squad-child.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
@@ -41,9 +40,9 @@ async function runJob(job, ctx) {
   const ok = outcome === 'finish';
   const line = {
     date: new Date().toISOString().slice(0, 10), category: ctx.category, task: task.id, model, run, warm: false, effort: 'low',
-    ok, firstOutputMs: null, totalMs: Math.round(seconds * 1000), steps: rec?.steps ?? 0, retries: 0,
-    promptTokens: rec?.promptTokens ?? 0, completionTokens: 0, cachedTokens: rec?.cachedTokens ?? 0, cachedFirstStep: 0,
-    cost: rec?.cost ?? null, providers: [], answer: ok ? ctx.reportOf(stdout) : null, error: ok ? null : outcome,
+    ok, totalMs: Math.round(seconds * 1000), steps: rec?.steps ?? 0,
+    promptTokens: rec?.promptTokens ?? 0, cachedTokens: rec?.cachedTokens ?? 0,
+    cost: rec?.cost ?? null, answer: ok ? ctx.reportOf(stdout) : null, error: ok ? null : outcome,
   };
   appendFileSync(ctx.out, `${JSON.stringify(line)}\n`);
   const cost = line.cost == null ? 'cost n/a' : `$${line.cost.toFixed(4)}`;

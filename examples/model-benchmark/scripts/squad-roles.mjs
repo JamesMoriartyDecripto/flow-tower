@@ -16,7 +16,6 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { argv, exit } from 'node:process';
 import { scoreRun, summarize, table } from './squad-score.mjs';
-// @ts-expect-error plain .mjs without declarations
 import { doneSet, pool, runSquad } from './squad-child.mjs';
 
 const arg = (k, d) => { const i = argv.indexOf(`--${k}`); return i > 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
@@ -40,7 +39,7 @@ const packFile = (packs, c, role) => join(packs, `${c.id}.${role}.md`);
 // Reads a file as the case's head commit sees it. Anything odd in the path is refused before git runs.
 function readAt(repo, head) {
   return (path) => {
-    if (!path || path.includes('..') || path.startsWith('/') || path.startsWith('-')) return null;
+    if (!path || path.includes('..') || path.startsWith('/')) return null;
     try {
       return execFileSync('git', ['show', `${head}:${path}`], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     } catch {
@@ -79,7 +78,7 @@ export function rescoreLine(line, kase, deps) {
   return { ...line, case: kase.id, kind: kase.kind, ...score };
 }
 
-async function rescore() {
+async function rescore({ repo, gate }) {
   const src = arg('rescore');
   const casesPath = arg('cases');
   const out = arg('out');
@@ -92,11 +91,8 @@ async function rescore() {
     console.error('--out must differ from --rescore');
     exit(2);
   }
-  const repo = arg('repo', execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: scriptDir, encoding: 'utf8' }).trim());
-  const squad = resolve(arg('squad', join(repo, 'tools', 'squad')));
-  const rename = Object.fromEntries((arg('rename', '') || '').split(',').filter(Boolean).map((p) => p.split('=')));
+  const rename = Object.fromEntries((arg('rename') || '').split(',').filter(Boolean).map((p) => p.split('=')));
   const cases = new Map(JSON.parse(readFileSync(casesPath, 'utf8')).cases.map((c) => [c.id, c]));
-  const gate = await import(pathToFileURL(join(squad, 'gate.mjs')).href);
   const lines = readFileSync(src, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
 
   let dropped = 0;
@@ -114,12 +110,14 @@ async function rescore() {
   }
   writeFileSync(out, kept.map((l) => `${JSON.stringify(l)}\n`).join(''));
   console.log(`rescored ${kept.length} lines, dropped ${dropped}, pass changed on ${changed}`);
-  exit(0);
 }
 
 async function main() {
   if (argv.includes('--report')) return report(arg('report'));
-  if (argv.includes('--rescore')) return rescore();
+  const repo = arg('repo', execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: scriptDir, encoding: 'utf8' }).trim());
+  const squad = resolve(arg('squad', join(repo, 'tools', 'squad')));
+  const gate = await import(pathToFileURL(join(squad, 'gate.mjs')).href);
+  if (argv.includes('--rescore')) return rescore({ repo, gate });
   const casesPath = arg('cases');
   const packs = arg('packs');
   const models = (arg('models') || '').split(',').map((m) => m.trim()).filter(Boolean);
@@ -133,8 +131,6 @@ async function main() {
     console.error('       squad-roles.mjs --report <file.jsonl>');
     exit(2);
   }
-  const repo = arg('repo', execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: scriptDir, encoding: 'utf8' }).trim());
-  const squad = resolve(arg('squad', join(repo, 'tools', 'squad')));
   const cases = JSON.parse(readFileSync(casesPath, 'utf8')).cases;
 
   // Every pack must exist before any money is spent: a missing one is listed and the run stops.
@@ -153,7 +149,6 @@ async function main() {
   const todo = jobs.filter((j) => !done.has(doneKey({ model: j.model, role: j.role, case: j.case.id, run: j.run })));
   console.log(`${todo.length} to run, ${jobs.length - todo.length} already done`);
 
-  const gate = await import(pathToFileURL(join(squad, 'gate.mjs')).href);
   const { reportOf } = await import(pathToFileURL(join(squad, 'runner-deps.mjs')).href);
   const tmp = mkdtempSync(join(tmpdir(), 'squad-roles-'));
   const ctx = { packs, repo, squad, out, timeout, gate, reportOf, tmp };
