@@ -57,7 +57,7 @@ agents:
   architect:
     runtime: laptop
     name: Architect
-    description: "Read-only planner: criteria, open questions, ordered steps with their Files: lines."
+    description: "Read-only planner: criteria, open questions, ordered steps with their Files: lines. With the design skill it names the data shape first, compares two shapes and keeps the one where each piece of state has one owner, and cuts vertical steps: one behaviour and its test each (#457)."
     model: openai/gpt-6.1-terra
     harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true }
     files: [roles/architect.md]
@@ -262,6 +262,13 @@ layers:
       - id: verifier
         agent: verifier
         label: Verifier
+      - id: tower_check
+        runtime: laptop
+        type: decision
+        label: Tower matches?
+        description: "After the code lands, the lead compares the tower with the code line by line: every edge and description proven by a file:line, every exit drawn. A fresh read-only reviewer does it above about 40 nodes. Drift goes back to the tower, validated and audited again (#457)."
+        decision: { output: binary, candidates: [matches, drift], fail: closed }
+        files: [README.md]
       - id: gate
         runtime: laptop
         type: decision
@@ -282,7 +289,8 @@ layers:
       - "reviewer -> triage_findings [return]: verdict JSON"
       - "security -> triage_findings [return]: verdict JSON"
       - "triage_findings -> verifier: nothing left to fix"
-      - "verifier -> gate: PASS"
+      - "verifier -> tower_check: PASS"
+      - "tower_check -> gate: matches"
       - "gate -> merge: READY"
 
   # 5 ───────────────────────────────────────────────────────────────
@@ -358,7 +366,7 @@ layers:
         type: memory
         label: Project skills
         description: "tools/squad/skills/<name>.md: project know-how only some jobs need (a shell version, a test convention). squad.json skills gives a role its skills; a task's Skills: line adds them for one run. Inlined into the system prompt by name only, size-capped, secret names refused; none set, prompts unchanged (#432)."
-        meta: { standards: "This repo gives code-standards to the coder and the reviewer on every run, so code is written and judged by the same rules (a review finding cites the rule); tests is added by the Skills: line of a step that writes a test. The lead keeps them: a rule comes from the principles the maintainer works by or from a real failure, named by issue, and leaves once a check enforces it (#457)." }
+        meta: { standards: "This repo gives code-standards to the coder and the reviewer on every run, so code is written and judged by the same rules (a review finding cites the rule); tests is added by the Skills: line of a step that writes a test, and the autopilot planner adds it itself when a step's Files: names a test; design goes to the architect. The lead keeps them: a rule comes from the principles the maintainer works by or from a real failure, named by issue, and leaves once a check enforces it (#457)." }
         files: [README.md]
       - id: doctor
         runtime: laptop
@@ -501,6 +509,7 @@ layers:
       - "limits -> failed: over a limit"
 
 links:
+  - "quality.tower_check -> orchestration.tower [return]: drift"
   - "intake.route -> orchestration.branch [handoff]: full"
   - "intake.lead -> orchestration.architect [spawn]: plan"
   - "orchestration.tasks -> runner.steps [call]: run the folder"
