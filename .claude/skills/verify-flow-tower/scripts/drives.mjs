@@ -69,7 +69,7 @@ async function openAsUser(page, url, id) {
  * Runs one drive in a fresh browser. A failed expectation prints FAIL and is reported back,
  * so the caller still writes the evidence it has.
  */
-async function inBrowser(shot, fn) {
+async function inBrowser(evidence, label, fn) {
   // Loaded here, not at the top: launch, doctor and stop never need Playwright.
   const { chromium } = await import('@playwright/test');
   // Playwright's bundled Chromium does not run on macOS 13, so the installed Chrome is used, as in playwright.config.ts.
@@ -77,7 +77,10 @@ async function inBrowser(shot, fn) {
   const consoleErrors = [];
   let error;
   try {
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    // Started before the first navigation so the trace holds the DOM and network of the whole drive (#448).
+    await context.tracing.start({ screenshots: true, snapshots: true });
+    const page = await context.newPage();
     page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
     try {
       await fn(page);
@@ -86,12 +89,26 @@ async function inBrowser(shot, fn) {
       error = String(e.message);
       console.log(`FAIL ${error.split('\n')[0]}`);
     }
-    await page.screenshot({ path: shot });
-    console.log(`wrote ${shot}`);
+    await page.screenshot({ path: join(evidence, `${label}.png`) });
+    console.log(`wrote ${join(evidence, `${label}.png`)}`);
+    await stopTrace(context, error !== undefined ? join(evidence, `${label}.trace.zip`) : undefined);
   } finally {
     await browser.close();
   }
   return { error, consoleErrors };
+}
+
+/**
+ * Keeps the trace only for a failed drive. A save that throws is reported here, not raised, so the drive's FAIL
+ * line and its JSON still get written.
+ */
+async function stopTrace(context, path) {
+  try {
+    await context.tracing.stop(path ? { path } : undefined);
+    if (path) console.log(`wrote ${path}`);
+  } catch (e) {
+    console.log(`trace not saved: ${String(e.message).split('\n')[0]}`);
+  }
 }
 
 /**
@@ -114,7 +131,7 @@ async function drive(args, found, defaultLabel, fn) {
   const label = args.name ?? defaultLabel;
   const evidence = evidenceOf(run);
   const recordSoFar = { project: id };
-  const { error, consoleErrors } = await inBrowser(join(evidence, `${label}.png`), (page) => fn(page, { run, id, ws }, recordSoFar));
+  const { error, consoleErrors } = await inBrowser(evidence, label, (page) => fn(page, { run, id, ws }, recordSoFar));
   const failed = error !== undefined;
   writeEvidence(evidence, `${label}.json`, JSON.stringify({ ...recordSoFar, consoleErrors, ...(failed && { error }) }, null, 2) + '\n');
   return failed ? 1 : 0;
