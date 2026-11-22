@@ -53,6 +53,11 @@ layers:
     title: Launch
     description: verify.mjs launch. One instance on its own port, with its own user folder, recorded in a run folder.
     nodes:
+      - id: node
+        type: guard
+        label: Node 22.13+
+        description: "Checked first, for every command: an older Node prints the version it needs and exits 2. The Node on PATH can be older than the repository's: use a newer binary by its full path."
+        files: [.claude/skills/verify-flow-tower/scripts/verify.mjs]
       - id: cmd
         type: process
         label: launch --port
@@ -81,26 +86,34 @@ layers:
       - id: ready
         type: decision
         label: Ready?
-        description: "Polls /api/workspace every 500 ms for up to 90 s until it answers 200 with projects. On a timeout, or if the server exits first, the server is stopped and the last 20 lines of its log are printed."
+        description: "Polls /api/workspace every 500 ms for up to 90 s until it answers 200 with a projects list that is not empty. On a timeout, or if the server exits first, the server's process group gets SIGTERM and the last 20 lines of its log are printed."
         limits: { timeout: 90s }
       - id: run
         type: memory
         label: run.json
-        description: "Written when the server is ready: run id, port, pid, url, commit, start time. The run folder also holds home/, evidence/ and server.log. The command prints the run folder: every later command takes it with --run."
+        description: "Written right after the server is started, before it is ready, so a failed launch still leaves its pid and log to read: run id, port, pid, url, commit, start time. The run folder also holds home/, evidence/ and server.log."
         data: { sensitivity: internal }
+      - id: launched
+        type: output
+        label: Ready
+        description: "Prints ready with the url, the run folder, the project count, and the doctor and stop commands with that folder filled in. No shared pointer to the last run exists: two launches at once never collide."
       - id: refused
         type: output
         label: Launch refused
-        description: One line that says why, and nothing left running.
+        description: "One line that says why. A refusal before the start creates nothing. After a failed start the run folder stays, with the server log."
     edges:
+      - node -> cmd
+      - "node -> refused: older Node, exit 2"
+      - "cmd -> refused: bad port, exit 2"
       - cmd -> portfree
       - "portfree -> refused: in use"
       - portfree -> owner
       - "owner -> refused: other user"
       - owner -> env
       - env -> spawn
+      - "spawn -> run [data]: pid and commit"
       - spawn -> ready
-      - "ready -> run [data]: ready"
+      - "ready -> launched: 200 with projects"
       - "ready -> refused: timeout or exit"
 
   - id: check
@@ -110,7 +123,7 @@ layers:
       - id: reader
         type: guard
         label: run.json reader
-        description: "The only place that reads run.json. The run id must be the folder's name, the pid an integer above 1, the port from 1024 to 65535, the url on 127.0.0.1. The home and evidence folders are derived from the run folder, never taken from the file."
+        description: "doctor and stop need --run <folder>: without it, one FAIL line. This is then the only place that reads run.json. The pid must be an integer above 1 and, for a run with a pid, the run id must be the folder's name; the port from 1024 to 65535; the url that port on 127.0.0.1. The home and evidence folders are derived from the run folder, never taken from the file."
         files: [.claude/skills/verify-flow-tower/scripts/verify.mjs]
       - id: doctor
         type: process
@@ -142,11 +155,12 @@ layers:
     edges:
       - reader -> doctor
       - reader -> stop
-      - "reader -> bad: unreadable or invalid"
+      - "reader -> bad: no --run, unreadable or invalid"
       - "doctor -> bad: a check failed"
       - stop -> ours
       - "ours -> bad: not ours"
-      - ours -> signal
+      - "ours -> signal: still ours"
+      - "ours -> stopped: pid already gone"
       - signal -> stopped
 
   - id: drive
@@ -210,8 +224,8 @@ layers:
       - evidence -> report
 
 links:
-  - "use.skill -> launch.cmd: then"
-  - "launch.run -> check.reader [data]: --run <folder>"
+  - "use.skill -> launch.node: then"
+  - "launch.launched -> check.reader [data]: --run <folder>"
   - "check.doctor -> drive.script: all ok"
   - "use.map -> drive.script [data]: recipe and end state"
   - "drive.script -> proof.standards: before and after"
