@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: proves-event-lights-node
+expected_outcome: |
+  The agent starts its own isolated instance on the requested port, confirms the sre-incident example is served, records the investigator node before and after an event (idle, then running), reports the HTTP answer from a saved file, and stops what it started, leaving no server, no browser and no leftover folders.

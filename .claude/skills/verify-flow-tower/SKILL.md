@@ -70,10 +70,9 @@ Save everything under `<run folder>/evidence/`. `stop` keeps that folder. It is 
 $N $V stop --run <folder>
 ```
 
-It stops the server by the process id recorded at launch, after checking that the process is still this run's server, and removes the run's user folder. Then check that nothing listens on the port: the process can take a moment to leave the process table. Close the browser your script opened.
+It stops the server by the process id recorded at launch, after checking that the process is still this run's server, and removes the run's user folder and the Vite cache the server wrote for its port. Then check that nothing listens on the port: the process can take a moment to leave the process table. Close the browser your script opened.
 
 - Never stop a server by process name. A pattern also matches the shell that runs it.
 - Run `stop` after a failed drive too.
-- Starting a server also writes `node_modules/.vite/port-<port>`. Remove that folder when you are done.
 
 To keep the feature map true as the app changes, run `/pstack:maintain-verification-skill`.

@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: proves-validate-rejects-broken-tower
+expected_outcome: |
+  The agent runs flow-tower validate on examples/starters (exit 0) and on a broken tower written outside the repository's examples folder (exit 1, the missing endpoint as the only issue), shows with a control that the failure comes from that edge, saves each output with the exit code the shell reported, and starts no server.

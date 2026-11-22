@@ -147,7 +147,7 @@ layers:
       - id: stopped
         type: output
         label: Stopped
-        description: "Prints the pid stopped and where the evidence is. The run's home folder is removed."
+        description: "Prints the pid stopped and where the evidence is. The run's home folder and the Vite cache of its port (node_modules/.vite/port-<port>) are removed."
       - id: bad
         type: output
         label: FAIL line
