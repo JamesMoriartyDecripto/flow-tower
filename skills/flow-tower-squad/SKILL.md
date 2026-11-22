@@ -128,7 +128,7 @@ run and stop for approval before exceeding the agreed budget. Do not advertise p
     `node tools/squad/gate.mjs --pr <PR> --review /tmp/<n>-review.out --security /tmp/<n>-security.out --repo ../wt-<n>`.
     A script, no model: READY only when every CI check passed, the pull request is mergeable and not a draft, the
     worktree is clean and at the pull request head, and both passes answered on that head commit with no critical, high or
-    unknown-severity finding (the verdict decides nothing since #449; an answer without one is still refused as malformed). Pack the passes from a clean tree (only then does `pack.mjs` write the commit the gate checks); after a
+    unknown-severity finding (a `changes` verdict without one is refused as malformed, #449). Pack the passes from a clean tree (only then does `pack.mjs` write the commit the gate checks); after a
     fix step, pack and run them again. It lists **unverified findings** (the quote is not at that `file:line`, or too
     short to prove anything): treat them as possible hallucinations and check them in the code before acting. An
     unverified critical or high one still blocks: if it is not real, run that pass again. The gate never merges or
