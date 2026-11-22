@@ -5,7 +5,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { eventsDrive, openDrive, validateDrive, workspaceOf } from './drives.mjs';
 
@@ -111,12 +111,17 @@ function runDirOf(args) {
   return existsSync(current) ? readFileSync(current, 'utf8').trim() : undefined;
 }
 
-// Without its own FLOW_TOWER_HOME the server reads the user's config and can join a hub as a satellite.
+// A FLOW_TOWER_HUB or FLOW_TOWER_TOKEN from the shell would make the scratch server join that hub with that credential, so they are dropped.
 function isolatedEnv(home) {
-  return { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_NO_UPDATE_CHECK: '1' };
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('FLOW_TOWER_')));
+  return { ...env, FLOW_TOWER_HOME: home, FLOW_TOWER_NO_UPDATE_CHECK: '1' };
 }
 
 async function launch(args) {
+  if (!Number.isInteger(args.port) || args.port < 1024 || args.port > 65535) {
+    console.log('--port needs a number from 1024 to 65535');
+    return 2;
+  }
   const url = `http://127.0.0.1:${args.port}`;
   // Refuse before creating anything: a live server on this port is not ours to restart.
   if (await portInUse(args.port)) {
@@ -145,12 +150,13 @@ async function launch(args) {
   child.unref();
 
   writeFileSync(join(dir, 'run.json'), JSON.stringify({ ...plan, pid: child.pid, commit: git(['rev-parse', 'HEAD']) }, null, 2) + '\n');
-  writeFileSync(join(args.base, 'current'), dir + '\n');
 
   const deadline = Date.now() + READY_TIMEOUT_MS;
   while (!exited && Date.now() < deadline) {
     const ws = await workspaceOf(url, 2000);
     if (ws && ws.projects.length > 0) {
+      // The pointer moves only once the instance is ready, so a failed launch keeps the last good run.
+      writeFileSync(join(args.base, 'current'), dir + '\n');
       console.log(`ready ${url}`);
       console.log(`run ${dir}`);
       console.log(`projects ${ws.projects.length}`);
@@ -202,14 +208,35 @@ async function doctor(args) {
   return lines.every(([ok]) => ok) ? 0 : 1;
 }
 
+/** The command line of a PID, or null when no such process exists. */
+function commandLineOf(pid) {
+  try {
+    return execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' });
+  } catch {
+    return null;
+  }
+}
+
 async function stop(args) {
   const found = readRun(runDirOf(args));
   if (!found) return 1;
   const { dir, run } = found;
-  signalRun(run.pid, 'SIGTERM');
+  // The home is removed below, so only a folder this script named after its runId may be touched.
+  if (basename(dir) !== run.runId) {
+    console.log(`FAIL ${dir} is not a run folder of this script`);
+    return 1;
+  }
+  // run.json can outlive its server: after a reboot the PID may belong to another process, so it is checked first.
+  const cmd = commandLineOf(run.pid);
+  const ours = cmd !== null && cmd.includes('flow-tower.js') && new RegExp(`--port ${run.port}(\\s|$)`).test(cmd);
+  if (cmd !== null && !ours) {
+    console.log(`FAIL pid ${run.pid} is not this run's server: nothing was signalled`);
+    return 1;
+  }
+  if (ours) signalRun(run.pid, 'SIGTERM');
   const deadline = Date.now() + STOP_WAIT_MS;
   while (Date.now() < deadline && (await workspaceOf(run.url, 2000))) await sleep(200);
-  if (await workspaceOf(run.url, 2000)) signalRun(run.pid, 'SIGKILL');
+  if (ours && (await workspaceOf(run.url, 2000))) signalRun(run.pid, 'SIGKILL');
   // Only the home goes: the evidence and the log are what the run leaves for review.
   rmSync(join(dir, 'home'), { recursive: true, force: true });
   console.log(`stopped pid ${run.pid}`);

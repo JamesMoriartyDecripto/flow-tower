@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -107,6 +107,25 @@ describe('verify.mjs CLI', () => {
     } finally {
       server.close();
     }
+  });
+
+  it('launch refuses a port that is not a number and creates nothing', async () => {
+    const base = tempDir();
+    const { code, out } = await verify(['launch', '--port', 'abc', '--base', base]);
+    expect(code).toBe(2);
+    expect(out).toContain('--port needs a number');
+    expect(readdirSync(base)).toEqual([]);
+  });
+
+  it('stop refuses a live PID that is not this run server and leaves the home in place', { timeout: 20000 }, async () => {
+    const dir = join(tempDir(), 'r1');
+    mkdirSync(join(dir, 'home'), { recursive: true });
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 'r1', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:5399', port: 5399, pid: process.pid, commit: '' }));
+    const { code, out } = await verify(['stop', '--run', dir]);
+    expect(code).toBe(1);
+    expect(out).toContain("is not this run's server");
+    expect(existsSync(join(dir, 'home'))).toBe(true);
+    expect(() => process.kill(process.pid, 0)).not.toThrow();
   });
 
   it('validate on a broken tower exits 1 and keeps the error in its evidence', { timeout: 60000 }, async () => {
