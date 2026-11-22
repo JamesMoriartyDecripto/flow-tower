@@ -14,4 +14,6 @@ Why: review of #448. `signalRun` refuses `pid <= 0` but lets pid 1 through, and 
    - Comments: delete those that restate the code. Fix or delete the wrong ones: line 38 ("Pure"), line 60 (the ISO stamp does contain ':', the regex removes it), line 107 (pid 0 is the caller's own group; the every-process case is pid 1). Keep the comment at the spawn that says the child holds its own copy of the log descriptor.
 2. In tests/verify-skill.test.ts: replace the comment block at the top with one line that says what is true (every test spawns the script; none starts a server or a browser). Add one test: a temp run folder whose run.json has `"pid": 1`; `doctor --run <dir>` exits 1 and prints `FAIL run.json: pid 1 is not a server PID`. Use `doctor` for this, never `stop`. Merge the two `--help` tests into one that names all six commands.
 
+Continuation: the first attempt is in both files and is right. Its check was red because three existing fixtures in tests/verify-skill.test.ts write `"pid": 0` as a placeholder, which the new validation refuses. The task forbade touching them: that was the lead's mistake. Remove the `pid` field from those three fixtures (the validate test, the stopped-server test, the broken-tower test) and change nothing else in them.
+
 Files: .claude/skills/verify-flow-tower/scripts/verify.mjs, tests/verify-skill.test.ts
