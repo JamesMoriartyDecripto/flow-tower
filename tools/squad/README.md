@@ -229,6 +229,8 @@ made-up finding rarely comes back).
 `node tools/squad/runner.mjs` works issues labelled `squad:go` with no session open. The procedure lives in code; models make only the judgement calls:
 triage, the architect's plan (`openai/gpt-6.1-terra` by default), the lead-judge's keep/drop on review findings (`google/gemini-4-carbon`),
 the verifier. One issue at a time; it polls every `runner.pollMinutes` (10) minutes.
+The four labels it reads and sets must exist on the repository; create them once (#462):
+`for l in go running review failed; do gh label create "squad:$l"; done`.
 
 ```bash
 node tools/squad/runner.mjs --dry-run      # the queue and the limits; claims nothing
