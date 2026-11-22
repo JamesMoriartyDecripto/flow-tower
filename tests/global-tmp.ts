@@ -3,6 +3,7 @@
 // cleaned up; a squad test copies about 38 MB per run, and 2205 leftover
 // /tmp/squad-* folders filled the /tmp quota. Instead of touching every test,
 // the run sets TMPDIR to a folder of its own, and the teardown removes it.
+// FLOW_TOWER_URL points at a closed port, so test events never reach a real viewer.
 // Tests that need a folder outside any git checkout still get one, because
 // the base folder is the system temp dir, which is outside the repo.
 import { lstatSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -48,16 +49,21 @@ export default function globalTmp(): () => void {
     TMPDIR: env.TMPDIR,
     TMP: env.TMP,
     TEMP: env.TEMP,
+    FLOW_TOWER_URL: env.FLOW_TOWER_URL,
   };
   // TMP and TEMP are read by some Windows tools, so they point at the same folder.
   env.TMPDIR = dir;
   env.TMP = dir;
   env.TEMP = dir;
+  // Port 1 has no listener, so an event fails fast instead of reaching the user's viewer.
+  // Set even when exported, so a test run can never light the user's tower.
+  env.FLOW_TOWER_URL = 'http://127.0.0.1:1';
 
   return () => {
     restore('TMPDIR', saved.TMPDIR);
     restore('TMP', saved.TMP);
     restore('TEMP', saved.TEMP);
+    restore('FLOW_TOWER_URL', saved.FLOW_TOWER_URL);
     try {
       rmSync(dir, { recursive: true, force: true });
     } catch (error) {
@@ -67,7 +73,7 @@ export default function globalTmp(): () => void {
 }
 
 // Put back a variable exactly as it was; an unset variable is deleted, not set to "undefined".
-function restore(key: 'TMPDIR' | 'TMP' | 'TEMP', value: string | undefined): void {
+function restore(key: 'TMPDIR' | 'TMP' | 'TEMP' | 'FLOW_TOWER_URL', value: string | undefined): void {
   if (value === undefined) delete env[key];
   else env[key] = value;
 }
