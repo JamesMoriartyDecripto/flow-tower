@@ -266,7 +266,7 @@ layers:
         runtime: laptop
         type: decision
         label: Tower matches?
-        description: "After the code lands, the lead compares the tower with the code line by line: every edge and description proven by a file:line, every exit drawn. A fresh read-only reviewer does it above about 40 nodes. Drift goes back to the tower, validated and audited again (#457)."
+        description: "After the code lands and again after each fix round, so the last check comes right before the gate, the lead compares the tower with the code line by line: every edge and description proven by a file:line, every exit drawn. A fresh read-only reviewer does it above about 40 nodes. Drift goes back to the tower, validated and audited again (#457)."
         decision: { output: binary, candidates: [matches, drift], fail: closed }
         files: [README.md]
       - id: gate
