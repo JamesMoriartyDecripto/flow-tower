@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scoreRun, summarize, table } from '../examples/model-benchmark/scripts/squad-score.mjs';
+import { isBlocking, scoreRun, summarize, table } from '../examples/model-benchmark/scripts/squad-score.mjs';
 // The gate's rules are plain ESM with no types, so they are imported as untyped modules here.
 // @ts-expect-error plain .mjs without declarations
 import { checkFinding, parseVerdict } from '../tools/squad/gate.mjs';
@@ -116,5 +116,45 @@ describe('summarize and table', () => {
     expect(out).toContain('## reviewer');
     expect(out).toContain('2/3');
     expect(out).toContain('1 empty-answer');
+  });
+
+  it('shows the key-seen, key-blocked and clean-not-blocked columns', () => {
+    const out = table(summarize(lines));
+    expect(out).toContain('Key seen');
+    expect(out).toContain('Key blocked');
+    expect(out).toContain('Clean not blocked');
+  });
+});
+
+describe('isBlocking', () => {
+  it('blocks on high, critical, and any severity that is not medium or low', () => {
+    expect(isBlocking('HIGH')).toBe(true);
+    expect(isBlocking('critical')).toBe(true);
+    expect(isBlocking('urgent')).toBe(true);
+    expect(isBlocking(undefined)).toBe(true);
+    expect(isBlocking('medium')).toBe(false);
+    expect(isBlocking('low')).toBe(false);
+  });
+});
+
+describe('keysBlocking and the severity columns', () => {
+  it('keeps a key matched by a low finding out of keysBlocking', () => {
+    const r = score(defect, answer('approve', [finding({ severity: 'low' })]));
+    expect(r.keys).toEqual(['S1']);
+    expect(r.keysBlocking).toEqual([]);
+    expect(r.pass).toBe(false);
+  });
+
+  it('lists the key in keysBlocking when the matching finding is high', () => {
+    expect(score(defect, answer('changes', [finding({ severity: 'high' })])).keysBlocking).toEqual(['S1']);
+  });
+
+  it('counts seen, blocked and cleanOpen per row', () => {
+    const [row] = summarize([
+      { role: 'reviewer', model: 'C', kind: 'defect', pass: false, flagged: true, failure: null, findings: 1, verified: 1, seconds: 1, cost: 0, keys: ['S1'], keysBlocking: [] },
+      { role: 'reviewer', model: 'C', kind: 'defect', pass: true, flagged: true, failure: null, findings: 1, verified: 1, seconds: 1, cost: 0, keys: ['S1'], keysBlocking: ['S1'] },
+      { role: 'reviewer', model: 'C', kind: 'clean', pass: true, flagged: false, failure: null, findings: 0, verified: 0, seconds: 1, cost: 0, keys: [], blocking: 0 },
+    ]);
+    expect(row).toMatchObject({ seen: 2, blocked: 1, cleanOpen: 1 });
   });
 });

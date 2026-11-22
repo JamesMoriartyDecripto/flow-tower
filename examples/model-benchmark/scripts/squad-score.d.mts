@@ -27,11 +27,15 @@ export interface ScoreResult {
   verdict: 'approve' | 'changes' | null;
   flagged: boolean;
   keys: string[];
+  keysBlocking: string[];
   blocking: number;
   findings: number;
   verified: number;
   failure: string | null;
 }
+
+// True for critical, high and any severity that is not medium or low: the gate's blocking rule.
+export function isBlocking(severity: unknown): boolean;
 
 export function scoreRun(args: {
   kase: SquadCase;
@@ -49,6 +53,10 @@ export interface RunLine {
   pass: boolean;
   flagged: boolean;
   failure: string | null;
+  // Optional: lines written before #447 step 1 have no keys, keysBlocking or blocking.
+  keys?: string[];
+  keysBlocking?: string[];
+  blocking?: number;
   findings: number;
   verified: number;
   seconds: number | null;
@@ -65,6 +73,9 @@ export interface SummaryRow {
   flaggedDefects: number;
   cleanRuns: number;
   cleanPass: number;
+  seen: number;
+  blocked: number;
+  cleanOpen: number;
   failures: Record<string, number>;
   findings: number;
   verified: number;
