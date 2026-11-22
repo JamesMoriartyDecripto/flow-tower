@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flow Tower</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <p class="brand">Flow Tower</p>
+    </header>
+
+    <main>
+      <section class="intro">
+        <h1>See the whole structure of an agentic system at once.</h1>
+        <p>
+          Flow Tower renders AI agents and multi-agent systems as an interactive 3D tower.
+          Each layer is a left-to-right flowchart. Click any node to open its system prompt,
+          tools, model, harness settings, files, logs and the services it runs on.
+        </p>
+        <p>
+          <a href="https://github.com/JamesMoriartyDecripto/flow-tower">View the repository on GitHub</a>
+        </p>
+      </section>
+
+      <section class="features" aria-labelledby="features-title">
+        <h2 id="features-title">Features</h2>
+        <ul class="feature-list">
+          <li>
+            <h3>One YAML file per system</h3>
+            <p>It is easy to write and review, and it lives in the same repo as the agent.</p>
+          </li>
+          <li>
+            <h3>Tower of layers</h3>
+            <p>Stack layers like intake, orchestration, specialists, tools, guardrails, memory and models. Cross-layer links show who calls whom.</p>
+          </li>
+          <li>
+            <h3>Nested towers</h3>
+            <p>An agent can contain its own tower. Double-click it to dive in, as deep as you need.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="quick-start" aria-labelledby="quick-start-title">
+        <h2 id="quick-start-title">Quick start</h2>
+        <p>Requires Node 22.13 or newer. The app runs locally on <code>127.0.0.1</code>. Nothing is uploaded.</p>
+
+        <h3>Install</h3>
+        <pre><code>git clone https://github.com/JamesMoriartyDecripto/flow-tower.git
+cd flow-tower &amp;&amp; npm install</code></pre>
+
+        <h3>First run</h3>
+        <pre><code>cp -R examples/starters/single-agent ~/my-project/tower &amp;&amp; node bin/flow-tower.js ~/my-project/tower</code></pre>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>
+        Flow Tower is MIT licensed. Source:
+        <a href="https://github.com/JamesMoriartyDecripto/flow-tower">github.com/JamesMoriartyDecripto/flow-tower</a>.
+      </p>
+    </footer>
+  </body>
+</html>
