@@ -48,7 +48,8 @@ function repo(name: string) {
   execFileSync('git', ['init', '-q'], { cwd: dir });
   const squad = join(dir, 'tools', 'squad');
   mkdirSync(squad, { recursive: true });
-  cpSync(join(process.cwd(), 'tools', 'squad'), squad, { recursive: true });
+  // Old checkouts left role logs beside run.mjs (before #453); they are not copied, so each test copies less.
+  cpSync(join(process.cwd(), 'tools', 'squad'), squad, { recursive: true, filter: (src) => !src.endsWith('.log') });
   // The copied .cli would point back at the real checkout: this runner must fall back to nothing, not to that path.
   rmSync(join(squad, '.cli'), { force: true });
   writeFileSync(join(squad, 'squad.json'), JSON.stringify({ cli: 'evil.js' }));
