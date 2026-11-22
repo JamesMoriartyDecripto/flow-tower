@@ -18,4 +18,6 @@ Why: issue #447. The architect and the lead-judge of the unattended runner are t
    - Export the pure helpers `planJobs({ tasks, models, runs })` and `reportOf(stdout)`; run the CLI only when the file is the entry script.
 2. New file tests/model-benchmark-squad-loop.test.ts: `planJobs` order and count; `reportOf` drops a `mode:`/`reviewed:` header and the `--- model · ...` footer and keeps a report that itself contains a `---` line in the middle; `--dry-run` through `execFileSync` (explicit `{ timeout: 20000 }`) on examples/model-benchmark/tasks/judge with two models and `--runs 2` prints `2 models × 3 tasks × 2 runs = 12 runs`; with `--only steps-scope` it prints `1 tasks`.
 
+Continuation: both files exist from a first attempt whose typecheck was red. Keep them; fix only this in tests/model-benchmark-squad-loop.test.ts: line 4 imports squad-loop.mjs, which has no .d.mts, so put `// @ts-expect-error plain .mjs without declarations` on the line above that import (as tests/model-benchmark-squad-roles.test.ts does), and annotate the callback parameter `j` on line 13 (TS7006). Verify with `run typecheck`, then the test file.
+
 Files: examples/model-benchmark/scripts/squad-loop.mjs+, tests/model-benchmark-squad-loop.test.ts+
