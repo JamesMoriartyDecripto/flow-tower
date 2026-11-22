@@ -6,10 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-/**
- * verify.mjs (#448). Only the pure helpers and the paths that never start a server are exercised here:
- * no real Flow Tower instance is launched by these tests.
- */
+// Every test spawns the script; none starts a server or a browser.
 const SCRIPT = join(import.meta.dirname, '..', '.claude', 'skills', 'verify-flow-tower', 'scripts', 'verify.mjs');
 const temps: string[] = [];
 afterAll(() => temps.forEach((d) => rmSync(d, { recursive: true, force: true })));
@@ -35,12 +32,10 @@ function verifyWith(args: string[], timeout: number) {
 }
 
 describe('verify.mjs CLI', () => {
-  it('--help exits 0 and names launch, doctor and stop', async () => {
+  it('--help exits 0 and names all six commands', async () => {
     const { code, out } = await verify(['--help']);
     expect(code).toBe(0);
-    expect(out).toContain('launch');
-    expect(out).toContain('doctor');
-    expect(out).toContain('stop');
+    for (const command of ['launch', 'doctor', 'stop', 'open', 'events', 'validate']) expect(out).toContain(command);
   });
 
   it('doctor on an empty run folder exits 1 and reports FAIL run.json', async () => {
@@ -50,9 +45,17 @@ describe('verify.mjs CLI', () => {
     expect(out).toContain('FAIL run.json');
   });
 
+  it('doctor refuses a run.json whose pid is 1 before any signal', async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', port: 1, pid: 1, commit: '' }));
+    const { code, out } = await verify(['doctor', '--run', dir]);
+    expect(code).toBe(1);
+    expect(out).toContain('FAIL run.json: pid 1 is not a server PID');
+  });
+
   it('validate runs the CLI on a starter and keeps its JSON as evidence', async () => {
     const dir = tempDir();
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', port: 1, pid: 0, commit: '' }));
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', port: 1, commit: '' }));
     const { code } = await verifyWith(['validate', 'examples/starters', '--run', dir, '--name', 'v'], 60000);
     expect(code).toBe(0);
     const ev = JSON.parse(readFileSync(join(dir, 'evidence', 'v.json'), 'utf8'));
@@ -60,17 +63,9 @@ describe('verify.mjs CLI', () => {
     expect(JSON.parse(ev.stdout).ok).toBe(true);
   }, 70000);
 
-  it('--help names open, events and validate', async () => {
-    const { code, out } = await verify(['--help']);
-    expect(code).toBe(0);
-    expect(out).toContain('open');
-    expect(out).toContain('events');
-    expect(out).toContain('validate');
-  });
-
   it('open on a run whose server is stopped prints one FAIL line, not a stack trace', { timeout: 20000 }, async () => {
     const dir = tempDir();
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:9', port: 9, pid: 0, commit: '' }));
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:9', port: 9, commit: '' }));
     const { code, out } = await verify(['open', 'anything', '--run', dir]);
     expect(code).toBe(1);
     expect(out).toContain('FAIL no instance answers at http://127.0.0.1:9');
@@ -98,7 +93,7 @@ describe('verify.mjs CLI', () => {
     const tower = join(dir, 'broken');
     mkdirSync(tower);
     writeFileSync(join(tower, 'broken.tower.yaml'), 'name: Broken\nlayers:\n  - id: a\n    title: A\n    nodes:\n      - { id: x, type: agent, label: X }\n    edges:\n      - x -> nowhere\n');
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', port: 1, pid: 0, commit: '' }));
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', port: 1, commit: '' }));
     const { code, out } = await verifyWith(['validate', tower, '--run', dir, '--name', 'broken'], 60000);
     expect(code).toBe(1);
     expect(out.split('\n').filter((l) => l.startsWith('FAIL validate exited'))).toHaveLength(1);

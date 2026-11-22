@@ -7,7 +7,7 @@ import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, ex
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PORT = 5327;
@@ -35,7 +35,6 @@ options:
   --node <id>    node the events drive selects (events)
   --help         show this help`;
 
-/** Parses the CLI flags. Pure: the defaults are computed here, nothing is read from disk. */
 function parseArgs(argv) {
   const args = { command: undefined, target: undefined, help: false, port: DEFAULT_PORT, base: join(tmpdir(), 'flow-tower-verify'), run: undefined, name: undefined, node: undefined, keys: [], unknown: undefined };
   for (let i = 0; i < argv.length; i++) {
@@ -56,11 +55,13 @@ function parseArgs(argv) {
 }
 
 /** The run.json fields known before launch. The run folder is <base>/<runId>. */
-function planRun({ base, port, now = new Date() }) {
-  // The ISO stamp has no ':' or '.', so the id is a valid folder name on every platform.
+function planRun({ base, port }) {
+  const now = new Date();
+  // The ':' and '.' of the ISO stamp are replaced so the id is a valid folder name on every platform.
   const runId = `${now.toISOString().replace(/[:.]/g, '-')}-${port}`;
   const dir = join(base, runId);
   return {
+    dir,
     runId,
     port,
     url: `http://127.0.0.1:${port}`,
@@ -91,8 +92,8 @@ async function probe(url) {
   }
 }
 
-/** A raw TCP connect: catches a port that is open but does not speak HTTP yet. */
-function tcpOpen(port) {
+/** A server that answers HTTP also accepts the TCP connect, so the connect alone decides. */
+function portInUse(port) {
   return new Promise((done) => {
     const sock = createConnection({ host: '127.0.0.1', port });
     sock.setTimeout(1000);
@@ -102,12 +103,11 @@ function tcpOpen(port) {
   });
 }
 
-/** Signals the recorded process group (the server runs detached), else the PID alone. */
+/** Signals the recorded process group (the server runs detached in its own process group). */
 function signalRun(pid, signal) {
-  // pid 0 or less would address our own group or every process: refuse it.
-  if (!(pid > 0)) return false;
-  try { process.kill(-pid, signal); return true; } catch { /* no group: try the PID */ }
-  try { process.kill(pid, signal); return true; } catch { return false; }
+  // pid 0 addresses our own group and pid 1 addresses -1, every process the user owns: refuse both.
+  if (!(pid > 1)) return false;
+  try { process.kill(-pid, signal); return true; } catch { return false; }
 }
 
 function pidAlive(pid) {
@@ -126,15 +126,20 @@ function runDirOf(args) {
   return existsSync(current) ? readFileSync(current, 'utf8').trim() : undefined;
 }
 
+// Without its own FLOW_TOWER_HOME the server reads the user's config and can join a hub as a satellite.
+function isolatedEnv(home) {
+  return { ...process.env, FLOW_TOWER_HOME: home, FLOW_TOWER_NO_UPDATE_CHECK: '1' };
+}
+
 async function launch(args) {
   const url = `http://127.0.0.1:${args.port}`;
   // Refuse before creating anything: a live server on this port is not ours to restart.
-  if ((await probe(url)) || (await tcpOpen(args.port))) {
+  if (await portInUse(args.port)) {
     console.log(`port ${args.port} is in use: pick another with --port`);
     return 1;
   }
   const plan = planRun({ base: args.base, port: args.port });
-  const dir = join(args.base, plan.runId);
+  const { dir } = plan;
   mkdirSync(plan.home, { recursive: true });
   mkdirSync(plan.evidence, { recursive: true });
 
@@ -147,7 +152,7 @@ async function launch(args) {
     cwd: root,
     detached: true,
     stdio: ['ignore', fd, fd],
-    env: { ...process.env, FLOW_TOWER_HOME: plan.home, FLOW_TOWER_NO_UPDATE_CHECK: '1' },
+    env: isolatedEnv(plan.home),
   });
   // The child holds its own copy of the log descriptor; ours is no longer needed.
   closeSync(fd);
@@ -176,13 +181,24 @@ async function launch(args) {
 
 /** Reads run.json from a run folder; null (with a FAIL line printed) when it is missing or broken. */
 function readRun(dir) {
-  const file = dir ? join(dir, 'run.json') : undefined;
-  try {
-    return { dir, run: JSON.parse(readFileSync(file, 'utf8')) };
-  } catch {
-    console.log(`FAIL run.json: cannot read ${file ?? 'a run folder (none launched yet)'}`);
+  if (!dir) {
+    console.log('FAIL run.json: no run folder (launch first, or pass --run)');
     return null;
   }
+  const file = join(dir, 'run.json');
+  let run;
+  try {
+    run = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    console.log(`FAIL run.json: cannot read ${file}`);
+    return null;
+  }
+  // A pid of 0 or 1 would reach signalRun as a group that is not the server's: refuse it here too.
+  if (run.pid !== undefined && !(Number.isInteger(run.pid) && run.pid > 1)) {
+    console.log(`FAIL run.json: pid ${run.pid} is not a server PID`);
+    return null;
+  }
+  return { dir, run };
 }
 
 async function doctor(args) {
@@ -243,6 +259,4 @@ async function main(argv) {
   return drives.validateDrive(args, load, git(['rev-parse', '--show-toplevel']));
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main(process.argv.slice(2)).then((code) => { process.exitCode = code; });
-}
+main(process.argv.slice(2)).then((code) => { process.exitCode = code; });
