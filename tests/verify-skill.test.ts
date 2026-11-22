@@ -75,6 +75,34 @@ describe('verify.mjs CLI', () => {
     }
   });
 
+  it('doctor and stop without --run exit 1 and name the required flag', { timeout: 20000 }, async () => {
+    for (const command of ['doctor', 'stop']) {
+      const { code, out } = await verifyWith([command], 20000);
+      expect(code).toBe(1);
+      expect(out).toContain('--run <dir> is required');
+    }
+  });
+
+  it('doctor --project confirms a served project by prefix and fails on a missing one', { timeout: 20000 }, async () => {
+    const server: HttpServer = createHttpServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"projects":["a/a.tower.yaml","b/b.tower.yaml"],"towers":{}}');
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    try {
+      const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      const dir = tempDir();
+      writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url, commit: '' }));
+      const found = await verifyWith(['doctor', '--run', dir, '--project', 'b'], 20000);
+      expect(found.out).toContain('ok   project: b/b.tower.yaml');
+      const missing = await verifyWith(['doctor', '--run', dir, '--project', 'zzz'], 20000);
+      expect(missing.code).toBe(1);
+      expect(missing.out).toContain('FAIL project');
+    } finally {
+      server.close();
+    }
+  });
+
   it('launch refuses a port that is already taken and creates no run folder', async () => {
     const server: Server = createServer();
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));

@@ -19,23 +19,25 @@ const USAGE = `usage: verify.mjs <command> [options]
 
 commands:
   launch   start an isolated instance on a free port (--port, --base)
-  doctor   check the last (or --run) instance without changing it
+  doctor   check the instance of --run <dir> without changing it
   stop     stop the instance's server and remove its home (--run)
 
 options:
-  --port <n>     port for launch (default ${DEFAULT_PORT})
-  --base <dir>   folder holding the runs (default <tmp>/flow-tower-verify)
-  --run <dir>    run folder for doctor and stop (default: the one in <base>/current)
-  --help         show this help`;
+  --port <n>       port for launch (default ${DEFAULT_PORT})
+  --base <dir>     folder holding the runs (default <tmp>/flow-tower-verify)
+  --run <dir>      run folder for doctor and stop (required; launch prints it)
+  --project <id>   project id or prefix doctor must find in the workspace
+  --help           show this help`;
 
 function parseArgs(argv) {
-  const args = { command: undefined, help: false, port: DEFAULT_PORT, base: join(tmpdir(), 'flow-tower-verify'), run: undefined, unknown: undefined };
+  const args = { command: undefined, help: false, port: DEFAULT_PORT, base: join(tmpdir(), 'flow-tower-verify'), run: undefined, project: undefined, unknown: undefined };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') args.help = true;
     else if (a === '--port') args.port = Number(argv[++i]);
     else if (a === '--base') args.base = resolve(argv[++i]);
     else if (a === '--run') args.run = resolve(argv[++i]);
+    else if (a === '--project') args.project = argv[++i];
     else if (a.startsWith('--')) args.unknown = a;
     else if (args.command === undefined) args.command = a;
     else args.unknown = a;
@@ -107,13 +109,6 @@ function tail(file, lines) {
   return existsSync(file) ? readFileSync(file, 'utf8').split('\n').slice(-lines - 1).join('\n') : '';
 }
 
-/** The run folder: --run, else the path the last launch wrote to <base>/current. */
-function runDirOf(args) {
-  if (args.run) return args.run;
-  const current = join(args.base, 'current');
-  return existsSync(current) ? readFileSync(current, 'utf8').trim() : undefined;
-}
-
 // A FLOW_TOWER_HUB or FLOW_TOWER_TOKEN from the shell would make the scratch server join that hub with that credential, so they are dropped.
 function isolatedEnv(home) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('FLOW_TOWER_')));
@@ -164,11 +159,12 @@ async function launch(args) {
   while (!exited && Date.now() < deadline) {
     const ws = await workspaceOf(url, 2000);
     if (ws && ws.projects.length > 0) {
-      // The pointer moves only once the instance is ready, so a failed launch keeps the last good run.
-      writeFileSync(join(args.base, 'current'), dir + '\n');
       console.log(`ready ${url}`);
       console.log(`run ${dir}`);
       console.log(`projects ${ws.projects.length}`);
+      // No shared pointer to the last run: each agent names its own run, so concurrent launches never collide (#448).
+      console.log(`next doctor --run ${dir}`);
+      console.log(`next stop --run ${dir}`);
       return 0;
     }
     await sleep(POLL_MS);
@@ -185,10 +181,6 @@ async function launch(args) {
  * evidence and home always come from the run folder, never from the file.
  */
 function readRun(dir) {
-  if (!dir) {
-    console.log('FAIL run.json: no run folder (launch first, or pass --run)');
-    return null;
-  }
   const file = join(dir, 'run.json');
   let raw;
   try {
@@ -226,16 +218,27 @@ function runProblem(dir, raw) {
   return null;
 }
 
+/** Without a named run, doctor and stop would act on whichever instance was started last (#448). */
+function runRequired(args) {
+  if (args.run) return false;
+  console.log('FAIL --run <dir> is required: launch prints the run folder');
+  return true;
+}
+
 async function doctor(args) {
-  const found = readRun(runDirOf(args));
+  if (runRequired(args)) return 1;
+  const found = readRun(args.run);
   if (!found) return 1;
   const { run } = found;
   const [alive, ws, head] = [pidAlive(run.pid), await workspaceOf(run.url, 2000), git(['rev-parse', 'HEAD'])];
+  // A prefix is enough to name a project, so --project confirms the one an agent is about to drive is served.
+  const served = (ws?.projects ?? []).find((id) => id === args.project || id.startsWith(args.project));
   const lines = [
     [true, 'run.json', `${found.dir}/run.json`],
     [alive, 'pid', alive ? `${run.pid} is running` : `${run.pid} is not running`],
     [ws !== null && ws.projects.length > 0, 'workspace',
       ws ? `${ws.projects.length} projects, first 5: ${ws.projects.slice(0, 5).join(', ')}` : `no 200 from ${run.url}/api/workspace`],
+    ...(args.project === undefined ? [] : [[served !== undefined, 'project', served ?? `no project matches ${args.project}`]]),
     [run.commit === head, 'commit', run.commit === head ? head : `launched at ${run.commit}, checkout is at ${head}`],
   ];
   for (const [ok, name, detail] of lines) console.log(`${ok ? 'ok   ' : 'FAIL '}${name}: ${detail}`);
@@ -257,7 +260,8 @@ function commandLineOf(pid) {
 }
 
 async function stop(args) {
-  const found = readRun(runDirOf(args));
+  if (runRequired(args)) return 1;
+  const found = readRun(args.run);
   if (!found) return 1;
   const { dir, run } = found;
   // run.json can outlive its server: after a reboot the PID may belong to another process, so it is checked first.
