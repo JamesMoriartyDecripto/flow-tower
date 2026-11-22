@@ -49,14 +49,13 @@ export function scoreRun(args: {
 export interface RunLine {
   role: string;
   model: string;
-  kind: 'defect' | 'clean' | string;
+  kind: 'defect' | 'clean';
   pass: boolean;
   flagged: boolean;
   failure: string | null;
-  // Optional: lines written before #447 step 1 have no keys, keysBlocking or blocking.
-  keys?: string[];
-  keysBlocking?: string[];
-  blocking?: number;
+  keys: string[];
+  keysBlocking: string[];
+  blocking: number;
   findings: number;
   verified: number;
   seconds: number | null;

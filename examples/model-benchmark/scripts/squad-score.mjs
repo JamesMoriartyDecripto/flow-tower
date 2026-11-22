@@ -4,7 +4,7 @@
 // The gate blocks on everything except medium and low, so a missing or unknown severity blocks too.
 // The report uses the same rule, so a verdict and its severity count agree.
 export function isBlocking(severity) {
-  return !['medium', 'low'].includes(String(severity ?? '').toLowerCase());
+  return !['medium', 'low'].includes(severity);
 }
 
 // A finding's file is "path:line" or "path:line-line"; a key names the path alone.
@@ -38,10 +38,12 @@ export function scoreRun({ kase, outcome, answer, readFile, parseVerdict, checkF
         return fs.some((f) => stripLine(f.file) === k.file && re.test(text(f)));
       })
       .map((k) => k.id);
+  // Computed once: the gate's blocking rule decides both keysBlocking and the blocking count.
+  const blockingFindings = findings.filter((f) => isBlocking(f.severity));
   const keys = matchedKeys(findings);
-  const keysBlocking = matchedKeys(findings.filter((f) => isBlocking(f.severity)));
+  const keysBlocking = matchedKeys(blockingFindings);
   const verified = findings.filter((f) => checkFinding(f, readFile).status === 'verified').length;
-  const blocking = findings.filter((f) => isBlocking(f.severity)).length;
+  const blocking = blockingFindings.length;
   const flagged = verdict === 'changes';
   const pass = kase.kind === 'defect' ? flagged && keys.length > 0 : verdict === 'approve' && blocking === 0;
   return { pass, verdict, flagged, keys, keysBlocking, blocking, findings: findings.length, verified, failure: null };
@@ -72,9 +74,8 @@ export function summarize(lines) {
       flaggedDefects: defects.filter((l) => l.flagged).length,
       cleanRuns: cleans.length,
       cleanPass: cleans.filter((l) => l.pass).length,
-      // Lines written before keysBlocking existed have no field: they count as not blocked.
-      seen: defects.filter((l) => (l.keys ?? []).length > 0).length,
-      blocked: defects.filter((l) => (l.keysBlocking ?? []).length > 0).length,
+      seen: defects.filter((l) => l.keys.length > 0).length,
+      blocked: defects.filter((l) => l.keysBlocking.length > 0).length,
       cleanOpen: cleans.filter((l) => !l.failure && l.blocking === 0).length,
       failures,
       findings: ls.reduce((s, l) => s + l.findings, 0),
