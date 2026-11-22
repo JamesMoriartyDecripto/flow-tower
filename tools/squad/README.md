@@ -60,13 +60,15 @@ it from what the project's files say. A missing file gives the defaults.
 |---|---|---|---|
 | Lead (your current harness) | the session model | plans, verifies, commits | task files, commits |
 | Coder | `anthropic/claude-haiku-5.5` | cleanest result, 11 steps (#126); `CODER_MODEL` overrides | the `write` folders of squad.json (or `--write a,b`) |
-| Reviewer | `z-ai/glm-5.3-flash` | 12/12 on the squad's own review cases at $0.0001 a review (#322) | nothing (read-only, JSON verdict) |
-| Security | `deepseek/deepseek-v4.1-flash` | 11/12, every planted vulnerability found (#322) | nothing (read-only, JSON verdict) |
+| Reviewer | `minimax/minimax-m3.1-flash` | saw 7 of 12 kept defects on four real pull requests, no critical or high finding on a clean head (#447) | nothing (read-only, JSON verdict) |
+| Security | `minimax/minimax-m3.1-flash` | 0 failed runs in 24, 6 of 12 defects seen (#447) | nothing (read-only, JSON verdict) |
+| Architect | `openai/gpt-6.1-terra` | 9/9 plans from real issues (#362, #447) | nothing |
+| Lead-judge | `google/gemini-4-carbon` | 18/18 keep/drop sets on real review findings (#447) | nothing |
+| Researcher, verifier | `z-ai/glm-5.3-flash` | the model they ran on before #447; not measured | nothing |
 
 Additional loop roles: `triage`, `architect`, `researcher`, `tester`, `verifier`, `doc-writer`. Their node IDs
-come from the same canonical tower. Configure `models.<role>` or pass `--model`; unconfigured architect,
-researcher and verifier inherit the reviewer model, while triage, tester and doc-writer inherit the coder model.
-These are starting defaults, not new benchmark results. Only coder and doc-writer have file-write tools;
+come from the same canonical tower. Configure `models.<role>` or pass `--model`; triage, tester and doc-writer
+inherit the coder model, and a read-only role with no default of its own would inherit the reviewer's. Only coder and doc-writer have file-write tools;
 doc-writer requires explicit `--write` folders and never inherits coder folders. Only reviewer/security require
 JSON gate verdicts and support `--oneshot`/`--batch`; other roles use the tool loop.
 
@@ -83,9 +85,12 @@ project checks; only do this in trusted projects (use OS isolation where appropr
 cap is enforced: agree a budget, bound calls with `--steps`, inspect the ledger and stop before exceeding it.
 Read-only here does not promise an OS sandbox. There is no advertised autonomous `squad run` command.
 
-All at low reasoning effort: quick passes, and the review rounds re-check the work. The numbers come from a benchmark
-on this runner, not a generic one: [2026-10-27 squad roles](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/examples/model-benchmark/results/2026-10-27-squad-roles.md),
-which also walks a fresh project from `squad init` to a fixed security finding for $0.0121. [OpenRouter](https://openrouter.ai) is just the gateway. Three families, so no reviewer shares the coder's blind spots.
+All at low reasoning effort: quick passes, and the review rounds re-check the work. The numbers come from benchmarks
+on this runner, not generic ones: [2026-11-22 squad roles](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/examples/model-benchmark/results/2026-11-22-squad-roles.md)
+(four real pull requests of this repository) and [2026-10-27 squad roles](https://github.com/JamesMoriartyDecripto/flow-tower/blob/main/examples/model-benchmark/results/2026-10-27-squad-roles.md),
+which also walks a fresh project from `squad init` to a fixed security finding for $0.0121. [OpenRouter](https://openrouter.ai) is just the gateway.
+Reviewer and security share one model since #447: on real pull requests no single pass saw more than 7 of the 12 kept
+defects, and more passes of different models saw more (#450).
 
 ## A task file
 
@@ -161,7 +166,7 @@ names the tower node that shows the run live; `ev.sh` posts those events to `FLO
 
 ```bash
 node tools/squad/pack.mjs --role reviewer --issue 113 --repo ../wt-113 > tasks/113-review.md
-node tools/squad/run.mjs --model z-ai/glm-5.3-flash --role reviewer --node quality.reviewer \
+node tools/squad/run.mjs --model minimax/minimax-m3.1-flash --role reviewer --node quality.reviewer \
   --task tasks/113-review.md --issue 113 --repo ../wt-113
 ```
 
@@ -172,7 +177,7 @@ afterwards: `role-*.log` next to the script holds every call.
 
 ```bash
 node tools/squad/pack.mjs --role security --issue 113 --repo ../wt-113 > tasks/113-security.md
-node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node quality.security \
+node tools/squad/run.mjs --model minimax/minimax-m3.1-flash --role security --node quality.security \
   --task tasks/113-security.md --issue 113 --repo ../wt-113
 ```
 
@@ -214,7 +219,7 @@ made-up finding rarely comes back).
 ## The unattended runner (#320)
 
 `node tools/squad/runner.mjs` works issues labelled `squad:go` with no session open. The procedure lives in code; models make only the judgement calls:
-triage, the architect's plan (`openai/gpt-6.1-terra` by default), the lead-judge's keep/drop on review findings (`anthropic/claude-sonnet-5.5`),
+triage, the architect's plan (`openai/gpt-6.1-terra` by default), the lead-judge's keep/drop on review findings (`google/gemini-4-carbon`),
 the verifier. One issue at a time; it polls every `runner.pollMinutes` (10) minutes.
 
 ```bash
@@ -309,8 +314,8 @@ run fails). Any answer without a JSON verdict fails the run (`no-verdict` in the
 | Role | Default | Faster | Use the faster one when |
 |---|---|---|---|
 | Coder | `anthropic/claude-haiku-5.5` (212 s on #126) | `CODER_MODEL=openai/gpt-6-luna` (67 s, but missed the size goal) | the task is simple and mechanical |
-| Reviewer | `z-ai/glm-5.3-flash` | none: it is already the fastest at 12/12 (median 2.3 s, #322) | — |
-| Security | `deepseek/deepseek-v4.1-flash` (6/6) | `openai/gpt-6-luna` (5/6, 8 s) | the change does not touch auth, tokens, paths or anything a remote request reaches |
+| Reviewer | `minimax/minimax-m3.1-flash` (median 32 s, #447) | `meta/muse-ember` (11 s, 5 of 12 defects seen against 7) | the change is small and low-risk |
+| Security | `minimax/minimax-m3.1-flash` (median 22 s, #447) | `meta/muse-ember` (10 s, 4 of 12 against 6) | the change does not touch auth, tokens, paths or anything a remote request reaches |
 
 Never batch in a hurry: `now` and `relaxed` never touch the Batch API.
 
@@ -319,10 +324,10 @@ One-request and batch reviews have no tools: the task must hold the code. Build 
 ```bash
 node tools/squad/pack.mjs --role security --issue 164 --files src/server/enroll.ts,src/server/shared-towers.ts > tasks/164-security.md
 node tools/squad/pack.mjs --role reviewer --issue 249 --paths src,examples > tasks/249-review.md
-node tools/squad/run.mjs --model deepseek/deepseek-v4.1-flash --role security --node quality.security --task tasks/164-security.md --issue 164
+node tools/squad/run.mjs --model minimax/minimax-m3.1-flash --role security --node quality.security --task tasks/164-security.md --issue 164
 ```
 
-- **DeepSeek 4.1 Flash can answer empty in `--oneshot`** (2026-10-13: four of five security passes on #189-#194 returned `empty answer`). Re-run it once; if it is empty again, run the same packed task with the reviewer model and the security brief, and say so in the PR. The same day of #316 it also cut answers in the middle of the JSON: a oneshot or batch answer whose `finish_reason` is present and not `stop` now fails the run (`truncated answer`, ledger outcome `truncated-answer`) instead of passing as a normal one; treat it like an empty answer.
+- **DeepSeek 4.1 Flash, the security default until #447, can answer empty in `--oneshot`** (2026-10-13: four of five security passes on #189-#194 returned `empty answer`). Re-run it once; if it is empty again, run the same packed task with the reviewer model and the security brief, and say so in the PR. The same day of #316 it also cut answers in the middle of the JSON: a oneshot or batch answer whose `finish_reason` is present and not `stop` now fails the run (`truncated answer`, ledger outcome `truncated-answer`) instead of passing as a normal one; treat it like an empty answer.
 - **`--paths a,b` picks what the diff covers** (default: squad.json `review`). A change under `examples/` or `docs/`
   needs it, or the reviewer gets an empty diff. Paths are read literally (no globs, no `:(magic)`), and a changed file
   that looks like a secret (`.env*`, `*.pem`, `*.key`, `id_rsa*`...) is left out of the diff and named on stderr.

@@ -18,8 +18,8 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
 | Researcher | `models.researcher`, otherwise reviewer model | nothing |
 | Coder | `models.coder` (default `anthropic/claude-haiku-5.5`) | configured `write` folders |
 | Tester | `models.tester`, otherwise coder model | no direct file tools; may run project checks |
-| Reviewer | `models.reviewer` (default `z-ai/glm-5.3-flash`) | nothing (JSON verdict) |
-| Security | `models.security` (default `deepseek/deepseek-v4.1-flash`) | nothing (JSON findings) |
+| Reviewer | `models.reviewer` (default `minimax/minimax-m3.1-flash`) | nothing (JSON verdict) |
+| Security | `models.security` (default `minimax/minimax-m3.1-flash`) | nothing (JSON findings) |
 | Verifier | `models.verifier`, otherwise reviewer model | nothing |
 | Doc writer | `models.doc-writer`, otherwise coder model | explicit `--write` folders only |
 

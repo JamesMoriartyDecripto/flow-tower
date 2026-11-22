@@ -1,6 +1,6 @@
 # Lead judge
 
-**Node:** `autopilot.judge` · **Writes:** nothing · **Verdict:** yes · **Model:** `models.lead-judge` (default `anthropic/claude-sonnet-5.5`, #320)
+**Node:** `autopilot.judge` · **Writes:** nothing · **Verdict:** yes · **Model:** `models.lead-judge` (default `google/gemini-4-carbon`, #447)
 
 Read-only: keep or drop each review finding; change nothing.
 
