@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
+import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -71,6 +72,26 @@ describe('verify.mjs CLI', () => {
     expect(out).toContain('FAIL no instance answers at http://127.0.0.1:9');
     expect(out).not.toContain('at async');
     expect(out).not.toContain('TypeError');
+  });
+
+  it('open on a server that answers 200 with a body that is not a workspace prints one FAIL line', { timeout: 20000 }, async () => {
+    const server: HttpServer = createHttpServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{}');
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    try {
+      const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      const dir = tempDir();
+      writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url, port: 1, commit: '' }));
+      const { code, out } = await verify(['open', 'anything', '--run', dir]);
+      expect(code).toBe(1);
+      expect(out).toContain('FAIL no instance answers at');
+      expect(out).not.toContain('TypeError');
+      expect(out).not.toContain('at async');
+    } finally {
+      server.close();
+    }
   });
 
   it('launch refuses a port that is already taken and creates no run folder', async () => {

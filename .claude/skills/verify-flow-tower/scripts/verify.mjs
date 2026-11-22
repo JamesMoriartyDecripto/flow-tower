@@ -1,13 +1,13 @@
 // Starts one isolated Flow Tower instance for a verification run, checks it, and stops it (#448).
 // Each run gets its own FLOW_TOWER_HOME, so the server never reads the user's config or joins a hub,
 // and the port is refused when something already answers there (it may be someone's live server).
-// The drives that use a running instance live in drives.mjs, loaded only for their commands.
 import { execFileSync, spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { eventsDrive, openDrive, validateDrive, workspaceOf } from './drives.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PORT = 5327;
@@ -76,21 +76,6 @@ function git(args) {
 }
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
-
-/** Asks /api/workspace. Null when nothing answers; otherwise the status and the project list. */
-async function probe(url) {
-  try {
-    const res = await fetch(`${url}/api/workspace`, { signal: AbortSignal.timeout(2000) });
-    let projects = [];
-    if (res.status === 200) {
-      const body = await res.json().catch(() => ({}));
-      projects = Array.isArray(body.projects) ? body.projects : [];
-    }
-    return { status: res.status, projects };
-  } catch {
-    return null;
-  }
-}
 
 /** A server that answers HTTP also accepts the TCP connect, so the connect alone decides. */
 function portInUse(port) {
@@ -164,11 +149,11 @@ async function launch(args) {
 
   const deadline = Date.now() + READY_TIMEOUT_MS;
   while (!exited && Date.now() < deadline) {
-    const r = await probe(url);
-    if (r?.status === 200 && r.projects.length > 0) {
+    const ws = await workspaceOf(url, 2000);
+    if (ws && ws.projects.length > 0) {
       console.log(`ready ${url}`);
       console.log(`run ${dir}`);
-      console.log(`projects ${r.projects.length}`);
+      console.log(`projects ${ws.projects.length}`);
       return 0;
     }
     await sleep(POLL_MS);
@@ -205,12 +190,12 @@ async function doctor(args) {
   const found = readRun(runDirOf(args));
   if (!found) return 1;
   const { run } = found;
-  const [alive, probed, head] = [pidAlive(run.pid), await probe(run.url), git(['rev-parse', 'HEAD'])];
+  const [alive, ws, head] = [pidAlive(run.pid), await workspaceOf(run.url, 2000), git(['rev-parse', 'HEAD'])];
   const lines = [
     [true, 'run.json', `${found.dir}/run.json`],
     [alive, 'pid', alive ? `${run.pid} is running` : `${run.pid} is not running`],
-    [probed?.status === 200 && probed.projects.length > 0, 'workspace',
-      probed?.status === 200 ? `${probed.projects.length} projects, first 5: ${probed.projects.slice(0, 5).join(', ')}` : `no 200 from ${run.url}/api/workspace`],
+    [ws !== null && ws.projects.length > 0, 'workspace',
+      ws ? `${ws.projects.length} projects, first 5: ${ws.projects.slice(0, 5).join(', ')}` : `no 200 from ${run.url}/api/workspace`],
     [run.commit === head, 'commit', run.commit === head ? head : `launched at ${run.commit}, checkout is at ${head}`],
   ];
   for (const [ok, name, detail] of lines) console.log(`${ok ? 'ok   ' : 'FAIL '}${name}: ${detail}`);
@@ -223,8 +208,8 @@ async function stop(args) {
   const { dir, run } = found;
   signalRun(run.pid, 'SIGTERM');
   const deadline = Date.now() + STOP_WAIT_MS;
-  while (Date.now() < deadline && (await probe(run.url))) await sleep(200);
-  if (await probe(run.url)) signalRun(run.pid, 'SIGKILL');
+  while (Date.now() < deadline && (await workspaceOf(run.url, 2000))) await sleep(200);
+  if (await workspaceOf(run.url, 2000)) signalRun(run.pid, 'SIGKILL');
   // Only the home goes: the evidence and the log are what the run leaves for review.
   rmSync(join(dir, 'home'), { recursive: true, force: true });
   console.log(`stopped pid ${run.pid}`);
@@ -250,13 +235,10 @@ async function main(argv) {
   if (args.command === 'launch') return launch(args);
   if (args.command === 'doctor') return doctor(args);
   if (args.command === 'stop') return stop(args);
-  // The drives are loaded only now. They get the run loader, not the run, so each still checks its own
-  // arguments before it reads run.json, and the FAIL lines keep their order.
-  const load = () => readRun(runDirOf(args));
-  const drives = await import('./drives.mjs');
-  if (args.command === 'open') return drives.openDrive(args, load);
-  if (args.command === 'events') return drives.eventsDrive(args, load);
-  return drives.validateDrive(args, load, git(['rev-parse', '--show-toplevel']));
+  const found = readRun(runDirOf(args));
+  if (args.command === 'open') return openDrive(args, found);
+  if (args.command === 'events') return eventsDrive(args, found);
+  return validateDrive(args, found, git(['rev-parse', '--show-toplevel']));
 }
 
 main(process.argv.slice(2)).then((code) => { process.exitCode = code; });
