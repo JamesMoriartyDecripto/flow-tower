@@ -8,6 +8,9 @@ const VERIFY = 'Verify: `run check`; `finish` with the output and a `Known gaps:
 
 const isText = (v) => typeof v === 'string' && v.trim() !== '';
 
+// A test file by its folder or its name, so a step that writes a test gets the test skill (#457).
+const isTestFile = (file) => /(^|\/)(tests|test|__tests__)\//.test(file) || /\.(test|spec)\.[^/]+$/.test(file);
+
 // A file must be a relative path inside the repo: an absolute path, a backslash, a drive letter or a ".." segment
 // would let a step write outside it, the same rule step-scope.mjs applies to Files entries. A leading "~" is refused
 // as well: a shell expands it to the home folder. A comma or a line break is refused too: the Files line is split on
@@ -79,7 +82,8 @@ export function slugOf(title) {
 // One task file per step. The coder reads the step's own files (new files do not exist yet, so they are left out
 // of the Read line) and the readFirst files; the Files line keeps the "+" marks for the check to parse.
 // The rules line comes from the project's style setting (rules defaults to taskRules()), so a project's language is used.
-export function taskFiles(plan, { issue, title, readFirst = [], rules = taskRules() }) {
+// A step that names a test gets the testSkill line, when the project has that skill ('' means none).
+export function taskFiles(plan, { issue, title, readFirst = [], rules = taskRules(), testSkill = '' }) {
   const criteria = plan.criteria.join('; ');
   return plan.steps.map((step, i) => {
     const nn = String(i + 1).padStart(2, '0');
@@ -101,6 +105,7 @@ export function taskFiles(plan, { issue, title, readFirst = [], rules = taskRule
       '',
       items,
       '',
+      ...(testSkill && step.files.some((f) => isTestFile(f.replace(/\+$/, ''))) ? [`Skills: ${testSkill}`] : []),
       `Files: ${step.files.join(', ')}`,
       '',
     ].join('\n');

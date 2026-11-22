@@ -2,7 +2,7 @@
 // node tools/squad/runner.mjs [--once] [--issue <n>] [--repo <path>] [--dry-run]
 // One runner per home folder: a lock file holds the pid, so two runners never claim from the same queue at once.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { env, argv, exit } from 'node:process';
@@ -106,7 +106,9 @@ async function main(args) {
   repo = resolve(repo);
   const home = env.FLOW_TOWER_HOME || join(homedir(), '.config', 'flow-tower');
   const config = loadConfig(repo);
-  const limits = { usdPerIssue: config.runner.usdPerIssue, minutes: config.runner.minutes, fixRounds: config.runner.fixRounds, rules: taskRules(config) };
+  const limits = { usdPerIssue: config.runner.usdPerIssue, minutes: config.runner.minutes, fixRounds: config.runner.fixRounds, rules: taskRules(config),
+    // A project without the tests skill file gets no Skills line: a missing skill would stop the run.
+    testSkill: existsSync(join(repo, 'tools', 'squad', 'skills', 'tests.md')) ? 'tests' : '' };
 
   // gh needs owner/name for -R; the repo's own remote gives it, so the runner never guesses a repository.
   const named = quietExec('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd: repo });
