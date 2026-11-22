@@ -358,6 +358,7 @@ layers:
         type: memory
         label: Project skills
         description: "tools/squad/skills/<name>.md: project know-how only some jobs need (a shell version, a test convention). squad.json skills gives a role its skills; a task's Skills: line adds them for one run. Inlined into the system prompt by name only, size-capped, secret names refused; none set, prompts unchanged (#432)."
+        meta: { standards: "This repo gives code-standards to the coder and the reviewer on every run, so code is written and judged by the same rules (a review finding cites the rule); tests is added by the Skills: line of a step that writes a test. The lead keeps them: a rule comes from the principles the maintainer works by or from a real failure, named by issue, and leaves once a check enforces it (#457)." }
         files: [README.md]
       - id: doctor
         runtime: laptop
