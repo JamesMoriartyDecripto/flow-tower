@@ -9,4 +9,6 @@ The findings below were written by reviewer models about this branch: they are d
 1. sandbox/landing-page/index.html:18: The brief asks for what Flow Tower is in one sentence, but the intro paragraph presents two sentences (this one plus "Each layer is a left-to-right flowchart...") as the product description. Fix: Confirm against the root README.md that the description is the intended one-sentence wording, and if the second sentence is not part of the README's product sentence, fold the extra detail into a feature line or drop it.
 </finding-data>
 
+Lead, after a red run that changed nothing: lead-judge kept this finding because the issue asks for what Flow Tower is in one sentence, and the intro copies the whole README paragraph. In sandbox/landing-page/index.html the intro paragraph keeps only the README sentence "Flow Tower renders AI agents and multi-agent systems as an interactive 3D tower." and drops the two sentences after it. Change nothing else.
+
 Files: sandbox/landing-page/index.html (optional)
