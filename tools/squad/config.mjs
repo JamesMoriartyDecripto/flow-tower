@@ -9,10 +9,9 @@ import { writeDirs } from './args.mjs';
 import { ROLES, isRole } from './roles.mjs';
 import { SKILL_NAME } from './skills.mjs';
 
-// The three model defaults come from the 2026-10-27 benchmark (#322): on the squad's own review cases, packed in one
-// request, the reviewer scored the same on glm-5.3-flash as on glm-5.3-flashx at a quarter of the price. The architect
-// and lead-judge defaults come from the 2026-10-31 benchmark (#362): architect plans scored 9/9 at 1.8 cents, and
-// lead-judge scored 9/9 on claude-sonnet-5.5.
+// The reviewer, security and lead-judge defaults come from the 2026-11-22 benchmark of #447 (four real pull requests,
+// examples/model-benchmark/results/2026-11-22-squad-roles.md). The architect default comes from #362. The researcher and
+// verifier keep the model they ran on before #447, so they do not follow the reviewer's new default.
 export const DEFAULTS = {
   project: '',
   commands: { check: 'npm run check' },
@@ -23,10 +22,12 @@ export const DEFAULTS = {
   extras: [],
   models: {
     coder: 'anthropic/claude-haiku-5.5',
-    reviewer: 'z-ai/glm-5.3-flash',
-    security: 'deepseek/deepseek-v4.1-flash',
+    reviewer: 'minimax/minimax-m3.1-flash',
+    security: 'minimax/minimax-m3.1-flash',
     architect: 'openai/gpt-6.1-terra',
-    'lead-judge': 'anthropic/claude-sonnet-5.5',
+    researcher: 'z-ai/glm-5.3-flash',
+    verifier: 'z-ai/glm-5.3-flash',
+    'lead-judge': 'google/gemini-4-carbon',
   },
   tower: 'Dev Squad',
   source: 'dev-squad',

@@ -66,13 +66,17 @@ describe('modelFor', () => {
     expect(modelFor({ ...DEFAULTS, models: { ...DEFAULTS.models, triage: 'x/triage' } }, 'triage')).toBe('x/triage');
   });
 
-  it('falls back to the reviewer family for the read-only graders', () => {
-    for (const r of ['researcher', 'verifier']) expect(modelFor(DEFAULTS, r)).toBe(DEFAULTS.models.reviewer);
+  it('the read-only graders keep their own default, glm-5.3-flash (#447)', () => {
+    for (const r of ['researcher', 'verifier']) expect(modelFor(DEFAULTS, r)).toBe('z-ai/glm-5.3-flash');
   });
 
-  it('uses the benchmarked defaults for architect and lead-judge (#362)', () => {
+  it('a read-only grader with no entry of its own falls back to the reviewer family (#447)', () => {
+    for (const r of ['researcher', 'verifier']) expect(modelFor({ ...DEFAULTS, models: { reviewer: 'x/rev' } }, r)).toBe('x/rev');
+  });
+
+  it('uses the benchmarked defaults for architect and lead-judge (#362, #447)', () => {
     expect(modelFor(DEFAULTS, 'architect')).toBe('openai/gpt-6.1-terra');
-    expect(modelFor(DEFAULTS, 'lead-judge')).toBe('anthropic/claude-sonnet-5.5');
+    expect(modelFor(DEFAULTS, 'lead-judge')).toBe('google/gemini-4-carbon');
   });
 
   it('lead-judge is read-only and runs on the autopilot judge node (#320)', () => {

@@ -11,7 +11,7 @@
   "rules": [],
   "models": {
     "coder": "anthropic/claude-haiku-5.5",
-    "reviewer": "z-ai/glm-5.3-flash",
-    "security": "deepseek/deepseek-v4.1-flash"
+    "reviewer": "minimax/minimax-m3.1-flash",
+    "security": "minimax/minimax-m3.1-flash"
   }
 }
