@@ -232,9 +232,8 @@ const leftSection = (left) => (left.length
 // on this machine, or its own reviewers. The task already holds the code (--oneshot), so the worktree is not needed.
 async function pass(role, models, task, tag, repo, env) {
   const outs = [];
-  let last = { code: 1, stdout: '' };
   for (const model of attemptModels(role, models)) {
-    last = await runAsync('node', [join(HERE, 'run.mjs'), '--model', model, '--role', role, '--node', `specialists.${role}`,
+    const last = await runAsync('node', [join(HERE, 'run.mjs'), '--model', model, '--role', role, '--node', `specialists.${role}`,
       '--task', task, '--issue', tag, '--repo', repo], env);
     outs.push(last.stdout);
     if (last.code !== 0 && last.stderr.trim()) stderr.write(`${role} on ${model}: ${last.stderr.trim()}\n`);

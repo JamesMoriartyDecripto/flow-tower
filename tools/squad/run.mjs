@@ -5,7 +5,7 @@
 // The key is loaded from the user's key file into this process only; it is never printed.
 // Each run ends with one line in the local cost ledger (ledger.mjs, #156), finished or failed alike.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, realpathSync, writeFileSync, appendFileSync, mkdirSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, realpathSync, writeFileSync, appendFileSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { env, argv, exit, loadEnvFile } from 'node:process';
@@ -135,8 +135,10 @@ if (!env.OPENROUTER_API_KEY) { console.error(`no key: run "${keyCommand}" (it st
 
 // Old role logs are pruned before this run writes its own (#357), in the folder beside the ledger (#453).
 // Pruning must never stop a run, so errors are ignored.
+// A log holds the packed code and the model's answer, so the folder is private, even when it already existed (#459).
 const LOGS = logsDir(env);
-mkdirSync(LOGS, { recursive: true });
+mkdirSync(LOGS, { recursive: true, mode: 0o700 });
+chmodSync(LOGS, 0o700);
 try { pruneLogs(LOGS); } catch { /* keep running */ }
 const log = join(LOGS, `${role}-${Date.now()}.log`);
 // squad.json no longer names the checkout (machine-local, #265): init writes its path to .cli, git-ignored beside this script.

@@ -76,8 +76,12 @@ const git = (...a) => execFileSync('git', a, { cwd: REPO, encoding: 'utf8', maxB
 let mergeBase;
 try {
   mergeBase = git('merge-base', base, 'HEAD').trim();
-} catch {
-  stderr.write(`base has no common commit with HEAD: ${base}\n`);
+} catch (e) {
+  // Both a missing common commit and a shallow clone or unfetched base exit 1; only git's stderr tells them apart.
+  const why = String(e.stderr ?? '').trim();
+  stderr.write(e.status === 1 && why === ''
+    ? `base has no common commit with HEAD: ${base}\n`
+    : `git merge-base ${base} HEAD failed: ${why}\n`);
   exit(1);
 }
 

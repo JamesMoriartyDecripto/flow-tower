@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -100,6 +100,8 @@ describe('squad --oneshot and --batch', () => {
     const logPath = /· log (\S+)/.exec(r.stdout)?.[1] ?? '';
     expect(logPath.startsWith(join(dirname(ledger), 'squad-logs') + '/')).toBe(true);
     expect(existsSync(logPath)).toBe(true);
+    // The log holds the packed code and the answer, so its folder is private to the user (#459).
+    expect(statSync(dirname(logPath)).mode & 0o777).toBe(0o700);
 
     const chats = seen.filter((s) => s.url.endsWith('/chat/completions'));
     expect(chats).toHaveLength(1);

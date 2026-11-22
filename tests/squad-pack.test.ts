@@ -79,6 +79,17 @@ describe('squad pack (#169)', () => {
     expect(r.stderr).toContain('trimmed to fit');
   });
 
+  it('refuses a base with no common commit', () => {
+    git(repo, 'checkout', '-q', '--orphan', 'other');
+    writeFileSync(join(repo, 'other.txt'), 'unrelated\n');
+    git(repo, 'add', 'other.txt');
+    git(repo, 'commit', '-q', '-m', 'orphan');
+    git(repo, 'checkout', '-q', 'feat');
+    const r = spawnSync(process.execPath, [script, '--role', 'reviewer', '--issue', '169', '--repo', repo, '--base', 'other', '--brief', briefFile], { encoding: 'utf8', timeout: 20_000 });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('base has no common commit with HEAD: other');
+  });
+
   it('refuses a non-numeric --issue and a base that is not a commit or starts with a dash', () => {
     const badIssue = run(['--role', 'reviewer', '--issue', '169; rm -rf x']);
     expect(badIssue.status).not.toBe(0);
