@@ -175,7 +175,7 @@ describe('architect plan scope', () => {
     }, { findings: [{ file: 'src/a.ts:3', what: 'bug', why: 'x', fix: 'y' }] });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
     expect(prompts.architect).toContain('list only the files that step must edit');
-    expect(prompts.architect).toContain('opens the draft PR, so no step does them');
+    expect(prompts.architect).toContain('opens the draft PR, so no step does those');
   });
 
   it('tells the architect that reads are existing source files and criteria name checkable change', async () => {
