@@ -17,6 +17,18 @@ export async function workspaceOf(url, timeoutMs) {
   return null;
 }
 
+const NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+/**
+ * --name becomes a file name inside the run's evidence folder, so a value with a slash or a bare dot segment
+ * would write outside it. Refused before any drive reads, fetches or writes.
+ */
+function badName(args) {
+  if (args.name === undefined || (NAME_PATTERN.test(args.name) && args.name !== '.' && args.name !== '..')) return false;
+  console.log('FAIL --name takes letters, digits, dot, dash and underscore');
+  return true;
+}
+
 function resolveProject(ids, prefix) {
   return ids.find((id) => id.startsWith(prefix));
 }
@@ -109,6 +121,7 @@ async function drive(args, found, defaultLabel, fn) {
 }
 
 export function openDrive(args, found) {
+  if (badName(args)) return 1;
   if (!args.target) {
     console.log('FAIL open needs a project');
     return 1;
@@ -142,6 +155,7 @@ async function postEvent(url, body) {
 }
 
 export function eventsDrive(args, found) {
+  if (badName(args)) return 1;
   if (!args.node) {
     console.log('FAIL events needs --node <layer.node>');
     return 1;
@@ -151,7 +165,10 @@ export function eventsDrive(args, found) {
     return 1;
   }
   return drive(args, found, 'events', async (page, { run, id, ws }, recordSoFar) => {
-    const tower = ws.towers[id].id;
+    // A project the workspace has no tower for would otherwise throw a TypeError on the read below.
+    const entry = ws.towers[id];
+    if (!entry) throw new Error(`the workspace has no tower for ${id}`);
+    const tower = entry.id;
     const tag = `verify-${Date.now()}`;
     const bodies = [
       { kind: 'tool.start', source: tag, node: args.node, tower, message: `${tag} start`, call: tag },
@@ -175,6 +192,7 @@ export function eventsDrive(args, found) {
 
 /** Runs the CLI validate on a path and keeps its output. Needs the run folder for evidence, not a server. */
 export function validateDrive(args, found, root) {
+  if (badName(args)) return 1;
   if (!args.target) {
     console.log('FAIL validate needs a path');
     return 1;

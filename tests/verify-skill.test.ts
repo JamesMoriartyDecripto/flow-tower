@@ -141,4 +141,14 @@ describe('verify.mjs CLI', () => {
     expect(ev.exit).toBe(1);
     expect(ev.error.startsWith('validate exited')).toBe(true);
   });
+
+  it('validate refuses a --name that leaves the evidence folder and writes nothing', { timeout: 20000 }, async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', port: 1, commit: '' }));
+    const { code, out } = await verifyWith(['validate', 'examples/starters', '--run', dir, '--name', '../escape'], 20000);
+    expect(code).toBe(1);
+    expect(out).toContain('FAIL --name takes');
+    expect(existsSync(join(dir, 'escape.json'))).toBe(false);
+    expect(existsSync(join(dir, 'evidence'))).toBe(false);
+  });
 });
