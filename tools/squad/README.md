@@ -43,7 +43,7 @@ it from what the project's files say. A missing file gives the defaults.
 | Key | Meaning | Default |
 |---|---|---|
 | `project` | one line on the stack; it opens every model's system prompt | empty |
-| `commands` | `check` (required: must pass after every step), optional `typecheck`, `test` (`{file}` is the test file), `lint`. Split on spaces and run without a shell: no pipes or quotes (wrap them in a package script) | `check: npm run check` |
+| `commands` | `check` (required: must pass after every step), optional `typecheck`, `test` (`{file}` is the test file), `lint`, and `setup`, which the autopilot runs once in each fresh worktree, read from the main checkout (`npm ci`, #462). Split on spaces and run without a shell: no pipes or quotes (wrap them in a package script) | `check: npm run check` |
 | `write` | folders the coder may write | `src, tests` |
 | `review` | folders the review diff covers | `src` |
 | `base` | the branch diffs are taken against | `origin/main` |
