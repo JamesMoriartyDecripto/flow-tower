@@ -10,4 +10,6 @@ Why: review of #447 found false comments and comments that restate the code.
 3. tools/squad/roles.mjs lines 9-10: say that a read-only role with no model of its own falls back to the reviewer's, and that the defaults name every read-only role since #447.
 4. tests/squad-roles.test.ts: delete the read-only graders test that builds `models: { reviewer: 'x/rev' }` (no config loaded by loadConfig can reach it) and the lines that pin researcher and verifier: tests/squad-config.test.ts already pins every default through loadConfig.
 
-Files: examples/model-benchmark/scripts/squad-roles.mjs, examples/model-benchmark/scripts/squad-loop.mjs, examples/model-benchmark/scripts/squad-score.mjs, examples/model-benchmark/scripts/squad-score.d.mts, tools/squad/pack.mjs, tools/squad/roles.mjs, tests/squad-roles.test.ts
+Files: examples/model-benchmark/scripts/squad-roles.mjs, examples/model-benchmark/scripts/squad-loop.mjs, examples/model-benchmark/scripts/squad-score.mjs, examples/model-benchmark/scripts/squad-score.d.mts (optional), tools/squad/pack.mjs, tools/squad/roles.mjs, tests/squad-roles.test.ts
+
+Continuation: the first attempt is complete and correct. squad-score.d.mts had nothing left to change, because step 09 already removed the comment named here, so it is optional now. Change nothing; run the checks and finish.
