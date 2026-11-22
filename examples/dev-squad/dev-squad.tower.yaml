@@ -407,7 +407,7 @@ layers:
         runtime: openrouter
         type: model
         label: OpenRouter
-        description: "One OpenAI-style endpoint. Every role has its own default since #447; a models entry in squad.json replaces it. Before, researcher and verifier followed the reviewer's model."
+        description: "One OpenAI-style endpoint. Reviewer, security, architect, lead-judge, researcher and verifier have their own default; triage, tester and doc writer use the coder's. A models entry in squad.json replaces a default. Before #447, researcher and verifier followed the reviewer's model."
         files: [squad.example.json]
       - id: haiku
         runtime: openrouter

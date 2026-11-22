@@ -267,7 +267,7 @@ For each pull request it fetches the head (`pull/<n>/head`) and the base, adds a
 the review and the security task against the PR's own base (stacked PRs too) with the PR text and the issue it closes
 (`Closes #n`) as brief, runs both passes at once (`SQUAD_PACE` from the environment, else `relaxed`), and runs the gate.
 An empty or cut answer is run once more; a second failure of the security model sends the security brief to the reviewer
-model (§ Pace). The runs are tagged with the linked issue, else the PR number, so `cost.mjs` sums them.
+model (§ Pace). Since #447 both default to the same model, so that is a third try on it, not another model. The runs are tagged with the linked issue, else the PR number, so `cost.mjs` sums them.
 
 It prints one table row per PR (head, both verdicts with findings by severity, the gate, the cost), the gate's reasons
 for each NOT READY one, and its folder: `squad-prs/` next to the cost ledger (the flow-tower user folder, mode 700), with one
