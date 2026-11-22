@@ -2,7 +2,7 @@
 // plan as JSON; this module checks it and writes one NN-<slug>.md task per step, in the shape of kit/TEMPLATE.md.
 // Both functions are pure: no git, no disk. A bad plan is reported in words, never thrown, so the lead can ask again.
 import { taskRules } from './config.mjs';
-import { firstAccepted, stripFence } from './runner-judge.mjs';
+import { firstAccepted, isConcreteFile, stripFence } from './runner-judge.mjs';
 
 const VERIFY = 'Verify: `run check`; `finish` with the output and a `Known gaps:` line.';
 
@@ -51,7 +51,8 @@ function problemOf(plan) {
       if (!Array.isArray(s.reads)) return `step ${n}: reads must be a list`;
       for (const r of s.reads) {
         if (!isText(r)) return `step ${n}: every read must be a nonempty string`;
-        if (r.endsWith('+') || r.endsWith('/') || badPath(r)) return `step ${n}: read "${r}" must be a relative file path inside the repo`;
+        // A read goes into the coder's Read line, so it gets the same allowlist as a judge's supporting file.
+        if (!isConcreteFile(r)) return `step ${n}: read "${r}" must be a relative file path inside the repo`;
       }
     }
   }
