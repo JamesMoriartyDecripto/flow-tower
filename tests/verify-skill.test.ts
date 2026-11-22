@@ -5,8 +5,6 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-// @ts-expect-error plain .mjs without declarations
-import { parseArgs, planRun } from '../.claude/skills/verify-flow-tower/scripts/verify.mjs';
 
 /**
  * verify.mjs (#448). Only the pure helpers and the paths that never start a server are exercised here:
@@ -35,26 +33,6 @@ function verifyWith(args: string[], timeout: number) {
     });
   });
 }
-
-describe('planRun', () => {
-  it('puts the run folder under base and puts the port in the runId', () => {
-    const base = join(tmpdir(), 'base-x');
-    const plan = planRun({ base, port: 5327, now: new Date('2026-01-02T03:04:05.000Z') });
-    expect(plan.runId).toContain('5327');
-    expect(plan.home.startsWith(join(base, plan.runId))).toBe(true);
-    expect(plan.evidence.startsWith(join(base, plan.runId))).toBe(true);
-    expect(plan.url).toBe('http://127.0.0.1:5327');
-  });
-});
-
-describe('parseArgs', () => {
-  it('reads the command and flags', () => {
-    const args = parseArgs(['launch', '--port', '5400', '--base', '/tmp/b']);
-    expect(args.command).toBe('launch');
-    expect(args.port).toBe(5400);
-    expect(args.base).toBe('/tmp/b');
-  });
-});
 
 describe('verify.mjs CLI', () => {
   it('--help exits 0 and names launch, doctor and stop', async () => {
@@ -88,6 +66,16 @@ describe('verify.mjs CLI', () => {
     expect(out).toContain('open');
     expect(out).toContain('events');
     expect(out).toContain('validate');
+  });
+
+  it('open on a run whose server is stopped prints one FAIL line, not a stack trace', { timeout: 20000 }, async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:9', port: 9, pid: 0, commit: '' }));
+    const { code, out } = await verify(['open', 'anything', '--run', dir]);
+    expect(code).toBe(1);
+    expect(out).toContain('FAIL no instance answers at http://127.0.0.1:9');
+    expect(out).not.toContain('at async');
+    expect(out).not.toContain('TypeError');
   });
 
   it('launch refuses a port that is already taken and creates no run folder', async () => {

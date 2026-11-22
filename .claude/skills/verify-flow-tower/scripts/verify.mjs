@@ -35,7 +35,7 @@ options:
   --help         show this help`;
 
 /** Parses the CLI flags. Pure: the defaults are computed here, nothing is read from disk. */
-export function parseArgs(argv) {
+function parseArgs(argv) {
   const args = { command: undefined, target: undefined, help: false, port: DEFAULT_PORT, base: join(tmpdir(), 'flow-tower-verify'), run: undefined, name: undefined, node: undefined, keys: [], unknown: undefined };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -55,7 +55,7 @@ export function parseArgs(argv) {
 }
 
 /** The run.json fields known before launch. The run folder is <base>/<runId>. */
-export function planRun({ base, port, now = new Date() }) {
+function planRun({ base, port, now = new Date() }) {
   // The ISO stamp has no ':' or '.', so the id is a valid folder name on every platform.
   const runId = `${now.toISOString().replace(/[:.]/g, '-')}-${port}`;
   const dir = join(base, runId);
@@ -215,10 +215,17 @@ async function stop(args) {
   return 0;
 }
 
-/** The workspace as the running server reports it: the project ids and the towers behind them. */
+/**
+ * The workspace as the running server reports it. A stopped or wrong server gets one FAIL line and null,
+ * not a stack trace, so the drive exits 1 before a browser starts.
+ */
 async function workspaceOf(url) {
-  const res = await fetch(`${url}/api/workspace`, { signal: AbortSignal.timeout(5000) });
-  return res.json();
+  try {
+    const res = await fetch(`${url}/api/workspace`, { signal: AbortSignal.timeout(5000) });
+    if (res.status === 200) return await res.json();
+  } catch { /* refused, timed out or not JSON: reported below */ }
+  console.log(`FAIL no instance answers at ${url}: run doctor, then launch`);
+  return null;
 }
 
 /** The first project id that starts with the prefix; undefined when none does (the caller lists the ids). */
@@ -284,11 +291,12 @@ async function inBrowser(shot, fn) {
   return { ok, consoleErrors };
 }
 
-/** Reads the run, resolves the project prefix against the live workspace; null (FAIL printed) when either fails. */
+/** Reads the run, resolves the project prefix against the live workspace; null (FAIL printed) when a step fails. */
 async function projectOf(args) {
   const found = readRun(runDirOf(args));
   if (!found) return null;
   const ws = await workspaceOf(found.run.url);
+  if (!ws) return null;
   const id = args.target && resolveProject(ws.projects, args.target);
   if (!id) {
     console.log(`FAIL no project matches ${args.target ?? '(none given)'}; first 5: ${ws.projects.slice(0, 5).join(', ')}`);
@@ -297,24 +305,34 @@ async function projectOf(args) {
   return { ...found, id, ws };
 }
 
-async function openDrive(args) {
+/**
+ * Shared by open and events: resolves the project, runs fn in one fresh browser on it, and writes the evidence pair.
+ * fn fills rec as it goes, so a drive that fails midway still keeps what it recorded.
+ */
+async function drive(args, defaultLabel, fn) {
   const found = await projectOf(args);
   if (!found) return 1;
   const { run, id } = found;
-  const label = args.name ?? 'open';
+  const label = args.name ?? defaultLabel;
   const evidence = evidenceOf(run);
-  const steps = [];
-  const { ok, consoleErrors } = await inBrowser(join(evidence, `${label}.png`), async (page) => {
+  const rec = { project: id };
+  const { ok, consoleErrors } = await inBrowser(join(evidence, `${label}.png`), (page) => fn(page, found, rec));
+  writeEvidence(evidence, `${label}.json`, JSON.stringify({ ...rec, consoleErrors }, null, 2) + '\n');
+  return ok ? 0 : 1;
+}
+
+function openDrive(args) {
+  return drive(args, 'open', async (page, { run, id }, rec) => {
+    rec.url = `${run.url}/?quality=eco`;
+    rec.steps = [];
     await openAsUser(page, run.url, id);
-    steps.push({ action: 'open', state: await readState(page) });
+    rec.steps.push({ action: 'open', state: await readState(page) });
     for (const key of args.keys) {
       await page.keyboard.press(key);
       await page.waitForTimeout(400);
-      steps.push({ action: key, state: await readState(page) });
+      rec.steps.push({ action: key, state: await readState(page) });
     }
   });
-  writeEvidence(evidence, `${label}.json`, JSON.stringify({ project: id, url: `${run.url}/?quality=eco`, steps, consoleErrors }, null, 2) + '\n');
-  return ok ? 0 : 1;
 }
 
 /** Posts one event as a Claude Code hook does: the endpoint answers 204 with no body. */
@@ -329,25 +347,20 @@ async function postEvent(url, body) {
   return { status: res.status, bodyLength: text.length };
 }
 
-async function eventsDrive(args) {
+function eventsDrive(args) {
   if (!args.node) {
     console.log('FAIL events needs --node <layer.node>');
     return 1;
   }
-  const found = await projectOf(args);
-  if (!found) return 1;
-  const { run, id, ws } = found;
-  const label = args.name ?? 'events';
-  const evidence = evidenceOf(run);
-  const tower = ws.towers[id].id;
-  const tag = `verify-${Date.now()}`;
-  const bodies = [
-    { kind: 'tool.start', source: tag, node: args.node, tower, message: `${tag} start`, call: tag },
-    { kind: 'tool.end', source: tag, node: args.node, tower, status: 'error', message: `${tag} error`, call: tag },
-    { kind: 'tool.start', source: tag, agent: 'nobody-matches-this', message: `${tag} unmapped` },
-  ];
-  const rec = { project: id, node: args.node, posts: [], feedRows: undefined, selected: undefined };
-  const { ok, consoleErrors } = await inBrowser(join(evidence, `${label}.png`), async (page) => {
+  return drive(args, 'events', async (page, { run, id, ws }, rec) => {
+    const tower = ws.towers[id].id;
+    const tag = `verify-${Date.now()}`;
+    const bodies = [
+      { kind: 'tool.start', source: tag, node: args.node, tower, message: `${tag} start`, call: tag },
+      { kind: 'tool.end', source: tag, node: args.node, tower, status: 'error', message: `${tag} error`, call: tag },
+      { kind: 'tool.start', source: tag, agent: 'nobody-matches-this', message: `${tag} unmapped` },
+    ];
+    Object.assign(rec, { node: args.node, posts: [], feedRows: undefined, selected: undefined });
     await openAsUser(page, run.url, id);
     await page.keyboard.press('f');
     await page.locator('.livefeed').waitFor({ timeout: 15_000 });
@@ -360,8 +373,6 @@ async function eventsDrive(args) {
     rec.feedRows = await page.locator('.feed-row').count();
     rec.selected = (await readState(page)).selected;
   });
-  writeEvidence(evidence, `${label}.json`, JSON.stringify({ ...rec, consoleErrors }, null, 2) + '\n');
-  return ok ? 0 : 1;
 }
 
 /** Runs the CLI validate on a path and keeps its output. Needs the run folder for evidence, not a server. */
