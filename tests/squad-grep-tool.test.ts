@@ -115,6 +115,35 @@ describe('squad diff tool', () => {
     expect(toolContent(secondRequest(requests))).toMatch(/^[0-9a-f]+ second step\n/);
   });
 
+  it('does not show changes the base gained after the branch started', { timeout: 60_000 }, async () => {
+    const { dir, args, requests } = setup([
+      RUN_DIFF('d1'),
+      FINISH('f1', JSON.stringify({ verdict: 'approve', findings: [] })),
+    ]);
+    const repo = join(dir, 'repo');
+    const git = (...a: string[]) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: repo, encoding: 'utf8' });
+    mkdirSync(repo);
+    // The files sit under tools/ because the diff covers only the role's write folders.
+    mkdirSync(join(repo, 'tools', 'squad'), { recursive: true });
+    git('init', '-q', '-b', 'main');
+    writeFileSync(join(repo, 'tools', 'a.txt'), 'a\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'base');
+    git('checkout', '-q', '-b', 'feat');
+    writeFileSync(join(repo, 'tools', 'a.txt'), 'b\n');
+    git('commit', '-q', '-am', 'branch change');
+    git('checkout', '-q', 'main');
+    writeFileSync(join(repo, 'tools', 'later.txt'), 'later\n');
+    git('add', 'tools/later.txt');
+    git('commit', '-q', '-m', 'base moves on');
+    git('checkout', '-q', 'feat');
+    writeFileSync(join(repo, 'tools', 'squad', 'squad.json'), JSON.stringify({ base: 'main' }));
+    await run([...args, '--repo', repo, '--write', 'tools'], {}, dir);
+    const content = toolContent(secondRequest(requests));
+    expect(content).toContain('a.txt');
+    expect(content).not.toContain('later.txt');
+  });
+
   it('refuses a --base that starts with a dash, before any model call', { timeout: 60_000 }, async () => {
     const { dir, args, requests } = setup([FINISH('f1', JSON.stringify({ verdict: 'approve', findings: [] }))]);
     const result = await run([...args, '--base', '-x'], {}, dir);

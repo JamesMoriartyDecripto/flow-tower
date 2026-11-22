@@ -204,7 +204,8 @@ const RUNS = {
   ...(config.commands.test && { test: (f) => runCmd('test', readRel(f).rel) }),
   // The dirs a task may touch (--write) are the ones worth reviewing: a reviewer of tools/ would see nothing otherwise.
   // The commit list comes first, so a read-only role can confirm the commits it judges (a step's commit must exist).
-  diff: () => cap(`${git('log', '--oneline', '-n', '50', `${base}..HEAD`)}\n${git('diff', base, '--', ...dirs)}`),
+  // The diff runs from the merge base, not the base itself: a base that moved on would show its later commits as reverted.
+  diff: () => cap(`${git('log', '--oneline', '-n', '50', `${base}..HEAD`)}\n${git('diff', git('merge-base', base, 'HEAD').trim(), '--', ...dirs)}`),
   status: () => git('status', '--short'),
   ...(config.extras.includes('validate') && { validate: (f) => sh('node', [cliPath, 'validate', f ? readRel(f).rel : 'examples', '--json']) }),
   // An example script in dry-run mode (the coder could not verify scripts/*.mjs otherwise, #75). The key is
