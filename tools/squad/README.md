@@ -159,7 +159,7 @@ paths: changes inside those folders or matching `Files:`. A root file such as `p
 Local changes that exist before the run (your own uncommitted edits, the task files) are listed at the start and
 never staged; a step that modifies one of them, or that names one exactly in `Files:`, is RED. To continue a red step,
 edit its task file (it runs again first, on its own leftovers) and rerun with `SQUAD_ADOPT=<paths>` (comma-separated, a
-trailing `/` names a folder): those leftovers count as the step's work, not yours (#416). Probe files the coder dropped (`tmp*`, `probe`, `scratch`) are
+trailing `/` names a folder): those leftovers count as the step's work, not yours (#416). Undo first the part of the leftovers that made the step red (`git checkout -- <file>` or a hand edit): the next run builds on what you adopt, and on #462 an adopted wrong sentence led the coder to change the test that quoted the right one. Probe files the coder dropped (`tmp*`, `probe`, `scratch`) are
 removed first. The script runs from a temporary copy of itself, so a step may edit `steps.sh`. Trailers are session-specific, so pass them in
 `SQUAD_TRAILERS` (one per line) or leave them out. Each step commit is signed off (`git commit -s`, the DCO rule in CONTRIBUTING.md) with the git identity of whoever runs the squad.
 

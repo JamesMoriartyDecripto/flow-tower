@@ -15,6 +15,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ### Fixed
 
 - `pack.mjs` and the loop's `diff` tool diff from the merge base of the base and the head, and the pack prints `Merge base: <sha>` (#452). A base that moved on after the branch started was shown as reverted by the pull request: 8 of 17 critical or high findings on one such pack of #447 said so.
+- The autopilot's fix step carries lead-judge's reason for each kept finding (#462). On the #460 run the reviewer's fix was conditional, the coder read the condition as met and changed nothing, and the issue failed, although the judge had kept the finding for another reason.
+- An autopilot plan step can name files it only reads (`reads`), and the architect is told that criteria describe the change, not the runner's own work (#462). A step that created every file was told to read nothing, although its text had to come from the README.
+- Test runs no longer send live events to a running viewer on port 5317 (#462): the test setup points `FLOW_TOWER_URL` at a closed port. Three squad test files alone sent it 108 events.
+- The PR steward's passes light `quality.reviewer` and `quality.security`, the tower's nodes, not `specialists.*` (#458).
+- The squad skill's manual review sends stderr to its own file, so a warning cannot move the reviewed commit the gate reads (#458).
 - The PR steward's security pass falls back to the reviewer's model only when it is another model, and a failed attempt's stderr is printed (#456). Since #447 both default to the same model, so the fallback was a third identical try.
 
 ### Added

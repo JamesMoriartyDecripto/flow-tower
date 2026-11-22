@@ -119,10 +119,12 @@ run and stop for approval before exceeding the agreed budget. Do not advertise p
    ```bash
    node tools/squad/pack.mjs --role reviewer --issue <n> --repo ../wt-<n> --files <changed files> > /tmp/<n>-review.md
    node tools/squad/pack.mjs --role security --issue <n> --repo ../wt-<n> --files <changed files>,<guards it relies on> > /tmp/<n>-security.md
-   node tools/squad/run.mjs --model <reviewer> --role reviewer --node quality.reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n> > /tmp/<n>-review.out 2>&1 &
-   node tools/squad/run.mjs --model <security> --role security --node quality.security --task /tmp/<n>-security.md --issue <n> --repo ../wt-<n> > /tmp/<n>-security.out 2>&1 &
+   node tools/squad/run.mjs --model <reviewer> --role reviewer --node quality.reviewer --task /tmp/<n>-review.md --issue <n> --repo ../wt-<n> > /tmp/<n>-review.out 2> /tmp/<n>-review.err &
+   node tools/squad/run.mjs --model <security> --role security --node quality.security --task /tmp/<n>-security.md --issue <n> --repo ../wt-<n> > /tmp/<n>-security.out 2> /tmp/<n>-security.err &
    wait
    ```
+   stderr goes to its own `.err` file: the gate reads the reviewed commit on line 2 of the `.out`, and a warning
+   printed first (`squad.json "cli" ignored`) would move it (#458).
    Both answer in one request with the packed code (the default) and only with the JSON verdict: an answer without
    one fails the run (`no JSON verdict`); rerun it once. `--loop` gives a pass tools to read files you did not pack.
    Every finding quotes its line. Verify each one in the code: keep the real ones, say why the others do not apply.
