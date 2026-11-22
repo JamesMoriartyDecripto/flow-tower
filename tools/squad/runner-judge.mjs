@@ -82,10 +82,10 @@ export function isConcreteFile(p) {
   return !SECRET.test(p);
 }
 
-// Keep or drop per id, each as { id, reason }: the fix task shows the kept reason to the coder, so a conditional fix
-// follows the judge's line. A kept id may carry supportingFiles; a dropped id's supportingFiles are still validated (a malformed
-// answer is refused) but never granted. Unknown ids in the answer are ignored, so they grant nothing. The result has a
-// supporting map only when some kept finding names extra files, so the legacy answer keeps its exact shape.
+// Keep or drop per id, each as { id, reason }. A kept id may carry supportingFiles; a dropped id's supportingFiles are
+// still validated (a malformed answer is refused) but never granted. Unknown ids in the answer are ignored, so they grant
+// nothing. The result has a supporting map only when some kept finding names extra files, so an answer without
+// supportingFiles has no supporting key.
 // More than 5 extra files would widen the fix step's write scope past what one finding needs, so the answer is refused.
 const MAX_SUPPORTING_FILES = 5;
 export function parseJudgement(text, ids) {
@@ -157,7 +157,6 @@ export function fixTask(allKept, { issue, round, supportingFiles = [], rules = t
   const kept = inside;
   if (!kept.length) return null;
   const files = fixPaths(kept, supportingFiles);
-  // The kept reason travels with the item, so a fix that depends on a condition is judged by the reason, not the reviewer's wording.
   const items = kept.map((f, i) => stripFence(`${i + 1}. ${f.file}: ${f.what} Fix: ${f.fix}${f.reason ? ` Kept because: ${f.reason}` : ''}`));
   const text = [
     `# ${issue}-9${round}: fix the kept review findings (round ${round})`,

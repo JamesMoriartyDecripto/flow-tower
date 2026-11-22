@@ -116,6 +116,7 @@ describe('parsePlan', () => {
     ['an absolute read', ['/etc/passwd']],
     ['a read with ..', ['../secret']],
     ['a read marked new with +', ['docs/new.md+']],
+    ['a read that is a folder', ['docs/']],
     ['a read that is not a string', [42]],
   ])('refuses %s', (_name, reads) => {
     const r = parsePlan(asText(plan({}, [step({ reads })])));
@@ -205,11 +206,6 @@ describe('taskFiles', () => {
     const lines = t.text.split('\n');
     expect(lines[3]).toBe('Read README.md.');
     expect(lines).toContain('Files: src/new.ts+');
-  });
-
-  it('no longer says Read nothing for a step whose files are all new but which has reads', () => {
-    const [t] = taskFiles({ criteria: ['a'], steps: [step({ files: ['src/new.ts+'], reads: ['README.md'] })] }, { issue: 462, title: 'x' });
-    expect(t.text).not.toContain('Read nothing beyond the task.');
   });
 });
 

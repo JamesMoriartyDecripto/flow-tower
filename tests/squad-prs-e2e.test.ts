@@ -236,7 +236,6 @@ describe('prs.mjs --pr 7, end to end with no network', () => {
     expect(brief).toContain('Pull request #7: Change a');
   }, SPAWN.timeout);
 
-  // The live events must land on the tower's quality nodes: a stand-in CLI records the --node each event carries.
   it('the passes light quality.reviewer and quality.security, never a specialists node', async () => {
     const caseDir = newCase(fx);
     const cli = join(caseDir, 'record-node.js');
@@ -249,6 +248,5 @@ appendFileSync(process.env.NODES_FILE, process.argv[i + 1] + '\\n');
     expect(r.code, r.stderr || r.stdout).toBe(0);
     const nodes = readFileSync(nodesFile, 'utf8').trim().split('\n');
     expect([...new Set(nodes)].sort()).toEqual(['quality.reviewer', 'quality.security']);
-    expect(nodes.some((n) => n.startsWith('specialists.'))).toBe(false);
   }, SPAWN.timeout);
 });

@@ -47,12 +47,11 @@ function problemOf(plan) {
       const path = f.endsWith('+') ? f.slice(0, -1) : f;
       if (badPath(path)) return `step ${n}: file "${f}" must be a relative path inside the repo`;
     }
-    // A read names a file that already exists, so a "+" (new file) mark is refused here.
     if (s.reads !== undefined) {
       if (!Array.isArray(s.reads)) return `step ${n}: reads must be a list`;
       for (const r of s.reads) {
         if (!isText(r)) return `step ${n}: every read must be a nonempty string`;
-        if (r.endsWith('+') || badPath(r)) return `step ${n}: read "${r}" must be an existing relative path inside the repo`;
+        if (r.endsWith('+') || r.endsWith('/') || badPath(r)) return `step ${n}: read "${r}" must be a relative file path inside the repo`;
       }
     }
   }
@@ -88,16 +87,15 @@ export function slugOf(title) {
 }
 
 // One task file per step. The coder reads the step's existing files (new files do not exist yet, so they are left out
-// of the Read line), its reads (the source of its text or data, not edited) and the readFirst files; the Files line
-// keeps the "+" marks for the check to parse and never lists reads, which the check would then treat as edits.
+// of the Read line), its reads and the readFirst files; the Files line keeps the "+" marks for the check to parse.
 // The rules line comes from the project's style setting (rules defaults to taskRules()), so a project's language is used.
 // A step that names a test gets the testSkill line, when the project has that skill ('' means none).
 export function taskFiles(plan, { issue, title, readFirst = [], rules = taskRules(), testSkill = '' }) {
   const criteria = plan.criteria.join('; ');
   return plan.steps.map((step, i) => {
     const nn = String(i + 1).padStart(2, '0');
-    const reads = [...new Set([...step.files.filter((f) => !f.endsWith('+')), ...(step.reads ?? []), ...readFirst])];
-    const readLine = reads.length ? `Read ${reads.join(', ')}.` : 'Read nothing beyond the task.';
+    const readLinePaths = [...new Set([...step.files.filter((f) => !f.endsWith('+')), ...(step.reads ?? []), ...readFirst])];
+    const readLine = readLinePaths.length ? `Read ${readLinePaths.join(', ')}.` : 'Read nothing beyond the task.';
     const items = step.items.map((item, j) => `${j + 1}. ${item}`).join('\n');
     const text = [
       `# ${issue}-${nn}: ${step.title}`,

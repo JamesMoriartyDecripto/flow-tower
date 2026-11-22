@@ -12,7 +12,7 @@ const fence = (v: unknown) => '```json\n' + JSON.stringify(v) + '\n```';
 describe('parseJudgement supportingFiles', () => {
   const ids = ['R1', 'R2'];
 
-  it('keeps the legacy return shape when no supportingFiles field is present', () => {
+  it('returns no supporting key when no supportingFiles field is present', () => {
     const text = fence({ R1: { decision: 'keep', reason: 'r' }, R2: { decision: 'drop', reason: 'h' } });
     expect(parseJudgement(text, ids)).toEqual({ ok: true, keep: [{ id: 'R1', reason: 'r' }], drop: [{ id: 'R2', reason: 'h' }] });
   });

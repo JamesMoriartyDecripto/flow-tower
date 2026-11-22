@@ -3,15 +3,16 @@
 // cleaned up; a squad test copies about 38 MB per run, and 2205 leftover
 // /tmp/squad-* folders filled the /tmp quota. Instead of touching every test,
 // the run sets TMPDIR to a folder of its own, and the teardown removes it.
-// FLOW_TOWER_URL points at a closed port, so test events never reach a real viewer.
 // Tests that need a folder outside any git checkout still get one, because
 // the base folder is the system temp dir, which is outside the repo.
+// FLOW_TOWER_URL is set to a port with no listener, even when exported, so a test run never lights the user's live tower (#462).
 import { lstatSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { env } from 'node:process';
 
 const PREFIX = 'flow-tower-tests-';
+const UNREACHABLE_VIEWER_URL = 'http://127.0.0.1:1';
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 // Runs once in the main process before the workers start; workers and the
@@ -55,9 +56,7 @@ export default function globalTmp(): () => void {
   env.TMPDIR = dir;
   env.TMP = dir;
   env.TEMP = dir;
-  // Port 1 has no listener, so an event fails fast instead of reaching the user's viewer.
-  // Set even when exported, so a test run can never light the user's tower.
-  env.FLOW_TOWER_URL = 'http://127.0.0.1:1';
+  env.FLOW_TOWER_URL = UNREACHABLE_VIEWER_URL;
 
   return () => {
     restore('TMPDIR', saved.TMPDIR);
