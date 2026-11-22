@@ -1,0 +1,218 @@
+# yaml-language-server: $schema=../../../schema/flow-tower.schema.json
+version: 1
+name: Verify Flow Tower
+description: >-
+  The verify-flow-tower skill: how an agent that changed this repository starts an isolated instance,
+  drives it with the repository's own Playwright helpers, keeps proof and stops the instance. The helper
+  owns only the life of the instance. The drive is written by the agent for the change at hand (#448).
+tags: [dogfooding, verification, playwright, skill]
+root: ../../..
+
+runtimes:
+  laptop: { kind: local, label: Developer machine }
+  scratch: { kind: local, label: "Scratch instance, own port and user folder" }
+  chrome: { kind: browser, label: "Installed Chrome, headless" }
+
+layers:
+  - id: use
+    title: When to use it
+    description: What sends an agent to the skill, and what it reads first.
+    nodes:
+      - id: changed
+        type: entry
+        label: Code changed
+        description: The agent changed something under src/, bin/ or examples/ and is about to say it works, or is about to open a pull request.
+        trigger: { kind: manual }
+      - id: asked
+        type: entry
+        label: Asked to run it
+        description: Someone asks to run, open, screenshot or check the real app, or a task needs a running server.
+        trigger: { kind: chat }
+      - id: skill
+        type: process
+        label: Read the skill
+        description: SKILL.md gives the commands and the proof standards. The description in its frontmatter is what makes the agent load it.
+        runtime: laptop
+        files: [.claude/skills/verify-flow-tower/SKILL.md]
+      - id: map
+        type: memory
+        label: Feature map
+        description: One file per feature the user can reach, with how to get to it, how to drive it and what end state proves it.
+        files:
+          - .claude/skills/verify-flow-tower/features/README.md
+          - .claude/skills/verify-flow-tower/features/library-open.md
+          - .claude/skills/verify-flow-tower/features/layer-navigation.md
+          - .claude/skills/verify-flow-tower/features/live-events.md
+          - .claude/skills/verify-flow-tower/features/validate-cli.md
+    edges:
+      - changed -> skill
+      - asked -> skill
+      - "skill -> map [data]: reads the feature changed"
+
+  - id: launch
+    title: Launch
+    description: verify.mjs launch. One instance on its own port, with its own user folder, recorded in a run folder.
+    nodes:
+      - id: cmd
+        type: process
+        label: launch --port
+        description: "The port must be a number from 1024 to 65535, else exit 2 before anything is created."
+        runtime: laptop
+        files: [.claude/skills/verify-flow-tower/scripts/verify.mjs]
+      - id: portfree
+        type: guard
+        label: Port free?
+        description: "A TCP connect to 127.0.0.1 on the port. A port that answers is refused: a server there, 5317 above all, is not this run's to restart."
+      - id: owner
+        type: guard
+        label: Own temp folder?
+        description: "The base folder (flow-tower-verify under the system temp folder) is created with mode 0700; one that belongs to another user is refused."
+      - id: env
+        type: guard
+        label: Isolated env
+        description: "Every FLOW_TOWER_* variable of the shell is dropped, then FLOW_TOWER_HOME is set to the run's own empty folder: no personal config, no token, no hub."
+        data: { sensitivity: secret, retention: none }
+      - id: spawn
+        type: process
+        label: Start server
+        description: "node bin/flow-tower.js examples --no-open --port <port>, detached in its own process group, output appended to server.log."
+        runtime: scratch
+        files: [bin/flow-tower.js]
+      - id: ready
+        type: decision
+        label: Ready?
+        description: "Polls /api/workspace every 500 ms for up to 90 s until it answers 200 with projects. On a timeout, or if the server exits first, the server is stopped and the last 20 lines of its log are printed."
+        limits: { timeout: 90s }
+      - id: run
+        type: memory
+        label: run.json
+        description: "Written when the server is ready: run id, port, pid, url, commit, start time. The run folder also holds home/, evidence/ and server.log. The command prints the run folder: every later command takes it with --run."
+        data: { sensitivity: internal }
+      - id: refused
+        type: output
+        label: Launch refused
+        description: One line that says why, and nothing left running.
+    edges:
+      - cmd -> portfree
+      - "portfree -> refused: in use"
+      - portfree -> owner
+      - "owner -> refused: other user"
+      - owner -> env
+      - env -> spawn
+      - spawn -> ready
+      - "ready -> run [data]: ready"
+      - "ready -> refused: timeout or exit"
+
+  - id: check
+    title: Check and stop
+    description: verify.mjs doctor and stop. Both read run.json through one checked reader.
+    nodes:
+      - id: reader
+        type: guard
+        label: run.json reader
+        description: "The only place that reads run.json. The run id must be the folder's name, the pid an integer above 1, the port from 1024 to 65535, the url on 127.0.0.1. The home and evidence folders are derived from the run folder, never taken from the file."
+        files: [.claude/skills/verify-flow-tower/scripts/verify.mjs]
+      - id: doctor
+        type: process
+        label: doctor --run
+        description: "Read-only. One ok or FAIL line per check: the pid is alive, /api/workspace answers with projects, the commit at launch is the checkout's HEAD. With --project, also that the named project is served."
+        runtime: laptop
+      - id: stop
+        type: process
+        label: stop --run
+        description: Stops the instance this run started and removes its user folder. The evidence and the server log stay.
+        runtime: laptop
+      - id: ours
+        type: guard
+        label: Our server?
+        description: "Before any signal, the process command line (ps) must hold flow-tower.js and this run's --port. A pid that now belongs to another process is refused and nothing is signalled. A pid that is gone counts as stopped."
+      - id: signal
+        type: process
+        label: Signal group
+        description: "SIGTERM to the recorded process group, up to 5 s for the port to stop answering, then SIGKILL. Never by process name."
+        limits: { timeout: 5s }
+      - id: stopped
+        type: output
+        label: Stopped
+        description: "Prints the pid stopped and where the evidence is. The run's home folder is removed."
+      - id: bad
+        type: output
+        label: FAIL line
+        description: "One FAIL line and exit 1. Every error ends here: no stack trace reaches the terminal."
+    edges:
+      - reader -> doctor
+      - reader -> stop
+      - "reader -> bad: unreadable or invalid"
+      - "doctor -> bad: a check failed"
+      - stop -> ours
+      - "ours -> bad: not ours"
+      - ours -> signal
+      - signal -> stopped
+
+  - id: drive
+    title: Drive
+    description: The agent writes the drive for the change it made, on the instance it launched, with what the repository already has. The helper ships no canned drive.
+    nodes:
+      - id: script
+        type: process
+        label: Agent's drive
+        description: "A short Playwright script or one command, written for this change. It acts as a user does (a click, a key, an HTTP post, a CLI call) and records the state before and after."
+        runtime: laptop
+      - id: fixtures
+        type: tool
+        label: e2e helpers
+        description: "openProject, state, pressUntil and expectCanvas: how the end-to-end specs open a tower and read the app state through window.__flowTower.store."
+        files: [e2e/fixtures.ts, e2e/live.spec.ts]
+      - id: browser
+        type: tool
+        label: Installed Chrome
+        description: "Playwright with channel chrome: its bundled Chromium does not run on macOS 13. WebGL renders in software, so the first frame takes seconds."
+        runtime: chrome
+        files: [playwright.config.ts]
+      - id: events
+        type: tool
+        label: POST /api/events
+        description: "Answers 204 with an empty body. Claude Code hooks read a JSON body as a hook decision."
+        runtime: scratch
+        files: [docs/realtime.md]
+      - id: cli
+        type: tool
+        label: flow-tower CLI
+        description: "validate and the other commands run on their own: they need no instance and no run folder."
+        runtime: laptop
+        files: [bin/flow-tower.js]
+    edges:
+      - "script -> fixtures [call]: how to open and read"
+      - "script -> browser [call]"
+      - "script -> events [call]"
+      - "script -> cli [call]"
+
+  - id: proof
+    title: Proof
+    description: What the agent keeps and reports. The standards are in SKILL.md and in each feature file.
+    nodes:
+      - id: standards
+        type: guard
+        label: Proof standards
+        description: "The behaviour asked about, not something near it. The state before and after the action. The side effect next to what is visible (an HTTP status, an exit code). No console errors. The screenshot looked at, not only saved."
+        files: [.claude/skills/verify-flow-tower/SKILL.md]
+      - id: evidence
+        type: memory
+        label: evidence/
+        description: "The run's evidence folder. stop keeps it. It is in the system temp folder: copy what must last."
+        data: { sensitivity: internal }
+      - id: report
+        type: output
+        label: Report
+        description: "What was driven, what was observed, where the files are, what was not checked, and that nothing is left running."
+    edges:
+      - "standards -> evidence [data]: files saved"
+      - evidence -> report
+
+links:
+  - "use.skill -> launch.cmd: then"
+  - "launch.run -> check.reader [data]: --run <folder>"
+  - "check.doctor -> drive.script: all ok"
+  - "use.map -> drive.script [data]: recipe and end state"
+  - "drive.script -> proof.standards: before and after"
+  - "proof.report -> check.stop: always, also after a failure"
