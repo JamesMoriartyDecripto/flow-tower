@@ -21,4 +21,6 @@ Why: review round 2 on pull request #454. Two classes of defect were fixed one c
 
 Continuation: the first attempt is in the three files and behaves as asked in a live run. Its check was red only because existing fixtures in tests/verify-skill.test.ts hold placeholder values the new parser refuses (a `port` outside 1024..65535, a `runId` that is not the folder name). Whenever a step tightens validation, fixtures that carried placeholders must follow: update those fixtures to valid values (or drop the field when the test does not need it), and change nothing else in those tests.
 
+Continuation 2: one error is left, from typecheck: `tests/verify-skill.test.ts(173,6): error TS2554: Expected 1-3 arguments, but got 4.` An `it(...)` call there passes both an options object and a trailing timeout number. Keep one: `it(name, { timeout: N }, fn)`. Run `run typecheck` before you finish. Also reword the header comment of the test file so it is true for every test, as item 3 asks.
+
 Files: .claude/skills/verify-flow-tower/scripts/verify.mjs, .claude/skills/verify-flow-tower/scripts/drives.mjs, tests/verify-skill.test.ts
