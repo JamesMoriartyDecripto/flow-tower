@@ -62,22 +62,23 @@ async function inBrowser(shot, fn) {
   const { chromium } = await import('@playwright/test');
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   const consoleErrors = [];
-  let ok = true;
+  let error;
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
     try {
       await fn(page);
     } catch (e) {
-      ok = false;
-      console.log(`FAIL ${String(e.message).split('\n')[0]}`);
+      // The whole message goes to evidence: Playwright's call log says why a step waited (#448).
+      error = String(e.message);
+      console.log(`FAIL ${error.split('\n')[0]}`);
     }
     await page.screenshot({ path: shot });
     console.log(`wrote ${shot}`);
   } finally {
     await browser.close();
   }
-  return { ok, consoleErrors };
+  return { error, consoleErrors };
 }
 
 /**
@@ -108,9 +109,10 @@ async function drive(args, load, defaultLabel, fn) {
   const label = args.name ?? defaultLabel;
   const evidence = evidenceOf(run);
   const rec = { project: id };
-  const { ok, consoleErrors } = await inBrowser(join(evidence, `${label}.png`), (page) => fn(page, found, rec));
-  writeEvidence(evidence, `${label}.json`, JSON.stringify({ ...rec, consoleErrors }, null, 2) + '\n');
-  return ok ? 0 : 1;
+  const { error, consoleErrors } = await inBrowser(join(evidence, `${label}.png`), (page) => fn(page, found, rec));
+  const failed = error !== undefined;
+  writeEvidence(evidence, `${label}.json`, JSON.stringify({ ...rec, consoleErrors, ...(failed && { error }) }, null, 2) + '\n');
+  return failed ? 1 : 0;
 }
 
 export function openDrive(args, load) {
@@ -178,7 +180,8 @@ export function validateDrive(args, load, root) {
   const argv = ['bin/flow-tower.js', 'validate', resolve(args.target), '--json'];
   const r = spawnSync(process.execPath, argv, { cwd: root, encoding: 'utf8', timeout: 60_000 });
   const exit = r.status ?? 1;
-  writeEvidence(evidenceOf(found.run), `${args.name ?? 'validate'}.json`, JSON.stringify({ command: `node ${argv.join(' ')}`, exit, stdout: r.stdout, stderr: r.stderr }, null, 2) + '\n');
-  if (exit !== 0) console.log(`FAIL validate exited ${exit}`);
+  const error = exit !== 0 ? `validate exited ${exit}` : undefined;
+  writeEvidence(evidenceOf(found.run), `${args.name ?? 'validate'}.json`, JSON.stringify({ command: `node ${argv.join(' ')}`, exit, stdout: r.stdout, stderr: r.stderr, ...(error && { error }) }, null, 2) + '\n');
+  if (error) console.log(`FAIL ${error}`);
   return exit;
 }

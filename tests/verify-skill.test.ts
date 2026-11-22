@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -91,5 +91,19 @@ describe('verify.mjs CLI', () => {
     } finally {
       server.close();
     }
+  });
+
+  it('validate on a broken tower exits 1 and keeps the error in its evidence', { timeout: 60000 }, async () => {
+    const dir = tempDir();
+    const tower = join(dir, 'broken');
+    mkdirSync(tower);
+    writeFileSync(join(tower, 'broken.tower.yaml'), 'name: Broken\nlayers:\n  - id: a\n    title: A\n    nodes:\n      - { id: x, type: agent, label: X }\n    edges:\n      - x -> nowhere\n');
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', port: 1, pid: 0, commit: '' }));
+    const { code, out } = await verifyWith(['validate', tower, '--run', dir, '--name', 'broken'], 60000);
+    expect(code).toBe(1);
+    expect(out.split('\n').filter((l) => l.startsWith('FAIL validate exited'))).toHaveLength(1);
+    const ev = JSON.parse(readFileSync(join(dir, 'evidence', 'broken.json'), 'utf8'));
+    expect(ev.exit).toBe(1);
+    expect(ev.error.startsWith('validate exited')).toBe(true);
   });
 });
