@@ -110,7 +110,10 @@ run and stop for approval before exceeding the agreed budget. Do not advertise p
    List any root file the step changes (`package.json`, `CHANGELOG.md`) in `Files:`. Read the known gaps it prints
    before the next step.
 7. **Verify yourself**: run the tests, run the real thing; for UI, look at it (screenshots). Green is not done.
-   Check the tower still matches what landed (its files exist, its descriptions are true) and validate it again.
+   Then compare the tower with the code line by line: every edge and description proven by a `file:line`, every
+   exit of a changed node drawn or left out on purpose. Above about 40 nodes, give it to a fresh read-only reviewer
+   per area. Fix the drift in the tower, then validate and audit again (#457): `validate` proves the file is
+   consistent, not true.
 8. **Review and security**, one request each with the code packed, **started together**: they are independent and
    read-only, so you wait for the slower one, not for both in a row. Each run has its own log and ledger line.
    ```bash

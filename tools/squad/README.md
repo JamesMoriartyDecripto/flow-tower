@@ -131,7 +131,9 @@ only, chosen by the lead. `run.mjs` appends them to the system prompt, after eve
 before any request, naming it, and `squad doctor` checks the configured ones. With none set, prompts are unchanged.
 This repo's: `bash-3-2`, `untyped-mjs`, `file-size`, and the coding standards (#457): `code-standards`, given to the
 coder and the reviewer on every run so code is written and judged by the same rules (a finding cites the rule), and
-`tests`, named on the `Skills:` line of a step that adds or changes a test. The lead keeps them: a rule comes from the
+`tests`, named on the `Skills:` line of a step that adds or changes a test (the unattended lead's planner adds it
+itself to a step whose `Files:` names a test, when the project has the file); `design` goes to the architect: data
+shape first, two shapes compared, vertical steps with their test. The lead keeps them: a rule comes from the
 principles the maintainer works by or from a real failure, named by issue; it leaves once a test, a lint or `steps.sh`
 enforces it; when a review or a red step shows a mistake no rule covers, the lead adds one at the issue close.
 
