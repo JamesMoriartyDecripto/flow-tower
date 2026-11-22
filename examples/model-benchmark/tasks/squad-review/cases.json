@@ -1,40 +1,145 @@
 {
-  "note": "Real review rounds of this repository. A defect case is the pull request head the first review saw; its keys are the findings the lead kept and a later step fixed. A clean case is the head that was merged.",
-  "cases": [
+ "note": "Real review rounds of this repository. A defect case is the pull request head the first review saw; its keys are the findings the lead kept and a later step fixed. A clean case is the head that was merged. Two cases changed after the first run, on evidence from the code: see README.md.",
+ "cases": [
+  {
+   "id": "quickfix-defect",
+   "issue": 347,
+   "kind": "defect",
+   "base": "92ab9bc",
+   "head": "3b36cb6",
+   "keys": [
     {
-      "id": "quickfix-defect", "issue": 347, "kind": "defect", "base": "92ab9bc", "head": "3b36cb6",
-      "keys": [
-        { "id": "S1", "file": "examples/dev-squad/src/triage.ts", "pattern": "body", "note": "the sensitive-area rule reads the title and the model's areas, never the issue body" },
-        { "id": "R2", "file": "tests/sdk-pipeline.test.ts", "pattern": "sensitiv|applyPolicy|risk", "note": "no test covers the sensitive-area risk rule the brief keeps" }
-      ]
+     "id": "S1",
+     "file": "examples/dev-squad/src/triage.ts",
+     "pattern": "body",
+     "note": "the sensitive-area rule reads the title and the model's areas, never the issue body"
     },
-    { "id": "quickfix-clean", "issue": 347, "kind": "clean", "base": "92ab9bc", "head": "edffa1b", "keys": [] },
     {
-      "id": "steps-scope-defect", "issue": 353, "kind": "defect", "base": "662c38e", "head": "a76aba3",
-      "keys": [
-        { "id": "R1", "file": "tools/squad/step-scope.mjs", "pattern": "quot|-z\\b|\\bNUL\\b|non-ascii|unicode", "note": "git lists without -z: quoted non-ASCII names never match" },
-        { "id": "R2", "file": "tools/squad/steps.sh", "pattern": "changed nothing|nothing changed|never reached|not reached|hid(es|den|ing)", "note": "only out-of-scope changes: the run says the coder changed nothing" },
-        { "id": "S1", "file": "tools/squad/steps.sh", "pattern": "index|pre-?staged|already staged|staged before", "note": "the commit takes the whole index, files staged before the run included" },
-        { "id": "S2", "file": "tools/squad/step-scope.mjs", "pattern": "absolute|\\.\\./|travers|outside the repo|escap", "note": "an absolute or ../ Files: entry gives a write dir outside the repository" },
-        { "id": "S4", "file": "tools/squad/step-scope.mjs", "pattern": "maxbuffer|buffer", "note": "hash-object runs with the default 1 MB buffer" }
-      ]
-    },
-    { "id": "steps-scope-clean", "issue": 353, "kind": "clean", "base": "662c38e", "head": "35cc138", "keys": [] },
+     "id": "R2",
+     "file": "tests/sdk-pipeline.test.ts",
+     "pattern": "sensitiv|applyPolicy|risk",
+     "note": "no test covers the sensitive-area risk rule the brief keeps"
+    }
+   ]
+  },
+  {
+   "id": "quickfix-clean",
+   "issue": 347,
+   "kind": "clean",
+   "base": "92ab9bc",
+   "head": "edffa1b",
+   "keys": []
+  },
+  {
+   "id": "steps-scope-defect",
+   "issue": 353,
+   "kind": "defect",
+   "base": "662c38e",
+   "head": "a76aba3",
+   "keys": [
     {
-      "id": "temp-cleanup-defect", "issue": 357, "kind": "defect", "base": "cb24efb", "head": "b9c6acb",
-      "keys": [
-        { "id": "S4", "file": "tests/global-tmp.ts", "pattern": "owner|uid|other user|another user|different user", "note": "the sweep never checks the folder's owner" }
-      ]
+     "id": "R1",
+     "file": "tools/squad/step-scope.mjs",
+     "pattern": "quot|-z\\b|\\bNUL\\b|non-ascii|unicode",
+     "note": "git lists without -z: quoted non-ASCII names never match"
     },
-    { "id": "temp-cleanup-clean", "issue": 357, "kind": "clean", "base": "cb24efb", "head": "ce3308b", "keys": [] },
     {
-      "id": "embed-defect", "issue": 444, "kind": "defect", "base": "89c6951", "head": "58ce92c",
-      "keys": [
-        { "id": "R1", "file": "src/app/App.tsx", "pattern": "layernav|legend|controls|towerinfo|hint", "note": "chrome=0 still shows LayerNav, Legend, Controls, the hint line and TowerInfo" },
-        { "id": "R2", "file": "src/app/embed.ts", "pattern": "prototype|constructor|__proto__|hasown|inherit", "note": "open('constructor') passes the guard through the prototype" },
-        { "id": "S1", "file": "src/app/demo.ts", "pattern": "unbounded|any size|no (limit|cap|bound)|without (a )?(limit|cap|bound)|(large|huge|oversized) (batch|array)|future|ahead of", "note": "a host batch of any size is resolved; a future ts sorts ahead of later events" }
-      ]
+     "id": "R2",
+     "file": "tools/squad/steps.sh",
+     "pattern": "changed nothing|nothing changed|never reached|not reached|hid(es|den|ing)",
+     "note": "only out-of-scope changes: the run says the coder changed nothing"
     },
-    { "id": "embed-clean", "issue": 444, "kind": "clean", "base": "89c6951", "head": "969b047", "keys": [] }
-  ]
+    {
+     "id": "S1",
+     "file": "tools/squad/steps.sh",
+     "pattern": "index|pre-?staged|already staged|staged before",
+     "note": "the commit takes the whole index, files staged before the run included"
+    },
+    {
+     "id": "S2",
+     "file": "tools/squad/step-scope.mjs",
+     "pattern": "absolute|\\.\\./|travers|outside the repo|escap",
+     "note": "an absolute or ../ Files: entry gives a write dir outside the repository"
+    },
+    {
+     "id": "S4",
+     "file": "tools/squad/step-scope.mjs",
+     "pattern": "maxbuffer|buffer",
+     "note": "hash-object runs with the default 1 MB buffer"
+    }
+   ]
+  },
+  {
+   "id": "steps-scope-merged",
+   "issue": 353,
+   "kind": "defect",
+   "base": "662c38e",
+   "head": "35cc138",
+   "keys": [
+    {
+     "id": "M1",
+     "file": "tools/squad/steps.sh",
+     "pattern": "relative|\\bcd\\b",
+     "note": "a relative task folder or REPO is read after cd into the worktree: every step goes RED at commit (#394, fixed in 58966df)"
+    },
+    {
+     "id": "M2",
+     "file": "tools/squad/steps.sh",
+     "pattern": "mapfile|readarray|bash 3",
+     "note": "mapfile does not exist in bash 3.2, the macOS system bash (#396, fixed in fa04582)"
+    }
+   ]
+  },
+  {
+   "id": "temp-cleanup-round1",
+   "issue": 357,
+   "kind": "clean",
+   "base": "ae41afe",
+   "head": "b9c6acb",
+   "keys": []
+  },
+  {
+   "id": "temp-cleanup-clean",
+   "issue": 357,
+   "kind": "clean",
+   "base": "cb24efb",
+   "head": "ce3308b",
+   "keys": []
+  },
+  {
+   "id": "embed-defect",
+   "issue": 444,
+   "kind": "defect",
+   "base": "89c6951",
+   "head": "58ce92c",
+   "keys": [
+    {
+     "id": "R1",
+     "file": "src/app/App.tsx",
+     "pattern": "layernav|legend|controls|towerinfo|hint",
+     "note": "chrome=0 still shows LayerNav, Legend, Controls, the hint line and TowerInfo"
+    },
+    {
+     "id": "R2",
+     "file": "src/app/embed.ts",
+     "pattern": "prototype|constructor|__proto__|hasown|inherit",
+     "note": "open('constructor') passes the guard through the prototype"
+    },
+    {
+     "id": "S1",
+     "file": "src/app/demo.ts",
+     "pattern": "unbounded|any size|no (limit|cap|bound)|without (a )?(limit|cap|bound)|(large|huge|oversized) (batch|array)|future|ahead of",
+     "note": "a host batch of any size is resolved; a future ts sorts ahead of later events"
+    }
+   ]
+  },
+  {
+   "id": "embed-clean",
+   "issue": 444,
+   "kind": "clean",
+   "base": "89c6951",
+   "head": "969b047",
+   "keys": []
+  }
+ ]
 }
