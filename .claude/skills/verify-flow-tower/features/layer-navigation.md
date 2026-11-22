@@ -1,6 +1,6 @@
 # Move through layers and views
 
-In a tower, the user steps from layer to layer with the keyboard and switches between the 3D tower and the flat map of the focused layer.
+In a tower, the user steps from layer to layer with the keyboard and switches between the 3D tower and the map, where every layer lies flat, one under the other.
 
 ## Sub-features
 
@@ -20,8 +20,8 @@ Preconditions:
 - The project opens: see [library-open](./library-open.md).
 
 - **Step down two layers.** Press `PageDown` twice. Run `node $V open sre-incident --keys PageDown,PageDown --name layer-step`. The steps read `focusedLayer` absent after `open`, `0` after the first key and `1` after the second.
-- **Switch to the map.** Press `m`. Run `node $V open sre-incident --keys PageDown,m --name view-map`. The last step has `"view": "map"`.
-- **Check the screen.** In `view-map.png` the `MAP` button of the bottom bar is highlighted and one layer fills the middle.
+- **Switch to the map.** Press `m`. Run `node $V open sre-incident --keys PageDown,m --name view-map`. The last step has `"view": "map"` and no `focusedLayer`: the map shows every layer.
+- **Check the screen.** In `view-map.png` the `MAP` button of the bottom bar is highlighted, `ORBIT` is greyed out, and the five layers lie flat, one under the other.
 
 ## Gotchas
 

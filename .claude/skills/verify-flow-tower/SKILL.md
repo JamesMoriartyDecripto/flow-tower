@@ -22,7 +22,7 @@ Read [features/README.md](features/README.md) before you drive anything. It list
 node $V launch --port 5327
 ```
 
-It prints `ready http://127.0.0.1:5327`, the run folder and the project count (39 with the checkout's examples), then leaves the server running. Ready means `/api/workspace` answers 200 with projects, which takes about 5 seconds.
+It prints `ready http://127.0.0.1:5327`, the run folder and the project count (39 with the checkout's examples), then leaves the server running. Ready means `/api/workspace` answers 200 with projects, which takes about 3 seconds on a laptop.
 
 - **Never use port 5317.** It is the default port, so a server there belongs to the developer or to a live hub. `launch` refuses a port that is taken. Pick another with `--port`.
 - **The instance is isolated.** It serves `examples/` with its own empty user folder (`FLOW_TOWER_HOME` in the run folder), so it reads no personal config and joins no hub.
@@ -56,7 +56,9 @@ node $V validate examples/starters --name validate-starters
 - **`events <project> --node <layer.node>`** opens the project, opens the live feed with `f`, posts three events to `/api/events`, clicks the feed row of the error event, and checks that the node is selected. Each post must answer 204 with an empty body.
 - **`validate <path>`** runs `flow-tower validate <path> --json` and keeps the command, the exit code and both output streams. It needs a run folder, not a running server.
 
-A drive that fails its own expectation prints `FAIL <what>` and exits 1. It still writes the evidence it has.
+A drive that fails its own expectation prints `FAIL <what>` and exits 1. It still writes the evidence it has, and the JSON's `error` field holds the full error, with Playwright's call log for a browser failure.
+
+One first `open` after a `launch` timed out on the card click in 16 tries, with the library on screen, and never again in 9 repeats of the same sequence. The cause is not known. If it happens, keep the JSON, run `doctor`, and run the drive once more. Report it as a failure of the drive, with the `error` text, not as a defect of the feature.
 
 For a path these drives do not cover, use the repository's Playwright specs in `e2e/` against the instance you launched. Do not point them at port 5317.
 
