@@ -46,7 +46,7 @@ describe('squad pack --paths (#249)', () => {
     expect(r.stdout).toContain('-name: x');
     expect(r.stdout).toContain('+name: y');
     expect(r.stdout).not.toContain('+export const b = 3;');
-    expect(r.stdout).toContain('git diff main -- examples');
+    expect(r.stdout).toMatch(/git diff [0-9a-f]{12} \(merge base of main and HEAD\) -- examples\)/);
   });
 
   it('--paths src,examples puts both changes in', () => {

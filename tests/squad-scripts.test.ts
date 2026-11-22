@@ -71,7 +71,7 @@ describe('pack.mjs reads the review folders from squad.json (#265)', () => {
     expect(r.stdout).toContain('lib/a.js');
     expect(r.stdout).toContain('+export const a = 2;');
     expect(r.stdout).not.toContain('src/b.js');
-    expect(r.stdout).toContain('git diff HEAD -- lib');
+    expect(r.stdout).toMatch(/git diff [0-9a-f]{12} \(merge base of HEAD and HEAD\) -- lib\)/);
   });
 });
 

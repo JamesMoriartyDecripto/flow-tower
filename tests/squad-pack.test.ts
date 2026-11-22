@@ -47,6 +47,20 @@ describe('squad pack (#169)', () => {
     expect(r.stderr).toBe('');
   });
 
+  it('diffs against the merge base, so a base that moved on is not shown as reverted (#452)', () => {
+    git(repo, 'checkout', '-q', 'main');
+    writeFileSync(join(repo, 'src', 'later.ts'), 'export const later = 1;\n');
+    git(repo, 'add', 'src/later.ts');
+    git(repo, 'commit', '-q', '-m', 'later');
+    git(repo, 'checkout', '-q', 'feat');
+    const base = git(repo, 'rev-parse', 'main~1').trim();
+    const r = run(['--role', 'reviewer', '--issue', '452']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).not.toContain('later');
+    expect(r.stdout).toContain(`Merge base: ${base}`);
+    expect(r.stdout).toContain('export const b = 3;');
+  });
+
   it('asks for severities for a security review', () => {
     const r = run(['--role', 'security', '--issue', '169']);
     expect(r.status).toBe(0);
