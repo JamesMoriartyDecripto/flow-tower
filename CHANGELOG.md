@@ -9,9 +9,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 - Dev squad model defaults, measured on four real pull requests of this repository (#447, [results](examples/model-benchmark/results/2026-11-22-squad-roles.md)): reviewer and security move to `minimax/minimax-m3.1-flash` (it saw 7 of 12 kept defects, against 4 for `z-ai/glm-5.3-flash`, and had no failed run, against 3 empty answers in 16 for `deepseek/deepseek-v4.1-flash`), the lead-judge to `google/gemini-4-carbon` (18 of 18 keep/drop sets, against 15 for `anthropic/claude-sonnet-5.5`). Researcher and verifier keep `z-ai/glm-5.3-flash` as their own default: a project that sets only `models.reviewer` no longer moves them with it.
 - `pack.mjs` tells the reviewer and the security pass to answer `changes` only when a finding is critical or high (#449). On clean heads, 62 of 97 failed reviews had been a `changes` verdict with medium or low findings only, which the merge gate blocks on.
+- The merge gate no longer blocks on a `changes` verdict: it blocks on critical, high and unknown-severity findings (#449); an answer with no valid verdict is still refused as malformed. In 662 stored answers of #447, a `changes` verdict never blocked a head the severities let through, and after the pack rule above 31 of 31 verdicts matched the severities.
+- Squad role logs are written to `squad-logs/` beside the cost ledger (`SQUAD_LOGS` overrides), no longer into `tools/squad/` (#453). 2154 logs (116 MB) there made the tests that copy the runner time out. Logs left in `tools/squad/` by older runs can be deleted.
+
+### Fixed
+
+- `pack.mjs` and the loop's `diff` tool diff from the merge base of the base and the head, and the pack prints `Merge base: <sha>` (#452). A base that moved on after the branch started was shown as reverted by the pull request: 8 of 17 critical or high findings on one such pack of #447 said so.
+- The PR steward's security pass falls back to the reviewer's model only when it is another model, and a failed attempt's stderr is printed (#456). Since #447 both default to the same model, so the fallback was a third identical try.
 
 ### Added
 
+- Squad coding standards (#457): `tools/squad/skills/code-standards.md`, given to the coder and the reviewer on every run, so code is written and judged by the same rules and a finding cites the rule; `tests.md`, added by the `Skills:` line of a step that writes a test. Each says how the lead keeps it: a rule from the maintainer's principles or a real failure, removed once a check enforces it.
 - `examples/model-benchmark`: the squad review cases from four real pull requests, and `scripts/squad-roles.mjs` and `scripts/squad-loop.mjs`, which run benchmark tasks through `tools/squad/run.mjs` as the squad sends them and score them with the merge gate's own checks (#447).
 - Embed mode for the static build: `index.html?embed=1` turns the simulator off and exposes `window.flowTowerEmbed` (`apply(events)`, `open(towerId)`) so a host app can push real hub events; targets are recomputed against the embedded workspace; `&chrome=0` hides the top bar and library. Glyphs outside the latin subset still need the CDN (#208) (#444).
 

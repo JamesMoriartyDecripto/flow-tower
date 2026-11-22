@@ -2,12 +2,12 @@
 
 Rules: English only; never touch secret files; edit only the files named below; comments explain why; files under ~400 lines; never rewrite or empty an existing test file (add to the new one only).
 Read <the files the coder needs to understand first>.
-Verify: `run check`; `finish` with the output and a `Known gaps:` line.
+Verify: `run check`; `finish` with the output and a `Known gaps:` line. When the full check is too slow for the coder's budget, name `run typecheck` and `run test` on the step's test files instead: a test file alone misses type errors (#456).
 
 <Why this step exists: the problem, with file:line references and the exact current text of any message you want changed.>
 
 1. <file>: <the change, precise enough that a green check means it is done>.
 2. New file <tests/…>: <the cases that prove item 1, each with its input and expected result>.
 
-Skills: <name>, <name>   (optional: tools/squad/skills/<name>.md the coder needs for this step)
+Skills: <name>, <name>   (optional: tools/squad/skills/<name>.md the coder needs for this step; `tests` when the step adds or changes a test)
 Files: <path>, <new/path>+, <path that may stay untouched> (optional)
