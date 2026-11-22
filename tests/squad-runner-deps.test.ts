@@ -1,6 +1,6 @@
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { env } from 'node:process';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error plain .mjs without declarations
@@ -65,10 +65,11 @@ describe('role', () => {
 
 describe('worktree', () => {
   it('makes the squad branch and runs fetch before worktree add', async () => {
-    const { deps, calls } = setup();
+    const { deps, calls, repo, home } = setup();
     const wt = await deps.worktree({ number: 7, title: 'Fix the thing!' });
     expect(wt.branch).toBe('squad/7-fix-the-thing');
-    expect(wt.path.endsWith('flow-tower-7')).toBe(true);
+    expect(wt.path).toBe(join(dirname(repo), 'flow-tower-squad', '7'));
+    expect(wt.path.startsWith(home)).toBe(false);
     const fetchAt = calls.findIndex((c) => c.args.includes('fetch'));
     const addAt = calls.findIndex((c) => c.args.includes('add'));
     expect(fetchAt).toBeGreaterThanOrEqual(0);
@@ -77,9 +78,9 @@ describe('worktree', () => {
   });
 
   it('removes a leftover worktree at the same path before worktree add', async () => {
-    const { deps, calls, home } = setup();
+    const { deps, calls, repo } = setup();
     // A failed earlier attempt left its folder behind; the rerun must clear it before adding.
-    mkdirSync(join(home, 'squad-runner', 'worktrees', 'flow-tower-7'), { recursive: true });
+    mkdirSync(join(dirname(repo), 'flow-tower-squad', '7'), { recursive: true });
     await deps.worktree({ number: 7, title: 'x' });
     const removeAt = calls.findIndex((c) => c.args.includes('remove'));
     const addAt = calls.findIndex((c) => c.args.includes('add'));
@@ -99,7 +100,7 @@ describe('worktree', () => {
     mkdirSync(join(repo, 'tools', 'squad'), { recursive: true });
     writeFileSync(join(repo, 'tools', 'squad', 'squad.json'), JSON.stringify({ commands: { setup: 'npm ci' } }));
     // The worktree's own squad.json names another install; setup must not read it.
-    const path = join(home, 'squad-runner', 'worktrees', `${basename(repo)}-7`);
+    const path = join(dirname(repo), `${basename(repo)}-squad`, '7');
     mkdirSync(join(path, 'tools', 'squad'), { recursive: true });
     writeFileSync(join(path, 'tools', 'squad', 'squad.json'), JSON.stringify({ commands: { setup: 'evil install' } }));
     const fake = fakeExec();
