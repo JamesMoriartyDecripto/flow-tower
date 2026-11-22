@@ -14,18 +14,19 @@ The app opens on the library: one card per project found in the served folders. 
 - Click a project card.
 - Press `l` in a tower to show the library again.
 
-## Driving it with verify.mjs
+## Driving it with Playwright
 
 Preconditions:
 
-- `node $V doctor` lists the project you want among its ids.
+- `doctor --project <project>` reports the project as served.
 
-- **Open a project.** Click its card. Run `node $V open sre-incident --name library-open`. The JSON's first step has `"stack": ["sre-incident/sre-incident.tower.yaml"]`, `"library": false` and `"view": "tower"`.
-- **Check the screen.** Open `library-open.png`. The top bar shows `LIBRARY 39` and the tower's name, `SRE Incident Responder`. The left panel lists the layers, and a 3D tower is in the middle.
-- **Back to the library.** Press `l`. Run `node $V open sre-incident --keys l --name library-back`. The step after `l` has `"library": true`.
+- **List.** Go to `<url>/?quality=eco` and wait for `window.__flowTower`. The page has one `[data-card]` element per project: 39 with the checkout's examples. The heading reads `39 projects`.
+- **Open.** Click `[data-card="<project id>"]`. The store's `stack[0]` becomes the project id, `library` is `false` and `view` is `tower`. The top bar shows the tower's name and a `canvas` fills the middle.
+- **Back.** Press `l`. The store's `library` becomes `true` and the cards are on screen again.
+- **Proof.** A picture of the library, a picture of the tower, and the store state read after each step.
 
 ## Gotchas
 
-- An unknown project name makes `open` print `FAIL` with five valid ids. Copy an id from there or from `doctor`.
-- The first open of a big tower takes several seconds: the layout runs after the click. The drive waits up to 30 seconds.
-- Headless Chrome renders WebGL in software. The picture is correct but slow to appear, and a PNG is about 0.9 MB.
+- The card you want can be below the fold. Playwright scrolls to it before the click.
+- The first open of a big tower takes several seconds: the layout runs after the click.
+- A screenshot taken right after the click shows an empty canvas. Wait for the tower to draw.

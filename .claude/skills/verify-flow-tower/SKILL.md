@@ -1,99 +1,79 @@
 ---
 name: verify-flow-tower
-description: Launch an isolated Flow Tower instance, drive the web viewer, the events API and the CLI as a user would, and keep evidence. Use to prove a change to the app works before saying it is done, or when a run needs a real instance that is not the developer's own server.
+description: Launch an isolated Flow Tower instance, drive the real app as a user would, and keep proof (screenshots before and after, app state, HTTP answers, CLI output). Use this whenever you changed anything under src/, bin/ or examples/ and are about to say it works, before opening a pull request, and whenever someone asks to run, open, screenshot, test in a browser or check the real app, even if they do not say "verify". Also use it any time you need a running Flow Tower server, so that you never start one on port 5317 or with the developer's own user folder.
 ---
 
 # Verify Flow Tower
 
-Flow Tower is a web viewer (the primary surface), an HTTP events API and a CLI. This skill starts a real instance in isolation, drives one feature, and keeps proof. Every command below is one helper script:
+Flow Tower is a web viewer, an HTTP events API and a CLI. To prove a change you need three things: an instance that is yours alone, a drive that does what a user does, and proof someone can look at later. The helper gives you the first. You write the second for the change you made. The standards below say what the third must hold.
+
+The design is drawn in [verify-flow-tower.tower.yaml](verify-flow-tower.tower.yaml). Read [features/README.md](features/README.md) before you drive anything.
+
+## Node
+
+The helper and the CLI need Node 22.13 or newer. The `node` on PATH can be older: the helper then prints the version it needs and exits 2. Find a newer binary and use its full path: `ls ~/.nvm/versions/node/` on a Mac with nvm, `/opt/node22/bin/node` on the Linux test server.
 
 ```bash
+N=<full path to node 22.13 or newer>
 V=.claude/skills/verify-flow-tower/scripts/verify.mjs
-node $V --help
 ```
-
-Run it from the repository root with Node 22.13 or newer. If `node -v` is older, the script says so and exits 2: use a newer binary by its full path.
-
-Read [features/README.md](features/README.md) before you drive anything. It lists the features and the proof each one needs.
 
 ## Launch
 
 ```bash
-node $V launch --port 5327
+$N $V launch --port <port>
 ```
 
-It prints `ready http://127.0.0.1:5327`, the run folder and the project count (39 with the checkout's examples), then leaves the server running. Ready means `/api/workspace` answers 200 with projects, which takes about 3 seconds on a laptop.
+Use the port you were asked to use, or any free port from 5320 up. It prints `ready`, the run folder and the project count (39 with the checkout's examples), then the `doctor` and `stop` commands with the run folder filled in. Keep the run folder: every later command needs `--run <folder>`.
 
-- **Never use port 5317.** It is the default port, so a server there belongs to the developer or to a live hub. `launch` refuses a port that is taken. Pick another with `--port`.
-- **The instance is isolated.** It serves `examples/` with its own empty user folder (`FLOW_TOWER_HOME` in the run folder), and every other `FLOW_TOWER_*` variable of your shell is dropped, so it reads no personal config, uses no token and joins no hub.
-- **Two runs can live side by side** on different ports. Each has its own run folder under the system temp folder, in `flow-tower-verify/`. The file `flow-tower-verify/current` names the last one launched. Every other command takes `--run <dir>` to pick a run.
-- **A new instance after a code change.** The server loads `src/server/*` and `src/core/*` once. After you edit them, `stop` and `launch` again.
+- **Never port 5317.** It is the default port, so a server there is the developer's or a live hub. `launch` refuses a port that is taken.
+- **The instance is isolated.** It gets its own empty user folder, and every `FLOW_TOWER_*` variable of your shell is dropped, so it reads no personal config, uses no token and joins no hub. Start a server by hand and you lose all of that.
+- **It serves the working tree.** Uncommitted edits are served too. The server loads `src/server/*` and `src/core/*` once: after you edit them, `stop` and `launch` again.
+- **A CLI command needs no instance.** `validate` and the other commands run on their own.
 
 ## Doctor
 
 ```bash
-node $V doctor
+$N $V doctor --run <folder> --project <project id or prefix>
 ```
 
-Read-only. Run it first whenever something looks off. It prints one `ok` or `FAIL` line per check and exits 1 on any `FAIL`:
-
-- `run.json` is readable.
-- The recorded PID is alive.
-- `/api/workspace` answers 200. The line lists the project count and the first five project ids.
-- The commit the instance was launched at is the checkout's `HEAD`. A `FAIL commit` means the instance runs older code: `stop` and `launch` again.
+Read-only. Run it before you drive and whenever something looks off. Each check prints `ok` or `FAIL`: the server process is alive, `/api/workspace` answers, the named project is served, the commit at launch is `HEAD`. The commit check does not see uncommitted edits.
 
 ## Drive
 
-Three drives cover the three surfaces. Each one exercises the user path and writes its evidence.
+Write the drive for your change. A short Playwright script is enough, and the repository already has what you need:
+
+- [e2e/fixtures.ts](../../../e2e/fixtures.ts) and [e2e/live.spec.ts](../../../e2e/live.spec.ts) show how to open a tower and read the app.
+- Import Playwright from `node_modules/playwright/index.mjs` and launch `chromium` with `channel: 'chrome'`. The bundled Chromium does not run on macOS 13.
+- The library shows one card per project: `[data-card="<project id>"]`. A project id is what `doctor` lists, such as `sre-incident/sre-incident.tower.yaml`.
+- `window.__flowTower.store.getState()` gives `stack`, `library`, `selected`, `focusedLayer` and `view`. Wait for the hook: the app loads after the page.
+- A node's live state comes from the module the scene draws from. In the page, `(await import('/src/app/live.ts'))` gives `useLive` and `liveState`. The key of a node is `<tower id>#<layer id>.<node id>`.
+- WebGL renders in software. Wait several seconds after the tower opens before the first screenshot, or the picture is empty.
+
+Each feature file has the selectors, the keys and the end state for one feature.
+
+## Proof
+
+Save everything under `<run folder>/evidence/`. `stop` keeps that folder. It is in the system temp folder, so copy what must last.
+
+- **Show the behaviour that was asked about.** For "the node lights up", that is the node in state `run` on screen, not a row in the feed.
+- **Record before and after.** The same view of the same thing, once before the action and once after, with the state read from the app next to each picture.
+- **Act as a user does.** Click, press a key, post over HTTP, run the CLI. Reading the store is fine. Setting it to skip a step is not.
+- **Check the side effect next to what is visible.** For an event, the HTTP status and the body. For the CLI, the exit code, captured by the shell and saved with the output.
+- **Look at each screenshot.** A green exit code does not show a broken layout or a picture taken too early.
+- **Keep the script.** Someone can then run the proof again.
+- **Say what you did not check.**
+
+## Stop
 
 ```bash
-node $V open sre-incident --keys PageDown,PageDown,m --name library-open
-node $V events sre-incident --node investigation.investigator --name live-events
-node $V validate examples/starters --name validate-starters
+$N $V stop --run <folder>
 ```
 
-- **`open <project>`** opens the library in headless Chrome, clicks the project card (`[data-card="<id>"]`), waits for the tower, then presses each key of `--keys`. `<project>` is a project id or a prefix of one. It records the app state after each step, read from `window.__flowTower.store`.
-- **`events <project> --node <layer.node>`** opens the project, opens the live feed with `f`, posts three events to `/api/events`, clicks the feed row of the error event, and checks that the node is selected. Each post must answer 204 with an empty body.
-- **`validate <path>`** runs `flow-tower validate <path> --json` and keeps the command, the exit code and both output streams. It needs a run folder, not a running server.
-
-A drive that fails its own expectation prints `FAIL <what>` and exits 1. It still writes the evidence it has, and the JSON's `error` field holds the full error, with Playwright's call log for a browser failure.
-
-A known failure of the drive, not yet explained: the first browser drive after a `launch` timed out on the card click 3 times in about 15, with the library on screen. Playwright's call log said once that the card was found and never became stable, and once that the card was not found. Later drives on the same instance passed, and 13 attempts to reproduce it did not. A failed browser drive therefore also writes `<name>.trace.zip`: open it with `npx playwright show-trace <file>`. If it happens, keep the JSON and the trace, run `doctor`, and run the drive once more. Report it as a failure of the drive, with the `error` text, not as a defect of the feature you are verifying.
-
-For a path these drives do not cover, use the repository's Playwright specs in `e2e/` against the instance you launched. Do not point them at port 5317.
-
-## Evidence
-
-Evidence goes to `<run>/evidence/`, named by `--name`. Each drive prints the files it wrote.
-
-| Drive | Files | What they prove |
-|---|---|---|
-| `open` | `<name>.png`, `<name>.json` | the screen, and the app state after the click and after each key |
-| `events` | `<name>.png`, `<name>.json` | the HTTP status and body length of each post, the feed row count, the selected node |
-| `validate` | `<name>.json` | the command, its exit code, stdout and stderr |
-
-Proof standards:
-
-- Drive the user path: the card click, the key, the HTTP post. Do not set the store directly.
-- Keep the action and the resulting state, not only the last screen. The `steps` list in the JSON pairs them.
-- Check the side effect next to what is visible. For an event, that is the 204 with an empty body and the selected node, not only a feed row.
-- Look at the screenshot. A green exit code does not show a broken layout.
-- `consoleErrors` in the JSON must be empty. If it is not, report its content.
-
-## Cleanup
-
-```bash
-node $V stop
-```
-
-It stops the server by the PID recorded at launch, after checking that the PID is still this run's server, waits until the port stops answering, and removes the run's user folder. A PID that now belongs to another process is refused with `FAIL pid <pid> is not this run's server`, and nothing is signalled. It prints where the evidence is. The evidence and `server.log` stay in the run folder.
+It stops the server by the process id recorded at launch, after checking that the process is still this run's server, and removes the run's user folder. Then check that nothing listens on the port: the process can take a moment to leave the process table. Close the browser your script opened.
 
 - Never stop a server by process name. A pattern also matches the shell that runs it.
-- After `stop`, `doctor` reports `FAIL pid` and `FAIL workspace`. That is the expected state of a stopped run.
-- Run `stop` after a failed drive too, so no server keeps the port.
-
-## Helpers
-
-`scripts/verify.mjs` is the only helper. `node $V --help` lists its commands: `launch`, `doctor`, `open`, `events`, `validate`, `stop`.
+- Run `stop` after a failed drive too.
+- Starting a server also writes `node_modules/.vite/port-<port>`. Remove that folder when you are done.
 
 To keep the feature map true as the app changes, run `/pstack:maintain-verification-skill`.

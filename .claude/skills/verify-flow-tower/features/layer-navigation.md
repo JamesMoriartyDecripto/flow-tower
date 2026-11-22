@@ -13,18 +13,18 @@ In a tower, the user steps from layer to layer with the keyboard and switches be
 - Click a layer in the `LAYERS` panel on the left.
 - Press `m`, or click `MAP` in the bottom bar.
 
-## Driving it with verify.mjs
+## Driving it with Playwright
 
 Preconditions:
 
-- The project opens: see [library-open](./library-open.md).
+- The project is open: see [library-open](./library-open.md).
 
-- **Step down two layers.** Press `PageDown` twice. Run `node $V open sre-incident --keys PageDown,PageDown --name layer-step`. The steps read `focusedLayer` absent after `open`, `0` after the first key and `1` after the second.
-- **Switch to the map.** Press `m`. Run `node $V open sre-incident --keys PageDown,m --name view-map`. The last step has `"view": "map"` and no `focusedLayer`: the map shows every layer.
-- **Check the screen.** In `view-map.png` the `MAP` button of the bottom bar is highlighted, `ORBIT` is greyed out, and the five layers lie flat, one under the other.
+- **Step down.** Press `PageDown` twice, reading the store after each key. `focusedLayer` is absent after the open, `0` after the first key and `1` after the second.
+- **Map.** Press `m`. `view` becomes `map` and `focusedLayer` is absent again: the map shows every layer. In the bottom bar `MAP` is highlighted and `ORBIT` is greyed out.
+- **Proof.** A picture before the first key and one after each step, with the store state next to each.
 
 ## Gotchas
 
-- No layer is focused right after a tower opens: `focusedLayer` is missing from the state, not `0`. The first `PageDown` focuses layer `0`.
-- Key names are Playwright's: `PageDown`, `Enter`, `Escape`, and single letters in lower case.
-- Each key is followed by a 400 ms wait. A slow machine can need a second key press before the layout exists. If a step shows no change, run the drive again before you report a defect.
+- No layer is focused right after a tower opens: `focusedLayer` is missing from the state, not `0`.
+- The layout is asynchronous. On a busy machine a key can arrive before the layer exists. Press until the state changes, with a time limit, as `pressUntil` in `e2e/fixtures.ts` does.
+- Blur the focused element before sending keys, or a text field takes them.
