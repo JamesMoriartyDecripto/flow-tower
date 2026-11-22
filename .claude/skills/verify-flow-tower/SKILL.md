@@ -25,7 +25,7 @@ node $V launch --port 5327
 It prints `ready http://127.0.0.1:5327`, the run folder and the project count (39 with the checkout's examples), then leaves the server running. Ready means `/api/workspace` answers 200 with projects, which takes about 3 seconds on a laptop.
 
 - **Never use port 5317.** It is the default port, so a server there belongs to the developer or to a live hub. `launch` refuses a port that is taken. Pick another with `--port`.
-- **The instance is isolated.** It serves `examples/` with its own empty user folder (`FLOW_TOWER_HOME` in the run folder), so it reads no personal config and joins no hub.
+- **The instance is isolated.** It serves `examples/` with its own empty user folder (`FLOW_TOWER_HOME` in the run folder), and every other `FLOW_TOWER_*` variable of your shell is dropped, so it reads no personal config, uses no token and joins no hub.
 - **Two runs can live side by side** on different ports. Each has its own run folder under the system temp folder, in `flow-tower-verify/`. The file `flow-tower-verify/current` names the last one launched. Every other command takes `--run <dir>` to pick a run.
 - **A new instance after a code change.** The server loads `src/server/*` and `src/core/*` once. After you edit them, `stop` and `launch` again.
 
@@ -58,7 +58,7 @@ node $V validate examples/starters --name validate-starters
 
 A drive that fails its own expectation prints `FAIL <what>` and exits 1. It still writes the evidence it has, and the JSON's `error` field holds the full error, with Playwright's call log for a browser failure.
 
-A known failure of the drive, not yet explained: the first `open` after a `launch` timed out on the card click 2 times in 17. The library was on screen, and Playwright's call log ended with `waiting for element to be visible, enabled and stable`: the card was found and never settled. Later drives on the same instance passed. If it happens, keep the JSON, run `doctor`, and run the drive once more. Report it as a failure of the drive, with the `error` text, not as a defect of the feature you are verifying.
+A known failure of the drive, not yet explained: the first browser drive after a `launch` timed out on the card click 3 times in about 15, with the library on screen. Playwright's call log said once that the card was found and never became stable, and once that the card was not found. Later drives on the same instance passed, and 13 attempts to reproduce it did not. A failed browser drive therefore also writes `<name>.trace.zip`: open it with `npx playwright show-trace <file>`. If it happens, keep the JSON and the trace, run `doctor`, and run the drive once more. Report it as a failure of the drive, with the `error` text, not as a defect of the feature you are verifying.
 
 For a path these drives do not cover, use the repository's Playwright specs in `e2e/` against the instance you launched. Do not point them at port 5317.
 
@@ -86,7 +86,7 @@ Proof standards:
 node $V stop
 ```
 
-It stops the server by the PID recorded at launch, waits until the port stops answering, and removes the run's user folder. It prints where the evidence is. The evidence and `server.log` stay in the run folder.
+It stops the server by the PID recorded at launch, after checking that the PID is still this run's server, waits until the port stops answering, and removes the run's user folder. A PID that now belongs to another process is refused with `FAIL pid <pid> is not this run's server`, and nothing is signalled. It prints where the evidence is. The evidence and `server.log` stay in the run folder.
 
 - Never stop a server by process name. A pattern also matches the shell that runs it.
 - After `stop`, `doctor` reports `FAIL pid` and `FAIL workspace`. That is the expected state of a stopped run.
