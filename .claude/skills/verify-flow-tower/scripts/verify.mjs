@@ -7,14 +7,13 @@ import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { eventsDrive, openDrive, validateDrive, workspaceOf } from './drives.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PORT = 5327;
 const READY_TIMEOUT_MS = 90_000;
 const POLL_MS = 500;
 const STOP_WAIT_MS = 5_000;
-const COMMANDS = ['launch', 'doctor', 'stop', 'open', 'events', 'validate'];
+const COMMANDS = ['launch', 'doctor', 'stop'];
 
 const USAGE = `usage: verify.mjs <command> [options]
 
@@ -22,33 +21,23 @@ commands:
   launch   start an isolated instance on a free port (--port, --base)
   doctor   check the last (or --run) instance without changing it
   stop     stop the instance's server and remove its home (--run)
-  open     <project> [--keys k1,k2]: open a project as a user, record the store after each key
-  events   <project> --node <layer.node>: post tool events, click the error row in the live feed
-  validate <path>: run the CLI validate --json and keep its output (needs a run folder, not a server)
 
 options:
   --port <n>     port for launch (default ${DEFAULT_PORT})
   --base <dir>   folder holding the runs (default <tmp>/flow-tower-verify)
-  --run <dir>    run folder for doctor, stop and the evidence of a drive (default: the one in <base>/current)
-  --name <label> names the evidence files (default: the command)
-  --keys <list>  keys to press in order, e.g. PageDown,Enter (open)
-  --node <id>    node the events drive selects (events)
+  --run <dir>    run folder for doctor and stop (default: the one in <base>/current)
   --help         show this help`;
 
 function parseArgs(argv) {
-  const args = { command: undefined, target: undefined, help: false, port: DEFAULT_PORT, base: join(tmpdir(), 'flow-tower-verify'), run: undefined, name: undefined, node: undefined, keys: [], unknown: undefined };
+  const args = { command: undefined, help: false, port: DEFAULT_PORT, base: join(tmpdir(), 'flow-tower-verify'), run: undefined, unknown: undefined };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') args.help = true;
     else if (a === '--port') args.port = Number(argv[++i]);
     else if (a === '--base') args.base = resolve(argv[++i]);
     else if (a === '--run') args.run = resolve(argv[++i]);
-    else if (a === '--name') args.name = argv[++i];
-    else if (a === '--node') args.node = argv[++i];
-    else if (a === '--keys') args.keys = (argv[++i] ?? '').split(',').filter(Boolean);
     else if (a.startsWith('--')) args.unknown = a;
     else if (args.command === undefined) args.command = a;
-    else if (args.target === undefined) args.target = a;
     else args.unknown = a;
   }
   return args;
@@ -69,6 +58,20 @@ function planRun({ base, port }) {
     evidence: join(dir, 'evidence'),
     startedAt: now.toISOString(),
   };
+}
+
+/**
+ * The parsed /api/workspace body when it has the shape launch and doctor read; null otherwise. Checking the shape
+ * keeps a 200 with some other JSON from throwing a TypeError (#448).
+ */
+async function workspaceOf(url, timeoutMs) {
+  try {
+    const res = await fetch(`${url}/api/workspace`, { signal: AbortSignal.timeout(timeoutMs) });
+    if (res.status !== 200) return null;
+    const body = await res.json();
+    if (Array.isArray(body?.projects) && body.towers && typeof body.towers === 'object') return body;
+  } catch { /* refused, timed out or not JSON: null */ }
+  return null;
 }
 
 function git(args) {
@@ -292,11 +295,7 @@ async function main(argv) {
   }
   if (args.command === 'launch') return launch(args);
   if (args.command === 'doctor') return doctor(args);
-  if (args.command === 'stop') return stop(args);
-  const found = readRun(runDirOf(args));
-  if (args.command === 'open') return openDrive(args, found);
-  if (args.command === 'events') return eventsDrive(args, found);
-  return validateDrive(args, found, git(['rev-parse', '--show-toplevel']));
+  return stop(args);
 }
 
 // An error no drive expected ends here as one FAIL line; a stack trace would only show the script's internals.

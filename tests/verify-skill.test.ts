@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -34,10 +34,11 @@ function verifyWith(args: string[], timeout: number) {
 }
 
 describe('verify.mjs CLI', () => {
-  it('--help exits 0 and names all six commands', async () => {
+  it('--help exits 0 and names the three commands, not events', async () => {
     const { code, out } = await verify(['--help']);
     expect(code).toBe(0);
-    for (const command of ['launch', 'doctor', 'stop', 'open', 'events', 'validate']) expect(out).toContain(command);
+    for (const command of ['launch', 'doctor', 'stop']) expect(out).toContain(command);
+    expect(out).not.toContain('events');
   });
 
   it('doctor on an empty run folder exits 1 and reports FAIL run.json', async () => {
@@ -55,27 +56,7 @@ describe('verify.mjs CLI', () => {
     expect(out).toContain('FAIL run.json: pid 1 is not a server PID');
   });
 
-  it('validate runs the CLI on a starter and keeps its JSON as evidence', async () => {
-    const dir = tempDir();
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', commit: '' }));
-    const { code } = await verifyWith(['validate', 'examples/starters', '--run', dir, '--name', 'v'], 60000);
-    expect(code).toBe(0);
-    const ev = JSON.parse(readFileSync(join(dir, 'evidence', 'v.json'), 'utf8'));
-    expect(ev.exit).toBe(0);
-    expect(JSON.parse(ev.stdout).ok).toBe(true);
-  }, 70000);
-
-  it('open on a run whose server is stopped prints one FAIL line, not a stack trace', { timeout: 20000 }, async () => {
-    const dir = tempDir();
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:9', commit: '' }));
-    const { code, out } = await verify(['open', 'anything', '--run', dir]);
-    expect(code).toBe(1);
-    expect(out).toContain('FAIL no instance answers at http://127.0.0.1:9');
-    expect(out).not.toContain('at async');
-    expect(out).not.toContain('TypeError');
-  });
-
-  it('open on a server that answers 200 with a body that is not a workspace prints one FAIL line', { timeout: 20000 }, async () => {
+  it('doctor on a server that answers 200 with a body that is not a workspace exits 1 and reports FAIL workspace', { timeout: 20000 }, async () => {
     const server: HttpServer = createHttpServer((_req, res) => {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end('{}');
@@ -85,11 +66,10 @@ describe('verify.mjs CLI', () => {
       const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
       const dir = tempDir();
       writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url, commit: '' }));
-      const { code, out } = await verify(['open', 'anything', '--run', dir]);
+      const { code, out } = await verify(['doctor', '--run', dir]);
       expect(code).toBe(1);
-      expect(out).toContain('FAIL no instance answers at');
+      expect(out).toContain('FAIL workspace');
       expect(out).not.toContain('TypeError');
-      expect(out).not.toContain('at async');
     } finally {
       server.close();
     }
@@ -129,30 +109,6 @@ describe('verify.mjs CLI', () => {
     expect(() => process.kill(process.pid, 0)).not.toThrow();
   });
 
-  it('validate on a broken tower exits 1 and keeps the error in its evidence', { timeout: 60000 }, async () => {
-    const dir = tempDir();
-    const tower = join(dir, 'broken');
-    mkdirSync(tower);
-    writeFileSync(join(tower, 'broken.tower.yaml'), 'name: Broken\nlayers:\n  - id: a\n    title: A\n    nodes:\n      - { id: x, type: agent, label: X }\n    edges:\n      - x -> nowhere\n');
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', commit: '' }));
-    const { code, out } = await verifyWith(['validate', tower, '--run', dir, '--name', 'broken'], 60000);
-    expect(code).toBe(1);
-    expect(out.split('\n').filter((l) => l.startsWith('FAIL validate exited'))).toHaveLength(1);
-    const ev = JSON.parse(readFileSync(join(dir, 'evidence', 'broken.json'), 'utf8'));
-    expect(ev.exit).toBe(1);
-    expect(ev.error.startsWith('validate exited')).toBe(true);
-  });
-
-  it('validate refuses a --name that leaves the evidence folder and writes nothing', { timeout: 20000 }, async () => {
-    const dir = tempDir();
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: join(dir, 'evidence'), url: 'http://127.0.0.1:1', commit: '' }));
-    const { code, out } = await verifyWith(['validate', 'examples/starters', '--run', dir, '--name', '../escape'], 20000);
-    expect(code).toBe(1);
-    expect(out).toContain('FAIL --name takes');
-    expect(existsSync(join(dir, 'escape.json'))).toBe(false);
-    expect(existsSync(join(dir, 'evidence'))).toBe(false);
-  });
-
   it('stop refuses a run.json whose port is a pattern and signals nothing', { timeout: 20000 }, async () => {
     const dir = join(tempDir(), 'r2');
     mkdirSync(dir, { recursive: true });
@@ -163,13 +119,4 @@ describe('verify.mjs CLI', () => {
     expect(() => process.kill(process.pid, 0)).not.toThrow();
   });
 
-  it('validate keeps its evidence in the run folder even when run.json names another evidence path', { timeout: 70000 }, async () => {
-    const dir = tempDir();
-    const elsewhere = join(tempDir(), 'elsewhere');
-    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 't', evidence: elsewhere, url: 'http://127.0.0.1:1024', port: 1024, commit: '' }));
-    const { code } = await verifyWith(['validate', 'examples/starters', '--run', dir, '--name', 'v'], 60000);
-    expect(code).toBe(0);
-    expect(existsSync(join(dir, 'evidence', 'v.json'))).toBe(true);
-    expect(existsSync(elsewhere)).toBe(false);
-  });
 });
