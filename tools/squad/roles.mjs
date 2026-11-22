@@ -6,8 +6,9 @@
 
 import { writeDirs } from './args.mjs';
 
-// `family` names the models.<key> entry a role uses when squad.json has none for it. It is a fallback, not a
-// benchmark claim: read-only graders share the reviewer's model, the rest share the coder's.
+// `family` names the models.<key> entry a role uses when squad.json has none for it. A read-only grader (architect,
+// researcher, verifier, lead-judge) falls back to the reviewer's model, and the defaults name every read-only role
+// since #447. It is a fallback, not a benchmark claim.
 export const ROLES = {
   triage: { node: 'intake.triage', writes: 'none', verdict: false, family: 'coder', rule: 'Read-only: classify from the task; change nothing.' },
   architect: { node: 'orchestration.architect', writes: 'none', verdict: false, family: 'reviewer', rule: 'Read-only: produce the plan the task asks for; change nothing.' },

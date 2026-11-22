@@ -1,11 +1,6 @@
 #!/usr/bin/env node
 // Runs packed review tasks through the dev squad's own runner (tools/squad/run.mjs), one request per run, and scores
-// each answer with squad-score.mjs (#447). The October squad benchmark had no committed driver, so it could not be
-// repeated; this one is the committed driver.
-//
-//   node scripts/squad-roles.mjs --cases tasks/squad-review/cases.json --packs <dir> --models a,b --out results/roles.jsonl
-//   node scripts/squad-roles.mjs --report results/roles.jsonl
-//   node scripts/squad-roles.mjs ... --dry-run     prints the plan and checks the packs; spawns nothing
+// each answer with squad-score.mjs.
 //
 // A pack is <packs>/<case id>.<role>.md. Every run writes its own cost ledger in a temp folder, so the benchmark
 // never adds to the user's cost ledger, and it posts no live events.
@@ -86,7 +81,7 @@ async function rescore({ repo, gate }) {
     console.error('usage: squad-roles.mjs --rescore <in.jsonl> --cases <cases.json> --out <out.jsonl> [--squad <tools/squad>] [--repo <git repo>] [--rename old=new,old2=new2]');
     exit(2);
   }
-  // Reading and writing the same file would lose lines halfway, so the output must be a new path.
+  // Writing over the input would overwrite the paid raw results, so the output must be a new path.
   if (out === src) {
     console.error('--out must differ from --rescore');
     exit(2);

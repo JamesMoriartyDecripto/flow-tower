@@ -1,7 +1,6 @@
-// Scores one squad review run against its case key (#447). The rules are the gate's own: parseVerdict and checkFinding
-// are passed in, so this file imports nothing from tools/squad and reads no file itself. A defect run counts when its
-// verdict asks for changes and a finding lands on a key; a clean run passes only on approve with no blocking finding.
-// The gate blocks on everything except medium and low, so a missing or unknown severity blocks too.
+// Scores one squad review run against its case key. The rule is the gate's: parseVerdict and checkFinding are passed
+// in, so this file imports nothing from tools/squad and reads no file itself. A defect run counts when its verdict
+// asks for changes and a finding lands on a key; a clean run passes only on approve with no blocking finding.
 // The report uses the same rule, so a verdict and its severity count agree.
 export function isBlocking(severity) {
   return !['medium', 'low'].includes(severity);
@@ -49,7 +48,7 @@ export function scoreRun({ kase, outcome, answer, readFile, parseVerdict, checkF
   return { pass, verdict, flagged, keys, keysBlocking, blocking, findings: findings.length, verified, failure: null };
 }
 
-// Rows per role and model. The sort puts the best pass count first, then the cheapest run.
+// Rows per role and model. The sort puts the best pass count first, then the lowest total cost.
 export function summarize(lines) {
   const groups = new Map();
   for (const l of lines) {

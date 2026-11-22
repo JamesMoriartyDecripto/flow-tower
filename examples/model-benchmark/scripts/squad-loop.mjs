@@ -2,9 +2,6 @@
 // Runs benchmark tasks through the squad's tool loop (tools/squad/run.mjs) for the architect and lead-judge roles (#447).
 // The answers land in bench.mjs's line shape, so judge.mjs and report.mjs score them with the same code as the models.
 //
-//   node scripts/squad-loop.mjs --role architect --category planner --tasks tasks/planner --models a,b --out results/loop.jsonl
-//   node scripts/squad-loop.mjs ... --dry-run     prints the plan and spawns nothing
-//
 // Every run writes its own cost ledger in a temp folder, so the benchmark never adds to the user's cost ledger.
 import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
