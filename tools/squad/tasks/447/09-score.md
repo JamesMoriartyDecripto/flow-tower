@@ -10,4 +10,6 @@ Why: review of #447. `isBlocking` lowercases the severity and the gate does not,
 2. squad-score.d.mts: `keys`, `keysBlocking` and `blocking` are required in `RunLine`; `kind` is `'defect' | 'clean'`.
 3. tests/model-benchmark-squad-score.test.ts: `isBlocking('medium')` and `('low')` are false, `('Medium')`, `('HIGH')`, `('urgent')` and `(undefined)` are true. The line builder sets `keys: [], keysBlocking: [], blocking: 0` by default and is typed `(over: Partial<RunLine>) => RunLine`. Replace the header-only table test with one that renders `table(summarize(...))` over the three lines of the existing summarize test and asserts the cells of its row for Key seen, Key blocked and Clean not blocked.
 
+Continuation: the first attempt is in the three files and is right except one typecheck error: `tests/model-benchmark-squad-score.test.ts(160,7): error TS2741: Property 'keysBlocking' is missing`. A line literal there is built by hand, not through the builder. Build every RunLine in that file through the builder, or give the literal `keys`, `keysBlocking` and `blocking`. Run `run typecheck` before you finish.
+
 Files: examples/model-benchmark/scripts/squad-score.mjs, examples/model-benchmark/scripts/squad-score.d.mts, tests/model-benchmark-squad-score.test.ts
