@@ -175,6 +175,18 @@ describe('architect plan scope', () => {
     }, { findings: [{ file: 'src/a.ts:3', what: 'bug', why: 'x', fix: 'y' }] });
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
     expect(prompts.architect).toContain('list only the files that step must edit');
-    expect(prompts.architect).toContain('opens the draft PR, so no step does those');
+    expect(prompts.architect).toContain('opens the draft PR, so no step does them');
+  });
+
+  it('tells the architect that reads are existing source files and criteria name checkable change', async () => {
+    const { deps, prompts } = fakeDeps((name) => {
+      if (name === 'triage') return { ok: true, text: TRIAGE };
+      if (name === 'architect') return { ok: true, text: PLAN_REPORT };
+      if (name === 'lead-judge') return { ok: true, text: report(fence({ R1: { decision: 'drop', reason: 'noise' } })) };
+      return { ok: true, text: PASS };
+    }, { findings: [{ file: 'src/a.ts:3', what: 'bug', why: 'x', fix: 'y' }] });
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(prompts.architect).toContain('"reads" is optional and lists existing files the step must read but not edit (the source of its text or data).');
+    expect(prompts.architect).toContain('Each criterion says what the finished change does, checkable in the code, never the runner\'s own work');
   });
 });
