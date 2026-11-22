@@ -269,7 +269,8 @@ export async function workIssue(issue, deps, limits) {
       const j = await judge(deps, findings, evidence(issue, plan), wt.path, n);
       for (const d of j.drop) dropped.push({ id: d.id, file: byId.get(d.id).file, reason: d.reason });
       if (j.drop.length) await gh.comment(n, droppedComment(j.drop, byId));
-      const kept = findings.filter((f) => j.keep.includes(f.id));
+      const keepReason = new Map(j.keep.map((k) => [k.id, k.reason]));
+      const kept = findings.filter((f) => keepReason.has(f.id)).map((f) => ({ ...f, reason: keepReason.get(f.id) }));
       if (!kept.length) break;
       // Past the last round, a kept security finding stops the issue unless its severity is clearly low or medium. Severity
       // is model text, so anything else (High., missing, "critical (CVSS 9)") fails closed. Other kept findings are recorded
@@ -288,7 +289,7 @@ export async function workIssue(issue, deps, limits) {
       // under it by prefix in files-check, and a link could lead outside the worktree. A missing path is allowed (it may be created).
       const filePaths = fixPaths(kept, [...new Set(supportingFiles)]);
       if (filePaths.some((p) => isNotRegular(join(wt.path, p)))) stop(FILES_NOT_REGULAR);
-      const keptText = [...kept.flatMap((f) => [f.file, f.what, f.why, f.fix]), ...supportingFiles].join('\n');
+      const keptText = [...kept.flatMap((f) => [f.file, f.what, f.why, f.fix, f.reason]), ...supportingFiles].join('\n');
       if (SENSITIVE.test(keptText) || filePaths.some(controlEntry)) stop(FIX_SENSITIVE);
       // A finding whose files are all outside the repository leaves nothing to fix in place, so the issue stops.
       const fix = fixTask(kept, { issue: n, round, supportingFiles: [...new Set(supportingFiles)], rules: limits.rules });

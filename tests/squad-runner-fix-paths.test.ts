@@ -14,7 +14,7 @@ describe('parseJudgement supportingFiles', () => {
 
   it('keeps the legacy return shape when no supportingFiles field is present', () => {
     const text = fence({ R1: { decision: 'keep', reason: 'r' }, R2: { decision: 'drop', reason: 'h' } });
-    expect(parseJudgement(text, ids)).toEqual({ ok: true, keep: ['R1'], drop: [{ id: 'R2', reason: 'h' }] });
+    expect(parseJudgement(text, ids)).toEqual({ ok: true, keep: [{ id: 'R1', reason: 'r' }], drop: [{ id: 'R2', reason: 'h' }] });
   });
 
   it('maps a kept id to its validated, deduplicated supporting files', () => {
@@ -48,7 +48,7 @@ describe('parseJudgement supportingFiles', () => {
       R2: { decision: 'drop', reason: 'h' },
       X9: { decision: 'keep', reason: 'extra', supportingFiles: ['src/auth/session.ts'] },
     });
-    expect(parseJudgement(text, ids)).toEqual({ ok: true, keep: ['R1'], drop: [{ id: 'R2', reason: 'h' }] });
+    expect(parseJudgement(text, ids)).toEqual({ ok: true, keep: [{ id: 'R1', reason: 'r' }], drop: [{ id: 'R2', reason: 'h' }] });
   });
 
   it.each([
