@@ -1,5 +1,5 @@
-// Prunes the role logs that run.mjs writes to the logs folder beside the cost ledger (#357, moved there by #453).
-// Each run leaves <role>-<ms timestamp>.log and none was ever removed. The cost ledger is the lasting record; the logs are only for recent debugging, so the newest ones stay.
+// Prunes the role logs run.mjs writes to the logs folder beside the cost ledger (#357, #453). The ledger is the lasting
+// record; the logs are only for recent debugging, so the newest ones stay.
 import { readdirSync, unlinkSync } from 'node:fs';
 
 const LOG = /^[a-z-]+-(\d{13})\.log$/;

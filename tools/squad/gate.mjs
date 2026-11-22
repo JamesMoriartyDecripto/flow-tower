@@ -90,12 +90,12 @@ const KNOWN_SEVERITY = ['critical', 'high', 'medium', 'low'];
 // would let a pass hide a real problem behind a bad field.
 const blocks = (severity) => BLOCKING_SEVERITY.includes(severity) || !KNOWN_SEVERITY.includes(severity);
 
-// The verdict is not a reason since #449, because the pack asks for `changes` exactly when a finding is critical or high
-// and the findings are what the gate reads.
 // Returns the list of reasons the PR is not ready; it is ready only when that list is empty. Unverified findings below
 // high are not reasons: they are listed for the lead to check by hand, since a wrong quote should not block a good
 // change. Unverified critical and high findings do block: failing closed on the findings that matter means a real one
 // cannot pass just because its quote sits too far from its line. A hallucinated one goes away on a rerun.
+// The verdict is not a reason (#449): the pack asks for changes exactly when a finding is critical or high, and the
+// findings are what this reads.
 export function readiness(facts) {
   const reasons = [];
   const checks = Array.isArray(facts?.checks) ? facts.checks : [];

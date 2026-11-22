@@ -177,7 +177,7 @@ for (const { paths } of entries) {
   kept.push(...paths);
 }
 const diffRaw = kept.length ? git('--literal-pathspecs', 'diff', mergeBase, '--', ...kept) : '';
-// (the -- above keeps the paths from being read as options; base was checked as a commit already)
+// (the -- above keeps the paths from being read as options; mergeBase is a sha from git itself)
 const diffHead = '## Diff\n\nTests are not included (git diff '
   + `${mergeBase.slice(0, 12)} (merge base of ${base} and HEAD) -- ${reviewPaths.join(' ')}).\n\n\`\`\`diff\n`;
 const diffTail = '\n```\n';

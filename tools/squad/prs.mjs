@@ -237,7 +237,6 @@ async function pass(role, models, task, tag, repo, env) {
     last = await runAsync('node', [join(HERE, 'run.mjs'), '--model', model, '--role', role, '--node', `specialists.${role}`,
       '--task', task, '--issue', tag, '--repo', repo], env);
     outs.push(last.stdout);
-    // A failed attempt that wrote to stderr keeps its reason; stdout alone hides usage errors, missing keys and crashes.
     if (last.code !== 0 && last.stderr.trim()) stderr.write(`${role} on ${model}: ${last.stderr.trim()}\n`);
     const o = passOutcome(last.code, last.stdout);
     if (!RETRIED.has(o)) break;
