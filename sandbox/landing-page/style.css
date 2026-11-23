@@ -1,0 +1,110 @@
+/* Plain CSS with no external fonts or images, so the page works offline.
+   Colors are chosen for WCAG AA: text on the background is about 15:1,
+   links and code are at least 4.5:1. */
+:root {
+  --bg: #161a20;
+  --panel: #1f252e;
+  --text: #e8ecf2;
+  --muted: #b8c2d0;
+  --link: #9cc3ff;
+  --focus: #ffd166;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+header,
+main,
+footer {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+header {
+  padding-top: 2rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+h2 {
+  margin: 2rem 0 0.75rem;
+  font-size: 1.4rem;
+}
+
+h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.lead {
+  font-size: 1.15rem;
+  color: var(--muted);
+}
+
+ul {
+  padding-left: 1.25rem;
+}
+
+li + li {
+  margin-top: 0.5rem;
+}
+
+pre {
+  overflow-x: auto;
+  padding: 0.9rem 1rem;
+  background: var(--panel);
+  border-radius: 6px;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+}
+
+a {
+  color: var(--link);
+  text-underline-offset: 0.2em;
+}
+
+/* Keep a visible ring for keyboard users; the default outline is not
+   always visible on dark backgrounds. */
+a:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+footer {
+  border-top: 1px solid var(--panel);
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* Wide screens: give the text a little more room without changing the
+   single-column reading order. */
+@media (min-width: 900px) {
+  body {
+    font-size: 1.0625rem;
+  }
+
+  header,
+  main,
+  footer {
+    max-width: 52rem;
+  }
+}

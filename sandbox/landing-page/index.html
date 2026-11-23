@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flow Tower</title>
+    <!-- The only resource: a local stylesheet, so the page opens from the file system. -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Flow Tower</h1>
+    </header>
+
+    <main>
+      <p class="lead">
+        See the whole structure of an agentic system at once: Flow Tower renders AI agents and
+        multi-agent systems as an interactive 3D tower.
+      </p>
+
+      <section aria-labelledby="features-title">
+        <h2 id="features-title">Features</h2>
+        <ul>
+          <li><strong>One YAML file per system.</strong> Easy to write and review, and it lives in the same repo as the agent.</li>
+          <li><strong>Tower of layers.</strong> Stack layers like intake, orchestration, specialists, tools, guardrails, memory and models.</li>
+          <li><strong>Nested towers.</strong> An agent can contain its own tower; double-click it to dive in.</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="start-title">
+        <h2 id="start-title">Quick start</h2>
+        <p>Requires Node 22.13 or newer. The app runs locally on <code>127.0.0.1</code>. Nothing is uploaded.</p>
+
+        <h3>Install</h3>
+        <pre><code>git clone https://github.com/JamesMoriartyDecripto/flow-tower.git
+cd flow-tower &amp;&amp; npm install</code></pre>
+
+        <h3>First run</h3>
+        <pre><code>cp -R examples/starters/single-agent ~/my-project/tower &amp;&amp; node bin/flow-tower.js ~/my-project/tower</code></pre>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        Source and documentation:
+        <a href="https://github.com/JamesMoriartyDecripto/flow-tower">github.com/JamesMoriartyDecripto/flow-tower</a>
+      </p>
+    </footer>
+  </body>
+</html>
