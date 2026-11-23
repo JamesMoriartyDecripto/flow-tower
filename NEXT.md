@@ -2,6 +2,23 @@
 
 What is in flight and what comes next. Where code lives: [docs/architecture.md](docs/architecture.md); source of truth: **[GitHub issues](https://github.com/JamesMoriartyDecripto/flow-tower/issues)**.
 
+## v0.19.0 released — 2026-11-23
+
+- **[v0.19.0](https://github.com/JamesMoriartyDecripto/flow-tower/releases/tag/v0.19.0)** is published, with the tag on `d0a7cc6`. CI and Pages are green.
+  - Gates: tsc, vitest, examples, npm audit and gitleaks are clean. semgrep 1.182.0 found 0 results. e2e passed 116 of 116 on GPU in 52.9 min.
+  - [Release report](examples/release-auditor/reports/v0.19.0.md).
+- **Shipped:** #445 (embed mode), #455 (squad models measured in #447), #459 (#449, #452, #453, #456, #457: severity gate, merge-base diffs, logs beside the ledger, coding standards) and #463 (#462, #458).
+- **Autopilot status:** the unattended runner now finishes an issue alone.
+  - #460 opened draft #465, and #466 opened draft #467, both from claim to draft PR in about 5 minutes. The drafts were closed as tests.
+  - The fix round, driven with the real lead-judge, `fixTask` and `steps.sh`, followed the judge's reason (`2e509ae`).
+  - Not yet run end to end: a fix round that starts from a real review finding inside `runner.mjs`. Watch for it on the first issue where review or security finds something.
+- **Use it:** label an issue `squad:go`, then run `node tools/squad/runner.mjs --issue <n>`. The worktree is created at `<repo>-squad/<n>`, beside the repo. The result is always a draft PR, and the maintainer merges.
+- **Next, in order:**
+  1. #464, the code gaps found while mapping the Dev Squad tower. Do item 8 first: failure comments post local paths on public issues. Then the signal handler, then the wall clock.
+  2. #448 and PR #454, the reduced verification skill. Its head is `e2ebdad`, with steps 11 to 14 and the reduced design. It conflicts with main and needs its own review and gate.
+  3. #450 and #451, which need a new measurement.
+- **This machine (Intel Mac):** semgrep ships no Intel macOS binary since 1.183.0, so `gates.sh` fails its semgrep gate. Run the same command with `uvx --from semgrep==1.182.0 semgrep ...`. gitleaks is in `~/.local/bin`, installed from the official release.
+
 ## v0.16.0 released — 2026-11-01
 
 - **[v0.16.0](https://github.com/JamesMoriartyDecripto/flow-tower/releases/tag/v0.16.0)** published, tag on `ebc9b06`;
