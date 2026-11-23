@@ -57,11 +57,11 @@ agents:
   architect:
     runtime: laptop
     name: Architect
-    description: "Read-only planner: criteria, open questions, ordered steps with their Files: lines. With the design skill it names the data shape first, compares two shapes and keeps the one where each piece of state has one owner, and cuts vertical steps: one behaviour and its test each (#457). A step lists the files it edits and, apart, existing files it only reads; criteria say what the finished change does, never the runner's own work (review, PR, records) (#462)."
+    description: "Read-only planner: criteria, open questions, ordered steps with their Files: lines. With the design skill it names the data shape first, compares two shapes and keeps the one where each piece of state has one owner, and cuts vertical steps: one behaviour and its test each (#457)."
     model: openai/gpt-6.1-terra
     harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true }
     files: [roles/architect.md]
-    meta: { default_model: openai/gpt-6.1-terra, why: "default in squad.json since #320: 9/9 plans at 1.8 cents in the #362 benchmark" }
+    meta: { plan: "A step lists the files it edits and, apart, existing files it only reads; criteria say what the finished change does, never the runner's own work (review, PR, records) (#462).", default_model: openai/gpt-6.1-terra, why: "default in squad.json since #320: 9/9 plans at 1.8 cents in the #362 benchmark" }
   lead-judge:
     runtime: laptop
     name: Lead judge
