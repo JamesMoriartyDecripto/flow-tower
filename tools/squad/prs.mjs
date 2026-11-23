@@ -66,9 +66,14 @@ const RETRIED = new Set(['empty', 'truncated', 'no-verdict']);
 
 // The reviewer gets a second try on an empty, cut or no-verdict answer. The security pass also gets a second try on its own
 // model, then falls back to the reviewer model, since a second security failure means the brief, not luck, is the
-// problem (README § Pace). The CLI decides when to move on; this only lists the attempts in order.
+// problem (README § Pace). When both roles use the same model that fallback is a third identical try, so it is dropped
+// (#456). The CLI decides when to move on; this only lists the attempts in order.
 export function attemptModels(role, models) {
-  if (role === 'security') return [models.security, models.security, models.reviewer];
+  if (role === 'security') {
+    return models.reviewer === models.security
+      ? [models.security, models.security]
+      : [models.security, models.security, models.reviewer];
+  }
   return [models.reviewer, models.reviewer];
 }
 
@@ -171,10 +176,11 @@ const stewardRoot = (env) => resolve(dirname(ledgerPath(env)), 'squad-prs');
 const taken = (p) => { try { lstatSync(p); return true; } catch { return false; } };
 const lstatOrNull = (p) => { try { return lstatSync(p); } catch { return null; } };
 
-// Runs a child for its stdout and exit code. A failed run is a result, not a throw: the run's own failure words
-// (empty answer, truncated answer) are read from its stdout.
+// Runs a child for its stdout, stderr and exit code. A failed run is a result, not a throw: the run's own failure words
+// (empty answer, truncated answer) are read from its stdout, and its reason (usage error, no key, crash) from its stderr.
 const runAsync = (cmd, args, env) => execFileP(cmd, args, { encoding: 'utf8', maxBuffer: 50e6, env })
-  .then((r) => ({ code: 0, stdout: r.stdout }), (e) => ({ code: typeof e.code === 'number' ? e.code : 1, stdout: String(e.stdout ?? '') }));
+  .then((r) => ({ code: 0, stdout: r.stdout, stderr: r.stderr }),
+    (e) => ({ code: typeof e.code === 'number' ? e.code : 1, stdout: String(e.stdout ?? ''), stderr: String(e.stderr ?? '') }));
 
 // A pass counts as done only when its saved answer parses as a verdict. A failed run still writes its stdout (for
 // example "empty answer"), so a file's existence alone would cache the failure and never review that head again.
@@ -226,11 +232,11 @@ const leftSection = (left) => (left.length
 // on this machine, or its own reviewers. The task already holds the code (--oneshot), so the worktree is not needed.
 async function pass(role, models, task, tag, repo, env) {
   const outs = [];
-  let last = { code: 1, stdout: '' };
   for (const model of attemptModels(role, models)) {
-    last = await runAsync('node', [join(HERE, 'run.mjs'), '--model', model, '--role', role, '--node', `specialists.${role}`,
+    const last = await runAsync('node', [join(HERE, 'run.mjs'), '--model', model, '--role', role, '--node', `specialists.${role}`,
       '--task', task, '--issue', tag, '--repo', repo], env);
     outs.push(last.stdout);
+    if (last.code !== 0 && last.stderr.trim()) stderr.write(`${role} on ${model}: ${last.stderr.trim()}\n`);
     const o = passOutcome(last.code, last.stdout);
     if (!RETRIED.has(o)) break;
   }

@@ -129,7 +129,13 @@ file (#432). A skill is `tools/squad/skills/<name>.md`: when it applies and what
 only, chosen by the lead. `run.mjs` appends them to the system prompt, after every other rule. Names only
 (`a-z`, `0-9`, `-`), regular files only, 4 KB per skill and 12 KB per run; a missing or refused skill stops the run
 before any request, naming it, and `squad doctor` checks the configured ones. With none set, prompts are unchanged.
-This repo's: `bash-3-2`, `untyped-mjs`, `file-size`.
+This repo's: `bash-3-2`, `untyped-mjs`, `file-size`, and the coding standards (#457): `code-standards`, given to the
+coder and the reviewer on every run so code is written and judged by the same rules (a finding cites the rule), and
+`tests`, named on the `Skills:` line of a step that adds or changes a test (the unattended lead's planner adds it
+itself to a step whose `Files:` names a test, when the project has the file); `design` goes to the architect: data
+shape first, two shapes compared, vertical steps with their test. The lead keeps them: a rule comes from the
+principles the maintainer works by or from a real failure, named by issue; it leaves once a test, a lint or `steps.sh`
+enforces it; when a review or a red step shows a mistake no rule covers, the lead adds one at the issue close.
 
 ## A step chain
 
@@ -173,7 +179,7 @@ node tools/squad/run.mjs --model minimax/minimax-m3.1-flash --role reviewer --no
 The reviewer is read-only and answers in one request, so the task holds everything it needs: `pack.mjs` embeds the
 brief (the issue, or `--brief <file>`), the diff, the files that changed and the answer format (JSON with a `verdict`
 and a finding list, each finding `file:line`, its quote, what is wrong, why it matters, a fix). Read the log
-afterwards: `role-*.log` next to the script holds every call.
+afterwards: `<role>-<ms>.log` in `squad-logs/` beside the cost ledger (`SQUAD_LOGS` overrides, #453) holds every call.
 
 ```bash
 node tools/squad/pack.mjs --role security --issue 113 --repo ../wt-113 > tasks/113-security.md
@@ -182,7 +188,7 @@ node tools/squad/run.mjs --model minimax/minimax-m3.1-flash --role security --no
 ```
 
 Start the review and the security pass together (each in the background, then `wait`): both are read-only and
-independent, so the wait is the slower of the two. Each run writes its own `role-*.log` and its own ledger line.
+independent, so the wait is the slower of the two. Each run writes its own role log and its own ledger line.
 
 ## The merge gate
 
@@ -193,16 +199,18 @@ node tools/squad/gate.mjs --pr 300 --review /tmp/299-review.out --security /tmp/
 The last check before you merge, and a script, not a model, so it cannot hallucinate. It reads `gh pr checks`,
 `gh pr view` and `git rev-parse HEAD`, parses the two passes' answers and prints `READY` (exit 0) or `NOT READY`
 (exit 1) with one line per reason: a CI check not passed, a draft, a pull request that is not mergeable, a worktree not
-at the pull request head or with uncommitted changes, a missing or `changes` verdict, a pass that did not review the
-pull request head, a critical or high finding. It never merges and never approves. Both passes give every finding a
+at the pull request head or with uncommitted changes, a missing verdict, a pass that did not review the
+pull request head, a critical or high finding. The findings decide (#449): the pack asks for `changes` exactly when a
+finding is critical or high, so a `changes` verdict without one is a malformed answer, refused with its own reason. It never merges and never approves. Both passes give every finding a
 severity (critical, high, medium, low). `gate.mjs` blocks on critical and high, and on a finding with no known severity
-(a malformed answer fails closed); medium and low do not block it. A gate of your own keys on the verdict
-and those severities, never on an empty findings list (#427). Both are the model's judgement, not proof: a pass
+(a malformed answer fails closed); medium and low do not block it. A gate of your own keys on
+those severities, never on an empty findings list (#427). Both are the model's judgement, not proof: a pass
 steered by the diff can call a real issue `low` as easily as it can approve with no finding, so the lead still reads
 every finding before a merge.
 
 Only a packed review counts. `pack.mjs` writes `Reviewed commit: <sha>` on the task's third line when the tree is
-clean (it leaves the line out, with a warning, when it is not: the diff would hold uncommitted edits). `run.mjs`
+clean (it leaves the line out, with a warning, when it is not: the diff would hold uncommitted edits). The line after it is `Merge base: <sha>`: the diff is taken from the merge base of `--base` and
+the head, so changes the base gained after the branch started are not shown as reverted (#452). `run.mjs`
 prints it back as the second line of its output, `reviewed: <sha>`, right after `mode:`. The gate reads that line
 only there, so a `reviewed:` line a model writes in its answer counts for nothing. Without a commit (a tool-loop
 review, a pack from a dirty tree) the runner prints `reviewed: none`, so line 2 is never the model's, and the gate
@@ -387,7 +395,7 @@ and the cache hit rate; method and older figures: [skills/flow-tower-costs/refer
 
 Every run (coder, reviewer, security, failed runs too) appends one line to `~/.config/flow-tower/squad-costs.jsonl`
 (`SQUAD_LEDGER` overrides the path). The run is tagged with `--issue <n>`, or with the number in the branch name.
-Housekeeping (#357): `steps.sh` deletes its output folder after ALL GREEN; a RED run keeps it for the logs, and folders of your own older than 7 days are removed at the next start. `run.mjs` keeps the newest 200 role logs (`tools/squad/<role>-<ms>.log`) and any under 14 days, and deletes the rest when it starts. The cost ledger in the user folder is never pruned.
+Housekeeping (#357): `steps.sh` deletes its output folder after ALL GREEN; a RED run keeps it for the logs, and folders of your own older than 7 days are removed at the next start. `run.mjs` keeps the newest 200 role logs (`squad-logs/<role>-<ms>.log` beside the cost ledger, #453; logs older runs left in `tools/squad/` can be deleted) and any under 14 days, and deletes the rest when it starts. The cost ledger in the user folder is never pruned.
 
 `steps.sh` adds a `Squad-Cost: $0.0123` trailer to each step commit. To see an issue's total:
 

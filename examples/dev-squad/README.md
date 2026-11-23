@@ -53,7 +53,7 @@ is the lead's procedure.
 4. **Quality.** Reviewer and security answer in one packed request each, started together. The lead checks every
    finding in the code, fixes the real ones as new steps and records the dropped ones on the issue. The verifier
    checks the criteria with fresh context.
-5. **Gate and merge.** `gate.mjs` says READY when CI is green and both verdicts approve the PR's exact head. You merge.
+5. **Gate and merge.** `gate.mjs` says READY when CI is green and both passes answered on the PR's exact head with no critical or high finding. You merge.
 
 ## Models
 

@@ -77,6 +77,10 @@ describe('attemptModels', () => {
     expect(attemptModels('security', { reviewer: 'r', security: 's' })).toEqual(['s', 's', 'r']);
   });
 
+  it('tries the security model twice when it is also the reviewer model', () => {
+    expect(attemptModels('security', { reviewer: 'm', security: 'm' })).toEqual(['m', 'm']);
+  });
+
   it('tries the reviewer model twice', () => {
     expect(attemptModels('reviewer', { reviewer: 'r', security: 's' })).toEqual(['r', 'r']);
   });

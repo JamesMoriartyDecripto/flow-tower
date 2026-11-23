@@ -94,6 +94,7 @@ const blocks = (severity) => BLOCKING_SEVERITY.includes(severity) || !KNOWN_SEVE
 // high are not reasons: they are listed for the lead to check by hand, since a wrong quote should not block a good
 // change. Unverified critical and high findings do block: failing closed on the findings that matter means a real one
 // cannot pass just because its quote sits too far from its line. A hallucinated one goes away on a rerun.
+// A changes verdict without a critical or high finding breaks the pack's rule, so it is refused like an unknown severity (#449).
 export function readiness(facts) {
   const reasons = [];
   const checks = Array.isArray(facts?.checks) ? facts.checks : [];
@@ -113,7 +114,6 @@ export function readiness(facts) {
     if (!verdicts.some((v) => v.role === role)) reasons.push(`${role}: no verdict`);
   }
   for (const v of verdicts) {
-    if (v.verdict === 'changes') reasons.push(`${v.role}: changes requested`);
     // A packed review names the commit it read, so that commit decides. A review with no commit is refused: its file's
     // age or mtime says nothing about what it reviewed (a rerun of an old task, or a touch), so only a pack from a
     // clean tree, which writes the commit, counts before a merge.
@@ -133,6 +133,9 @@ export function readiness(facts) {
           ? `${v.role}: unverified ${clean(f.severity)} finding at ${clean(f.file)}, check it in the code and run the pass again`
           : `${v.role}: unverified finding with no known severity at ${clean(f.file)}, check it in the code and run the pass again`);
       }
+    }
+    if (v.verdict === 'changes' && !(v.findings ?? []).some((f) => blocks(f.severity))) {
+      reasons.push(`${v.role}: changes verdict with no critical or high finding, check its findings and run the pass again`);
     }
   }
   return { ready: reasons.length === 0, reasons };

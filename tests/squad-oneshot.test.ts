@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // @ts-expect-error plain .mjs without declarations
 import { oneshotSystem } from '../tools/squad/oneshot.mjs';
@@ -96,6 +96,12 @@ describe('squad --oneshot and --batch', () => {
     expect(r.stdout.split('\n')[0]).toBe('mode: oneshot');
     expect(r.stdout).toContain(ANSWER);
     expect(r.stdout).toMatch(/--- vendor-a\/model-x · 1 step · \$0\.0042/);
+    // The role log sits in the logs folder beside the ledger (#453), not beside run.mjs.
+    const logPath = /· log (\S+)/.exec(r.stdout)?.[1] ?? '';
+    expect(logPath.startsWith(join(dirname(ledger), 'squad-logs') + '/')).toBe(true);
+    expect(existsSync(logPath)).toBe(true);
+    // The log holds the packed code and the answer, so its folder is private to the user (#459).
+    expect(statSync(dirname(logPath)).mode & 0o777).toBe(0o700);
 
     const chats = seen.filter((s) => s.url.endsWith('/chat/completions'));
     expect(chats).toHaveLength(1);

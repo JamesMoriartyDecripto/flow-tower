@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error plain ESM helper under tools/, no type declarations
-import { appendRun, issueOf, ledgerPath, readRuns, summarize } from '../tools/squad/ledger.mjs';
+import { appendRun, issueOf, ledgerPath, logsDir, readRuns, summarize } from '../tools/squad/ledger.mjs';
 
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'squad-ledger-')); });
@@ -39,6 +39,13 @@ describe('squad ledger (#156)', () => {
   it('honours SQUAD_LEDGER and FLOW_TOWER_HOME', () => {
     expect(ledgerPath({ SQUAD_LEDGER: '/x/y.jsonl' })).toBe('/x/y.jsonl');
     expect(ledgerPath({ FLOW_TOWER_HOME: '/home/ft' })).toBe(join('/home/ft', 'squad-costs.jsonl'));
+  });
+
+  it('puts the role logs beside the ledger unless SQUAD_LOGS names a folder (#453)', () => {
+    expect(logsDir({ SQUAD_LOGS: '/logs', SQUAD_LEDGER: '/x/y.jsonl' })).toBe('/logs');
+    expect(logsDir({ SQUAD_LOGS: '', SQUAD_LEDGER: '/x/y.jsonl' })).toBe(join('/x', 'squad-logs'));
+    expect(logsDir({ SQUAD_LEDGER: '/x/y.jsonl' })).toBe(join('/x', 'squad-logs'));
+    expect(logsDir({ FLOW_TOWER_HOME: '/home/ft' })).toBe(join('/home/ft', 'squad-logs'));
   });
 
   it('summarizes one issue by role and model, sorted by cost', () => {

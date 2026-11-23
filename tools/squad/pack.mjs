@@ -66,11 +66,24 @@ const FORMAT = [
   // Every role gives a severity, so one gate rule (block on critical and high) covers both passes.
   '{"verdict":"approve"|"changes","findings":[{"severity":"critical|high|medium|low", '
     + '"file":"path:line","quote":"...","what":"...","why":"...","fix":"..."}]}',
-  'verdict is "changes" when at least one finding is critical or high, and "approve" otherwise, even when there are medium or low findings: the merge gate blocks on changes, and the lead reads every finding either way.',
+  'verdict is "changes" when at least one finding is critical or high, and "approve" otherwise, even when there are medium or low findings: the merge gate blocks on critical and high findings and refuses a "changes" verdict without one, and the lead reads every finding either way.',
   'quote is the exact text of that line as shown in the diff or the files below, copied character by character, without the line number and without the leading + or - of a diff line. A finding whose quote is not at that line is dropped as unverified, so never paraphrase it and never cite a line you were not shown.',
 ];
 
 const git = (...a) => execFileSync('git', a, { cwd: REPO, encoding: 'utf8', maxBuffer: 50e6 });
+// Diff against the merge base, not the base tip: when the base moved on after the branch started, its later
+// changes would show as reverted by this PR (#452). merge-base exits 1 when the two share no commit.
+let mergeBase;
+try {
+  mergeBase = git('merge-base', base, 'HEAD').trim();
+} catch (e) {
+  // Both a missing common commit and a shallow clone or unfetched base exit 1; only git's stderr tells them apart.
+  const why = String(e.stderr ?? '').trim();
+  stderr.write(e.status === 1 && why === ''
+    ? `base has no common commit with HEAD: ${base}\n`
+    : `git merge-base ${base} HEAD failed: ${why}\n`);
+  exit(1);
+}
 
 // The brief is --brief text, else the issue body; a failed gh call is said out loud, not hidden.
 function brief() {
@@ -105,7 +118,12 @@ function fileBlocks(list) {
 // the Reviewed commit line is left out then, and the merge gate refuses a review that has no such line.
 const dirty = git('status', '--porcelain', '--untracked-files=no').trim() !== '';
 if (dirty) stderr.write('pack: uncommitted changes, so no Reviewed commit line (the merge gate will not accept this review)\n');
-const reviewedLines = dirty ? [] : [`Reviewed commit: ${git('rev-parse', 'HEAD').trim()}`, ''];
+// The merge base is always named, dirty or not: it says what the diff is taken against.
+const reviewedLines = [
+  ...(dirty ? [] : [`Reviewed commit: ${git('rev-parse', 'HEAD').trim()}`]),
+  `Merge base: ${mergeBase}`,
+  '',
+];
 
 const head = [
   `# ${issue} ${role} review`,
@@ -147,7 +165,7 @@ if (pathsArg !== undefined) {
 // old + new, so both sides are checked: a key renamed to a plain name must not ride along under its new name.
 const entries = [];
 if (reviewPaths.length) {
-  const tokens = git('--literal-pathspecs', 'diff', '-z', '-M', '--name-status', base, '--', ...reviewPaths).split('\0');
+  const tokens = git('--literal-pathspecs', 'diff', '-z', '-M', '--name-status', mergeBase, '--', ...reviewPaths).split('\0');
   for (let i = 0; i < tokens.length && tokens[i] !== ''; ) {
     const n = /^[RC]/.test(tokens[i]) ? 2 : 1;
     entries.push({ paths: tokens.slice(i + 1, i + 1 + n) });
@@ -162,10 +180,10 @@ for (const { paths } of entries) {
   }
   kept.push(...paths);
 }
-const diffRaw = kept.length ? git('--literal-pathspecs', 'diff', base, '--', ...kept) : '';
-// (the -- above keeps the paths from being read as options; base was checked as a commit already)
+const diffRaw = kept.length ? git('--literal-pathspecs', 'diff', mergeBase, '--', ...kept) : '';
+// (the -- above keeps the paths from being read as options; mergeBase is a sha from git itself)
 const diffHead = '## Diff\n\nTests are not included (git diff '
-  + `${base} -- ${reviewPaths.join(' ')}).\n\n\`\`\`diff\n`;
+  + `${mergeBase.slice(0, 12)} (merge base of ${base} and HEAD) -- ${reviewPaths.join(' ')}).\n\n\`\`\`diff\n`;
 const diffTail = '\n```\n';
 
 const files = arg('files') ? arg('files').split(',').map((s) => s.trim()).filter(Boolean) : [];

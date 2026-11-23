@@ -10,6 +10,13 @@ export function ledgerPath(env) {
   return join(env.FLOW_TOWER_HOME || join(homedir(), '.config', 'flow-tower'), 'squad-costs.jsonl');
 }
 
+// Role logs sit beside the cost ledger (#453), not beside run.mjs: a checkout stays clean, and a test or benchmark
+// that points SQUAD_LEDGER at a temp file keeps its logs in that temp folder too.
+export function logsDir(env) {
+  if (env.SQUAD_LOGS) return env.SQUAD_LOGS;
+  return join(dirname(ledgerPath(env)), 'squad-logs');
+}
+
 // The ledger is shared by every project (#265), so each run records its project. A worktree names its main
 // checkout's folder (the parent of the shared git dir), so a squad run in a worktree counts for its project.
 // Outside git the folder's own name is used.

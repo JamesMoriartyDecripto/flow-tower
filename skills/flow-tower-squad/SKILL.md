@@ -14,7 +14,7 @@ the code; you do not, even for a one-line fix. CLI: `{{FLOW_TOWER_CLI}}`. Runner
 |---|---|---|
 | Lead (you) | the session model | the tower, task files, commits, the issue |
 | Triage | `models.triage`, otherwise coder model | nothing |
-| Architect | `models.architect`, otherwise reviewer model | nothing |
+| Architect | `models.architect` (default `openai/gpt-6.1-terra`) | nothing |
 | Researcher | `models.researcher` (default `z-ai/glm-5.3-flash`) | nothing |
 | Coder | `models.coder` (default `anthropic/claude-haiku-5.5`) | configured `write` folders |
 | Tester | `models.tester`, otherwise coder model | no direct file tools; may run project checks |
@@ -110,7 +110,10 @@ run and stop for approval before exceeding the agreed budget. Do not advertise p
    List any root file the step changes (`package.json`, `CHANGELOG.md`) in `Files:`. Read the known gaps it prints
    before the next step.
 7. **Verify yourself**: run the tests, run the real thing; for UI, look at it (screenshots). Green is not done.
-   Check the tower still matches what landed (its files exist, its descriptions are true) and validate it again.
+   Then compare the tower with the code line by line: every edge and description proven by a `file:line`, every
+   exit of a changed node drawn or left out on purpose. Above about 40 nodes, give it to a fresh read-only reviewer
+   per area. Fix the drift in the tower, then validate and audit again (#457): `validate` proves the file is
+   consistent, not true.
 8. **Review and security**, one request each with the code packed, **started together**: they are independent and
    read-only, so you wait for the slower one, not for both in a row. Each run has its own log and ledger line.
    ```bash
@@ -127,8 +130,8 @@ run and stop for approval before exceeding the agreed budget. Do not advertise p
 10. **Merge gate**: push, open the pull request, wait for CI, then
     `node tools/squad/gate.mjs --pr <PR> --review /tmp/<n>-review.out --security /tmp/<n>-security.out --repo ../wt-<n>`.
     A script, no model: READY only when every CI check passed, the pull request is mergeable and not a draft, the
-    worktree is clean and at the pull request head, and both passes approve that head commit with no critical or high
-    finding. Pack the passes from a clean tree (only then does `pack.mjs` write the commit the gate checks); after a
+    worktree is clean and at the pull request head, and both passes answered on that head commit with no critical, high or
+    unknown-severity finding (a `changes` verdict without one is refused as malformed, #449). Pack the passes from a clean tree (only then does `pack.mjs` write the commit the gate checks); after a
     fix step, pack and run them again. It lists **unverified findings** (the quote is not at that `file:line`, or too
     short to prove anything): treat them as possible hallucinations and check them in the code before acting. An
     unverified critical or high one still blocks: if it is not real, run that pass again. The gate never merges or
@@ -138,7 +141,10 @@ run and stop for approval before exceeding the agreed budget. Do not advertise p
     never run a PR's code; but a `--loop` pass there would still run that repo's `check`, so never `--loop` on it.
     **Several open pull requests**: `node tools/squad/prs.mjs` (README § The PR steward) runs pack, both passes with
     the fallback rule and the gate for each one and prints one row per PR; you still check every finding in the code.
-11. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result.
+11. **Cost**: `node tools/squad/cost.mjs <n>` prints the issue's total; report it with the result. **Standards**: if
+    a review or a red step showed a kind of mistake no rule covers, add one to the project's coding-standards skill
+    (`tools/squad/skills/code-standards.md` or `tests.md`), naming the issue, or a check that catches it; drop a rule
+    a check now enforces. Keep each file under the 4 KB skill cap.
 12. **Clean up** after the merge (or when the work is dropped), from the main checkout: check the worktree has no
     uncommitted or unpushed work (`git -C ../wt-<n> status -s`, `git -C ../wt-<n> log @{u}..`) and ask if it has, then
     `git worktree remove ../wt-<n>` (it refuses a dirty one: never `--force` it away), delete the local branch and

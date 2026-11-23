@@ -121,9 +121,16 @@ describe('readiness', () => {
       .toEqual(['security: no verdict']);
   });
 
-  it('a changes verdict is a reason', () => {
+  it('a changes verdict with no critical or high finding is a reason', () => {
     const verdicts = [{ ...green.verdicts[0], verdict: 'changes' }, green.verdicts[1]];
-    expect(readiness(with_({ verdicts })).reasons).toEqual(['reviewer: changes requested']);
+    expect(readiness(with_({ verdicts })).reasons)
+      .toEqual(['reviewer: changes verdict with no critical or high finding, check its findings and run the pass again']);
+  });
+
+  it('a changes verdict with a verified high finding gives only that finding\'s reason', () => {
+    const finding = { file: 'src/a.ts:3', severity: 'high', status: 'verified' };
+    const verdicts = [{ ...green.verdicts[0], verdict: 'changes', findings: [finding] }, green.verdicts[1]];
+    expect(readiness(with_({ verdicts })).reasons).toEqual(['reviewer: high finding at src/a.ts:3']);
   });
 
   it('a verdict with no commit, however new its file, is a reason', () => {

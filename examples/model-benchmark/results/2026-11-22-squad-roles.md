@@ -98,6 +98,17 @@ Measured after the change: MiniMax on both roles, the same 8 cases, 2 runs, with
 
 The rule does what it is for: the reviewer approves a clean head 6 times in 8 instead of 2 in 12, so the gate stops blocking on medium notes. The defects found move within the noise of 8 runs. The trade-off is plain: a defect reported as medium no longer blocks the gate. The lead reads every finding either way, and a block now means a critical or high finding. One reviewer answer was cut at the token cap, and one clean head got a high finding.
 
+## The coding standards on the reviewer (#457)
+
+`tools/squad/skills/code-standards.md` was added to the reviewer's prompt. Measured on the same 8 cases and packs, MiniMax as reviewer, 3 runs per case, without and with the skill (48 runs, $0.61):
+
+| Skill | Key seen | Key blocked | Clean not blocked | Failed runs | Verified findings | $/run |
+|---|---|---|---|---|---|---|
+| without | 6/12 | 4/12 | 11/12 | 2 cut | 88/90 | 0.0121 |
+| with | 7/12 | 5/12 | 11/12 | 1 cut, 1 empty | 91/92 | 0.0134 |
+
+One case of 12 apart, which is noise at this n. No more findings and no more false alarms on clean heads. The keys are defects, so this measures only that the skill does no harm to defect finding, not whether it improves the design notes it targets. It is kept, at 10% more per run.
+
 ## Limits
 
 - One to three runs per cell. The table ranks; it does not settle close calls.
@@ -122,4 +133,4 @@ OpenRouter only. The agents that wrote, checked and judged the benchmark ran on 
 
 ## Raw data
 
-[2026-11-22-squad-roles.jsonl](2026-11-22-squad-roles.jsonl) holds every scored review run with its answer, [2026-11-22-squad-roles-verdict-rule.jsonl](2026-11-22-squad-roles-verdict-rule.jsonl) the runs after the verdict rule, and [2026-11-22-lead/](2026-11-22-lead) the lead-judge and architect runs. Local paths are replaced with `<local>`.
+[2026-11-22-squad-roles.jsonl](2026-11-22-squad-roles.jsonl) holds every scored review run with its answer, [2026-11-22-squad-roles-verdict-rule.jsonl](2026-11-22-squad-roles-verdict-rule.jsonl) the runs after the verdict rule, [2026-11-22-squad-roles-standards.jsonl](2026-11-22-squad-roles-standards.jsonl) the runs without and with the coding standards (field `arm`), and [2026-11-22-lead/](2026-11-22-lead) the lead-judge and architect runs. Local paths are replaced with `<local>`.

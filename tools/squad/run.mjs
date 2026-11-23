@@ -12,7 +12,7 @@ import { env, argv, exit, loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { commandArgv, loadConfig, modelFor, styleRules, systemLine } from './config.mjs';
 import { ROLES, canWrite, finishRule as roleFinishRule, isRole, needsVerdict, roleRule, startupWrite } from './roles.mjs';
-import { appendRun, issueOf, ledgerPath, projectOf } from './ledger.mjs';
+import { appendRun, issueOf, ledgerPath, logsDir, projectOf } from './ledger.mjs';
 import { BATCH_NOTE, batchOne, chatUrl, deleteBatch, generationCost } from './batch.mjs';
 import { realRelIfAllowed, realTarget } from './guard.mjs';
 import { parseVerdict } from './gate.mjs';
@@ -133,9 +133,13 @@ const hintCli = existsSync(checkoutCli) ? checkoutCli : env.FLOW_TOWER_CLI || cl
 const keyCommand = hintCli ? `node ${hintCli} squad key` : 'flow-tower squad key';
 if (!env.OPENROUTER_API_KEY) { console.error(`no key: run "${keyCommand}" (it stores the key in ${USER_ENV}), or export OPENROUTER_API_KEY`); exit(1); }
 
-// Old role logs are pruned before this run writes its own (#357). Pruning must never stop a run, so errors are ignored.
-try { pruneLogs(HERE); } catch { /* keep running */ }
-const log = join(HERE, `${role}-${Date.now()}.log`);
+// Old role logs are pruned before this run writes its own (#357), in the folder beside the ledger (#453).
+// Pruning must never stop a run, so errors are ignored.
+// A log holds the packed code and the model's answer, so a folder the run creates is private (#459).
+const LOGS = logsDir(env);
+mkdirSync(LOGS, { recursive: true, mode: 0o700 });
+try { pruneLogs(LOGS); } catch { /* keep running */ }
+const log = join(LOGS, `${role}-${Date.now()}.log`);
 // squad.json no longer names the checkout (machine-local, #265): init writes its path to .cli, git-ignored beside this script.
 // A squad.json that still has "cli" keeps working, and wins.
 const CLI_FILE = join(HERE, '.cli');
@@ -201,7 +205,8 @@ const RUNS = {
   ...(config.commands.test && { test: (f) => runCmd('test', readRel(f).rel) }),
   // The dirs a task may touch (--write) are the ones worth reviewing: a reviewer of tools/ would see nothing otherwise.
   // The commit list comes first, so a read-only role can confirm the commits it judges (a step's commit must exist).
-  diff: () => cap(`${git('log', '--oneline', '-n', '50', `${base}..HEAD`)}\n${git('diff', base, '--', ...dirs)}`),
+  // The diff runs from the merge base, not the base itself: a base that moved on would show its later commits as reverted.
+  diff: () => cap(`${git('log', '--oneline', '-n', '50', `${base}..HEAD`)}\n${git('diff', git('merge-base', base, 'HEAD').trim(), '--', ...dirs)}`),
   status: () => git('status', '--short'),
   ...(config.extras.includes('validate') && { validate: (f) => sh('node', [cliPath, 'validate', f ? readRel(f).rel : 'examples', '--json']) }),
   // An example script in dry-run mode (the coder could not verify scripts/*.mjs otherwise, #75). The key is

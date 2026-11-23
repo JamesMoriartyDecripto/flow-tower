@@ -162,6 +162,25 @@ describe('taskFiles', () => {
     expect(t.text.split('\n')[2]).toBe('Rules: Italian only; x');
     expect(t.text).not.toContain('English only');
   });
+
+  it('puts a Skills line right before the Files line of a step that names a test', () => {
+    const tasks = taskFiles(p, { issue: 320, title: 'Runner plan', testSkill: 'tests' });
+    const lines = tasks[1].text.split('\n');
+    const at = lines.indexOf('Files: tests/x.test.ts+');
+    expect(lines[at - 1]).toBe('Skills: tests');
+    expect(lines[at - 2]).toBe('');
+  });
+
+  it('gives no Skills line to a step with only src files, even with testSkill set', () => {
+    const tasks = taskFiles(p, { issue: 320, title: 'Runner plan', testSkill: 'tests' });
+    expect(tasks[0].text).not.toContain('Skills:');
+    const plain = taskFiles(p, { issue: 320, title: 'Runner plan' })[0].text;
+    expect(tasks[0].text.split('\n')).toHaveLength(plain.split('\n').length);
+  });
+
+  it('writes no Skills line at all when testSkill is not given', () => {
+    for (const t of taskFiles(p, { issue: 320, title: 'Runner plan' })) expect(t.text).not.toContain('Skills:');
+  });
 });
 
 describe('fixTask rules line', () => {

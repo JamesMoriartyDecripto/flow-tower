@@ -252,7 +252,7 @@ export async function workIssue(issue, deps, limits) {
     await gh.comment(n, planComment(plan));
     // A release is posted on the issue, so anyone can trace which run went past the sign-off.
     if (sensitiveTriage || sensitive) await gh.comment(n, `Plan approved by a person (SQUAD_APPROVE=${n}): sensitive area in the plan.`);
-    const taskDir = await deps.writeTasks(wt.path, n, taskFiles(plan, { issue: n, title: issue.title, rules: limits.rules }));
+    const taskDir = await deps.writeTasks(wt.path, n, taskFiles(plan, { issue: n, title: issue.title, rules: limits.rules, testSkill: limits.testSkill }));
     await guard();
     await runSteps(deps, wt.path, taskDir, issue);
 
