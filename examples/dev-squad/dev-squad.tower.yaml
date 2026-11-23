@@ -6,7 +6,7 @@
 version: 1
 name: Dev Squad
 tags: [coding, openrouter, multi-agent, harness-agnostic]
-limits: { concurrency: 2, description: "The lead decides what runs at once. Reviewer and security start together (both read-only); coder steps run one at a time per worktree." }
+limits: { concurrency: 2, description: "The lead and the PR steward start reviewer and security together (both read-only); the unattended runner runs them one after the other. Coder steps run one at a time per worktree." }
 description: >-
   A coding squad that works your GitHub issues on one OpenRouter key. Your current session
   (Claude Code, Codex, Pi, Hermes, Cursor…) is the lead: it plans, writes the task files and
@@ -61,13 +61,13 @@ agents:
     model: openai/gpt-6.1-terra
     harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true }
     files: [roles/architect.md]
-    meta: { default_model: openai/gpt-6.1-terra, why: "default in squad.json since #320: 9/9 plans at 1.8 cents in the #362 benchmark" }
+    meta: { plan: "A step lists the files it edits and, apart, existing files it only reads; criteria say what the finished change does, never the runner's own work (review, PR, records) (#462).", default_model: openai/gpt-6.1-terra, why: "default in squad.json since #320: 9/9 plans at 1.8 cents in the #362 benchmark" }
   lead-judge:
     runtime: laptop
     name: Lead judge
-    description: "#320. Read-only: keeps or drops each review finding with a reason, as the lead does by hand today. Kept findings become fix steps."
+    description: "#320. Read-only: keeps or drops each review finding with a reason, as the lead does by hand today. Kept findings become one fix step that carries each keep reason, so a conditional fix is read the way the judge meant it (#462)."
     model: google/gemini-4-carbon
-    harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
+    harness: { provider: openrouter, runner: run.mjs, mode: loop, read_only: true }
     files: [roles/lead-judge.md]
     meta: { why: "18/18 keep/drop decisions on real review findings in the #447 benchmark (Sonnet 5.5: 15/18, one critical finding dropped), about 5 cents per round" }
   researcher:
@@ -111,10 +111,11 @@ agents:
   security:
     runtime: laptop
     name: Security auditor
-    description: "One packed request, JSON verdict with severities: changes only when a finding is critical or high. Names the existing guard before proposing a new check. Same model as the reviewer since #447. In the PR steward an empty, cut or no-verdict answer gets one more try, and the fallback to the reviewer's model runs only when it is another model (#456); a failed attempt's stderr is printed. The manual pack and run path has no retry."
+    description: "One packed request, JSON verdict with severities: changes only when a finding is critical or high. Names the existing guard before proposing a new check. Same model as the reviewer since #447. Each path retries in its own way (meta.retries)."
     model: minimax/minimax-m3.1-flash
     harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
     files: [roles/security.md]
+    meta: { retries: "PR steward: an empty, cut or no-verdict answer gets one more try, then the reviewer's model only when it is another model (#456); a failed attempt's stderr is printed. Unattended runner: an answer with no verdict gets one more pass on the reviewer's model from the main checkout, even when it is the same model. Manual pack and run (oneshot): an empty answer cut at the output budget is retried once with double the budget, as inside every oneshot pass; --loop re-asks once for a missing verdict and retries a call stuck 3 min; a batch has no retry." }
   verifier:
     runtime: laptop
     name: Verifier
@@ -138,6 +139,7 @@ layers:
       - id: lead
         agent: lead
         label: Lead
+        meta: { skip_role: "A role is skipped only with the reason recorded on the issue (no unknown dependency to research, say), never silently (skill, Complete role workflow)." }
       - id: triage
         agent: triage
         label: Triage
@@ -152,7 +154,7 @@ layers:
         runtime: github
         type: output
         label: Ask reporter
-        description: "needs_info: the lead comments the questions; reject: the reason. No branch is created."
+        description: "needs_info: the lead comments the questions; reject: the reason. No branch is created. The unattended runner does the same and only removes squad:running: no squad:failed, no squad:review."
         files: [roles/triage.md]
     edges:
       - "issue -> lead: work #n with the squad"
@@ -168,7 +170,8 @@ layers:
       - id: branch
         runtime: laptop
         label: Feature branch
-        description: "One branch per issue from an up-to-date main, in the existing checkout (or an authorized worktree). Never main."
+        description: "One branch per issue from an up-to-date main, never main. The skill makes one worktree per issue (git worktree add ../wt-<n>); a project's own rules may keep it in the existing checkout. Commit tools/squad on the base first: a worktree reads squad.json from its branch, else it runs on the defaults (a project in another language goes red)."
+        meta: { cleanup: "After the merge, or when the work is dropped, from the main checkout: check the worktree for uncommitted or unpushed work and ask if it has any, then git worktree remove (never --force), delete the local branch and stop any scratch server by its PID." }
         files: [README.md]
       - id: architect
         agent: architect
@@ -182,8 +185,8 @@ layers:
         runtime: github
         type: human
         label: Plan sign-off
-        description: "For a sensitive area or a large plan, the maintainer approves or revises the plan on the issue before any step runs."
-        approval: { by: maintainer, via: issue comment, actions: [approve, edit, respond], when: "sensitive area or many steps" }
+        description: "For a sensitive area (auth, billing, payments, secrets, personal data; the runner's word list adds migration, permission, privacy, pii and gdpr, tested on the issue, its areas and the plan's words), or a plan or fix that edits .github/, tools/squad/ or package.json (the files that run CI or the squad), the maintainer approves or revises the plan on the issue before any step runs."
+        approval: { by: maintainer, via: issue comment, actions: [approve, edit, respond], when: "sensitive area, or a plan or fix editing .github/, tools/squad/ or package.json" }
         files: [README.md]
       - id: tasks
         runtime: laptop
@@ -192,7 +195,7 @@ layers:
         prompt: task-template
         files: [task-template.md]
     edges:
-      - "branch -> architect [spawn]: issue, tower"
+      - "branch -> architect: issue, tower"
       - "architect -> tower [data]: design"
       - { from: tower, to: signoff, kind: handoff, label: sensitive }
       - { from: tower, to: tasks, label: otherwise }
@@ -217,7 +220,8 @@ layers:
         runtime: laptop
         type: decision
         label: Step green?
-        description: "steps.sh: the coder run finished, the project's check passes, every Files: entry was touched. Otherwise the step is RED and the chain stops."
+        description: "steps.sh: the coder run finished below its step cap, changed files in the step's scope and none with local edits from before the run, the check passes and every required Files: entry was touched ((optional) ones exempt; a task with no Files: line passes). Otherwise the step is RED and the chain stops."
+        meta: { reds: "In run order, each exit 1 with the output folder kept: REPO or task folder not found; bad squad config; snapshot failed (also SQUAD_ADOPT naming no local change); done check failed; bad step scope (a Files entry outside the repo); a Files entry kept out as a local edit, before the coder runs; coder run failed or hit its cap; a file with local edits touched; only out-of-scope files changed; nothing changed; check red; a Files entry not touched, or the files check failed; only probe files changed; commit failed. CHANGED, NOT COMMITTED and UNTRACKED LEFT are warnings, not RED; committed steps are skipped." }
         decision: { output: binary, candidates: [green, red], fail: closed }
         files: [roles/coder.md]
       - id: commit
@@ -229,22 +233,21 @@ layers:
         agent: doc-writer
         label: Doc writer
     edges:
-      - "researcher -> coder [data]: cited answers"
       - "coder -> green [data]: report, Known gaps"
       - "green -> commit: green"
-      - "green -> coder [return]: red, lead rewrites the step"
       - "commit -> tester [handoff]: branch"
       - "tester -> doc_writer: checks pass"
 
   # 4 ───────────────────────────────────────────────────────────────
   - id: quality
     title: Quality Gate
-    description: "Reviewer and security answer in one request each with the code packed, started together. The merge gate reads their findings; the maintainer merges."
+    description: "Reviewer and security answer in one request each with the code packed; the lead and the steward start them together, the unattended runner one after the other. The merge gate reads their findings; the maintainer merges."
     nodes:
       - id: pack
         runtime: laptop
         label: Pack
         description: "pack.mjs: role rules, the brief (what is already decided), the diff from the merge base of the base and the head (a base that moved on is not shown as reverted, #452; when git cannot find one, the pack stops with git's own reason) and the changed files, in one prompt; it records the merge base, and the reviewed commit when the tree is clean (the gate refuses a review without it)."
+        meta: { files: "Full files only with --files: the lead names them, the steward passes changed regular files up to 40 KB, the unattended runner passes none (diff only). The diff covers the squad.json review folders, or --paths; tests stay out unless --paths names them. Secret paths are dropped from the diff with a stderr line.", refusals: "Exit 1, no task printed: bad usage (role, a non-digit issue, a bad --max-kb); a bad squad.json; a base that is an option or not a commit; no merge base; --brief not found; a refused --paths entry; a refused --files path (it throws). A failed gh call gives a placeholder brief instead.", size_cut: "Over --max-kb (120 by default, 200 in the steward) the full files are dropped first, then the diff is cut at the byte budget with a [… cut N KB] marker that the gate reports." }
         files: [roles/reviewer.md]
       - id: reviewer
         agent: reviewer
@@ -256,7 +259,7 @@ layers:
         runtime: laptop
         type: decision
         label: Findings real?
-        description: "The lead checks each finding in the code or by running it; keeps the real ones as new steps, drops the rest with the reason on the issue."
+        description: "The lead checks each finding, NOT READY reason or HOLD in the code or by running it; keeps the real ones as new steps, drops the rest with the reason on the issue."
         decision: { output: binary, candidates: [fix, drop], fail: closed }
         files: [README.md]
       - id: verifier
@@ -274,7 +277,7 @@ layers:
         type: decision
         label: Merge gate
         description: "gate.mjs: CI reported and green (skipping counts), not a draft, mergeable, the worktree clean and at the PR head, reviewer and security packed from that head with no critical, high or unknown-severity finding, and no changes verdict without one. READY or NOT READY with the reasons, and a note when a pass saw a pack trimmed to fit (#422)."
-        meta: { severity: "Reviewer and security findings carry one scale (critical, high, medium, low); the gate blocks on a critical or high finding, verified or not, and on one with no known severity, so a low note never fails it. Since #449 the pack tells both passes to answer changes only for a critical or high finding, after which 31 of 31 verdicts matched the severities. A changes verdict with no such finding breaks that rule, so the gate refuses it as a malformed answer with its own reason (check the findings, run the pass again), as it does an unknown severity; an answer without approve or changes is refused too. An outside gate keys on the same two (#427)." }
+        meta: { severity: "Reviewer and security findings carry one scale (critical, high, medium, low); the gate blocks on a critical or high finding, verified or not, and on one with no known severity, so a low note never fails it. Since #449 the pack tells both passes to answer changes only for a critical or high finding, after which 31 of 31 verdicts matched the severities. A changes verdict with no such finding breaks that rule, so the gate refuses it as a malformed answer with its own reason (check the findings, run the pass again), as it does an unknown severity; an answer without approve or changes is refused too. An outside gate keys on the same two (#427).", quote: "A finding is verified only when its quote (8 or more characters, with a letter or digit) sits within 3 lines of its file:line; an unverified one below high is listed for the lead, not blocking.", exits: "Exit 0 READY, 1 NOT READY, 2 on bad usage or a missing review file. A git or gh failure exits 1 with no READY or NOT READY line. Unreadable gh pr checks read as no CI checks reported; an unreadable verdict file is a reason." }
         decision: { output: binary, candidates: [ready, not_ready], fail: closed }
         files: [roles/reviewer.md, roles/security.md]
       - id: merge
@@ -283,15 +286,24 @@ layers:
         label: Maintainer merge
         description: "Only the maintainer merges. Agents never run the merge."
         approval: { by: maintainer, via: PR, actions: [approve, respond] }
+      - id: stopped
+        runtime: laptop
+        type: output
+        label: Script stopped
+        description: "pack.mjs or gate.mjs ends with no result. The lead reads the reason on stderr; the unattended runner stops the issue on a failed pack and comments a gate that failed to run; the steward prints one line for a failed pack (no row) and reads a gate crash as NOT READY with no text (code gap)."
     edges:
-      - "pack -> reviewer [spawn]: packed review"
-      - "pack -> security [spawn]: packed audit"
+      - "pack -> reviewer [data]: task file"
+      - "pack -> security [data]: task file"
       - "reviewer -> triage_findings [return]: verdict JSON"
       - "security -> triage_findings [return]: verdict JSON"
       - "triage_findings -> verifier: nothing left to fix"
       - "verifier -> tower_check: PASS"
+      - "verifier -> triage_findings [return]: HOLD (inferred)"
       - "tower_check -> gate: matches"
       - "gate -> merge: READY"
+      - "gate -> triage_findings [return]: NOT READY"
+      - "pack -> stopped: refused, exit 1"
+      - "gate -> stopped: usage or crash"
 
   # 5 ───────────────────────────────────────────────────────────────
   - id: runner
@@ -310,75 +322,91 @@ layers:
         runtime: laptop
         type: process
         label: steps.sh
-        description: "Runs the coder on each task file in order; check, Files: check and one commit per green step. Runs from a copy of itself; REPO and the task folder are made absolute first, so relative ones work (#394). Every file of the folder is a coder step: tasks of other roles live in their own folder."
-        meta: { portability: "Runs on macOS bash 3.2 and passes paths as :(literal), so project hooks keep their globs (#396, #403).", probe_sweep: "The sweep of coder probe files never touches the task folder (#420).", adopt: "Local edits are kept out of squad commits; SQUAD_ADOPT=<paths> lets the lead hand a red step's leftovers to the step that continues it, and a literal Files: entry kept out turns the step RED before the coder runs (#416)." }
+        description: "Runs the coder on each task file in order; check, Files: check and one commit per green step. Runs from a copy of itself; REPO and the task folder are made absolute first, so relative ones work (#394). Every *.md file of the folder is a coder step, in name order: tasks of other roles live in their own folder."
+        meta: { portability: "Runs on macOS bash 3.2 and passes paths as :(literal), so project hooks keep their globs (#396, #403).", probe_sweep: "The sweep of coder probe files never touches the task folder (#420).", adopt: "Local edits are kept out of squad commits; SQUAD_ADOPT=<paths> lets the lead hand a red step's leftovers to the step that continues it, and a literal Files: entry kept out turns the step RED before the coder runs (#416). Undo first the part of the leftovers that made the step red: the next run builds on what is adopted (#462)." }
         files: [roles/coder.md]
       - id: guard
         runtime: laptop
         type: guard
         label: Write fence
-        description: "Writes only inside the role's folders, real paths checked, symlinks followed; secrets and paths outside the repo refused. Children run without the API key."
+        description: "Writes only inside the role's folders, real paths checked, symlinks followed; secrets, paths outside the repo and probe file names (tmp-, zz-, probe, scratch) refused; reads are checked on their real path too. Children run without the API key."
         files: [roles/coder.md]
       - id: gate_script
         runtime: laptop
         type: process
         label: gate.mjs
-        description: "Reads the findings of the two answers and the PR state; the reviewed commit must be the PR head."
+        description: "Reads the findings of the two answers and the PR state; the reviewed commit must be the PR head, and each finding's quote is looked up at its file:line (quality.gate)."
         files: [roles/reviewer.md]
       - id: steward
         runtime: laptop
         type: process
         label: PR steward
-        description: "prs.mjs: reviews and gates every open PR from the trusted checkout, one row per PR. Each pass gets a second try on an empty, cut or no-verdict answer; security falls back to the reviewer's model only when it differs (#456)."
+        description: "prs.mjs: reviews and gates every open PR from the trusted checkout, one row per PR. Each pass gets a second try on an empty, cut or no-verdict answer; security falls back to the reviewer's model only when it differs (#456). Its runs light quality.reviewer and quality.security (#458)."
+        meta: { skips: "A PR gets no row when its worktree path is taken, its head moved since gh pr view, its output path is not a folder, nothing regular is left to review (names with a comma, links), gh cannot read it, or anything else throws: one #n line each. At most 50 PRs; --pr with more is refused (exit 2). Outputs with a readable verdict are reused unless --force; --dry-run prints one line per PR. Exit 0 even with NOT READY rows, 2 on usage or outside git, 1 on a bad squad.json. The worktree is removed in finally unless --keep. A gate crash reads as NOT READY with no text: its stderr is dropped (code gap)." }
+        files: [README.md]
+      - id: table
+        runtime: laptop
+        type: output
+        label: PR table
+        description: "One row per reviewed PR (head, both verdicts by severity, unverified findings, gate, cost), then the gate text of every NOT READY row or row with unverified findings, and the outputs folder. The steward never merges, approves, comments or pushes."
         files: [README.md]
     edges:
       - "steps -> run [spawn]: coder, one step"
       - "run -> guard [call]: every write"
       - "steward -> run [spawn]: reviewer, security"
       - "steward -> gate_script [call]: per PR"
+      - "steward -> table [data]: one row per PR"
 
   # 6 ───────────────────────────────────────────────────────────────
   - id: setup
     title: Setup & Config
-    description: "Three commands and one key. No account other than OpenRouter's."
+    description: "Three commands, one key and one commit: each worktree reads squad.json from its branch. No account other than OpenRouter's."
     nodes:
       - id: init
         runtime: laptop
         type: entry
         label: squad init
         description: "Copies the runner into tools/squad/, detects squad.json (check command, write and review folders), installs this tower and ignores the logs."
+        meta: { stops: "Exit 1 before any write: not a git repository; already set up without --force; tools/squad/ holds files but no squad.json (not a flow-tower squad) without --force; no check command detected (pass --check); a destination is a link or not a regular file; on --force, a squad.json that is not valid JSON. --force refreshes the runner files and .cli and fills missing ones; it never overwrites squad.json, the towers or bundle edits." }
         files: [README.md]
       - id: key
         runtime: laptop
         type: memory
         label: OpenRouter key
-        description: "flow-tower squad key stores it in the user folder (~/.config/flow-tower/.env, mode 600), never in the project. OPENROUTER_API_KEY in the environment wins."
+        description: "flow-tower squad key stores it in the user folder (~/.config/flow-tower/.env, mode 600), never in the project. OPENROUTER_API_KEY in the environment wins; run.mjs then tries that file, the checkout's git-ignored .env and the main checkout's. Doctor checks only the environment and the user file (code gap)."
+        meta: { stops: "squad key exits 1 on an input that does not start with sk-or- or a failed save; squad key status exits 1 when no key is set." }
         files: [README.md]
       - id: config
         runtime: laptop
         type: memory
         label: squad.json
-        description: "Per project: check/test commands, write and review folders, the diff base, project rules and the model of each role. The runner runs commands without a shell, so a command with shell syntax is refused when loaded."
-        meta: { style: "style.language and style.maxFileLines (default English, 400) feed every prompt and task rule line, so project rules never contradict them (#404)." }
+        description: "Per project: check, test and setup commands, write and review folders, the diff base, project rules, the runner limits and the model of each role; a missing file gives the defaults. The runner runs commands without a shell, so a command with shell syntax is refused when loaded."
+        meta: { style: "style.language and style.maxFileLines (default English, 400) feed every prompt and task rule line, so project rules never contradict them (#404).", refusals: "Any bad key exits 1 before a request, naming the file and the key: not JSON or not an object; commands, models, runner or style not an object; a bad style; a runner limit at 0 or below (fixRounds 0 allowed); a bad skill name; a command not a string or with shell syntax; an empty check; a base starting with -; write or review not a list, empty or with a bad folder; rules not strings; extras other than validate and dryrun, or without cli; an empty model." }
         files: [squad.example.json]
       - id: skills
         runtime: laptop
         type: memory
         label: Project skills
         description: "tools/squad/skills/<name>.md: project know-how only some jobs need (a shell version, a test convention). squad.json skills gives a role its skills; a task's Skills: line adds them for one run. Inlined into the system prompt by name only, size-capped, secret names refused; none set, prompts unchanged (#432)."
-        meta: { standards: "This repo gives code-standards to the coder and the reviewer on every run, so code is written and judged by the same rules (a review finding cites the rule); tests is added by the Skills: line of a step that writes a test, and the autopilot planner adds it itself when a step's Files: names a test; design goes to the architect. The lead keeps them: a rule comes from the principles the maintainer works by or from a real failure, named by issue, and leaves once a check enforces it (#457)." }
+        meta: { standards: "This repo gives code-standards to the coder and the reviewer on every run, so code is written and judged by the same rules (a review finding cites the rule); tests is added by the Skills: line of a step that writes a test, and the autopilot planner adds it itself when a step's Files: names a test; design goes to the architect. The lead keeps them: a rule comes from the principles the maintainer works by or from a real failure, named by issue, and leaves once a check enforces it (#457).", refusals: "The run stops before any request, naming the skill: a bad name, a missing file, a skills/ that is a link or not a folder, a skill file that is not regular, over 4 KB per skill or 12 KB per run." }
         files: [README.md]
       - id: doctor
         runtime: laptop
         type: guard
         label: squad doctor
-        description: "Checks git, Node, the config, the runner files, the key and that the check command can start (its program on PATH; a python -m module is found with find_spec, never imported), with no paid call and no code of the repo run (#405)."
+        description: "Checks the git repository (it stops outside one), Node 22.12+, the config, that the check command can start (its program on PATH, a path only in the repo root; a python -m module is found with find_spec, never imported), the configured skills, the runner files, git and the key, with no paid call and no repo code run (#405). Most FAILs name their fix; any FAIL exits 1."
         files: [README.md]
       - id: skill
         runtime: laptop
         type: memory
         label: Squad skill
         description: "install-skill --target claude|codex|pi|hermes|cursor|agents: the lead's procedure, the same in every harness."
+        files: [README.md]
+      - id: labels
+        runtime: github
+        type: memory
+        label: Squad labels
+        description: "squad:go, squad:running, squad:review and squad:failed: the unattended runner reads and sets them, so they must exist on the repository, created once with gh label create. Nothing checks for them first."
         files: [README.md]
     edges:
       - "init -> config [data]: detected"
@@ -390,22 +418,21 @@ layers:
   # 7 ───────────────────────────────────────────────────────────────
   - id: observe
     title: Cost & Live View
-    description: "Every run leaves a ledger line; the tower lights up while a role runs."
+    description: "Every run that gets past its setup leaves a ledger line; the tower lights up while a role runs."
     nodes:
       - id: ledger
         runtime: laptop
         type: memory
         label: Cost ledger
         description: "One line per run in the user folder: role, model, steps, tokens, the cost OpenRouter reports. cost.mjs sums an issue."
+        meta: { sums: "cost.mjs sums only the project of --repo unless --all; a run whose cost is unknown is counted apart, never as 0; a failed ledger write never fails the run; the issue comes from --issue, else the first number in the branch name. The runner's budget guard sums by issue number alone, across projects and earlier runs." }
         files: [README.md]
       - id: live
         runtime: laptop
         type: output
         label: Live tower
-        description: "ev.sh posts start/end events to a running flow-tower viewer: the role's node lights up. Best effort: offline it is skipped."
+        description: "ev.sh posts agent.start and agent.end for each run, plus a log event per model step and per tool call, to a running flow-tower viewer, on the tower and source of SQUAD_TOWER and SQUAD_SOURCE (squad.json tower, source): the role's node lights up. Best effort: offline it is skipped. Test runs point FLOW_TOWER_URL at a closed port, so they never light it (#462)."
         files: [README.md]
-    edges:
-      - "ledger -> live [data]: cost per role"
 
   # 8 ───────────────────────────────────────────────────────────────
   - id: models
@@ -446,11 +473,19 @@ layers:
         model: google/gemini-4-carbon
         description: "Default lead-judge of the unattended runner since #447."
         files: [squad.example.json]
+      - id: terra
+        runtime: openrouter
+        type: model
+        label: GPT-6.1 Terra
+        model: openai/gpt-6.1-terra
+        description: "Default architect, for the lead and the unattended runner: 9 of 9 plans from real issues (#362, #447)."
+        files: [README.md]
     edges:
       - "openrouter -> haiku [call]: write"
       - "openrouter -> minimax [call]: review and audit"
       - "openrouter -> glm [call]: research and verify"
       - "openrouter -> carbon [call]: keep or drop"
+      - "openrouter -> terra [call]: plan"
 
   # 9 ───────────────────────────────────────────────────────────────
   - id: autopilot
@@ -461,52 +496,65 @@ layers:
         runtime: laptop
         type: entry
         label: Poll squad:go
-        description: "Every 10 minutes (--once for one pass) it lists open issues labelled squad:go, oldest first."
+        description: "Every runner.pollMinutes (10) it lists up to 50 open issues labelled squad:go, oldest first, and works the first one (--once: one pass; --issue n: that issue, which must carry squad:go). A failed list is logged and tried again at the next poll; with --once or --issue it exits 1."
         files: [README.md]
       - id: claim
         runtime: github
         label: Claim
-        description: "Swaps squad:go for squad:running, so two runners never take the same issue."
+        description: "Swaps squad:go for squad:running and removes a stale squad:failed, then reads the labels back: a claim that lost the race returns skipped with nothing posted, so two runners never take the same issue. A gh error here ends as squad:failed."
         files: [README.md]
       - id: driver
         runtime: laptop
         type: process
         label: runner.mjs
-        description: "The code-driven lead: triage, worktree under the user folder, plan as task files, steps.sh, review and security, lead-judge, at most 2 fix rounds (findings still open after them go into the draft PR; a security one not clearly medium or low stops), verifier, draft PR, gate. A failed check stops the issue. Issue and plan reach models fenced as data; anything posted is scrubbed of keys and tokens."
+        description: "The code-driven lead: triage (main checkout), worktree beside the repo, plan as task files, steps.sh, reviewer then security, lead-judge, up to runner.fixRounds fix rounds (2, 0 allowed; findings kept after them go into the draft PR, a security one not clearly medium or low stops), verifier, draft PR, gate. It posts the plan, any approval and each round's dropped findings, scrubbed of keys."
+        limits: { max_iterations: 3, description: "quality rounds: runner.fixRounds (2) fix rounds, then the last review" }
         files: [README.md]
-        meta: { answers: "An answer is the first json object block that validates (an echoed template or a quoted draft never wins), read from the role report without run.mjs header lines; an unreadable triage answer is asked for once more. The plan sign-off is released for one issue by a person with SQUAD_APPROVE=<issue number>, which posts an approval comment on the issue. (#369)", plan_files: "A plan file entry is one path: a comma or a line break is refused, since the Files line splits there and a second path would skip the control-file sign-off; a glob entry needs the sign-off when a control path starts with its text before the first * (tools/*/x, **/x, *.json) (#391); so does a literal entry whose folder holds a control path, since the coder may write that whole folder (tools/helper.mjs grants tools/) (#435)." }
+        meta: { worktree: "<repo>-squad/<n> beside the repo, not in the user folder: the user folder holds the keys, and Flow Tower refuses to read files there, so its own check failed 149 tests in a worktree there (#462). Branch squad/<n>-<slug>, made fresh from origin/main after git fetch (worktree add -B); a folder left by an earlier run is removed with --force first, so a failed issue's worktree lasts until its next run. Step tasks, fix tasks and PR_BODY.md go to <worktree>/tools/squad/tasks/<n>/; role prompts, review outputs and the lock stay in the user folder (squad-runner/).", setup: "After worktree add, commands.setup from the trusted checkout's squad.json (npm ci here) runs once in the worktree without the model key, with a 15 minute timeout; a failure stops the issue before any plan. A worktree starts with no dependencies, so without it the first check fails (#462).", answers: "An answer is the first json object block that validates (an echoed template or a quoted draft never wins), read from the role report without run.mjs header lines; an unreadable triage answer and a refused plan are each asked for once more, then the issue stops. The plan sign-off is released for one issue by a person with SQUAD_APPROVE=<issue number>, which posts an approval comment on the issue. (#369)", plan_files: "A plan file entry is one path: a comma or a line break is refused, since the Files line splits there and a second path would skip the control-file sign-off; a glob entry needs the sign-off when a control path starts with its text before the first * (tools/*/x, **/x, *.json) (#391); so does a literal entry whose folder holds a control path, since the coder may write that whole folder (tools/helper.mjs grants tools/) (#435). A step's optional reads (each a concrete path that passes the judge's supporting-file rule, isConcreteFile) go on its Read line, never on Files, and the plan sign-off does not look at them, since a read changes nothing (#462).", quality: "Reviewer, then security, one after the other: pack.mjs, then run.mjs. A security answer with no verdict gets one more pass on the reviewer's model, read from the main checkout, even when it is the same model; no verdict from either, or a failed pack, stops the issue. The outputs go to squad-runner/out/ for the gate.", fix_checks: "After the judge, every fix path is checked: one that is not a regular file (lstat), a sensitive word or a control path (.github/, tools/squad/, package.json) in the kept findings, or no fix file inside the repository stops the issue. SQUAD_APPROVE does not release a fix round.", models: "run.mjs and steps.sh read squad.json from the folder they run in: triage reads the main checkout's, every later role the worktree's copy (origin/main); setup and the security fallback model come from the main checkout (inferred mismatch, a code gap).", signals: "Every stage is a synchronous spawn, so the SIGINT and SIGTERM handler runs only once workIssue returns, when no issue is current: it releases the lock and exits 130 or 143 with no report. Ctrl-C also reaches the running child: an interrupted triage, plan or judge run is asked once more and the issue goes on, security reruns on the reviewer's model, an interrupted step, reviewer or verifier fails the issue. With --once or --issue the runner then exits 0, not 130/143 (inferred; code gap #464)." }
       - id: judge
         agent: lead-judge
         label: Lead judge
-        description: "Keeps or drops findings against the original issue and plan. A kept fix may name up to 5 supporting files it must edit; every Files path must be a concrete regular file outside secret paths, and CI or runner files need a person."
+        description: "Keeps or drops each finding against the original issue and plan, with a reason. A kept fix may name up to 5 concrete supporting files it must edit (no secret paths, globs or folders). An answer that breaks a rule is asked for once more with the reason, then the issue stops."
+        limits: { retries: 1 }
       - id: limits
         runtime: laptop
         type: guard
         label: Limits
-        description: "From squad.json: issues in parallel (1), a dollar cap per issue summed from the ledger, a wall-clock timeout. Over a limit, the issue stops. A lock in the user folder allows one runner, and --issue n needs the squad:go label."
+        description: "From squad.json runner: usdPerIssue (3) summed from the ledger by issue number (earlier runs and other projects charged to #n count, so a rerun over the cap stops at once) and minutes (90). Checked between stages, not right before a fix round's steps or the gate; a running stage is never cut. One issue at a time: one lock per user folder, the first issue of each pass."
+        budget: { usd: 3, per: item, on_exceed: stop }
         limits: { concurrency: 1 }
         files: [squad.example.json]
       - id: draft_pr
         runtime: github
         type: output
         label: Draft PR
-        description: "Stop point: a draft PR with the plan, the dropped findings with reasons and the spend, then the gate result commented on the issue, whose label becomes squad:review. The maintainer merges."
+        description: "Stop point: push (--force-with-lease, squad/ branches only), a draft PR with the plan, the dropped and still-open findings and the spend, then the gate result commented on the issue, whose label becomes squad:review. The gate is never READY on a draft, and a NOT READY or a gate that failed to run ends here too. The maintainer merges."
         files: [README.md]
       - id: failed
         runtime: github
         type: output
         label: squad:failed
-        description: "Red chain, over budget, timeout or no verdict: a comment with the reason, label squad:failed, the worktree kept for inspection."
+        description: "Any stop: a comment with the reason, scrubbed, and squad:running swapped for squad:failed; the worktree stays until the issue runs again. If the report itself fails it goes to stderr and the outcome is still failed. A failure after the PR opened (no PR number in its URL, the comment or the label swap) leaves the PR open while the issue reads squad:failed."
+        meta: { reasons: "Triage unreadable after one retry; a sensitive area without SQUAD_APPROVE, in the triage or the plan; git fetch or worktree add failed; setup failed or over 15 min; no valid plan after one retry; a bad task file name; a red step; a failed pack or no verdict; the judge unusable after one retry; a fix path not regular, sensitive or a control file; no safe fix file; a kept security finding not clearly medium or low after the last round; a verifier HOLD or failed run; over budget; timeout; push refused; gh pr create failed; any other throw." }
+        files: [README.md]
+      - id: refused
+        runtime: laptop
+        type: output
+        label: Refused, exit 1
+        description: "Exit 1 before any claim, with nothing posted: bad arguments, not a git repository, an invalid squad.json, gh repo view failed, the lock held by a live pid, an --issue without squad:go or unreadable, a failed list with --once, --issue or --dry-run. --dry-run prints the limits and the queue and exits 0, with no lock and no claim."
         files: [README.md]
     edges:
       - "poll -> claim: oldest issue"
+      - "claim -> poll [return]: lost the race"
       - "claim -> driver [handoff]: issue"
-      - "driver -> limits [call]: before each stage"
+      - "claim -> failed: gh error"
+      - "driver -> limits [call]: between stages"
       - "driver -> judge [spawn]: findings"
-      - "judge -> driver [return]: keep / drop"
+      - "judge -> driver [return]: keep or drop + reason"
       - "driver -> draft_pr: gate result"
       - "driver -> failed: stop"
       - "limits -> failed: over a limit"
+      - "poll -> refused: bad setup, lock held, not squad:go"
 
 links:
   - "quality.tower_check -> orchestration.tower [return]: drift"
@@ -514,7 +562,10 @@ links:
   - "intake.lead -> orchestration.architect [spawn]: plan"
   - "orchestration.tasks -> runner.steps [call]: run the folder"
   - "runner.steps -> specialists.coder [spawn]: step N"
-  - "orchestration.architect -> specialists.researcher [spawn]: open questions"
+  - "orchestration.architect -> specialists.researcher [data]: open questions"
+  - "specialists.researcher -> orchestration.tasks [data]: cited answers, lead-checked"
+  - "specialists.green -> orchestration.tasks [return]: red, chain stops; lead edits the step"
+  - "specialists.tester -> orchestration.tasks [return]: failures, lead-verified"
   - "specialists.doc_writer -> quality.pack [handoff]: branch ready"
   - "quality.triage_findings -> orchestration.tasks [return]: fix steps"
   - "runner.run -> observe.ledger [data]: cost"
@@ -522,10 +573,21 @@ links:
   - "runner.run -> models.openrouter [call]: chat completions"
   - "setup.key -> runner.run [data]: key"
   - "setup.config -> runner.run [data]: models, commands"
+  - "setup.config -> runner.steps [data]: write, models.coder, check"
+  - "setup.config -> autopilot.limits [data]: runner limits"
+  - "setup.config -> autopilot.driver [data]: commands.setup (main checkout)"
+  - "setup.skills -> runner.run [data]: skill text"
   - "setup.skill -> intake.lead [data]: procedure"
+  - "setup.doctor -> intake.lead [data]: ready, or N failed"
+  - "setup.labels -> autopilot.poll [data]: squad:go"
+  - "observe.ledger -> intake.issue [data]: cost table at close"
   - "quality.gate -> runner.gate_script [call]"
-  - "quality.pack -> runner.run [spawn]: reviewer, security"
+  - "quality.pack -> runner.run [data]: task file"
+  - "intake.lead -> runner.steward [call]: open PRs"
+  - "runner.steward -> quality.pack [call]: each role, --max-kb 200"
   - "autopilot.driver -> intake.triage [spawn]: issue text"
+  - "autopilot.driver -> intake.needs_info [data]: reject or needs_info"
+  - "autopilot.driver -> intake.issue [data]: plan, approval, dropped findings"
   - "autopilot.driver -> orchestration.architect [spawn]: plan"
   - "autopilot.driver -> runner.steps [call]: task folder"
   - "autopilot.driver -> quality.pack [call]: branch"

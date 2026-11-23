@@ -43,7 +43,7 @@ it from what the project's files say. A missing file gives the defaults.
 | Key | Meaning | Default |
 |---|---|---|
 | `project` | one line on the stack; it opens every model's system prompt | empty |
-| `commands` | `check` (required: must pass after every step), optional `typecheck`, `test` (`{file}` is the test file), `lint`. Split on spaces and run without a shell: no pipes or quotes (wrap them in a package script) | `check: npm run check` |
+| `commands` | `check` (required: must pass after every step), optional `typecheck`, `test` (`{file}` is the test file), `lint`, and `setup`, which the autopilot runs once in each fresh worktree, read from the main checkout (`npm ci`, #462). Split on spaces and run without a shell: no pipes or quotes (wrap them in a package script) | `check: npm run check` |
 | `write` | folders the coder may write | `src, tests` |
 | `review` | folders the review diff covers | `src` |
 | `base` | the branch diffs are taken against | `origin/main` |
@@ -159,7 +159,7 @@ paths: changes inside those folders or matching `Files:`. A root file such as `p
 Local changes that exist before the run (your own uncommitted edits, the task files) are listed at the start and
 never staged; a step that modifies one of them, or that names one exactly in `Files:`, is RED. To continue a red step,
 edit its task file (it runs again first, on its own leftovers) and rerun with `SQUAD_ADOPT=<paths>` (comma-separated, a
-trailing `/` names a folder): those leftovers count as the step's work, not yours (#416). Probe files the coder dropped (`tmp*`, `probe`, `scratch`) are
+trailing `/` names a folder): those leftovers count as the step's work, not yours (#416). Undo first the part of the leftovers that made the step red (`git checkout -- <file>` or a hand edit): the next run builds on what you adopt, and on #462 an adopted wrong sentence led the coder to change the test that quoted the right one. Probe files the coder dropped (`tmp*`, `probe`, `scratch`) are
 removed first. The script runs from a temporary copy of itself, so a step may edit `steps.sh`. Trailers are session-specific, so pass them in
 `SQUAD_TRAILERS` (one per line) or leave them out. Each step commit is signed off (`git commit -s`, the DCO rule in CONTRIBUTING.md) with the git identity of whoever runs the squad.
 
@@ -229,6 +229,8 @@ made-up finding rarely comes back).
 `node tools/squad/runner.mjs` works issues labelled `squad:go` with no session open. The procedure lives in code; models make only the judgement calls:
 triage, the architect's plan (`openai/gpt-6.1-terra` by default), the lead-judge's keep/drop on review findings (`google/gemini-4-carbon`),
 the verifier. One issue at a time; it polls every `runner.pollMinutes` (10) minutes.
+The four labels it reads and sets must exist on the repository; create them once (#462):
+`for l in go running review failed; do gh label create "squad:$l"; done`.
 
 ```bash
 node tools/squad/runner.mjs --dry-run      # the queue and the limits; claims nothing
@@ -242,7 +244,7 @@ Per issue it:
 2. triages it (reject and needs_info are answered on the issue; a sensitive area such as auth, billing, secrets or
    personal data stops it for a person, and so does a plan or fix that edits `.github/`, `tools/squad/` or
    `package.json`, the files that run CI or the runner itself);
-3. makes a worktree `squad/<n>-<slug>` under the user folder;
+3. makes a worktree `<repo>-squad/<n>` beside the repo on a fresh branch `squad/<n>-<slug>` from `origin/main`, and runs `commands.setup` there (#462);
 4. plans as JSON, writes the task files and posts the plan on the issue;
 5. runs `steps.sh`;
 6. runs reviewer and security, has the lead-judge keep or drop each finding against the original issue and the plan,
@@ -274,8 +276,9 @@ node tools/squad/prs.mjs --dry-run       # what it would do: head, base, issue t
 For each pull request it fetches the head (`pull/<n>/head`) and the base, adds a detached worktree `wt-pr-<n>` in its own folder (below), packs
 the review and the security task against the PR's own base (stacked PRs too) with the PR text and the issue it closes
 (`Closes #n`) as brief, runs both passes at once (`SQUAD_PACE` from the environment, else `relaxed`), and runs the gate.
-An empty or cut answer is run once more; a second failure of the security model sends the security brief to the reviewer
-model (§ Pace). Since #447 both default to the same model, so that is a third try on it, not another model. The runs are tagged with the linked issue, else the PR number, so `cost.mjs` sums them.
+An empty, cut or no-verdict answer is run once more; a second failure of the security model sends the security brief to the
+reviewer model (§ Pace) only when that is another model. Since #447 both default to the same model, so that fallback is
+dropped and security gets two tries (#456). The runs are tagged with the linked issue, else the PR number, so `cost.mjs` sums them.
 
 It prints one table row per PR (head, both verdicts with findings by severity, the gate, the cost), the gate's reasons
 for each NOT READY one, and its folder: `squad-prs/` next to the cost ledger (the flow-tower user folder, mode 700), with one

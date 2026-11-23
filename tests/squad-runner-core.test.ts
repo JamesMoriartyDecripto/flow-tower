@@ -220,6 +220,25 @@ describe('workIssue', () => {
     expect(calls.filter((c) => c === 'steps')).toHaveLength(2);
   });
 
+  it('gives the coder the judge reason for a kept finding in the fix task', async () => {
+    const review = { findings: [{ file: 'src/a.ts:3', what: 'bug', why: 'x', fix: 'y' }] };
+    const fixTexts: string[] = [];
+    const { deps } = fakeDeps({
+      writeTasks: async (_p: string, _n: number, files: { name: string; text: string }[]) => {
+        for (const f of files) if (f.name === '91-review-fixes.md') fixTexts.push(f.text);
+        return '/wt/tasks';
+      },
+    }, {
+      triage: [triageFull],
+      architect: [fence(PLAN)],
+      'lead-judge': [fence({ R1: { decision: 'keep', reason: 'reachable only when the cache is shared' } })],
+      verifier: ['PASS'],
+    }, [{ ok: true, review, security: { findings: [] } }, { ok: true, review: { findings: [] }, security: { findings: [] } }]);
+    expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
+    expect(fixTexts).toHaveLength(1);
+    expect(fixTexts[0]).toContain('Kept because: reachable only when the cache is shared');
+  });
+
   it('opens the draft PR with the findings still kept after the fix rounds', async () => {
     const review = { findings: [{ file: 'src/a.ts:3', what: 'bug', why: 'x', fix: 'y' }] };
     const keep = fence({ R1: { decision: 'keep', reason: 'real' } });

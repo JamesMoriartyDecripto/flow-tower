@@ -176,5 +176,7 @@ describe('architect plan scope', () => {
     expect(await workIssue(ISSUE, deps, LIMITS)).toBe('pr');
     expect(prompts.architect).toContain('list only the files that step must edit');
     expect(prompts.architect).toContain('opens the draft PR, so no step does those');
+    expect(prompts.architect).toContain('"reads": ["existing/path"]');
+    expect(prompts.architect).toContain("never the runner's own work");
   });
 });

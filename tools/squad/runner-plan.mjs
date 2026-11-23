@@ -2,7 +2,7 @@
 // plan as JSON; this module checks it and writes one NN-<slug>.md task per step, in the shape of kit/TEMPLATE.md.
 // Both functions are pure: no git, no disk. A bad plan is reported in words, never thrown, so the lead can ask again.
 import { taskRules } from './config.mjs';
-import { firstAccepted, stripFence } from './runner-judge.mjs';
+import { firstAccepted, isConcreteFile, stripFence } from './runner-judge.mjs';
 
 const VERIFY = 'Verify: `run check`; `finish` with the output and a `Known gaps:` line.';
 
@@ -47,6 +47,14 @@ function problemOf(plan) {
       const path = f.endsWith('+') ? f.slice(0, -1) : f;
       if (badPath(path)) return `step ${n}: file "${f}" must be a relative path inside the repo`;
     }
+    if (s.reads !== undefined) {
+      if (!Array.isArray(s.reads)) return `step ${n}: reads must be a list`;
+      for (const r of s.reads) {
+        if (!isText(r)) return `step ${n}: every read must be a nonempty string`;
+        // A read goes into the coder's Read line, so it gets the same allowlist as a judge's supporting file.
+        if (!isConcreteFile(r)) return `step ${n}: read "${r}" must be a relative file path inside the repo`;
+      }
+    }
   }
   return '';
 }
@@ -79,16 +87,16 @@ export function slugOf(title) {
   return slug || 'step';
 }
 
-// One task file per step. The coder reads the step's own files (new files do not exist yet, so they are left out
-// of the Read line) and the readFirst files; the Files line keeps the "+" marks for the check to parse.
+// One task file per step. The coder reads the step's existing files (new files do not exist yet, so they are left out
+// of the Read line), its reads and the readFirst files; the Files line keeps the "+" marks for the check to parse.
 // The rules line comes from the project's style setting (rules defaults to taskRules()), so a project's language is used.
 // A step that names a test gets the testSkill line, when the project has that skill ('' means none).
 export function taskFiles(plan, { issue, title, readFirst = [], rules = taskRules(), testSkill = '' }) {
   const criteria = plan.criteria.join('; ');
   return plan.steps.map((step, i) => {
     const nn = String(i + 1).padStart(2, '0');
-    const reads = [...new Set([...step.files.filter((f) => !f.endsWith('+')), ...readFirst])];
-    const readLine = reads.length ? `Read ${reads.join(', ')}.` : 'Read nothing beyond the task.';
+    const readLinePaths = [...new Set([...step.files.filter((f) => !f.endsWith('+')), ...(step.reads ?? []), ...readFirst])];
+    const readLine = readLinePaths.length ? `Read ${readLinePaths.join(', ')}.` : 'Read nothing beyond the task.';
     const items = step.items.map((item, j) => `${j + 1}. ${item}`).join('\n');
     const text = [
       `# ${issue}-${nn}: ${step.title}`,

@@ -51,7 +51,7 @@ const TRIAGE_ASK = 'Classify the issue below. Answer only with a ```json block: 
 // Appended when the first triage answer was not usable, so the second run is told what went wrong.
 const TRIAGE_RETRY = 'Your last answer could not be read. Answer only with the json block, no prose outside it.';
 const PLAN_ASK = 'Plan the change for the issue below. Answer only with a ```json block: {"criteria": [strings], "steps": '
-  + '[{"title": "...", "items": [1 to 3 strings], "files": ["relative/path", "new/path+"]}]}, with 1 to 8 steps. A "+" marks a new file. Each step is a code change the coder makes with file tools and the project checks; list only the files that step must edit. The runner itself runs the checks, review and verifier and opens the draft PR, so no step does those. '
+  + '[{"title": "...", "items": [1 to 3 strings], "files": ["relative/path", "new/path+"], "reads": ["existing/path"]}]}, with 1 to 8 steps. A "+" marks a new file. "reads" is optional and lists existing files the step must read but not edit (the source of its text or data). Each step is a code change the coder makes with file tools and the project checks; list only the files that step must edit. The runner itself runs the checks, review and verifier and opens the draft PR, so no step does those. Each criterion says what the finished change does, checkable in the code, never the runner\'s own work (checks, review, records, the pull request). '
   + FINISH_JSON;
 
 // A stop is a failed check: its message is the reason the issue is written up with.
@@ -269,7 +269,8 @@ export async function workIssue(issue, deps, limits) {
       const j = await judge(deps, findings, evidence(issue, plan), wt.path, n);
       for (const d of j.drop) dropped.push({ id: d.id, file: byId.get(d.id).file, reason: d.reason });
       if (j.drop.length) await gh.comment(n, droppedComment(j.drop, byId));
-      const kept = findings.filter((f) => j.keep.includes(f.id));
+      const keepReason = new Map(j.keep.map((k) => [k.id, k.reason]));
+      const kept = findings.filter((f) => keepReason.has(f.id)).map((f) => ({ ...f, reason: keepReason.get(f.id) }));
       if (!kept.length) break;
       // Past the last round, a kept security finding stops the issue unless its severity is clearly low or medium. Severity
       // is model text, so anything else (High., missing, "critical (CVSS 9)") fails closed. Other kept findings are recorded
@@ -288,7 +289,7 @@ export async function workIssue(issue, deps, limits) {
       // under it by prefix in files-check, and a link could lead outside the worktree. A missing path is allowed (it may be created).
       const filePaths = fixPaths(kept, [...new Set(supportingFiles)]);
       if (filePaths.some((p) => isNotRegular(join(wt.path, p)))) stop(FILES_NOT_REGULAR);
-      const keptText = [...kept.flatMap((f) => [f.file, f.what, f.why, f.fix]), ...supportingFiles].join('\n');
+      const keptText = [...kept.flatMap((f) => [f.file, f.what, f.why, f.fix, f.reason]), ...supportingFiles].join('\n');
       if (SENSITIVE.test(keptText) || filePaths.some(controlEntry)) stop(FIX_SENSITIVE);
       // A finding whose files are all outside the repository leaves nothing to fix in place, so the issue stops.
       const fix = fixTask(kept, { issue: n, round, supportingFiles: [...new Set(supportingFiles)], rules: limits.rules });

@@ -3,7 +3,8 @@
   "commands": {
     "check": "npm run check",
     "typecheck": "npm run typecheck",
-    "test": "npx vitest run {file}"
+    "test": "npx vitest run {file}",
+    "setup": "npm ci"
   },
   "write": ["src", "tests", "e2e"],
   "review": ["src", "bin", "tools"],

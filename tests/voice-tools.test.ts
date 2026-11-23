@@ -70,10 +70,10 @@ describe('voice agent tools (#63)', () => {
     expect(r.b).toMatchObject({ label: 'Coder', type: 'agent', layer: 'Specialists', model: 'anthropic/claude-haiku-5.5', runtime: 'Your machine (local)' });
     expect(r.a.files).toBe(1);
     expect(r.b.files).toBe(2);
-    // Lead: issue -> lead and the setup.skill link come in; the spawn to triage and the link to the architect go out.
-    // Coder: researcher, green (return) and the runner.steps link come in; only coder -> green goes out.
-    expect(r.a).toMatchObject({ incoming: 2, outgoing: 2 });
-    expect(r.b).toMatchObject({ incoming: 3, outgoing: 1 });
+    // Lead: issue, setup.skill and setup.doctor come in; the spawn to triage and the links to the architect and the steward go out.
+    // Coder: only the runner.steps spawn comes in; only coder -> green goes out.
+    expect(r.a).toMatchObject({ incoming: 3, outgoing: 3 });
+    expect(r.b).toMatchObject({ incoming: 1, outgoing: 1 });
     // Same fields are named, the differing ones are not.
     expect(r.same).toEqual(expect.arrayContaining(['type', 'runtime']));
     expect(r.same).not.toContain('label');

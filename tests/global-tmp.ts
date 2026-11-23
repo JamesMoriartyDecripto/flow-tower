@@ -5,12 +5,14 @@
 // the run sets TMPDIR to a folder of its own, and the teardown removes it.
 // Tests that need a folder outside any git checkout still get one, because
 // the base folder is the system temp dir, which is outside the repo.
+// FLOW_TOWER_URL is set to a port with no listener, even when exported, so a test run never lights the user's live tower (#462).
 import { lstatSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { env } from 'node:process';
 
 const PREFIX = 'flow-tower-tests-';
+const UNREACHABLE_VIEWER_URL = 'http://127.0.0.1:1';
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 // Runs once in the main process before the workers start; workers and the
@@ -48,16 +50,19 @@ export default function globalTmp(): () => void {
     TMPDIR: env.TMPDIR,
     TMP: env.TMP,
     TEMP: env.TEMP,
+    FLOW_TOWER_URL: env.FLOW_TOWER_URL,
   };
   // TMP and TEMP are read by some Windows tools, so they point at the same folder.
   env.TMPDIR = dir;
   env.TMP = dir;
   env.TEMP = dir;
+  env.FLOW_TOWER_URL = UNREACHABLE_VIEWER_URL;
 
   return () => {
     restore('TMPDIR', saved.TMPDIR);
     restore('TMP', saved.TMP);
     restore('TEMP', saved.TEMP);
+    restore('FLOW_TOWER_URL', saved.FLOW_TOWER_URL);
     try {
       rmSync(dir, { recursive: true, force: true });
     } catch (error) {
@@ -67,7 +72,7 @@ export default function globalTmp(): () => void {
 }
 
 // Put back a variable exactly as it was; an unset variable is deleted, not set to "undefined".
-function restore(key: 'TMPDIR' | 'TMP' | 'TEMP', value: string | undefined): void {
+function restore(key: 'TMPDIR' | 'TMP' | 'TEMP' | 'FLOW_TOWER_URL', value: string | undefined): void {
   if (value === undefined) delete env[key];
   else env[key] = value;
 }

@@ -233,7 +233,7 @@ const leftSection = (left) => (left.length
 async function pass(role, models, task, tag, repo, env) {
   const outs = [];
   for (const model of attemptModels(role, models)) {
-    const last = await runAsync('node', [join(HERE, 'run.mjs'), '--model', model, '--role', role, '--node', `specialists.${role}`,
+    const last = await runAsync('node', [join(HERE, 'run.mjs'), '--model', model, '--role', role, '--node', `quality.${role}`,
       '--task', task, '--issue', tag, '--repo', repo], env);
     outs.push(last.stdout);
     if (last.code !== 0 && last.stderr.trim()) stderr.write(`${role} on ${model}: ${last.stderr.trim()}\n`);

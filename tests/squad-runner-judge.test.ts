@@ -59,7 +59,7 @@ describe('parseJudgement', () => {
     const text = `Here it is.\n\`\`\`json\n${JSON.stringify(full)}\n\`\`\``;
     expect(parseJudgement(text, ids)).toEqual({
       ok: true,
-      keep: ['R1', 'S1'],
+      keep: [{ id: 'R1', reason: 'real' }, { id: 'S1', reason: 'reachable' }],
       drop: [{ id: 'R2', reason: 'harmless' }],
     });
   });
@@ -67,7 +67,7 @@ describe('parseJudgement', () => {
   it('ignores ids the answer adds', () => {
     const r = parseJudgement(JSON.stringify({ ...full, X9: { decision: 'keep', reason: 'extra' } }), ids);
     expect(r.ok).toBe(true);
-    expect(r.keep).toEqual(['R1', 'S1']);
+    expect(r.keep).toEqual([{ id: 'R1', reason: 'real' }, { id: 'S1', reason: 'reachable' }]);
   });
 
   it('rejects a missing id', () => {
@@ -114,6 +114,19 @@ describe('fixTask', () => {
   it('refuses a leading ~ path, which a shell would expand to the home folder', () => {
     const home = [{ id: 'R1', file: '~/.ssh/x', what: 'a', fix: 'b' }];
     expect(fixTask(home, { issue: '320', round: 1 })).toBeNull();
+  });
+
+  it('shows the judge reason of a kept finding inside the fence, after its fix', () => {
+    const reasoned = [{ id: 'R1', file: 'src/a.ts:1', what: 'bug', fix: 'guard it', reason: 'only when the cache is shared' }];
+    const task = fixTask(reasoned, { issue: '320', round: 1 });
+    const open = task.text.indexOf('<finding-data>');
+    const close = task.text.indexOf('</finding-data>');
+    expect(task.text.slice(open, close)).toContain('1. src/a.ts:1: bug Fix: guard it Kept because: only when the cache is shared');
+  });
+
+  it('shows no Kept because when a kept finding has no reason', () => {
+    const bare = [{ id: 'R1', file: 'src/a.ts:1', what: 'bug', fix: 'guard it' }];
+    expect(fixTask(bare, { issue: '320', round: 1 }).text).not.toContain('Kept because');
   });
 
   it('returns null when every file is outside the repository', () => {
@@ -169,18 +182,18 @@ describe('the answer block is read from the candidates, not only the last fence'
 
   it('keeps the valid block when a second fence follows it with prose', () => {
     const text = `\`\`\`json\n${JSON.stringify(keep)}\n\`\`\`\nNotes:\n\`\`\`json\nI keep all of them.\n\`\`\``;
-    expect(parseJudgement(text, ids).keep).toEqual(['R1']);
+    expect(parseJudgement(text, ids).keep).toEqual([{ id: 'R1', reason: 'real' }]);
   });
 
   it('skips a schema template echoed before the real block', () => {
     const template = '```json\n{"R1": {"decision": "keep" | "drop", "reason": "..."}}\n```';
     const text = `${template}\nFinal answer:\n\`\`\`json\n${JSON.stringify(keep)}\n\`\`\``;
-    expect(parseJudgement(text, ids).keep).toEqual(['R1']);
+    expect(parseJudgement(text, ids).keep).toEqual([{ id: 'R1', reason: 'real' }]);
   });
 
   it('keeps the valid block when a non-object fence follows it', () => {
     const text = `\`\`\`json\n${JSON.stringify(keep)}\n\`\`\`\n\`\`\`json\n[1, 2]\n\`\`\``;
-    expect(parseJudgement(text, ids).keep).toEqual(['R1']);
+    expect(parseJudgement(text, ids).keep).toEqual([{ id: 'R1', reason: 'real' }]);
   });
 
   it('lists the object fences from the last back to the first, then the whole text', () => {

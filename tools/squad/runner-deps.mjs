@@ -3,9 +3,9 @@
 // so the tests run the whole set with a fake and never reach git, gh or OpenRouter.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { env } from 'node:process';
-import { loadConfig } from './config.mjs';
+import { commandArgv, loadConfig } from './config.mjs';
 import { parseVerdict } from './gate.mjs';
 import { ROLES } from './roles.mjs';
 import { slugOf } from './runner-plan.mjs';
@@ -85,12 +85,17 @@ export function makeDeps({ repo, home, exec, runner, gh, now = Date.now }) {
   // The branch and the folder are both derived from the issue, so the same issue always names the same place.
   function worktree(issue) {
     const branch = `squad/${issue.number}-${slugOf(issue.title)}`;
-    const path = join(squadDir, 'worktrees', `${basename(repo)}-${issue.number}`);
-    mkdirSync(join(squadDir, 'worktrees'), { recursive: true });
+    // Beside the repo, not under home: home holds the keys, and Flow Tower refuses to read files there.
+    const parent = join(dirname(repo), `${basename(repo)}-squad`);
+    const path = join(parent, String(issue.number));
+    mkdirSync(parent, { recursive: true });
     // A failed issue keeps its worktree for inspection; a rerun is a new start, so the old folder is cleared first.
     if (existsSync(path)) git(['-C', repo, 'worktree', 'remove', '--force', path]);
     must(git(['-C', repo, 'fetch', 'origin', 'main']), 'git fetch');
     must(git(['-C', repo, 'worktree', 'add', '-B', branch, path, 'origin/main']), 'git worktree add');
+    // A fresh worktree has no dependencies yet. The command is read from the main checkout, since the worktree's copy is the coder's to edit.
+    const setup = commandArgv(loadConfig(repo).commands.setup);
+    if (setup) must(exec(setup[0], setup.slice(1), { cwd: path, env: envWithoutKey(), timeout: 15 * 60 * 1000 }), 'setup');
     return { path, branch };
   }
 
