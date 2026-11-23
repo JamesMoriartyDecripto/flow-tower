@@ -12,5 +12,6 @@ security auditor's findings. For each finding it answers keep or drop, with a re
 - **drop**: wrong, harmless, already handled, or a pre-existing defect the pull request does not affect. The reason
   goes on the issue; pre-existing defects go to a follow-up issue.
 
-`runner.mjs` calls it after every review round; the interactive lead makes the same call by hand. On the squad's real findings (#362 benchmark), only Claude Sonnet 5.5
-matched every critical decision; cheaper models dropped real security findings as "out of scope".
+`runner.mjs` calls it after every review round; the interactive lead makes the same call by hand. On the squad's real findings (#447 benchmark, four real pull
+requests), Gemini 4 Carbon got 18 of 18 keep/drop sets right; Claude Sonnet 5.5, the default before, got 15, and one of its
+misses dropped a critical finding. Opus, Fable and Terra dropped the security findings as "out of scope".

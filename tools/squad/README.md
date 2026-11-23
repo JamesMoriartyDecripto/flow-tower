@@ -244,7 +244,7 @@ Per issue it:
 2. triages it (reject and needs_info are answered on the issue; a sensitive area such as auth, billing, secrets or
    personal data stops it for a person, and so does a plan or fix that edits `.github/`, `tools/squad/` or
    `package.json`, the files that run CI or the runner itself);
-3. makes a worktree `squad/<n>-<slug>` under the user folder;
+3. makes a worktree `<repo>-squad/<n>` beside the repo on a fresh branch `squad/<n>-<slug>` from `origin/main`, and runs `commands.setup` there (#462);
 4. plans as JSON, writes the task files and posts the plan on the issue;
 5. runs `steps.sh`;
 6. runs reviewer and security, has the lead-judge keep or drop each finding against the original issue and the plan,
@@ -276,8 +276,9 @@ node tools/squad/prs.mjs --dry-run       # what it would do: head, base, issue t
 For each pull request it fetches the head (`pull/<n>/head`) and the base, adds a detached worktree `wt-pr-<n>` in its own folder (below), packs
 the review and the security task against the PR's own base (stacked PRs too) with the PR text and the issue it closes
 (`Closes #n`) as brief, runs both passes at once (`SQUAD_PACE` from the environment, else `relaxed`), and runs the gate.
-An empty or cut answer is run once more; a second failure of the security model sends the security brief to the reviewer
-model (§ Pace). Since #447 both default to the same model, so that is a third try on it, not another model. The runs are tagged with the linked issue, else the PR number, so `cost.mjs` sums them.
+An empty, cut or no-verdict answer is run once more; a second failure of the security model sends the security brief to the
+reviewer model (§ Pace) only when that is another model. Since #447 both default to the same model, so that fallback is
+dropped and security gets two tries (#456). The runs are tagged with the linked issue, else the PR number, so `cost.mjs` sums them.
 
 It prints one table row per PR (head, both verdicts with findings by severity, the gate, the cost), the gate's reasons
 for each NOT READY one, and its folder: `squad-prs/` next to the cost ledger (the flow-tower user folder, mode 700), with one
