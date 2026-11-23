@@ -19,5 +19,5 @@ Open `index.html` in a browser, then add a URL-encoded `name` parameter:
 
 - `index.html?name=Ada` shows `Hello, Ada!`
 - `index.html` (no parameter) shows `Hello, stranger!`
-- `index.html?name=` (empty value) shows `Hello, !`
+- `index.html?name=` (empty value) shows `Hello, stranger!`
 - `index.html?name=%3Cb%3EAda%3C%2Fb%3E` shows the literal text `Hello, <b>Ada</b>!`

@@ -5,9 +5,10 @@
   var params = new URLSearchParams(window.location.search);
   var name = params.get("name");
 
-  // get() returns null only when the parameter is absent; ?name= yields "".
-  // An absent name falls back to the stranger greeting already in the HTML.
-  if (name === null) {
+  // get() returns null when the parameter is absent and "" for ?name=.
+  // Both mean no name was given, so both fall back to the stranger greeting
+  // already in the HTML instead of rendering "Hello, !".
+  if (!name) {
     return;
   }
 
