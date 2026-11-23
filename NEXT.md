@@ -12,12 +12,12 @@ What is in flight and what comes next. Where code lives: [docs/architecture.md](
   - #460 opened draft #465, and #466 opened draft #467, both from claim to draft PR in about 5 minutes. The drafts were closed as tests.
   - The fix round, driven with the real lead-judge, `fixTask` and `steps.sh`, followed the judge's reason (`2e509ae`).
   - Not yet run end to end: a fix round that starts from a real review finding inside `runner.mjs`. Watch for it on the first issue where review or security finds something.
-- **Use it:** label an issue `squad:go`, then run `node tools/squad/runner.mjs --issue <n>`. The worktree is created at `<repo>-squad/<n>`, beside the repo. The result is always a draft PR, and the maintainer merges.
+- **Use it:** label an issue `squad:go`, then run `node tools/squad/runner.mjs --issue <n>`. The worktree is created at `<repo>-squad/<n>`, beside the repo. A finished issue becomes a draft PR, which the maintainer merges. A stop posts its reason and adds `squad:failed`, and a triage reject or needs_info releases the issue with a comment.
 - **Next, in order:**
   1. #464, the code gaps found while mapping the Dev Squad tower. Do item 8 first: failure comments post local paths on public issues. Then the signal handler, then the wall clock.
   2. #448 and PR #454, the reduced verification skill. Its head is `e2ebdad`, with steps 11 to 14 and the reduced design. It conflicts with main and needs its own review and gate.
   3. #450 and #451, which need a new measurement.
-- **This machine (Intel Mac):** semgrep ships no Intel macOS binary since 1.183.0, so `gates.sh` fails its semgrep gate. Run the same command with `uvx --from semgrep==1.182.0 semgrep ...`. gitleaks is in `~/.local/bin`, installed from the official release.
+- **This machine (Intel Mac):** semgrep ships no Intel macOS binary since 1.183.0, so `gates.sh` fails its semgrep gate. Run the gate's command with the version pinned: `uvx --from semgrep==1.182.0 semgrep scan --metrics off --error --quiet --config p/javascript --config p/typescript --config p/react --config p/nodejs --config p/secrets --exclude node_modules --exclude test-results .` gitleaks is in `~/.local/bin`, installed from the official release.
 
 ## v0.16.0 released — 2026-11-01
 
