@@ -5,12 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-23
+
 ### Changed
 
 - Dev squad model defaults, measured on four real pull requests of this repository (#447, [results](examples/model-benchmark/results/2026-11-22-squad-roles.md)): reviewer and security move to `minimax/minimax-m3.1-flash` (it saw 7 of 12 kept defects, against 4 for `z-ai/glm-5.3-flash`, and had no failed run, against 3 empty answers in 16 for `deepseek/deepseek-v4.1-flash`), the lead-judge to `google/gemini-4-carbon` (18 of 18 keep/drop sets, against 15 for `anthropic/claude-sonnet-5.5`). Researcher and verifier keep `z-ai/glm-5.3-flash` as their own default: a project that sets only `models.reviewer` no longer moves them with it.
 - `pack.mjs` tells the reviewer and the security pass to answer `changes` only when a finding is critical or high (#449). On clean heads, 62 of 97 failed reviews had been a `changes` verdict with medium or low findings only, which the merge gate blocks on.
 - The merge gate decides on the findings (#449): it blocks on critical, high and unknown-severity findings, and refuses a `changes` verdict without one as a malformed answer, with its own reason. After the pack rule above, 31 of 31 verdicts matched the severities, so the refusal fires only on an answer that breaks the rule.
 - Squad role logs are written to `squad-logs/` beside the cost ledger (`SQUAD_LOGS` overrides), no longer into `tools/squad/` (#453). 2154 logs (116 MB) there made the tests that copy the runner time out. Logs left in `tools/squad/` by older runs can be deleted.
+- The autopilot's worktree is `<repo>-squad/<n>` beside the repo, no longer in the user folder (#462). Flow Tower refuses to read files in the user folder, so its own check failed 149 tests in a worktree there. The four `squad:*` labels must exist; the README gives the one-time command.
+- The Dev Squad tower draws every exit, refusal, retry and cap of the squad code as it behaves today: 54 nodes and 37 links, and 12 nodes in the runner-loop tower, checked against the code by fresh reviewers (#462). Code gaps found on the way are in #464.
 
 ### Fixed
 
@@ -612,7 +616,8 @@ First release.
 - Live mode update loop (useSyncExternalStore tearing on an in-place-mutated store) and a dashed line that recompiled its shader on every render.
 - Inspector and HUD text overlaps: chips under the close button, long table keys, validation panel over the inspector, layer list over the legend.
 
-[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/JamesMoriartyDecripto/flow-tower/compare/v0.16.0...v0.16.1
