@@ -28,8 +28,8 @@ layers:
         runtime: laptop
         type: entry
         label: Role and task
-        description: "--role (one of ten), --task file, --issue, --write, --base, --model, --steps and a mode flag. An unknown role, a doc writer without --write or a bad folder is refused before the key is read."
-        meta: { refusals: "Exit 1 with no request and no ledger line: no --task or a missing file; a bare --base, one that is an option, not an ancestor of HEAD or HEAD itself; an unknown role; a bare --model or no model for the role; a missing or refused skill; a --steps that is not a whole number of at least 1. A bad --write, or a doc writer without one, exits 2." }
+        description: "--role (one of ten), --task file, --issue, --write, --base, --model, --repo, --node, --steps and a mode flag. An unknown role, a doc writer without --write or a bad folder is refused before the key is read."
+        meta: { refusals: "Exit 1 with no request and no ledger line: no --task or a missing file; a bare --base, one that is an option, not an ancestor of HEAD or HEAD itself; an unknown role; a bare --model or no model for the role; a missing or refused skill; a --steps that is not a whole number of at least 1; outside git (no --repo, or a --repo that is not a checkout), with a stack trace. A bad --write, or a doc writer without one, exits 2." }
         files: [roles/coder.md]
       - id: config
         runtime: laptop
@@ -117,7 +117,7 @@ layers:
         runtime: laptop
         type: output
         label: Run failed
-        description: "Exit 1 (2 for a bad --write), with the reason on stdout or stderr. A run that got past the key writes its ledger line with the outcome: http-error, batch-error, empty-answer, truncated-answer, no-verdict, step-cap, crash (an uncaught throw or a timeout) or interrupted."
+        description: "Exit 1 (2 for a bad --write, 130/143 on SIGINT/SIGTERM), with the reason on stdout or stderr. A run that got past the key writes its ledger line with the outcome: http-error, batch-error, empty-answer, truncated-answer, no-verdict, step-cap, crash (an uncaught throw or a timeout) or interrupted."
         meta: { interrupt: "SIGINT (130) and SIGTERM (143) record interrupted and delete a pending batch within 5 s; the exit handler records crash for any exit that wrote no line, and closes the live node as error." }
         files: [README.md]
       - id: ledger

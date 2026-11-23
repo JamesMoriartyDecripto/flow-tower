@@ -115,7 +115,7 @@ agents:
     model: minimax/minimax-m3.1-flash
     harness: { provider: openrouter, runner: run.mjs, mode: oneshot, read_only: true }
     files: [roles/security.md]
-    meta: { retries: "PR steward: an empty, cut or no-verdict answer gets one more try, then the reviewer's model only when it is another model (#456); a failed attempt's stderr is printed. Unattended runner: an answer with no verdict gets one more pass on the reviewer's model from the main checkout, even when it is the same model. Manual pack and run: only an empty answer cut at the output budget is retried, once with double the budget (run.mjs); a batch has no retry." }
+    meta: { retries: "PR steward: an empty, cut or no-verdict answer gets one more try, then the reviewer's model only when it is another model (#456); a failed attempt's stderr is printed. Unattended runner: an answer with no verdict gets one more pass on the reviewer's model from the main checkout, even when it is the same model. Manual pack and run (oneshot): an empty answer cut at the output budget is retried once with double the budget, as inside every oneshot pass; --loop re-asks once for a missing verdict and retries a call stuck 3 min; a batch has no retry." }
   verifier:
     runtime: laptop
     name: Verifier
@@ -185,7 +185,7 @@ layers:
         runtime: github
         type: human
         label: Plan sign-off
-        description: "For a sensitive area (auth, billing, payments, secrets, personal data; the runner's word list adds migration and permission) in the issue or its areas, or a plan or fix that edits .github/, tools/squad/ or package.json (the files that run CI or the squad), the maintainer approves or revises the plan on the issue before any step runs."
+        description: "For a sensitive area (auth, billing, payments, secrets, personal data; the runner's word list adds migration, permission, privacy, pii and gdpr, tested on the issue, its areas and the plan's words), or a plan or fix that edits .github/, tools/squad/ or package.json (the files that run CI or the squad), the maintainer approves or revises the plan on the issue before any step runs."
         approval: { by: maintainer, via: issue comment, actions: [approve, edit, respond], when: "sensitive area, or a plan or fix editing .github/, tools/squad/ or package.json" }
         files: [README.md]
       - id: tasks
@@ -247,7 +247,7 @@ layers:
         runtime: laptop
         label: Pack
         description: "pack.mjs: role rules, the brief (what is already decided), the diff from the merge base of the base and the head (a base that moved on is not shown as reverted, #452; when git cannot find one, the pack stops with git's own reason) and the changed files, in one prompt; it records the merge base, and the reviewed commit when the tree is clean (the gate refuses a review without it)."
-        meta: { files: "Full files only with --files: the lead names them, the steward passes changed regular files up to 40 KB, the unattended runner passes none (diff only). The diff covers the squad.json review folders, or --paths; tests stay out unless --paths names them. Secret paths are dropped from the diff with a stderr line.", refusals: "Exit 1, no task printed: bad usage (role, a non-digit issue, a bad --max-kb); a bad squad.json; a base that is an option or not a commit; no merge base; --brief not found; a refused --paths entry; a refused --files path (it throws). A failed gh call gives a placeholder brief instead.", size_cut: "Over --max-kb (120 by default, 200 in the steward) the full files go first, then the diff is cut at the byte budget with a [… cut N KB] marker that the gate reports." }
+        meta: { files: "Full files only with --files: the lead names them, the steward passes changed regular files up to 40 KB, the unattended runner passes none (diff only). The diff covers the squad.json review folders, or --paths; tests stay out unless --paths names them. Secret paths are dropped from the diff with a stderr line.", refusals: "Exit 1, no task printed: bad usage (role, a non-digit issue, a bad --max-kb); a bad squad.json; a base that is an option or not a commit; no merge base; --brief not found; a refused --paths entry; a refused --files path (it throws). A failed gh call gives a placeholder brief instead.", size_cut: "Over --max-kb (120 by default, 200 in the steward) the full files are dropped first, then the diff is cut at the byte budget with a [… cut N KB] marker that the gate reports." }
         files: [roles/reviewer.md]
       - id: reviewer
         agent: reviewer
@@ -394,7 +394,7 @@ layers:
         runtime: laptop
         type: guard
         label: squad doctor
-        description: "Checks the git repository (it stops outside one), Node 22.12+, the config, that the check command can start (its program on PATH, a path only in the repo root; a python -m module is found with find_spec, never imported), the configured skills, the runner files, git and the key, with no paid call and no repo code run (#405). Each FAIL names its fix; any FAIL exits 1."
+        description: "Checks the git repository (it stops outside one), Node 22.12+, the config, that the check command can start (its program on PATH, a path only in the repo root; a python -m module is found with find_spec, never imported), the configured skills, the runner files, git and the key, with no paid call and no repo code run (#405). Most FAILs name their fix; any FAIL exits 1."
         files: [README.md]
       - id: skill
         runtime: laptop
@@ -479,7 +479,7 @@ layers:
         label: GPT-6.1 Terra
         model: openai/gpt-6.1-terra
         description: "Default architect, for the lead and the unattended runner: 9 of 9 plans from real issues (#362, #447)."
-        files: [squad.example.json]
+        files: [README.md]
     edges:
       - "openrouter -> haiku [call]: write"
       - "openrouter -> minimax [call]: review and audit"
@@ -501,7 +501,7 @@ layers:
       - id: claim
         runtime: github
         label: Claim
-        description: "Swaps squad:go for squad:running and removes a stale squad:failed, then reads the labels back: a claim that lost the race returns skipped with nothing posted, so two runners never take the same issue."
+        description: "Swaps squad:go for squad:running and removes a stale squad:failed, then reads the labels back: a claim that lost the race returns skipped with nothing posted, so two runners never take the same issue. A gh error here ends as squad:failed."
         files: [README.md]
       - id: driver
         runtime: laptop
@@ -510,7 +510,7 @@ layers:
         description: "The code-driven lead: triage (main checkout), worktree beside the repo, plan as task files, steps.sh, reviewer then security, lead-judge, up to runner.fixRounds fix rounds (2, 0 allowed; findings kept after them go into the draft PR, a security one not clearly medium or low stops), verifier, draft PR, gate. It posts the plan, any approval and each round's dropped findings, scrubbed of keys."
         limits: { max_iterations: 3, description: "quality rounds: runner.fixRounds (2) fix rounds, then the last review" }
         files: [README.md]
-        meta: { worktree: "<repo>-squad/<n> beside the repo, not in the user folder: the user folder holds the keys, and Flow Tower refuses to read files there, so its own check failed 149 tests in a worktree there (#462). Branch squad/<n>-<slug>, made fresh from origin/main after git fetch (worktree add -B); a folder left by an earlier run is removed with --force first, so a failed issue's worktree lasts until its next run. Step tasks, fix tasks and PR_BODY.md go to <worktree>/tools/squad/tasks/<n>/; role prompts, review outputs and the lock stay in the user folder (squad-runner/).", setup: "After worktree add, commands.setup from the trusted checkout's squad.json (npm ci here) runs once in the worktree without the model key, with a 15 minute timeout; a failure stops the issue before any plan. A worktree starts with no dependencies, so without it the first check fails (#462).", answers: "An answer is the first json object block that validates (an echoed template or a quoted draft never wins), read from the role report without run.mjs header lines; an unreadable triage answer and a refused plan are each asked for once more, then the issue stops. The plan sign-off is released for one issue by a person with SQUAD_APPROVE=<issue number>, which posts an approval comment on the issue. (#369)", plan_files: "A plan file entry is one path: a comma or a line break is refused, since the Files line splits there and a second path would skip the control-file sign-off; a glob entry needs the sign-off when a control path starts with its text before the first * (tools/*/x, **/x, *.json) (#391); so does a literal entry whose folder holds a control path, since the coder may write that whole folder (tools/helper.mjs grants tools/) (#435). A step's optional reads (each a concrete path that passes the judge's supporting-file rule, isConcreteFile) go on its Read line, never on Files, and the plan sign-off does not look at them, since a read changes nothing (#462).", quality: "Reviewer, then security, one after the other: pack.mjs, then run.mjs. A security answer with no verdict gets one more pass on the reviewer's model, read from the main checkout, even when it is the same model; no verdict from either, or a failed pack, stops the issue. The outputs go to squad-runner/out/ for the gate.", fix_checks: "After the judge, every fix path is checked: one that is not a regular file (lstat), a sensitive word or a control path (.github/, tools/squad/, package.json) in the kept findings, or no fix file inside the repository stops the issue. SQUAD_APPROVE does not release a fix round.", models: "run.mjs and steps.sh read squad.json from the folder they run in: triage reads the main checkout's, every later role the worktree's copy (origin/main); setup and the security fallback model come from the main checkout (inferred mismatch, a code gap).", signals: "Every stage is a synchronous spawn, so the SIGINT and SIGTERM handler runs only once workIssue returns, when no issue is current: it releases the lock and exits 130 or 143 with no report. Ctrl-C also reaches the running child, so that stage fails and the issue ends with that stage's reason (code gap)." }
+        meta: { worktree: "<repo>-squad/<n> beside the repo, not in the user folder: the user folder holds the keys, and Flow Tower refuses to read files there, so its own check failed 149 tests in a worktree there (#462). Branch squad/<n>-<slug>, made fresh from origin/main after git fetch (worktree add -B); a folder left by an earlier run is removed with --force first, so a failed issue's worktree lasts until its next run. Step tasks, fix tasks and PR_BODY.md go to <worktree>/tools/squad/tasks/<n>/; role prompts, review outputs and the lock stay in the user folder (squad-runner/).", setup: "After worktree add, commands.setup from the trusted checkout's squad.json (npm ci here) runs once in the worktree without the model key, with a 15 minute timeout; a failure stops the issue before any plan. A worktree starts with no dependencies, so without it the first check fails (#462).", answers: "An answer is the first json object block that validates (an echoed template or a quoted draft never wins), read from the role report without run.mjs header lines; an unreadable triage answer and a refused plan are each asked for once more, then the issue stops. The plan sign-off is released for one issue by a person with SQUAD_APPROVE=<issue number>, which posts an approval comment on the issue. (#369)", plan_files: "A plan file entry is one path: a comma or a line break is refused, since the Files line splits there and a second path would skip the control-file sign-off; a glob entry needs the sign-off when a control path starts with its text before the first * (tools/*/x, **/x, *.json) (#391); so does a literal entry whose folder holds a control path, since the coder may write that whole folder (tools/helper.mjs grants tools/) (#435). A step's optional reads (each a concrete path that passes the judge's supporting-file rule, isConcreteFile) go on its Read line, never on Files, and the plan sign-off does not look at them, since a read changes nothing (#462).", quality: "Reviewer, then security, one after the other: pack.mjs, then run.mjs. A security answer with no verdict gets one more pass on the reviewer's model, read from the main checkout, even when it is the same model; no verdict from either, or a failed pack, stops the issue. The outputs go to squad-runner/out/ for the gate.", fix_checks: "After the judge, every fix path is checked: one that is not a regular file (lstat), a sensitive word or a control path (.github/, tools/squad/, package.json) in the kept findings, or no fix file inside the repository stops the issue. SQUAD_APPROVE does not release a fix round.", models: "run.mjs and steps.sh read squad.json from the folder they run in: triage reads the main checkout's, every later role the worktree's copy (origin/main); setup and the security fallback model come from the main checkout (inferred mismatch, a code gap).", signals: "Every stage is a synchronous spawn, so the SIGINT and SIGTERM handler runs only once workIssue returns, when no issue is current: it releases the lock and exits 130 or 143 with no report. Ctrl-C also reaches the running child: an interrupted triage, plan or judge run is asked once more and the issue goes on, security reruns on the reviewer's model, an interrupted step, reviewer or verifier fails the issue. With --once or --issue the runner then exits 0, not 130/143 (inferred; code gap #464)." }
       - id: judge
         agent: lead-judge
         label: Lead judge
@@ -541,12 +541,13 @@ layers:
         runtime: laptop
         type: output
         label: Refused, exit 1
-        description: "Exit 1 before any claim, with nothing posted: bad arguments, not a git repository, an invalid squad.json, gh repo view failed, the lock held by a live pid, an --issue without squad:go or unreadable. --dry-run prints the limits and the queue and exits 0, with no lock and no claim."
+        description: "Exit 1 before any claim, with nothing posted: bad arguments, not a git repository, an invalid squad.json, gh repo view failed, the lock held by a live pid, an --issue without squad:go or unreadable, a failed list with --once, --issue or --dry-run. --dry-run prints the limits and the queue and exits 0, with no lock and no claim."
         files: [README.md]
     edges:
       - "poll -> claim: oldest issue"
       - "claim -> poll [return]: lost the race"
       - "claim -> driver [handoff]: issue"
+      - "claim -> failed: gh error"
       - "driver -> limits [call]: between stages"
       - "driver -> judge [spawn]: findings"
       - "judge -> driver [return]: keep or drop + reason"
